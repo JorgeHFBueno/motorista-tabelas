@@ -9,13 +9,14 @@
     "preview": "vite preview",
     "deploy": "npm run build && firebase deploy --only hosting",
     "deploy:channel": "npm run build && firebase hosting:channel:deploy staging",
-    "lint": "eslint ."    
+    "lint": "eslint ."
   },
   "dependencies": {
     "@emotion/react": "^11.14.0",
     "@emotion/styled": "^11.14.0",
     "@mui/material": "^7.1.0",
     "@mui/x-data-grid": "^8.4.0",
+    "dayjs": "^1.11.13",
     "firebase": "^11.8.1",
     "react": "^19.1.0",
     "react-dom": "^19.1.0"

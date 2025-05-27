@@ -1,10 +1,11 @@
-import CollectionViewer from './components/CollectionViewer';
+import './App.css';
+import TabelaCombustivel from './components/TabelaCombustivel';
 
 function App() {
   return (
-    <div style={{ padding: 24 }}>
-      <h1>Firestore Table Viewer</h1>
-      <CollectionViewer collectionName="03-combustivel" />
+    <div className="App" style={{ padding: 20 }}>
+      <h1>Visualização de Combustível</h1>
+      <TabelaCombustivel />
     </div>
   );
 }
