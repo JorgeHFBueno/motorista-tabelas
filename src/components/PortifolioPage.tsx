@@ -210,6 +210,7 @@ export default function PortifolioPage() {
           }}
         />
       </div>
+      {rows.length > 0 && <WeatherCharts rows={rows} />}
     </div>
   );
 }
