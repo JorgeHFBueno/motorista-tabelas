@@ -21,7 +21,9 @@ export default function App() {
 
   return (
     <div className="App" style={{ padding: 20 }}>
+      {/* Header sempre no topo */}
       <Header />
+
       {page === 'cliente' ? (
         <>
           <h1>Visualização de Combustível</h1>
