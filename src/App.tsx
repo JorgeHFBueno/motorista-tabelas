@@ -16,7 +16,7 @@ export default function App() {
   useEffect(() => {
     if (!window.location.hash || window.location.hash === '#') {
       window.location.hash = '#portifolio';
-      setPage('portifolio');               // garante o estado já na 1ª render
+      setPage('portifolio');               
     }
     const handleHashChange = () => {
       setPage(getInitialPage());

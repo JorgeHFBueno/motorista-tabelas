@@ -2,10 +2,10 @@ import Plot from 'react-plotly.js';
 import type { Data, Layout } from 'plotly.js';
 import { useMemo } from 'react';
 
-/* mesmo tipo usado no PortifolioPage -------------------------- */
+// mesmos tipos usados em PortifolioPage
 export interface WeatherRow {
   id: number;
-  date: string;   // yyyy-MM-dd
+  date: string;   // AAAA-MM-dd
   tempMax: number;
   tempMin: number;
   precip: number;
@@ -15,11 +15,9 @@ interface Props {
   rows: WeatherRow[];
 }
 
-/* ============================================================ */
 export default function WeatherCharts({ rows }: Props) {
-  /* ────────── prepara dados ────────── */
-  const { lineData, boxData } = useMemo(() => {
-    /* série temporal -------------------------------------------------- */
+
+    const { lineData, boxData } = useMemo(() => {
     const dates = rows.map(r => r.date);
 
     const lineData: Partial<Data>[] = [
@@ -46,7 +44,6 @@ export default function WeatherCharts({ rows }: Props) {
       },
     ];
 
-    /* boxplots --------------------------------------------------------- */
     type BoxAcc = Record<string, number[]>;
     const acc: { tempMax: BoxAcc; tempMin: BoxAcc; precip: BoxAcc } = {
       tempMax: {},
@@ -55,7 +52,7 @@ export default function WeatherCharts({ rows }: Props) {
     };
 
     rows.forEach(r => {
-      const m = r.date.slice(0, 7); // yyyy-MM
+      const m = r.date.slice(0, 7); // AAAA-MM
       (acc.tempMax[m] ??= []).push(r.tempMax);
       (acc.tempMin[m] ??= []).push(r.tempMin);
       (acc.precip[m] ??= []).push(r.precip);
@@ -82,7 +79,6 @@ export default function WeatherCharts({ rows }: Props) {
 
   if (!rows.length) return null;
 
-  /* ────────── layouts ────────── */
   const lineLayout: Partial<Layout> = {
     title: { text: 'Série temporal das variáveis meteorológicas' },
     xaxis: { title: { text: 'Data' } },
@@ -98,7 +94,6 @@ export default function WeatherCharts({ rows }: Props) {
     autosize: true,
   };
 
-  /* ────────── render ────────── */
   return (
     <>
       <Plot

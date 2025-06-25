@@ -16,6 +16,7 @@
     "@emotion/styled": "^11.14.0",
     "@mui/material": "^7.1.0",
     "@mui/x-data-grid": "^8.4.0",
+    "bootstrap": "^5.3.7",
     "dayjs": "^1.11.13",
     "firebase": "^11.8.1",
     "plotly.js": "^3.0.1",

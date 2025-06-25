@@ -1,15 +1,8 @@
 import { useState, useCallback, useMemo, useEffect } from 'react';
-import {
-  Stack,
-  TextField,
-  Button,
-  Alert,
-  CircularProgress,
-  Typography,
-} from '@mui/material';
+import { Stack, TextField, Button, Alert, CircularProgress, Typography} from '@mui/material';
 import WeatherCharts from './WeatherCharts';
 
-/* ---------- tipos ---------- */
+// tipos
 interface WeatherRow {
   id: number;
   date: string;
@@ -18,7 +11,7 @@ interface WeatherRow {
   precip: number;
 }
 
-/* ---------- util ---------- */
+//
 const toISO = (d: Date) => d.toISOString().split('T')[0];
 
 function defaultDates() {
@@ -29,11 +22,10 @@ function defaultDates() {
   return { start: toISO(start), end: toISO(end) };
 }
 
-/* ════════════════════════════════════════════════════════ */
 export default function PortifolioPage() {
   const { start: defaultStart, end: defaultEnd } = defaultDates();
 
-  /* estado ------------------------------------------------ */
+  // localizacao
   const [location, setLocation] = useState('Passo Fundo');
   const [startDate, setStartDate] = useState(defaultStart);
   const [endDate, setEndDate] = useState(defaultEnd);
@@ -41,7 +33,7 @@ export default function PortifolioPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  /* dias no intervalo ------------------------------------ */
+  // periodo
   const intervalDays = useMemo(() => {
     const diff =
       (new Date(endDate).getTime() - new Date(startDate).getTime()) /
@@ -49,7 +41,7 @@ export default function PortifolioPage() {
     return diff + 1;
   }, [startDate, endDate]);
 
-  /* fetch ------------------------------------------------- */
+  // fetch
   const handleFetch = useCallback(async () => {
     if (!location) return;
     setError(null);
@@ -114,22 +106,18 @@ export default function PortifolioPage() {
     }
   }, [location, startDate, endDate, intervalDays]);
 
-  /* carrega Passo Fundo ao montar ------------------------ */
+  // busca Passo Fundo ao iniciar 
   useEffect(() => {
     handleFetch();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  /* render ----------------------------------------------- */
   return (
     <div style={{ padding: 20 }}>
-      <Typography variant="h4" gutterBottom>
-        Portifólio Meteorológico
-      </Typography>
+      <Typography variant="h4" gutterBottom>Meteorologia</Typography>
 
       <Stack direction="row" spacing={2} mb={2} flexWrap="wrap">
         <TextField
-          label="Localidade"
+          label="Local"
           value={location}
           onChange={e => setLocation(e.target.value)}
           sx={{ minWidth: 220 }}
@@ -165,7 +153,6 @@ export default function PortifolioPage() {
         </Alert>
       )}
 
-      {/* ────────── gráficos ────────── */}
       {rows.length > 0 && <WeatherCharts rows={rows} />}
     </div>
   );
