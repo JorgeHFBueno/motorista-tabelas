@@ -20,6 +20,7 @@
     "firebase": "^11.8.1",
     "plotly.js": "^3.0.1",
     "react": "^19.1.0",
+    "react-bootstrap": "^2.10.10",
     "react-dom": "^19.1.0",
     "react-plotly.js": "^2.6.0"
   },

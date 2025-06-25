@@ -34,7 +34,7 @@ export default function PortifolioPage() {
   const { start: defaultStart, end: defaultEnd } = defaultDates();
 
   /* estado ------------------------------------------------ */
-  const [location, setLocation] = useState('Passo Fundo - RS');
+  const [location, setLocation] = useState('Passo Fundo');
   const [startDate, setStartDate] = useState(defaultStart);
   const [endDate, setEndDate] = useState(defaultEnd);
   const [rows, setRows] = useState<WeatherRow[]>([]);

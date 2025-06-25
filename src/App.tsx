@@ -14,24 +14,28 @@ export default function App() {
   const [page, setPage] = useState<Page>(getInitialPage)
 
   useEffect(() => {
-    const onHashChange = () => setPage(getInitialPage())
-    window.addEventListener('hashchange', onHashChange)
-    return () => window.removeEventListener('hashchange', onHashChange)
-  }, [])
+    if (!window.location.hash || window.location.hash === '#') {
+      window.location.hash = '#portifolio';
+      setPage('portifolio');               // garante o estado já na 1ª render
+    }
+    const handleHashChange = () => {
+      setPage(getInitialPage());
+    };
+    window.addEventListener('hashchange', handleHashChange);
+    return () => window.removeEventListener('hashchange', handleHashChange);
+    
+  }, []);
 
   return (
-    <div className="App" style={{ padding: 20 }}>
-      {/* Header sempre no topo */}
+    <>
       <Header />
-
-      {page === 'cliente' ? (
-        <>
+      {page === 'cliente' && (
+        <div className="App" style={{ padding: 20 }}>
           <h1>Visualização de Combustível</h1>
           <TabelaCombustivel />
-        </>
-      ) : (
-        <PortifolioPage />
+        </div>
       )}
-    </div>
+      {page === 'portifolio' && <PortifolioPage />}
+    </>
   )
 }

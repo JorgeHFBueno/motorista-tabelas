@@ -1,18 +1,20 @@
-import { AppBar, Toolbar, Button, Stack } from '@mui/material';
+import Container from 'react-bootstrap/Container';
+import Nav from 'react-bootstrap/Nav';
+import Navbar from 'react-bootstrap/Navbar';
 
 export default function Header() {
   return (
-    <AppBar position="static">
-      <Toolbar>
-        <Stack direction="row" spacing={2} sx={{ flexGrow: 1 }}>
-          <Button color="inherit" href="#cliente">
-            Cliente
-          </Button>
-          <Button color="inherit" href="#portifolio">
-            Portifólio
-          </Button>
-        </Stack>
-      </Toolbar>
-    </AppBar>
+    <Navbar expand="lg" className="bg-body-tertiary">
+      <Container>
+        <Navbar.Brand href="#cliente">Meu Projeto</Navbar.Brand>
+        <Navbar.Toggle aria-controls="basic-navbar-nav" />
+        <Navbar.Collapse id="basic-navbar-nav">
+          <Nav className="me-auto">
+            <Nav.Link href="#cliente">Cliente</Nav.Link>
+            <Nav.Link href="#portifolio">Portifólio</Nav.Link>
+          </Nav>
+        </Navbar.Collapse>
+      </Container>
+    </Navbar>
   );
 }
