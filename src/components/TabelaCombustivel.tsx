@@ -1,26 +1,41 @@
-import { useEffect, useState, useMemo } from 'react';
-import { collection, getDocs } from 'firebase/firestore';
-import { DataGrid } from '@mui/x-data-grid';        // import padrão
+import { useState, useMemo } from 'react';
+import { DataGrid } from '@mui/x-data-grid'; // import padrão
 import dayjs from 'dayjs';
-import { Button, Stack } from '@mui/material';
-import { db } from '../firebase';
+import { Button, Stack, IconButton, Snackbar } from '@mui/material';
+import DeleteIcon from '@mui/icons-material/Delete';
 import type { Registro } from '../types';
+import useCombustivel from '../hooks/useCombustivel';
+import CombustivelForm from './CombustivelForm';
+import { useAuth } from '../contexts/AuthContext';
 
 export default function TabelaCombustivel() {
-  const [rows, setRows] = useState<Registro[]>([]);
-    const [view, setView] = useState<'principal' | 'porNome'>('principal');
+  const { data: rows, loading, create, update, remove } = useCombustivel();
+  const { isAdmin } = useAuth();
+  const [view, setView] = useState<'principal' | 'porNome'>('principal');
+  const [editing, setEditing] = useState<Registro | null>(null);
+  const [snack, setSnack] = useState<string | null>(null);
 
-  useEffect(() => {
-    async function fetchData() {
-      const snap = await getDocs(collection(db, '03-combustivel'));
-      setRows(snap.docs.map(doc => ({
-        id: doc.id,
-        ...(doc.data() as any),
-      })));
+  async function handleSave(values: Partial<Registro>) {
+    try {
+      if (editing?.id) {
+        await update(editing.id, values);
+      } else {
+        await create(values as Omit<Registro, 'id'>);
+      }
+      setSnack('Salvo com sucesso');
+    } catch (err: any) {
+      setSnack(err.message);
     }
-    fetchData();
-  }, []);
+  }
 
+  async function handleDelete(id: string) {
+    try {
+      await remove(id);
+      setSnack('Excluído');
+    } catch (err: any) {
+      setSnack(err.message);
+    }
+  }
   const brNumberFormatter = new Intl.NumberFormat('pt-BR', {
     minimumFractionDigits: 1,
     maximumFractionDigits: 1,
@@ -120,6 +135,19 @@ export default function TabelaCombustivel() {
 
   ];
 
+  if (isAdmin) {
+    colunas.push({
+      field: 'actions',
+      headerName: 'Excluir',
+      width: 80,
+      renderCell: (params: any) => (
+        <IconButton onClick={() => handleDelete(params.row.id)}>
+          <DeleteIcon />
+        </IconButton>
+      ),
+    });
+  }
+
   const colunasPorNome: any[] = [
     { field: 'nome', headerName: 'Nome', minWidth: 200, flex: 1 },
     { field: 'abastecimentos', headerName: 'Abastecimentos', type: 'number', minWidth: 150, flex: 0.7 },
@@ -150,36 +178,48 @@ export default function TabelaCombustivel() {
 
   return (
     <>
-    <div style={{ height: 700, width: '100%' }}>
-      <DataGrid
-        rows={rows}
-        columns={colunas}
-        disableRowSelectionOnClick
-        density="compact"
-        getRowHeight={() => 'auto'}
-        initialState={{
-          sorting: {
-            sortModel: [{ field: 'data', sort: 'desc' }]
+    <Button variant="contained" onClick={() => setEditing({} as Registro)} sx={{ mb: 1 }}>
+      Novo
+    </Button>
+    {view === 'principal' && (
+      <div style={{ height: 700, width: '100%' }}>
+        <DataGrid
+          rows={rows}
+          columns={colunas}
+          disableRowSelectionOnClick
+          density="compact"
+          getRowHeight={() => 'auto'}
+          loading={loading}
+          onRowDoubleClick={(params) => setEditing(params.row as Registro)}
+          initialState={{
+            sorting: {
+              sortModel: [{ field: 'data', sort: 'desc' }]
+            }
+          }}
+          getRowClassName={(params: any) =>
+            params.row.para_quem === 'ERRO' ? 'row-error' : ''
           }
-        }}
-        getRowClassName={(params: any) =>
-          params.row.para_quem === 'ERRO' ? 'row-error' : ''
-        }
         sx={{ // define o background vermelho claro para essas linhas
-          '& .row-error': {
-            bgcolor: 'rgba(255, 0, 0, 0.6)',
-          },
-        }}
-      />
-    </div>
+            '& .row-error': {
+              bgcolor: 'rgba(255, 0, 0, 0.6)',
+            },
+          }}
+        />
+      </div>
+    )}
 <Stack direction="row" spacing={2} mt={2}>
+  <Button
+          variant={view === 'principal' ? 'contained' : 'outlined'}
+          onClick={() => setView('principal')}
+        >
+          Principal
+        </Button>
         <Button
           variant={view === 'porNome' ? 'contained' : 'outlined'}
           onClick={() => setView('porNome')}
         >
           Por Nome
         </Button>
-        {/* você poderá adicionar outros botões aqui */}
       </Stack>
 
       {/* --- tabela agregada “Por Nome” --- */}
@@ -194,6 +234,18 @@ export default function TabelaCombustivel() {
           />
         </div>
       )}
+      <CombustivelForm
+        open={!!editing}
+        initialData={editing ?? undefined}
+        onClose={() => setEditing(null)}
+        onSave={handleSave}
+      />
+      <Snackbar
+        open={!!snack}
+        onClose={() => setSnack(null)}
+        message={snack}
+        autoHideDuration={4000}
+      />
     </>
   );
 }
