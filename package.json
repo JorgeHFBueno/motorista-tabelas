@@ -10,8 +10,8 @@
     "deploy": "npm run build && firebase deploy --only hosting",
     "deploy:channel": "npm run build && firebase hosting:channel:deploy staging",
     "lint": "eslint .",
-    "set-admin":   "node --loader ts-node/esm ./scripts/setAdmin.ts",
-    "unset-admin": "node --loader ts-node/esm ./scripts/setAdmin.ts unset"
+    "set-admin": "node scripts/setAdmin.cjs",
+    "unset-admin": "node scripts/setAdmin.cjs unset"
   },
   "dependencies": {
     "@emotion/react": "^11.14.0",
