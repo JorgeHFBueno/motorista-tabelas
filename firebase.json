@@ -3,21 +3,34 @@
     "source": "functions"
   },
   "hosting": {
-    "public": "dist",                 
+    "public": "dist",
     "ignore": [
       "firebase.json",
-      "**/.*",                        
+      "**/.*",
       "**/node_modules/**"
     ],
     "rewrites": [
-      { "source": "**", "destination": "/index.html" }  
+      {
+        "source": "/api/**",
+        "function": "api"
+      },
+      {
+        "source": "**",
+        "destination": "/index.html"
+      }
     ],
     "headers": [
-      {                                    
+      {
         "source": "/**",
         "headers": [
-          { "key": "X-Frame-Options", "value": "DENY" },
-          { "key": "X-Content-Type-Options", "value": "nosniff" }
+          {
+            "key": "X-Frame-Options",
+            "value": "DENY"
+          },
+          {
+            "key": "X-Content-Type-Options",
+            "value": "nosniff"
+          }
         ]
       }
     ]
