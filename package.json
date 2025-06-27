@@ -9,7 +9,9 @@
     "preview": "vite preview",
     "deploy": "npm run build && firebase deploy --only hosting",
     "deploy:channel": "npm run build && firebase hosting:channel:deploy staging",
-    "lint": "eslint ."
+    "lint": "eslint .",
+    "set-admin": "ts-node scripts/setAdmin.ts",
+    "unset-admin": "ts-node scripts/setAdmin.ts"
   },
   "dependencies": {
     "@emotion/react": "^11.14.0",

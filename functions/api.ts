@@ -71,7 +71,8 @@ app.get('/combustivel/:id', async (req, res) => {
 
 app.post('/combustivel', async (req, res) => {
   try {
-    const ref = await collection.add(req.body);
+const data = { ...req.body, uid: req.user?.uid };
+    const ref = await collection.add(data);
     const doc = await ref.get();
     res.status(201).json({ id: ref.id, ...doc.data() });
   } catch (err) {
@@ -81,8 +82,19 @@ app.post('/combustivel', async (req, res) => {
 
 app.put('/combustivel/:id', async (req, res) => {
   try {
-    await collection.doc(req.params.id).set(req.body, { merge: true });
-    const doc = await collection.doc(req.params.id).get();
+    const ref = collection.doc(req.params.id);
+    const snap = await ref.get();
+    if (!snap.exists) {
+      res.status(404).json({ error: 'Not found' });
+      return;
+    }
+    const data = snap.data();
+    if (!req.user?.admin && data?.uid !== req.user?.uid) {
+      res.status(403).json({ error: 'Forbidden' });
+      return;
+    }
+    await ref.set(req.body, { merge: true });
+    const doc = await ref.get();
     res.json({ id: doc.id, ...doc.data() });
   } catch (err) {
     res.status(500).json({ error: 'Failed to update' });
