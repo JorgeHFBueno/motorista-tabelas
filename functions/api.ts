@@ -6,6 +6,7 @@ import { getFirestore } from 'firebase-admin/firestore';
 
 initializeApp();
 const db = getFirestore();
+const router = express.Router();
 
 export interface AuthRequest extends Request {
   user?: any;
@@ -42,6 +43,10 @@ function verifyAdmin(req: AuthRequest, res: Response, next: NextFunction) {
 const app = express();
 app.use(cors());
 app.use(express.json());
+app.use((req, _res, next) => {
+  console.log('PATH CHEGOU:', req.path);
+  next();
+});
 app.use(verifyIdToken);
 
 const collection = db.collection('03-combustivel');
@@ -110,4 +115,7 @@ app.delete('/combustivel/:id', verifyAdmin, async (req, res) => {
   }
 });
 
+router.use(verifyIdToken);
+
+app.use('/api', router);
 export default app;
