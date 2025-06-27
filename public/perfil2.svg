@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="400" height="200">
+  <rect width="400" height="200" fill="#eeeeee" />
+  <text x="200" y="100" font-family="Arial" font-size="20" text-anchor="middle" fill="#555">
+    Reautenticação
+  </text>
+</svg>

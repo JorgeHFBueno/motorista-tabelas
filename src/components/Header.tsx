@@ -2,11 +2,15 @@ import Container from 'react-bootstrap/Container';
 import Nav from 'react-bootstrap/Nav';
 import Navbar from 'react-bootstrap/Navbar';
 import { Link } from 'react-router-dom';
+import { useState } from 'react';
+import PerfilDialog from './PerfilDialog';
 import { useAuth } from '../contexts/AuthContext';
 
 export default function Header() {
   const { currentUser, signOut } = useAuth();
-  return (
+    const [perfilOpen, setPerfilOpen] = useState(false);
+return (
+  <>
     <Navbar expand="lg" className="bg-body-tertiary">
       <Container>
         <Navbar.Brand as={Link} to="/">JHFB</Navbar.Brand>
@@ -22,7 +26,10 @@ export default function Header() {
           </Nav>
           <Nav>
             {currentUser ? (
-              <Nav.Link onClick={() => signOut()}>Logout</Nav.Link>
+              <>
+                <Nav.Link onClick={() => setPerfilOpen(true)}>Usuário</Nav.Link>
+                <Nav.Link onClick={() => signOut()}>Logout</Nav.Link>
+              </>
             ) : (
               <>
                 <Nav.Link as={Link} to="/login">Login</Nav.Link>
@@ -33,5 +40,7 @@ export default function Header() {
         </Navbar.Collapse>
       </Container>
     </Navbar>
+     <PerfilDialog open={perfilOpen} onClose={() => setPerfilOpen(false)} />
+    </>
   );
 }
