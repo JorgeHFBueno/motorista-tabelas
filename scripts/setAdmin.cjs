@@ -3,21 +3,23 @@ const { getAuth } = require('firebase-admin/auth');
 
 initializeApp();
 
-const [, , uid, mode] = process.argv;
+const [, , maybeUid, maybeFlag] = process.argv;
+
+const unsetMode = maybeUid === 'unset';
+const uid = unsetMode ? maybeFlag : maybeUid;
+
 if (!uid) {
-  console.error('Uso: npm run set-admin <UID>');
+  console.error('Uso:\n  npm run set-admin <UID>\n  npm run unset-admin <UID>');
   process.exit(1);
 }
 
-const unset = mode === 'unset';
-
 getAuth()
-  .setCustomUserClaims(uid, unset ? null : { admin: true })
+  .setCustomUserClaims(uid, unsetMode ? null : { admin: true })
   .then(() =>
     console.log(
-      unset
-        ? `❌ claim admin removida de ${uid}`
-        : `✅ claim admin aplicada a ${uid}`,
+      unsetMode
+        ? `claim admin removida de ${uid}`
+        : `claim admin aplicada a ${uid}`,
     ),
   )
   .catch(err => {

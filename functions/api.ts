@@ -1,9 +1,4 @@
-import express, {
-  Request,
-  Response,
-  NextFunction,
-  Router,
-} from 'express';
+import express, { Request, Response, NextFunction, Router,} from 'express';
 import cors from 'cors';
 import { initializeApp } from 'firebase-admin/app';
 import { getAuth, DecodedIdToken } from 'firebase-admin/auth';
@@ -12,12 +7,10 @@ import { getFirestore } from 'firebase-admin/firestore';
 initializeApp();
 const db = getFirestore();
 
-/* ────────── tipos ────────── */
 interface AuthRequest extends Request {
   user?: DecodedIdToken & { admin?: boolean };
 }
 
-/* ────────── middlewares ────────── */
 async function verifyIdToken(
   req: AuthRequest,
   res: Response,
@@ -42,24 +35,16 @@ function verifyAdmin(req: AuthRequest, res: Response, next: NextFunction) {
   res.status(403).json({ error: 'Forbidden' });
 }
 
-/* ────────── app global ────────── */
 const app = express();
 app.use(cors());
 app.use(express.json());
 
-/* middleware opcional de debug */
-app.use((req, _res, next) => {
-  console.log('PATH CHEGOU:', req.path);
-  next();
-});
-
-/* ────────── sub-router protegido ────────── */
+// sub-router protegido
 const router: Router = express.Router();
 router.use(verifyIdToken);
 
 const collection = db.collection('03-combustivel');
 
-/* LISTAR ---------------------------------------------------------------- */
 router.get('/combustivel', async (_req, res) => {
   try {
     const snap = await collection.get();
@@ -70,7 +55,6 @@ router.get('/combustivel', async (_req, res) => {
   }
 });
 
-/* OBTER ----------------------------------------------------------------- */
 router.get('/combustivel/:id', async (req, res) => {
   try {
     const doc = await collection.doc(req.params.id).get();
@@ -84,7 +68,6 @@ router.get('/combustivel/:id', async (req, res) => {
   }
 });
 
-/* CRIAR ----------------------------------------------------------------- */
 router.post('/combustivel', async (req: AuthRequest, res) => {
   try {
     const data = { ...req.body, uid: req.user?.uid };
@@ -96,7 +79,6 @@ router.post('/combustivel', async (req: AuthRequest, res) => {
   }
 });
 
-/* ATUALIZAR ------------------------------------------------------------- */
 router.put('/combustivel/:id', async (req: AuthRequest, res) => {
   try {
     const ref = collection.doc(req.params.id);
@@ -118,7 +100,6 @@ router.put('/combustivel/:id', async (req: AuthRequest, res) => {
   }
 });
 
-/* EXCLUIR --------------------------------------------------------------- */
 router.delete('/combustivel/:id', verifyAdmin, async (req, res) => {
   try {
     await collection.doc(req.params.id).delete();
@@ -128,7 +109,7 @@ router.delete('/combustivel/:id', verifyAdmin, async (req, res) => {
   }
 });
 
-/* monta prefixo /api uma única vez */
+// monta prefixo /api uma única vez
 app.use('/api', router);
 
 export default app;
