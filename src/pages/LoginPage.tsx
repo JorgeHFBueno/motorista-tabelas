@@ -37,7 +37,7 @@ export default function LoginPage() {
         <Typography variant="h4">Login</Typography>
         {error && <Alert severity="error">{error}</Alert>}
         <TextField
-          label="Identificador num\u00E9rico"
+          label="Identificador numérico"
           type="tel"
           placeholder="Somente números"
           value={identifier}
