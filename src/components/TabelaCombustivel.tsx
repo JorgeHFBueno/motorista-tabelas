@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react';
-import { DataGrid } from '@mui/x-data-grid'; // import padrão
+import { DataGrid, type GridColDef } from '@mui/x-data-grid';
 import dayjs from 'dayjs';
 import { Button, Stack, IconButton, Snackbar } from '@mui/material';
 import DeleteIcon from '@mui/icons-material/Delete';
@@ -11,9 +11,16 @@ import { useAuth } from '../contexts/AuthContext';
 export default function TabelaCombustivel() {
   const { data: rows, loading, create, update, remove } = useCombustivel();
   const { isAdmin } = useAuth();
+
   const [view, setView] = useState<'principal' | 'porNome'>('principal');
   const [editing, setEditing] = useState<Registro | null>(null);
   const [snack, setSnack] = useState<string | null>(null);
+
+  /* ───────────────────────── helpers ───────────────────────── */
+  const brNumberFormatter = new Intl.NumberFormat('pt-BR', {
+    minimumFractionDigits: 1,
+    maximumFractionDigits: 1,
+  });
 
   async function handleSave(values: Partial<Registro>) {
     try {
@@ -36,95 +43,69 @@ export default function TabelaCombustivel() {
       setSnack(err.message);
     }
   }
-  const brNumberFormatter = new Intl.NumberFormat('pt-BR', {
-    minimumFractionDigits: 1,
-    maximumFractionDigits: 1,
-  });
-  // só uma coluna ID para testar
-  const colunas: any[] = [
-    //{ field: 'id', headerName: 'ID', minWidth: 200 },
+
+  /* ───────────────────────── Data parsing ───────────────────────── */
+  const rowsOk = useMemo(() => {
+    return rows.map((r) => {
+      const raw = (r as any).data; // campo vindo do Firestore
+      let dataJS: Date | null = null;
+
+      if (raw?.toDate) dataJS = raw.toDate();                // Timestamp → Date
+      else if (raw?.seconds) dataJS = new Date(raw.seconds * 1_000);
+      else if (raw) dataJS = new Date(raw);                  // string ou number
+
+      if (!dataJS || isNaN(dataJS.getTime())) {
+        // <-- LOGA toda a linha que ainda der problema
+        console.log('Data inválida:', r);
+        dataJS = null;
+      }
+
+      return { ...r, dataJS };
+    });
+  }, [rows]);
+
+  /* ───────────────────────── Columns ───────────────────────── */
+  const colunas: GridColDef[] = [
     {
-      field: 'data',
+      field: 'dataJS',
       headerName: 'Data',
+      type: 'dateTime',
       minWidth: 160,
       flex: 1.2,
-      renderCell: (params: any) => {
-        try {
-          const raw = params.row.data;
-          let d: Date;
-          if (raw?.toDate) d = raw.toDate();
-          else if (raw?.seconds) d = new Date(raw.seconds * 1000);
-          else d = new Date(raw);
-          return <>{dayjs(d).format('DD/MM/YY HH:mm')}</>;
-        } catch {
-          return <>–</>;
-        }
-      }
+      valueFormatter: ({ value }) =>
+        value ? dayjs(value as Date).format('DD/MM/YY HH:mm') : '—',
     },
     {
       field: 'lf',
       headerName: 'Montante Final',
       minWidth: 120,
       flex: 1,
-      renderCell: (params: any) => {
-        try {
-          const raw = params.row.lf;
-          const num = typeof raw === 'number' ? raw : Number(raw);
-          if (isNaN(num)) return <>–</>;
-          // divide por 10 e formata
-          return <>{brNumberFormatter.format(num / 10)}</>;
-        } catch {
-          return <>–</>;
-        }
-      }
+      renderCell: ({ value }) =>
+        isNaN(Number(value)) ? '—' : brNumberFormatter.format(Number(value) / 10),
     },
     {
       field: 'qa',
       headerName: 'Qnt. Abastecida',
       minWidth: 120,
       flex: 1,
-      renderCell: (params: any) => {
-        try {
-          const raw = params.row.qa;
-          const num = typeof raw === 'number' ? raw : Number(raw);
-          if (isNaN(num)) return <>–</>;
-          return <>{brNumberFormatter.format(num / 10)}</>;
-        } catch {
-          return <>–</>;
-        }
-      }
+      renderCell: ({ value }) =>
+        isNaN(Number(value)) ? '—' : brNumberFormatter.format(Number(value) / 10),
     },
     {
       field: 'li',
       headerName: 'Montante Inicial',
       minWidth: 120,
       flex: 1,
-      renderCell: (params: any) => {
-        try {
-          const raw = params.row.li;
-          const num = typeof raw === 'number' ? raw : Number(raw);
-          if (isNaN(num)) return <>–</>;
-          return <>{brNumberFormatter.format(num / 10)}</>;
-        } catch {
-          return <>–</>;
-        }
-      }
+      renderCell: ({ value }) =>
+        isNaN(Number(value)) ? '—' : brNumberFormatter.format(Number(value) / 10),
     },
     {
       field: 'arla',
       headerName: 'Arla',
       minWidth: 80,
       flex: 1,
-      renderCell: (params: any) => {
-        try {
-          const raw = params.row.arla;
-          const num = typeof raw === 'number' ? raw : Number(raw);
-          if (isNaN(num)) return <>–</>;
-          return <>{brNumberFormatter.format(num / 10)}</>;
-        } catch {
-          return <>–</>;
-        }
-      }
+      renderCell: ({ value }) =>
+        isNaN(Number(value)) ? '—' : brNumberFormatter.format(Number(value) / 10),
     },
     { field: 'motorista', headerName: 'Frentista', minWidth: 150, flex: 1.2 },
     { field: 'para_quem', headerName: 'Operador', minWidth: 150, flex: 1.2 },
@@ -132,7 +113,6 @@ export default function TabelaCombustivel() {
     { field: 'local', headerName: 'Destino', minWidth: 180, flex: 1.5 },
     { field: 'motivo', headerName: 'Motivo', minWidth: 200, flex: 1.5 },
     { field: 'observacao', headerName: 'Obs', minWidth: 220, flex: 2 },
-
   ];
 
   if (isAdmin) {
@@ -140,7 +120,7 @@ export default function TabelaCombustivel() {
       field: 'actions',
       headerName: 'Excluir',
       width: 80,
-      renderCell: (params: any) => (
+      renderCell: (params) => (
         <IconButton onClick={() => handleDelete(params.row.id)}>
           <DeleteIcon />
         </IconButton>
@@ -148,67 +128,73 @@ export default function TabelaCombustivel() {
     });
   }
 
-  const colunasPorNome: any[] = [
-    { field: 'nome', headerName: 'Nome', minWidth: 200, flex: 1 },
-    { field: 'abastecimentos', headerName: 'Abastecimentos', type: 'number', minWidth: 150, flex: 0.7 },
-    { field: 'litros', headerName: 'Litros', type: 'number', minWidth: 150, flex: 0.7 },
-  ];
-
-  // **3) Use useMemo para agrupar e somar sempre que `rows` mudar**  
+  /* ────── agregados “Por Nome” ────── */
   const agregadosPorNome = useMemo(() => {
     const map: Record<string, { nome: string; abastecimentos: number; litros: number }> = {};
 
-    for (const r of rows) {
-      const nome = r.motorista || '—';
-      const quantidade = 1;
-      const litros = Number(r.qa) / 10;               // ja dividido
-      if (!map[nome]) {
-        map[nome] = { nome, abastecimentos: quantidade, litros };
-      } else {
-        map[nome].abastecimentos += quantidade;
+    for (const r of rowsOk) {
+      const nome = (r as any).motorista || '—';
+      const litros = Number((r as any).qa) / 10;
+      if (!map[nome]) map[nome] = { nome, abastecimentos: 1, litros };
+      else {
+        map[nome].abastecimentos += 1;
         map[nome].litros += litros;
       }
     }
 
-    // converte pra array e ordena por nome
     return Object.values(map)
       .sort((a, b) => a.nome.localeCompare(b.nome))
-      .map((item, idx) => ({ id: idx, ...item }));
-  }, [rows]);
+      .map((it, idx) => ({ id: idx, ...it }));
+  }, [rowsOk]);
 
+  /* ───────────────────────── UI ───────────────────────── */
   return (
     <>
-    <Button variant="contained" onClick={() => setEditing({} as Registro)} sx={{ mb: 1 }}>
-      Novo
-    </Button>
-    {view === 'principal' && (
-      <div style={{ height: 700, width: '100%' }}>
-        <DataGrid
-          rows={rows}
-          columns={colunas}
-          disableRowSelectionOnClick
-          density="compact"
-          getRowHeight={() => 'auto'}
-          loading={loading}
-          onRowDoubleClick={(params) => setEditing(params.row as Registro)}
-          initialState={{
-            sorting: {
-              sortModel: [{ field: 'data', sort: 'desc' }]
+      <Button variant="contained" onClick={() => setEditing({} as Registro)} sx={{ mb: 1 }}>
+        Novo
+      </Button>
+
+      {view === 'principal' && (
+        <div style={{ height: 700, width: '100%' }}>
+          <DataGrid
+            rows={rowsOk}
+            columns={colunas}
+            loading={loading}
+            disableRowSelectionOnClick
+            density="compact"
+            getRowHeight={() => 'auto'}
+            onRowDoubleClick={(p) => setEditing(p.row as Registro)}
+            initialState={{
+              sorting: { sortModel: [{ field: 'dataJS', sort: 'desc' }] },
+            }}
+            getRowClassName={({ row }) =>
+              (row as any).para_quem === 'ERRO' ? 'row-error' : ''
             }
-          }}
-          getRowClassName={(params: any) =>
-            params.row.para_quem === 'ERRO' ? 'row-error' : ''
-          }
-        sx={{ // define o background vermelho claro para essas linhas
-            '& .row-error': {
-              bgcolor: 'rgba(255, 0, 0, 0.6)',
-            },
-          }}
-        />
-      </div>
-    )}
-<Stack direction="row" spacing={2} mt={2}>
-  <Button
+            sx={{
+              '& .row-error': { bgcolor: 'rgba(255,0,0,0.6)' },
+            }}
+          />
+        </div>
+      )}
+
+      {view === 'porNome' && (
+        <div style={{ height: 400, width: '100%', marginTop: 16 }}>
+          <DataGrid
+            rows={agregadosPorNome}
+            columns={[
+              { field: 'nome', headerName: 'Nome', minWidth: 200, flex: 1 },
+              { field: 'abastecimentos', headerName: 'Abastecimentos', minWidth: 150, flex: 0.7 },
+              { field: 'litros', headerName: 'Litros', minWidth: 150, flex: 0.7 },
+            ]}
+            disableRowSelectionOnClick
+            density="compact"
+            getRowHeight={() => 'auto'}
+          />
+        </div>
+      )}
+
+      <Stack direction="row" spacing={2} mt={2}>
+        <Button
           variant={view === 'principal' ? 'contained' : 'outlined'}
           onClick={() => setView('principal')}
         >
@@ -222,24 +208,13 @@ export default function TabelaCombustivel() {
         </Button>
       </Stack>
 
-      {/* --- tabela agregada “Por Nome” --- */}
-      {view === 'porNome' && (
-        <div style={{ height: 400, width: '100%', marginTop: 16 }}>
-          <DataGrid
-            rows={agregadosPorNome}
-            columns={colunasPorNome}
-            disableRowSelectionOnClick
-            density="compact"
-            getRowHeight={() => 'auto'}
-          />
-        </div>
-      )}
       <CombustivelForm
         open={!!editing}
         initialData={editing ?? undefined}
         onClose={() => setEditing(null)}
         onSave={handleSave}
       />
+
       <Snackbar
         open={!!snack}
         onClose={() => setSnack(null)}
