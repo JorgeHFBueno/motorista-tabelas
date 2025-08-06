@@ -44,37 +44,36 @@ export default function TabelaCombustivel() {
     }
   }
 
+function toDateAny(raw: any): Date | null {
+  if (!raw) return null;
+
+  if (typeof raw.toDate === 'function')        return raw.toDate();                 // Timestamp
+  if (raw.seconds  != null)                    return new Date(raw.seconds  * 1e3 + (raw.nanoseconds  ?? 0) / 1e6);
+  if (raw._seconds != null)                    return new Date(raw._seconds * 1e3 + (raw._nanoseconds ?? 0) / 1e6);
+
+  const d = new Date(raw);                     // string ou number
+  return isNaN(d.getTime()) ? null : d;
+}
+
   /* ───────────────────────── Data parsing ───────────────────────── */
-  const rowsOk = useMemo(() => {
-    return rows.map((r) => {
-      const raw = (r as any).data; // campo vindo do Firestore
-      let dataJS: Date | null = null;
+  const rowsOk = useMemo(() => rows.map(r => {
+  const dataJS = toDateAny((r as any).data);
 
-      if (raw?.toDate) dataJS = raw.toDate();                // Timestamp → Date
-      else if (raw?.seconds) dataJS = new Date(raw.seconds * 1_000);
-      else if (raw) dataJS = new Date(raw);                  // string ou number
-
-      if (!dataJS || isNaN(dataJS.getTime())) {
-        // <-- LOGA toda a linha que ainda der problema
-        console.log('Data inválida:', r);
-        dataJS = null;
-      }
-
-      return { ...r, dataJS };
-    });
-  }, [rows]);
+  if (!dataJS) console.log('Data inválida:', r);   // agora só loga se REALMENTE não converter
+  return { ...r, dataJS };
+}), [rows]);
 
   /* ───────────────────────── Columns ───────────────────────── */
   const colunas: GridColDef[] = [
     {
-      field: 'dataJS',
-      headerName: 'Data',
-      type: 'dateTime',
-      minWidth: 160,
-      flex: 1.2,
-      valueFormatter: ({ value }) =>
-        value ? dayjs(value as Date).format('DD/MM/YY HH:mm') : '—',
-    },
+    field: 'dataJS',
+    headerName: 'Data',
+    type: 'dateTime',
+    minWidth: 160,
+    flex: 1.2,
+    valueFormatter: ({ value }) =>
+      value ? dayjs(value as Date).format('DD/MM/YY HH:mm') : '—',
+  },
     {
       field: 'lf',
       headerName: 'Montante Final',
