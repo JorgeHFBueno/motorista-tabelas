@@ -46,33 +46,41 @@ export default function TabelaCombustivel() {
 
 function toDateAny(raw: any): Date | null {
   if (!raw) return null;
-
-  if (typeof raw.toDate === 'function')        return raw.toDate();                 // Timestamp
-  if (raw.seconds  != null)                    return new Date(raw.seconds  * 1e3 + (raw.nanoseconds  ?? 0) / 1e6);
-  if (raw._seconds != null)                    return new Date(raw._seconds * 1e3 + (raw._nanoseconds ?? 0) / 1e6);
-
-  const d = new Date(raw);                     // string ou number
+  if (typeof raw.toDate === 'function') return raw.toDate();
+  if (raw.seconds  != null) return new Date(raw.seconds  * 1e3 + (raw.nanoseconds  ?? 0) / 1e6);
+  if (raw._seconds != null) return new Date(raw._seconds * 1e3 + (raw._nanoseconds ?? 0) / 1e6);
+  const d = new Date(raw);
   return isNaN(d.getTime()) ? null : d;
 }
+
 
   /* ───────────────────────── Data parsing ───────────────────────── */
   const rowsOk = useMemo(() => rows.map(r => {
   const dataJS = toDateAny((r as any).data);
-
-  if (!dataJS) console.log('Data inválida:', r);   // agora só loga se REALMENTE não converter
+  if (!dataJS) console.log('Data inválida:', r); // só loga quando realmente falhar
   return { ...r, dataJS };
 }), [rows]);
 
+const dateFmt = new Intl.DateTimeFormat('pt-BR', {
+  day: '2-digit', month: '2-digit', year: '2-digit',
+  hour: '2-digit', minute: '2-digit'
+});
   /* ───────────────────────── Columns ───────────────────────── */
   const colunas: GridColDef[] = [
-    {
+     {
     field: 'dataJS',
     headerName: 'Data',
-    type: 'dateTime',
     minWidth: 160,
     flex: 1.2,
-    valueFormatter: ({ value }) =>
-      value ? dayjs(value as Date).format('DD/MM/YY HH:mm') : '—',
+    renderCell: (params) => {
+      const v = params.row.dataJS as Date | null;
+      return v ? dateFmt.format(v) : '—';
+    },
+    sortComparator: (a, b) => {
+      const ta = a instanceof Date ? a.getTime() : 0;
+      const tb = b instanceof Date ? b.getTime() : 0;
+      return ta - tb;
+    },
   },
     {
       field: 'lf',
@@ -159,13 +167,12 @@ function toDateAny(raw: any): Date | null {
             rows={rowsOk}
             columns={colunas}
             loading={loading}
+            getRowId={(row) => row.id}
             disableRowSelectionOnClick
             density="compact"
             getRowHeight={() => 'auto'}
             onRowDoubleClick={(p) => setEditing(p.row as Registro)}
-            initialState={{
-              sorting: { sortModel: [{ field: 'dataJS', sort: 'desc' }] },
-            }}
+              initialState={{ sorting: { sortModel: [{ field: 'dataJS', sort: 'desc' }] } }}
             getRowClassName={({ row }) =>
               (row as any).para_quem === 'ERRO' ? 'row-error' : ''
             }
