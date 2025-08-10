@@ -7,6 +7,8 @@ import type { Registro } from '../types';
 import useCombustivel from '../hooks/useCombustivel';
 import CombustivelForm from './CombustivelForm';
 import { useAuth } from '../contexts/AuthContext';
+import * as XLSX from 'xlsx';
+import { Dialog, DialogTitle, DialogContent, DialogActions, TextField } from '@mui/material';
 
 export default function TabelaCombustivel() {
   const { data: rows, loading, create, update, remove } = useCombustivel();
@@ -16,11 +18,14 @@ export default function TabelaCombustivel() {
   const [editing, setEditing] = useState<Registro | null>(null);
   const [snack, setSnack] = useState<string | null>(null);
 
-  /* ───────────────────────── helpers ───────────────────────── */
   const brNumberFormatter = new Intl.NumberFormat('pt-BR', {
     minimumFractionDigits: 1,
     maximumFractionDigits: 1,
   });
+
+  const [exportOpen, setExportOpen] = useState(false);
+  const [fromMonth, setFromMonth] = useState(dayjs().format('YYYY-MM'));
+  const [toMonth, setToMonth] = useState(dayjs().format('YYYY-MM'));
 
   async function handleSave(values: Partial<Registro>) {
     try {
@@ -44,44 +49,90 @@ export default function TabelaCombustivel() {
     }
   }
 
-function toDateAny(raw: any): Date | null {
-  if (!raw) return null;
-  if (typeof raw.toDate === 'function') return raw.toDate();
-  if (raw.seconds  != null) return new Date(raw.seconds  * 1e3 + (raw.nanoseconds  ?? 0) / 1e6);
-  if (raw._seconds != null) return new Date(raw._seconds * 1e3 + (raw._nanoseconds ?? 0) / 1e6);
-  const d = new Date(raw);
-  return isNaN(d.getTime()) ? null : d;
-}
+  function toDateAny(raw: any): Date | null {
+    if (!raw) return null;
+    if (typeof raw.toDate === 'function') return raw.toDate();
+    if (raw.seconds != null) return new Date(raw.seconds * 1e3 + (raw.nanoseconds ?? 0) / 1e6);
+    if (raw._seconds != null) return new Date(raw._seconds * 1e3 + (raw._nanoseconds ?? 0) / 1e6);
+    const d = new Date(raw);
+    return isNaN(d.getTime()) ? null : d;
+  }
 
-
-  /* ───────────────────────── Data parsing ───────────────────────── */
   const rowsOk = useMemo(() => rows.map(r => {
-  const dataJS = toDateAny((r as any).data);
-  if (!dataJS) console.log('Data inválida:', r); // só loga quando realmente falhar
-  return { ...r, dataJS };
-}), [rows]);
+    const dataJS = toDateAny((r as any).data);
+    if (!dataJS) console.log('Data inválida:', r); // só loga quando realmente falhar
+    return { ...r, dataJS };
+  }), [rows]);
 
-const dateFmt = new Intl.DateTimeFormat('pt-BR', {
-  day: '2-digit', month: '2-digit', year: '2-digit',
-  hour: '2-digit', minute: '2-digit'
-});
-  /* ───────────────────────── Columns ───────────────────────── */
+  function monthRange(fromYM: string, toYM: string) {
+    const start = dayjs(`${fromYM}-01`).startOf('month').toDate();
+    const end = dayjs(`${toYM}-01`).endOf('month').toDate();
+    return { start, end };
+  }
+
+  function exportExcel() {
+    // validação simples
+    if (fromMonth > toMonth) {
+      alert('Mês inicial não pode ser maior que o final.');
+      return;
+    }
+
+    const { start, end } = monthRange(fromMonth, toMonth);
+
+    // usa seus rows já normalizados (rowsOk)
+    const rowsFiltrados = rowsOk.filter(r =>
+      r.dataJS && r.dataJS >= start && r.dataJS <= end
+    );
+
+    // mapeia para objetos “planos” (Excel)
+    const dataForExcel = rowsFiltrados.map((r: any) => ({
+      Data: r.dataJS ? dateFmt.format(r.dataJS) : '',
+      'Montante Final': Number(r.lf ?? 0) / 10,
+      'Qnt. Abastecida': Number(r.qa ?? 0) / 10,
+      'Montante Inicial': Number(r.li ?? 0) / 10,
+      Arla: Number(r.arla ?? 0) / 10,
+      Frentista: r.motorista ?? '',
+      Operador: r.para_quem ?? '',
+      Placa: r.placa ?? '',
+      Destino: r.local ?? '',
+      Motivo: r.motivo ?? '',
+      Obs: r.observacao ?? '',
+      ID: r.id ?? ''
+    }));
+
+    // cria workbook e planilha
+    const ws = XLSX.utils.json_to_sheet(dataForExcel);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Combustível');
+
+    // salva arquivo
+    const nome = `combustivel_${fromMonth}_a_${toMonth}.xlsx`;
+    XLSX.writeFile(wb, nome);
+
+    setExportOpen(false);
+  }
+
+  const dateFmt = new Intl.DateTimeFormat('pt-BR', {
+    day: '2-digit', month: '2-digit', year: '2-digit',
+    hour: '2-digit', minute: '2-digit'
+  });
+
   const colunas: GridColDef[] = [
-     {
-    field: 'dataJS',
-    headerName: 'Data',
-    minWidth: 160,
-    flex: 1.2,
-    renderCell: (params) => {
-      const v = params.row.dataJS as Date | null;
-      return v ? dateFmt.format(v) : '—';
+    {
+      field: 'dataJS',
+      headerName: 'Data',
+      minWidth: 160,
+      flex: 1.2,
+      renderCell: (params) => {
+        const v = params.row.dataJS as Date | null;
+        return v ? dateFmt.format(v) : '—';
+      },
+      sortComparator: (a, b) => {
+        const ta = a instanceof Date ? a.getTime() : 0;
+        const tb = b instanceof Date ? b.getTime() : 0;
+        return ta - tb;
+      },
     },
-    sortComparator: (a, b) => {
-      const ta = a instanceof Date ? a.getTime() : 0;
-      const tb = b instanceof Date ? b.getTime() : 0;
-      return ta - tb;
-    },
-  },
     {
       field: 'lf',
       headerName: 'Montante Final',
@@ -135,7 +186,6 @@ const dateFmt = new Intl.DateTimeFormat('pt-BR', {
     });
   }
 
-  /* ────── agregados “Por Nome” ────── */
   const agregadosPorNome = useMemo(() => {
     const map: Record<string, { nome: string; abastecimentos: number; litros: number }> = {};
 
@@ -154,12 +204,15 @@ const dateFmt = new Intl.DateTimeFormat('pt-BR', {
       .map((it, idx) => ({ id: idx, ...it }));
   }, [rowsOk]);
 
-  /* ───────────────────────── UI ───────────────────────── */
   return (
     <>
       <Button variant="contained" onClick={() => setEditing({} as Registro)} sx={{ mb: 1 }}>
         Novo
       </Button>
+      <Button variant="outlined" onClick={() => setExportOpen(true)} sx={{ mb: 1, ml: 1 }}>
+        Exportar Excel
+      </Button>
+
 
       {view === 'principal' && (
         <div style={{ height: 700, width: '100%' }}>
@@ -172,7 +225,7 @@ const dateFmt = new Intl.DateTimeFormat('pt-BR', {
             density="compact"
             getRowHeight={() => 'auto'}
             onRowDoubleClick={(p) => setEditing(p.row as Registro)}
-              initialState={{ sorting: { sortModel: [{ field: 'dataJS', sort: 'desc' }] } }}
+            initialState={{ sorting: { sortModel: [{ field: 'dataJS', sort: 'desc' }] } }}
             getRowClassName={({ row }) =>
               (row as any).para_quem === 'ERRO' ? 'row-error' : ''
             }
@@ -227,6 +280,32 @@ const dateFmt = new Intl.DateTimeFormat('pt-BR', {
         message={snack}
         autoHideDuration={4000}
       />
+
+      <Dialog open={exportOpen} onClose={() => setExportOpen(false)}>
+        <DialogTitle>Exportar para Excel</DialogTitle>
+        <DialogContent>
+          <Stack direction="row" spacing={2} mt={1}>
+            <TextField
+              type="month"
+              label="Mês inicial"
+              value={fromMonth}
+              onChange={(e) => setFromMonth(e.target.value)}
+              InputLabelProps={{ shrink: true }}
+            />
+            <TextField
+              type="month"
+              label="Mês final"
+              value={toMonth}
+              onChange={(e) => setToMonth(e.target.value)}
+              InputLabelProps={{ shrink: true }}
+            />
+          </Stack>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setExportOpen(false)}>Cancelar</Button>
+          <Button variant="contained" onClick={exportExcel}>Exportar</Button>
+        </DialogActions>
+      </Dialog>
     </>
   );
 }
