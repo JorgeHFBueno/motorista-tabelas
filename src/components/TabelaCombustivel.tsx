@@ -206,13 +206,10 @@ export default function TabelaCombustivel() {
 
   return (
     <>
-      <Button variant="contained" onClick={() => setEditing({} as Registro)} sx={{ mb: 1 }}>
-        Novo
-      </Button>
-      <Button variant="outlined" onClick={() => setExportOpen(true)} sx={{ mb: 1, ml: 1 }}>
-        Exportar Excel
-      </Button>
       <Stack direction="row" spacing={2} mt={2}>
+        <Button variant="contained" onClick={() => setEditing({} as Registro)} sx={{ mb: 1 }}>
+          Novo
+        </Button>
         <Button
           variant={view === 'principal' ? 'contained' : 'outlined'}
           onClick={() => setView('principal')}
@@ -264,6 +261,12 @@ export default function TabelaCombustivel() {
           />
         </div>
       )}
+
+      <Stack direction="row" spacing={2} mt={2}>
+        <Button variant="outlined" onClick={() => setExportOpen(true)} sx={{ mb: 1, ml: 1 }}>
+          Exportar Excel
+        </Button>
+      </Stack>
 
       <CombustivelForm
         open={!!editing}
