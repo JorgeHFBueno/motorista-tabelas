@@ -212,7 +212,20 @@ export default function TabelaCombustivel() {
       <Button variant="outlined" onClick={() => setExportOpen(true)} sx={{ mb: 1, ml: 1 }}>
         Exportar Excel
       </Button>
-
+      <Stack direction="row" spacing={2} mt={2}>
+        <Button
+          variant={view === 'principal' ? 'contained' : 'outlined'}
+          onClick={() => setView('principal')}
+        >
+          Principal
+        </Button>
+        <Button
+          variant={view === 'porNome' ? 'contained' : 'outlined'}
+          onClick={() => setView('porNome')}
+        >
+          Por Nome
+        </Button>
+      </Stack>
 
       {view === 'principal' && (
         <div style={{ height: 700, width: '100%' }}>
@@ -251,21 +264,6 @@ export default function TabelaCombustivel() {
           />
         </div>
       )}
-
-      <Stack direction="row" spacing={2} mt={2}>
-        <Button
-          variant={view === 'principal' ? 'contained' : 'outlined'}
-          onClick={() => setView('principal')}
-        >
-          Principal
-        </Button>
-        <Button
-          variant={view === 'porNome' ? 'contained' : 'outlined'}
-          onClick={() => setView('porNome')}
-        >
-          Por Nome
-        </Button>
-      </Stack>
 
       <CombustivelForm
         open={!!editing}
