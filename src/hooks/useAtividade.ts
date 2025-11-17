@@ -21,7 +21,7 @@ export default function useAtividade() {
     async function load() {
       setLoading(true);
       try {
-        const snapshot = await getDocs(collection(db, 'atividade'));
+        const snapshot = await getDocs(collection(db, 'atividades'));
         const docs = snapshot.docs.map((doc) => ({
           id: doc.id,
           ...doc.data(),

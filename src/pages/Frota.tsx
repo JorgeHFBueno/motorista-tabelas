@@ -152,7 +152,6 @@ const { data: atividade, loading: loadingAtividade } = useAtividade();
       </Tabs>
 
       <TabPanel value={tab} tabKey="geral">
-        <Typography>Seção: Geral</Typography>
         <Box mt={2}>
           <div style={{ height: 700, width: '100%' }}>
             <DataGrid
