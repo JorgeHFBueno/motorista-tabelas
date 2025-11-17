@@ -20,6 +20,7 @@ return (
             {currentUser && (
               <>
                 <Nav.Link as={Link} to="/combustivel">Cliente</Nav.Link>
+                <Nav.Link as={Link} to="/frota">Frota</Nav.Link>
                 <Nav.Link as={Link} to="/">Portifólio</Nav.Link>
               </>
             )}

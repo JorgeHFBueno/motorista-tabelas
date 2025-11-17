@@ -6,6 +6,7 @@ import PortifolioPage from './components/PortifolioPage';
 import LoginPage from './pages/LoginPage';
 import SignupPage from './pages/SignupPage';
 import PrivateRoute from './components/PrivateRoute';
+import Frota from './pages/Frota';
 
 export default function App() {
   return (
@@ -16,6 +17,7 @@ export default function App() {
         <Route path="/signup" element={<SignupPage />} />
         <Route element={<PrivateRoute />}>
           <Route path="/combustivel" element={<TabelaCombustivel />} />
+          <Route path="/frota" element={<Frota />} />
           <Route path="/" element={<PortifolioPage />} />
         </Route>
       </Routes>
