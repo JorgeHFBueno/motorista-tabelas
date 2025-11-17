@@ -1,8 +1,10 @@
 import { useEffect, useMemo, useState, type ReactNode, type SyntheticEvent } from 'react';
-import { Box, Tabs, Tab, Typography, Container } from '@mui/material';
+import { Box, Tabs, Tab, Typography, Container, Stack, Button, Paper } from '@mui/material';
 import { useSearchParams } from 'react-router-dom';
 import { DataGrid, type GridColDef } from '@mui/x-data-grid';
 import useAtividade from '../hooks/useAtividade';
+import Plot from 'react-plotly.js';
+import type { Data, Layout } from 'plotly.js';
 
 type TabKey = 'geral' | 'graficos' | 'hibrido';
 const TAB_KEYS: TabKey[] = ['geral', 'graficos', 'hibrido'];
@@ -43,12 +45,26 @@ function TabPanel({
   );
 }
 
+type MotoristaResumo = {
+  id: string;
+  registros: number;
+  ultimoRegistro: Date | null;
+};
+
+type ChartPoint = {
+  label: string;
+  value: number;
+};
+
+type ChartKey = 'caminhoes' | 'km' | 'motorista';
+
 export default function Frota() {
   const [searchParams, setSearchParams] = useSearchParams();
   const [tab, setTab] = useState<TabKey>(() =>
     getValidTab(searchParams.get('tab')),
   );
 
+const [chartTab, setChartTab] = useState<ChartKey>('caminhoes');
 const { data: atividade, loading: loadingAtividade } = useAtividade();
 
   function toDateAny(raw: any): Date | null {
@@ -133,6 +149,105 @@ const { data: atividade, loading: loadingAtividade } = useAtividade();
     }, { replace: true });
   };
 
+const motoristaResumo: MotoristaResumo[] = useMemo(() => {
+    // Considera registros dos últimos 30 dias a partir de hoje
+    const cutoff = new Date();
+    cutoff.setDate(cutoff.getDate() - 30);
+
+    const acc = new Map<string, MotoristaResumo>();
+
+    rowsAtividade.forEach((row) => {
+      const data = row.dataJS;
+      if (!data || data < cutoff) return;
+      const motorista = row.motorista || '—';
+      const current = acc.get(motorista) ?? {
+        id: motorista,
+        registros: 0,
+        ultimoRegistro: null,
+      };
+      const ultimoRegistro =
+        current.ultimoRegistro && current.ultimoRegistro > data
+          ? current.ultimoRegistro
+          : data;
+
+      acc.set(motorista, {
+        ...current,
+        registros: current.registros + 1,
+        ultimoRegistro,
+      });
+    });
+
+    return Array.from(acc.values()).sort((a, b) => b.registros - a.registros);
+  }, [rowsAtividade]);
+
+  const colunasMotoristaResumo: GridColDef<MotoristaResumo>[] = useMemo(
+    () => [
+      { field: 'id', headerName: 'Motorista', flex: 1.2, minWidth: 200 },
+      {
+        field: 'registros',
+        headerName: 'Registros no mês',
+        flex: 1,
+        minWidth: 150,
+        valueFormatter: ({ value }) => kmFormatter.format(Number(value)),
+      },
+      {
+        field: 'ultimoRegistro',
+        headerName: 'Último registro',
+        flex: 1.2,
+        minWidth: 180,
+        renderCell: ({ value }) => (value instanceof Date ? dateFmt.format(value) : '—'),
+        sortComparator: (a, b) => {
+          const ta = a instanceof Date ? a.getTime() : 0;
+          const tb = b instanceof Date ? b.getTime() : 0;
+          return ta - tb;
+        },
+      },
+    ],
+    [dateFmt, kmFormatter],
+  );
+
+  const chartData = useMemo(() => {
+    // Usa registros dos últimos 30 dias para os gráficos
+    const cutoff = new Date();
+    cutoff.setDate(cutoff.getDate() - 30);
+
+    const recent = rowsAtividade.filter(
+      (row) => row.dataJS && (row.dataJS as Date) >= cutoff,
+    );
+
+    const countByPlaca = new Map<string, number>();
+    const kmByPlaca = new Map<string, number>();
+    const countByMotorista = new Map<string, number>();
+
+    recent.forEach((row) => {
+      const placa = row.placa || '—';
+      const motorista = row.motorista || '—';
+      const kmValue = Number(row.km) || 0;
+
+      countByPlaca.set(placa, (countByPlaca.get(placa) ?? 0) + 1);
+      kmByPlaca.set(placa, (kmByPlaca.get(placa) ?? 0) + kmValue);
+      countByMotorista.set(
+        motorista,
+        (countByMotorista.get(motorista) ?? 0) + 1,
+      );
+    });
+
+    const sortDesc = (arr: ChartPoint[]) => arr.sort((a, b) => b.value - a.value);
+
+    const toPoints = (map: Map<string, number>) =>
+      sortDesc(
+        Array.from(map.entries()).map(([label, value]) => ({ label, value })),
+      );
+
+    return {
+      caminhoes: toPoints(countByPlaca),
+      km: toPoints(kmByPlaca),
+      motorista: toPoints(countByMotorista),
+    };
+  }, [rowsAtividade]);
+
+  const currentChartData = chartData[chartTab];
+
   return (
     <Container sx={{ py: 3 }}>
       <Typography variant="h4" gutterBottom>
@@ -168,10 +283,86 @@ const { data: atividade, loading: loadingAtividade } = useAtividade();
         </Box>
       </TabPanel>
       <TabPanel value={tab} tabKey="graficos">
-        <Typography>Seção: Gráficos</Typography>
+        <Stack spacing={2} mt={1}>
+          <Tabs
+            value={chartTab}
+            onChange={(_e, val) => setChartTab(val)}
+            aria-label="Gráficos da frota"
+            variant="scrollable"
+            allowScrollButtonsMobile
+          >
+            <Tab label="Caminhões" value="caminhoes" />
+            <Tab label="KM" value="km" />
+            <Tab label="Motorista" value="motorista" />
+          </Tabs>
+
+          {currentChartData.length === 0 ? (
+            <Typography variant="body1">
+              Sem dados para o período selecionado.
+            </Typography>
+          ) : (
+            <Plot
+              data={[
+                {
+                  type: 'bar',
+                  x: currentChartData.map((item) => item.label),
+                  y: currentChartData.map((item) => item.value),
+                  marker: { color: '#1976d2' },
+                },
+              ] as Data[]}
+              layout={{
+                title: { text:
+                  chartTab === 'caminhoes'
+                    ? 'Caminhões mais utilizados (últimos 30 dias)'
+                    : chartTab === 'km'
+                      ? 'Quilometragem por caminhão (últimos 30 dias)'
+                      : 'Registros por motorista (últimos 30 dias)',
+                },
+                xaxis: { title: { text: chartTab === 'motorista' ? 'Motorista' : 'Placa' } },
+                yaxis: { title: { text: chartTab === 'km' ? 'KM' : 'Registros' } },
+                autosize: true,
+                bargap: 0.2,
+                margin: { t: 60, r: 20, b: 60, l: 60 },
+              } as Partial<Layout>}
+              style={{ width: '100%', height: 500 }}
+              useResizeHandler
+            />
+          )}
+        </Stack>
       </TabPanel>
       <TabPanel value={tab} tabKey="hibrido">
-        <Typography>Seção: Híbrido</Typography>
+        <Stack spacing={2} mt={1}>
+          <Paper elevation={1} sx={{ p: 2 }}>
+            <Typography variant="h6" gutterBottom>
+              Sobre motorista
+            </Typography>
+            <div style={{ height: 400, width: '100%' }}>
+              <DataGrid
+                rows={motoristaResumo}
+                columns={colunasMotoristaResumo}
+                loading={loadingAtividade}
+                getRowId={(row) => row.id}
+                disableRowSelectionOnClick
+                density="compact"
+                getRowHeight={() => 'auto'}
+                initialState={{
+                  sorting: {
+                    sortModel: [{ field: 'registros', sort: 'desc' }],
+                  },
+                }}
+              />
+            </div>
+          </Paper>
+
+          <Paper elevation={1} sx={{ p: 2 }}>
+            <Stack direction="row" justifyContent="space-between" alignItems="center">
+              <Typography variant="h6">A ser adicionado</Typography>
+              <Button variant="contained" onClick={() => {}}>
+                Adicionar
+              </Button>
+            </Stack>
+          </Paper>
+        </Stack>
       </TabPanel>
     </Container>
   );
