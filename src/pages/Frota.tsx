@@ -300,20 +300,21 @@ export default function Frota() {
     setSalvandoPlaca(true);
 
     try {
-      const placaFinal =
-        tipoPlaca === 'diversos'
-          ? // Para "Diversos" deixamos a placa opcional; quando vazia, usamos um identificador padrão.
-          placaNormalizada || 'DIVERSOS'
-          : placaNormalizada;
+      let payload: any;
 
-      const payload = {
-        placa: placaFinal,
-        km:
-          tipoPlaca === 'diversos'
-            ? 0 // Registros diversos começam com KM zero para indicar que serão atualizados manualmente depois.
-            : kmNumero,
-        extra: tipoPlaca === 'diversos' ? extraNormalizado : '', // Registros normais não possuem informação extra.
-      };
+      if (tipoPlaca === 'diversos') {
+        // Só manda o campo "extra" para o BD
+        payload = {
+          extra: extraNormalizado,
+        };
+      } else {
+        // tipoPlaca === 'normal'
+        payload = {
+          placa: placaNormalizada,
+          km: kmNumero,
+          extra: '', // ou pode até omitir se preferir
+        };
+      }
 
       await addDoc(collection(db, '01-placas'), payload);
 
@@ -516,14 +517,15 @@ export default function Frota() {
               <FormControlLabel value="diversos" control={<Radio />} label="Diversos" />
             </RadioGroup>
 
-            <TextField
-              label="Placa"
-              value={placaValor}
-              onChange={(event) => setPlacaValor(event.target.value)}
-              error={Boolean(errosFormulario.placa)}
-              helperText={errosFormulario.placa}
-              inputProps={{ style: { textTransform: 'uppercase' } }}
-            />
+            {tipoPlaca === 'normal' && (
+              <TextField
+                label="Placa"
+                value={placaValor}
+                onChange={(event) => setPlacaValor(event.target.value)}
+                error={Boolean(errosFormulario.placa)}
+                helperText={errosFormulario.placa}
+                inputProps={{ style: { textTransform: 'uppercase' } }}
+              />)}
 
             {tipoPlaca === 'normal' ? (
               <TextField
