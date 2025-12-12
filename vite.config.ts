@@ -7,11 +7,21 @@ export default defineConfig({
     react(),
     VitePWA({
       registerType: 'autoUpdate',
-      workbox: { globPatterns: ['**/*.{js,css,html,ico,png,svg}'] ,
-                maximumFileSizeToCacheInBytes: 10 * 1024 * 1024
+      manifest: false,
+      includeAssets: [
+        'logo_vetor.png',
+        'perfil1.svg',
+        'perfil2.svg',
+        'icons/icon-192x192.png',
+        'icons/icon-512x512.png'
+      ],
+      workbox: {
+        globPatterns: ['**/*.{js,css,html,ico,png,svg}'],
+        maximumFileSizeToCacheInBytes: 10 * 1024 * 1024,
       },
-      //includeAssets: ['favicon.ico'],
-      //manifest: true
+      devOptions: {
+        enabled: true,
+      },      
     })
   ],
   build: {
