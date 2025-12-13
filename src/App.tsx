@@ -7,10 +7,14 @@ import LoginPage from './pages/LoginPage';
 import SignupPage from './pages/SignupPage';
 import PrivateRoute from './components/PrivateRoute';
 import Frota from './pages/Frota';
+import NetworkStatusBanner from './components/NetworkStatusBanner';
+import PwaUpdateBanner from './components/PwaUpdateBanner';
 
 export default function App() {
   return (
    <BrowserRouter>
+   <NetworkStatusBanner />
+      <PwaUpdateBanner />
       <Header />
        <Routes>
         <Route path="/login" element={<LoginPage />} />
