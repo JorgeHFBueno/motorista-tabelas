@@ -1,18 +1,19 @@
 import { useState, useMemo } from 'react';
 import { DataGrid, type GridColDef } from '@mui/x-data-grid';
 import dayjs from 'dayjs';
-import { Button, Stack, IconButton, Snackbar } from '@mui/material';
+import { Button, Stack, IconButton, Snackbar, Alert, Dialog, DialogTitle, DialogContent, DialogActions, TextField } from '@mui/material';
 import DeleteIcon from '@mui/icons-material/Delete';
 import type { Registro } from '../types';
 import useCombustivel from '../hooks/useCombustivel';
 import CombustivelForm from './CombustivelForm';
 import { useAuth } from '../contexts/AuthContext';
 import * as XLSX from 'xlsx';
-import { Dialog, DialogTitle, DialogContent, DialogActions, TextField } from '@mui/material';
+import useOnlineStatus from '../hooks/useOnlineStatus';
 
 export default function TabelaCombustivel() {
   const { data: rows, loading, create, update, remove } = useCombustivel();
   const { isAdmin } = useAuth();
+  const { isOnline } = useOnlineStatus();
 
   const [view, setView] = useState<'principal' | 'porNome'>('principal');
   const [editing, setEditing] = useState<Registro | null>(null);
@@ -206,6 +207,11 @@ export default function TabelaCombustivel() {
 
   return (
     <>
+      {!isOnline && (
+        <Alert severity="info" sx={{ mb: 2 }}>
+          Você está offline. Os dados exibidos podem estar em cache e novas alterações serão sincronizadas quando a conexão voltar.
+        </Alert>
+      )}
       <Stack direction="row" spacing={2} mt={2}>
         <Button variant="contained" onClick={() => setEditing({} as Registro)} sx={{ mb: 1 }}>
           Novo

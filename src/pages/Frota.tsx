@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type ReactNode, type SyntheticEvent } from 'react';
+import { Suspense, lazy, useEffect, useMemo, useState, type ReactNode, type SyntheticEvent } from 'react';
 import {
   Box, Tabs, Tab, Typography, Container, Stack, Button, Paper, TextField, Dialog, DialogTitle,
   DialogContent, DialogActions, RadioGroup, FormControlLabel, Radio, Snackbar, Alert
@@ -10,7 +10,10 @@ import Plot from 'react-plotly.js';
 import type { Data, Layout } from 'plotly.js';
 import { addDoc, collection } from 'firebase/firestore';
 import { db } from '../firebase';
+import useOnlineStatus from '../hooks/useOnlineStatus';
+import type { ChartKey, ChartPoint } from '../components/FrotaCharts';
 
+const FrotaCharts = lazy(() => import('../components/FrotaCharts'));
 type TabKey = 'geral' | 'graficos' | 'hibrido';
 const TAB_KEYS: TabKey[] = ['geral', 'graficos', 'hibrido'];
 const DEFAULT_TAB: TabKey = 'geral';
@@ -58,14 +61,8 @@ type MotoristaResumo = {
   ultimoRegistroPeriodo: Date | null;
 };
 
-type ChartPoint = {
-  label: string;
-  value: number;
-};
-
-type ChartKey = 'caminhoes' | 'km' | 'motorista';
-
 export default function Frota() {
+  const { isOnline } = useOnlineStatus();
   const [searchParams, setSearchParams] = useSearchParams();
   const [tab, setTab] = useState<TabKey>(() =>
     getValidTab(searchParams.get('tab')),
@@ -374,6 +371,12 @@ export default function Frota() {
         Frota
       </Typography>
 
+      {!isOnline && (
+        <Alert severity="info" sx={{ mb: 2 }}>
+          Modo offline: exibindo dados em cache do Firestore. As últimas alterações podem não estar visíveis.
+        </Alert>
+      )}
+
       <Tabs
         value={tab}
         onChange={handleTabChange}
@@ -404,6 +407,11 @@ export default function Frota() {
       </TabPanel>
       <TabPanel value={tab} tabKey="graficos">
         <Stack spacing={2} mt={1}>
+           {!isOnline && (
+            <Alert severity="info">
+              Você está offline. Os gráficos usam os dados em cache e podem não refletir atualizações recentes.
+            </Alert>
+          )}
           <Tabs
             value={chartTab}
             onChange={(_e, val) => setChartTab(val)}
@@ -421,33 +429,9 @@ export default function Frota() {
               Sem dados para o período selecionado.
             </Typography>
           ) : (
-            <Plot
-              data={[
-                {
-                  type: 'bar',
-                  x: currentChartData.map((item) => item.label),
-                  y: currentChartData.map((item) => item.value),
-                  marker: { color: '#1976d2' },
-                },
-              ] as Data[]}
-              layout={{
-                title: {
-                  text:
-                    chartTab === 'caminhoes'
-                      ? 'Caminhões mais utilizados (últimos 30 dias)'
-                      : chartTab === 'km'
-                        ? 'Quilometragem por caminhão (últimos 30 dias)'
-                        : 'Registros por motorista (últimos 30 dias)',
-                },
-                xaxis: { title: { text: chartTab === 'motorista' ? 'Motorista' : 'Placa' } },
-                yaxis: { title: { text: chartTab === 'km' ? 'KM' : 'Registros' } },
-                autosize: true,
-                bargap: 0.2,
-                margin: { t: 60, r: 20, b: 60, l: 60 },
-              } as Partial<Layout>}
-              style={{ width: '100%', height: 500 }}
-              useResizeHandler
-            />
+            <Suspense fallback={<Typography>Carregando gráficos...</Typography>}>
+              <FrotaCharts chartTab={chartTab} data={currentChartData as ChartPoint[]} />
+            </Suspense>
           )}
         </Stack>
       </TabPanel>

@@ -1,15 +1,9 @@
-import { useState, useCallback, useMemo, useEffect } from 'react';
-import { Stack, TextField, Button, Alert, CircularProgress, Typography} from '@mui/material';
-import WeatherCharts from './WeatherCharts';
+import { Suspense, useCallback, useEffect, useMemo, useState, lazy } from 'react';
+import { Stack, TextField, Button, Alert, CircularProgress, Typography, Card, CardContent } from '@mui/material';
+import useOnlineStatus from '../hooks/useOnlineStatus';
+import type { WeatherRow } from './WeatherCharts';
 
-// tipos
-interface WeatherRow {
-  id: number;
-  date: string;
-  tempMax: number;
-  tempMin: number;
-  precip: number;
-}
+const WeatherCharts = lazy(() => import('./WeatherCharts'));
 
 //
 const toISO = (d: Date) => d.toISOString().split('T')[0];
@@ -24,6 +18,8 @@ function defaultDates() {
 
 export default function PortifolioPage() {
   const { start: defaultStart, end: defaultEnd } = defaultDates();
+  const { isOnline } = useOnlineStatus();
+  const [pendingAutoRefresh, setPendingAutoRefresh] = useState(false);
 
   // localizacao
   const [location, setLocation] = useState('Passo Fundo');
@@ -44,6 +40,11 @@ export default function PortifolioPage() {
   // fetch
   const handleFetch = useCallback(async () => {
     if (!location) return;
+    if (!isOnline) {
+      setError('Dados indisponíveis offline para esta funcionalidade.');
+      setPendingAutoRefresh(true);
+      return;
+    }
     setError(null);
     setRows([]);
     setLoading(true);
@@ -99,21 +100,41 @@ export default function PortifolioPage() {
         }),
       );
       setRows(newRows);
+      setPendingAutoRefresh(false);
     } catch {
       setError('Falha ao buscar dados. Tente novamente.');
     } finally {
       setLoading(false);
     }
-  }, [location, startDate, endDate, intervalDays]);
+  }, [location, startDate, endDate, intervalDays, isOnline]);
 
   // busca Passo Fundo ao iniciar 
   useEffect(() => {
     handleFetch();
-  }, []);
+ }, [handleFetch]);
+
+  useEffect(() => {
+    if (isOnline && pendingAutoRefresh && !loading) {
+      handleFetch();
+    }
+  }, [handleFetch, isOnline, pendingAutoRefresh, loading]);
 
   return (
     <div style={{ padding: 20 }}>
       <Typography variant="h4" gutterBottom>Meteorologia</Typography>
+
+       {!isOnline && (
+        <Card sx={{ mb: 2 }}>
+          <CardContent>
+            <Typography variant="body1" gutterBottom>
+              Dados meteorológicos precisam de conexão. Você está offline no momento.
+            </Typography>
+            <Button variant="outlined" onClick={handleFetch} disabled={!isOnline}>
+              Tentar novamente
+            </Button>
+          </CardContent>
+        </Card>
+      )}
 
       <Stack direction="row" spacing={2} mb={2} flexWrap="wrap">
         <TextField
@@ -139,7 +160,7 @@ export default function PortifolioPage() {
         <Button
           variant="contained"
           onClick={handleFetch}
-          disabled={loading || !location}
+          disabled={loading || !location || !isOnline}
         >
           Buscar
         </Button>
@@ -153,7 +174,11 @@ export default function PortifolioPage() {
         </Alert>
       )}
 
-      {rows.length > 0 && <WeatherCharts rows={rows} />}
+       {rows.length > 0 && (
+        <Suspense fallback={<CircularProgress />}>
+          <WeatherCharts rows={rows} />
+        </Suspense>
+      )}
     </div>
   );
 }
