@@ -28,18 +28,18 @@ const FinancialSummaryCard = ({ totalPaid, totalValue, nextPayment }: FinancialS
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ delay: 0.2 }}
-      className="bg-card rounded-2xl p-5 shadow-card"
+      className="card-institutional p-5"
     >
       <div className="flex items-center gap-2 mb-4">
-        <div className="p-2 bg-secondary rounded-lg">
+        <div className="p-2 bg-muted rounded-lg">
           <Wallet className="w-5 h-5 text-primary" />
         </div>
-        <h3 className="font-semibold text-foreground">Financeiro</h3>
+        <h3 className="font-semibold text-primary">Financeiro</h3>
       </div>
 
       {/* Next Payment Alert */}
-      <div className={`flex items-center justify-between p-3 rounded-xl mb-4 ${
-        nextPayment.isOverdue ? 'bg-destructive/10' : 'bg-secondary'
+      <div className={`flex items-center justify-between p-3 rounded-lg mb-4 ${
+        nextPayment.isOverdue ? 'bg-destructive/10 border border-destructive/20' : 'bg-muted'
       }`}>
         <div className="flex items-center gap-3">
           {nextPayment.isOverdue && <AlertCircle className="w-5 h-5 text-destructive" />}
@@ -51,7 +51,7 @@ const FinancialSummaryCard = ({ totalPaid, totalValue, nextPayment }: FinancialS
             <p className="text-xs text-muted-foreground">{nextPayment.dueDate}</p>
           </div>
         </div>
-        <Button variant="accent" size="sm" className="font-semibold">
+        <Button size="sm" className="font-semibold bg-secondary hover:bg-secondary/90 text-secondary-foreground">
           PAGAR
         </Button>
       </div>
@@ -62,9 +62,9 @@ const FinancialSummaryCard = ({ totalPaid, totalValue, nextPayment }: FinancialS
           <span className="text-muted-foreground">Total pago</span>
           <span className="font-semibold text-foreground">{formatCurrency(totalPaid)}</span>
         </div>
-        <div className="h-2 bg-progress-bg rounded-full overflow-hidden">
+        <div className="h-2 bg-muted rounded-full overflow-hidden">
           <motion.div
-            className="h-full bg-progress-fill rounded-full"
+            className="h-full bg-secondary rounded-full"
             initial={{ width: 0 }}
             animate={{ width: `${progressPercentage}%` }}
             transition={{ duration: 1, ease: "easeOut" }}
@@ -76,7 +76,7 @@ const FinancialSummaryCard = ({ totalPaid, totalValue, nextPayment }: FinancialS
         </div>
       </div>
 
-      <button className="flex items-center justify-center gap-1 text-sm text-primary font-medium w-full mt-2 hover:text-primary/80 transition-colors">
+      <button className="flex items-center justify-center gap-1 text-sm text-secondary font-medium w-full mt-2 hover:text-secondary/80 transition-colors">
         Ver detalhes <ArrowRight className="w-4 h-4" />
       </button>
     </motion.div>

@@ -129,7 +129,7 @@ const Financas = () => {
               <p className="text-xs text-muted-foreground">Venc. {financialData.nextDueDate}</p>
             </div>
           </div>
-          <Button variant="accent" size="sm">
+          <Button variant="secondary" size="sm">
             PAGAR
           </Button>
         </motion.div>

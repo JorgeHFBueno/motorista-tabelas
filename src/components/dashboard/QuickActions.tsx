@@ -3,10 +3,10 @@ import { FileText, CreditCard, Headphones, Camera } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 
 const actions = [
-  { icon: FileText, label: "Documentos", path: "/documentos", color: "bg-primary" },
-  { icon: CreditCard, label: "Pagar", path: "/financas", color: "bg-success" },
-  { icon: Headphones, label: "Suporte", path: "/atendimento", color: "bg-accent" },
-  { icon: Camera, label: "Fotos", path: "/fotos", color: "bg-primary" },
+  { icon: FileText, label: "Documentos", path: "/documentos" },
+  { icon: CreditCard, label: "Pagar", path: "/financas" },
+  { icon: Headphones, label: "Suporte", path: "/atendimento" },
+  { icon: Camera, label: "Fotos", path: "/fotos" },
 ];
 
 const QuickActions = () => {
@@ -17,7 +17,7 @@ const QuickActions = () => {
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ delay: 0.25 }}
-      className="grid grid-cols-4 gap-3"
+      className="grid grid-cols-4 gap-2"
     >
       {actions.map((action, index) => (
         <motion.button
@@ -27,12 +27,12 @@ const QuickActions = () => {
           transition={{ delay: 0.3 + index * 0.05 }}
           whileTap={{ scale: 0.95 }}
           onClick={() => navigate(action.path)}
-          className="flex flex-col items-center gap-2 p-3 bg-card rounded-xl shadow-card hover:shadow-card-hover transition-shadow"
+          className="flex flex-col items-center gap-1.5 p-3 card-institutional hover:shadow-card transition-shadow"
         >
-          <div className={`${action.color} p-2.5 rounded-xl`}>
-            <action.icon className="w-5 h-5 text-white" />
+          <div className="bg-primary p-2 rounded-lg">
+            <action.icon className="w-4 h-4 text-primary-foreground" />
           </div>
-          <span className="text-xs font-medium text-foreground">{action.label}</span>
+          <span className="text-xs font-medium text-primary">{action.label}</span>
         </motion.button>
       ))}
     </motion.div>
