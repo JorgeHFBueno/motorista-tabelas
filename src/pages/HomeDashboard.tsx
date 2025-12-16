@@ -1,11 +1,4 @@
-import {
-  Box,
-  Card,
-  CardActionArea,
-  CardContent,
-  Typography,
-  Stack,
-} from '@mui/material';
+import {Box, Card, CardActionArea, CardContent, Typography, Stack} from '@mui/material';
 import AssignmentIndIcon from '@mui/icons-material/AssignmentInd';
 import DirectionsCarFilledIcon from '@mui/icons-material/DirectionsCarFilled';
 import LocalGasStationIcon from '@mui/icons-material/LocalGasStation';
@@ -15,7 +8,7 @@ import { useNavigate } from 'react-router-dom';
 const actions = [
   {
     label: 'Cadastros',
-    description: 'Cadastrar e organizar clientes',
+    description: 'Cadastrar e organizar pessoas',
     icon: <AssignmentIndIcon fontSize="large" />,
     color: '#8ecae6',
     to: '/cadastros',
@@ -29,14 +22,14 @@ const actions = [
   },
   {
     label: 'Combustível',
-    description: 'Controle abastecimentos e consumo',
+    description: 'Controle de abastecimentos',
     icon: <LocalGasStationIcon fontSize="large" />,
     color: '#fb8500',
     to: '/combustivel',
   },
   {
     label: 'Portifólio',
-    description: 'Painéis e análises meteorológicas',
+    description: 'Campo de ideias a serem exploradas',
     icon: <WorkspacesIcon fontSize="large" />,
     color: '#90be6d',
     to: '/portfolio',

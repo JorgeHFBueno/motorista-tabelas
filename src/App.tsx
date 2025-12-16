@@ -12,6 +12,7 @@ const TabelaCombustivel = lazy(() => import('./components/TabelaCombustivel'));
 const PortifolioPage = lazy(() => import('./components/PortifolioPage'));
 const LoginPage = lazy(() => import('./pages/LoginPage'));
 const SignupPage = lazy(() => import('./pages/SignupPage'));
+const CadastrosPage = lazy(() => import('./pages/CadastrosPage'));
 const Frota = lazy(() => import('./pages/Frota'));
 const HomeDashboard = lazy(() => import('./pages/HomeDashboard'));
 
@@ -36,6 +37,7 @@ export default function App() {
           <Route element={<PrivateRoute />}>
           <Route path="/" element={<HomeDashboard />} />
             <Route path="/combustivel" element={<TabelaCombustivel />} />
+            <Route path="/cadastros" element={<CadastrosPage />} />
             <Route path="/frota" element={<Frota />} />
             <Route path="/portfolio" element={<PortifolioPage />} />
           </Route>
