@@ -1,11 +1,12 @@
-import express, { Request, Response, NextFunction, Router,} from 'express';
+import express, { Request, Response, NextFunction, Router } from 'express';
 import cors from 'cors';
 import { initializeApp } from 'firebase-admin/app';
 import { getAuth, DecodedIdToken } from 'firebase-admin/auth';
 import { getFirestore } from 'firebase-admin/firestore';
+import { admin } from './firebaseAdmin.js';
 
 initializeApp();
-const db = getFirestore();
+const db = getFirestore(admin.app());
 
 interface AuthRequest extends Request {
   user?: DecodedIdToken & { admin?: boolean };
@@ -31,7 +32,7 @@ async function verifyIdToken(
 }
 
 function verifyAdmin(req: AuthRequest, res: Response, next: NextFunction) {
-  if (req.user?.admin) return next();
+  if (req.user?.admin || req.user?.isAdmin) return next();
   res.status(403).json({ error: 'Forbidden' });
 }
 

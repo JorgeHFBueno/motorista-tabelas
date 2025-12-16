@@ -1,24 +1,8 @@
 import { useMemo, useState } from 'react';
-import {
-  Alert,
-  Box,
-  Button,
-  Container,
-  Dialog,
-  DialogActions,
-  DialogContent,
-  DialogTitle,
-  LinearProgress,
-  Paper,
-  Stack,
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableRow,
-  TextField,
-  Typography,
-} from '@mui/material';
+import { Alert, Box, Button, Container, Dialog,
+  DialogActions, DialogContent, DialogTitle, LinearProgress,
+  Paper, Stack, Table, TableBody, TableCell, TableHead,
+  TableRow, TextField, Typography } from '@mui/material';
 import useAdminUsers from '../hooks/useAdminUsers';
 import { useAuth } from '../contexts/AuthContext';
 import CadastroVeiculoForm from '../components/CadastroVeiculoForm';
@@ -26,7 +10,6 @@ import CadastroVeiculoForm from '../components/CadastroVeiculoForm';
 export default function CadastrosPage() {
   const { users, loading, error, createUser, deleteUser } = useAdminUsers();
   const { isAdmin } = useAuth();
-
   const [dialogAberto, setDialogAberto] = useState(false);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -110,10 +93,7 @@ export default function CadastrosPage() {
         <Paper elevation={1} sx={{ p: 3 }}>
           <Stack direction={{ xs: 'column', sm: 'row' }} justifyContent="space-between" spacing={2} mb={2} alignItems={{ sm: 'center' }}>
             <Box>
-              <Typography variant="h6">Usuários</Typography>
-              <Typography variant="body2" color="text.secondary">
-                Lista semelhante ao Firebase Auth. Criação e remoção dependem do endpoint admin.
-              </Typography>
+              <Typography variant="h6">Usuários</Typography>              
             </Box>
             <Button variant="contained" onClick={handleAbrirDialog} disabled={!isAdmin}>
               Adicionar usuário
@@ -184,14 +164,11 @@ export default function CadastrosPage() {
             <Box>
               <Typography variant="h6">Veículos</Typography>
               <Typography variant="body2" color="text.secondary">
-                Cadastro de placas/veículos utilizado anteriormente na Frota.
+                Cadastro de placas/veículos.
               </Typography>
             </Box>
             <CadastroVeiculoForm buttonLabel="Cadastrar veículo" />
-          </Stack>
-          <Alert severity="info">
-            O cadastro de veículos foi movido para esta página. Use o botão acima para incluir novos registros.
-          </Alert>
+          </Stack>          
         </Paper>
       </Stack>
 
