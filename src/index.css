@@ -6,111 +6,111 @@
 
 @layer base {
   :root {
-    /* Ledur Governante Color Palette */
-    --background: 210 20% 98%;
-    --foreground: 215 35% 15%;
+    /* Ledur Governante - Official Palette */
+    /* #12293B - Azul institucional profundo */
+    /* #2F6B98 - Azul técnico */
+    /* #5B5D5B - Cinza estrutural */
+    /* #000000 - Preto absoluto */
+    /* #FFFFFF - Branco */
+
+    --background: 0 0% 100%;
+    --foreground: 0 0% 0%;
 
     --card: 0 0% 100%;
-    --card-foreground: 215 35% 15%;
+    --card-foreground: 207 53% 15%;
 
     --popover: 0 0% 100%;
-    --popover-foreground: 215 35% 15%;
+    --popover-foreground: 207 53% 15%;
 
-    /* Deep Navy Blue - Authority */
-    --primary: 215 60% 22%;
+    /* Deep Institutional Blue #12293B */
+    --primary: 207 53% 15%;
     --primary-foreground: 0 0% 100%;
 
-    /* Light blue for secondary surfaces */
-    --secondary: 205 70% 95%;
-    --secondary-foreground: 215 35% 15%;
+    /* Technical Blue #2F6B98 */
+    --secondary: 206 53% 39%;
+    --secondary-foreground: 0 0% 100%;
 
-    /* Muted tones */
-    --muted: 210 15% 92%;
-    --muted-foreground: 215 15% 50%;
+    /* Structural Gray #5B5D5B */
+    --muted: 210 5% 96%;
+    --muted-foreground: 120 2% 36%;
 
-    /* Gold accent - Premium feel */
-    --accent: 38 90% 55%;
-    --accent-foreground: 215 35% 15%;
+    /* Technical Blue as accent */
+    --accent: 206 53% 39%;
+    --accent-foreground: 0 0% 100%;
 
     /* Status colors */
-    --destructive: 0 70% 55%;
+    --destructive: 0 70% 45%;
     --destructive-foreground: 0 0% 100%;
 
-    --success: 152 60% 45%;
+    --success: 152 55% 40%;
     --success-foreground: 0 0% 100%;
 
-    --warning: 38 90% 55%;
-    --warning-foreground: 215 35% 15%;
+    --warning: 38 80% 50%;
+    --warning-foreground: 0 0% 0%;
 
-    --border: 210 20% 88%;
-    --input: 210 20% 88%;
-    --ring: 215 60% 22%;
+    --border: 210 10% 90%;
+    --input: 210 10% 90%;
+    --ring: 206 53% 39%;
 
-    --radius: 1rem;
+    --radius: 0.75rem;
 
     /* Progress bar colors */
-    --progress-bg: 205 70% 90%;
-    --progress-fill: 205 85% 55%;
+    --progress-bg: 210 10% 92%;
+    --progress-fill: 206 53% 39%;
 
-    /* Sidebar */
-    --sidebar-background: 215 60% 22%;
+    /* Sidebar - Institutional Blue */
+    --sidebar-background: 207 53% 15%;
     --sidebar-foreground: 0 0% 100%;
-    --sidebar-primary: 38 90% 55%;
-    --sidebar-primary-foreground: 215 35% 15%;
-    --sidebar-accent: 215 50% 30%;
+    --sidebar-primary: 206 53% 39%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 207 45% 22%;
     --sidebar-accent-foreground: 0 0% 100%;
-    --sidebar-border: 215 40% 30%;
-    --sidebar-ring: 38 90% 55%;
+    --sidebar-border: 207 40% 25%;
+    --sidebar-ring: 206 53% 39%;
 
-    /* Custom gradients */
-    --gradient-primary: linear-gradient(135deg, hsl(215 60% 22%) 0%, hsl(215 50% 30%) 100%);
-    --gradient-accent: linear-gradient(135deg, hsl(38 90% 55%) 0%, hsl(38 80% 45%) 100%);
-    --gradient-card: linear-gradient(180deg, hsl(0 0% 100%) 0%, hsl(210 20% 98%) 100%);
-
-    /* Shadows */
-    --shadow-sm: 0 2px 8px -2px hsl(215 35% 15% / 0.08);
-    --shadow-md: 0 4px 16px -4px hsl(215 35% 15% / 0.12);
-    --shadow-lg: 0 8px 32px -8px hsl(215 35% 15% / 0.16);
-    --shadow-glow: 0 0 24px hsl(38 90% 55% / 0.25);
+    /* Shadows - more subtle, professional */
+    --shadow-sm: 0 1px 3px 0 hsl(0 0% 0% / 0.05);
+    --shadow-md: 0 4px 12px -2px hsl(0 0% 0% / 0.08);
+    --shadow-lg: 0 8px 24px -4px hsl(0 0% 0% / 0.1);
   }
 
   .dark {
-    --background: 215 35% 10%;
-    --foreground: 210 20% 95%;
+    --background: 207 53% 10%;
+    --foreground: 0 0% 95%;
 
-    --card: 215 30% 15%;
-    --card-foreground: 210 20% 95%;
+    --card: 207 45% 14%;
+    --card-foreground: 0 0% 95%;
 
-    --popover: 215 30% 15%;
-    --popover-foreground: 210 20% 95%;
+    --popover: 207 45% 14%;
+    --popover-foreground: 0 0% 95%;
 
-    --primary: 38 90% 55%;
-    --primary-foreground: 215 35% 10%;
+    --primary: 206 53% 39%;
+    --primary-foreground: 0 0% 100%;
 
-    --secondary: 215 25% 20%;
-    --secondary-foreground: 210 20% 95%;
+    --secondary: 207 40% 20%;
+    --secondary-foreground: 0 0% 95%;
 
-    --muted: 215 25% 20%;
-    --muted-foreground: 210 15% 60%;
+    --muted: 207 30% 18%;
+    --muted-foreground: 120 2% 60%;
 
-    --accent: 38 90% 55%;
-    --accent-foreground: 215 35% 10%;
+    --accent: 206 53% 39%;
+    --accent-foreground: 0 0% 100%;
 
-    --destructive: 0 62.8% 40%;
-    --destructive-foreground: 210 20% 95%;
+    --destructive: 0 62% 40%;
+    --destructive-foreground: 0 0% 95%;
 
-    --border: 215 25% 25%;
-    --input: 215 25% 25%;
-    --ring: 38 90% 55%;
+    --border: 207 30% 22%;
+    --input: 207 30% 22%;
+    --ring: 206 53% 39%;
 
-    --sidebar-background: 215 35% 8%;
-    --sidebar-foreground: 210 20% 95%;
-    --sidebar-primary: 38 90% 55%;
-    --sidebar-primary-foreground: 215 35% 10%;
-    --sidebar-accent: 215 30% 18%;
-    --sidebar-accent-foreground: 210 20% 95%;
-    --sidebar-border: 215 25% 20%;
-    --sidebar-ring: 38 90% 55%;
+    --sidebar-background: 207 53% 8%;
+    --sidebar-foreground: 0 0% 95%;
+    --sidebar-primary: 206 53% 39%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 207 40% 16%;
+    --sidebar-accent-foreground: 0 0% 95%;
+    --sidebar-border: 207 30% 20%;
+    --sidebar-ring: 206 53% 39%;
   }
 }
 
@@ -126,20 +126,17 @@
 }
 
 @layer utilities {
-  .text-gradient {
-    @apply bg-clip-text text-transparent;
-    background-image: var(--gradient-accent);
-  }
-
-  .glass-card {
-    @apply bg-card/80 backdrop-blur-lg border border-border/50;
-  }
-
   .shadow-card {
     box-shadow: var(--shadow-md);
   }
 
   .shadow-card-hover {
     box-shadow: var(--shadow-lg);
+  }
+
+  /* Institutional card style */
+  .card-institutional {
+    @apply bg-card border border-border rounded-lg;
+    box-shadow: var(--shadow-sm);
   }
 }

@@ -92,7 +92,7 @@ const Atendimento = () => {
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.1 }}
             >
-              <Button variant="accent" className="w-full" size="lg">
+              <Button variant="secondary" className="w-full" size="lg">
                 <Plus className="w-5 h-5" />
                 Abrir Novo Ticket
               </Button>
