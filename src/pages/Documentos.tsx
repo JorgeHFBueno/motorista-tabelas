@@ -5,7 +5,7 @@ import {
   PenTool, Send, Shield, History, X, CheckCircle2, AlertCircle,
   FileSignature, Fingerprint, Globe, Calendar, User
 } from "lucide-react";
-import MobileLayout from "@/components/layout/MobileLayout";
+import ResponsiveLayout from "@/components/layout/ResponsiveLayout";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -242,24 +242,8 @@ const Documentos = () => {
   const signedCount = documents.filter(d => d.signatureStatus === "assinado" || d.signatureStatus === "finalizado").length;
 
   return (
-    <MobileLayout>
-      <div className="bg-primary px-4 pt-12 pb-6">
-        <motion.div
-          initial={{ opacity: 0, y: -10 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="flex items-center gap-3"
-        >
-          <div className="bg-white/10 p-2.5 rounded-lg">
-            <FileSignature className="w-6 h-6 text-white" />
-          </div>
-          <div>
-            <h1 className="text-xl font-semibold text-white">Documentos</h1>
-            <p className="text-white/70 text-sm">Arquivo institucional e contratos</p>
-          </div>
-        </motion.div>
-      </div>
-
-      <div className="px-4 -mt-3 space-y-4 pb-24">
+    <ResponsiveLayout headerTitle="Documentos" headerSubtitle="Arquivo institucional e contratos">
+      <div className="px-4 py-6 lg:px-8 lg:py-8 space-y-6">
         {/* Search */}
         <motion.div
           initial={{ opacity: 0, y: 10 }}
@@ -621,7 +605,7 @@ const Documentos = () => {
           )}
         </SheetContent>
       </Sheet>
-    </MobileLayout>
+    </ResponsiveLayout>
   );
 };
 

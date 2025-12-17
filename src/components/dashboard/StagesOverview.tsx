@@ -23,35 +23,35 @@ const StagesOverview = () => {
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ delay: 0.3 }}
-      className="bg-card rounded-2xl p-5 shadow-card"
+      className="bg-card rounded-2xl p-5 lg:p-6 shadow-card"
     >
-      <div className="flex items-center justify-between mb-4">
-        <h3 className="font-semibold text-foreground">Etapas da Obra</h3>
-        <span className="text-xs text-muted-foreground bg-secondary px-2.5 py-1 rounded-full">
+      <div className="flex items-center justify-between mb-4 lg:mb-6">
+        <h3 className="font-semibold text-foreground text-lg">Etapas da Obra</h3>
+        <span className="text-xs text-secondary-foreground bg-secondary px-2.5 py-1 rounded-full">
           3/5 concluídas
         </span>
       </div>
 
-      <div className="space-y-3">
+      <div className="space-y-3 lg:space-y-4">
         {stages.map((stage, index) => (
           <motion.div
             key={stage.name}
             initial={{ opacity: 0, x: -20 }}
             animate={{ opacity: 1, x: 0 }}
             transition={{ delay: 0.4 + index * 0.1 }}
-            className="flex items-center gap-3"
+            className="flex items-center gap-3 lg:gap-4"
           >
             <div className={cn(
-              "w-10 h-10 rounded-xl flex items-center justify-center shrink-0",
+              "w-10 h-10 lg:w-12 lg:h-12 rounded-xl flex items-center justify-center shrink-0",
               stage.status === "completed" && "bg-success/10",
               stage.status === "in-progress" && "bg-progress-fill/10",
               stage.status === "pending" && "bg-muted"
             )}>
               {stage.status === "completed" ? (
-                <CheckCircle2 className="w-5 h-5 text-success" />
+                <CheckCircle2 className="w-5 h-5 lg:w-6 lg:h-6 text-success" />
               ) : (
                 <stage.icon className={cn(
-                  "w-5 h-5",
+                  "w-5 h-5 lg:w-6 lg:h-6",
                   stage.status === "in-progress" && "text-progress-fill",
                   stage.status === "pending" && "text-muted-foreground"
                 )} />
@@ -61,7 +61,7 @@ const StagesOverview = () => {
             <div className="flex-1 min-w-0">
               <div className="flex items-center justify-between mb-1">
                 <span className={cn(
-                  "text-sm font-medium truncate",
+                  "text-sm lg:text-base font-medium truncate",
                   stage.status === "pending" ? "text-muted-foreground" : "text-foreground"
                 )}>
                   {stage.name}
@@ -75,7 +75,7 @@ const StagesOverview = () => {
                   {stage.progress}%
                 </span>
               </div>
-              <div className="h-1.5 bg-muted rounded-full overflow-hidden">
+              <div className="h-1.5 lg:h-2 bg-muted rounded-full overflow-hidden">
                 <motion.div
                   className={cn(
                     "h-full rounded-full",

@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
-import { Camera, Calendar, Layers, ChevronRight, X, ZoomIn } from "lucide-react";
-import MobileLayout from "@/components/layout/MobileLayout";
+import { Camera, Calendar, Layers, X, ZoomIn } from "lucide-react";
+import ResponsiveLayout from "@/components/layout/ResponsiveLayout";
 import { Badge } from "@/components/ui/badge";
 
 interface Photo {
@@ -26,7 +26,6 @@ const photos: Photo[] = [
 ];
 
 const stages = ["Todas", "Fundação", "Estrutura", "Cobertura", "Fechamento"];
-const periods = ["Todos", "2024"];
 
 const Fotos = () => {
   const [selectedStage, setSelectedStage] = useState("Todas");
@@ -34,12 +33,10 @@ const Fotos = () => {
   const [viewStartTime, setViewStartTime] = useState<number | null>(null);
 
   useEffect(() => {
-    // Event: photos_view on mount
     console.log("Event: photos_view");
     setViewStartTime(Date.now());
 
     return () => {
-      // Event: time_spent_photos on unmount
       if (viewStartTime) {
         const timeSpent = Math.round((Date.now() - viewStartTime) / 1000);
         console.log("Event: time_spent_photos", { seconds: timeSpent });
@@ -60,53 +57,35 @@ const Fotos = () => {
 
   const handlePhotoOpen = (photo: Photo) => {
     setSelectedPhoto(photo);
-    // Event: photo_open
     console.log("Event: photo_open", { photo_id: photo.id, stage: photo.stage });
   };
 
   const handleStageFilter = (stage: string) => {
     setSelectedStage(stage);
-    // Event: photo_stage_view
     console.log("Event: photo_stage_view", { stage });
   };
 
   return (
-    <MobileLayout>
-      <div className="bg-primary px-4 pt-12 pb-6">
-        <motion.div
-          initial={{ opacity: 0, y: -10 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="flex items-center gap-3"
-        >
-          <div className="bg-white/10 p-2.5 rounded-lg">
-            <Camera className="w-6 h-6 text-white" />
-          </div>
-          <div>
-            <h1 className="text-xl font-semibold text-white">Fotos</h1>
-            <p className="text-white/70 text-sm">Registro visual da evolução</p>
-          </div>
-        </motion.div>
-      </div>
-
-      <div className="px-4 -mt-3 space-y-4 pb-24">
+    <ResponsiveLayout headerTitle="Fotos" headerSubtitle="Registro visual da evolução da obra">
+      <div className="px-4 py-6 lg:px-8 lg:py-8 space-y-6">
         {/* Summary Stats */}
         <motion.div
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.1 }}
-          className="grid grid-cols-3 gap-3"
+          className="grid grid-cols-3 gap-3 lg:gap-4"
         >
-          <div className="card-institutional p-3 text-center">
-            <p className="text-2xl font-bold text-primary">{photos.length}</p>
-            <p className="text-xs text-muted-foreground">Total</p>
+          <div className="card-institutional p-3 lg:p-4 text-center">
+            <p className="text-2xl lg:text-3xl font-bold text-primary">{photos.length}</p>
+            <p className="text-xs lg:text-sm text-muted-foreground">Total</p>
           </div>
-          <div className="card-institutional p-3 text-center">
-            <p className="text-2xl font-bold text-secondary">{stages.length - 1}</p>
-            <p className="text-xs text-muted-foreground">Etapas</p>
+          <div className="card-institutional p-3 lg:p-4 text-center">
+            <p className="text-2xl lg:text-3xl font-bold text-secondary">{stages.length - 1}</p>
+            <p className="text-xs lg:text-sm text-muted-foreground">Etapas</p>
           </div>
-          <div className="card-institutional p-3 text-center">
-            <p className="text-2xl font-bold text-foreground">{Object.keys(groupedByMonth).length}</p>
-            <p className="text-xs text-muted-foreground">Meses</p>
+          <div className="card-institutional p-3 lg:p-4 text-center">
+            <p className="text-2xl lg:text-3xl font-bold text-foreground">{Object.keys(groupedByMonth).length}</p>
+            <p className="text-xs lg:text-sm text-muted-foreground">Meses</p>
           </div>
         </motion.div>
 
@@ -115,26 +94,26 @@ const Fotos = () => {
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.15 }}
-          className="flex gap-2 overflow-x-auto pb-2 -mx-4 px-4 scrollbar-hide"
+          className="flex gap-2 lg:gap-3 overflow-x-auto pb-2 -mx-4 px-4 lg:mx-0 lg:px-0 scrollbar-hide lg:flex-wrap"
         >
           {stages.map((stage) => (
             <button
               key={stage}
               onClick={() => handleStageFilter(stage)}
-              className={`px-3 py-1.5 rounded-full text-xs font-medium whitespace-nowrap transition-colors flex items-center gap-1.5 ${
+              className={`px-3 py-1.5 lg:px-4 lg:py-2 rounded-full text-xs lg:text-sm font-medium whitespace-nowrap transition-colors flex items-center gap-1.5 ${
                 selectedStage === stage
                   ? "bg-primary text-primary-foreground"
                   : "bg-muted text-muted-foreground hover:bg-muted/80"
               }`}
             >
-              <Layers className="w-3 h-3" />
+              <Layers className="w-3 h-3 lg:w-4 lg:h-4" />
               {stage}
             </button>
           ))}
         </motion.div>
 
         {/* Photos Grid by Month */}
-        <div className="space-y-6">
+        <div className="space-y-6 lg:space-y-8">
           {Object.entries(groupedByMonth).map(([monthYear, monthPhotos], groupIndex) => (
             <motion.div
               key={monthYear}
@@ -142,13 +121,13 @@ const Fotos = () => {
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.2 + groupIndex * 0.1 }}
             >
-              <div className="flex items-center gap-2 mb-3">
-                <Calendar className="w-4 h-4 text-primary" />
-                <h2 className="text-sm font-semibold text-primary">{monthYear}</h2>
-                <span className="text-xs text-muted-foreground">({monthPhotos.length} fotos)</span>
+              <div className="flex items-center gap-2 mb-3 lg:mb-4">
+                <Calendar className="w-4 h-4 lg:w-5 lg:h-5 text-primary" />
+                <h2 className="text-sm lg:text-base font-semibold text-primary">{monthYear}</h2>
+                <span className="text-xs lg:text-sm text-muted-foreground">({monthPhotos.length} fotos)</span>
               </div>
               
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 lg:gap-4">
                 {monthPhotos.map((photo, index) => (
                   <motion.div
                     key={photo.id}
@@ -165,14 +144,14 @@ const Fotos = () => {
                         className="w-full h-full object-cover"
                       />
                       <div className="absolute inset-0 bg-primary/0 group-hover:bg-primary/20 transition-colors flex items-center justify-center">
-                        <ZoomIn className="w-6 h-6 text-white opacity-0 group-hover:opacity-100 transition-opacity" />
+                        <ZoomIn className="w-6 h-6 lg:w-8 lg:h-8 text-white opacity-0 group-hover:opacity-100 transition-opacity" />
                       </div>
                     </div>
-                    <div className="p-2.5">
+                    <div className="p-2.5 lg:p-3">
                       <Badge variant="outline" className="text-xs mb-1.5">
                         {photo.stage}
                       </Badge>
-                      <p className="text-xs text-muted-foreground">{photo.date}</p>
+                      <p className="text-xs lg:text-sm text-muted-foreground">{photo.date}</p>
                     </div>
                   </motion.div>
                 ))}
@@ -191,20 +170,20 @@ const Fotos = () => {
           className="fixed inset-0 z-50 bg-black/95 flex flex-col"
           onClick={() => setSelectedPhoto(null)}
         >
-          <div className="flex items-center justify-between p-4">
+          <div className="flex items-center justify-between p-4 lg:p-6">
             <div>
               <Badge variant="secondary" className="mb-1">{selectedPhoto.stage}</Badge>
-              <p className="text-white/70 text-sm">{selectedPhoto.date}</p>
+              <p className="text-white/70 text-sm lg:text-base">{selectedPhoto.date}</p>
             </div>
             <button
               onClick={() => setSelectedPhoto(null)}
-              className="p-2 bg-white/10 rounded-full"
+              className="p-2 bg-white/10 rounded-full hover:bg-white/20 transition-colors"
             >
-              <X className="w-5 h-5 text-white" />
+              <X className="w-5 h-5 lg:w-6 lg:h-6 text-white" />
             </button>
           </div>
           
-          <div className="flex-1 flex items-center justify-center p-4">
+          <div className="flex-1 flex items-center justify-center p-4 lg:p-8">
             <img
               src={selectedPhoto.url}
               alt={`${selectedPhoto.stage} - ${selectedPhoto.date}`}
@@ -214,14 +193,14 @@ const Fotos = () => {
           </div>
           
           {selectedPhoto.observation && (
-            <div className="p-4 bg-white/5">
-              <p className="text-sm font-medium text-white mb-1">Observação Técnica</p>
-              <p className="text-sm text-white/70">{selectedPhoto.observation}</p>
+            <div className="p-4 lg:p-6 bg-white/5">
+              <p className="text-sm lg:text-base font-medium text-white mb-1">Observação Técnica</p>
+              <p className="text-sm lg:text-base text-white/70">{selectedPhoto.observation}</p>
             </div>
           )}
         </motion.div>
       )}
-    </MobileLayout>
+    </ResponsiveLayout>
   );
 };
 

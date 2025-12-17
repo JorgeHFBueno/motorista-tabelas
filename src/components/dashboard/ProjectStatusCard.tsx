@@ -19,7 +19,7 @@ const ProjectStatusCard = ({ progress, deliveryDate, status }: ProjectStatusCard
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ delay: 0.1 }}
-      className="card-institutional p-5"
+      className="card-institutional p-5 lg:p-6"
     >
       <div className="flex items-start justify-between mb-4">
         <div>
@@ -34,22 +34,22 @@ const ProjectStatusCard = ({ progress, deliveryDate, status }: ProjectStatusCard
         </div>
       </div>
 
-      <div className="flex items-center gap-5">
+      <div className="flex items-center gap-5 lg:gap-8">
         {/* Circular Progress */}
-        <div className="relative w-20 h-20">
+        <div className="relative w-20 h-20 lg:w-24 lg:h-24">
           <svg className="w-full h-full transform -rotate-90">
             <circle
-              cx="40"
-              cy="40"
-              r="34"
+              cx="50%"
+              cy="50%"
+              r="42%"
               fill="none"
               stroke="hsl(var(--muted))"
               strokeWidth="6"
             />
             <motion.circle
-              cx="40"
-              cy="40"
-              r="34"
+              cx="50%"
+              cy="50%"
+              r="42%"
               fill="none"
               stroke="hsl(var(--secondary))"
               strokeWidth="6"
@@ -61,7 +61,7 @@ const ProjectStatusCard = ({ progress, deliveryDate, status }: ProjectStatusCard
             />
           </svg>
           <div className="absolute inset-0 flex items-center justify-center">
-            <span className="text-xl font-bold text-foreground">{progress}%</span>
+            <span className="text-xl lg:text-2xl font-bold text-foreground">{progress}%</span>
           </div>
         </div>
 
