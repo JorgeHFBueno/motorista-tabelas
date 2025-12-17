@@ -28,7 +28,7 @@ const FinancialSummaryCard = ({ totalPaid, totalValue, nextPayment }: FinancialS
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ delay: 0.2 }}
-      className="card-institutional p-5"
+      className="card-institutional p-5 lg:p-6"
     >
       <div className="flex items-center gap-2 mb-4">
         <div className="p-2 bg-muted rounded-lg">
@@ -38,7 +38,7 @@ const FinancialSummaryCard = ({ totalPaid, totalValue, nextPayment }: FinancialS
       </div>
 
       {/* Next Payment Alert */}
-      <div className={`flex items-center justify-between p-3 rounded-lg mb-4 ${
+      <div className={`flex items-center justify-between p-3 lg:p-4 rounded-lg mb-4 ${
         nextPayment.isOverdue ? 'bg-destructive/10 border border-destructive/20' : 'bg-muted'
       }`}>
         <div className="flex items-center gap-3">
@@ -47,7 +47,7 @@ const FinancialSummaryCard = ({ totalPaid, totalValue, nextPayment }: FinancialS
             <p className="text-xs text-muted-foreground">
               {nextPayment.isOverdue ? 'Parcela vencida' : 'Próxima parcela'}
             </p>
-            <p className="font-bold text-lg text-foreground">{formatCurrency(nextPayment.value)}</p>
+            <p className="font-bold text-lg lg:text-xl text-foreground">{formatCurrency(nextPayment.value)}</p>
             <p className="text-xs text-muted-foreground">{nextPayment.dueDate}</p>
           </div>
         </div>
@@ -62,7 +62,7 @@ const FinancialSummaryCard = ({ totalPaid, totalValue, nextPayment }: FinancialS
           <span className="text-muted-foreground">Total pago</span>
           <span className="font-semibold text-foreground">{formatCurrency(totalPaid)}</span>
         </div>
-        <div className="h-2 bg-muted rounded-full overflow-hidden">
+        <div className="h-2 lg:h-2.5 bg-muted rounded-full overflow-hidden">
           <motion.div
             className="h-full bg-secondary rounded-full"
             initial={{ width: 0 }}
