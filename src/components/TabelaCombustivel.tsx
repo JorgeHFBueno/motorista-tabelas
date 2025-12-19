@@ -1,7 +1,7 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { DataGrid, type GridColDef } from '@mui/x-data-grid';
 import dayjs from 'dayjs';
-import { Button, Stack, IconButton, Snackbar, Alert, Dialog, DialogTitle, DialogContent, DialogActions, TextField } from '@mui/material';
+import { Button, Stack, IconButton, Snackbar, Alert, Dialog, DialogTitle, DialogContent, DialogActions, TextField, MenuItem } from '@mui/material';
 import DeleteIcon from '@mui/icons-material/Delete';
 import type { Registro } from '../types';
 import useCombustivel from '../hooks/useCombustivel';
@@ -10,12 +10,23 @@ import { useAuth } from '../contexts/AuthContext';
 import * as XLSX from 'xlsx';
 import useOnlineStatus from '../hooks/useOnlineStatus';
 
+type View = 'principal' | 'porNome' | 'custo';
+
+interface CustoRow {
+  id: string;
+  placa: string;
+  kmMes: number | null;
+  litrosMes: number;
+  mediaKmPorLitro: number | null;
+  statusKm: 'OK' | 'SEM_ODOMETRO' | 'DADOS_INSUFICIENTES';
+}
+
 export default function TabelaCombustivel() {
   const { data: rows, loading, create, update, remove } = useCombustivel();
   const { isAdmin } = useAuth();
   const { isOnline } = useOnlineStatus();
 
-  const [view, setView] = useState<'principal' | 'porNome'>('principal');
+  const [view, setView] = useState<View>('principal');
   const [editing, setEditing] = useState<Registro | null>(null);
   const [snack, setSnack] = useState<string | null>(null);
 
@@ -24,9 +35,15 @@ export default function TabelaCombustivel() {
     maximumFractionDigits: 1,
   });
 
+  const kmFormatter = new Intl.NumberFormat('pt-BR', {
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 0,
+  });
+
   const [exportOpen, setExportOpen] = useState(false);
   const [fromMonth, setFromMonth] = useState(dayjs().format('YYYY-MM'));
   const [toMonth, setToMonth] = useState(dayjs().format('YYYY-MM'));
+  const [selectedMonth, setSelectedMonth] = useState('');
 
   async function handleSave(values: Partial<Registro>) {
     try {
@@ -139,32 +156,44 @@ export default function TabelaCombustivel() {
       headerName: 'Montante Final',
       minWidth: 120,
       flex: 1,
-      renderCell: ({ value }) =>
-        isNaN(Number(value)) ? '—' : brNumberFormatter.format(Number(value) / 10),
+      renderCell: (params) => {
+        const value = params?.value;
+        if (value === null || value === undefined || isNaN(Number(value))) return '—';
+        return brNumberFormatter.format(Number(value) / 10);
+      },
     },
     {
       field: 'qa',
       headerName: 'Qnt. Abastecida',
       minWidth: 120,
       flex: 1,
-      renderCell: ({ value }) =>
-        isNaN(Number(value)) ? '—' : brNumberFormatter.format(Number(value) / 10),
+      renderCell: (params) => {
+        const value = params?.value;
+        if (value === null || value === undefined || isNaN(Number(value))) return '—';
+        return brNumberFormatter.format(Number(value) / 10);
+      },
     },
     {
       field: 'li',
       headerName: 'Montante Inicial',
       minWidth: 120,
       flex: 1,
-      renderCell: ({ value }) =>
-        isNaN(Number(value)) ? '—' : brNumberFormatter.format(Number(value) / 10),
+      renderCell: (params) => {
+        const value = params?.value;
+        if (value === null || value === undefined || isNaN(Number(value))) return '—';
+        return brNumberFormatter.format(Number(value) / 10);
+      },
     },
     {
       field: 'arla',
       headerName: 'Arla',
       minWidth: 80,
       flex: 1,
-      renderCell: ({ value }) =>
-        isNaN(Number(value)) ? '—' : brNumberFormatter.format(Number(value) / 10),
+      renderCell: (params) => {
+        const value = params?.value;
+        if (value === null || value === undefined || isNaN(Number(value))) return '—';
+        return brNumberFormatter.format(Number(value) / 10);
+      },
     },
     { field: 'motorista', headerName: 'Frentista', minWidth: 150, flex: 1.2 },
     { field: 'para_quem', headerName: 'Operador', minWidth: 150, flex: 1.2 },
@@ -205,6 +234,161 @@ export default function TabelaCombustivel() {
       .map((it, idx) => ({ id: idx, ...it }));
   }, [rowsOk]);
 
+  const monthOptions = useMemo(() => {
+    const monthLabels = ['JAN', 'FEV', 'MAR', 'ABR', 'MAI', 'JUN', 'JUL', 'AGO', 'SET', 'OUT', 'NOV', 'DEZ'];
+    const map = new Map<string, { value: string; label: string; year: number; month: number }>();
+
+    for (const r of rowsOk) {
+      const dataJS = (r as any).dataJS as Date | null | undefined;
+      if (!dataJS || !(dataJS instanceof Date) || isNaN(dataJS.getTime())) continue;
+      const year = dataJS.getFullYear();
+      const month = dataJS.getMonth();
+      const value = `${year}-${String(month + 1).padStart(2, '0')}`;
+      const label = `${monthLabels[month]}-${String(year).slice(-2)}`;
+      if (!map.has(value)) {
+        map.set(value, { value, label, year, month });
+      }
+    }
+
+    const options = Array.from(map.values())
+      .sort((a, b) => (a.year - b.year) || (a.month - b.month))
+      .map(({ value, label }) => ({ value, label }));
+
+    console.log('[Custo] monthOptions:', options);
+    return options;
+  }, [rowsOk]);
+
+  useEffect(() => {
+    if (monthOptions.length === 0) {
+      if (selectedMonth !== '') setSelectedMonth('');
+      return;
+    }
+    const hasSelected = monthOptions.some(option => option.value === selectedMonth);
+    if (!hasSelected) {
+      setSelectedMonth(monthOptions[monthOptions.length - 1].value);
+    }
+  }, [monthOptions, selectedMonth]);
+
+  useEffect(() => {
+    console.log('[Custo] selectedMonth:', selectedMonth);
+  }, [selectedMonth]);
+
+  const registrosDoMes = useMemo(() => {
+    if (!selectedMonth) return [];
+    const [anoStr, mesStr] = selectedMonth.split('-');
+    const anoSelecionado = Number(anoStr);
+    const mesSelecionado = Number(mesStr) - 1;
+
+    const registros = rowsOk.filter((r) => {
+      const dataJS = (r as any).dataJS as Date | null | undefined;
+      if (!dataJS || !(dataJS instanceof Date) || isNaN(dataJS.getTime())) return false;
+      return dataJS.getFullYear() === anoSelecionado && dataJS.getMonth() === mesSelecionado;
+    });
+
+    console.log('[Custo] registrosDoMes length para', selectedMonth, ':', registros.length);
+    return registros;
+  }, [rowsOk, selectedMonth]);
+
+  function buildCustoRows(registros: Registro[], month: string): CustoRow[] {
+    if (!month) return [];
+    const grouped: Record<string, Registro[]> = {};
+
+    for (const r of registros) {
+      const placa = (r.placa ?? '').trim() || '—';
+      if (!grouped[placa]) grouped[placa] = [];
+      grouped[placa].push(r);
+    }
+
+    const custoRows = Object.entries(grouped).map(([placa, registrosPlaca]) => {
+      const semOdometro = registrosPlaca.every((r) => r.semKm === 'Sem Odômetro' || r.tipoPlaca === false);
+      const registrosComKm = registrosPlaca
+        .filter((r) => typeof r.km === 'number' && !Number.isNaN(r.km))
+        .sort((a, b) => {
+          const aData = (a as any).dataJS as Date | null | undefined;
+          const bData = (b as any).dataJS as Date | null | undefined;
+          const aTime = aData instanceof Date && !isNaN(aData.getTime()) ? aData.getTime() : 0;
+          const bTime = bData instanceof Date && !isNaN(bData.getTime()) ? bData.getTime() : 0;
+          return aTime - bTime;
+        });
+
+      let kmMes: number | null = null;
+      let statusKm: CustoRow['statusKm'] = 'DADOS_INSUFICIENTES';
+
+      if (semOdometro) {
+        statusKm = 'SEM_ODOMETRO';
+      } else if (registrosComKm.length >= 2) {
+        const firstKm = registrosComKm[0].km as number;
+        const lastKm = registrosComKm[registrosComKm.length - 1].km as number;
+        if (lastKm >= firstKm) {
+          kmMes = lastKm - firstKm;
+          statusKm = 'OK';
+        }
+      }
+
+      const litrosMes = registrosPlaca.reduce((acc, r) => acc + Number(r.qa ?? 0), 0) / 10;
+      const mediaKmPorLitro = statusKm === 'OK' && litrosMes > 0 && kmMes !== null ? kmMes / litrosMes : null;
+
+      console.log('[Custo] placa', placa, 'registrosPlaca:', registrosPlaca.length, 'registrosComKm:', registrosComKm.length, 'semOdometro:', semOdometro);
+
+      return {
+        id: `${placa}-${month}`,
+        placa,
+        kmMes,
+        litrosMes,
+        mediaKmPorLitro,
+        statusKm,
+      };
+    });
+
+    custoRows.sort((a, b) => a.placa.localeCompare(b.placa));
+    console.log('[Custo] custoRows para', month, ':', custoRows);
+    return custoRows;
+  }
+
+  const custoRows = useMemo(() => buildCustoRows(registrosDoMes, selectedMonth), [registrosDoMes, selectedMonth]);
+
+  const custoColumns: GridColDef[] = useMemo(() => [
+    { field: 'placa', headerName: 'Placa', minWidth: 140, flex: 1 },
+    {
+      field: 'kmMes',
+      headerName: 'Quilômetro Mês',
+      minWidth: 160,
+      flex: 1,
+      valueFormatter: (params: any) => {
+        const value = params?.value;
+        const row = params?.row as CustoRow;
+        if (row?.statusKm === 'SEM_ODOMETRO') return 'Sem odômetro';
+        if (row?.statusKm === 'DADOS_INSUFICIENTES') return 'Dados insuficientes';
+        if (value === null || value === undefined || Number.isNaN(Number(value))) return '—';
+        return kmFormatter.format(Number(value));
+      },
+    },
+    {
+      field: 'litrosMes',
+      headerName: 'Litros Mês',
+      minWidth: 140,
+      flex: 1,
+      valueFormatter: (params: any) => {
+        const value = params?.value;
+        if (value === null || value === undefined || Number.isNaN(Number(value))) return '—';
+        return brNumberFormatter.format(Number(value));
+      },
+    },
+    {
+      field: 'mediaKmPorLitro',
+      headerName: 'Média (km/l)',
+      minWidth: 140,
+      flex: 1,
+      valueFormatter: (params: any) => {
+        const row = params?.row as CustoRow;
+        const value = params?.value;
+        if (row?.statusKm !== 'OK') return '—';
+        if (value === null || value === undefined || Number.isNaN(Number(value))) return '—';
+        return brNumberFormatter.format(Number(value));
+      },
+    },
+  ], [brNumberFormatter, kmFormatter]);
+
   return (
     <>
       {!isOnline && (
@@ -227,6 +411,12 @@ export default function TabelaCombustivel() {
           onClick={() => setView('porNome')}
         >
           Por Nome
+        </Button>
+        <Button
+          variant={view === 'custo' ? 'contained' : 'outlined'}
+          onClick={() => setView('custo')}
+        >
+          Custo
         </Button>
       </Stack>
 
@@ -266,6 +456,36 @@ export default function TabelaCombustivel() {
             getRowHeight={() => 'auto'}
           />
         </div>
+      )}
+
+      {view === 'custo' && (
+        <>
+          <Stack direction="row" spacing={2} mt={2}>
+            <TextField
+              select
+              label="Por mês"
+              value={selectedMonth}
+              onChange={(e) => setSelectedMonth(e.target.value)}
+              sx={{ minWidth: 180 }}
+            >
+              {monthOptions.map((option) => (
+                <MenuItem key={option.value} value={option.value}>
+                  {option.label}
+                </MenuItem>
+              ))}
+            </TextField>
+          </Stack>
+          <div style={{ height: 400, width: '100%', marginTop: 16 }}>
+            <DataGrid
+              rows={custoRows}
+              columns={custoColumns}
+              getRowId={(row) => row.id}
+              disableRowSelectionOnClick
+              density="compact"
+              getRowHeight={() => 'auto'}
+            />
+          </div>
+        </>
       )}
 
       <Stack direction="row" spacing={2} mt={2}>
