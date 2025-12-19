@@ -355,6 +355,7 @@ export default function TabelaCombustivel() {
       minWidth: 160,
       flex: 1,
       valueFormatter: (params: any) => {
+        if (!params) return '—';
         const value = params?.value;
         const row = params?.row as CustoRow;
         if (row?.statusKm === 'SEM_ODOMETRO') return 'Sem odômetro';
@@ -369,6 +370,7 @@ export default function TabelaCombustivel() {
       minWidth: 140,
       flex: 1,
       valueFormatter: (params: any) => {
+        if (!params) return '—';
         const value = params?.value;
         if (value === null || value === undefined || Number.isNaN(Number(value))) return '—';
         return brNumberFormatter.format(Number(value));
@@ -380,6 +382,7 @@ export default function TabelaCombustivel() {
       minWidth: 140,
       flex: 1,
       valueFormatter: (params: any) => {
+        if (!params) return '—';
         const row = params?.row as CustoRow;
         const value = params?.value;
         if (row?.statusKm !== 'OK') return '—';
