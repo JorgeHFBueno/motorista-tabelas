@@ -347,20 +347,24 @@ export default function TabelaCombustivel() {
 
   const custoRows = useMemo(() => buildCustoRows(registrosDoMes, selectedMonth), [registrosDoMes, selectedMonth]);
 
-  const custoColumns: GridColDef[] = useMemo(() => [
+  const custoColumns: GridColDef[] = useMemo(
+  () => [
     { field: 'placa', headerName: 'Placa', minWidth: 140, flex: 1 },
     {
       field: 'kmMes',
       headerName: 'Quilômetro Mês',
       minWidth: 160,
       flex: 1,
-      valueFormatter: (params: any) => {
+      renderCell: (params) => {
         if (!params) return '—';
-        const value = params?.value;
-        const row = params?.row as CustoRow;
+
+        const row = params.row as CustoRow | undefined;
+        const value = params.value as number | null | undefined;
+
         if (row?.statusKm === 'SEM_ODOMETRO') return 'Sem odômetro';
         if (row?.statusKm === 'DADOS_INSUFICIENTES') return 'Dados insuficientes';
         if (value === null || value === undefined || Number.isNaN(Number(value))) return '—';
+
         return kmFormatter.format(Number(value));
       },
     },
@@ -369,10 +373,12 @@ export default function TabelaCombustivel() {
       headerName: 'Litros Mês',
       minWidth: 140,
       flex: 1,
-      valueFormatter: (params: any) => {
+      renderCell: (params) => {
         if (!params) return '—';
-        const value = params?.value;
+
+        const value = params.value as number | null | undefined;
         if (value === null || value === undefined || Number.isNaN(Number(value))) return '—';
+
         return brNumberFormatter.format(Number(value));
       },
     },
@@ -381,16 +387,21 @@ export default function TabelaCombustivel() {
       headerName: 'Média (km/l)',
       minWidth: 140,
       flex: 1,
-      valueFormatter: (params: any) => {
+      renderCell: (params) => {
         if (!params) return '—';
-        const row = params?.row as CustoRow;
-        const value = params?.value;
+
+        const row = params.row as CustoRow | undefined;
+        const value = params.value as number | null | undefined;
+
         if (row?.statusKm !== 'OK') return '—';
         if (value === null || value === undefined || Number.isNaN(Number(value))) return '—';
+
         return brNumberFormatter.format(Number(value));
       },
     },
-  ], [brNumberFormatter, kmFormatter]);
+  ],
+  [brNumberFormatter, kmFormatter],
+);
 
   return (
     <>
@@ -413,13 +424,13 @@ export default function TabelaCombustivel() {
           variant={view === 'porNome' ? 'contained' : 'outlined'}
           onClick={() => setView('porNome')}
         >
-          Por Nome
+          Por Nom3
         </Button>
         <Button
           variant={view === 'custo' ? 'contained' : 'outlined'}
           onClick={() => setView('custo')}
         >
-          Custo
+          Custo2
         </Button>
       </Stack>
 
