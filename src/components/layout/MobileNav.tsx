@@ -1,4 +1,4 @@
-import { Home, Building2, Wallet, Newspaper, MessageSquare, FileText, Camera, X } from "lucide-react";
+import { Home, Building2, Layers, Wallet, Newspaper, MessageSquare, FileText, Camera, X } from "lucide-react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { cn } from "@/lib/utils";
 
@@ -8,6 +8,7 @@ interface MobileNavProps {
 
 const navItems = [
   { icon: Home, label: "Início", path: "/" },
+  { icon: Layers, label: "Obras Ativas", path: "/obras-ativas" },
   { icon: Building2, label: "Obra", path: "/obra" },
   { icon: Wallet, label: "Finanças", path: "/financas" },
   { icon: FileText, label: "Documentos", path: "/documentos" },
