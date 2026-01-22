@@ -4,37 +4,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
 import ResponsiveLayout from "@/components/layout/ResponsiveLayout";
-
-// Mock data - em produção viria do backend
-const obrasAtivas = [
-  {
-    id: 1,
-    nome: "Residência Silva",
-    endereco: "Rua das Flores, 123 - Porto Alegre/RS",
-    etapaAtual: "Estrutura",
-    progresso: 45,
-    previsaoEntrega: "Mar/2025",
-    status: "Em dia",
-  },
-  {
-    id: 2,
-    nome: "Galpão Industrial Metalúrgica ABC",
-    endereco: "Av. Industrial, 500 - Canoas/RS",
-    etapaAtual: "Fundação",
-    progresso: 22,
-    previsaoEntrega: "Jun/2025",
-    status: "Em dia",
-  },
-  {
-    id: 3,
-    nome: "Centro de Distribuição Logística Norte",
-    endereco: "Rod. BR-116, Km 42 - Novo Hamburgo/RS",
-    etapaAtual: "Cobertura",
-    progresso: 68,
-    previsaoEntrega: "Fev/2025",
-    status: "Adiantado",
-  },
-];
+import { useObra } from "@/contexts/ObraContext";
 
 const getStatusVariant = (status: string) => {
   switch (status) {
@@ -49,14 +19,54 @@ const getStatusVariant = (status: string) => {
   }
 };
 
+// Mock data adicional de etapas e progresso - em produção viria do backend
+const obrasComDetalhes = [
+  {
+    id: 1,
+    etapaAtual: "Estrutura",
+    progresso: 45,
+    previsaoEntrega: "Mar/2025",
+    status: "Em dia",
+  },
+  {
+    id: 2,
+    etapaAtual: "Fundação",
+    progresso: 22,
+    previsaoEntrega: "Jun/2025",
+    status: "Em dia",
+  },
+  {
+    id: 3,
+    etapaAtual: "Cobertura",
+    progresso: 68,
+    previsaoEntrega: "Fev/2025",
+    status: "Adiantado",
+  },
+];
+
 const ObrasAtivas = () => {
   const navigate = useNavigate();
+  const { obras, setObraAtiva } = useObra();
 
   const handleObraClick = (obraId: number) => {
-    // Navega para a página de detalhes da obra
-    // Em produção, passaria o ID como parâmetro
-    navigate("/obra");
+    const obraSelecionada = obras.find(o => o.id === obraId);
+    if (obraSelecionada) {
+      setObraAtiva(obraSelecionada);
+      navigate("/obra");
+    }
   };
+
+  // Combina dados do contexto com detalhes mockados
+  const obrasAtivas = obras.map(obra => {
+    const detalhes = obrasComDetalhes.find(d => d.id === obra.id);
+    return {
+      ...obra,
+      etapaAtual: detalhes?.etapaAtual || "Em andamento",
+      progresso: detalhes?.progresso || 0,
+      previsaoEntrega: detalhes?.previsaoEntrega || "A definir",
+      status: detalhes?.status || "Em dia",
+    };
+  });
 
   return (
     <ResponsiveLayout

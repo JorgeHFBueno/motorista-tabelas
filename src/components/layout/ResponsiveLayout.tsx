@@ -25,7 +25,6 @@ const ResponsiveLayout = ({
       <div className="flex-1 flex flex-col min-h-screen lg:max-h-screen lg:overflow-hidden">
         {/* Top header for tablet/desktop */}
         <ResponsiveHeader 
-          projectName="Residência Silva"
           pageTitle={headerTitle}
           pageSubtitle={headerSubtitle}
         />
