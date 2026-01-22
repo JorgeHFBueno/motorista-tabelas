@@ -86,21 +86,21 @@ const ObrasAtivas = () => {
           {obrasAtivas.map((obra) => (
             <Card
               key={obra.id}
-              className="cursor-pointer hover:shadow-md transition-all duration-200 hover:border-primary/30 group"
+              className="cursor-pointer hover:shadow-md transition-all duration-200 hover:border-primary/30 group overflow-hidden"
               onClick={() => handleObraClick(obra.id)}
             >
-              <CardContent className="p-4 lg:p-5">
-                {/* Header do Card */}
-                <div className="flex items-start justify-between mb-3">
+              {/* Seção de Identidade da Obra */}
+              <div className="bg-primary/5 border-b border-border px-4 lg:px-5 py-3 lg:py-4">
+                <div className="flex items-center justify-between">
                   <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 lg:w-12 lg:h-12 bg-primary/10 rounded-lg flex items-center justify-center">
+                    <div className="w-10 h-10 lg:w-11 lg:h-11 bg-primary/10 rounded-lg flex items-center justify-center">
                       <Building2 className="w-5 h-5 lg:w-6 lg:h-6 text-primary" />
                     </div>
                     <div className="flex-1 min-w-0">
-                      <h3 className="font-semibold text-foreground text-sm lg:text-base truncate">
+                      <h3 className="font-semibold text-foreground text-base lg:text-lg leading-tight">
                         {obra.nome}
                       </h3>
-                      <div className="flex items-center gap-1 text-xs text-muted-foreground mt-0.5">
+                      <div className="flex items-center gap-1 text-xs text-muted-foreground mt-1">
                         <MapPin className="w-3 h-3 flex-shrink-0" />
                         <span className="truncate">{obra.endereco}</span>
                       </div>
@@ -108,7 +108,10 @@ const ObrasAtivas = () => {
                   </div>
                   <ChevronRight className="w-5 h-5 text-muted-foreground group-hover:text-primary transition-colors flex-shrink-0" />
                 </div>
+              </div>
 
+              {/* Seção de Informações Operacionais */}
+              <CardContent className="p-4 lg:p-5">
                 {/* Progresso */}
                 <div className="space-y-2 mb-4">
                   <div className="flex items-center justify-between text-sm">
