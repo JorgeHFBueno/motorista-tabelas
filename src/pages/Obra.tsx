@@ -1,8 +1,7 @@
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Calendar, ChevronDown, CheckCircle2, Clock, AlertTriangle } from "lucide-react";
-import MobileLayout from "@/components/layout/MobileLayout";
-import Header from "@/components/layout/Header";
+import ResponsiveLayout from "@/components/layout/ResponsiveLayout";
 import { cn } from "@/lib/utils";
 
 interface StageDetail {
@@ -205,29 +204,27 @@ const Obra = () => {
   const completedStages = stages.filter(s => s.status === "completed").length;
 
   return (
-    <MobileLayout>
-      <Header projectName="Residência Silva" />
-      
-      <div className="px-4 -mt-4 space-y-4">
+    <ResponsiveLayout headerTitle="Obra" headerSubtitle="Acompanhamento da construção">
+      <div className="px-4 py-6 lg:px-8 lg:py-8 space-y-6">
         {/* Summary Card */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          className="bg-card rounded-2xl p-5 shadow-card"
+          className="bg-card rounded-2xl p-5 lg:p-6 shadow-card"
         >
           <div className="flex items-center justify-between mb-2">
-            <h2 className="text-lg font-bold text-foreground">Status da Obra</h2>
-            <span className="text-sm text-muted-foreground">
+            <h2 className="text-lg lg:text-xl font-bold text-foreground">Status da Obra</h2>
+            <span className="text-sm lg:text-base text-muted-foreground">
               {completedStages}/{stages.length} etapas
             </span>
           </div>
-          <p className="text-sm text-muted-foreground">
+          <p className="text-sm lg:text-base text-muted-foreground">
             Acompanhe o progresso detalhado de cada etapa da sua construção
           </p>
         </motion.div>
 
-        {/* Stages List */}
-        <div className="space-y-3">
+        {/* Stages List - Grid on desktop */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 lg:gap-6">
           {stages.map((stage, index) => (
             <motion.div
               key={stage.id}
@@ -240,7 +237,7 @@ const Obra = () => {
           ))}
         </div>
       </div>
-    </MobileLayout>
+    </ResponsiveLayout>
   );
 };
 
