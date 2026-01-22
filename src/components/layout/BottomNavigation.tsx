@@ -1,11 +1,11 @@
-import { Home, Building2, Wallet, MessageSquare, Newspaper, FileText, Camera } from "lucide-react";
+import { Home, Layers, Wallet, FileText, Camera } from "lucide-react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import { cn } from "@/lib/utils";
 
 const navItems = [
   { icon: Home, label: "Início", path: "/" },
-  { icon: Building2, label: "Obra", path: "/obra" },
+  { icon: Layers, label: "Obras", path: "/obras-ativas" },
   { icon: Wallet, label: "Finanças", path: "/financas" },
   { icon: FileText, label: "Docs", path: "/documentos" },
   { icon: Camera, label: "Fotos", path: "/fotos" },
