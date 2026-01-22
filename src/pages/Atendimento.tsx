@@ -1,8 +1,7 @@
 import { useState } from "react";
 import { motion } from "framer-motion";
 import { MessageSquare, Phone, Mail, Clock, Send, Plus, ChevronRight, CheckCircle2, AlertCircle } from "lucide-react";
-import MobileLayout from "@/components/layout/MobileLayout";
-import Header from "@/components/layout/Header";
+import ResponsiveLayout from "@/components/layout/ResponsiveLayout";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
@@ -50,15 +49,13 @@ const Atendimento = () => {
   const [activeTab, setActiveTab] = useState<"tickets" | "contact">("tickets");
 
   return (
-    <MobileLayout>
-      <Header projectName="Residência Silva" />
-      
-      <div className="px-4 -mt-4 space-y-4">
+    <ResponsiveLayout headerTitle="Suporte" headerSubtitle="Central de atendimento ao cliente">
+      <div className="px-4 py-6 lg:px-8 lg:py-8 space-y-6">
         {/* Tabs */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          className="bg-card rounded-2xl p-1.5 shadow-card flex"
+          className="bg-card rounded-2xl p-1.5 shadow-card flex max-w-md lg:max-w-lg"
         >
           <button
             onClick={() => setActiveTab("tickets")}
@@ -85,46 +82,49 @@ const Atendimento = () => {
         </motion.div>
 
         {activeTab === "tickets" ? (
-          <>
-            {/* New Ticket Button */}
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.1 }}
-            >
-              <Button variant="secondary" className="w-full" size="lg">
-                <Plus className="w-5 h-5" />
-                Abrir Novo Ticket
-              </Button>
-            </motion.div>
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            {/* Left Column - Actions and Stats */}
+            <div className="space-y-4">
+              {/* New Ticket Button */}
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.1 }}
+              >
+                <Button variant="secondary" className="w-full" size="lg">
+                  <Plus className="w-5 h-5" />
+                  Abrir Novo Ticket
+                </Button>
+              </motion.div>
 
-            {/* Stats */}
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.15 }}
-              className="grid grid-cols-3 gap-2"
-            >
-              <div className="bg-card rounded-xl p-3 shadow-card text-center">
-                <p className="text-2xl font-bold text-foreground">2</p>
-                <p className="text-xs text-muted-foreground">Total</p>
-              </div>
-              <div className="bg-card rounded-xl p-3 shadow-card text-center">
-                <p className="text-2xl font-bold text-progress-fill">1</p>
-                <p className="text-xs text-muted-foreground">Andamento</p>
-              </div>
-              <div className="bg-card rounded-xl p-3 shadow-card text-center">
-                <p className="text-2xl font-bold text-success">1</p>
-                <p className="text-xs text-muted-foreground">Resolvidos</p>
-              </div>
-            </motion.div>
+              {/* Stats */}
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.15 }}
+                className="grid grid-cols-3 lg:grid-cols-1 gap-2 lg:gap-3"
+              >
+                <div className="bg-card rounded-xl p-3 lg:p-4 shadow-card text-center lg:text-left">
+                  <p className="text-2xl lg:text-3xl font-bold text-foreground">2</p>
+                  <p className="text-xs lg:text-sm text-muted-foreground">Total</p>
+                </div>
+                <div className="bg-card rounded-xl p-3 lg:p-4 shadow-card text-center lg:text-left">
+                  <p className="text-2xl lg:text-3xl font-bold text-progress-fill">1</p>
+                  <p className="text-xs lg:text-sm text-muted-foreground">Em Andamento</p>
+                </div>
+                <div className="bg-card rounded-xl p-3 lg:p-4 shadow-card text-center lg:text-left">
+                  <p className="text-2xl lg:text-3xl font-bold text-success">1</p>
+                  <p className="text-xs lg:text-sm text-muted-foreground">Resolvidos</p>
+                </div>
+              </motion.div>
+            </div>
 
-            {/* Tickets List */}
+            {/* Right Column - Tickets List */}
             <motion.div
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.2 }}
-              className="space-y-3"
+              className="lg:col-span-2 space-y-3"
             >
               {tickets.map((ticket, index) => {
                 const StatusIcon = statusConfig[ticket.status].icon;
@@ -134,7 +134,7 @@ const Atendimento = () => {
                     initial={{ opacity: 0, x: -20 }}
                     animate={{ opacity: 1, x: 0 }}
                     transition={{ delay: 0.25 + index * 0.1 }}
-                    className="w-full bg-card rounded-2xl p-4 shadow-card text-left hover:shadow-card-hover transition-shadow"
+                    className="w-full bg-card rounded-2xl p-4 lg:p-5 shadow-card text-left hover:shadow-card-hover transition-shadow"
                   >
                     <div className="flex items-start justify-between mb-2">
                       <div className="flex items-center gap-2">
@@ -151,7 +151,7 @@ const Atendimento = () => {
                       </span>
                     </div>
                     
-                    <h3 className="font-semibold text-foreground mb-1">{ticket.title}</h3>
+                    <h3 className="font-semibold text-foreground mb-1 lg:text-lg">{ticket.title}</h3>
                     <p className="text-sm text-muted-foreground line-clamp-2 mb-2">
                       {ticket.lastMessage}
                     </p>
@@ -164,9 +164,9 @@ const Atendimento = () => {
                 );
               })}
             </motion.div>
-          </>
+          </div>
         ) : (
-          <>
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             {/* Contact Options */}
             <motion.div
               initial={{ opacity: 0, y: 20 }}
@@ -174,7 +174,7 @@ const Atendimento = () => {
               transition={{ delay: 0.1 }}
               className="space-y-3"
             >
-              <button className="w-full bg-card rounded-2xl p-4 shadow-card flex items-center gap-4 hover:shadow-card-hover transition-shadow">
+              <button className="w-full bg-card rounded-2xl p-4 lg:p-5 shadow-card flex items-center gap-4 hover:shadow-card-hover transition-shadow">
                 <div className="p-3 bg-success/10 rounded-xl">
                   <Phone className="w-6 h-6 text-success" />
                 </div>
@@ -185,7 +185,7 @@ const Atendimento = () => {
                 <ChevronRight className="w-5 h-5 text-muted-foreground" />
               </button>
 
-              <button className="w-full bg-card rounded-2xl p-4 shadow-card flex items-center gap-4 hover:shadow-card-hover transition-shadow">
+              <button className="w-full bg-card rounded-2xl p-4 lg:p-5 shadow-card flex items-center gap-4 hover:shadow-card-hover transition-shadow">
                 <div className="p-3 bg-success/10 rounded-xl">
                   <MessageSquare className="w-6 h-6 text-success" />
                 </div>
@@ -196,7 +196,7 @@ const Atendimento = () => {
                 <ChevronRight className="w-5 h-5 text-muted-foreground" />
               </button>
 
-              <button className="w-full bg-card rounded-2xl p-4 shadow-card flex items-center gap-4 hover:shadow-card-hover transition-shadow">
+              <button className="w-full bg-card rounded-2xl p-4 lg:p-5 shadow-card flex items-center gap-4 hover:shadow-card-hover transition-shadow">
                 <div className="p-3 bg-primary/10 rounded-xl">
                   <Mail className="w-6 h-6 text-primary" />
                 </div>
@@ -208,50 +208,53 @@ const Atendimento = () => {
               </button>
             </motion.div>
 
-            {/* Business Hours */}
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.2 }}
-              className="bg-card rounded-2xl p-4 shadow-card"
-            >
-              <div className="flex items-center gap-2 mb-3">
-                <Clock className="w-5 h-5 text-muted-foreground" />
-                <h3 className="font-semibold text-foreground">Horário de Atendimento</h3>
-              </div>
-              <div className="space-y-1 text-sm">
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Segunda a Sexta</span>
-                  <span className="text-foreground font-medium">8h às 18h</span>
+            {/* Right Column - Hours and Quick Message */}
+            <div className="space-y-4">
+              {/* Business Hours */}
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.2 }}
+                className="bg-card rounded-2xl p-4 lg:p-5 shadow-card"
+              >
+                <div className="flex items-center gap-2 mb-3">
+                  <Clock className="w-5 h-5 text-muted-foreground" />
+                  <h3 className="font-semibold text-foreground">Horário de Atendimento</h3>
                 </div>
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Sábado</span>
-                  <span className="text-foreground font-medium">8h às 12h</span>
+                <div className="space-y-2 text-sm lg:text-base">
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Segunda a Sexta</span>
+                    <span className="text-foreground font-medium">8h às 18h</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Sábado</span>
+                    <span className="text-foreground font-medium">8h às 12h</span>
+                  </div>
                 </div>
-              </div>
-            </motion.div>
+              </motion.div>
 
-            {/* Quick Message */}
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.3 }}
-              className="bg-card rounded-2xl p-4 shadow-card"
-            >
-              <h3 className="font-semibold text-foreground mb-3">Mensagem Rápida</h3>
-              <textarea
-                placeholder="Digite sua mensagem..."
-                className="w-full bg-muted rounded-xl p-3 text-sm text-foreground placeholder:text-muted-foreground resize-none h-24 focus:outline-none focus:ring-2 focus:ring-primary"
-              />
-              <Button variant="default" className="w-full mt-3">
-                <Send className="w-4 h-4" />
-                Enviar Mensagem
-              </Button>
-            </motion.div>
-          </>
+              {/* Quick Message */}
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.3 }}
+                className="bg-card rounded-2xl p-4 lg:p-5 shadow-card"
+              >
+                <h3 className="font-semibold text-foreground mb-3">Mensagem Rápida</h3>
+                <textarea
+                  placeholder="Digite sua mensagem..."
+                  className="w-full bg-muted rounded-xl p-3 text-sm lg:text-base text-foreground placeholder:text-muted-foreground resize-none h-24 lg:h-32 focus:outline-none focus:ring-2 focus:ring-primary"
+                />
+                <Button variant="default" className="w-full mt-3">
+                  <Send className="w-4 h-4" />
+                  Enviar Mensagem
+                </Button>
+              </motion.div>
+            </div>
+          </div>
         )}
       </div>
-    </MobileLayout>
+    </ResponsiveLayout>
   );
 };
 

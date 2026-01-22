@@ -38,10 +38,8 @@ const ResponsiveLayout = ({
         </main>
       </div>
       
-      {/* Bottom navigation for mobile only */}
-      <div className="lg:hidden">
-        <BottomNavigation />
-      </div>
+      {/* Bottom navigation for mobile only - rendered inside nav */}
+      <BottomNavigation />
     </div>
   );
 };

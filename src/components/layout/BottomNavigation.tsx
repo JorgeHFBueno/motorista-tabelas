@@ -1,4 +1,4 @@
-import { Home, Building2, Wallet, MessageSquare, Newspaper } from "lucide-react";
+import { Home, Building2, Wallet, MessageSquare, Newspaper, FileText, Camera } from "lucide-react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import { cn } from "@/lib/utils";
@@ -7,8 +7,8 @@ const navItems = [
   { icon: Home, label: "Início", path: "/" },
   { icon: Building2, label: "Obra", path: "/obra" },
   { icon: Wallet, label: "Finanças", path: "/financas" },
-  { icon: Newspaper, label: "Notícias", path: "/noticias" },
-  { icon: MessageSquare, label: "Suporte", path: "/atendimento" },
+  { icon: FileText, label: "Docs", path: "/documentos" },
+  { icon: Camera, label: "Fotos", path: "/fotos" },
 ];
 
 const BottomNavigation = () => {
@@ -16,7 +16,7 @@ const BottomNavigation = () => {
   const navigate = useNavigate();
 
   return (
-    <nav className="fixed bottom-0 left-0 right-0 z-50 max-w-md mx-auto">
+    <nav className="fixed bottom-0 left-0 right-0 z-50 max-w-md mx-auto lg:hidden">
       <div className="bg-primary mx-4 mb-4 rounded-xl shadow-lg overflow-hidden border border-primary/20">
         <div className="flex items-center justify-around py-1.5">
           {navItems.map((item) => {
