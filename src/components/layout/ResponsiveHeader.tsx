@@ -3,19 +3,19 @@ import { motion } from "framer-motion";
 import { useState } from "react";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import MobileNav from "./MobileNav";
+import { useObra } from "@/contexts/ObraContext";
 
 interface ResponsiveHeaderProps {
-  projectName?: string;
   pageTitle?: string;
   pageSubtitle?: string;
 }
 
 const ResponsiveHeader = ({ 
-  projectName = "Residência Silva",
   pageTitle,
   pageSubtitle
 }: ResponsiveHeaderProps) => {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const { obraAtiva } = useObra();
 
   return (
     <header className="bg-primary text-primary-foreground">
@@ -30,7 +30,7 @@ const ResponsiveHeader = ({
             <div className="w-7 h-7 bg-secondary rounded flex items-center justify-center">
               <span className="text-secondary-foreground text-xs font-bold">L</span>
             </div>
-            <span className="font-medium text-sm max-w-[140px] truncate">{projectName}</span>
+            <span className="font-medium text-sm max-w-[140px] truncate">{obraAtiva.nome}</span>
             <ChevronDown className="w-4 h-4 opacity-60" />
           </motion.button>
 
@@ -70,7 +70,7 @@ const ResponsiveHeader = ({
             </div>
             <div>
               <h1 className="font-semibold">Ledur Pré-Fabricados</h1>
-              <p className="text-xs text-primary-foreground/60">{projectName}</p>
+              <p className="text-xs text-primary-foreground/60">{obraAtiva.nome}</p>
             </div>
           </div>
         </div>

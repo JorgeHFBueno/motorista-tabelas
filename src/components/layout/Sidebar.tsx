@@ -1,10 +1,16 @@
-import { Home, Building2, Layers, Wallet, Newspaper, MessageSquare, FileText, Camera } from "lucide-react";
+import { Home, Building2, Wallet, Newspaper, MessageSquare, FileText, Camera, ChevronUp, Check } from "lucide-react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { cn } from "@/lib/utils";
+import { useObra } from "@/contexts/ObraContext";
+import { useState } from "react";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 
 const navItems = [
   { icon: Home, label: "Início", path: "/" },
-  { icon: Layers, label: "Obras Ativas", path: "/obras-ativas" },
   { icon: Building2, label: "Obra", path: "/obra" },
   { icon: Wallet, label: "Finanças", path: "/financas" },
   { icon: FileText, label: "Documentos", path: "/documentos" },
@@ -16,6 +22,13 @@ const navItems = [
 const Sidebar = () => {
   const location = useLocation();
   const navigate = useNavigate();
+  const { obraAtiva, obras, setObraAtiva } = useObra();
+  const [selectorOpen, setSelectorOpen] = useState(false);
+
+  const handleObraSelect = (obra: typeof obraAtiva) => {
+    setObraAtiva(obra);
+    setSelectorOpen(false);
+  };
 
   return (
     <aside className="hidden lg:flex flex-col w-64 bg-primary text-primary-foreground h-screen sticky top-0">
@@ -57,12 +70,55 @@ const Sidebar = () => {
         </ul>
       </nav>
 
-      {/* Project Selector */}
+      {/* Seletor de Obra Ativa - Menu Contextual */}
       <div className="p-4 border-t border-primary-foreground/10">
-        <div className="bg-primary-foreground/10 rounded-lg p-3">
-          <p className="text-xs text-primary-foreground/60 mb-1">Obra ativa</p>
-          <p className="text-sm font-medium">Residência Silva</p>
-        </div>
+        <Popover open={selectorOpen} onOpenChange={setSelectorOpen}>
+          <PopoverTrigger asChild>
+            <button className="w-full bg-primary-foreground/10 hover:bg-primary-foreground/15 rounded-lg p-3 transition-colors text-left group">
+              <div className="flex items-center justify-between">
+                <div className="flex-1 min-w-0">
+                  <p className="text-xs text-primary-foreground/60 mb-1">Obra ativa</p>
+                  <p className="text-sm font-medium truncate">{obraAtiva.nome}</p>
+                </div>
+                <ChevronUp className={cn(
+                  "w-4 h-4 text-primary-foreground/60 transition-transform duration-200",
+                  selectorOpen && "rotate-180"
+                )} />
+              </div>
+            </button>
+          </PopoverTrigger>
+          <PopoverContent 
+            side="top" 
+            align="start" 
+            className="w-[232px] p-2 bg-background border-border"
+            sideOffset={8}
+          >
+            <div className="space-y-1">
+              <p className="text-xs text-muted-foreground px-2 py-1.5">Selecione a obra</p>
+              {obras.map((obra) => {
+                const isSelected = obra.id === obraAtiva.id;
+                return (
+                  <button
+                    key={obra.id}
+                    onClick={() => handleObraSelect(obra)}
+                    className={cn(
+                      "w-full flex items-center gap-2 px-2 py-2 rounded-md text-left transition-colors",
+                      isSelected
+                        ? "bg-primary/10 text-primary"
+                        : "hover:bg-muted text-foreground"
+                    )}
+                  >
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium truncate">{obra.nome}</p>
+                      <p className="text-xs text-muted-foreground truncate">{obra.endereco}</p>
+                    </div>
+                    {isSelected && <Check className="w-4 h-4 text-primary flex-shrink-0" />}
+                  </button>
+                );
+              })}
+            </div>
+          </PopoverContent>
+        </Popover>
       </div>
     </aside>
   );
