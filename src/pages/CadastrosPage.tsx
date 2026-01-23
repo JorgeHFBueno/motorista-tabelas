@@ -6,6 +6,7 @@ import { Alert, Box, Button, Container, Dialog,
 import useAdminUsers from '../hooks/useAdminUsers';
 import { useAuth } from '../contexts/AuthContext';
 import CadastroVeiculoForm from '../components/CadastroVeiculoForm';
+import ObrasSection from '../components/ObrasSection';
 
 export default function CadastrosPage() {
   const { users, loading, error, createUser, deleteUser } = useAdminUsers();
@@ -170,6 +171,7 @@ export default function CadastrosPage() {
             <CadastroVeiculoForm buttonLabel="Cadastrar veículo" />
           </Stack>          
         </Paper>
+        <ObrasSection />
       </Stack>
 
       <Dialog open={dialogAberto} onClose={handleFecharDialog} fullWidth maxWidth="sm">
