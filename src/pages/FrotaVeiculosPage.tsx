@@ -250,7 +250,30 @@ export default function FrotaVeiculosPage() {
                 minWidth: 90,
                 renderCell: ({ value }) => <Checkbox checked={Boolean(value)} disabled />,
             },
-            { field: fieldName, headerName: fieldLabel, minWidth: 140, flex: 1 },
+            {
+                field: fieldName,
+                headerName: fieldLabel,
+                minWidth: 140,
+                flex: 1,
+                renderCell: (params) => {
+                    const value = (params.value ?? '') as string;
+                    const isDisabled = !value;
+                    return (
+                        <Button
+                            variant="text"
+                            size="small"
+                            onClick={(event) => {
+                                event.stopPropagation();
+                                navigate(`/frota/${params.row.id}`);
+                            }}
+                            disabled={isDisabled}
+                            sx={{ textTransform: 'none', px: 0.5, minWidth: 'auto' }}
+                        >
+                            {value || '—'}
+                        </Button>
+                    );
+                },
+            },
             {
                 field: 'quilometragemInicial',
                 headerName: 'KM inicial',
@@ -430,7 +453,7 @@ export default function FrotaVeiculosPage() {
     const emptyLabel =
         tipo === 'PLACA' ? 'Nenhum veículo do tipo PLACA encontrado.' : 'Nenhum veículo do tipo EXTRA encontrado.';
 
-const manutencaoVeiculoSelecionado = useMemo(
+    const manutencaoVeiculoSelecionado = useMemo(
         () => veiculos.find((item) => item.id === manutencaoForm.identificador) ?? null,
         [manutencaoForm.identificador, veiculos],
     );
@@ -513,7 +536,7 @@ const manutencaoVeiculoSelecionado = useMemo(
                 alignItems={{ xs: 'flex-start', md: 'center' }}
                 justifyContent="space-between"
             >
-                <Typography variant="h4">Frota (Veículos v4)</Typography>
+                <Typography variant="h4">Frota (Veículos v5)</Typography>
                 <Stack direction="row" spacing={2}>
                     <Button variant="outlined" onClick={() => navigate('/registros')}>
                         Ir para Registros

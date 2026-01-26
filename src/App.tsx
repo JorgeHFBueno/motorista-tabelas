@@ -15,6 +15,7 @@ const SignupPage = lazy(() => import('./pages/SignupPage'));
 const CadastrosPage = lazy(() => import('./pages/CadastrosPage'));
 const RegistrosPage = lazy(() => import('./pages/RegistrosPage'));
 const FrotaVeiculosPage = lazy(() => import('./pages/FrotaVeiculosPage'));
+const FrotaVeiculoDetalhesPage = lazy(() => import('./pages/FrotaVeiculoDetalhesPage'));
 const HomeDashboard = lazy(() => import('./pages/HomeDashboard'));
 
 function LoadingFallback({ label }: { label?: string }) {
@@ -41,6 +42,7 @@ export default function App() {
             <Route path="/cadastros" element={<CadastrosPage />} />
             <Route path="/registros" element={<RegistrosPage />} />
             <Route path="/frota" element={<FrotaVeiculosPage />} />
+            <Route path="/frota/:id" element={<FrotaVeiculoDetalhesPage />} />
             <Route path="/portfolio" element={<PortifolioPage />} />
           </Route>
         </Routes>
