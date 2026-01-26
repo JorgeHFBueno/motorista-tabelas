@@ -217,9 +217,17 @@ export default function FrotaVeiculosPage() {
                 headerName: 'KM inicial',
                 minWidth: 140,
                 flex: 1,
-                valueGetter: (params: any) => params?.row?.quilometragemInicial,
-                valueFormatter: (params: any) => {
-                    const n = asNumber(params?.value);
+                renderCell: (params: any) => {
+                    const row = params?.row ?? params;
+                    const raw = row?.quilometragemInicial;
+                    if (DEBUG) {
+                        const key = `[FROTA DEBUG] render kmInicial ${row?.id ?? 'sem-id'}`;
+                        if (!loggedOnceRef.current.has(key)) {
+                            loggedOnceRef.current.add(key);
+                            console.log(key, { raw, type: typeof raw, rowKeys: row ? Object.keys(row) : null });
+                        }
+                    }
+                    const n = asNumber(raw);
                     return n !== null ? numberFormatter.format(n) : '—';
                 },
             },
@@ -228,9 +236,17 @@ export default function FrotaVeiculosPage() {
                 headerName: 'KM última',
                 minWidth: 140,
                 flex: 1,
-                valueGetter: (params: any) => params?.row?.quilometragemUltima,
-                valueFormatter: (params: any) => {
-                    const n = asNumber(params?.value);
+                renderCell: (params: any) => {
+                    const row = params?.row ?? params;
+                    const raw = row?.quilometragemUltima;
+                    if (DEBUG) {
+                        const key = `[FROTA DEBUG] render kmUltima ${row?.id ?? 'sem-id'}`;
+                        if (!loggedOnceRef.current.has(key)) {
+                            loggedOnceRef.current.add(key);
+                            console.log(key, { raw, type: typeof raw, rowKeys: row ? Object.keys(row) : null });
+                        }
+                    }
+                    const n = asNumber(raw);
                     return n !== null ? numberFormatter.format(n) : '—';
                 },
             },
@@ -239,10 +255,30 @@ export default function FrotaVeiculosPage() {
                 headerName: 'Última atualização',
                 minWidth: 180,
                 flex: 1.2,
-                valueGetter: (params: any) => toDate(params?.row?.dataUltimaAtualizacao),
-                renderCell: (params: any) =>
-                    params?.value instanceof Date ? dateFormatter.format(params.value) : '—',
+                renderCell: (params: any) => {
+                    const row = params?.row ?? params;
+                    const raw = row?.dataUltimaAtualizacao;
+                    const d = toDate(raw);
+
+                    if (DEBUG) {
+                        const key = `[FROTA DEBUG] render data ${row?.id ?? 'sem-id'}`;
+                        if (!loggedOnceRef.current.has(key)) {
+                            loggedOnceRef.current.add(key);
+                            console.log(key, {
+                                raw,
+                                raw_type: typeof raw,
+                                parsed: d,
+                                parsed_isDate: d instanceof Date,
+                                parsed_time: d ? d.getTime() : null,
+                                rowKeys: row ? Object.keys(row) : null,
+                            });
+                        }
+                    }
+
+                    return d ? dateFormatter.format(d) : '—';
+                },
             },
+
         ];
     }, [dateFormatter, numberFormatter, tipo]);
 
@@ -363,7 +399,7 @@ export default function FrotaVeiculosPage() {
                 alignItems={{ xs: 'flex-start', md: 'center' }}
                 justifyContent="space-between"
             >
-                <Typography variant="h4">Frota (Veículos)</Typography>
+                <Typography variant="h4">Frota (Veículos v3)</Typography>
                 <Button variant="outlined" onClick={() => navigate('/registros')}>
                     Ir para Registros
                 </Button>
