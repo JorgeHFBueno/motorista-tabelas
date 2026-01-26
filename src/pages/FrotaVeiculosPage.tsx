@@ -536,7 +536,7 @@ export default function FrotaVeiculosPage() {
                 alignItems={{ xs: 'flex-start', md: 'center' }}
                 justifyContent="space-between"
             >
-                <Typography variant="h4">Frota (Veículos v5)</Typography>
+                <Typography variant="h4">Frota (Veículos v6)</Typography>
                 <Stack direction="row" spacing={2}>
                     <Button variant="outlined" onClick={() => navigate('/registros')}>
                         Ir para Registros

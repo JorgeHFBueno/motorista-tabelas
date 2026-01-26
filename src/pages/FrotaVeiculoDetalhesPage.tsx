@@ -48,6 +48,18 @@ type VeiculoForm = {
     quilometragemUltima: string;
 };
 
+type Manutencao = {
+    id: string;
+    identificador?: string;
+    tipoVeiculo?: 'PLACA' | 'EXTRA';
+    categoria?: string;
+    valor?: number;
+    quantidade?: number;
+    fornecedor?: string;
+    descricao?: string;
+    data?: unknown;
+};
+
 const DEFAULT_FORM: VeiculoForm = {
     ativo: false,
     placa: '',
@@ -92,11 +104,15 @@ export default function FrotaVeiculoDetalhesPage() {
     const [saving, setSaving] = useState(false);
 
     const [showAbastecimento, setShowAbastecimento] = useState(true);
-    const showManutencoes = false;
+    const [showManutencoes, setShowManutencoes] = useState(false);
 
     const [combustivelRows, setCombustivelRows] = useState<Registro[]>([]);
     const [combustivelLoading, setCombustivelLoading] = useState(false);
     const [combustivelError, setCombustivelError] = useState<string | null>(null);
+
+    const [manutencoesRows, setManutencoesRows] = useState<Manutencao[]>([]);
+    const [manutencoesLoading, setManutencoesLoading] = useState(false);
+    const [manutencoesError, setManutencoesError] = useState<string | null>(null);
 
     const [snackbar, setSnackbar] = useState<{
         open: boolean;
@@ -116,22 +132,19 @@ export default function FrotaVeiculoDetalhesPage() {
             }),
         [],
     );
-    const combustivelDateFormatter = useMemo(
-        () =>
-            new Intl.DateTimeFormat('pt-BR', {
-                day: '2-digit',
-                month: '2-digit',
-                year: '2-digit',
-                hour: '2-digit',
-                minute: '2-digit',
-            }),
-        [],
-    );
     const numberFormatter = useMemo(
         () =>
             new Intl.NumberFormat('pt-BR', {
                 minimumFractionDigits: 1,
                 maximumFractionDigits: 1,
+            }),
+        [],
+    );
+    const currencyFormatter = useMemo(
+        () =>
+            new Intl.NumberFormat('pt-BR', {
+                style: 'currency',
+                currency: 'BRL',
             }),
         [],
     );
@@ -251,10 +264,10 @@ export default function FrotaVeiculoDetalhesPage() {
             setVeiculo((prev) =>
                 prev
                     ? {
-                          ...prev,
-                          ...updateData,
-                          dataUltimaAtualizacao: new Date(),
-                      }
+                        ...prev,
+                        ...updateData,
+                        dataUltimaAtualizacao: new Date(),
+                    }
                     : prev,
             );
             setSnackbar({ open: true, severity: 'success', message: 'Veículo atualizado com sucesso.' });
@@ -313,61 +326,15 @@ export default function FrotaVeiculoDetalhesPage() {
         };
     }, [showAbastecimento, veiculo?.placa]);
 
-    const combustivelRowsFormatted = useMemo(
-        () =>
-            combustivelRows.map((row) => ({
-                ...row,
-                dataJS: toDateAny((row as any).data),
-            })),
-        [combustivelRows],
-    );
-
     const combustivelColumns: GridColDef[] = useMemo(
         () => [
-            {
-                field: 'dataJS',
-                headerName: 'Data',
-                minWidth: 160,
-                flex: 1.2,
-                renderCell: (params) => {
-                    const v = params.row.dataJS as Date | null;
-                    return v ? combustivelDateFormatter.format(v) : '—';
-                },
-                sortComparator: (a, b) => {
-                    const ta = a instanceof Date ? a.getTime() : 0;
-                    const tb = b instanceof Date ? b.getTime() : 0;
-                    return ta - tb;
-                },
-            },
-            {
-                field: 'lf',
-                headerName: 'Montante Final',
-                minWidth: 120,
-                flex: 1,
-                renderCell: (params) => {
-                    const value = params?.value;
-                    if (value === null || value === undefined || Number.isNaN(Number(value))) return '—';
-                    return numberFormatter.format(Number(value) / 10);
-                },
-            },
             {
                 field: 'qa',
                 headerName: 'Qnt. Abastecida',
                 minWidth: 120,
                 flex: 1,
                 renderCell: (params) => {
-                    const value = params?.value;
-                    if (value === null || value === undefined || Number.isNaN(Number(value))) return '—';
-                    return numberFormatter.format(Number(value) / 10);
-                },
-            },
-            {
-                field: 'li',
-                headerName: 'Montante Inicial',
-                minWidth: 120,
-                flex: 1,
-                renderCell: (params) => {
-                    const value = params?.value;
+                    const value = params.row.qa;
                     if (value === null || value === undefined || Number.isNaN(Number(value))) return '—';
                     return numberFormatter.format(Number(value) / 10);
                 },
@@ -378,19 +345,152 @@ export default function FrotaVeiculoDetalhesPage() {
                 minWidth: 80,
                 flex: 1,
                 renderCell: (params) => {
-                    const value = params?.value;
+                    const value = params.row.arla;
                     if (value === null || value === undefined || Number.isNaN(Number(value))) return '—';
                     return numberFormatter.format(Number(value) / 10);
                 },
             },
-            { field: 'motorista', headerName: 'Frentista', minWidth: 150, flex: 1.2 },
-            { field: 'para_quem', headerName: 'Operador', minWidth: 150, flex: 1.2 },
-            { field: 'placa', headerName: 'Placa', minWidth: 120, flex: 1 },
-            { field: 'local', headerName: 'Destino', minWidth: 180, flex: 1.5 },
-            { field: 'motivo', headerName: 'Motivo', minWidth: 200, flex: 1.5 },
-            { field: 'observacao', headerName: 'Obs', minWidth: 220, flex: 2 },
+            {
+                field: 'obra',
+                headerName: 'Obra',
+                minWidth: 120,
+                flex: 1,
+                renderCell: () => '—',
+            },
         ],
-        [combustivelDateFormatter, numberFormatter],
+        [numberFormatter],
+    );
+
+    useEffect(() => {
+        let active = true;
+
+        async function loadManutencoes(vehicleId: string) {
+            setManutencoesLoading(true);
+            setManutencoesError(null);
+
+            try {
+                const baseQuery = query(collection(db, 'manutencoes'), where('identificador', '==', vehicleId));
+                let snapshot;
+
+                try {
+                    snapshot = await getDocs(query(baseQuery, orderBy('data', 'desc')));
+                } catch (err) {
+                    console.warn(
+                        'Falha ao ordenar manutenções por data, carregando sem orderBy. Índice sugerido: identificador ASC, data DESC.',
+                        err,
+                    );
+                    snapshot = await getDocs(baseQuery);
+                }
+
+                if (!active) return;
+
+                const data = snapshot.docs.map((docSnap) => ({
+                    id: docSnap.id,
+                    ...(docSnap.data() as Omit<Manutencao, 'id'>),
+                }));
+                setManutencoesRows(data);
+            } catch (err) {
+                console.error('Erro ao carregar manutenções', err);
+                if (active) {
+                    setManutencoesError('Erro ao carregar manutenções.');
+                }
+            } finally {
+                if (active) setManutencoesLoading(false);
+            }
+        }
+
+        if (!showManutencoes) return;
+        if (!id) {
+            setManutencoesRows([]);
+            return;
+        }
+
+        loadManutencoes(id);
+        return () => {
+            active = false;
+        };
+    }, [id, showManutencoes]);
+
+    const manutencoesRowsFormatted = useMemo(
+        () =>
+            manutencoesRows.map((row) => ({
+                ...row,
+                dataJS: toDateAny(row.data),
+            })),
+        [manutencoesRows],
+    );
+
+    const manutencoesColumns: GridColDef[] = useMemo(
+        () => [
+            {
+                field: 'dataJS',
+                headerName: 'Data',
+                minWidth: 140,
+                flex: 1,
+                renderCell: (params) => {
+                    const value = params.row.dataJS as Date | null;
+                    return value ? dateFormatter.format(value) : '—';
+                },
+            },
+            {
+                field: 'categoria',
+                headerName: 'Categoria',
+                minWidth: 160,
+                flex: 1.2,
+                renderCell: (params) => params.row.categoria ?? '—',
+            },
+            {
+                field: 'valor',
+                headerName: 'Valor',
+                minWidth: 120,
+                flex: 1,
+                renderCell: (params) => {
+                    const value = params.row.valor;
+                    if (value === null || value === undefined || Number.isNaN(Number(value))) return '—';
+                    return currencyFormatter.format(Number(value));
+                },
+            },
+            {
+                field: 'quantidade',
+                headerName: 'Quantidade',
+                minWidth: 120,
+                flex: 1,
+                renderCell: (params) => {
+                    const value = params.row.quantidade;
+                    if (value === null || value === undefined || Number.isNaN(Number(value))) return '—';
+                    return String(value);
+                },
+            },
+            {
+                field: 'fornecedor',
+                headerName: 'Fornecedor',
+                minWidth: 160,
+                flex: 1.2,
+                renderCell: (params) => params.row.fornecedor ?? '—',
+            },
+            {
+                field: 'descricao',
+                headerName: 'Descrição',
+                minWidth: 200,
+                flex: 1.6,
+                renderCell: (params) => {
+                    const value = params.row.descricao ?? '—';
+                    return (
+                        <Box
+                            sx={{
+                                overflow: 'hidden',
+                                textOverflow: 'ellipsis',
+                                whiteSpace: 'nowrap',
+                                width: '100%',
+                            }}
+                        >
+                            {value}
+                        </Box>
+                    );
+                },
+            },
+        ],
+        [currencyFormatter, dateFormatter],
     );
 
     if (loading) {
@@ -509,15 +609,15 @@ export default function FrotaVeiculoDetalhesPage() {
                         }
                         label="Abastecimento"
                     />
-                    <Stack direction="row" spacing={1} alignItems="center">
-                        <FormControlLabel
-                            control={<Checkbox checked={showManutencoes} disabled />}
-                            label="Manutenções"
-                        />
-                        <Typography variant="caption" color="text.secondary">
-                            Em breve
-                        </Typography>
-                    </Stack>
+                    <FormControlLabel
+                        control={
+                            <Checkbox
+                                checked={showManutencoes}
+                                onChange={(event) => setShowManutencoes(event.target.checked)}
+                            />
+                        }
+                        label="Manutenções"
+                    />
                 </Stack>
             </Box>
 
@@ -535,7 +635,7 @@ export default function FrotaVeiculoDetalhesPage() {
 
                     <Box sx={{ width: '100%', height: 520 }}>
                         <DataGrid
-                            rows={combustivelRowsFormatted}
+                            rows={combustivelRows}
                             columns={combustivelColumns}
                             loading={combustivelLoading}
                             getRowId={(row) => row.id}
@@ -548,6 +648,38 @@ export default function FrotaVeiculoDetalhesPage() {
                     {!combustivelLoading && combustivelRows.length === 0 && !combustivelError && (
                         <Alert severity="info" sx={{ mt: 2 }}>
                             Sem abastecimentos para esta placa.
+                        </Alert>
+                    )}
+                </Box>
+            )}
+
+            {showManutencoes && (
+                <Box mt={3}>
+                    <Typography variant="h6" gutterBottom>
+                        Manutenções
+                    </Typography>
+
+                    {manutencoesError && (
+                        <Alert severity="error" sx={{ mb: 2 }}>
+                            {manutencoesError}
+                        </Alert>
+                    )}
+
+                    <Box sx={{ width: '100%', height: 520 }}>
+                        <DataGrid
+                            rows={manutencoesRowsFormatted}
+                            columns={manutencoesColumns}
+                            loading={manutencoesLoading}
+                            getRowId={(row) => row.id}
+                            disableRowSelectionOnClick
+                            density="compact"
+                            getRowHeight={() => 'auto'}
+                        />
+                    </Box>
+
+                    {!manutencoesLoading && manutencoesRows.length === 0 && !manutencoesError && (
+                        <Alert severity="info" sx={{ mt: 2 }}>
+                            Sem manutenções para este veículo.
                         </Alert>
                     )}
                 </Box>
