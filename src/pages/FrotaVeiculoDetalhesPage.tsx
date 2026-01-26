@@ -26,7 +26,6 @@ import {
     where,
 } from 'firebase/firestore';
 import { useNavigate, useParams } from 'react-router-dom';
-import type { Registro } from '../types';
 import { db } from '../firebase';
 
 type Veiculo = {
@@ -60,6 +59,26 @@ type Manutencao = {
     data?: unknown;
 };
 
+type Combustivel = {
+    data?: unknown;
+    qa?: number;
+    arla?: number;
+};
+
+type LinhaEvento = {
+    id: string;
+    tipo: 'ABASTECIMENTO' | 'MANUTENCAO';
+    data?: Date | null;
+    qntAbastecida?: number | null;
+    arla?: number | null;
+    obra?: string | null;
+    categoria?: string | null;
+    valor?: number | null;
+    quantidade?: number | null;
+    fornecedor?: string | null;
+    descricao?: string | null;
+};
+
 const DEFAULT_FORM: VeiculoForm = {
     ativo: false,
     placa: '',
@@ -83,15 +102,6 @@ function toDate(raw: unknown): Date | null {
     return Number.isNaN(parsed.getTime()) ? null : parsed;
 }
 
-function toDateAny(raw: any): Date | null {
-    if (!raw) return null;
-    if (typeof raw.toDate === 'function') return raw.toDate();
-    if (raw.seconds != null) return new Date(raw.seconds * 1e3 + (raw.nanoseconds ?? 0) / 1e6);
-    if (raw._seconds != null) return new Date(raw._seconds * 1e3 + (raw._nanoseconds ?? 0) / 1e6);
-    const d = new Date(raw);
-    return Number.isNaN(d.getTime()) ? null : d;
-}
-
 export default function FrotaVeiculoDetalhesPage() {
     const { id } = useParams();
     const navigate = useNavigate();
@@ -106,11 +116,11 @@ export default function FrotaVeiculoDetalhesPage() {
     const [showAbastecimento, setShowAbastecimento] = useState(true);
     const [showManutencoes, setShowManutencoes] = useState(false);
 
-    const [combustivelRows, setCombustivelRows] = useState<Registro[]>([]);
+    const [combustivelRows, setCombustivelRows] = useState<LinhaEvento[]>([]);
     const [combustivelLoading, setCombustivelLoading] = useState(false);
     const [combustivelError, setCombustivelError] = useState<string | null>(null);
 
-    const [manutencoesRows, setManutencoesRows] = useState<Manutencao[]>([]);
+    const [manutencoesRows, setManutencoesRows] = useState<LinhaEvento[]>([]);
     const [manutencoesLoading, setManutencoesLoading] = useState(false);
     const [manutencoesError, setManutencoesError] = useState<string | null>(null);
 
@@ -299,10 +309,19 @@ export default function FrotaVeiculoDetalhesPage() {
 
                 if (!active) return;
 
-                const data = snapshot.docs.map((docSnap) => ({
-                    id: docSnap.id,
-                    ...(docSnap.data() as Omit<Registro, 'id'>),
-                }));
+                const data: LinhaEvento[] = snapshot.docs.map(
+                    (docSnap): LinhaEvento => {
+                        const registro = docSnap.data() as Combustivel;
+                        return {
+                            id: `ab_${docSnap.id}`,
+                            tipo: 'ABASTECIMENTO',
+                            data: toDate(registro.data),
+                            qntAbastecida: registro.qa ?? null,
+                            arla: registro.arla ?? null,
+                            obra: null,
+                        };
+                    },
+                );
                 setCombustivelRows(data);
             } catch (err) {
                 console.error('Erro ao carregar abastecimentos', err);
@@ -325,41 +344,6 @@ export default function FrotaVeiculoDetalhesPage() {
             active = false;
         };
     }, [showAbastecimento, veiculo?.placa]);
-
-    const combustivelColumns: GridColDef[] = useMemo(
-        () => [
-            {
-                field: 'qa',
-                headerName: 'Qnt. Abastecida',
-                minWidth: 120,
-                flex: 1,
-                renderCell: (params) => {
-                    const value = params.row.qa;
-                    if (value === null || value === undefined || Number.isNaN(Number(value))) return '—';
-                    return numberFormatter.format(Number(value) / 10);
-                },
-            },
-            {
-                field: 'arla',
-                headerName: 'Arla',
-                minWidth: 80,
-                flex: 1,
-                renderCell: (params) => {
-                    const value = params.row.arla;
-                    if (value === null || value === undefined || Number.isNaN(Number(value))) return '—';
-                    return numberFormatter.format(Number(value) / 10);
-                },
-            },
-            {
-                field: 'obra',
-                headerName: 'Obra',
-                minWidth: 120,
-                flex: 1,
-                renderCell: () => '—',
-            },
-        ],
-        [numberFormatter],
-    );
 
     useEffect(() => {
         let active = true;
@@ -384,10 +368,21 @@ export default function FrotaVeiculoDetalhesPage() {
 
                 if (!active) return;
 
-                const data = snapshot.docs.map((docSnap) => ({
-                    id: docSnap.id,
-                    ...(docSnap.data() as Omit<Manutencao, 'id'>),
-                }));
+                const data: LinhaEvento[] = snapshot.docs.map(
+                    (docSnap): LinhaEvento => {
+                        const manutencao = docSnap.data() as Omit<Manutencao, 'id'>;
+                        return {
+                            id: `man_${docSnap.id}`,
+                            tipo: 'MANUTENCAO',
+                            data: toDate(manutencao.data),
+                            categoria: manutencao.categoria ?? null,
+                            valor: manutencao.valor ?? null,
+                            quantidade: manutencao.quantidade ?? null,
+                            fornecedor: manutencao.fornecedor ?? null,
+                            descricao: manutencao.descricao ?? null,
+                        };
+                    },
+                );
                 setManutencoesRows(data);
             } catch (err) {
                 console.error('Erro ao carregar manutenções', err);
@@ -411,26 +406,76 @@ export default function FrotaVeiculoDetalhesPage() {
         };
     }, [id, showManutencoes]);
 
-    const manutencoesRowsFormatted = useMemo(
-        () =>
-            manutencoesRows.map((row) => ({
-                ...row,
-                dataJS: toDateAny(row.data),
-            })),
-        [manutencoesRows],
-    );
+    const rows = useMemo(() => {
+        const merged: LinhaEvento[] = [];
+        if (showAbastecimento) merged.push(...combustivelRows);
+        if (showManutencoes) merged.push(...manutencoesRows);
+        return merged.sort((a, b) => (b.data?.getTime() ?? 0) - (a.data?.getTime() ?? 0));
+    }, [combustivelRows, manutencoesRows, showAbastecimento, showManutencoes]);
 
-    const manutencoesColumns: GridColDef[] = useMemo(
+    const gridLoading =
+        (showAbastecimento && combustivelLoading) || (showManutencoes && manutencoesLoading);
+
+    const emptyMessage = useMemo(() => {
+        if (!showAbastecimento && !showManutencoes) {
+            return 'Selecione ao menos um filtro para ver eventos.';
+        }
+        if (showAbastecimento && showManutencoes) {
+            return 'Sem abastecimentos e manutenções para este veículo.';
+        }
+        if (showAbastecimento) {
+            return 'Sem abastecimentos para este veículo.';
+        }
+        return 'Sem manutenções para este veículo.';
+    }, [showAbastecimento, showManutencoes]);
+
+    const eventoColumns: GridColDef<LinhaEvento>[] = useMemo(
         () => [
             {
-                field: 'dataJS',
+                field: 'tipo',
+                headerName: 'Tipo',
+                minWidth: 140,
+                flex: 0.9,
+                renderCell: (params) => params.row.tipo ?? '—',
+            },
+            {
+                field: 'data',
                 headerName: 'Data',
                 minWidth: 140,
                 flex: 1,
                 renderCell: (params) => {
-                    const value = params.row.dataJS as Date | null;
+                    const value = params.row.data;
                     return value ? dateFormatter.format(value) : '—';
                 },
+            },
+            {
+                field: 'qntAbastecida',
+                headerName: 'Qnt. Abastecida',
+                minWidth: 140,
+                flex: 1,
+                renderCell: (params) => {
+                    const value = params.row.qntAbastecida;
+                    if (value === null || value === undefined || Number.isNaN(Number(value))) return '—';
+                    return numberFormatter.format(Number(value) / 10);
+                },
+            },
+            {
+                field: 'arla',
+                headerName: 'Arla',
+                minWidth: 100,
+                flex: 0.8,
+                renderCell: (params) => {
+                    const value = params.row.arla;
+                    if (value === null || value === undefined || Number.isNaN(Number(value))) return '—';
+                    return numberFormatter.format(Number(value) / 10);
+                },
+            },
+            {
+                field: 'obra',
+                headerName: 'Obra',
+                minWidth: 140,
+                flex: 1,
+                renderCell: (params) => params.row.obra ?? '—',
             },
             {
                 field: 'categoria',
@@ -490,7 +535,7 @@ export default function FrotaVeiculoDetalhesPage() {
                 },
             },
         ],
-        [currencyFormatter, dateFormatter],
+        [currencyFormatter, dateFormatter, numberFormatter],
     );
 
     if (loading) {
@@ -621,69 +666,40 @@ export default function FrotaVeiculoDetalhesPage() {
                 </Stack>
             </Box>
 
-            {showAbastecimento && (
-                <Box mt={3}>
-                    <Typography variant="h6" gutterBottom>
-                        Abastecimento
-                    </Typography>
+             <Box mt={3}>
+                <Typography variant="h6" gutterBottom>
+                    Eventos do veículo
+                </Typography>
 
-                    {combustivelError && (
-                        <Alert severity="error" sx={{ mb: 2 }}>
-                            {combustivelError}
-                        </Alert>
-                    )}
+                    {showAbastecimento && combustivelError && (
+                    <Alert severity="error" sx={{ mb: 2 }}>
+                        {combustivelError}
+                    </Alert>
+                )}
 
-                    <Box sx={{ width: '100%', height: 520 }}>
-                        <DataGrid
-                            rows={combustivelRows}
-                            columns={combustivelColumns}
-                            loading={combustivelLoading}
-                            getRowId={(row) => row.id}
-                            disableRowSelectionOnClick
-                            density="compact"
-                            getRowHeight={() => 'auto'}
-                        />
-                    </Box>
+                {showManutencoes && manutencoesError && (
+                    <Alert severity="error" sx={{ mb: 2 }}>
+                        {manutencoesError}
+                    </Alert>
+                )}
 
-                    {!combustivelLoading && combustivelRows.length === 0 && !combustivelError && (
-                        <Alert severity="info" sx={{ mt: 2 }}>
-                            Sem abastecimentos para esta placa.
-                        </Alert>
-                    )}
+                <Box sx={{ width: '100%', height: 520 }}>
+                    <DataGrid
+                        rows={rows}
+                        columns={eventoColumns}
+                        loading={gridLoading}
+                        getRowId={(row) => row.id}
+                        disableRowSelectionOnClick
+                        density="compact"
+                        getRowHeight={() => 'auto'}
+                    />
                 </Box>
-            )}
-
-            {showManutencoes && (
-                <Box mt={3}>
-                    <Typography variant="h6" gutterBottom>
-                        Manutenções
-                    </Typography>
-
-                    {manutencoesError && (
-                        <Alert severity="error" sx={{ mb: 2 }}>
-                            {manutencoesError}
-                        </Alert>
-                    )}
-
-                    <Box sx={{ width: '100%', height: 520 }}>
-                        <DataGrid
-                            rows={manutencoesRowsFormatted}
-                            columns={manutencoesColumns}
-                            loading={manutencoesLoading}
-                            getRowId={(row) => row.id}
-                            disableRowSelectionOnClick
-                            density="compact"
-                            getRowHeight={() => 'auto'}
-                        />
-                    </Box>
-
-                    {!manutencoesLoading && manutencoesRows.length === 0 && !manutencoesError && (
-                        <Alert severity="info" sx={{ mt: 2 }}>
-                            Sem manutenções para este veículo.
-                        </Alert>
-                    )}
-                </Box>
-            )}
+            {!gridLoading && rows.length === 0 && !combustivelError && !manutencoesError && (
+                    <Alert severity="info" sx={{ mt: 2 }}>
+                        {emptyMessage}
+                    </Alert>
+                )}
+            </Box>
 
             <Snackbar
                 open={snackbar.open}
