@@ -25,6 +25,9 @@ export default function Header() {
                   <Nav.Link as={Link} to="/combustivel">
                     Cliente
                   </Nav.Link>
+                  <Nav.Link as={Link} to="/registros">
+                    Registros
+                  </Nav.Link>
                   <Nav.Link as={Link} to="/frota">
                     Frota
                   </Nav.Link>

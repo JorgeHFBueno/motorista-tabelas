@@ -1,5 +1,6 @@
 import {Box, Card, CardActionArea, CardContent, Typography, Stack} from '@mui/material';
 import AssignmentIndIcon from '@mui/icons-material/AssignmentInd';
+import ListAltIcon from '@mui/icons-material/ListAlt';
 import DirectionsCarFilledIcon from '@mui/icons-material/DirectionsCarFilled';
 import LocalGasStationIcon from '@mui/icons-material/LocalGasStation';
 import WorkspacesIcon from '@mui/icons-material/Workspaces';
@@ -14,10 +15,17 @@ const actions = [
     to: '/cadastros',
   },
   {
-    label: 'Frotas',
-    description: 'Gerencie veículos e motoristas',
-    icon: <DirectionsCarFilledIcon fontSize="large" />,
+    label: 'Registros',
+    description: 'Acompanhe registros e gráficos',
+    icon: <ListAltIcon fontSize="large" />,
     color: '#ffb703',
+    to: '/registros',
+  },
+  {
+    label: 'Frota',
+    description: 'Gerencie veículos (placa e extra)',
+    icon: <DirectionsCarFilledIcon fontSize="large" />,
+    color: '#ffd166',
     to: '/frota',
   },
   {

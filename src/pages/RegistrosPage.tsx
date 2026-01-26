@@ -56,7 +56,7 @@ type MotoristaResumo = {
   ultimoRegistroPeriodo: Date | null;
 };
 
-export default function Frota() {
+export default function RegistrosPage() {
   const { isOnline } = useOnlineStatus();
   const [searchParams, setSearchParams] = useSearchParams();
   const [tab, setTab] = useState<TabKey>(() =>
@@ -275,7 +275,7 @@ export default function Frota() {
   return (
     <Container sx={{ py: 3 }}>
       <Typography variant="h4" gutterBottom>
-        Frota
+        Registros
       </Typography>
 
       {!isOnline && (
