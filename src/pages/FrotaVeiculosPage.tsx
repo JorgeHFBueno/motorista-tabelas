@@ -216,16 +216,9 @@ export default function FrotaVeiculosPage() {
                 field: 'quilometragemInicial',
                 headerName: 'KM inicial',
                 minWidth: 140,
-                flex: 1,             
+                flex: 1,
+                valueGetter: (params: any) => params?.row?.quilometragemInicial,
                 valueFormatter: (params: any) => {
-                    const rowId = (params as any).id ?? (params as any).row?.id;
-                    logOnce(`[FROTA DEBUG] grid kmInicial ${rowId}`, {
-                        value: params.value,
-                        value_type: typeof params.value,
-                        row_kmInicial: (params as any).row?.quilometragemInicial,
-                        row_kmInicial_type: typeof (params as any).row?.quilometragemInicial,
-                    });
-
                     const n = asNumber(params?.value);
                     return n !== null ? numberFormatter.format(n) : '—';
                 },
@@ -235,15 +228,8 @@ export default function FrotaVeiculosPage() {
                 headerName: 'KM última',
                 minWidth: 140,
                 flex: 1,
+                valueGetter: (params: any) => params?.row?.quilometragemUltima,
                 valueFormatter: (params: any) => {
-                    const rowId = (params as any).id ?? (params as any).row?.id;
-                    logOnce(`[FROTA DEBUG] grid kmUltima ${rowId}`, {
-                        value: params.value,
-                        value_type: typeof params.value,
-                        row_kmUltima: (params as any).row?.quilometragemUltima,
-                        row_kmUltima_type: typeof (params as any).row?.quilometragemUltima,
-                    });
-
                     const n = asNumber(params?.value);
                     return n !== null ? numberFormatter.format(n) : '—';
                 },
@@ -253,27 +239,9 @@ export default function FrotaVeiculosPage() {
                 headerName: 'Última atualização',
                 minWidth: 180,
                 flex: 1.2,
-                valueGetter: ({ value, row }) => {
-                    const d = toDate(value);
-                    if (DEBUG) {
-                        const key = `[FROTA DEBUG] grid dateGetter ${(row as any)?.id}`;
-                        logOnce(key, {
-                            value_raw: value,
-                            value_type: typeof value,
-                            parsed_isDate: d instanceof Date,
-                            parsed_time: d ? d.getTime() : null,
-                        });
-                    }
-                    return d;
-                },
-                renderCell: (params) => {
-                    const rowId = (params as any).row?.id;
-                    logOnce(`[FROTA DEBUG] grid dateRender ${rowId}`, {
-                        value: params.value,
-                        isDate: params.value instanceof Date,
-                    });
-                    return params.value instanceof Date ? dateFormatter.format(params.value) : '—';
-                },
+                valueGetter: (params: any) => toDate(params?.row?.dataUltimaAtualizacao),
+                renderCell: (params: any) =>
+                    params?.value instanceof Date ? dateFormatter.format(params.value) : '—',
             },
         ];
     }, [dateFormatter, numberFormatter, tipo]);
