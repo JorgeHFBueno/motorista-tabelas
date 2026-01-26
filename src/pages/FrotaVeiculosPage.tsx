@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
     Alert,
+    Autocomplete,
     Box,
     Button,
     Checkbox,
@@ -19,7 +20,7 @@ import {
     Typography,
 } from '@mui/material';
 import { DataGrid, type GridColDef } from '@mui/x-data-grid';
-import { collection, doc, getDocs, orderBy, query, serverTimestamp, updateDoc } from 'firebase/firestore';
+import { addDoc, collection, doc, getDocs, orderBy, query, serverTimestamp, updateDoc } from 'firebase/firestore';
 import { useNavigate } from 'react-router-dom';
 import { db } from '../firebase';
 
@@ -44,6 +45,16 @@ type VeiculoForm = {
     quilometragemUltima: string;
 };
 
+type ManutencaoForm = {
+    identificador: string;
+    tipoVeiculo: TipoVeiculo | '';
+    categoria: string;
+    valor: string;
+    quantidade: string;
+    fornecedor: string;
+    descricao: string;
+};
+
 const DEFAULT_FORM: VeiculoForm = {
     ativo: false,
     placa: '',
@@ -51,6 +62,31 @@ const DEFAULT_FORM: VeiculoForm = {
     quilometragemInicial: '',
     quilometragemUltima: '',
 };
+
+const DEFAULT_MANUTENCAO_FORM: ManutencaoForm = {
+    identificador: '',
+    tipoVeiculo: '',
+    categoria: '',
+    valor: '',
+    quantidade: '1',
+    fornecedor: '',
+    descricao: '',
+};
+
+const MANUTENCAO_CATEGORIAS = [
+    'COMBUSTIVEL',
+    'CONC PNEU',
+    'DESP DIV',
+    'DISCO TAC',
+    'ELÉTRICA',
+    'GUINCHO',
+    'IPVA',
+    'MANUTENÇÃO',
+    'MULTAS',
+    'OLEO',
+    'PEDÁGIO',
+    'PNEU',
+] as const;
 
 const DEBUG = true;
 
@@ -87,6 +123,9 @@ export default function FrotaVeiculosPage() {
     const [editing, setEditing] = useState<Veiculo | null>(null);
     const [form, setForm] = useState<VeiculoForm>(DEFAULT_FORM);
     const [saving, setSaving] = useState(false);
+    const [manutencaoOpen, setManutencaoOpen] = useState(false);
+    const [manutencaoSaving, setManutencaoSaving] = useState(false);
+    const [manutencaoForm, setManutencaoForm] = useState<ManutencaoForm>(DEFAULT_MANUTENCAO_FORM);
     const [snackbar, setSnackbar] = useState<{
         open: boolean;
         severity: 'success' | 'error';
@@ -391,6 +430,81 @@ export default function FrotaVeiculosPage() {
     const emptyLabel =
         tipo === 'PLACA' ? 'Nenhum veículo do tipo PLACA encontrado.' : 'Nenhum veículo do tipo EXTRA encontrado.';
 
+const manutencaoVeiculoSelecionado = useMemo(
+        () => veiculos.find((item) => item.id === manutencaoForm.identificador) ?? null,
+        [manutencaoForm.identificador, veiculos],
+    );
+
+    const getVeiculoLabel = (veiculo: Veiculo | null) => {
+        if (!veiculo) return '';
+        if (veiculo.categoria === 'PLACA') return veiculo.placa ?? '';
+        if (veiculo.categoria === 'EXTRA') return veiculo.extra ?? '';
+        return veiculo.placa ?? veiculo.extra ?? '';
+    };
+
+    function openManutencaoDialog() {
+        setManutencaoForm(DEFAULT_MANUTENCAO_FORM);
+        setManutencaoOpen(true);
+    }
+
+    function closeManutencaoDialog() {
+        if (manutencaoSaving) return;
+        setManutencaoOpen(false);
+        setManutencaoForm(DEFAULT_MANUTENCAO_FORM);
+    }
+
+    async function handleSaveManutencao() {
+        if (!manutencaoForm.identificador || !manutencaoForm.tipoVeiculo) {
+            setSnackbar({ open: true, severity: 'error', message: 'Selecione um veículo.' });
+            return;
+        }
+
+        if (!manutencaoForm.categoria) {
+            setSnackbar({ open: true, severity: 'error', message: 'Selecione a categoria.' });
+            return;
+        }
+
+        const valor = Number(manutencaoForm.valor);
+        const quantidade = Number(manutencaoForm.quantidade);
+
+        if (!Number.isFinite(valor) || valor <= 0) {
+            setSnackbar({ open: true, severity: 'error', message: 'Informe um valor válido.' });
+            return;
+        }
+
+        if (!Number.isFinite(quantidade) || quantidade < 1) {
+            setSnackbar({ open: true, severity: 'error', message: 'Informe uma quantidade válida.' });
+            return;
+        }
+
+        if (!manutencaoForm.fornecedor.trim()) {
+            setSnackbar({ open: true, severity: 'error', message: 'Informe o fornecedor.' });
+            return;
+        }
+
+        setManutencaoSaving(true);
+        try {
+            await addDoc(collection(db, 'manutencoes'), {
+                identificador: manutencaoForm.identificador,
+                tipoVeiculo: manutencaoForm.tipoVeiculo,
+                categoria: manutencaoForm.categoria,
+                valor,
+                quantidade,
+                fornecedor: manutencaoForm.fornecedor.trim(),
+                descricao: manutencaoForm.descricao.trim(),
+                data: serverTimestamp(),
+            });
+
+            setSnackbar({ open: true, severity: 'success', message: 'Manutenção adicionada com sucesso.' });
+            closeManutencaoDialog();
+        } catch (err) {
+            console.error('Erro ao salvar manutenção', err);
+            setSnackbar({ open: true, severity: 'error', message: 'Erro ao salvar manutenção.' });
+        } finally {
+            setManutencaoSaving(false);
+        }
+    }
+
     return (
         <Container sx={{ py: 3 }}>
             <Stack
@@ -399,10 +513,15 @@ export default function FrotaVeiculosPage() {
                 alignItems={{ xs: 'flex-start', md: 'center' }}
                 justifyContent="space-between"
             >
-                <Typography variant="h4">Frota (Veículos v3)</Typography>
-                <Button variant="outlined" onClick={() => navigate('/registros')}>
-                    Ir para Registros
-                </Button>
+                <Typography variant="h4">Frota (Veículos v4)</Typography>
+                <Stack direction="row" spacing={2}>
+                    <Button variant="outlined" onClick={() => navigate('/registros')}>
+                        Ir para Registros
+                    </Button>
+                    <Button variant="contained" onClick={openManutencaoDialog}>
+                        Adicionar Manutenção
+                    </Button>
+                </Stack>
             </Stack>
 
             <Stack
@@ -529,6 +648,88 @@ export default function FrotaVeiculosPage() {
                     </Button>
                     <Button onClick={handleSave} variant="contained" disabled={saving}>
                         {saving ? 'Salvando...' : 'Salvar'}
+                    </Button>
+                </DialogActions>
+            </Dialog>
+
+            <Dialog open={manutencaoOpen} onClose={closeManutencaoDialog} maxWidth="sm" fullWidth>
+                <DialogTitle>Adicionar Manutenção</DialogTitle>
+                <DialogContent>
+                    <Stack spacing={2} mt={1}>
+                        <Autocomplete
+                            options={veiculos}
+                            value={manutencaoVeiculoSelecionado}
+                            getOptionLabel={getVeiculoLabel}
+                            onChange={(_event, value) =>
+                                setManutencaoForm((prev) => ({
+                                    ...prev,
+                                    identificador: value?.id ?? '',
+                                    tipoVeiculo: (value?.categoria as TipoVeiculo) ?? '',
+                                }))
+                            }
+                            renderInput={(params) => <TextField {...params} label="Veículo" required />}
+                            isOptionEqualToValue={(option, value) => option.id === value.id}
+                        />
+                        <Autocomplete
+                            options={[...MANUTENCAO_CATEGORIAS]}
+                            value={manutencaoForm.categoria || null}
+                            onChange={(_event, value) =>
+                                setManutencaoForm((prev) => ({
+                                    ...prev,
+                                    categoria: value ?? '',
+                                }))
+                            }
+                            renderInput={(params) => (
+                                <TextField {...params} label="Categoria da manutenção" required />
+                            )}
+                        />
+                        <TextField
+                            label="Valor"
+                            type="number"
+                            value={manutencaoForm.valor}
+                            onChange={(event) =>
+                                setManutencaoForm((prev) => ({ ...prev, valor: event.target.value }))
+                            }
+                            fullWidth
+                            required
+                        />
+                        <TextField
+                            label="Quantidade"
+                            type="number"
+                            value={manutencaoForm.quantidade}
+                            onChange={(event) =>
+                                setManutencaoForm((prev) => ({ ...prev, quantidade: event.target.value }))
+                            }
+                            fullWidth
+                            required
+                        />
+                        <TextField
+                            label="Fornecedor"
+                            value={manutencaoForm.fornecedor}
+                            onChange={(event) =>
+                                setManutencaoForm((prev) => ({ ...prev, fornecedor: event.target.value }))
+                            }
+                            fullWidth
+                            required
+                        />
+                        <TextField
+                            label="Descrição"
+                            value={manutencaoForm.descricao}
+                            onChange={(event) =>
+                                setManutencaoForm((prev) => ({ ...prev, descricao: event.target.value }))
+                            }
+                            fullWidth
+                            multiline
+                            minRows={2}
+                        />
+                    </Stack>
+                </DialogContent>
+                <DialogActions>
+                    <Button onClick={closeManutencaoDialog} disabled={manutencaoSaving}>
+                        Cancelar
+                    </Button>
+                    <Button onClick={handleSaveManutencao} variant="contained" disabled={manutencaoSaving}>
+                        {manutencaoSaving ? 'Salvando...' : 'Salvar'}
                     </Button>
                 </DialogActions>
             </Dialog>
