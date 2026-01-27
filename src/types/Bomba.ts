@@ -8,6 +8,6 @@ export interface Bomba {
   estoqueAtual?: number;
   montanteAtual?: number;
   folgaLitros?: number;
-  ultimoAbastecimento?: Timestamp | null;
+  ultimoAbastecimento?: Timestamp | Date | null;
   ultimoFrentista?: string;
 }
