@@ -87,6 +87,14 @@ const DEFAULT_FORM: VeiculoForm = {
     quilometragemUltima: '',
 };
 
+const DEBUG = false;
+const MANUTENCAO_CUTOFF = new Date('2026-01-01T00:00:00.000Z');
+
+function normalizeText(value: unknown): string {
+    if (value === null || value === undefined) return '';
+    return String(value).trim().toLowerCase();
+}
+
 function toDate(raw: unknown): Date | null {
     if (!raw) return null;
     if (raw instanceof Date) return raw;
@@ -98,7 +106,11 @@ function toDate(raw: unknown): Date | null {
         const nanoseconds = (raw as { nanoseconds?: number }).nanoseconds ?? 0;
         return new Date(seconds * 1000 + nanoseconds / 1e6);
     }
-    const parsed = new Date(raw as string);
+    if (typeof raw === 'number') {
+        const parsed = new Date(raw);
+        return Number.isNaN(parsed.getTime()) ? null : parsed;
+    }
+    const parsed = new Date(String(raw).trim());
     return Number.isNaN(parsed.getTime()) ? null : parsed;
 }
 
@@ -114,7 +126,13 @@ export default function FrotaVeiculoDetalhesPage() {
     const [saving, setSaving] = useState(false);
 
     const [showAbastecimento, setShowAbastecimento] = useState(true);
-    const [showManutencoes, setShowManutencoes] = useState(false);
+    const [showManutencoes2026, setShowManutencoes2026] = useState(false);
+    const [showManutencoesLegado, setShowManutencoesLegado] = useState(false);
+    const showManutencoes = showManutencoes2026 || showManutencoesLegado;
+
+    const [filterText, setFilterText] = useState('');
+    const [filterStartDate, setFilterStartDate] = useState('');
+    const [filterEndDate, setFilterEndDate] = useState('');
 
     const [combustivelRows, setCombustivelRows] = useState<LinhaEvento[]>([]);
     const [combustivelLoading, setCombustivelLoading] = useState(false);
@@ -406,19 +424,98 @@ export default function FrotaVeiculoDetalhesPage() {
         };
     }, [id, showManutencoes]);
 
-    const rows = useMemo(() => {
+    const { rowsManutencoes2026, rowsManutencoesLegado } = useMemo(() => {
+        const atual: LinhaEvento[] = [];
+        const legado: LinhaEvento[] = [];
+
+        manutencoesRows.forEach((row) => {
+            const data = row.data;
+            if (data && data >= MANUTENCAO_CUTOFF) {
+                atual.push(row);
+                return;
+            }
+            // Datas inválidas ficam no legado para não ocultar registros silenciosamente.
+            legado.push(row);
+        });
+
+        return { rowsManutencoes2026: atual, rowsManutencoesLegado: legado };
+    }, [manutencoesRows]);
+
+    const rowsByType = useMemo(() => {
         const merged: LinhaEvento[] = [];
         if (showAbastecimento) merged.push(...combustivelRows);
-        if (showManutencoes) merged.push(...manutencoesRows);
+        if (showManutencoes2026) merged.push(...rowsManutencoes2026);
+        if (showManutencoesLegado) merged.push(...rowsManutencoesLegado);
         return merged.sort((a, b) => (b.data?.getTime() ?? 0) - (a.data?.getTime() ?? 0));
-    }, [combustivelRows, manutencoesRows, showAbastecimento, showManutencoes]);
+     }, [
+        combustivelRows,
+        rowsManutencoes2026,
+        rowsManutencoesLegado,
+        showAbastecimento,
+        showManutencoes2026,
+        showManutencoesLegado,
+    ]);
+
+    const filteredRows = useMemo(() => {
+        let nextRows = rowsByType;
+
+        if (DEBUG) {
+            console.debug('[FrotaVeiculosDetalhes] rows:', rowsByType.length);
+        }
+
+        const normalizedSearch = normalizeText(filterText);
+        if (normalizedSearch) {
+            nextRows = nextRows.filter((row) => {
+                const fields = [
+                    row.tipo,
+                    row.obra,
+                    row.categoria,
+                    row.fornecedor,
+                    row.descricao,
+                ];
+                return fields.some((field) => normalizeText(field).includes(normalizedSearch));
+            });
+
+            if (DEBUG) {
+                console.debug('[FrotaVeiculosDetalhes] afterText:', nextRows.length);
+            }
+        }
+
+        const startDate = toDate(filterStartDate);
+        const endDate = toDate(filterEndDate);
+        if (endDate) {
+            endDate.setHours(23, 59, 59, 999);
+        }
+
+        if (startDate || endDate) {
+            nextRows = nextRows.filter((row) => {
+                const rowDate = row.data;
+                if (!rowDate) return false;
+                if (startDate && rowDate < startDate) return false;
+                if (endDate && rowDate > endDate) return false;
+                return true;
+            });
+
+            if (DEBUG) {
+                console.debug('[FrotaVeiculosDetalhes] afterDate:', nextRows.length);
+            }
+        }
+
+        return nextRows;
+    }, [filterEndDate, filterStartDate, filterText, rowsByType]);
 
     const gridLoading =
         (showAbastecimento && combustivelLoading) || (showManutencoes && manutencoesLoading);
 
+const filtersActive =
+        normalizeText(filterText) !== '' || filterStartDate.trim() !== '' || filterEndDate.trim() !== '';
+
     const emptyMessage = useMemo(() => {
-        if (!showAbastecimento && !showManutencoes) {
-            return 'Selecione ao menos um filtro para ver eventos.';
+        if (!showAbastecimento && !showManutencoes2026 && !showManutencoesLegado) {
+            return 'Nenhum tipo selecionado.';
+        }
+        if (filtersActive) {
+            return 'Nenhum resultado para os filtros aplicados.';
         }
         if (showAbastecimento && showManutencoes) {
             return 'Sem abastecimentos e manutenções para este veículo.';
@@ -427,7 +524,7 @@ export default function FrotaVeiculoDetalhesPage() {
             return 'Sem abastecimentos para este veículo.';
         }
         return 'Sem manutenções para este veículo.';
-    }, [showAbastecimento, showManutencoes]);
+    }, [filtersActive, showAbastecimento, showManutencoes, showManutencoes2026, showManutencoesLegado]);
 
     const eventoColumns: GridColDef<LinhaEvento>[] = useMemo(
         () => [
@@ -652,16 +749,47 @@ export default function FrotaVeiculoDetalhesPage() {
                                 onChange={(event) => setShowAbastecimento(event.target.checked)}
                             />
                         }
-                        label="Abastecimento"
+                        label={`Abastecimento (${combustivelRows.length})`}
                     />
                     <FormControlLabel
                         control={
                             <Checkbox
-                                checked={showManutencoes}
-                                onChange={(event) => setShowManutencoes(event.target.checked)}
+                                checked={showManutencoes2026}
+                                onChange={(event) => setShowManutencoes2026(event.target.checked)}
                             />
                         }
-                        label="Manutenções"
+                        label={`Manutenções - 2026 (${rowsManutencoes2026.length})`}
+                    />
+                    <FormControlLabel
+                        control={
+                            <Checkbox
+                                checked={showManutencoesLegado}
+                                onChange={(event) => setShowManutencoesLegado(event.target.checked)}
+                            />
+                        }
+                        label={`Manutenções - Legado (${rowsManutencoesLegado.length})`}
+                    />
+                </Stack>
+                <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2} mt={2}>
+                    <TextField
+                        label="Buscar"
+                        value={filterText}
+                        onChange={(event) => setFilterText(event.target.value)}
+                        fullWidth
+                    />
+                    <TextField
+                        label="Data inicial"
+                        type="date"
+                        value={filterStartDate}
+                        onChange={(event) => setFilterStartDate(event.target.value)}
+                        InputLabelProps={{ shrink: true }}
+                    />
+                    <TextField
+                        label="Data final"
+                        type="date"
+                        value={filterEndDate}
+                        onChange={(event) => setFilterEndDate(event.target.value)}
+                        InputLabelProps={{ shrink: true }}
                     />
                 </Stack>
             </Box>
@@ -685,7 +813,7 @@ export default function FrotaVeiculoDetalhesPage() {
 
                 <Box sx={{ width: '100%', height: 520 }}>
                     <DataGrid
-                        rows={rows}
+                        rows={filteredRows}
                         columns={eventoColumns}
                         loading={gridLoading}
                         getRowId={(row) => row.id}
@@ -694,7 +822,7 @@ export default function FrotaVeiculoDetalhesPage() {
                         getRowHeight={() => 'auto'}
                     />
                 </Box>
-            {!gridLoading && rows.length === 0 && !combustivelError && !manutencoesError && (
+             {!gridLoading && filteredRows.length === 0 && !combustivelError && !manutencoesError && (
                     <Alert severity="info" sx={{ mt: 2 }}>
                         {emptyMessage}
                     </Alert>
