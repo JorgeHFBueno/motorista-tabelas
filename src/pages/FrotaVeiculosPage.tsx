@@ -22,6 +22,7 @@ import {
 import { DataGrid, type GridColDef } from '@mui/x-data-grid';
 import { addDoc, collection, doc, getDocs, orderBy, query, serverTimestamp, updateDoc } from 'firebase/firestore';
 import { useNavigate } from 'react-router-dom';
+import { useAuth } from '../contexts/AuthContext';
 import { db } from '../firebase';
 
 type TipoVeiculo = 'PLACA' | 'EXTRA';
@@ -53,6 +54,8 @@ type ManutencaoForm = {
     quantidade: string;
     fornecedor: string;
     descricao: string;
+    km: string;
+    motorista: string;
 };
 
 const DEFAULT_FORM: VeiculoForm = {
@@ -71,10 +74,14 @@ const DEFAULT_MANUTENCAO_FORM: ManutencaoForm = {
     quantidade: '1',
     fornecedor: '',
     descricao: '',
+    km: '',
+    motorista: '',
 };
 
+const ABASTECIMENTO_EXTERNO = 'ABASTECIMENTO EXTERNO';
+
 const MANUTENCAO_CATEGORIAS = [
-    'COMBUSTIVEL',
+    ABASTECIMENTO_EXTERNO,
     'CONC PNEU',
     'DESP DIV',
     'DISCO TAC',
@@ -116,6 +123,7 @@ function asNumber(raw: unknown): number | null {
 
 export default function FrotaVeiculosPage() {
     const navigate = useNavigate();
+    const { currentUser } = useAuth();
     const [tipo, setTipo] = useState<TipoVeiculo>('PLACA');
     const [veiculos, setVeiculos] = useState<Veiculo[]>([]);
     const [loading, setLoading] = useState(false);
@@ -465,6 +473,11 @@ export default function FrotaVeiculosPage() {
         return veiculo.placa ?? veiculo.extra ?? '';
     };
 
+    const motoristaAtual = (currentUser?.displayName || currentUser?.email || '').trim();
+
+    const isAbastecimentoExterno = manutencaoForm.categoria === ABASTECIMENTO_EXTERNO;
+    const veiculoLabelSelecionado = getVeiculoLabel(manutencaoVeiculoSelecionado);
+
     function openManutencaoDialog() {
         setManutencaoForm(DEFAULT_MANUTENCAO_FORM);
         setManutencaoOpen(true);
@@ -500,23 +513,51 @@ export default function FrotaVeiculosPage() {
             return;
         }
 
+        const kmValue = manutencaoForm.km.trim();
+        const km = kmValue ? Number(kmValue) : null;
+        if (kmValue && !Number.isFinite(km)) {
+            setSnackbar({ open: true, severity: 'error', message: 'Informe um KM válido.' });
+            return;
+        }
+
         if (!manutencaoForm.fornecedor.trim()) {
             setSnackbar({ open: true, severity: 'error', message: 'Informe o fornecedor.' });
             return;
         }
 
+        if (isAbastecimentoExterno && !manutencaoForm.motorista.trim()) {
+            setSnackbar({ open: true, severity: 'error', message: 'Informe o motorista.' });
+            return;
+        }
+
         setManutencaoSaving(true);
         try {
+            const data = serverTimestamp();
             await addDoc(collection(db, 'manutencoes'), {
                 identificador: manutencaoForm.identificador,
                 tipoVeiculo: manutencaoForm.tipoVeiculo,
                 categoria: manutencaoForm.categoria,
                 valor,
                 quantidade,
+                km: km ?? undefined,
                 fornecedor: manutencaoForm.fornecedor.trim(),
+                motorista: manutencaoForm.motorista.trim(),
                 descricao: manutencaoForm.descricao.trim(),
-                data: serverTimestamp(),
+                data,
             });
+
+            if (isAbastecimentoExterno) {
+                const qa = Number.isFinite(quantidade) ? quantidade : 0;
+                await addDoc(collection(db, '03-combustivel'), {
+                    data,
+                    observacao: manutencaoForm.descricao.trim(),
+                    fornecedor: motoristaAtual || 'Não informado',
+                    motorista: manutencaoForm.fornecedor.trim(),
+                    para_quem: manutencaoForm.motorista.trim(),
+                    placa: veiculoLabelSelecionado || manutencaoForm.identificador,
+                    qa,
+                });
+            }
 
             setSnackbar({ open: true, severity: 'success', message: 'Manutenção adicionada com sucesso.' });
             closeManutencaoDialog();
@@ -727,6 +768,15 @@ export default function FrotaVeiculosPage() {
                             required
                         />
                         <TextField
+                            label="KM"
+                            type="number"
+                            value={manutencaoForm.km}
+                            onChange={(event) =>
+                                setManutencaoForm((prev) => ({ ...prev, km: event.target.value }))
+                            }
+                            fullWidth
+                        />
+                        <TextField
                             label="Fornecedor"
                             value={manutencaoForm.fornecedor}
                             onChange={(event) =>
@@ -735,6 +785,17 @@ export default function FrotaVeiculosPage() {
                             fullWidth
                             required
                         />
+                        {isAbastecimentoExterno && (
+                            <TextField
+                                label="Motorista"
+                                value={manutencaoForm.motorista}
+                                onChange={(event) =>
+                                    setManutencaoForm((prev) => ({ ...prev, motorista: event.target.value }))
+                                }
+                                fullWidth
+                                required
+                            />
+                        )}
                         <TextField
                             label="Descrição"
                             value={manutencaoForm.descricao}
