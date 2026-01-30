@@ -9,14 +9,46 @@ export type ChartPoint = {
 };
 
 interface Props {
-  chartTab: ChartKey;
+  chartTab?: ChartKey;
   data: ChartPoint[];
+  title?: string;
+  xAxisTitle?: string;
+  yAxisTitle?: string;
+  valueFormatter?: (value: number) => string;
+  xAxisTickAngle?: number;
 }
 
-export default function FrotaCharts({ chartTab, data }: Props) {
+export default function FrotaCharts({
+  chartTab,
+  data,
+  title,
+  xAxisTitle,
+  yAxisTitle,
+  valueFormatter,
+  xAxisTickAngle,
+}: Props) {
   if (data.length === 0) {
     return null;
   }
+
+  const resolvedTitle =
+    title ??
+    (chartTab === 'caminhoes'
+      ? 'Caminhões mais utilizados (últimos 30 dias)'
+      : chartTab === 'km'
+        ? 'Quilometragem por caminhão (últimos 30 dias)'
+        : chartTab === 'motorista'
+          ? 'Registros por motorista (últimos 30 dias)'
+          : '');
+
+  const resolvedXAxisTitle =
+    xAxisTitle ?? (chartTab === 'motorista' ? 'Motorista' : 'Placa');
+  const resolvedYAxisTitle =
+    yAxisTitle ?? (chartTab === 'km' ? 'KM' : 'Registros');
+
+  const formattedValues = valueFormatter
+    ? data.map((item) => valueFormatter(item.value))
+    : undefined;
 
   return (
     <Plot
@@ -26,19 +58,18 @@ export default function FrotaCharts({ chartTab, data }: Props) {
           x: data.map((item) => item.label),
           y: data.map((item) => item.value),
           marker: { color: '#1976d2' },
+          text: formattedValues,
+          hovertemplate: valueFormatter ? '%{x}<br>%{text}<extra></extra>' : undefined,
         },
       ] as Data[]}
       layout={{
-        title: {
-          text:
-            chartTab === 'caminhoes'
-              ? 'Caminhões mais utilizados (últimos 30 dias)'
-              : chartTab === 'km'
-                ? 'Quilometragem por caminhão (últimos 30 dias)'
-                : 'Registros por motorista (últimos 30 dias)',
+        title: { text: resolvedTitle },
+        xaxis: {
+          title: { text: resolvedXAxisTitle },
+          automargin: true,
+          tickangle: xAxisTickAngle,
         },
-        xaxis: { title: { text: chartTab === 'motorista' ? 'Motorista' : 'Placa' } },
-        yaxis: { title: { text: chartTab === 'km' ? 'KM' : 'Registros' } },
+        yaxis: { title: { text: resolvedYAxisTitle } },
         autosize: true,
         bargap: 0.2,
         margin: { t: 60, r: 20, b: 60, l: 60 },

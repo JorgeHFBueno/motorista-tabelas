@@ -22,6 +22,7 @@ import {
 import { DataGrid, type GridColDef } from '@mui/x-data-grid';
 import { addDoc, collection, doc, getDocs, orderBy, query, serverTimestamp, updateDoc } from 'firebase/firestore';
 import { useNavigate } from 'react-router-dom';
+import FrotaCharts, { type ChartPoint } from '../components/FrotaCharts';
 import { useAuth } from '../contexts/AuthContext';
 import { db } from '../firebase';
 
@@ -153,6 +154,14 @@ export default function FrotaVeiculosPage() {
         [],
     );
     const numberFormatter = useMemo(() => new Intl.NumberFormat('pt-BR'), []);
+    const currencyFormatter = useMemo(
+        () =>
+            new Intl.NumberFormat('pt-BR', {
+                style: 'currency',
+                currency: 'BRL',
+            }),
+        [],
+    );
 
     // Evita spam no console (logar 1x por row/campo)
     const loggedOnceRef = useRef<Set<string>>(new Set());
@@ -351,6 +360,33 @@ export default function FrotaVeiculosPage() {
 
         ];
     }, [dateFormatter, numberFormatter, tipo]);
+
+    const despesasPorNatureza = useMemo<ChartPoint[]>(() => {
+        const acc = new Map<string, number>();
+
+        rows.forEach((row) => {
+            const rawNatureza = (
+                row as {
+                    natureza?: unknown;
+                    categoria?: unknown;
+                    naturezaDespesa?: unknown;
+                }
+            ).natureza ?? row.categoria ?? (row as { naturezaDespesa?: unknown }).naturezaDespesa;
+
+            const natureza =
+                typeof rawNatureza === 'string' ? rawNatureza.trim() : '';
+            const label = natureza || 'Sem natureza';
+
+            const rawValor = (row as { valor?: unknown }).valor;
+            const valor = asNumber(rawValor) ?? 0;
+
+            acc.set(label, (acc.get(label) ?? 0) + valor);
+        });
+
+        return Array.from(acc.entries())
+            .map(([label, value]) => ({ label, value }))
+            .sort((a, b) => b.value - a.value);
+    }, [rows]);
 
     function openEditor(row: Veiculo) {
         setEditing(row);
@@ -631,6 +667,25 @@ export default function FrotaVeiculosPage() {
                         getRowId={(row) => row.id}
                         density="compact"
                     />
+                </Box>
+
+                <Box mt={3}>
+                    <Typography variant="h6" gutterBottom>
+                        Despesas por natureza
+                    </Typography>
+
+                    {rows.length === 0 ? (
+                        <Typography variant="body2">Sem dados para exibir.</Typography>
+                    ) : (
+                        <FrotaCharts
+                            data={despesasPorNatureza}
+                            title="Despesas por natureza"
+                            xAxisTitle="Natureza"
+                            yAxisTitle="Total"
+                            xAxisTickAngle={-30}
+                            valueFormatter={(value) => currencyFormatter.format(value)}
+                        />
+                    )}
                 </Box>
 
                 {!loading && rows.length === 0 && !error && (
