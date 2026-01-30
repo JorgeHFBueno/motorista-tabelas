@@ -26,6 +26,7 @@ import {
     where,
 } from 'firebase/firestore';
 import { useNavigate, useParams } from 'react-router-dom';
+import FrotaCharts, { type ChartPoint } from '../components/FrotaCharts';
 import { db } from '../firebase';
 
 type Veiculo = {
@@ -87,6 +88,7 @@ const DEFAULT_FORM: VeiculoForm = {
     quilometragemUltima: '',
 };
 
+const ABASTECIMENTO_EXTERNO = 'ABASTECIMENTO EXTERNO';
 const DEBUG = false;
 const MANUTENCAO_CUTOFF = new Date('2026-01-01T00:00:00.000Z');
 
@@ -112,6 +114,20 @@ function toDate(raw: unknown): Date | null {
     }
     const parsed = new Date(String(raw).trim());
     return Number.isNaN(parsed.getTime()) ? null : parsed;
+}
+
+function asNumber(raw: unknown): number | null {
+    if (typeof raw === 'number' && Number.isFinite(raw)) return raw;
+    if (typeof raw === 'string') {
+        const n = Number(raw);
+        return Number.isFinite(n) ? n : null;
+    }
+    return null;
+}
+
+function getDisplayTipo(row: LinhaEvento): string {
+    if (row.categoria === ABASTECIMENTO_EXTERNO) return ABASTECIMENTO_EXTERNO;
+    return row.tipo ?? '—';
 }
 
 export default function FrotaVeiculoDetalhesPage() {
@@ -219,6 +235,7 @@ export default function FrotaVeiculoDetalhesPage() {
             }
         }
 
+        console.debug('[FrotaVeiculosDetalhes] route id:', id);
         loadVeiculo();
         return () => {
             active = false;
@@ -315,6 +332,7 @@ export default function FrotaVeiculoDetalhesPage() {
             setCombustivelError(null);
 
             try {
+                console.debug('[FrotaVeiculosDetalhes] loadCombustivel query:', { placa });
                 const baseQuery = query(collection(db, '03-combustivel'), where('placa', '==', placa));
                 let snapshot;
 
@@ -340,6 +358,7 @@ export default function FrotaVeiculoDetalhesPage() {
                         };
                     },
                 );
+                console.debug('[FrotaVeiculosDetalhes] abastecimentos carregados:', data.length);
                 setCombustivelRows(data);
             } catch (err) {
                 console.error('Erro ao carregar abastecimentos', err);
@@ -371,6 +390,7 @@ export default function FrotaVeiculoDetalhesPage() {
             setManutencoesError(null);
 
             try {
+                console.debug('[FrotaVeiculosDetalhes] loadManutencoes query:', { identificador: vehicleId });
                 const baseQuery = query(collection(db, 'manutencoes'), where('identificador', '==', vehicleId));
                 let snapshot;
 
@@ -401,6 +421,7 @@ export default function FrotaVeiculoDetalhesPage() {
                         };
                     },
                 );
+                console.debug('[FrotaVeiculosDetalhes] manutencoes carregadas:', data.length);
                 setManutencoesRows(data);
             } catch (err) {
                 console.error('Erro ao carregar manutenções', err);
@@ -533,7 +554,7 @@ const filtersActive =
                 headerName: 'Tipo',
                 minWidth: 140,
                 flex: 0.9,
-                renderCell: (params) => params.row.tipo ?? '—',
+                renderCell: (params) => getDisplayTipo(params.row),
             },
             {
                 field: 'data',
@@ -634,6 +655,23 @@ const filtersActive =
         ],
         [currencyFormatter, dateFormatter, numberFormatter],
     );
+
+    const despesasPorNatureza = useMemo<ChartPoint[]>(() => {
+        const acc = new Map<string, number>();
+
+        filteredRows.forEach((row) => {
+            const rawNatureza = row.categoria ?? row.tipo;
+            const natureza = typeof rawNatureza === 'string' ? rawNatureza.trim() : '';
+            const label = natureza || 'Sem natureza';
+
+            const valor = asNumber(row.valor) ?? 0;
+            acc.set(label, (acc.get(label) ?? 0) + valor);
+        });
+
+        return Array.from(acc.entries())
+            .map(([label, value]) => ({ label, value }))
+            .sort((a, b) => b.value - a.value);
+    }, [filteredRows]);
 
     if (loading) {
         return (
@@ -826,6 +864,25 @@ const filtersActive =
                     <Alert severity="info" sx={{ mt: 2 }}>
                         {emptyMessage}
                     </Alert>
+                )}
+            </Box>
+
+            <Box mt={3}>
+                <Typography variant="h6" gutterBottom>
+                    Despesas por natureza
+                </Typography>
+
+                {despesasPorNatureza.length === 0 ? (
+                    <Typography variant="body2">Sem dados para exibir.</Typography>
+                ) : (
+                    <FrotaCharts
+                        data={despesasPorNatureza}
+                        title="Despesas por natureza"
+                        xAxisTitle="Natureza"
+                        yAxisTitle="Total"
+                        xAxisTickAngle={-30}
+                        valueFormatter={(value) => currencyFormatter.format(value)}
+                    />
                 )}
             </Box>
 
