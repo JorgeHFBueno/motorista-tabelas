@@ -153,7 +153,7 @@ export default function FrotaVeiculosPage() {
         [],
     );
     const numberFormatter = useMemo(() => new Intl.NumberFormat('pt-BR'), []);
-    
+
     // Evita spam no console (logar 1x por row/campo)
     const loggedOnceRef = useRef<Set<string>>(new Set());
 
@@ -489,57 +489,66 @@ export default function FrotaVeiculosPage() {
         setManutencaoForm(DEFAULT_MANUTENCAO_FORM);
     }
 
-    async function handleSaveManutencao() {
+    function getManutencaoValidationError(): string | null {
         if (!manutencaoForm.identificador || !manutencaoForm.tipoVeiculo) {
-            setSnackbar({ open: true, severity: 'error', message: 'Selecione um veículo.' });
-            return;
+            return 'Selecione o veículo da manutenção.';
         }
 
         if (!manutencaoForm.categoria) {
-            setSnackbar({ open: true, severity: 'error', message: 'Selecione a categoria.' });
-            return;
+            return 'Selecione a categoria da manutenção.';
         }
 
         const valor = Number(manutencaoForm.valor);
-        const quantidade = Number(manutencaoForm.quantidade);
 
         if (!Number.isFinite(valor) || valor <= 0) {
-            setSnackbar({ open: true, severity: 'error', message: 'Informe um valor válido.' });
-            return;
+            return 'Valor da manutenção deve ser um número válido maior que zero.';
         }
 
+        const quantidade = Number(manutencaoForm.quantidade);
         if (!Number.isFinite(quantidade) || quantidade < 1) {
-            setSnackbar({ open: true, severity: 'error', message: 'Informe uma quantidade válida.' });
-            return;
+            return 'Quantidade deve ser um número válido maior ou igual a 1.';
         }
 
         const kmValue = manutencaoForm.km.trim();
-        const km = kmValue ? Number(kmValue) : null;
-        if (kmValue && !Number.isFinite(km)) {
-            setSnackbar({ open: true, severity: 'error', message: 'Informe um KM válido.' });
-            return;
+        if (kmValue) {
+            const km = Number(kmValue);
+            if (!Number.isInteger(km) || km < 0) {
+                return 'KM deve ser um número inteiro maior ou igual a 0.';
+            }
         }
 
         if (!manutencaoForm.fornecedor.trim()) {
-            setSnackbar({ open: true, severity: 'error', message: 'Informe o fornecedor.' });
-            return;
+            return 'Fornecedor é obrigatório.';
         }
 
         if (isAbastecimentoExterno && !manutencaoForm.motorista.trim()) {
-            setSnackbar({ open: true, severity: 'error', message: 'Informe o motorista.' });
+            return 'Motorista é obrigatório para abastecimento externo.';
+        }
+
+        return null;
+    }
+
+    async function handleSaveManutencao() {
+        const validationError = getManutencaoValidationError();
+        if (validationError) {
+            setSnackbar({ open: true, severity: 'error', message: validationError });
             return;
         }
 
         setManutencaoSaving(true);
         try {
             const data = serverTimestamp();
+            const valor = Number(manutencaoForm.valor);
+            const quantidade = Number(manutencaoForm.quantidade);
+            const kmValue = manutencaoForm.km.trim();
+            const km = kmValue ? Number(kmValue) : undefined;
             await addDoc(collection(db, 'manutencoes'), {
                 identificador: manutencaoForm.identificador,
                 tipoVeiculo: manutencaoForm.tipoVeiculo,
                 categoria: manutencaoForm.categoria,
                 valor,
                 quantidade,
-                km: km ?? undefined,
+                ...(kmValue ? { km } : {}),
                 fornecedor: manutencaoForm.fornecedor.trim(),
                 motorista: manutencaoForm.motorista.trim(),
                 descricao: manutencaoForm.descricao.trim(),
@@ -563,7 +572,11 @@ export default function FrotaVeiculosPage() {
             closeManutencaoDialog();
         } catch (err) {
             console.error('Erro ao salvar manutenção', err);
-            setSnackbar({ open: true, severity: 'error', message: 'Erro ao salvar manutenção.' });
+            setSnackbar({
+                open: true,
+                severity: 'error',
+                message: 'Não foi possível salvar a manutenção. Tente novamente.',
+            });
         } finally {
             setManutencaoSaving(false);
         }
@@ -631,7 +644,7 @@ export default function FrotaVeiculosPage() {
                         getRowId={(row) => row.id}
                         density="compact"
                     />
-                </Box>                
+                </Box>
 
                 {!loading && rows.length === 0 && !error && (
                     <Alert severity="info" sx={{ mt: 2 }}>

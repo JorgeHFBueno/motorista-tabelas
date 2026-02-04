@@ -54,6 +54,7 @@ type Manutencao = {
     tipoVeiculo?: 'PLACA' | 'EXTRA';
     categoria?: string;
     valor?: number;
+    km?: number;
     quantidade?: number;
     fornecedor?: string;
     descricao?: string;
