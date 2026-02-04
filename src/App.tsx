@@ -5,6 +5,7 @@ import Header from './components/Header';
 import PrivateRoute from './components/PrivateRoute';
 import NetworkStatusBanner from './components/NetworkStatusBanner';
 import PwaUpdateBanner from './components/PwaUpdateBanner';
+import PwaUpdateOverlay from './components/PwaUpdateOverlay';
 
 import { CircularProgress, Stack, Typography } from '@mui/material';
 
@@ -31,6 +32,7 @@ export default function App() {
   return (
    <BrowserRouter>
    <NetworkStatusBanner />
+   <PwaUpdateOverlay />
       <PwaUpdateBanner />
       <Header />
        <Suspense fallback={<LoadingFallback />}>

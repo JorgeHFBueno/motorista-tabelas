@@ -16,8 +16,10 @@ export default defineConfig({
         'icons/icon-512x512.png'
       ],
       workbox: {
-        globPatterns: ['**/*.{js,css,html,ico,png,svg}'],
+        globPatterns: ['**/*.{js,css,ico,png,svg}'],
         maximumFileSizeToCacheInBytes: 10 * 1024 * 1024,
+        skipWaiting: true,
+        clientsClaim: true,
       },
       devOptions: {
         enabled: true,

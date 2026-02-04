@@ -1,6 +1,6 @@
 import { Alert, Button, Snackbar } from '@mui/material';
 import { useEffect, useState } from 'react';
-import { subscribePwaStatus } from '../pwa/pwaClient';
+import { requestPwaUpdate, subscribePwaStatus } from '../pwa/pwaClient';
 
 type PwaBannerState = {
   offlineReady: boolean;
@@ -28,7 +28,7 @@ export default function PwaUpdateBanner() {
   }, []);
 
   const handleRefresh = () => {
-    pwaState.updateServiceWorker?.(true);
+    requestPwaUpdate(true);
   };
 
   const handleClose = () => {
