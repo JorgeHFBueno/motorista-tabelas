@@ -26,6 +26,7 @@ import {
 import { DataGrid, type GridColDef } from '@mui/x-data-grid';
 import { addDoc, collection, doc, getDocs, orderBy, query, serverTimestamp, updateDoc } from 'firebase/firestore';
 import { useNavigate } from 'react-router-dom';
+import FrotaCharts, { type ChartPoint } from '../components/FrotaCharts';
 import { useAuth } from '../contexts/AuthContext';
 import { db } from '../firebase';
 
@@ -66,6 +67,13 @@ type ManutencaoForm = {
     status: 'NORMAL' | 'SUSPEITO' | 'SUPER_FATURADO';
 };
 
+type ManutencaoRow = {
+    id: string;
+    identificador?: string;
+    valor?: unknown;
+    data?: unknown;
+};
+
 const DEFAULT_FORM: VeiculoForm = {
     ativo: false,
     placa: '',
@@ -91,6 +99,7 @@ const DEFAULT_MANUTENCAO_FORM: ManutencaoForm = {
 };
 
 const ABASTECIMENTO_EXTERNO = 'ABASTECIMENTO EXTERNO';
+const MANUTENCAO_CUTOFF = new Date('2026-01-01T00:00:00.000Z');
 
 const DEBUG = true;
 
@@ -128,6 +137,17 @@ function asNumber(raw: unknown): number | null {
     return null;
 }
 
+function parsePtBrNumber(value: unknown): number | null {
+    if (typeof value === 'number' && Number.isFinite(value)) return value;
+    if (typeof value !== 'string') return null;
+    const trimmed = value.trim();
+    if (!trimmed) return null;
+
+    const normalized = trimmed.replace(/\./g, '').replace(',', '.');
+    const parsed = Number(normalized);
+    return Number.isFinite(parsed) ? parsed : null;
+}
+
 export default function FrotaVeiculosPage() {
     const navigate = useNavigate();
     const { currentUser } = useAuth();
@@ -141,6 +161,16 @@ export default function FrotaVeiculosPage() {
     const [manutencaoOpen, setManutencaoOpen] = useState(false);
     const [manutencaoSaving, setManutencaoSaving] = useState(false);
     const [manutencaoForm, setManutencaoForm] = useState<ManutencaoForm>(DEFAULT_MANUTENCAO_FORM);
+    const [showManutencoes2026, setShowManutencoes2026] = useState(true);
+    const [showManutencoesLegado, setShowManutencoesLegado] = useState(false);
+    const [manutencoes2026Rows, setManutencoes2026Rows] = useState<ManutencaoRow[]>([]);
+    const [manutencoes2026Loading, setManutencoes2026Loading] = useState(false);
+    const [manutencoes2026Error, setManutencoes2026Error] = useState<string | null>(null);
+    const [manutencoes2026Loaded, setManutencoes2026Loaded] = useState(false);
+    const [manutencoesLegadoRows, setManutencoesLegadoRows] = useState<ManutencaoRow[]>([]);
+    const [manutencoesLegadoLoading, setManutencoesLegadoLoading] = useState(false);
+    const [manutencoesLegadoError, setManutencoesLegadoError] = useState<string | null>(null);
+    const [manutencoesLegadoLoaded, setManutencoesLegadoLoaded] = useState(false);
     const [fornecedores, setFornecedores] = useState<Fornecedor[]>([]);
     const [categoriasManutencao, setCategoriasManutencao] = useState<CategoriaManutencao[]>([]);
     const [fornecedoresLoading, setFornecedoresLoading] = useState(false);
@@ -166,6 +196,14 @@ export default function FrotaVeiculosPage() {
         [],
     );
     const numberFormatter = useMemo(() => new Intl.NumberFormat('pt-BR'), []);
+    const currencyFormatter = useMemo(
+        () =>
+            new Intl.NumberFormat('pt-BR', {
+                style: 'currency',
+                currency: 'BRL',
+            }),
+        [],
+    );
 
     // Evita spam no console (logar 1x por row/campo)
     const loggedOnceRef = useRef<Set<string>>(new Set());
@@ -222,6 +260,86 @@ export default function FrotaVeiculosPage() {
             active = false;
         };
     }, [tipo]);
+
+    useEffect(() => {
+        let active = true;
+
+        async function loadManutencoes2026() {
+            setManutencoes2026Loading(true);
+            setManutencoes2026Error(null);
+            try {
+                const snapshot = await getDocs(collection(db, 'manutencoes'));
+                if (!active) return;
+                const data = snapshot.docs.map((docSnap) => {
+                    const raw = docSnap.data() as Omit<ManutencaoRow, 'id'>;
+                    return {
+                        id: docSnap.id,
+                        identificador: raw.identificador,
+                        valor: raw.valor,
+                        data: raw.data,
+                    };
+                });
+                setManutencoes2026Rows(data);
+                setManutencoes2026Loaded(true);
+            } catch (err) {
+                console.error('Erro ao carregar manutenções 2026', err);
+                if (active) {
+                    setManutencoes2026Error('Erro ao carregar manutenções 2026.');
+                }
+            } finally {
+                if (active) setManutencoes2026Loading(false);
+            }
+        }
+
+        if (!showManutencoes2026 || manutencoes2026Loaded) return () => {
+            active = false;
+        };
+
+        loadManutencoes2026();
+        return () => {
+            active = false;
+        };
+    }, [showManutencoes2026, manutencoes2026Loaded]);
+
+    useEffect(() => {
+        let active = true;
+
+        async function loadManutencoesLegado() {
+            setManutencoesLegadoLoading(true);
+            setManutencoesLegadoError(null);
+            try {
+                const snapshot = await getDocs(collection(db, 'manutencoes-legado'));
+                if (!active) return;
+                const data = snapshot.docs.map((docSnap) => {
+                    const raw = docSnap.data() as Omit<ManutencaoRow, 'id'>;
+                    return {
+                        id: docSnap.id,
+                        identificador: raw.identificador,
+                        valor: raw.valor,
+                        data: raw.data,
+                    };
+                });
+                setManutencoesLegadoRows(data);
+                setManutencoesLegadoLoaded(true);
+            } catch (err) {
+                console.error('Erro ao carregar manutenções legado', err);
+                if (active) {
+                    setManutencoesLegadoError('Erro ao carregar manutenções legado.');
+                }
+            } finally {
+                if (active) setManutencoesLegadoLoading(false);
+            }
+        }
+
+        if (!showManutencoesLegado || manutencoesLegadoLoaded) return () => {
+            active = false;
+        };
+
+        loadManutencoesLegado();
+        return () => {
+            active = false;
+        };
+    }, [showManutencoesLegado, manutencoesLegadoLoaded]);
 
     useEffect(() => {
         let active = true;
@@ -320,6 +438,21 @@ export default function FrotaVeiculosPage() {
 
         return filtered;
     }, [tipo, veiculos]);
+
+    const rowsManutencoes2026 = useMemo(() => {
+        return manutencoes2026Rows.filter((row) => {
+            const data = toDate(row.data);
+            return Boolean(data && data >= MANUTENCAO_CUTOFF);
+        });
+    }, [manutencoes2026Rows]);
+
+    const rowsManutencoesLegado = useMemo(() => {
+        return manutencoesLegadoRows.filter((row) => {
+            const data = toDate(row.data);
+            if (data && data >= MANUTENCAO_CUTOFF) return false;
+            return true;
+        });
+    }, [manutencoesLegadoRows]);
 
     const columns: GridColDef[] = useMemo(() => {
         const fieldLabel = tipo === 'PLACA' ? 'Placa' : 'Extra';
@@ -554,6 +687,49 @@ export default function FrotaVeiculosPage() {
         return veiculo.placa ?? veiculo.extra ?? '';
     };
 
+    const loadingManutencoes =
+        (showManutencoes2026 && manutencoes2026Loading) || (showManutencoesLegado && manutencoesLegadoLoading);
+
+    const manutencoesChartData = useMemo<ChartPoint[]>(() => {
+        const totals = new Map<string, number>();
+
+        const selectedRows: ManutencaoRow[] = [];
+        if (showManutencoes2026) selectedRows.push(...rowsManutencoes2026);
+        if (showManutencoesLegado) selectedRows.push(...rowsManutencoesLegado);
+
+        selectedRows.forEach((row) => {
+            if (!row.identificador) return;
+            const value = parsePtBrNumber(row.valor) ?? 0;
+            totals.set(row.identificador, (totals.get(row.identificador) ?? 0) + value);
+        });
+
+        return rows
+            .map((veiculo) => {
+                const label = getVeiculoLabel(veiculo) || 'Sem identificação';
+                const total = totals.get(veiculo.id) ?? 0;
+                return { label, value: total };
+            })
+            .filter((item) => item.value > 0)
+            .sort((a, b) => b.value - a.value);
+    }, [rows, rowsManutencoes2026, rowsManutencoesLegado, showManutencoes2026, showManutencoesLegado]);
+
+    const hasValorField = useMemo(() => {
+        if (!showManutencoes2026 && !showManutencoesLegado) return true;
+        const selectedRows = [
+            ...(showManutencoes2026 ? rowsManutencoes2026 : []),
+            ...(showManutencoesLegado ? rowsManutencoesLegado : []),
+        ];
+        if (selectedRows.length === 0) return true;
+        return selectedRows.some((row) => row.valor !== undefined);
+    }, [rowsManutencoes2026, rowsManutencoesLegado, showManutencoes2026, showManutencoesLegado]);
+
+    const manutencoesLegenda = useMemo(() => {
+        if (showManutencoes2026 && showManutencoesLegado) return 'Manutenções - 2026 + Legado';
+        if (showManutencoes2026) return 'Manutenções - 2026';
+        if (showManutencoesLegado) return 'Manutenções - Legado';
+        return '';
+    }, [showManutencoes2026, showManutencoesLegado]);
+
     const motoristaAtual = (currentUser?.displayName || currentUser?.email || '').trim();
 
     const isAbastecimentoExterno = manutencaoForm.categoriaNomeSnapshot === ABASTECIMENTO_EXTERNO;
@@ -747,6 +923,74 @@ export default function FrotaVeiculosPage() {
                         {emptyLabel}
                     </Alert>
                 )}
+            </Box>
+
+            <Box mt={4}>
+                <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2} alignItems={{ xs: 'flex-start', sm: 'center' }}>
+                    <Typography variant="h6">Gastos gerais por veículo</Typography>
+                    {manutencoesLegenda && (
+                        <Typography variant="caption" color="text.secondary">
+                            {manutencoesLegenda}
+                        </Typography>
+                    )}
+                </Stack>
+
+                <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2} mt={1} alignItems="flex-start">
+                    <FormControlLabel
+                        control={
+                            <Checkbox
+                                checked={showManutencoes2026}
+                                onChange={(event) => setShowManutencoes2026(event.target.checked)}
+                            />
+                        }
+                        label={`Manutenções - 2026 (${rowsManutencoes2026.length})`}
+                    />
+                    <FormControlLabel
+                        control={
+                            <Checkbox
+                                checked={showManutencoesLegado}
+                                onChange={(event) => setShowManutencoesLegado(event.target.checked)}
+                            />
+                        }
+                        label={`Manutenções - Legado (${rowsManutencoesLegado.length})`}
+                    />
+                </Stack>
+
+                <Box mt={2}>
+                    {showManutencoes2026 && manutencoes2026Error && (
+                        <Alert severity="error" sx={{ mb: 2 }}>
+                            {manutencoes2026Error}
+                        </Alert>
+                    )}
+                    {showManutencoesLegado && manutencoesLegadoError && (
+                        <Alert severity="error" sx={{ mb: 2 }}>
+                            {manutencoesLegadoError}
+                        </Alert>
+                    )}
+
+                    {loadingManutencoes ? (
+                        <Box display="flex" alignItems="center" justifyContent="center" py={4}>
+                            <CircularProgress size={28} />
+                        </Box>
+                    ) : !showManutencoes2026 && !showManutencoesLegado ? (
+                        <Alert severity="info">Selecione um filtro de manutenção.</Alert>
+                    ) : !hasValorField ? (
+                        <Alert severity="warning">
+                            Campo de valor da manutenção não encontrado nos dados. Verifique o schema.
+                        </Alert>
+                    ) : manutencoesChartData.length === 0 ? (
+                        <Alert severity="info">Sem dados para os filtros selecionados.</Alert>
+                    ) : (
+                        <FrotaCharts
+                            data={manutencoesChartData}
+                            title="Gastos gerais por veículo"
+                            xAxisTitle="Veículo"
+                            yAxisTitle="Total (R$)"
+                            valueFormatter={(value) => currencyFormatter.format(value)}
+                            xAxisTickAngle={-45}
+                        />
+                    )}
+                </Box>
             </Box>
 
             <Dialog open={Boolean(editing)} onClose={closeEditor} maxWidth="sm" fullWidth>
