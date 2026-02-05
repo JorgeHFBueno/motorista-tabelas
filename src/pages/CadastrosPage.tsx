@@ -1,15 +1,16 @@
-import { useMemo, useState } from 'react';
+import { useState } from 'react';
 import { Alert, Box, Button, Container, Dialog,
-  DialogActions, DialogContent, DialogTitle, LinearProgress,
-  Paper, Stack, Table, TableBody, TableCell, TableHead,
-  TableRow, TextField, Typography } from '@mui/material';
+  DialogActions, DialogContent, DialogTitle,
+  Paper, Stack, TextField, Typography } from '@mui/material';
 import useAdminUsers from '../hooks/useAdminUsers';
 import { useAuth } from '../contexts/AuthContext';
 import CadastroVeiculoForm from '../components/CadastroVeiculoForm';
 import ObrasSection from '../components/ObrasSection';
+import CadastroBasicoForm from '../components/CadastroBasicoForm';
+import EditarEmBreveButton from '../components/EditarEmBreveButton';
 
 export default function CadastrosPage() {
-  const { users, loading, error, createUser, deleteUser } = useAdminUsers();
+  const { createUser } = useAdminUsers({ loadOnMount: false, refreshOnChange: false });
   const { isAdmin } = useAuth();
   const [dialogAberto, setDialogAberto] = useState(false);
   const [email, setEmail] = useState('');
@@ -17,25 +18,6 @@ export default function CadastrosPage() {
   const [displayName, setDisplayName] = useState('');
   const [saving, setSaving] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
-
-  const dateFormatter = useMemo(
-    () =>
-      new Intl.DateTimeFormat('pt-BR', {
-        day: '2-digit',
-        month: '2-digit',
-        year: 'numeric',
-        hour: '2-digit',
-        minute: '2-digit',
-      }),
-    [],
-  );
-
-  const formatDate = (value?: string) => {
-    if (!value) return '—';
-    const asNumber = Number(value);
-    const date = Number.isFinite(asNumber) ? new Date(asNumber) : new Date(value);
-    return isNaN(date.getTime()) ? value : dateFormatter.format(date);
-  };
 
   const handleAbrirDialog = () => {
     setDialogAberto(true);
@@ -68,17 +50,6 @@ export default function CadastrosPage() {
     }
   };
 
-  const handleDelete = async (uid: string) => {
-    if (!isAdmin) return;
-    const confirm = window.confirm('Deseja realmente excluir este usuário?');
-    if (!confirm) return;
-    try {
-      await deleteUser(uid);
-    } catch (err) {
-      setActionError((err as Error).message);
-    }
-  };
-
   return (
     <Container maxWidth="lg" sx={{ py: 3 }}>
       <Stack spacing={3}>
@@ -96,68 +67,13 @@ export default function CadastrosPage() {
             <Box>
               <Typography variant="h6">Usuários</Typography>              
             </Box>
-            <Button variant="contained" onClick={handleAbrirDialog} disabled={!isAdmin}>
-              Adicionar usuário
-            </Button>
-          </Stack>
-
-          {!isAdmin && (
-            <Alert severity="info" sx={{ mb: 2 }}>
-              Apenas administradores podem criar ou excluir usuários. Entre em contato com o responsável caso precise de acesso.
-            </Alert>
-          )}
-
-          {loading && <LinearProgress sx={{ mb: 2 }} />}
-          {error && (
-            <Alert severity="warning" sx={{ mb: 2 }}>
-              {error.message}
-              <br />
-              Certifique-se de que o backend de administração (Firebase Admin) esteja exposto em /api/admin/users.
-            </Alert>
-          )}
-
-          <Table size="small">
-            <TableHead>
-              <TableRow>
-                <TableCell>Email</TableCell>
-                <TableCell>Nome</TableCell>
-                <TableCell>Provedor</TableCell>
-                <TableCell>Criado em</TableCell>
-                <TableCell>Último login</TableCell>
-                <TableCell>Ações</TableCell>
-              </TableRow>
-            </TableHead>
-            <TableBody>
-              {users.map((user) => (
-                <TableRow key={user.uid} hover>
-                  <TableCell>{user.email ?? '—'}</TableCell>
-                  <TableCell>{user.displayName ?? '—'}</TableCell>
-                  <TableCell>{user.providerId ?? '—'}</TableCell>
-                  <TableCell>{formatDate(user.createdAt)}</TableCell>
-                  <TableCell>{formatDate(user.lastLoginAt)}</TableCell>
-                  <TableCell>
-                    <Button
-                      color="error"
-                      size="small"
-                      onClick={() => handleDelete(user.uid)}
-                      disabled={!isAdmin}
-                    >
-                      Excluir
-                    </Button>
-                  </TableCell>
-                </TableRow>
-              ))}
-              {!loading && users.length === 0 && (
-                <TableRow>
-                  <TableCell colSpan={6}>
-                    <Typography variant="body2" color="text.secondary">
-                      Nenhum usuário encontrado.
-                    </Typography>
-                  </TableCell>
-                </TableRow>
-              )}
-            </TableBody>
-          </Table>
+             <Stack direction="row" spacing={1}>
+              <Button variant="contained" onClick={handleAbrirDialog} disabled={!isAdmin}>
+                Adicionar usuário
+              </Button>
+              <EditarEmBreveButton />
+            </Stack>
+          </Stack>          
         </Paper>
 
         <Paper elevation={1} sx={{ p: 3 }}>
@@ -168,10 +84,46 @@ export default function CadastrosPage() {
                 Cadastro de placas/veículos.
               </Typography>
             </Box>
-            <CadastroVeiculoForm buttonLabel="Cadastrar veículo" />
+            <Stack direction="row" spacing={1}>
+              <CadastroVeiculoForm buttonLabel="Cadastrar veículo" />
+              <EditarEmBreveButton />
+            </Stack>
           </Stack>          
         </Paper>
         <ObrasSection />
+        <Paper elevation={1} sx={{ p: 3 }}>
+          <Stack direction={{ xs: 'column', sm: 'row' }} justifyContent="space-between" spacing={2} mb={2} alignItems={{ sm: 'center' }}>
+            <Box>
+              <Typography variant="h6">Categorias</Typography>
+            </Box>
+            <Stack direction="row" spacing={1}>
+              <CadastroBasicoForm
+                buttonLabel="Adicionar"
+                dialogTitle="Adicionar categoria"
+                collectionName="notas-categorias"
+                successMessage="Categoria cadastrada com sucesso."
+              />
+              <EditarEmBreveButton />
+            </Stack>
+          </Stack>
+        </Paper>
+
+        <Paper elevation={1} sx={{ p: 3 }}>
+          <Stack direction={{ xs: 'column', sm: 'row' }} justifyContent="space-between" spacing={2} mb={2} alignItems={{ sm: 'center' }}>
+            <Box>
+              <Typography variant="h6">Fornecedores</Typography>
+            </Box>
+            <Stack direction="row" spacing={1}>
+              <CadastroBasicoForm
+                buttonLabel="Adicionar"
+                dialogTitle="Adicionar fornecedor"
+                collectionName="notas-fornecedores"
+                successMessage="Fornecedor cadastrado com sucesso."
+              />
+              <EditarEmBreveButton />
+            </Stack>
+          </Stack>
+        </Paper>
       </Stack>
 
       <Dialog open={dialogAberto} onClose={handleFecharDialog} fullWidth maxWidth="sm">

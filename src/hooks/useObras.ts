@@ -13,7 +13,13 @@ const mapSnapshot = (snapshot: QuerySnapshot<DocumentData>): Obra[] =>
     ...(doc.data() as Omit<Obra, 'id'>),
   }));
 
-export default function useObras() {
+interface UseObrasOptions {
+  loadOnMount?: boolean;
+  refreshOnAdd?: boolean;
+}
+
+export default function useObras(options: UseObrasOptions = {}) {
+  const { loadOnMount = true, refreshOnAdd = true } = options;
   const [obras, setObras] = useState<Obra[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -42,8 +48,9 @@ export default function useObras() {
   }, []);
 
   useEffect(() => {
+    if (!loadOnMount) return;
     void loadObras();
-  }, [loadObras]);
+  }, [loadOnMount, loadObras]);
 
   const addObra = useCallback(async (nome: string) => {
     const trimmedNome = nome.trim();
@@ -56,8 +63,10 @@ export default function useObras() {
       createdAt: serverTimestamp(),
     });
 
-    await loadObras();
-  }, [loadObras]);
+    if (refreshOnAdd) {
+      await loadObras();
+    }
+  }, [loadObras, refreshOnAdd]);
 
   return {
     obras,

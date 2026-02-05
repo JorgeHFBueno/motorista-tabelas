@@ -2,7 +2,13 @@ import { useCallback, useEffect, useState } from 'react';
 import { createUser as apiCreateUser, deleteUser as apiDeleteUser, listUsers,
   type AdminUser, type CreateAdminUserInput } from '../services/adminUsersApi';
 
-export default function useAdminUsers() {
+interface UseAdminUsersOptions {
+  loadOnMount?: boolean;
+  refreshOnChange?: boolean;
+}
+
+export default function useAdminUsers(options: UseAdminUsersOptions = {}) {
+  const { loadOnMount = true, refreshOnChange = true } = options;
   const [users, setUsers] = useState<AdminUser[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
@@ -21,24 +27,29 @@ export default function useAdminUsers() {
   }, []);
 
   useEffect(() => {
+    if (!loadOnMount) return;
     void loadUsers();
-  }, [loadUsers]);
+  }, [loadOnMount, loadUsers]);
 
   const createUser = useCallback(
     async (input: CreateAdminUserInput) => {
       const created = await apiCreateUser(input);
-      await loadUsers();
+      if (refreshOnChange) {
+        await loadUsers();
+      }
       return created;
     },
-    [loadUsers],
+    [loadUsers, refreshOnChange],
   );
 
   const deleteUser = useCallback(
     async (uid: string) => {
       await apiDeleteUser(uid);
-      await loadUsers();
+      if (refreshOnChange) {
+        await loadUsers();
+      }
     },
-    [loadUsers],
+    [loadUsers, refreshOnChange],
   );
 
   return {

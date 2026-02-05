@@ -1,28 +1,44 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import {
   Alert,
-  Box,
   Button,
   Dialog,
   DialogActions,
   DialogContent,
   DialogTitle,
-  Paper,
   Snackbar,
   Stack,
   TextField,
-  Typography,
+  type ButtonProps,
 } from '@mui/material';
-import useObras from '../hooks/useObras';
-import EditarEmBreveButton from './EditarEmBreveButton';
+import { addDoc, collection, serverTimestamp } from 'firebase/firestore';
+import { db } from '../firebase';
 
-export default function ObrasSection() {
-  const { addObra } = useObras({ loadOnMount: false, refreshOnAdd: false });
+interface CadastroBasicoFormProps {
+  buttonLabel?: string;
+  buttonVariant?: ButtonProps['variant'];
+  dialogTitle: string;
+  collectionName: string;
+  successMessage: string;
+  disabled?: boolean;
+}
+
+export default function CadastroBasicoForm({
+  buttonLabel = 'Adicionar',
+  buttonVariant = 'contained',
+  dialogTitle,
+  collectionName,
+  successMessage,
+  disabled,
+}: CadastroBasicoFormProps) {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [nome, setNome] = useState('');
+  const [descricao, setDescricao] = useState('');
   const [saving, setSaving] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
-  const [snackbar, setSnackbar] = useState<{ message: string; severity: 'success' | 'error' } | null>(null);
+  const [snackbar, setSnackbar] = useState<
+    { message: string; severity: 'success' | 'error' } | null
+  >(null);
 
   const handleOpenDialog = () => {
     setDialogOpen(true);
@@ -32,44 +48,45 @@ export default function ObrasSection() {
   const handleCloseDialog = () => {
     setDialogOpen(false);
     setNome('');
-    setSaving(false);
+    setDescricao('');
     setFormError(null);
+    setSaving(false);
   };
 
   const handleSave = async () => {
     const nomeTrim = nome.trim();
     if (!nomeTrim) {
-      setFormError('Informe o nome da obra.');
+      setFormError('Informe o nome.');
       return;
-    }    
+    }
 
     try {
       setSaving(true);
-      await addObra(nomeTrim);
-      setSnackbar({ message: 'Obra cadastrada com sucesso.', severity: 'success' });
+      await addDoc(collection(db, collectionName), {
+        nome: nomeTrim,
+        descricao: descricao.trim(),
+        createdAt: serverTimestamp(),
+      });
+      setSnackbar({ message: successMessage, severity: 'success' });
       handleCloseDialog();
-    } catch (err) {
-      setSnackbar({ message: (err as Error).message || 'Erro ao cadastrar obra.', severity: 'error' });
+    } catch (error) {
+      console.error('Erro ao salvar cadastro básico', error);
+      setSnackbar({ message: 'Erro ao salvar.', severity: 'error' });
       setSaving(false);
     }
   };
 
-  return (
-    <Paper elevation={1} sx={{ p: 3 }}>
-      <Stack direction={{ xs: 'column', sm: 'row' }} justifyContent="space-between" spacing={2} mb={2} alignItems={{ sm: 'center' }}>
-        <Box>
-          <Typography variant="h6">Obras</Typography>
-        </Box>
-         <Stack direction="row" spacing={1}>
-          <Button variant="contained" onClick={handleOpenDialog}>
-            Adicionar
-          </Button>
-          <EditarEmBreveButton />
-        </Stack>
-      </Stack>      
+  const triggerProps = useMemo(() => ({
+    variant: buttonVariant,
+    onClick: handleOpenDialog,
+    disabled: disabled || saving,
+  }), [buttonVariant, disabled, saving]);
 
+  return (
+    <>
+      <Button {...triggerProps}>{buttonLabel}</Button>
       <Dialog open={dialogOpen} onClose={handleCloseDialog} fullWidth maxWidth="sm">
-        <DialogTitle>Adicionar obra</DialogTitle>
+        <DialogTitle>{dialogTitle}</DialogTitle>
         <DialogContent dividers>
           <Stack spacing={2} mt={1}>
             <TextField
@@ -80,6 +97,13 @@ export default function ObrasSection() {
               error={Boolean(formError)}
               helperText={formError}
               fullWidth
+            />
+            <TextField
+              label="Descrição (opcional)"
+              value={descricao}
+              onChange={(event) => setDescricao(event.target.value)}
+              fullWidth
+              multiline
             />
           </Stack>
         </DialogContent>
@@ -92,7 +116,6 @@ export default function ObrasSection() {
           </Button>
         </DialogActions>
       </Dialog>
-
       {snackbar && (
         <Snackbar
           open={Boolean(snackbar)}
@@ -105,6 +128,6 @@ export default function ObrasSection() {
           </Alert>
         </Snackbar>
       )}
-    </Paper>
+    </>
   );
 }
