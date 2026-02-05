@@ -11,7 +11,11 @@ import {
     DialogActions,
     DialogContent,
     DialogTitle,
+    FormControl,
     FormControlLabel,
+    FormLabel,
+    Radio,
+    RadioGroup,
     Snackbar,
     Stack,
     TextField,
@@ -49,13 +53,17 @@ type VeiculoForm = {
 type ManutencaoForm = {
     identificador: string;
     tipoVeiculo: TipoVeiculo | '';
-    categoria: string;
+    categoriaId: string;
+    categoriaNomeSnapshot: string;
     valor: string;
     quantidade: string;
-    fornecedor: string;
+    fornecedorId: string;
+    fornecedorNomeSnapshot: string;
     descricao: string;
     km: string;
     motorista: string;
+    nota: string;
+    status: 'NORMAL' | 'SUSPEITO' | 'SUPER_FATURADO';
 };
 
 const DEFAULT_FORM: VeiculoForm = {
@@ -69,33 +77,32 @@ const DEFAULT_FORM: VeiculoForm = {
 const DEFAULT_MANUTENCAO_FORM: ManutencaoForm = {
     identificador: '',
     tipoVeiculo: '',
-    categoria: '',
+    categoriaId: '',
+    categoriaNomeSnapshot: '',
     valor: '',
     quantidade: '1',
-    fornecedor: '',
+    fornecedorId: '',
+    fornecedorNomeSnapshot: '',
     descricao: '',
     km: '',
     motorista: '',
+    nota: '',
+    status: 'NORMAL',
 };
 
 const ABASTECIMENTO_EXTERNO = 'ABASTECIMENTO EXTERNO';
 
-const MANUTENCAO_CATEGORIAS = [
-    ABASTECIMENTO_EXTERNO,
-    'CONC PNEU',
-    'DESP DIV',
-    'DISCO TAC',
-    'ELÉTRICA',
-    'GUINCHO',
-    'IPVA',
-    'MANUTENÇÃO',
-    'MULTAS',
-    'OLEO',
-    'PEDÁGIO',
-    'PNEU',
-] as const;
-
 const DEBUG = true;
+
+type Fornecedor = {
+    id: string;
+    nome: string;
+};
+
+type CategoriaManutencao = {
+    id: string;
+    nome: string;
+};
 
 function toDate(raw: unknown): Date | null {
     if (!raw) return null;
@@ -134,6 +141,12 @@ export default function FrotaVeiculosPage() {
     const [manutencaoOpen, setManutencaoOpen] = useState(false);
     const [manutencaoSaving, setManutencaoSaving] = useState(false);
     const [manutencaoForm, setManutencaoForm] = useState<ManutencaoForm>(DEFAULT_MANUTENCAO_FORM);
+    const [fornecedores, setFornecedores] = useState<Fornecedor[]>([]);
+    const [categoriasManutencao, setCategoriasManutencao] = useState<CategoriaManutencao[]>([]);
+    const [fornecedoresLoading, setFornecedoresLoading] = useState(false);
+    const [categoriasLoading, setCategoriasLoading] = useState(false);
+    const [fornecedoresLoaded, setFornecedoresLoaded] = useState(false);
+    const [categoriasLoaded, setCategoriasLoaded] = useState(false);
     const [snackbar, setSnackbar] = useState<{
         open: boolean;
         severity: 'success' | 'error';
@@ -209,6 +222,74 @@ export default function FrotaVeiculosPage() {
             active = false;
         };
     }, [tipo]);
+
+    useEffect(() => {
+        let active = true;
+
+        async function loadFornecedores() {
+            setFornecedoresLoading(true);
+            try {
+                const fornecedoresQuery = query(collection(db, 'notas-fornecedores'), orderBy('nome'));
+                const snapshot = await getDocs(fornecedoresQuery);
+                if (!active) return;
+                const data = snapshot.docs.map((docSnap) => ({
+                    id: docSnap.id,
+                    nome: (docSnap.data().nome as string) ?? '',
+                }));
+                setFornecedores(data);
+                setFornecedoresLoaded(true);
+            } catch (err) {
+                console.error('Erro ao carregar fornecedores', err);
+                if (active) setFornecedores([]);
+                if (active) setFornecedoresLoaded(true);
+            } finally {
+                if (active) setFornecedoresLoading(false);
+            }
+        }
+
+        if (!manutencaoOpen || fornecedoresLoaded) return () => {
+            active = false;
+        };
+
+        loadFornecedores();
+        return () => {
+            active = false;
+        };
+    }, [manutencaoOpen, fornecedoresLoaded]);
+
+    useEffect(() => {
+        let active = true;
+
+        async function loadCategorias() {
+            setCategoriasLoading(true);
+            try {
+                const categoriasQuery = query(collection(db, 'notas-categorias'), orderBy('nome'));
+                const snapshot = await getDocs(categoriasQuery);
+                if (!active) return;
+                const data = snapshot.docs.map((docSnap) => ({
+                    id: docSnap.id,
+                    nome: (docSnap.data().nome as string) ?? '',
+                }));
+                setCategoriasManutencao(data);
+                setCategoriasLoaded(true);
+            } catch (err) {
+                console.error('Erro ao carregar categorias', err);
+                if (active) setCategoriasManutencao([]);
+                if (active) setCategoriasLoaded(true);
+            } finally {
+                if (active) setCategoriasLoading(false);
+            }
+        }
+
+        if (!manutencaoOpen || categoriasLoaded) return () => {
+            active = false;
+        };
+
+        loadCategorias();
+        return () => {
+            active = false;
+        };
+    }, [manutencaoOpen, categoriasLoaded]);
 
     const rows = useMemo(() => {
         const filtered = veiculos.filter((item) => {
@@ -475,8 +556,16 @@ export default function FrotaVeiculosPage() {
 
     const motoristaAtual = (currentUser?.displayName || currentUser?.email || '').trim();
 
-    const isAbastecimentoExterno = manutencaoForm.categoria === ABASTECIMENTO_EXTERNO;
+    const isAbastecimentoExterno = manutencaoForm.categoriaNomeSnapshot === ABASTECIMENTO_EXTERNO;
     const veiculoLabelSelecionado = getVeiculoLabel(manutencaoVeiculoSelecionado);
+    const fornecedorSelecionado = useMemo(
+        () => fornecedores.find((item) => item.id === manutencaoForm.fornecedorId) ?? null,
+        [fornecedores, manutencaoForm.fornecedorId],
+    );
+    const categoriaSelecionada = useMemo(
+        () => categoriasManutencao.find((item) => item.id === manutencaoForm.categoriaId) ?? null,
+        [categoriasManutencao, manutencaoForm.categoriaId],
+    );
 
     function openManutencaoDialog() {
         setManutencaoForm(DEFAULT_MANUTENCAO_FORM);
@@ -494,7 +583,7 @@ export default function FrotaVeiculosPage() {
             return 'Selecione o veículo da manutenção.';
         }
 
-        if (!manutencaoForm.categoria) {
+        if (!manutencaoForm.categoriaId) {
             return 'Selecione a categoria da manutenção.';
         }
 
@@ -517,7 +606,7 @@ export default function FrotaVeiculosPage() {
             }
         }
 
-        if (!manutencaoForm.fornecedor.trim()) {
+        if (!manutencaoForm.fornecedorId) {
             return 'Fornecedor é obrigatório.';
         }
 
@@ -542,16 +631,23 @@ export default function FrotaVeiculosPage() {
             const quantidade = Number(manutencaoForm.quantidade);
             const kmValue = manutencaoForm.km.trim();
             const km = kmValue ? Number(kmValue) : undefined;
+            const nota = manutencaoForm.nota.trim();
+            const fornecedorNomeSnapshot = manutencaoForm.fornecedorNomeSnapshot.trim();
+            const categoriaNomeSnapshot = manutencaoForm.categoriaNomeSnapshot.trim();
             await addDoc(collection(db, 'manutencoes'), {
                 identificador: manutencaoForm.identificador,
                 tipoVeiculo: manutencaoForm.tipoVeiculo,
-                categoria: manutencaoForm.categoria,
+                categoriaId: manutencaoForm.categoriaId,
+                categoriaNomeSnapshot,
                 valor,
                 quantidade,
                 ...(kmValue ? { km } : {}),
-                fornecedor: manutencaoForm.fornecedor.trim(),
+                fornecedorId: manutencaoForm.fornecedorId,
+                fornecedorNomeSnapshot,
                 motorista: manutencaoForm.motorista.trim(),
                 descricao: manutencaoForm.descricao.trim(),
+                nota,
+                status: manutencaoForm.status,
                 data,
             });
 
@@ -561,7 +657,7 @@ export default function FrotaVeiculosPage() {
                     data,
                     observacao: manutencaoForm.descricao.trim(),
                     fornecedor: motoristaAtual || 'Não informado',
-                    motorista: manutencaoForm.fornecedor.trim(),
+                    motorista: fornecedorNomeSnapshot || 'Não informado',
                     para_quem: manutencaoForm.motorista.trim(),
                     placa: veiculoLabelSelecionado || manutencaoForm.identificador,
                     qa,
@@ -748,16 +844,35 @@ export default function FrotaVeiculosPage() {
                             isOptionEqualToValue={(option, value) => option.id === value.id}
                         />
                         <Autocomplete
-                            options={[...MANUTENCAO_CATEGORIAS]}
-                            value={manutencaoForm.categoria || null}
+                            options={categoriasManutencao}
+                            value={categoriaSelecionada}
+                            getOptionLabel={(option) => option.nome}
                             onChange={(_event, value) =>
                                 setManutencaoForm((prev) => ({
                                     ...prev,
-                                    categoria: value ?? '',
+                                    categoriaId: value?.id ?? '',
+                                    categoriaNomeSnapshot: value?.nome ?? '',
                                 }))
                             }
+                            loading={categoriasLoading}
+                            noOptionsText={categoriasLoading ? 'Carregando...' : 'Nenhum cadastro encontrado'}
+                            loadingText="Carregando..."
+                            isOptionEqualToValue={(option, value) => option.id === value.id}
                             renderInput={(params) => (
-                                <TextField {...params} label="Categoria da manutenção" required />
+                                <TextField
+                                    {...params}
+                                    label="Categoria da manutenção"
+                                    required
+                                    InputProps={{
+                                        ...params.InputProps,
+                                        endAdornment: (
+                                            <>
+                                                {categoriasLoading ? <CircularProgress size={20} /> : null}
+                                                {params.InputProps.endAdornment}
+                                            </>
+                                        ),
+                                    }}
+                                />
                             )}
                         />
                         <TextField
@@ -789,14 +904,37 @@ export default function FrotaVeiculosPage() {
                             }
                             fullWidth
                         />
-                        <TextField
-                            label="Fornecedor"
-                            value={manutencaoForm.fornecedor}
-                            onChange={(event) =>
-                                setManutencaoForm((prev) => ({ ...prev, fornecedor: event.target.value }))
+                        <Autocomplete
+                            options={fornecedores}
+                            value={fornecedorSelecionado}
+                            getOptionLabel={(option) => option.nome}
+                            onChange={(_event, value) =>
+                                setManutencaoForm((prev) => ({
+                                    ...prev,
+                                    fornecedorId: value?.id ?? '',
+                                    fornecedorNomeSnapshot: value?.nome ?? '',
+                                }))
                             }
-                            fullWidth
-                            required
+                            loading={fornecedoresLoading}
+                            noOptionsText={fornecedoresLoading ? 'Carregando...' : 'Nenhum cadastro encontrado'}
+                            loadingText="Carregando..."
+                            renderInput={(params) => (
+                                <TextField
+                                    {...params}
+                                    label="Fornecedor"
+                                    required
+                                    InputProps={{
+                                        ...params.InputProps,
+                                        endAdornment: (
+                                            <>
+                                                {fornecedoresLoading ? <CircularProgress size={20} /> : null}
+                                                {params.InputProps.endAdornment}
+                                            </>
+                                        ),
+                                    }}
+                                />
+                            )}
+                            isOptionEqualToValue={(option, value) => option.id === value.id}
                         />
                         {isAbastecimentoExterno && (
                             <TextField
@@ -819,6 +957,33 @@ export default function FrotaVeiculosPage() {
                             multiline
                             minRows={2}
                         />
+                        <TextField
+                            label="Nota"
+                            value={manutencaoForm.nota}
+                            onChange={(event) =>
+                                setManutencaoForm((prev) => ({ ...prev, nota: event.target.value }))
+                            }
+                            fullWidth
+                            multiline
+                            minRows={2}
+                        />
+                        <FormControl>
+                            <FormLabel>Status</FormLabel>
+                            <RadioGroup
+                                row
+                                value={manutencaoForm.status}
+                                onChange={(event) =>
+                                    setManutencaoForm((prev) => ({
+                                        ...prev,
+                                        status: event.target.value as ManutencaoForm['status'],
+                                    }))
+                                }
+                            >
+                                <FormControlLabel value="NORMAL" control={<Radio />} label="Normal" />
+                                <FormControlLabel value="SUSPEITO" control={<Radio />} label="Suspeito" />
+                                <FormControlLabel value="SUPER_FATURADO" control={<Radio />} label="Super Faturado" />
+                            </RadioGroup>
+                        </FormControl>
                     </Stack>
                 </DialogContent>
                 <DialogActions>

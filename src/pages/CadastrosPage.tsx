@@ -65,11 +65,12 @@ export default function CadastrosPage() {
         <Paper elevation={1} sx={{ p: 3 }}>
           <Stack direction={{ xs: 'column', sm: 'row' }} justifyContent="space-between" spacing={2} mb={2} alignItems={{ sm: 'center' }}>
             <Box>
-              <Typography variant="h6">Usuários</Typography>              
+              <Typography variant="h6">Usuários</Typography>
+              <Typography variant="body2" color="text.secondary">Cadastro de funcionários.</Typography>              
             </Box>
              <Stack direction="row" spacing={1}>
               <Button variant="contained" onClick={handleAbrirDialog} disabled={!isAdmin}>
-                Adicionar usuário
+                Cadastrar funcionário
               </Button>
               <EditarEmBreveButton />
             </Stack>
@@ -80,9 +81,7 @@ export default function CadastrosPage() {
           <Stack direction={{ xs: 'column', sm: 'row' }} justifyContent="space-between" spacing={2} mb={2} alignItems={{ sm: 'center' }}>
             <Box>
               <Typography variant="h6">Veículos</Typography>
-              <Typography variant="body2" color="text.secondary">
-                Cadastro de placas/veículos.
-              </Typography>
+              <Typography variant="body2" color="text.secondary">Cadastro de veículos/máquinas.</Typography>
             </Box>
             <Stack direction="row" spacing={1}>
               <CadastroVeiculoForm buttonLabel="Cadastrar veículo" />
@@ -95,10 +94,12 @@ export default function CadastrosPage() {
           <Stack direction={{ xs: 'column', sm: 'row' }} justifyContent="space-between" spacing={2} mb={2} alignItems={{ sm: 'center' }}>
             <Box>
               <Typography variant="h6">Categorias</Typography>
+              <Typography variant="body2" color="text.secondary">Cadastro de categorias para manutenções.</Typography>
+              
             </Box>
             <Stack direction="row" spacing={1}>
               <CadastroBasicoForm
-                buttonLabel="Adicionar"
+                buttonLabel="Cadastrar categoria"
                 dialogTitle="Adicionar categoria"
                 collectionName="notas-categorias"
                 successMessage="Categoria cadastrada com sucesso."
@@ -112,10 +113,11 @@ export default function CadastrosPage() {
           <Stack direction={{ xs: 'column', sm: 'row' }} justifyContent="space-between" spacing={2} mb={2} alignItems={{ sm: 'center' }}>
             <Box>
               <Typography variant="h6">Fornecedores</Typography>
+              <Typography variant="body2" color="text.secondary">Cadastro de fornecedores para manutenções.</Typography>
             </Box>
             <Stack direction="row" spacing={1}>
               <CadastroBasicoForm
-                buttonLabel="Adicionar"
+                buttonLabel="Cadastrar fornecedor"
                 dialogTitle="Adicionar fornecedor"
                 collectionName="notas-fornecedores"
                 successMessage="Fornecedor cadastrado com sucesso."

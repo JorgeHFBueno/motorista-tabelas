@@ -53,11 +53,17 @@ type Manutencao = {
     identificador?: string;
     tipoVeiculo?: 'PLACA' | 'EXTRA';
     categoria?: string;
+    categoriaId?: string;
+    categoriaNomeSnapshot?: string;
     valor?: number;
     km?: number;
     quantidade?: number;
     fornecedor?: string;
+    fornecedorId?: string;
+    fornecedorNomeSnapshot?: string;
     descricao?: string;
+    nota?: string;
+    status?: 'NORMAL' | 'SUSPEITO' | 'SUPER_FATURADO';
     data?: unknown;
 };
 
@@ -75,9 +81,13 @@ type LinhaEvento = {
     arla?: number | null;
     obra?: string | null;
     categoria?: string | null;
+    categoriaId?: string | null;
+    categoriaNomeSnapshot?: string | null;
     valor?: number | null;
     quantidade?: number | null;
     fornecedor?: string | null;
+    fornecedorId?: string | null;
+    fornecedorNomeSnapshot?: string | null;
     descricao?: string | null;
 };
 
@@ -92,6 +102,16 @@ const DEFAULT_FORM: VeiculoForm = {
 const ABASTECIMENTO_EXTERNO = 'ABASTECIMENTO EXTERNO';
 const DEBUG = false;
 const MANUTENCAO_CUTOFF = new Date('2026-01-01T00:00:00.000Z');
+
+type Fornecedor = {
+    id: string;
+    nome: string;
+};
+
+type CategoriaManutencao = {
+    id: string;
+    nome: string;
+};
 
 function normalizeText(value: unknown): string {
     if (value === null || value === undefined) return '';
@@ -158,6 +178,8 @@ export default function FrotaVeiculoDetalhesPage() {
     const [manutencoesRows, setManutencoesRows] = useState<LinhaEvento[]>([]);
     const [manutencoesLoading, setManutencoesLoading] = useState(false);
     const [manutencoesError, setManutencoesError] = useState<string | null>(null);
+    const [fornecedores, setFornecedores] = useState<Fornecedor[]>([]);
+    const [categoriasManutencao, setCategoriasManutencao] = useState<CategoriaManutencao[]>([]);
 
     const [snackbar, setSnackbar] = useState<{
         open: boolean;
@@ -242,6 +264,56 @@ export default function FrotaVeiculoDetalhesPage() {
             active = false;
         };
     }, [id]);
+
+    useEffect(() => {
+        let active = true;
+
+        async function loadFornecedores() {
+            try {
+                const fornecedoresQuery = query(collection(db, 'notas-fornecedores'), orderBy('nome'));
+                const snapshot = await getDocs(fornecedoresQuery);
+                if (!active) return;
+                const data = snapshot.docs.map((docSnap) => ({
+                    id: docSnap.id,
+                    nome: (docSnap.data().nome as string) ?? '',
+                }));
+                setFornecedores(data);
+            } catch (err) {
+                console.error('Erro ao carregar fornecedores', err);
+                if (active) setFornecedores([]);
+            }
+        }
+
+        loadFornecedores();
+        return () => {
+            active = false;
+        };
+    }, []);
+
+    useEffect(() => {
+        let active = true;
+
+        async function loadCategorias() {
+            try {
+                const categoriasQuery = query(collection(db, 'notas-categorias'), orderBy('nome'));
+                const snapshot = await getDocs(categoriasQuery);
+                if (!active) return;
+                const data = snapshot.docs.map((docSnap) => ({
+                    id: docSnap.id,
+                    nome: (docSnap.data().nome as string) ?? '',
+                }));
+                setCategoriasManutencao(data);
+            } catch (err) {
+                console.error('Erro ao carregar categorias', err);
+                if (active) setCategoriasManutencao([]);
+            }
+        }
+
+        loadCategorias();
+        return () => {
+            active = false;
+        };
+    }, []);
 
     const tipoVeiculo = useMemo<'PLACA' | 'EXTRA'>(() => {
         if (veiculo?.categoria === 'EXTRA') return 'EXTRA';
@@ -415,9 +487,13 @@ export default function FrotaVeiculoDetalhesPage() {
                             tipo: 'MANUTENCAO',
                             data: toDate(manutencao.data),
                             categoria: manutencao.categoria ?? null,
+                            categoriaId: manutencao.categoriaId ?? null,
+                            categoriaNomeSnapshot: manutencao.categoriaNomeSnapshot ?? null,
                             valor: manutencao.valor ?? null,
                             quantidade: manutencao.quantidade ?? null,
                             fornecedor: manutencao.fornecedor ?? null,
+                            fornecedorId: manutencao.fornecedorId ?? null,
+                            fornecedorNomeSnapshot: manutencao.fornecedorNomeSnapshot ?? null,
                             descricao: manutencao.descricao ?? null,
                         };
                     },
@@ -446,11 +522,39 @@ export default function FrotaVeiculoDetalhesPage() {
         };
     }, [id, showManutencoes]);
 
+    const fornecedoresById = useMemo(() => {
+        return new Map(fornecedores.map((item) => [item.id, item.nome]));
+    }, [fornecedores]);
+
+    const categoriasById = useMemo(() => {
+        return new Map(categoriasManutencao.map((item) => [item.id, item.nome]));
+    }, [categoriasManutencao]);
+
+    const manutencoesRowsResolved = useMemo(() => {
+        return manutencoesRows.map((row) => {
+            const categoriaNome =
+                (row.categoriaId && categoriasById.get(row.categoriaId)) ||
+                row.categoriaNomeSnapshot ||
+                row.categoria ||
+                null;
+            const fornecedorNome =
+                (row.fornecedorId && fornecedoresById.get(row.fornecedorId)) ||
+                row.fornecedorNomeSnapshot ||
+                row.fornecedor ||
+                null;
+            return {
+                ...row,
+                categoria: categoriaNome,
+                fornecedor: fornecedorNome,
+            };
+        });
+    }, [categoriasById, fornecedoresById, manutencoesRows]);
+
     const { rowsManutencoes2026, rowsManutencoesLegado } = useMemo(() => {
         const atual: LinhaEvento[] = [];
         const legado: LinhaEvento[] = [];
 
-        manutencoesRows.forEach((row) => {
+        manutencoesRowsResolved.forEach((row) => {
             const data = row.data;
             if (data && data >= MANUTENCAO_CUTOFF) {
                 atual.push(row);
@@ -461,7 +565,7 @@ export default function FrotaVeiculoDetalhesPage() {
         });
 
         return { rowsManutencoes2026: atual, rowsManutencoesLegado: legado };
-    }, [manutencoesRows]);
+    }, [manutencoesRowsResolved]);
 
     const rowsByType = useMemo(() => {
         const merged: LinhaEvento[] = [];
