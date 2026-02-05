@@ -151,6 +151,45 @@ function getDisplayTipo(row: LinhaEvento): string {
     return row.tipo ?? '—';
 }
 
+async function fetchManutencoes(collectionName: string, vehicleId: string): Promise<LinhaEvento[]> {
+    console.debug('[FrotaVeiculosDetalhes] loadManutencoes query:', {
+        collection: collectionName,
+        identificador: vehicleId,
+    });
+    const baseQuery = query(collection(db, collectionName), where('identificador', '==', vehicleId));
+    let snapshot;
+
+    try {
+        snapshot = await getDocs(query(baseQuery, orderBy('data', 'desc')));
+    } catch (err) {
+        console.warn(
+            'Falha ao ordenar manutenções por data, carregando sem orderBy. Índice sugerido: identificador ASC, data DESC.',
+            err,
+        );
+        snapshot = await getDocs(baseQuery);
+    }
+
+    return snapshot.docs.map(
+        (docSnap): LinhaEvento => {
+            const manutencao = docSnap.data() as Omit<Manutencao, 'id'>;
+            return {
+                id: `man_${docSnap.id}`,
+                tipo: 'MANUTENCAO',
+                data: toDate(manutencao.data),
+                categoria: manutencao.categoria ?? null,
+                categoriaId: manutencao.categoriaId ?? null,
+                categoriaNomeSnapshot: manutencao.categoriaNomeSnapshot ?? null,
+                valor: manutencao.valor ?? null,
+                quantidade: manutencao.quantidade ?? null,
+                fornecedor: manutencao.fornecedor ?? null,
+                fornecedorId: manutencao.fornecedorId ?? null,
+                fornecedorNomeSnapshot: manutencao.fornecedorNomeSnapshot ?? null,
+                descricao: manutencao.descricao ?? null,
+            };
+        },
+    );
+}
+
 export default function FrotaVeiculoDetalhesPage() {
     const { id } = useParams();
     const navigate = useNavigate();
@@ -162,8 +201,8 @@ export default function FrotaVeiculoDetalhesPage() {
     const [form, setForm] = useState<VeiculoForm>(DEFAULT_FORM);
     const [saving, setSaving] = useState(false);
 
-    const [showAbastecimento, setShowAbastecimento] = useState(true);
-    const [showManutencoes2026, setShowManutencoes2026] = useState(false);
+    const [showAbastecimento, setShowAbastecimento] = useState(false);
+    const [showManutencoes2026, setShowManutencoes2026] = useState(true);
     const [showManutencoesLegado, setShowManutencoesLegado] = useState(false);
     const showManutencoes = showManutencoes2026 || showManutencoesLegado;
 
@@ -175,9 +214,12 @@ export default function FrotaVeiculoDetalhesPage() {
     const [combustivelLoading, setCombustivelLoading] = useState(false);
     const [combustivelError, setCombustivelError] = useState<string | null>(null);
 
-    const [manutencoesRows, setManutencoesRows] = useState<LinhaEvento[]>([]);
-    const [manutencoesLoading, setManutencoesLoading] = useState(false);
-    const [manutencoesError, setManutencoesError] = useState<string | null>(null);
+    const [manutencoes2026Rows, setManutencoes2026Rows] = useState<LinhaEvento[]>([]);
+    const [manutencoes2026Loading, setManutencoes2026Loading] = useState(false);
+    const [manutencoes2026Error, setManutencoes2026Error] = useState<string | null>(null);
+    const [manutencoesLegadoRows, setManutencoesLegadoRows] = useState<LinhaEvento[]>([]);
+    const [manutencoesLegadoLoading, setManutencoesLegadoLoading] = useState(false);
+    const [manutencoesLegadoError, setManutencoesLegadoError] = useState<string | null>(null);
     const [fornecedores, setFornecedores] = useState<Fornecedor[]>([]);
     const [categoriasManutencao, setCategoriasManutencao] = useState<CategoriaManutencao[]>([]);
 
@@ -458,69 +500,69 @@ export default function FrotaVeiculoDetalhesPage() {
     useEffect(() => {
         let active = true;
 
-        async function loadManutencoes(vehicleId: string) {
-            setManutencoesLoading(true);
-            setManutencoesError(null);
+        async function loadManutencoes2026(vehicleId: string) {
+            setManutencoes2026Loading(true);
+            setManutencoes2026Error(null);
 
             try {
-                console.debug('[FrotaVeiculosDetalhes] loadManutencoes query:', { identificador: vehicleId });
-                const baseQuery = query(collection(db, 'manutencoes'), where('identificador', '==', vehicleId));
-                let snapshot;
-
-                try {
-                    snapshot = await getDocs(query(baseQuery, orderBy('data', 'desc')));
-                } catch (err) {
-                    console.warn(
-                        'Falha ao ordenar manutenções por data, carregando sem orderBy. Índice sugerido: identificador ASC, data DESC.',
-                        err,
-                    );
-                    snapshot = await getDocs(baseQuery);
-                }
-
+                const data = await fetchManutencoes('manutencoes', vehicleId);
                 if (!active) return;
-
-                const data: LinhaEvento[] = snapshot.docs.map(
-                    (docSnap): LinhaEvento => {
-                        const manutencao = docSnap.data() as Omit<Manutencao, 'id'>;
-                        return {
-                            id: `man_${docSnap.id}`,
-                            tipo: 'MANUTENCAO',
-                            data: toDate(manutencao.data),
-                            categoria: manutencao.categoria ?? null,
-                            categoriaId: manutencao.categoriaId ?? null,
-                            categoriaNomeSnapshot: manutencao.categoriaNomeSnapshot ?? null,
-                            valor: manutencao.valor ?? null,
-                            quantidade: manutencao.quantidade ?? null,
-                            fornecedor: manutencao.fornecedor ?? null,
-                            fornecedorId: manutencao.fornecedorId ?? null,
-                            fornecedorNomeSnapshot: manutencao.fornecedorNomeSnapshot ?? null,
-                            descricao: manutencao.descricao ?? null,
-                        };
-                    },
-                );
-                console.debug('[FrotaVeiculosDetalhes] manutencoes carregadas:', data.length);
-                setManutencoesRows(data);
+                console.debug('[FrotaVeiculosDetalhes] manutencoes 2026 carregadas:', data.length);
+                setManutencoes2026Rows(data);
             } catch (err) {
-                console.error('Erro ao carregar manutenções', err);
+                console.error('Erro ao carregar manutenções 2026', err);
                 if (active) {
-                    setManutencoesError('Erro ao carregar manutenções.');
+                    setManutencoes2026Error('Erro ao carregar manutenções 2026.');
                 }
             } finally {
-                if (active) setManutencoesLoading(false);
+                if (active) setManutencoes2026Loading(false);
             }
         }
-
-        if (!showManutencoes) return;
+        if (!showManutencoes2026) return;
         if (!id) {
-            setManutencoesRows([]);
+            setManutencoes2026Rows([]);
             return;
         }
 
-        loadManutencoes(id);
+        loadManutencoes2026(id);
         return () => {
             active = false;
         };
-    }, [id, showManutencoes]);
+    }, [id, showManutencoes2026]);
+
+    useEffect(() => {
+        let active = true;
+
+        async function loadManutencoesLegado(vehicleId: string) {
+            setManutencoesLegadoLoading(true);
+            setManutencoesLegadoError(null);
+
+            try {
+                const data = await fetchManutencoes('manutencoes-legado', vehicleId);
+                if (!active) return;
+                console.debug('[FrotaVeiculosDetalhes] manutencoes legado carregadas:', data.length);
+                setManutencoesLegadoRows(data);
+            } catch (err) {
+                console.error('Erro ao carregar manutenções legado', err);
+                if (active) {
+                    setManutencoesLegadoError('Erro ao carregar manutenções legado.');
+                }
+            } finally {
+                if (active) setManutencoesLegadoLoading(false);
+            }
+        }
+
+        if (!showManutencoesLegado) return;
+        if (!id) {
+            setManutencoesLegadoRows([]);
+            return;
+        }
+
+        loadManutencoesLegado(id);
+        return () => {
+            active = false;
+        };
+    }, [id, showManutencoesLegado]);
 
     const fornecedoresById = useMemo(() => {
         return new Map(fornecedores.map((item) => [item.id, item.nome]));
@@ -530,42 +572,45 @@ export default function FrotaVeiculoDetalhesPage() {
         return new Map(categoriasManutencao.map((item) => [item.id, item.nome]));
     }, [categoriasManutencao]);
 
-    const manutencoesRowsResolved = useMemo(() => {
-        return manutencoesRows.map((row) => {
-            const categoriaNome =
-                (row.categoriaId && categoriasById.get(row.categoriaId)) ||
-                row.categoriaNomeSnapshot ||
-                row.categoria ||
-                null;
-            const fornecedorNome =
-                (row.fornecedorId && fornecedoresById.get(row.fornecedorId)) ||
-                row.fornecedorNomeSnapshot ||
-                row.fornecedor ||
-                null;
-            return {
-                ...row,
-                categoria: categoriaNome,
-                fornecedor: fornecedorNome,
-            };
-        });
-    }, [categoriasById, fornecedoresById, manutencoesRows]);
+    const resolveManutencoes = useMemo(() => {
+        return (rows: LinhaEvento[]) =>
+            rows.map((row) => {
+                const categoriaNome =
+                    (row.categoriaId && categoriasById.get(row.categoriaId)) ||
+                    row.categoriaNomeSnapshot ||
+                    row.categoria ||
+                    null;
+                const fornecedorNome =
+                    (row.fornecedorId && fornecedoresById.get(row.fornecedorId)) ||
+                    row.fornecedorNomeSnapshot ||
+                    row.fornecedor ||
+                    null;
+                return {
+                    ...row,
+                    categoria: categoriaNome,
+                    fornecedor: fornecedorNome,
+                };
+            });
+    }, [categoriasById, fornecedoresById]);
 
-    const { rowsManutencoes2026, rowsManutencoesLegado } = useMemo(() => {
-        const atual: LinhaEvento[] = [];
-        const legado: LinhaEvento[] = [];
-
-        manutencoesRowsResolved.forEach((row) => {
+    const rowsManutencoes2026 = useMemo(() => {
+        const resolved = resolveManutencoes(manutencoes2026Rows);
+        return resolved.filter((row) => {
             const data = row.data;
-            if (data && data >= MANUTENCAO_CUTOFF) {
-                atual.push(row);
-                return;
-            }
+            return Boolean(data && data >= MANUTENCAO_CUTOFF);
+        });
+    }, [manutencoes2026Rows, resolveManutencoes]);
+
+    const rowsManutencoesLegado = useMemo(() => {
+        const resolved = resolveManutencoes(manutencoesLegadoRows);
+        return resolved.filter((row) => {
+            const data = row.data;
+            if (data && data >= MANUTENCAO_CUTOFF) return false;
             // Datas inválidas ficam no legado para não ocultar registros silenciosamente.
-            legado.push(row);
+            return true;
         });
 
-        return { rowsManutencoes2026: atual, rowsManutencoesLegado: legado };
-    }, [manutencoesRowsResolved]);
+    }, [manutencoesLegadoRows, resolveManutencoes]);
 
     const rowsByType = useMemo(() => {
         const merged: LinhaEvento[] = [];
@@ -573,7 +618,7 @@ export default function FrotaVeiculoDetalhesPage() {
         if (showManutencoes2026) merged.push(...rowsManutencoes2026);
         if (showManutencoesLegado) merged.push(...rowsManutencoesLegado);
         return merged.sort((a, b) => (b.data?.getTime() ?? 0) - (a.data?.getTime() ?? 0));
-     }, [
+    }, [
         combustivelRows,
         rowsManutencoes2026,
         rowsManutencoesLegado,
@@ -631,9 +676,11 @@ export default function FrotaVeiculoDetalhesPage() {
     }, [filterEndDate, filterStartDate, filterText, rowsByType]);
 
     const gridLoading =
-        (showAbastecimento && combustivelLoading) || (showManutencoes && manutencoesLoading);
+        (showAbastecimento && combustivelLoading) ||
+        (showManutencoes2026 && manutencoes2026Loading) ||
+        (showManutencoesLegado && manutencoesLegadoLoading);
 
-const filtersActive =
+    const filtersActive =
         normalizeText(filterText) !== '' || filterStartDate.trim() !== '' || filterEndDate.trim() !== '';
 
     const emptyMessage = useMemo(() => {
@@ -937,20 +984,26 @@ const filtersActive =
                 </Stack>
             </Box>
 
-             <Box mt={3}>
+            <Box mt={3}>
                 <Typography variant="h6" gutterBottom>
                     Eventos do veículo
                 </Typography>
 
-                    {showAbastecimento && combustivelError && (
+                {showAbastecimento && combustivelError && (
                     <Alert severity="error" sx={{ mb: 2 }}>
                         {combustivelError}
                     </Alert>
                 )}
 
-                {showManutencoes && manutencoesError && (
+                {showManutencoes2026 && manutencoes2026Error && (
                     <Alert severity="error" sx={{ mb: 2 }}>
-                        {manutencoesError}
+                        {manutencoes2026Error}
+                    </Alert>
+                )}
+
+                {showManutencoesLegado && manutencoesLegadoError && (
+                    <Alert severity="error" sx={{ mb: 2 }}>
+                        {manutencoesLegadoError}
                     </Alert>
                 )}
 
@@ -965,11 +1018,15 @@ const filtersActive =
                         getRowHeight={() => 'auto'}
                     />
                 </Box>
-             {!gridLoading && filteredRows.length === 0 && !combustivelError && !manutencoesError && (
-                    <Alert severity="info" sx={{ mt: 2 }}>
-                        {emptyMessage}
-                    </Alert>
-                )}
+                {!gridLoading &&
+                    filteredRows.length === 0 &&
+                    !combustivelError &&
+                    !manutencoes2026Error &&
+                    !manutencoesLegadoError && (
+                        <Alert severity="info" sx={{ mt: 2 }}>
+                            {emptyMessage}
+                        </Alert>
+                    )}
             </Box>
 
             <Box mt={3}>

@@ -59,10 +59,11 @@ export default function ObrasSection() {
       <Stack direction={{ xs: 'column', sm: 'row' }} justifyContent="space-between" spacing={2} mb={2} alignItems={{ sm: 'center' }}>
         <Box>
           <Typography variant="h6">Obras</Typography>
+          <Typography variant="body2" color="text.secondary">Cadastro de obras.</Typography>
         </Box>
          <Stack direction="row" spacing={1}>
           <Button variant="contained" onClick={handleOpenDialog}>
-            Adicionar
+            Cadastrar obra
           </Button>
           <EditarEmBreveButton />
         </Stack>
