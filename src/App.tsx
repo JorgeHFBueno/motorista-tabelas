@@ -17,6 +17,7 @@ const CadastrosPage = lazy(() => import('./pages/CadastrosPage'));
 const RegistrosPage = lazy(() => import('./pages/RegistrosPage'));
 const FrotaVeiculosPage = lazy(() => import('./pages/FrotaVeiculosPage'));
 const FrotaVeiculoDetalhesPage = lazy(() => import('./pages/FrotaVeiculoDetalhesPage'));
+const ManutencoesMasterDetailPage = lazy(() => import('./pages/ManutencoesMasterDetailPage'));
 const HomeDashboard = lazy(() => import('./pages/HomeDashboard'));
 const BombasPage = lazy(() => import('./pages/BombasPage'));
 
@@ -46,6 +47,7 @@ export default function App() {
             <Route path="/registros" element={<RegistrosPage />} />
             <Route path="/frota" element={<FrotaVeiculosPage />} />
             <Route path="/frota/:id" element={<FrotaVeiculoDetalhesPage />} />
+            <Route path="/manutencoes" element={<ManutencoesMasterDetailPage />} />
             <Route path="/bombas" element={<BombasPage />} />
             <Route path="/portfolio" element={<PortifolioPage />} />
           </Route>
