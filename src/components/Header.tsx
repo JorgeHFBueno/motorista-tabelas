@@ -30,10 +30,7 @@ export default function Header() {
                   </Nav.Link>
                   <Nav.Link as={Link} to="/frota">
                     Frota
-                  </Nav.Link>
-                  <Nav.Link as={Link} to="/manutencoes">
-                    Manutenções
-                  </Nav.Link>
+                  </Nav.Link>                  
                   <Nav.Link as={Link} to="/portfolio">
                     Portifólio
                   </Nav.Link>

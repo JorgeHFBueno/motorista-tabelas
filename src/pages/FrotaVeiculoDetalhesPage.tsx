@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
     Alert,
     Box,
@@ -16,17 +16,24 @@ import {
 import { DataGrid, type GridColDef } from '@mui/x-data-grid';
 import {
     collection,
+    deleteDoc,
+    deleteField,
     doc,
+    FieldPath,
     getDoc,
     getDocs,
     orderBy,
     query,
     serverTimestamp,
+    Timestamp,
     updateDoc,
     where,
 } from 'firebase/firestore';
 import { useNavigate, useParams } from 'react-router-dom';
 import FrotaCharts, { type ChartPoint } from '../components/FrotaCharts';
+import ManutencaoDetailPanel from '../components/ManutencaoDetailPanel';
+import ManutencoesList, { type FonteManutencao, type ManutencaoListItem } from '../components/ManutencoesList';
+import { useAuth } from '../contexts/AuthContext';
 import { db } from '../firebase';
 
 type Veiculo = {
@@ -146,6 +153,45 @@ function asNumber(raw: unknown): number | null {
     return null;
 }
 
+const getDataTimestamp = (data: Record<string, unknown>) => {
+    const value = data.data;
+    if (value instanceof Timestamp) return value;
+    return null;
+};
+
+const buildCacheKey = (collectionName: FonteManutencao, docId: string) =>
+    `${collectionName}/${docId}`;
+
+const setDeepValue = (target: Record<string, unknown>, path: string, value: unknown) => {
+    const keys = path.split('.');
+    let current = target;
+    keys.forEach((key, index) => {
+        if (index === keys.length - 1) {
+            current[key] = value;
+            return;
+        }
+        if (!current[key] || typeof current[key] !== 'object') {
+            current[key] = {};
+        }
+        current = current[key] as Record<string, unknown>;
+    });
+};
+
+const deleteDeepValue = (target: Record<string, unknown>, path: string) => {
+    const keys = path.split('.');
+    let current = target;
+    keys.forEach((key, index) => {
+        if (index === keys.length - 1) {
+            delete current[key];
+            return;
+        }
+        if (!current[key] || typeof current[key] !== 'object') {
+            return;
+        }
+        current = current[key] as Record<string, unknown>;
+    });
+};
+
 function getDisplayTipo(row: LinhaEvento): string {
     if (row.categoria === ABASTECIMENTO_EXTERNO) return ABASTECIMENTO_EXTERNO;
     return row.tipo ?? '—';
@@ -191,8 +237,9 @@ async function fetchManutencoes(collectionName: string, vehicleId: string): Prom
 }
 
 export default function FrotaVeiculoDetalhesPage() {
-    const { id } = useParams();
+    const { placa } = useParams();
     const navigate = useNavigate();
+    const { isAdmin } = useAuth();
 
     const [veiculo, setVeiculo] = useState<Veiculo | null>(null);
     const [loading, setLoading] = useState(true);
@@ -220,8 +267,18 @@ export default function FrotaVeiculoDetalhesPage() {
     const [manutencoesLegadoRows, setManutencoesLegadoRows] = useState<LinhaEvento[]>([]);
     const [manutencoesLegadoLoading, setManutencoesLegadoLoading] = useState(false);
     const [manutencoesLegadoError, setManutencoesLegadoError] = useState<string | null>(null);
+    const [fonteManutencao, setFonteManutencao] = useState<FonteManutencao>('manutencoes');
+    const [manutencoesItems, setManutencoesItems] = useState<ManutencaoListItem[]>([]);
+    const [manutencoesListLoading, setManutencoesListLoading] = useState(false);
+    const [manutencoesListError, setManutencoesListError] = useState<string | null>(null);
+    const [selectedDocId, setSelectedDocId] = useState<string | null>(null);
+    const [selectedCollection, setSelectedCollection] = useState<FonteManutencao>('manutencoes');
+    const [selectedDocData, setSelectedDocData] = useState<Record<string, unknown> | null>(null);
+    const [selectedLoading, setSelectedLoading] = useState(false);
+    const [selectedError, setSelectedError] = useState<string | null>(null);
     const [fornecedores, setFornecedores] = useState<Fornecedor[]>([]);
     const [categoriasManutencao, setCategoriasManutencao] = useState<CategoriaManutencao[]>([]);
+    const cacheRef = useRef(new Map<string, Record<string, unknown>>());
 
     const [snackbar, setSnackbar] = useState<{
         open: boolean;
@@ -258,11 +315,214 @@ export default function FrotaVeiculoDetalhesPage() {
         [],
     );
 
+    const handleSelectDoc = useCallback(async (item: ManutencaoListItem) => {
+        setSelectedDocId(item.id);
+        setSelectedCollection(item.collection);
+        setSelectedError(null);
+        const cacheKey = buildCacheKey(item.collection, item.id);
+        const cached = cacheRef.current.get(cacheKey);
+        if (cached) {
+            setSelectedDocData(cached);
+            setSelectedLoading(false);
+            return;
+        }
+
+        setSelectedLoading(true);
+        try {
+            const docRef = doc(db, item.collection, item.id);
+            const snapshot = await getDoc(docRef);
+            if (!snapshot.exists()) {
+                setSelectedDocData(null);
+                setSelectedError('Documento não encontrado.');
+                return;
+            }
+            const data = snapshot.data() as Record<string, unknown>;
+            cacheRef.current.set(cacheKey, data);
+            setSelectedDocData(data);
+        } catch (err) {
+            console.error('Erro ao carregar documento', err);
+            setSelectedError('Não foi possível carregar o documento.');
+        } finally {
+            setSelectedLoading(false);
+        }
+    }, []);
+
+    const loadManutencoesList = useCallback(
+        async (collectionName: FonteManutencao, identificador: string) => {
+            setManutencoesListLoading(true);
+            setManutencoesListError(null);
+            try {
+                const collectionRef = collection(db, collectionName);
+                const baseQuery = query(collectionRef, where('identificador', '==', identificador));
+                let snapshot;
+
+                try {
+                    snapshot = await getDocs(query(baseQuery, orderBy('data', 'desc')));
+                } catch (err) {
+                    console.warn(
+                        'Falha ao ordenar manutenções por data, carregando sem orderBy. Índice sugerido: identificador ASC, data DESC.',
+                        err,
+                    );
+                    snapshot = await getDocs(baseQuery);
+                }
+
+                const newItems = snapshot.docs.map((docSnap) => {
+                    const data = docSnap.data() as Record<string, unknown>;
+                    const categoria =
+                        (data.categoriaNomeSnapshot as string | undefined) ||
+                        (data.categoria as string | undefined) ||
+                        (data.categoriaLegado as string | undefined) ||
+                        null;
+                    return {
+                        id: docSnap.id,
+                        collection: collectionName,
+                        data: getDataTimestamp(data),
+                        categoria,
+                        valor: asNumber(data.valor),
+                    } satisfies ManutencaoListItem;
+                });
+
+                setManutencoesItems(newItems);
+
+                if (newItems.length > 0) {
+                    void handleSelectDoc(newItems[0]);
+                } else {
+                    setSelectedDocId(null);
+                    setSelectedDocData(null);
+                }
+            } catch (err) {
+                console.error('Erro ao carregar manutenções', err);
+                setManutencoesListError('Não foi possível carregar as manutenções.');
+            } finally {
+                setManutencoesListLoading(false);
+            }
+        },
+        [handleSelectDoc],
+    );
+
+    const handleFonteChange = useCallback((value: FonteManutencao) => {
+        setFonteManutencao(value);
+        setManutencoesItems([]);
+        setManutencoesListError(null);
+        setSelectedDocId(null);
+        setSelectedDocData(null);
+        setSelectedError(null);
+        setSelectedCollection(value);
+        cacheRef.current.clear();
+    }, []);
+
+    const handleReloadSelected = useCallback(async () => {
+        if (!selectedDocId) return;
+        setSelectedLoading(true);
+        setSelectedError(null);
+        try {
+            const docRef = doc(db, selectedCollection, selectedDocId);
+            const snapshot = await getDoc(docRef);
+            if (!snapshot.exists()) {
+                setSelectedDocData(null);
+                setSelectedError('Documento não encontrado.');
+                return;
+            }
+            const data = snapshot.data() as Record<string, unknown>;
+            cacheRef.current.set(buildCacheKey(selectedCollection, selectedDocId), data);
+            setSelectedDocData(data);
+            setSnackbar({ open: true, severity: 'success', message: 'Documento recarregado.' });
+        } catch (err) {
+            console.error('Erro ao recarregar documento', err);
+            setSelectedError('Não foi possível recarregar o documento.');
+        } finally {
+            setSelectedLoading(false);
+        }
+    }, [selectedCollection, selectedDocId]);
+
+    const handleUpdateField = useCallback(
+        async (fieldPath: string, value: unknown) => {
+            if (!selectedDocId) return;
+            const docRef = doc(db, selectedCollection, selectedDocId);
+            try {
+                if (fieldPath.includes('.')) {
+                    const field = new FieldPath(...fieldPath.split('.'));
+                    await updateDoc(docRef, field, value);
+                } else {
+                    await updateDoc(docRef, { [fieldPath]: value });
+                }
+                setSelectedDocData((prev) => {
+                    if (!prev) return prev;
+                    const updated = { ...prev } as Record<string, unknown>;
+                    if (fieldPath.includes('.')) {
+                        setDeepValue(updated, fieldPath, value);
+                    } else {
+                        updated[fieldPath] = value;
+                    }
+                    cacheRef.current.set(buildCacheKey(selectedCollection, selectedDocId), updated);
+                    return updated;
+                });
+                setSnackbar({ open: true, severity: 'success', message: 'Campo atualizado com sucesso.' });
+            } catch (err) {
+                console.error('Erro ao atualizar campo', err);
+                setSnackbar({ open: true, severity: 'error', message: 'Erro ao atualizar campo.' });
+                throw err;
+            }
+        },
+        [selectedCollection, selectedDocId],
+    );
+
+    const handleDeleteField = useCallback(
+        async (fieldPath: string) => {
+            if (!selectedDocId) return;
+            const confirmed = window.confirm(`Deseja remover o campo "${fieldPath}"?`);
+            if (!confirmed) return;
+            const docRef = doc(db, selectedCollection, selectedDocId);
+            try {
+                if (fieldPath.includes('.')) {
+                    const field = new FieldPath(...fieldPath.split('.'));
+                    await updateDoc(docRef, field, deleteField());
+                } else {
+                    await updateDoc(docRef, { [fieldPath]: deleteField() });
+                }
+                setSelectedDocData((prev) => {
+                    if (!prev) return prev;
+                    const updated = { ...prev } as Record<string, unknown>;
+                    if (fieldPath.includes('.')) {
+                        deleteDeepValue(updated, fieldPath);
+                    } else {
+                        delete updated[fieldPath];
+                    }
+                    cacheRef.current.set(buildCacheKey(selectedCollection, selectedDocId), updated);
+                    return updated;
+                });
+                setSnackbar({ open: true, severity: 'success', message: 'Campo removido com sucesso.' });
+            } catch (err) {
+                console.error('Erro ao remover campo', err);
+                setSnackbar({ open: true, severity: 'error', message: 'Erro ao remover campo.' });
+                throw err;
+            }
+        },
+        [selectedCollection, selectedDocId],
+    );
+
+    const handleDeleteDoc = useCallback(async () => {
+        if (!selectedDocId) return;
+        const confirmed = window.confirm('Deseja excluir este documento?');
+        if (!confirmed) return;
+        try {
+            await deleteDoc(doc(db, selectedCollection, selectedDocId));
+            setManutencoesItems((prev) => prev.filter((item) => item.id !== selectedDocId));
+            cacheRef.current.delete(buildCacheKey(selectedCollection, selectedDocId));
+            setSelectedDocId(null);
+            setSelectedDocData(null);
+            setSnackbar({ open: true, severity: 'success', message: 'Documento excluído com sucesso.' });
+        } catch (err) {
+            console.error('Erro ao excluir documento', err);
+            setSnackbar({ open: true, severity: 'error', message: 'Erro ao excluir documento.' });
+        }
+    }, [selectedCollection, selectedDocId]);
+
     useEffect(() => {
         let active = true;
 
         async function loadVeiculo() {
-            if (!id) {
+            if (!placa) {
                 setError('Veículo não encontrado.');
                 setLoading(false);
                 return;
@@ -272,15 +532,23 @@ export default function FrotaVeiculoDetalhesPage() {
             setError(null);
 
             try {
-                const snap = await getDoc(doc(db, 'veiculos', id));
+                const veiculosRef = collection(db, 'veiculos');
+                let snapshot = await getDocs(query(veiculosRef, where('placa', '==', placa)));
                 if (!active) return;
 
-                if (!snap.exists()) {
+                if (snapshot.empty) {
+                    snapshot = await getDocs(query(veiculosRef, where('extra', '==', placa)));
+                }
+                if (!active) return;
+
+                if (snapshot.empty) {
                     setError('Veículo não encontrado.');
                     setVeiculo(null);
                     return;
                 }
 
+
+                const snap = snapshot.docs[0];
                 const data = { id: snap.id, ...(snap.data() as Omit<Veiculo, 'id'>) };
                 setVeiculo(data);
                 setForm({
@@ -300,12 +568,25 @@ export default function FrotaVeiculoDetalhesPage() {
             }
         }
 
-        console.debug('[FrotaVeiculosDetalhes] route id:', id);
+        console.debug('[FrotaVeiculosDetalhes] route placa:', placa);
         loadVeiculo();
         return () => {
             active = false;
         };
-    }, [id]);
+    }, [placa]);
+
+    useEffect(() => {
+        if (!placa) {
+            setManutencoesItems([]);
+            setSelectedDocId(null);
+            setSelectedDocData(null);
+            setSelectedError(null);
+            return;
+        }
+        cacheRef.current.clear();
+        setSelectedError(null);
+        void loadManutencoesList(fonteManutencao, placa);
+    }, [fonteManutencao, loadManutencoesList, placa]);
 
     useEffect(() => {
         let active = true;
@@ -519,16 +800,16 @@ export default function FrotaVeiculoDetalhesPage() {
             }
         }
         if (!showManutencoes2026) return;
-        if (!id) {
+        if (!placa) {
             setManutencoes2026Rows([]);
             return;
         }
 
-        loadManutencoes2026(id);
+        loadManutencoes2026(placa);
         return () => {
             active = false;
         };
-    }, [id, showManutencoes2026]);
+    }, [placa, showManutencoes2026]);
 
     useEffect(() => {
         let active = true;
@@ -553,16 +834,16 @@ export default function FrotaVeiculoDetalhesPage() {
         }
 
         if (!showManutencoesLegado) return;
-        if (!id) {
+        if (!placa) {
             setManutencoesLegadoRows([]);
             return;
         }
 
-        loadManutencoesLegado(id);
+        loadManutencoesLegado(placa);
         return () => {
             active = false;
         };
-    }, [id, showManutencoesLegado]);
+    }, [placa, showManutencoesLegado]);
 
     const fornecedoresById = useMemo(() => {
         return new Map(fornecedores.map((item) => [item.id, item.nome]));
@@ -922,6 +1203,45 @@ export default function FrotaVeiculoDetalhesPage() {
                         fullWidth
                         disabled
                     />
+                </Stack>
+            </Box>
+
+            <Divider sx={{ my: 4 }} />
+
+            <Box>
+                <Typography variant="h6" gutterBottom>
+                    Manutenções (Master–Detail)
+                </Typography>
+                <Stack direction={{ xs: 'column', md: 'row' }} spacing={3} alignItems="stretch">
+                    <Stack flex={1} sx={{ minWidth: 280, maxWidth: { md: 460 } }}>
+                        <ManutencoesList
+                            items={manutencoesItems}
+                            loading={manutencoesListLoading}
+                            error={manutencoesListError}
+                            selectedId={selectedDocId}
+                            fonte={fonteManutencao}
+                            onSelect={handleSelectDoc}
+                            onFonteChange={handleFonteChange}
+                        />
+                    </Stack>
+                    <Stack flex={2} sx={{ minWidth: 280 }}>
+                        <ManutencaoDetailPanel
+                            selectedDocId={selectedDocId}
+                            selectedDocData={selectedDocData}
+                            loading={selectedLoading}
+                            isAdmin={isAdmin}
+                            error={selectedError}
+                            onReload={handleReloadSelected}
+                            onDeleteDoc={handleDeleteDoc}
+                            onUpdateField={handleUpdateField}
+                            onDeleteField={handleDeleteField}
+                        />
+                        {!isAdmin && (
+                            <Alert severity="info" sx={{ mt: 2 }}>
+                                Você está em modo leitura. Apenas administradores podem editar ou excluir campos.
+                            </Alert>
+                        )}
+                    </Stack>
                 </Stack>
             </Box>
 

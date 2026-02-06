@@ -1,14 +1,10 @@
 import {
   Alert,
-  Box,
-  Button,
-  CircularProgress,
+  Box,  
   List,
   ListItemButton,
-  ListItemText,
   Skeleton,
   Stack,
-  TextField,
   ToggleButton,
   ToggleButtonGroup,
   Typography,
@@ -20,23 +16,18 @@ export type FonteManutencao = 'manutencoes' | 'manutencoes-legado';
 export interface ManutencaoListItem {
   id: string;
   collection: FonteManutencao;
-  identificador: string;
   data: Timestamp | null;
-  resumo: string;
+  categoria: string | null;
+  valor: number | null;
 }
 
 interface ManutencoesListProps {
   items: ManutencaoListItem[];
   loading: boolean;
-  loadingMore: boolean;
   error: string | null;
-  search: string;
   selectedId: string | null;
   fonte: FonteManutencao;
-  hasMore: boolean;
-  onSearchChange: (value: string) => void;
   onSelect: (item: ManutencaoListItem) => void;
-  onLoadMore: () => void;
   onFonteChange: (fonte: FonteManutencao) => void;
 }
 
@@ -46,21 +37,35 @@ const formatDate = (value: Timestamp | null) => {
     day: '2-digit',
     month: '2-digit',
     year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
   });
+};
+
+const currencyFormatter = new Intl.NumberFormat('pt-BR', {
+  style: 'currency',
+  currency: 'BRL',
+});
+
+const numberFormatter = new Intl.NumberFormat('pt-BR', {
+  minimumFractionDigits: 2,
+  maximumFractionDigits: 2,
+});
+
+const formatValor = (value: number | null) => {
+  if (value === null || value === undefined || Number.isNaN(Number(value))) return '—';
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) return '—';
+  return currencyFormatter.format(numeric) || numberFormatter.format(numeric);
 };
 
 export default function ManutencoesList({
   items,
   loading,
-  loadingMore,
   error,
-  search,
   selectedId,
   fonte,
-  hasMore,
-  onSearchChange,
   onSelect,
-  onLoadMore,
   onFonteChange,
 }: ManutencoesListProps) {
   return (
@@ -76,13 +81,7 @@ export default function ManutencoesList({
         >
           <ToggleButton value="manutencoes">Manutenções - 2026</ToggleButton>
           <ToggleButton value="manutencoes-legado">Manutenções - Legado</ToggleButton>
-        </ToggleButtonGroup>
-        <TextField
-          size="small"
-          placeholder="Buscar por placa, identificador ou fornecedor"
-          value={search}
-          onChange={(event) => onSearchChange(event.target.value)}
-        />
+        </ToggleButtonGroup>        
       </Stack>
 
       {error && <Alert severity="error">{error}</Alert>}
@@ -91,6 +90,7 @@ export default function ManutencoesList({
         sx={{
           flex: 1,
           minHeight: 240,
+          maxHeight: 480,
           borderRadius: 2,
           border: '1px solid',
           borderColor: 'divider',
@@ -110,43 +110,53 @@ export default function ManutencoesList({
             </Typography>
           </Stack>
         ) : (
-          <List disablePadding>
-            {items.map((item) => (
-              <ListItemButton
-                key={`${item.collection}-${item.id}`}
-                selected={selectedId === item.id}
-                onClick={() => onSelect(item)}
-                sx={{ px: 2, py: 1.5 }}
-              >
-                <ListItemText
-                  primary={item.identificador}
-                  secondary={
-                    <Stack spacing={0.5}>
-                      <Typography variant="body2" color="text.secondary">
-                        {formatDate(item.data)}
-                      </Typography>
-                      <Typography variant="caption" color="text.secondary">
-                        {item.resumo || 'Sem resumo'}
-                      </Typography>
-                    </Stack>
-                  }
-                />
-              </ListItemButton>
-            ))}
-          </List>
+          <>
+            <Box
+              sx={{
+                px: 2,
+                py: 1,
+                borderBottom: '1px solid',
+                borderColor: 'divider',
+                bgcolor: 'action.hover',
+              }}
+            >
+              <Stack direction="row" spacing={2}>
+                <Typography variant="caption" sx={{ flex: 1, fontWeight: 600 }}>
+                  Data
+                </Typography>
+                <Typography variant="caption" sx={{ flex: 1.4, fontWeight: 600 }}>
+                  Categoria
+                </Typography>
+                <Typography variant="caption" sx={{ flex: 1, fontWeight: 600, textAlign: 'right' }}>
+                  Valor
+                </Typography>
+              </Stack>
+            </Box>
+            <List disablePadding>
+              {items.map((item) => (
+                <ListItemButton
+                  key={`${item.collection}-${item.id}`}
+                  selected={selectedId === item.id}
+                  onClick={() => onSelect(item)}
+                  sx={{ px: 2, py: 1.25 }}
+                >
+                  <Stack direction="row" spacing={2} sx={{ width: '100%' }}>
+                    <Typography variant="body2" sx={{ flex: 1 }}>
+                      {formatDate(item.data)}
+                    </Typography>
+                    <Typography variant="body2" sx={{ flex: 1.4 }}>
+                      {item.categoria || '—'}
+                    </Typography>
+                    <Typography variant="body2" sx={{ flex: 1, textAlign: 'right' }}>
+                      {formatValor(item.valor)}
+                    </Typography>
+                  </Stack>
+                </ListItemButton>
+              ))}
+            </List>
+          </>
         )}
-      </Box>
-
-      {hasMore && (
-        <Button
-          variant="outlined"
-          onClick={onLoadMore}
-          disabled={loadingMore}
-          startIcon={loadingMore ? <CircularProgress size={16} /> : undefined}
-        >
-          {loadingMore ? 'Carregando...' : 'Carregar mais'}
-        </Button>
-      )}
+      </Box>     
     </Stack>
   );
 }

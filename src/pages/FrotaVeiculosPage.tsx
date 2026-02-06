@@ -486,7 +486,8 @@ export default function FrotaVeiculosPage() {
                             size="small"
                             onClick={(event) => {
                                 event.stopPropagation();
-                                navigate(`/frota/${params.row.id}`);
+                                const value = (params.row?.[fieldName] as string | undefined) ?? '';
+                                navigate(`/frota/${encodeURIComponent(value)}`);
                             }}
                             disabled={isDisabled}
                             sx={{ textTransform: 'none', px: 0.5, minWidth: 'auto' }}
