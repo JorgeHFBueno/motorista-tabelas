@@ -14,6 +14,7 @@ import EditableFieldRow from './EditableFieldRow';
 interface ManutencaoDetailPanelProps {
   selectedDocId: string | null;
   selectedDocData: Record<string, unknown> | null;
+  selectedTipo: 'abastecimento' | 'manutencao2026' | 'manutencaoLegado' | null;
   loading: boolean;
   isAdmin: boolean;
   error: string | null;
@@ -49,9 +50,18 @@ const flattenFields = (data: Record<string, unknown>, prefix = ''): FlattenedFie
   return fields;
 };
 
+const hiddenFields = new Set([
+  'categoriaBackfillEm',
+  'categoriaId',
+  'categoriaLegado',
+  'categoriaNomeSnapshot',
+  'tipoVeiculo',
+]);
+
 export default function ManutencaoDetailPanel({
   selectedDocId,
   selectedDocData,
+  selectedTipo,
   loading,
   isAdmin,
   error,
@@ -64,7 +74,7 @@ export default function ManutencaoDetailPanel({
     return (
       <Paper sx={{ p: 3, minHeight: 240 }}>
         <Typography variant="body1" color="text.secondary">
-          Selecione um documento.
+          Selecione um item.
         </Typography>
       </Paper>
     );
@@ -99,7 +109,13 @@ export default function ManutencaoDetailPanel({
     );
   }
 
-  const fields = flattenFields(selectedDocData).sort((a, b) => a.path.localeCompare(b.path));
+  const fields = flattenFields(selectedDocData)
+    .filter((field) => {
+      if (selectedTipo !== 'manutencao2026' && selectedTipo !== 'manutencaoLegado') return true;
+      const root = field.path.split('.')[0];
+      return !hiddenFields.has(root);
+    })
+    .sort((a, b) => a.path.localeCompare(b.path));
 
   return (
     <Paper sx={{ p: 3, minHeight: 240 }}>

@@ -1,39 +1,55 @@
 import {
   Alert,
   Box,  
+  Checkbox,
+  FormControlLabel,
   List,
   ListItemButton,
   Skeleton,
-  Stack,
-  ToggleButton,
-  ToggleButtonGroup,
+  Stack,  
   Typography,
 } from '@mui/material';
 import { Timestamp } from 'firebase/firestore';
 
-export type FonteManutencao = 'manutencoes' | 'manutencoes-legado';
+export type FonteEvento = '03-combustivel' | 'manutencoes' | 'manutencoes-legado';
+export type TipoEvento = 'abastecimento' | 'manutencao2026' | 'manutencaoLegado';
 
-export interface ManutencaoListItem {
+export interface MasterDetailListItem  {
   id: string;
-  collection: FonteManutencao;
-  data: Timestamp | null;
+  collection: FonteEvento;
+  tipo: TipoEvento;
+  data: Date | null;
   categoria: string | null;
   valor: number | null;
 }
 
+export interface MasterDetailFilters {
+  abastecimento: boolean;
+  manutencoes2026: boolean;
+  manutencoesLegado: boolean;
+}
+
+export interface MasterDetailCounts {
+  abastecimento: number;
+  manutencoes2026: number;
+  manutencoesLegado: number;
+}
+
 interface ManutencoesListProps {
-  items: ManutencaoListItem[];
+  items: MasterDetailListItem[];
   loading: boolean;
   error: string | null;
   selectedId: string | null;
-  fonte: FonteManutencao;
-  onSelect: (item: ManutencaoListItem) => void;
-  onFonteChange: (fonte: FonteManutencao) => void;
+  selectedCollection: FonteEvento | null;
+  filters: MasterDetailFilters;
+  counts: MasterDetailCounts;
+  onSelect: (item: MasterDetailListItem) => void;
+  onToggleFilter: (key: keyof MasterDetailFilters, value: boolean) => void;
 }
 
-const formatDate = (value: Timestamp | null) => {
+const formatDate = (value: Date  | null) => {
   if (!value) return '—';
-  return value.toDate().toLocaleDateString('pt-BR', {
+  return value.toLocaleDateString('pt-BR', {
     day: '2-digit',
     month: '2-digit',
     year: 'numeric',
@@ -47,16 +63,11 @@ const currencyFormatter = new Intl.NumberFormat('pt-BR', {
   currency: 'BRL',
 });
 
-const numberFormatter = new Intl.NumberFormat('pt-BR', {
-  minimumFractionDigits: 2,
-  maximumFractionDigits: 2,
-});
-
 const formatValor = (value: number | null) => {
   if (value === null || value === undefined || Number.isNaN(Number(value))) return '—';
   const numeric = Number(value);
   if (!Number.isFinite(numeric)) return '—';
-  return currencyFormatter.format(numeric) || numberFormatter.format(numeric);
+  return currencyFormatter.format(numeric);
 };
 
 export default function ManutencoesList({
@@ -64,24 +75,46 @@ export default function ManutencoesList({
   loading,
   error,
   selectedId,
-  fonte,
+  selectedCollection,
+  filters,
+  counts,
   onSelect,
-  onFonteChange,
+  onToggleFilter,
 }: ManutencoesListProps) {
+  const hasFilters = filters.abastecimento || filters.manutencoes2026 || filters.manutencoesLegado;
   return (
     <Stack spacing={2} sx={{ height: '100%' }}>
       <Stack spacing={1}>
-        <Typography variant="h6">Manutenções</Typography>
-        <ToggleButtonGroup
-          value={fonte}
-          exclusive
-          onChange={(_, value) => value && onFonteChange(value)}
-          size="small"
-          color="primary"
-        >
-          <ToggleButton value="manutencoes">Manutenções - 2026</ToggleButton>
-          <ToggleButton value="manutencoes-legado">Manutenções - Legado</ToggleButton>
-        </ToggleButtonGroup>        
+        <Typography variant="h6">Registros</Typography>
+        <Stack spacing={0.5}>
+          <FormControlLabel
+            control={
+              <Checkbox
+                checked={filters.abastecimento}
+                onChange={(event) => onToggleFilter('abastecimento', event.target.checked)}
+              />
+            }
+            label={`Abastecimento (${counts.abastecimento})`}
+          />
+          <FormControlLabel
+            control={
+              <Checkbox
+                checked={filters.manutencoes2026}
+                onChange={(event) => onToggleFilter('manutencoes2026', event.target.checked)}
+              />
+            }
+            label={`Manutenções - 2026 (${counts.manutencoes2026})`}
+          />
+          <FormControlLabel
+            control={
+              <Checkbox
+                checked={filters.manutencoesLegado}
+                onChange={(event) => onToggleFilter('manutencoesLegado', event.target.checked)}
+              />
+            }
+            label={`Manutenções - Legado (${counts.manutencoesLegado})`}
+          />
+        </Stack>      
       </Stack>
 
       {error && <Alert severity="error">{error}</Alert>}
@@ -103,10 +136,16 @@ export default function ManutencoesList({
               <Skeleton key={index} variant="rounded" height={56} />
             ))}
           </Stack>
+           ) : !hasFilters ? (
+          <Stack alignItems="center" justifyContent="center" p={4}>
+            <Typography variant="body2" color="text.secondary">
+              Selecione ao menos um filtro.
+            </Typography>
+          </Stack>
         ) : items.length === 0 ? (
           <Stack alignItems="center" justifyContent="center" p={4}>
             <Typography variant="body2" color="text.secondary">
-              Nenhuma manutenção encontrada.
+              Nenhum registro encontrado.
             </Typography>
           </Stack>
         ) : (
@@ -136,7 +175,7 @@ export default function ManutencoesList({
               {items.map((item) => (
                 <ListItemButton
                   key={`${item.collection}-${item.id}`}
-                  selected={selectedId === item.id}
+                  selected={selectedId === item.id && selectedCollection === item.collection}
                   onClick={() => onSelect(item)}
                   sx={{ px: 2, py: 1.25 }}
                 >

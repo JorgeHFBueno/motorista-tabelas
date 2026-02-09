@@ -25,14 +25,19 @@ import {
     orderBy,
     query,
     serverTimestamp,
-    Timestamp,
     updateDoc,
     where,
 } from 'firebase/firestore';
 import { useNavigate, useParams } from 'react-router-dom';
 import FrotaCharts, { type ChartPoint } from '../components/FrotaCharts';
 import ManutencaoDetailPanel from '../components/ManutencaoDetailPanel';
-import ManutencoesList, { type FonteManutencao, type ManutencaoListItem } from '../components/ManutencoesList';
+import ManutencoesList, {
+    type FonteEvento,
+    type MasterDetailCounts,
+    type MasterDetailFilters,
+    type MasterDetailListItem,
+    type TipoEvento,
+} from '../components/ManutencoesList';
 import { useAuth } from '../contexts/AuthContext';
 import { db } from '../firebase';
 
@@ -78,10 +83,15 @@ type Combustivel = {
     data?: unknown;
     qa?: number;
     arla?: number;
+    motivo?: string;
+    valor?: number;
 };
 
 type LinhaEvento = {
     id: string;
+    docId: string;
+    collection: FonteEvento;
+    origem: TipoEvento;
     tipo: 'ABASTECIMENTO' | 'MANUTENCAO';
     data?: Date | null;
     qntAbastecida?: number | null;
@@ -108,7 +118,6 @@ const DEFAULT_FORM: VeiculoForm = {
 
 const ABASTECIMENTO_EXTERNO = 'ABASTECIMENTO EXTERNO';
 const DEBUG = false;
-const MANUTENCAO_CUTOFF = new Date('2026-01-01T00:00:00.000Z');
 
 type Fornecedor = {
     id: string;
@@ -153,13 +162,7 @@ function asNumber(raw: unknown): number | null {
     return null;
 }
 
-const getDataTimestamp = (data: Record<string, unknown>) => {
-    const value = data.data;
-    if (value instanceof Timestamp) return value;
-    return null;
-};
-
-const buildCacheKey = (collectionName: FonteManutencao, docId: string) =>
+const buildCacheKey = (collectionName: FonteEvento, docId: string) =>
     `${collectionName}/${docId}`;
 
 const setDeepValue = (target: Record<string, unknown>, path: string, value: unknown) => {
@@ -197,7 +200,11 @@ function getDisplayTipo(row: LinhaEvento): string {
     return row.tipo ?? '—';
 }
 
-async function fetchManutencoes(collectionName: string, vehicleId: string): Promise<LinhaEvento[]> {
+async function fetchManutencoes(
+    collectionName: FonteEvento,
+    vehicleId: string,
+    origem: TipoEvento,
+): Promise<LinhaEvento[]> {
     console.debug('[FrotaVeiculosDetalhes] loadManutencoes query:', {
         collection: collectionName,
         identificador: vehicleId,
@@ -219,7 +226,10 @@ async function fetchManutencoes(collectionName: string, vehicleId: string): Prom
         (docSnap): LinhaEvento => {
             const manutencao = docSnap.data() as Omit<Manutencao, 'id'>;
             return {
-                id: `man_${docSnap.id}`,
+                id: `${collectionName}_${docSnap.id}`,
+                docId: docSnap.id,
+                collection: collectionName,
+                origem,
                 tipo: 'MANUTENCAO',
                 data: toDate(manutencao.data),
                 categoria: manutencao.categoria ?? null,
@@ -266,13 +276,10 @@ export default function FrotaVeiculoDetalhesPage() {
     const [manutencoes2026Error, setManutencoes2026Error] = useState<string | null>(null);
     const [manutencoesLegadoRows, setManutencoesLegadoRows] = useState<LinhaEvento[]>([]);
     const [manutencoesLegadoLoading, setManutencoesLegadoLoading] = useState(false);
-    const [manutencoesLegadoError, setManutencoesLegadoError] = useState<string | null>(null);
-    const [fonteManutencao, setFonteManutencao] = useState<FonteManutencao>('manutencoes');
-    const [manutencoesItems, setManutencoesItems] = useState<ManutencaoListItem[]>([]);
-    const [manutencoesListLoading, setManutencoesListLoading] = useState(false);
-    const [manutencoesListError, setManutencoesListError] = useState<string | null>(null);
+    const [manutencoesLegadoError, setManutencoesLegadoError] = useState<string | null>(null);    
     const [selectedDocId, setSelectedDocId] = useState<string | null>(null);
-    const [selectedCollection, setSelectedCollection] = useState<FonteManutencao>('manutencoes');
+    const [selectedCollection, setSelectedCollection] = useState<FonteEvento | null>(null);
+    const [selectedTipo, setSelectedTipo] = useState<TipoEvento | null>(null);
     const [selectedDocData, setSelectedDocData] = useState<Record<string, unknown> | null>(null);
     const [selectedLoading, setSelectedLoading] = useState(false);
     const [selectedError, setSelectedError] = useState<string | null>(null);
@@ -315,9 +322,10 @@ export default function FrotaVeiculoDetalhesPage() {
         [],
     );
 
-    const handleSelectDoc = useCallback(async (item: ManutencaoListItem) => {
+    const handleSelectDoc = useCallback(async (item: MasterDetailListItem) => {
         setSelectedDocId(item.id);
         setSelectedCollection(item.collection);
+        setSelectedTipo(item.tipo);
         setSelectedError(null);
         const cacheKey = buildCacheKey(item.collection, item.id);
         const cached = cacheRef.current.get(cacheKey);
@@ -345,74 +353,10 @@ export default function FrotaVeiculoDetalhesPage() {
         } finally {
             setSelectedLoading(false);
         }
-    }, []);
-
-    const loadManutencoesList = useCallback(
-        async (collectionName: FonteManutencao, identificador: string) => {
-            setManutencoesListLoading(true);
-            setManutencoesListError(null);
-            try {
-                const collectionRef = collection(db, collectionName);
-                const baseQuery = query(collectionRef, where('identificador', '==', identificador));
-                let snapshot;
-
-                try {
-                    snapshot = await getDocs(query(baseQuery, orderBy('data', 'desc')));
-                } catch (err) {
-                    console.warn(
-                        'Falha ao ordenar manutenções por data, carregando sem orderBy. Índice sugerido: identificador ASC, data DESC.',
-                        err,
-                    );
-                    snapshot = await getDocs(baseQuery);
-                }
-
-                const newItems = snapshot.docs.map((docSnap) => {
-                    const data = docSnap.data() as Record<string, unknown>;
-                    const categoria =
-                        (data.categoriaNomeSnapshot as string | undefined) ||
-                        (data.categoria as string | undefined) ||
-                        (data.categoriaLegado as string | undefined) ||
-                        null;
-                    return {
-                        id: docSnap.id,
-                        collection: collectionName,
-                        data: getDataTimestamp(data),
-                        categoria,
-                        valor: asNumber(data.valor),
-                    } satisfies ManutencaoListItem;
-                });
-
-                setManutencoesItems(newItems);
-
-                if (newItems.length > 0) {
-                    void handleSelectDoc(newItems[0]);
-                } else {
-                    setSelectedDocId(null);
-                    setSelectedDocData(null);
-                }
-            } catch (err) {
-                console.error('Erro ao carregar manutenções', err);
-                setManutencoesListError('Não foi possível carregar as manutenções.');
-            } finally {
-                setManutencoesListLoading(false);
-            }
-        },
-        [handleSelectDoc],
-    );
-
-    const handleFonteChange = useCallback((value: FonteManutencao) => {
-        setFonteManutencao(value);
-        setManutencoesItems([]);
-        setManutencoesListError(null);
-        setSelectedDocId(null);
-        setSelectedDocData(null);
-        setSelectedError(null);
-        setSelectedCollection(value);
-        cacheRef.current.clear();
-    }, []);
+    }, []);    
 
     const handleReloadSelected = useCallback(async () => {
-        if (!selectedDocId) return;
+        if (!selectedDocId || !selectedCollection) return;
         setSelectedLoading(true);
         setSelectedError(null);
         try {
@@ -437,7 +381,7 @@ export default function FrotaVeiculoDetalhesPage() {
 
     const handleUpdateField = useCallback(
         async (fieldPath: string, value: unknown) => {
-            if (!selectedDocId) return;
+            if (!selectedDocId || !selectedCollection) return;
             const docRef = doc(db, selectedCollection, selectedDocId);
             try {
                 if (fieldPath.includes('.')) {
@@ -469,7 +413,7 @@ export default function FrotaVeiculoDetalhesPage() {
 
     const handleDeleteField = useCallback(
         async (fieldPath: string) => {
-            if (!selectedDocId) return;
+            if (!selectedDocId || !selectedCollection) return;
             const confirmed = window.confirm(`Deseja remover o campo "${fieldPath}"?`);
             if (!confirmed) return;
             const docRef = doc(db, selectedCollection, selectedDocId);
@@ -502,14 +446,22 @@ export default function FrotaVeiculoDetalhesPage() {
     );
 
     const handleDeleteDoc = useCallback(async () => {
-        if (!selectedDocId) return;
+        if (!selectedDocId || !selectedCollection) return;
         const confirmed = window.confirm('Deseja excluir este documento?');
         if (!confirmed) return;
         try {
             await deleteDoc(doc(db, selectedCollection, selectedDocId));
-            setManutencoesItems((prev) => prev.filter((item) => item.id !== selectedDocId));
+            if (selectedCollection === '03-combustivel') {
+                setCombustivelRows((prev) => prev.filter((row) => row.docId !== selectedDocId));
+            } else if (selectedCollection === 'manutencoes') {
+                setManutencoes2026Rows((prev) => prev.filter((row) => row.docId !== selectedDocId));
+            } else if (selectedCollection === 'manutencoes-legado') {
+                setManutencoesLegadoRows((prev) => prev.filter((row) => row.docId !== selectedDocId));
+            }
             cacheRef.current.delete(buildCacheKey(selectedCollection, selectedDocId));
             setSelectedDocId(null);
+            setSelectedCollection(null);
+            setSelectedTipo(null);
             setSelectedDocData(null);
             setSnackbar({ open: true, severity: 'success', message: 'Documento excluído com sucesso.' });
         } catch (err) {
@@ -574,19 +526,6 @@ export default function FrotaVeiculoDetalhesPage() {
             active = false;
         };
     }, [placa]);
-
-    useEffect(() => {
-        if (!placa) {
-            setManutencoesItems([]);
-            setSelectedDocId(null);
-            setSelectedDocData(null);
-            setSelectedError(null);
-            return;
-        }
-        cacheRef.current.clear();
-        setSelectedError(null);
-        void loadManutencoesList(fonteManutencao, placa);
-    }, [fonteManutencao, loadManutencoesList, placa]);
 
     useEffect(() => {
         let active = true;
@@ -744,12 +683,18 @@ export default function FrotaVeiculoDetalhesPage() {
                 const data: LinhaEvento[] = snapshot.docs.map(
                     (docSnap): LinhaEvento => {
                         const registro = docSnap.data() as Combustivel;
+                        const categoria = registro.motivo ? registro.motivo : 'ABASTECIMENTO';
                         return {
                             id: `ab_${docSnap.id}`,
+                            docId: docSnap.id,
+                            collection: '03-combustivel',
+                            origem: 'abastecimento',
                             tipo: 'ABASTECIMENTO',
                             data: toDate(registro.data),
                             qntAbastecida: registro.qa ?? null,
                             arla: registro.arla ?? null,
+                            categoria,
+                            valor: registro.valor ?? null,
                             obra: null,
                         };
                     },
@@ -786,7 +731,7 @@ export default function FrotaVeiculoDetalhesPage() {
             setManutencoes2026Error(null);
 
             try {
-                const data = await fetchManutencoes('manutencoes', vehicleId);
+                const data = await fetchManutencoes('manutencoes', vehicleId, 'manutencao2026');
                 if (!active) return;
                 console.debug('[FrotaVeiculosDetalhes] manutencoes 2026 carregadas:', data.length);
                 setManutencoes2026Rows(data);
@@ -819,7 +764,7 @@ export default function FrotaVeiculoDetalhesPage() {
             setManutencoesLegadoError(null);
 
             try {
-                const data = await fetchManutencoes('manutencoes-legado', vehicleId);
+                const data = await fetchManutencoes('manutencoes-legado', vehicleId, 'manutencaoLegado');
                 if (!active) return;
                 console.debug('[FrotaVeiculosDetalhes] manutencoes legado carregadas:', data.length);
                 setManutencoesLegadoRows(data);
@@ -875,22 +820,11 @@ export default function FrotaVeiculoDetalhesPage() {
     }, [categoriasById, fornecedoresById]);
 
     const rowsManutencoes2026 = useMemo(() => {
-        const resolved = resolveManutencoes(manutencoes2026Rows);
-        return resolved.filter((row) => {
-            const data = row.data;
-            return Boolean(data && data >= MANUTENCAO_CUTOFF);
-        });
+        return resolveManutencoes(manutencoes2026Rows);
     }, [manutencoes2026Rows, resolveManutencoes]);
 
     const rowsManutencoesLegado = useMemo(() => {
-        const resolved = resolveManutencoes(manutencoesLegadoRows);
-        return resolved.filter((row) => {
-            const data = row.data;
-            if (data && data >= MANUTENCAO_CUTOFF) return false;
-            // Datas inválidas ficam no legado para não ocultar registros silenciosamente.
-            return true;
-        });
-
+        return resolveManutencoes(manutencoesLegadoRows);
     }, [manutencoesLegadoRows, resolveManutencoes]);
 
     const rowsByType = useMemo(() => {
@@ -907,6 +841,127 @@ export default function FrotaVeiculoDetalhesPage() {
         showManutencoes2026,
         showManutencoesLegado,
     ]);
+
+    const masterDetailItems = useMemo<MasterDetailListItem[]>(() => {
+        const merged: MasterDetailListItem[] = [];
+        if (showAbastecimento) {
+            merged.push(
+                ...combustivelRows.map((row) => ({
+                    id: row.docId,
+                    collection: row.collection,
+                    tipo: row.origem,
+                    data: row.data ?? null,
+                    categoria: row.categoria ?? 'ABASTECIMENTO',
+                    valor: row.valor ?? null,
+                })),
+            );
+        }
+        if (showManutencoes2026) {
+            merged.push(
+                ...manutencoes2026Rows.map((row) => ({
+                    id: row.docId,
+                    collection: row.collection,
+                    tipo: row.origem,
+                    data: row.data ?? null,
+                    categoria: row.categoria ?? null,
+                    valor: row.valor ?? null,
+                })),
+            );
+        }
+        if (showManutencoesLegado) {
+            merged.push(
+                ...manutencoesLegadoRows.map((row) => ({
+                    id: row.docId,
+                    collection: row.collection,
+                    tipo: row.origem,
+                    data: row.data ?? null,
+                    categoria: row.categoria ?? null,
+                    valor: row.valor ?? null,
+                })),
+            );
+        }
+        return merged.sort((a, b) => (b.data?.getTime() ?? 0) - (a.data?.getTime() ?? 0));
+    }, [
+        combustivelRows,
+        manutencoes2026Rows,
+        manutencoesLegadoRows,
+        showAbastecimento,
+        showManutencoes2026,
+        showManutencoesLegado,
+    ]);
+
+    const masterDetailCounts = useMemo<MasterDetailCounts>(
+        () => ({
+            abastecimento: combustivelRows.length,
+            manutencoes2026: manutencoes2026Rows.length,
+            manutencoesLegado: manutencoesLegadoRows.length,
+        }),
+        [combustivelRows.length, manutencoes2026Rows.length, manutencoesLegadoRows.length],
+    );
+
+    const masterDetailFilters = useMemo<MasterDetailFilters>(
+        () => ({
+            abastecimento: showAbastecimento,
+            manutencoes2026: showManutencoes2026,
+            manutencoesLegado: showManutencoesLegado,
+        }),
+        [showAbastecimento, showManutencoes2026, showManutencoesLegado],
+    );
+
+    const masterDetailLoading =
+        (showAbastecimento && combustivelLoading) ||
+        (showManutencoes2026 && manutencoes2026Loading) ||
+        (showManutencoesLegado && manutencoesLegadoLoading);
+
+    const masterDetailError = useMemo(() => {
+        const errors: string[] = [];
+        if (showAbastecimento && combustivelError) errors.push(combustivelError);
+        if (showManutencoes2026 && manutencoes2026Error) errors.push(manutencoes2026Error);
+        if (showManutencoesLegado && manutencoesLegadoError) errors.push(manutencoesLegadoError);
+        if (errors.length === 0) return null;
+        return errors.join(' ');
+    }, [
+        combustivelError,
+        manutencoes2026Error,
+        manutencoesLegadoError,
+        showAbastecimento,
+        showManutencoes2026,
+        showManutencoesLegado,
+    ]);
+
+    const hasActiveFilters = showAbastecimento || showManutencoes2026 || showManutencoesLegado;
+
+    useEffect(() => {
+        if (!hasActiveFilters) {
+            setSelectedDocId(null);
+            setSelectedCollection(null);
+            setSelectedTipo(null);
+            setSelectedDocData(null);
+            setSelectedError(null);
+            return;
+        }
+        if (!selectedDocId || !selectedCollection) return;
+        const stillExists = masterDetailItems.some(
+            (item) => item.id === selectedDocId && item.collection === selectedCollection,
+        );
+        if (!stillExists) {
+            setSelectedDocId(null);
+            setSelectedCollection(null);
+            setSelectedTipo(null);
+            setSelectedDocData(null);
+            setSelectedError(null);
+        }
+    }, [hasActiveFilters, masterDetailItems, selectedCollection, selectedDocId]);
+
+    const handleToggleFilter = useCallback((key: keyof MasterDetailFilters, value: boolean) => {
+        if (key === 'abastecimento') {
+            setShowAbastecimento(value);
+        } else if (key === 'manutencoes2026') {
+            setShowManutencoes2026(value);
+        } else if (key === 'manutencoesLegado') {
+            setShowManutencoesLegado(value);
+        }
+    }, []);
 
     const filteredRows = useMemo(() => {
         let nextRows = rowsByType;
@@ -956,10 +1011,7 @@ export default function FrotaVeiculoDetalhesPage() {
         return nextRows;
     }, [filterEndDate, filterStartDate, filterText, rowsByType]);
 
-    const gridLoading =
-        (showAbastecimento && combustivelLoading) ||
-        (showManutencoes2026 && manutencoes2026Loading) ||
-        (showManutencoesLegado && manutencoesLegadoLoading);
+    const gridLoading = masterDetailLoading;
 
     const filtersActive =
         normalizeText(filterText) !== '' || filterStartDate.trim() !== '' || filterEndDate.trim() !== '';
@@ -1215,19 +1267,22 @@ export default function FrotaVeiculoDetalhesPage() {
                 <Stack direction={{ xs: 'column', md: 'row' }} spacing={3} alignItems="stretch">
                     <Stack flex={1} sx={{ minWidth: 280, maxWidth: { md: 460 } }}>
                         <ManutencoesList
-                            items={manutencoesItems}
-                            loading={manutencoesListLoading}
-                            error={manutencoesListError}
+                            items={masterDetailItems}
+                            loading={masterDetailLoading}
+                            error={masterDetailError}
                             selectedId={selectedDocId}
-                            fonte={fonteManutencao}
+                            selectedCollection={selectedCollection}
+                            filters={masterDetailFilters}
+                            counts={masterDetailCounts}
                             onSelect={handleSelectDoc}
-                            onFonteChange={handleFonteChange}
+                            onToggleFilter={handleToggleFilter}
                         />
                     </Stack>
                     <Stack flex={2} sx={{ minWidth: 280 }}>
                         <ManutencaoDetailPanel
                             selectedDocId={selectedDocId}
                             selectedDocData={selectedDocData}
+                            selectedTipo={selectedTipo}
                             loading={selectedLoading}
                             isAdmin={isAdmin}
                             error={selectedError}
@@ -1251,36 +1306,7 @@ export default function FrotaVeiculoDetalhesPage() {
                 <Typography variant="h6" gutterBottom>
                     Filtros
                 </Typography>
-                <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2} alignItems="flex-start">
-                    <FormControlLabel
-                        control={
-                            <Checkbox
-                                checked={showAbastecimento}
-                                onChange={(event) => setShowAbastecimento(event.target.checked)}
-                            />
-                        }
-                        label={`Abastecimento (${combustivelRows.length})`}
-                    />
-                    <FormControlLabel
-                        control={
-                            <Checkbox
-                                checked={showManutencoes2026}
-                                onChange={(event) => setShowManutencoes2026(event.target.checked)}
-                            />
-                        }
-                        label={`Manutenções - 2026 (${rowsManutencoes2026.length})`}
-                    />
-                    <FormControlLabel
-                        control={
-                            <Checkbox
-                                checked={showManutencoesLegado}
-                                onChange={(event) => setShowManutencoesLegado(event.target.checked)}
-                            />
-                        }
-                        label={`Manutenções - Legado (${rowsManutencoesLegado.length})`}
-                    />
-                </Stack>
-                <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2} mt={2}>
+                <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
                     <TextField
                         label="Buscar"
                         value={filterText}
