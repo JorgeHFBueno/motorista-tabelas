@@ -13,7 +13,6 @@ import {
     TextField,
     Typography,
 } from '@mui/material';
-import { DataGrid, type GridColDef } from '@mui/x-data-grid';
 import {
     collection,
     deleteDoc,
@@ -117,7 +116,6 @@ const DEFAULT_FORM: VeiculoForm = {
 };
 
 const ABASTECIMENTO_EXTERNO = 'ABASTECIMENTO EXTERNO';
-const DEBUG = false;
 
 type Fornecedor = {
     id: string;
@@ -128,11 +126,6 @@ type CategoriaManutencao = {
     id: string;
     nome: string;
 };
-
-function normalizeText(value: unknown): string {
-    if (value === null || value === undefined) return '';
-    return String(value).trim().toLowerCase();
-}
 
 function toDate(raw: unknown): Date | null {
     if (!raw) return null;
@@ -195,11 +188,6 @@ const deleteDeepValue = (target: Record<string, unknown>, path: string) => {
     });
 };
 
-function getDisplayTipo(row: LinhaEvento): string {
-    if (row.categoria === ABASTECIMENTO_EXTERNO) return ABASTECIMENTO_EXTERNO;
-    return row.tipo ?? '—';
-}
-
 async function fetchManutencoes(
     collectionName: FonteEvento,
     vehicleId: string,
@@ -261,11 +249,6 @@ export default function FrotaVeiculoDetalhesPage() {
     const [showAbastecimento, setShowAbastecimento] = useState(false);
     const [showManutencoes2026, setShowManutencoes2026] = useState(true);
     const [showManutencoesLegado, setShowManutencoesLegado] = useState(false);
-    const showManutencoes = showManutencoes2026 || showManutencoesLegado;
-
-    const [filterText, setFilterText] = useState('');
-    const [filterStartDate, setFilterStartDate] = useState('');
-    const [filterEndDate, setFilterEndDate] = useState('');
 
     const [combustivelRows, setCombustivelRows] = useState<LinhaEvento[]>([]);
     const [combustivelLoading, setCombustivelLoading] = useState(false);
@@ -302,14 +285,6 @@ export default function FrotaVeiculoDetalhesPage() {
             new Intl.DateTimeFormat('pt-BR', {
                 dateStyle: 'short',
                 timeStyle: 'short',
-            }),
-        [],
-    );
-    const numberFormatter = useMemo(
-        () =>
-            new Intl.NumberFormat('pt-BR', {
-                minimumFractionDigits: 1,
-                maximumFractionDigits: 1,
             }),
         [],
     );
@@ -961,190 +936,12 @@ export default function FrotaVeiculoDetalhesPage() {
         } else if (key === 'manutencoesLegado') {
             setShowManutencoesLegado(value);
         }
-    }, []);
-
-    const filteredRows = useMemo(() => {
-        let nextRows = rowsByType;
-
-        if (DEBUG) {
-            console.debug('[FrotaVeiculosDetalhes] rows:', rowsByType.length);
-        }
-
-        const normalizedSearch = normalizeText(filterText);
-        if (normalizedSearch) {
-            nextRows = nextRows.filter((row) => {
-                const fields = [
-                    row.tipo,
-                    row.obra,
-                    row.categoria,
-                    row.fornecedor,
-                    row.descricao,
-                ];
-                return fields.some((field) => normalizeText(field).includes(normalizedSearch));
-            });
-
-            if (DEBUG) {
-                console.debug('[FrotaVeiculosDetalhes] afterText:', nextRows.length);
-            }
-        }
-
-        const startDate = toDate(filterStartDate);
-        const endDate = toDate(filterEndDate);
-        if (endDate) {
-            endDate.setHours(23, 59, 59, 999);
-        }
-
-        if (startDate || endDate) {
-            nextRows = nextRows.filter((row) => {
-                const rowDate = row.data;
-                if (!rowDate) return false;
-                if (startDate && rowDate < startDate) return false;
-                if (endDate && rowDate > endDate) return false;
-                return true;
-            });
-
-            if (DEBUG) {
-                console.debug('[FrotaVeiculosDetalhes] afterDate:', nextRows.length);
-            }
-        }
-
-        return nextRows;
-    }, [filterEndDate, filterStartDate, filterText, rowsByType]);
-
-    const gridLoading = masterDetailLoading;
-
-    const filtersActive =
-        normalizeText(filterText) !== '' || filterStartDate.trim() !== '' || filterEndDate.trim() !== '';
-
-    const emptyMessage = useMemo(() => {
-        if (!showAbastecimento && !showManutencoes2026 && !showManutencoesLegado) {
-            return 'Nenhum tipo selecionado.';
-        }
-        if (filtersActive) {
-            return 'Nenhum resultado para os filtros aplicados.';
-        }
-        if (showAbastecimento && showManutencoes) {
-            return 'Sem abastecimentos e manutenções para este veículo.';
-        }
-        if (showAbastecimento) {
-            return 'Sem abastecimentos para este veículo.';
-        }
-        return 'Sem manutenções para este veículo.';
-    }, [filtersActive, showAbastecimento, showManutencoes, showManutencoes2026, showManutencoesLegado]);
-
-    const eventoColumns: GridColDef<LinhaEvento>[] = useMemo(
-        () => [
-            {
-                field: 'tipo',
-                headerName: 'Tipo',
-                minWidth: 140,
-                flex: 0.9,
-                renderCell: (params) => getDisplayTipo(params.row),
-            },
-            {
-                field: 'data',
-                headerName: 'Data',
-                minWidth: 140,
-                flex: 1,
-                renderCell: (params) => {
-                    const value = params.row.data;
-                    return value ? dateFormatter.format(value) : '—';
-                },
-            },
-            {
-                field: 'qntAbastecida',
-                headerName: 'Qnt. Abastecida',
-                minWidth: 140,
-                flex: 1,
-                renderCell: (params) => {
-                    const value = params.row.qntAbastecida;
-                    if (value === null || value === undefined || Number.isNaN(Number(value))) return '—';
-                    return numberFormatter.format(Number(value) / 10);
-                },
-            },
-            {
-                field: 'arla',
-                headerName: 'Arla',
-                minWidth: 100,
-                flex: 0.8,
-                renderCell: (params) => {
-                    const value = params.row.arla;
-                    if (value === null || value === undefined || Number.isNaN(Number(value))) return '—';
-                    return numberFormatter.format(Number(value) / 10);
-                },
-            },
-            {
-                field: 'obra',
-                headerName: 'Obra',
-                minWidth: 140,
-                flex: 1,
-                renderCell: (params) => params.row.obra ?? '—',
-            },
-            {
-                field: 'categoria',
-                headerName: 'Categoria',
-                minWidth: 160,
-                flex: 1.2,
-                renderCell: (params) => params.row.categoria ?? '—',
-            },
-            {
-                field: 'valor',
-                headerName: 'Valor',
-                minWidth: 120,
-                flex: 1,
-                renderCell: (params) => {
-                    const value = params.row.valor;
-                    if (value === null || value === undefined || Number.isNaN(Number(value))) return '—';
-                    return currencyFormatter.format(Number(value));
-                },
-            },
-            {
-                field: 'quantidade',
-                headerName: 'Quantidade',
-                minWidth: 120,
-                flex: 1,
-                renderCell: (params) => {
-                    const value = params.row.quantidade;
-                    if (value === null || value === undefined || Number.isNaN(Number(value))) return '—';
-                    return String(value);
-                },
-            },
-            {
-                field: 'fornecedor',
-                headerName: 'Fornecedor',
-                minWidth: 160,
-                flex: 1.2,
-                renderCell: (params) => params.row.fornecedor ?? '—',
-            },
-            {
-                field: 'descricao',
-                headerName: 'Descrição',
-                minWidth: 200,
-                flex: 1.6,
-                renderCell: (params) => {
-                    const value = params.row.descricao ?? '—';
-                    return (
-                        <Box
-                            sx={{
-                                overflow: 'hidden',
-                                textOverflow: 'ellipsis',
-                                whiteSpace: 'nowrap',
-                                width: '100%',
-                            }}
-                        >
-                            {value}
-                        </Box>
-                    );
-                },
-            },
-        ],
-        [currencyFormatter, dateFormatter, numberFormatter],
-    );
+    }, []);    
 
     const despesasPorNatureza = useMemo<ChartPoint[]>(() => {
         const acc = new Map<string, number>();
 
-        filteredRows.forEach((row) => {
+        rowsByType.forEach((row) => {
             const rawNatureza = row.categoria ?? row.tipo;
             const natureza = typeof rawNatureza === 'string' ? rawNatureza.trim() : '';
             const label = natureza || 'Sem natureza';
@@ -1156,7 +953,7 @@ export default function FrotaVeiculoDetalhesPage() {
         return Array.from(acc.entries())
             .map(([label, value]) => ({ label, value }))
             .sort((a, b) => b.value - a.value);
-    }, [filteredRows]);
+    }, [rowsByType]);
 
     if (loading) {
         return (
@@ -1262,7 +1059,7 @@ export default function FrotaVeiculoDetalhesPage() {
 
             <Box>
                 <Typography variant="h6" gutterBottom>
-                    Manutenções (Master–Detail)
+                    Manutenções
                 </Typography>
                 <Stack direction={{ xs: 'column', md: 'row' }} spacing={3} alignItems="stretch">
                     <Stack flex={1} sx={{ minWidth: 280, maxWidth: { md: 460 } }}>
@@ -1298,82 +1095,7 @@ export default function FrotaVeiculoDetalhesPage() {
                         )}
                     </Stack>
                 </Stack>
-            </Box>
-
-            <Divider sx={{ my: 4 }} />
-
-            <Box>
-                <Typography variant="h6" gutterBottom>
-                    Filtros
-                </Typography>
-                <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
-                    <TextField
-                        label="Buscar"
-                        value={filterText}
-                        onChange={(event) => setFilterText(event.target.value)}
-                        fullWidth
-                    />
-                    <TextField
-                        label="Data inicial"
-                        type="date"
-                        value={filterStartDate}
-                        onChange={(event) => setFilterStartDate(event.target.value)}
-                        InputLabelProps={{ shrink: true }}
-                    />
-                    <TextField
-                        label="Data final"
-                        type="date"
-                        value={filterEndDate}
-                        onChange={(event) => setFilterEndDate(event.target.value)}
-                        InputLabelProps={{ shrink: true }}
-                    />
-                </Stack>
-            </Box>
-
-            <Box mt={3}>
-                <Typography variant="h6" gutterBottom>
-                    Eventos do veículo
-                </Typography>
-
-                {showAbastecimento && combustivelError && (
-                    <Alert severity="error" sx={{ mb: 2 }}>
-                        {combustivelError}
-                    </Alert>
-                )}
-
-                {showManutencoes2026 && manutencoes2026Error && (
-                    <Alert severity="error" sx={{ mb: 2 }}>
-                        {manutencoes2026Error}
-                    </Alert>
-                )}
-
-                {showManutencoesLegado && manutencoesLegadoError && (
-                    <Alert severity="error" sx={{ mb: 2 }}>
-                        {manutencoesLegadoError}
-                    </Alert>
-                )}
-
-                <Box sx={{ width: '100%', height: 520 }}>
-                    <DataGrid
-                        rows={filteredRows}
-                        columns={eventoColumns}
-                        loading={gridLoading}
-                        getRowId={(row) => row.id}
-                        disableRowSelectionOnClick
-                        density="compact"
-                        getRowHeight={() => 'auto'}
-                    />
-                </Box>
-                {!gridLoading &&
-                    filteredRows.length === 0 &&
-                    !combustivelError &&
-                    !manutencoes2026Error &&
-                    !manutencoesLegadoError && (
-                        <Alert severity="info" sx={{ mt: 2 }}>
-                            {emptyMessage}
-                        </Alert>
-                    )}
-            </Box>
+            </Box>           
 
             <Box mt={3}>
                 <Typography variant="h6" gutterBottom>

@@ -24,7 +24,7 @@ import {
     Typography,
 } from '@mui/material';
 import { DataGrid, type GridColDef } from '@mui/x-data-grid';
-import { addDoc, collection, doc, getDocs, orderBy, query, serverTimestamp, updateDoc } from 'firebase/firestore';
+import { Timestamp, addDoc, collection, doc, getDocs, orderBy, query, serverTimestamp, updateDoc } from 'firebase/firestore';
 import { useNavigate } from 'react-router-dom';
 import FrotaCharts, { type ChartPoint } from '../components/FrotaCharts';
 import { useAuth } from '../contexts/AuthContext';
@@ -60,6 +60,8 @@ type ManutencaoForm = {
     quantidade: string;
     fornecedorId: string;
     fornecedorNomeSnapshot: string;
+    dataModo: 'ATUAL' | 'MANUAL';
+    dataManual: string;
     descricao: string;
     km: string;
     motorista: string;
@@ -91,6 +93,8 @@ const DEFAULT_MANUTENCAO_FORM: ManutencaoForm = {
     quantidade: '1',
     fornecedorId: '',
     fornecedorNomeSnapshot: '',
+    dataModo: 'ATUAL',
+    dataManual: '',
     descricao: '',
     km: '',
     motorista: '',
@@ -791,6 +795,16 @@ export default function FrotaVeiculosPage() {
             return 'Motorista é obrigatório para abastecimento externo.';
         }
 
+        if (manutencaoForm.dataModo === 'MANUAL') {
+            if (!manutencaoForm.dataManual.trim()) {
+                return 'Informe a data e hora da manutenção.';
+            }
+            const parsed = new Date(manutencaoForm.dataManual);
+            if (Number.isNaN(parsed.getTime())) {
+                return 'Data/hora informada é inválida.';
+            }
+        }
+
         return null;
     }
 
@@ -803,7 +817,10 @@ export default function FrotaVeiculosPage() {
 
         setManutencaoSaving(true);
         try {
-            const data = serverTimestamp();
+            const data =
+                manutencaoForm.dataModo === 'MANUAL'
+                    ? Timestamp.fromDate(new Date(manutencaoForm.dataManual))
+                    : Timestamp.fromDate(new Date());
             const valor = Number(manutencaoForm.valor);
             const quantidade = Number(manutencaoForm.quantidade);
             const kmValue = manutencaoForm.km.trim();
@@ -811,7 +828,7 @@ export default function FrotaVeiculosPage() {
             const nota = manutencaoForm.nota.trim();
             const fornecedorNomeSnapshot = manutencaoForm.fornecedorNomeSnapshot.trim();
             const categoriaNomeSnapshot = manutencaoForm.categoriaNomeSnapshot.trim();
-            await addDoc(collection(db, 'manutencoes'), {
+            const docRef = await addDoc(collection(db, 'manutencoes'), {
                 identificador: manutencaoForm.identificador,
                 tipoVeiculo: manutencaoForm.tipoVeiculo,
                 categoriaId: manutencaoForm.categoriaId,
@@ -840,6 +857,21 @@ export default function FrotaVeiculosPage() {
                     qa,
                 });
             }
+
+            setManutencoes2026Rows((prev) => {
+                const next = [
+                    ...prev,
+                    {
+                        id: docRef.id,
+                        identificador: manutencaoForm.identificador,
+                        valor,
+                        data,
+                    },
+                ];
+                return next.sort(
+                    (a, b) => (toDate(b.data)?.getTime() ?? 0) - (toDate(a.data)?.getTime() ?? 0),
+                );
+            });
 
             setSnackbar({ open: true, severity: 'success', message: 'Manutenção adicionada com sucesso.' });
             closeManutencaoDialog();
@@ -1120,6 +1152,38 @@ export default function FrotaVeiculosPage() {
                                 />
                             )}
                         />
+                        <FormControl>
+                            <FormLabel>Data</FormLabel>
+                            <RadioGroup
+                                row
+                                value={manutencaoForm.dataModo}
+                                onChange={(event) =>
+                                    setManutencaoForm((prev) => ({
+                                        ...prev,
+                                        dataModo: event.target.value as ManutencaoForm['dataModo'],
+                                    }))
+                                }
+                            >
+                                <FormControlLabel value="ATUAL" control={<Radio />} label="Atual" />
+                                <FormControlLabel value="MANUAL" control={<Radio />} label="Manual" />
+                            </RadioGroup>
+                            {manutencaoForm.dataModo === 'MANUAL' && (
+                                <TextField
+                                    label="Data e hora (local)"
+                                    type="datetime-local"
+                                    value={manutencaoForm.dataManual}
+                                    onChange={(event) =>
+                                        setManutencaoForm((prev) => ({
+                                            ...prev,
+                                            dataManual: event.target.value,
+                                        }))
+                                    }
+                                    InputLabelProps={{ shrink: true }}
+                                    helperText="Informe a data/hora no fuso local."
+                                    required
+                                />
+                            )}
+                        </FormControl>
                         <TextField
                             label="Valor"
                             type="number"
