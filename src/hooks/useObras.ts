@@ -52,14 +52,16 @@ export default function useObras(options: UseObrasOptions = {}) {
     void loadObras();
   }, [loadOnMount, loadObras]);
 
-  const addObra = useCallback(async (nome: string) => {
+  const addObra = useCallback(async (nome: string, descricao?: string) => {
     const trimmedNome = nome.trim();
+    const trimmedDescricao = descricao?.trim() ?? '';
     if (!trimmedNome) {
       throw new Error('Informe o nome da obra.');
     }
 
     await addDoc(collection(db, COLLECTION_NAME), {
       nome: trimmedNome,
+      descricao: trimmedDescricao,
       createdAt: serverTimestamp(),
     });
 

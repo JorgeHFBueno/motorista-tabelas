@@ -13,13 +13,14 @@ import {
   TextField,
   Typography,
 } from '@mui/material';
+import { Link as RouterLink } from 'react-router-dom';
 import useObras from '../hooks/useObras';
-import EditarEmBreveButton from './EditarEmBreveButton';
 
 export default function ObrasSection() {
   const { addObra } = useObras({ loadOnMount: false, refreshOnAdd: false });
   const [dialogOpen, setDialogOpen] = useState(false);
   const [nome, setNome] = useState('');
+  const [descricao, setDescricao] = useState('');
   const [saving, setSaving] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
   const [snackbar, setSnackbar] = useState<{ message: string; severity: 'success' | 'error' } | null>(null);
@@ -32,12 +33,14 @@ export default function ObrasSection() {
   const handleCloseDialog = () => {
     setDialogOpen(false);
     setNome('');
+    setDescricao('');
     setSaving(false);
     setFormError(null);
   };
 
   const handleSave = async () => {
     const nomeTrim = nome.trim();
+    const descricaoTrim = descricao.trim();
     if (!nomeTrim) {
       setFormError('Informe o nome da obra.');
       return;
@@ -45,7 +48,7 @@ export default function ObrasSection() {
 
     try {
       setSaving(true);
-      await addObra(nomeTrim);
+      await addObra(nomeTrim, descricaoTrim);
       setSnackbar({ message: 'Obra cadastrada com sucesso.', severity: 'success' });
       handleCloseDialog();
     } catch (err) {
@@ -65,7 +68,9 @@ export default function ObrasSection() {
           <Button variant="contained" onClick={handleOpenDialog}>
             Cadastrar obra
           </Button>
-          <EditarEmBreveButton />
+          <Button variant="outlined" component={RouterLink} to="/cadastros/editar/obras">
+            Editar
+          </Button>
         </Stack>
       </Stack>      
 
@@ -81,6 +86,13 @@ export default function ObrasSection() {
               error={Boolean(formError)}
               helperText={formError}
               fullWidth
+            />
+            <TextField
+              label="Descrição (opcional)"
+              value={descricao}
+              onChange={(event) => setDescricao(event.target.value)}
+              fullWidth
+              multiline
             />
           </Stack>
         </DialogContent>

@@ -2,12 +2,11 @@ import { useState } from 'react';
 import { Alert, Box, Button, Container, Dialog,
   DialogActions, DialogContent, DialogTitle,
   Paper, Stack, TextField, Typography } from '@mui/material';
+import { Link as RouterLink } from 'react-router-dom';
 import useAdminUsers from '../hooks/useAdminUsers';
 import { useAuth } from '../contexts/AuthContext';
-import CadastroVeiculoForm from '../components/CadastroVeiculoForm';
 import ObrasSection from '../components/ObrasSection';
 import CadastroBasicoForm from '../components/CadastroBasicoForm';
-import EditarEmBreveButton from '../components/EditarEmBreveButton';
 
 export default function CadastrosPage() {
   const { createUser } = useAdminUsers({ loadOnMount: false, refreshOnChange: false });
@@ -18,11 +17,6 @@ export default function CadastrosPage() {
   const [displayName, setDisplayName] = useState('');
   const [saving, setSaving] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
-
-  const handleAbrirDialog = () => {
-    setDialogAberto(true);
-    setActionError(null);
-  };
 
   const handleFecharDialog = () => {
     setDialogAberto(false);
@@ -69,26 +63,16 @@ export default function CadastrosPage() {
               <Typography variant="body2" color="text.secondary">Cadastro de funcionários.</Typography>              
             </Box>
              <Stack direction="row" spacing={1}>
-              <Button variant="contained" onClick={handleAbrirDialog} disabled={!isAdmin}>
+              <Button variant="contained" disabled>
                 Cadastrar funcionário
               </Button>
-              <EditarEmBreveButton />
+              <Button variant="outlined" disabled>
+                Editar
+              </Button>
             </Stack>
           </Stack>          
         </Paper>
-
-        <Paper elevation={1} sx={{ p: 3 }}>
-          <Stack direction={{ xs: 'column', sm: 'row' }} justifyContent="space-between" spacing={2} mb={2} alignItems={{ sm: 'center' }}>
-            <Box>
-              <Typography variant="h6">Veículos</Typography>
-              <Typography variant="body2" color="text.secondary">Cadastro de veículos/máquinas.</Typography>
-            </Box>
-            <Stack direction="row" spacing={1}>
-              <CadastroVeiculoForm buttonLabel="Cadastrar veículo" />
-              <EditarEmBreveButton />
-            </Stack>
-          </Stack>          
-        </Paper>
+        
         <ObrasSection />
         <Paper elevation={1} sx={{ p: 3 }}>
           <Stack direction={{ xs: 'column', sm: 'row' }} justifyContent="space-between" spacing={2} mb={2} alignItems={{ sm: 'center' }}>
@@ -104,7 +88,9 @@ export default function CadastrosPage() {
                 collectionName="notas-categorias"
                 successMessage="Categoria cadastrada com sucesso."
               />
-              <EditarEmBreveButton />
+              <Button variant="outlined" component={RouterLink} to="/cadastros/editar/categorias">
+                Editar
+              </Button>
             </Stack>
           </Stack>
         </Paper>
@@ -122,7 +108,9 @@ export default function CadastrosPage() {
                 collectionName="notas-fornecedores"
                 successMessage="Fornecedor cadastrado com sucesso."
               />
-              <EditarEmBreveButton />
+              <Button variant="outlined" component={RouterLink} to="/cadastros/editar/fornecedores">
+                Editar
+              </Button>
             </Stack>
           </Stack>
         </Paper>
