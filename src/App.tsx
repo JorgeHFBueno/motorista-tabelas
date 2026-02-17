@@ -16,6 +16,7 @@ import Documentos from "./pages/Documentos";
 import Fotos from "./pages/Fotos";
 import LoginPage from "./pages/LoginPage";
 import NotFound from "./pages/NotFound";
+import UploadPage from "./pages/UploadPage";
 
 const queryClient = new QueryClient();
 
@@ -38,6 +39,7 @@ const App = () => (
                 <Route path="/atendimento" element={<Atendimento />} />
                 <Route path="/documentos" element={<Documentos />} />
                 <Route path="/fotos" element={<Fotos />} />
+                <Route path="/upload" element={<UploadPage />} />
                 <Route path="*" element={<NotFound />} />
               </Route>
             </Routes>

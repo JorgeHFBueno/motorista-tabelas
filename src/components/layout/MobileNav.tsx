@@ -1,4 +1,4 @@
-import { Home, Building2, Wallet, Newspaper, MessageSquare, FileText, Camera, X, ChevronUp, Check } from "lucide-react";
+import { Home, Building2, Wallet, Newspaper, MessageSquare, FileText, Camera, X, ChevronUp, Check, Upload } from "lucide-react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import { useObra } from "@/contexts/ObraContext";
@@ -19,6 +19,7 @@ const navItems = [
   { icon: Wallet, label: "Finanças", path: "/financas" },
   { icon: FileText, label: "Documentos", path: "/documentos" },
   { icon: Camera, label: "Fotos", path: "/fotos" },
+  { icon: Upload, label: "Upload", path: "/upload" },
   { icon: Newspaper, label: "Notícias", path: "/noticias" },
   { icon: MessageSquare, label: "Suporte", path: "/atendimento" },
 ];
