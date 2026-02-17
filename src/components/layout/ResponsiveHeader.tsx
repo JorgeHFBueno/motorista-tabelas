@@ -1,7 +1,9 @@
-import { Bell, User, ChevronDown, Menu } from "lucide-react";
+import { Bell, User, ChevronDown, Menu, LogOut } from "lucide-react";
 import { motion } from "framer-motion";
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
+import { useAuth } from "@/contexts/AuthContext";
 import MobileNav from "./MobileNav";
 import { useObra } from "@/contexts/ObraContext";
 
@@ -12,10 +14,17 @@ interface ResponsiveHeaderProps {
 
 const ResponsiveHeader = ({ 
   pageTitle,
-  pageSubtitle
+  pageSubtitle,
 }: ResponsiveHeaderProps) => {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const { obraAtiva } = useObra();
+  const { signOut } = useAuth();
+  const navigate = useNavigate();
+
+  const handleSignOut = async () => {
+    await signOut();
+    navigate("/login", { replace: true });
+  };
 
   return (
     <header className="bg-primary text-primary-foreground">
@@ -45,6 +54,12 @@ const ResponsiveHeader = ({
             </button>
             <button className="p-2 bg-primary-foreground/10 hover:bg-primary-foreground/15 rounded-lg transition-colors">
               <User className="w-5 h-5" />
+            </button>
+            <button
+              className="p-2 bg-primary-foreground/10 hover:bg-primary-foreground/15 rounded-lg transition-colors"
+              onClick={handleSignOut}
+            >
+              <LogOut className="w-5 h-5" />
             </button>
           </motion.div>
         </div>
@@ -83,6 +98,12 @@ const ResponsiveHeader = ({
           <button className="p-2.5 bg-primary-foreground/10 hover:bg-primary-foreground/15 rounded-lg transition-colors">
             <User className="w-5 h-5" />
           </button>
+          <button
+            className="p-2.5 bg-primary-foreground/10 hover:bg-primary-foreground/15 rounded-lg transition-colors"
+            onClick={handleSignOut}
+          >
+            <LogOut className="w-5 h-5" />
+          </button>
         </div>
       </div>
 
@@ -112,6 +133,13 @@ const ResponsiveHeader = ({
           <button className="flex items-center gap-3 p-2 px-3 bg-primary-foreground/10 hover:bg-primary-foreground/15 rounded-lg transition-colors">
             <User className="w-5 h-5" />
             <span className="text-sm font-medium">João Silva</span>
+          </button>
+          <button
+            className="flex items-center gap-2 p-2 px-3 bg-primary-foreground/10 hover:bg-primary-foreground/15 rounded-lg transition-colors"
+            onClick={handleSignOut}
+          >
+            <LogOut className="w-4 h-4" />
+            <span className="text-sm font-medium">Sair</span>
           </button>
         </div>
       </div>
