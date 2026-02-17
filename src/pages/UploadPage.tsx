@@ -16,8 +16,10 @@ import { db, storage } from "@/lib/firebase";
 import { cn } from "@/lib/utils";
 
 const MAX_FILE_SIZE = 20 * 1024 * 1024;
-const DOCUMENT_TYPES = ["Contratos", "Aditivos", "Projetos", "ART / RRT", "Licenças", "Notas Fiscais", "Relatórios"];
+const IMAGE_TYPES = ["Fundação", "Estrutura", "Cobertura", "Fechamento"];
+const PDF_TYPES = ["Contratos", "Aditivos", "Projetos", "ART / RRT", "Licenças", "Notas Fiscais", "Relatórios"];
 
+type FileGroup = "image" | "pdf";
 type UploadStatus = "queued" | "uploading" | "done" | "error";
 
 interface UploadState {
@@ -48,17 +50,16 @@ const sanitizeFileName = (fileName: string) =>
     .replace(/_+/g, "_");
 
 const isSupportedType = (file: File) => {
-    const extension = file.name.split(".").pop()?.toLowerCase() ?? "";
-
     if (file.type.startsWith("image/")) return true;
-
-    const allowedExtensions = ["pdf", "doc", "docx", "xls", "xlsx", "txt"];
-  return allowedExtensions.includes(extension);
+  return file.type === "application/pdf";
 };
 
+const isImage = (file: File) => file.type.startsWith("image/");
+const isPdf = (file: File) => file.type === "application/pdf";
 const getFileId = (file: File) => `${file.name}_${file.size}_${file.lastModified}`;
 
-const UploadPage = () => {const { user } = useAuth();
+const UploadPage = () => {
+  const { user } = useAuth();
   const inputRef = useRef<HTMLInputElement>(null);
 
   const [obras, setObras] = useState<ObraOption[]>([]);
@@ -67,11 +68,18 @@ const UploadPage = () => {const { user } = useAuth();
   const [obraNomeSnapshot, setObraNomeSnapshot] = useState("");
   const [obraComboboxOpen, setObraComboboxOpen] = useState(false);
   const [tipo, setTipo] = useState("");
+  const [fileGroup, setFileGroup] = useState<FileGroup | null>(null);
 
   const [files, setFiles] = useState<File[]>([]);
   const [uploads, setUploads] = useState<Record<string, UploadState>>({});
   const [isDragging, setIsDragging] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
+
+  const availableTipos = useMemo(() => {
+    if (fileGroup === "image") return IMAGE_TYPES;
+    if (fileGroup === "pdf") return PDF_TYPES;
+    return [];
+  }, [fileGroup]);
 
   const hasErrors = useMemo(() => Object.values(uploads).some((upload) => upload.state === "error"), [uploads]);
 
@@ -114,10 +122,50 @@ const UploadPage = () => {const { user } = useAuth();
     const fileArray = Array.from(incomingFiles);
     if (!fileArray.length) return;
 
+    const rejectedTypeNames: string[] = [];
+
+    const supportedFiles = fileArray.filter((file) => {
+      if (isSupportedType(file)) return true;
+      rejectedTypeNames.push(file.name);
+      return false;
+    });
+
+    if (rejectedTypeNames.length) {
+      toast({
+        title: "Arquivos rejeitados",
+        description: `Apenas PDF e imagens são aceitos. Rejeitados: ${rejectedTypeNames.join(", ")}.`,
+        variant: "destructive",
+      });
+    }
+
+    if (!supportedFiles.length) return;
+
+    const allImages = supportedFiles.every(isImage);
+    const allPdfs = supportedFiles.every(isPdf);
+    const incomingGroup: FileGroup | null = allImages ? "image" : allPdfs ? "pdf" : null;
+
+    if (!incomingGroup) {
+      toast({
+        title: "Não misture PDF e imagens",
+        description: "Envie PDFs e imagens separadamente para escolher o tipo correto.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (fileGroup && fileGroup !== incomingGroup) {
+      toast({
+        title: "Não misture PDF e imagens",
+        description: "Envie PDFs e imagens separadamente para escolher o tipo correto.",
+        variant: "destructive",
+      });
+      return;
+    }
+
     const nextFiles: File[] = [];
     const nextUploads: Record<string, UploadState> = {};
 
-    for (const file of fileArray) {
+    for (const file of supportedFiles) {
       const fileId = getFileId(file);
 
       if (file.size === 0) {
@@ -134,15 +182,6 @@ const UploadPage = () => {const { user } = useAuth();
     continue;
       }
 
-      if (!isSupportedType(file)) {
-        toast({
-          title: "Tipo não suportado",
-          description: `${file.name} não é um tipo permitido para upload.`,
-          variant: "destructive",
-        });
-        continue;
-      }
-
       nextFiles.push(file);
       nextUploads[fileId] = { progress: 0, state: "queued" };
     }
@@ -154,6 +193,8 @@ const UploadPage = () => {const { user } = useAuth();
       const unique = nextFiles.filter((file) => !seenIds.has(getFileId(file)));
       return [...previous, ...unique];
     });
+
+    setFileGroup((previous) => previous ?? incomingGroup);
 
     setUploads((previous) => ({ ...previous, ...nextUploads }));
   };
@@ -172,7 +213,14 @@ const UploadPage = () => {const { user } = useAuth();
 
   const removeFile = (fileToRemove: File) => {
     const fileId = getFileId(fileToRemove);
-    setFiles((previous) => previous.filter((file) => getFileId(file) !== fileId));
+    setFiles((previous) => {
+      const remaining = previous.filter((file) => getFileId(file) !== fileId);
+      if (!remaining.length) {
+        setFileGroup(null);
+        setTipo("");
+      }
+      return remaining;
+    });
     setUploads((previous) => {
       const next = { ...previous };
       delete next[fileId];
@@ -183,6 +231,8 @@ const UploadPage = () => {const { user } = useAuth();
   const clearFiles = () => {
     setFiles([]);
     setUploads({});
+    setFileGroup(null);
+    setTipo("");
   };
 
   const handleUpload = async () => {
@@ -195,19 +245,28 @@ const UploadPage = () => {const { user } = useAuth();
       return;
     }
 
-    if (!tipo) {
+    if (!files.length) {
       toast({
-        title: "Tipo obrigatório",
-        description: "Selecione o tipo do documento para continuar.",
+        title: "Nenhum arquivo selecionado",
+        description: "Adicione ao menos um arquivo para enviar.",
         variant: "destructive",
       });
       return;
     }
 
-    if (!files.length) {
+    if (!fileGroup) {
       toast({
-        title: "Nenhum arquivo selecionado",
-        description: "Adicione ao menos um arquivo para enviar.",
+        title: "Arquivos inválidos",
+        description: "Envie apenas PDFs ou apenas imagens por vez.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (!tipo) {
+      toast({
+        title: "Tipo obrigatório",
+        description: "Selecione o tipo do documento para continuar.",
         variant: "destructive",
       });
       return;
@@ -263,7 +322,7 @@ const UploadPage = () => {const { user } = useAuth();
                 const downloadURL = await getDownloadURL(uploadTask.snapshot.ref);
                 const metadata = await getMetadata(uploadTask.snapshot.ref);
                 const contentType = file.type || metadata.contentType || "application/octet-stream";
-                const kind = contentType.startsWith("image/") ? "foto" : "documento";
+                const kind = fileGroup === "image" ? "foto" : "documento";
 
                 await addDoc(collection(db, "documentos"), {
                   obraId,
@@ -381,21 +440,23 @@ const UploadPage = () => {const { user } = useAuth();
               </Popover>
             </div>
 
-        <div className="space-y-2">
-              <Label>Tipo <span className="text-destructive">*</span></Label>
-              <Select value={tipo} onValueChange={setTipo} disabled={isUploading}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Selecione o tipo do documento" />
-                </SelectTrigger>
-                <SelectContent>
-                  {DOCUMENT_TYPES.map((option) => (
-                    <SelectItem key={option} value={option}>
-                      {option}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+        {files.length > 0 && fileGroup && (
+              <div className="space-y-2">
+                <Label>Tipo <span className="text-destructive">*</span></Label>
+                <Select value={tipo} onValueChange={setTipo} disabled={isUploading}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Selecione o tipo do documento" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {availableTipos.map((option) => (
+                      <SelectItem key={option} value={option}>
+                        {option}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
 
         <input
               ref={inputRef}
@@ -403,7 +464,7 @@ const UploadPage = () => {const { user } = useAuth();
               multiple
               className="hidden"
               onChange={onSelectFiles}
-              accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.txt"
+              accept="application/pdf,image/*"
             />
 
             <div
@@ -422,7 +483,10 @@ const UploadPage = () => {const { user } = useAuth();
               <UploadCloud className="mx-auto mb-3 h-10 w-10 text-muted-foreground" />
               <p className="text-sm font-medium">Arraste e solte aqui ou clique para selecionar</p>
               <p className="mt-1 text-xs text-muted-foreground">
-                Formatos permitidos: imagens, PDF, DOC, DOCX, XLS, XLSX e TXT (até 20MB por arquivo)
+                Aceitos: PDF e imagens (PNG/JPG etc). Até 20MB por arquivo.
+              </p>
+              <p className="mt-1 text-xs text-muted-foreground">
+                Não misture PDF e imagens no mesmo envio.
               </p>
             </div>
 
@@ -476,7 +540,7 @@ const UploadPage = () => {const { user } = useAuth();
               <Button variant="outline" onClick={clearFiles} disabled={isUploading || !files.length}>
                 Limpar arquivos
               </Button>
-              <Button onClick={handleUpload} disabled={isUploading || !files.length || !obraId || !tipo}>
+              <Button onClick={handleUpload} disabled={isUploading || !files.length || !obraId || !tipo || !fileGroup}>
                 {isUploading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                 Enviar
               </Button>
