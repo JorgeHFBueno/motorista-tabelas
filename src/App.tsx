@@ -29,72 +29,17 @@ const App = () => (
           <ObraProvider>
             <Routes>
               <Route path="/login" element={<LoginPage />} />
-
-              <Route
-                path="/"
-                element={
-                  <ProtectedRoute>
-                    <Index />
-                  </ProtectedRoute>
-                }
-              />
-              <Route
-                path="/obras-ativas"
-                element={
-                  <ProtectedRoute>
-                    <ObrasAtivas />
-                  </ProtectedRoute>
-                }
-              />
-              <Route
-                path="/obra"
-                element={
-                  <ProtectedRoute>
-                    <Obra />
-                  </ProtectedRoute>
-                }
-              />
-              <Route
-                path="/financas"
-                element={
-                  <ProtectedRoute>
-                    <Financas />
-                  </ProtectedRoute>
-                }
-              />
-              <Route
-                path="/noticias"
-                element={
-                  <ProtectedRoute>
-                    <Noticias />
-                  </ProtectedRoute>
-                }
-              />
-              <Route
-                path="/atendimento"
-                element={
-                  <ProtectedRoute>
-                    <Atendimento />
-                  </ProtectedRoute>
-                }
-              />
-              <Route
-                path="/documentos"
-                element={
-                  <ProtectedRoute>
-                    <Documentos />
-                  </ProtectedRoute>
-                }
-              />
-              <Route
-                path="/fotos"
-                element={
-                  <ProtectedRoute>
-                    <Fotos />
-                  </ProtectedRoute>
-                }
-              />
-              <Route path="*" element={<NotFound />} />
+              <Route element={<ProtectedRoute />}>
+                <Route path="/" element={<Index />} />
+                <Route path="/obras-ativas" element={<ObrasAtivas />} />
+                <Route path="/obra" element={<Obra />} />
+                <Route path="/financas" element={<Financas />} />
+                <Route path="/noticias" element={<Noticias />} />
+                <Route path="/atendimento" element={<Atendimento />} />
+                <Route path="/documentos" element={<Documentos />} />
+                <Route path="/fotos" element={<Fotos />} />
+                <Route path="*" element={<NotFound />} />
+              </Route>
             </Routes>
           </ObraProvider>
         </AuthProvider>

@@ -1,5 +1,5 @@
 import { initializeApp } from "firebase/app";
-import { getAuth } from "firebase/auth";
+import { browserLocalPersistence, getAuth, setPersistence } from "firebase/auth";
 import { getFirestore } from "firebase/firestore";
 
 const firebaseConfig = {
@@ -15,11 +15,6 @@ const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getFirestore(app);
 
-/**
- * Firestore Rules recomendadas para clientes:
- * match /clientes/{uid} {
- *   allow read, write: if request.auth != null && request.auth.uid == uid;
- * }
- */
+const authPersistenceReady = setPersistence(auth, browserLocalPersistence);
 
-export { app, auth, db };
+export { app, auth, db, authPersistenceReady};
