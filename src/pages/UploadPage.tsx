@@ -1,6 +1,6 @@
 import { ChangeEvent, DragEvent, useEffect, useMemo, useRef, useState } from "react";
 import { Check, ChevronsUpDown, Loader2, Trash2, UploadCloud } from "lucide-react";
-import { addDoc, collection, getDocs, orderBy, query, serverTimestamp } from "firebase/firestore";
+import { addDoc, collection, doc, getDoc, serverTimestamp } from "firebase/firestore";
 import { getDownloadURL, getMetadata, ref, uploadBytesResumable } from "firebase/storage";
 import ResponsiveLayout from "@/components/layout/ResponsiveLayout";
 import { Button } from "@/components/ui/button";
@@ -23,7 +23,7 @@ type FileGroup = "image" | "pdf";
 type UploadStatus = "queued" | "uploading" | "done" | "error";
 
 interface UploadState {
-    progress: number;
+  progress: number;
   state: UploadStatus;
   error?: string;
 }
@@ -34,7 +34,7 @@ interface ObraOption {
 }
 
 const formatBytes = (bytes: number) => {
-    if (!bytes) return "0 B";
+  if (!bytes) return "0 B";
   const units = ["B", "KB", "MB", "GB"];
   const i = Math.floor(Math.log(bytes) / Math.log(1024));
   return `${(bytes / Math.pow(1024, i)).toFixed(1)} ${units[i]}`;
@@ -50,7 +50,7 @@ const sanitizeFileName = (fileName: string) =>
     .replace(/_+/g, "_");
 
 const isSupportedType = (file: File) => {
-    if (file.type.startsWith("image/")) return true;
+  if (file.type.startsWith("image/")) return true;
   return file.type === "application/pdf";
 };
 
@@ -59,7 +59,7 @@ const isPdf = (file: File) => file.type === "application/pdf";
 const getFileId = (file: File) => `${file.name}_${file.size}_${file.lastModified}`;
 
 const UploadPage = () => {
-  const { user } = useAuth();
+  const { user, userDoc } = useAuth();
   const inputRef = useRef<HTMLInputElement>(null);
 
   const [obras, setObras] = useState<ObraOption[]>([]);
@@ -87,9 +87,11 @@ const UploadPage = () => {
     const loadObras = async () => {
       try {
         setIsLoadingObras(true);
-        const obrasQuery = query(collection(db, "obras"), orderBy("nome", "asc"));
-        const snapshot = await getDocs(obrasQuery);
-        const obrasList = snapshot.docs.map((doc) => ({ id: doc.id, nome: String(doc.data().nome ?? "") }));
+        const allowedObraIds = userDoc?.obras ?? [];
+        const obraDocs = await Promise.all(allowedObraIds.map((obraId) => getDoc(doc(db, "obras", obraId))));
+        const obrasList = obraDocs
+          .filter((obraDoc) => obraDoc.exists())
+          .map((obraDoc) => ({ id: obraDoc.id, nome: String(obraDoc.data().nome ?? "") }));
         setObras(obrasList.filter((obra) => obra.nome));
       } catch (error) {
         console.error("[upload] erro ao carregar obras", error);
@@ -99,13 +101,13 @@ const UploadPage = () => {
           variant: "destructive",
         });
 
-         } finally {
+      } finally {
         setIsLoadingObras(false);
       }
     };
 
     void loadObras();
-  }, []);
+  }, [userDoc?.obras]);
 
   const setFileError = (fileId: string, message: string) => {
     setUploads((previous) => ({
@@ -179,7 +181,7 @@ const UploadPage = () => {
           description: `${file.name} excede o limite de 20MB por arquivo.`,
           variant: "destructive",
         });
-    continue;
+        continue;
       }
 
       nextFiles.push(file);
@@ -294,7 +296,7 @@ const UploadPage = () => {
           const storageRef = ref(storage, storagePath);
           const uploadTask = uploadBytesResumable(storageRef, file);
 
-        setUploads((previous) => ({
+          setUploads((previous) => ({
             ...previous,
             [fileId]: { progress: 0, state: "uploading" },
           }));
@@ -324,7 +326,9 @@ const UploadPage = () => {
                 const contentType = file.type || metadata.contentType || "application/octet-stream";
                 const kind = fileGroup === "image" ? "foto" : "documento";
 
-                await addDoc(collection(db, "documentos"), {
+                const targetCollection = fileGroup === "image" ? "fotos" : "documentos";
+
+                await addDoc(collection(db, "obras", obraId, targetCollection), {
                   obraId,
                   obraNomeSnapshot,
                   tipo,
@@ -344,7 +348,7 @@ const UploadPage = () => {
                   tags: [],
                 });
 
-        setUploads((previous) => ({
+                setUploads((previous) => ({
                   ...previous,
                   [fileId]: { progress: 100, state: "done" },
                 }));
@@ -370,7 +374,7 @@ const UploadPage = () => {
           setFileError(fileId, message);
           reject(error);
         }
-        });
+      });
 
     try {
       await Promise.all(files.map((file) => uploadFile(file)));
@@ -394,7 +398,7 @@ const UploadPage = () => {
           <CardHeader>
             <CardTitle>Upload de documentos e fotos</CardTitle>
             <CardDescription>
-              Selecione a obra e o tipo para vincular os arquivos e registrar metadados na coleção global de documentos.
+              Selecione a obra e o tipo para vincular os arquivos na subcoleção da obra.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-6">
@@ -440,7 +444,7 @@ const UploadPage = () => {
               </Popover>
             </div>
 
-        {files.length > 0 && fileGroup && (
+            {files.length > 0 && fileGroup && (
               <div className="space-y-2">
                 <Label>Tipo <span className="text-destructive">*</span></Label>
                 <Select value={tipo} onValueChange={setTipo} disabled={isUploading}>
@@ -458,7 +462,7 @@ const UploadPage = () => {
               </div>
             )}
 
-        <input
+            <input
               ref={inputRef}
               type="file"
               multiple
@@ -490,7 +494,7 @@ const UploadPage = () => {
               </p>
             </div>
 
-    {files.length > 0 && (
+            {files.length > 0 && (
               <div className="space-y-3">
                 {files.map((file) => {
                   const fileId = getFileId(file);
@@ -517,11 +521,11 @@ const UploadPage = () => {
                           <Progress value={upload.progress} />
                           <p
                             className={cn(
-                                "text-xs",
+                              "text-xs",
                               upload.state === "error" && "text-destructive",
                               upload.state === "done" && "text-emerald-600",
                             )}
-                        >
+                          >
                             {upload.state === "queued" && "Na fila"}
                             {upload.state === "uploading" && `${Math.round(upload.progress)}%`}
                             {upload.state === "done" && "Concluído"}
@@ -529,7 +533,7 @@ const UploadPage = () => {
                           </p>
                         </div>
 
-                        )}
+                      )}
                     </div>
                   );
                 })}
@@ -545,7 +549,7 @@ const UploadPage = () => {
                 Enviar
               </Button>
             </div>
-        {hasErrors && <p className="text-xs text-destructive">Alguns arquivos falharam. Revise os erros e tente novamente.</p>}
+            {hasErrors && <p className="text-xs text-destructive">Alguns arquivos falharam. Revise os erros e tente novamente.</p>}
           </CardContent>
         </Card>
       </div>

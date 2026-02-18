@@ -3,6 +3,8 @@ import { motion, AnimatePresence } from "framer-motion";
 import { Calendar, ChevronDown, CheckCircle2, Clock, AlertTriangle } from "lucide-react";
 import ResponsiveLayout from "@/components/layout/ResponsiveLayout";
 import { cn } from "@/lib/utils";
+import { useActiveObraId } from "@/hooks/useActiveObraId";
+import { useObra } from "@/hooks/useAppQueries";
 
 interface StageDetail {
   id: string;
@@ -201,11 +203,16 @@ const StageCard = ({ stage }: { stage: StageDetail }) => {
 };
 
 const Obra = () => {
+  const { activeObraId, hasClientObra } = useActiveObraId();
+  const { data: obraData } = useObra(activeObraId ?? undefined);
   const completedStages = stages.filter(s => s.status === "completed").length;
 
   return (
     <ResponsiveLayout headerTitle="Obra" headerSubtitle="Acompanhamento da construção">
       <div className="px-4 py-6 lg:px-8 lg:py-8 space-y-6">
+        <div className="rounded-xl border bg-card p-4 text-sm text-muted-foreground">
+        {!hasClientObra ? "Sem obra vinculada." : obraData ? `Obra ativa: ${obraData.nome}` : "Carregando dados da obra..."}
+      </div>
         {/* Summary Card */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}

@@ -3,6 +3,8 @@ import { motion } from "framer-motion";
 import { Camera, Calendar, Layers, X, ZoomIn } from "lucide-react";
 import ResponsiveLayout from "@/components/layout/ResponsiveLayout";
 import { Badge } from "@/components/ui/badge";
+import { useActiveObraId } from "@/hooks/useActiveObraId";
+import { useFotos } from "@/hooks/useAppQueries";
 
 interface Photo {
   id: string;
@@ -28,6 +30,8 @@ const photos: Photo[] = [
 const stages = ["Todas", "Fundação", "Estrutura", "Cobertura", "Fechamento"];
 
 const Fotos = () => {
+  const { activeObraId, hasClientObra } = useActiveObraId();
+  const { data: fotosData = [], isLoading } = useFotos(activeObraId ?? undefined);
   const [selectedStage, setSelectedStage] = useState("Todas");
   const [selectedPhoto, setSelectedPhoto] = useState<Photo | null>(null);
   const [viewStartTime, setViewStartTime] = useState<number | null>(null);
@@ -68,6 +72,9 @@ const Fotos = () => {
   return (
     <ResponsiveLayout headerTitle="Fotos" headerSubtitle="Registro visual da evolução da obra">
       <div className="px-4 py-6 lg:px-8 lg:py-8 space-y-6">
+        <div className="rounded-xl border bg-card p-4 text-sm text-muted-foreground">
+        {!hasClientObra ? "Sem obra vinculada." : isLoading ? "Carregando fotos da obra..." : `Fotos carregadas: ${fotosData.length}`}
+      </div>
         {/* Summary Stats */}
         <motion.div
           initial={{ opacity: 0, y: 10 }}

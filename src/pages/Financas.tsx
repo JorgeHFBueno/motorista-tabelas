@@ -3,6 +3,8 @@ import { Wallet, AlertCircle, ChevronRight, TrendingUp, TrendingDown } from "luc
 import ResponsiveLayout from "@/components/layout/ResponsiveLayout";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { useFinancas } from "@/hooks/useAppQueries";
+import { useActiveObraId } from "@/hooks/useActiveObraId";
 
 const formatCurrency = (value: number) => {
   return new Intl.NumberFormat('pt-BR', {
@@ -40,6 +42,8 @@ const financialData = {
 };
 
 const Financas = () => {
+  const { activeObraId, hasClientObra } = useActiveObraId();
+  const { data: financasData = [], isLoading } = useFinancas(activeObraId ?? undefined);
   const progressPercentage = (financialData.totalPaid / financialData.totalValue) * 100;
   const paidCount = installments.filter(i => i.status === "paid").length;
   const pendingCount = installments.filter(i => i.status !== "paid").length;
@@ -47,6 +51,9 @@ const Financas = () => {
   return (
     <ResponsiveLayout headerTitle="Finanças" headerSubtitle="Gestão financeira da obra">
       <div className="px-4 py-6 lg:px-8 lg:py-8 space-y-6">
+        <div className="rounded-xl border bg-card p-4 text-sm text-muted-foreground">
+        {!hasClientObra ? "Sem obra vinculada." : isLoading ? "Carregando finanças da obra..." : `Itens financeiros carregados: ${financasData.length}`}
+      </div>
         {/* Main Grid */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* Main Financial Card */}

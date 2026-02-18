@@ -12,6 +12,8 @@ import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Separator } from "@/components/ui/separator";
+import { useDocumentos } from "@/hooks/useAppQueries";
+import { useActiveObraId } from "@/hooks/useActiveObraId";
 
 type SignatureStatus = "rascunho" | "enviado" | "assinado" | "finalizado";
 type DocumentCategory = "Contratos" | "Projetos" | "ART / RRT" | "Licenças" | "Notas Fiscais" | "Relatórios" | "Aditivos";
@@ -212,6 +214,8 @@ const signatureStatusConfig: Record<SignatureStatus, {
 };
 
 const Documentos = () => {
+  const { activeObraId, hasClientObra } = useActiveObraId();
+  const { data: documentosData = [], isLoading } = useDocumentos(activeObraId ?? undefined);
   const [selectedCategory, setSelectedCategory] = useState("Todos");
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedDocument, setSelectedDocument] = useState<Document | null>(null);
@@ -244,6 +248,10 @@ const Documentos = () => {
   return (
     <ResponsiveLayout headerTitle="Documentos" headerSubtitle="Arquivo institucional e contratos">
       <div className="px-4 py-6 lg:px-8 lg:py-8 space-y-6">
+        <div className="rounded-xl border bg-card p-4 text-sm text-muted-foreground">
+        {!hasClientObra ? "Sem obra vinculada." : isLoading ? "Carregando documentos da obra..." : `Documentos carregados: ${documentosData.length}`}
+      </div>
+      
         {/* Search */}
         <motion.div
           initial={{ opacity: 0, y: 10 }}

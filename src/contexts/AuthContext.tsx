@@ -1,21 +1,22 @@
 import {
   User,
-  createUserWithEmailAndPassword,
   onAuthStateChanged,
   signInWithEmailAndPassword,
   signOut,
 } from "firebase/auth";
-import { doc, serverTimestamp, setDoc } from "firebase/firestore";
-import { createContext, ReactNode, useContext, useEffect, useMemo, useState } from "react";
+import { doc, getDoc } from "firebase/firestore";
+import { createContext, ReactNode, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import { auth, authPersistenceReady, db } from "@/lib/firebase";
+import type { UserDoc } from "@/types/rbac";
 
 interface AuthContextData {
   user: User | null;
+  userDoc: UserDoc | null;
   loading: boolean;
+  error: string | null;
   login: (email: string, senha: string) => Promise<void>;
-  signup: (email: string, senha: string) => Promise<void>;
   logout: () => Promise<void>;
-  signOut: () => Promise<void>;
+  refreshUserDoc: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextData | undefined>(undefined);
@@ -26,7 +27,36 @@ interface AuthProviderProps {
 
 export const AuthProvider = ({ children }: AuthProviderProps) => {
   const [user, setUser] = useState<User | null>(null);
+  const [userDoc, setUserDoc] = useState<UserDoc | null>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const fetchUserDoc = useCallback(async (uid: string) => {
+    const userRef = doc(db, "users", uid);
+    const snap = await getDoc(userRef);
+    if (!snap.exists()) {
+      return null;
+    }
+    return snap.data() as UserDoc;
+  }, []);
+
+  const refreshUserDoc = useCallback(async () => {
+    if (!user) {
+      setUserDoc(null);
+      return;
+    }
+
+    try {
+      setError(null);
+      const loadedUserDoc = await fetchUserDoc(user.uid);
+      setUserDoc(loadedUserDoc);
+      console.debug("[AuthProvider] userDoc atualizado", { uid: user.uid, exists: !!loadedUserDoc });
+    } catch (err) {
+      console.debug("[AuthProvider] erro ao atualizar userDoc", err);
+      setError("Falha ao carregar dados do usuário.");
+      throw err;
+    }
+  }, [fetchUserDoc, user]);
 
   useEffect(() => {
     let unsubscribe = () => {};
@@ -35,9 +65,25 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
       try {
         await authPersistenceReady;
       } finally {
-        unsubscribe = onAuthStateChanged(auth, (currentUser) => {
+        unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
           setUser(currentUser);
-          setLoading(false);
+          if (!currentUser) {
+            setUserDoc(null);
+            setLoading(false);
+            return;
+          }
+
+          try {
+            setError(null);
+            const loadedUserDoc = await fetchUserDoc(currentUser.uid);
+            setUserDoc(loadedUserDoc);
+          } catch (err) {
+            console.debug("[AuthProvider] erro onAuthStateChanged", err);
+            setError("Falha ao carregar dados do usuário.");
+            setUserDoc(null);
+          } finally {
+            setLoading(false);
+          }
         });
       }
     };
@@ -47,40 +93,23 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     return () => {
       unsubscribe();
     };
-  }, []);
+  }, [fetchUserDoc]);
 
   const value = useMemo(
     () => ({
       user,
+      userDoc,
       loading,
+      error,
       login: async (email: string, senha: string) => {
         await signInWithEmailAndPassword(auth, email, senha);
-      },
-      signup: async (email: string, senha: string) => {
-        const userCredential = await createUserWithEmailAndPassword(auth, email, senha);
-        const uid = userCredential.user.uid;
-
-        await setDoc(
-          doc(db, "clientes", uid),
-          {
-            uid,
-            email,
-            status: "ativo",
-            role: "cliente",
-            createdAt: serverTimestamp(),
-            updatedAt: serverTimestamp(),
-          },
-          { merge: true },
-        );
-      },
+      },      
       logout: async () => {
         await signOut(auth);
       },
-      signOut: async () => {
-        await signOut(auth);
-      },
+      refreshUserDoc,
     }),
-    [loading, user],
+    [error, loading, refreshUserDoc, user, userDoc],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

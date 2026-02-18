@@ -5,18 +5,23 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Route, Routes } from "react-router-dom";
 import { ObraProvider } from "@/contexts/ObraContext";
 import { AuthProvider } from "@/contexts/AuthContext";
-import ProtectedRoute from "@/components/auth/ProtectedRoute";
-import Index from "./pages/Index";
-import ObrasAtivas from "./pages/ObrasAtivas";
-import Obra from "./pages/Obra";
-import Financas from "./pages/Financas";
-import Noticias from "./pages/Noticias";
-import Atendimento from "./pages/Atendimento";
-import Documentos from "./pages/Documentos";
-import Fotos from "./pages/Fotos";
-import LoginPage from "./pages/LoginPage";
-import NotFound from "./pages/NotFound";
-import UploadPage from "./pages/UploadPage";
+import {
+  ClientRoute,
+  ObraAccessRoute,
+  ProtectedRoute,
+  RoleHomeRedirect,
+  StaffRoute,
+} from "@/components/auth/RouteGuards";
+import LoginPage from "@/pages/LoginPage";
+import NotFound from "@/pages/NotFound";
+import Obra from "@/pages/Obra";
+import Financas from "@/pages/Financas";
+import Documentos from "@/pages/Documentos";
+import Fotos from "@/pages/Fotos";
+import UploadPage from "@/pages/UploadPage";
+import StaffObrasPage from "@/pages/StaffObrasPage";
+import StaffObraDetailPage from "@/pages/StaffObraDetailPage";
+import StaffCadastrosPage from "@/pages/StaffCadastrosPage";
 
 const queryClient = new QueryClient();
 
@@ -31,15 +36,23 @@ const App = () => (
             <Routes>
               <Route path="/login" element={<LoginPage />} />
               <Route element={<ProtectedRoute />}>
-                <Route path="/" element={<Index />} />
-                <Route path="/obras-ativas" element={<ObrasAtivas />} />
-                <Route path="/obra" element={<Obra />} />
-                <Route path="/financas" element={<Financas />} />
-                <Route path="/noticias" element={<Noticias />} />
-                <Route path="/atendimento" element={<Atendimento />} />
-                <Route path="/documentos" element={<Documentos />} />
-                <Route path="/fotos" element={<Fotos />} />
-                <Route path="/upload" element={<UploadPage />} />
+                <Route path="/" element={<RoleHomeRedirect />} />
+
+                <Route element={<ClientRoute />}>
+                  <Route path="/cliente/obra" element={<Obra />} />
+                  <Route path="/cliente/financas" element={<Financas />} />
+                  <Route path="/cliente/documentos" element={<Documentos />} />
+                  <Route path="/cliente/fotos" element={<Fotos />} />
+                </Route>
+
+                <Route element={<StaffRoute />}>
+                  <Route path="/painel/obras" element={<StaffObrasPage />} />
+                  <Route element={<ObraAccessRoute />}>
+                    <Route path="/painel/obras/:obraId" element={<StaffObraDetailPage />} />
+                  </Route>
+                  <Route path="/painel/upload" element={<UploadPage />} />
+                  <Route path="/painel/cadastros" element={<StaffCadastrosPage />} />
+                </Route>
                 <Route path="*" element={<NotFound />} />
               </Route>
             </Routes>
