@@ -1,7 +1,13 @@
-import { getApp, getApps, initializeApp } from "firebase/app";
-import { browserLocalPersistence, getAuth, setPersistence } from "firebase/auth";
-import { getFirestore } from "firebase/firestore";
-import { getStorage } from "firebase/storage";
+// src/lib/firebase.ts
+import { getApp, getApps, initializeApp, type FirebaseApp } from "firebase/app";
+import {
+  browserLocalPersistence,
+  getAuth,
+  setPersistence,
+  type Auth,
+} from "firebase/auth";
+import { getFirestore, type Firestore } from "firebase/firestore";
+import { getStorage, type FirebaseStorage } from "firebase/storage";
 
 const REQUIRED_FIREBASE_ENV_VARS = [
   "VITE_FIREBASE_API_KEY",
@@ -12,6 +18,10 @@ const REQUIRED_FIREBASE_ENV_VARS = [
   "VITE_FIREBASE_APP_ID",
 ] as const;
 
+type RequiredEnvName = (typeof REQUIRED_FIREBASE_ENV_VARS)[number];
+
+export let firebaseInitError: Error | null = null;
+
 function validateFirebaseEnv(): void {
   const missingVars = REQUIRED_FIREBASE_ENV_VARS.filter((name) => {
     const value = import.meta.env[name];
@@ -19,31 +29,55 @@ function validateFirebaseEnv(): void {
   });
 
   if (missingVars.length > 0) {
-    throw new Error(`[Firebase] Missing env var ${missingVars[0]}`);
-  }  
+    // NÃO lança erro aqui para não derrubar a UI (white screen)
+    firebaseInitError = new Error(`[Firebase] Missing env var ${missingVars[0]}`);
+  }
 }
 
-function requireEnv(name: (typeof REQUIRED_FIREBASE_ENV_VARS)[number]): string {
-  return import.meta.env[name];
+function requireEnv(name: RequiredEnvName): string {
+  // Ainda assim, garantimos string aqui; se faltar, vai virar "" e o init é bloqueado pelo validate
+  const v = import.meta.env[name];
+  return typeof v === "string" ? v : "";
 }
 
+// 1) valida env sem quebrar a renderização
 validateFirebaseEnv();
 
-const firebaseConfig = {
-  apiKey: requireEnv("VITE_FIREBASE_API_KEY"),
-  authDomain: requireEnv("VITE_FIREBASE_AUTH_DOMAIN"),
-  projectId: requireEnv("VITE_FIREBASE_PROJECT_ID"),
-  storageBucket: requireEnv("VITE_FIREBASE_STORAGE_BUCKET"),
-  messagingSenderId: requireEnv("VITE_FIREBASE_MESSAGING_SENDER_ID"),
-  appId: requireEnv("VITE_FIREBASE_APP_ID"),
-};
+// 2) só monta config se estiver tudo OK
+const firebaseConfig =
+  firebaseInitError === null
+    ? {
+        apiKey: requireEnv("VITE_FIREBASE_API_KEY"),
+        authDomain: requireEnv("VITE_FIREBASE_AUTH_DOMAIN"),
+        projectId: requireEnv("VITE_FIREBASE_PROJECT_ID"),
+        storageBucket: requireEnv("VITE_FIREBASE_STORAGE_BUCKET"),
+        messagingSenderId: requireEnv("VITE_FIREBASE_MESSAGING_SENDER_ID"),
+        appId: requireEnv("VITE_FIREBASE_APP_ID"),
+      }
+    : null;
 
-const app = getApps().length ? getApp() : initializeApp(firebaseConfig);
+// 3) exports seguros (podem ser null se env faltou)
+const app: FirebaseApp | null = firebaseConfig
+  ? getApps().length
+    ? getApp()
+    : initializeApp(firebaseConfig)
+  : null;
 
-const auth = getAuth(app);
-const db = getFirestore(app);
-const storage = getStorage(app);
+const auth: Auth | null = app ? getAuth(app) : null;
+const db: Firestore | null = app ? getFirestore(app) : null;
+const storage: FirebaseStorage | null = app ? getStorage(app) : null;
 
-const authPersistenceReady = setPersistence(auth, browserLocalPersistence);
+// 4) authPersistenceReady sempre resolve (pra UI não travar)
+const authPersistenceReady: Promise<void> = auth
+  ? setPersistence(auth, browserLocalPersistence)
+  : Promise.resolve();
 
 export { app, auth, db, storage, authPersistenceReady };
+
+export function requireFirebase() {
+  if (firebaseInitError) throw firebaseInitError;
+  if (!app || !auth || !db || !storage) {
+    throw new Error("[Firebase] Firebase not initialized.");
+  }
+  return { app, auth, db, storage, authPersistenceReady };
+}
