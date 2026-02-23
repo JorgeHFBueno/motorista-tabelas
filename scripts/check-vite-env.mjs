@@ -13,7 +13,8 @@ const keys = [
 ];
 
 const missing = keys.filter((k) => !env[k] || !String(env[k]).trim());
-
+console.log("cwd:", process.cwd());
 console.log("mode:", mode);
 console.log("missing:", missing);
+
 process.exit(missing.length ? 1 : 0);

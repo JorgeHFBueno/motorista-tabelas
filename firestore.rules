@@ -6,55 +6,144 @@ service cloud.firestore {
       return request.auth != null;
     }
 
-    function currentUser() {
-      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+    function userPath(uid) {
+      return /databases/$(database)/documents/users/$(uid);
     }
 
-    function hasObraAccess(obraId) {
-      return isSignedIn() && obraId in currentUser().obras;
+    function userDoc() {
+      return get(userPath(request.auth.uid)).data;
+    }
+
+    function role() {
+      return userDoc().role;
     }
 
     function isStaff() {
-      return isSignedIn() && currentUser().role != "cliente";
+      return isSignedIn() && role() != "cliente";
+    }
+
+    function hasObra(obraId) {
+      return isSignedIn()
+        && ('obras' in userDoc())
+        && (userDoc().obras is list)
+        && (obraId in userDoc().obras);
+    }
+
+    function isValidOwnUserCreate(uid) {
+      return request.auth.uid == uid
+        && request.resource.data.keys().hasOnly([
+          'nome',
+          'tipo',
+          'role',
+          'obras',
+          'ativo',
+          'createdAt'
+        ])
+        && request.resource.data.keys().hasAll([
+          'nome',
+          'tipo',
+          'role',
+          'ativo',
+          'createdAt'
+        ])
+        && request.resource.data.nome is string
+        && request.resource.data.tipo == 'cliente'
+        && request.resource.data.role == 'cliente'
+        && request.resource.data.ativo == true
+        && request.resource.data.createdAt is timestamp
+        && (
+          !('obras' in request.resource.data)
+          || (
+            request.resource.data.obras is list
+            && request.resource.data.obras.size() == 0
+          )
+        );
+    }
+
+    function isValidOwnUserUpdate(uid) {
+      return request.auth.uid == uid
+        && exists(userPath(uid))
+        && request.resource.data.diff(resource.data).changedKeys().hasOnly(['nome'])
+        && request.resource.data.nome is string
+        && request.resource.data.tipo == resource.data.tipo
+        && request.resource.data.role == resource.data.role
+        && request.resource.data.ativo == resource.data.ativo
+        && request.resource.data.createdAt == resource.data.createdAt
+        && request.resource.data.obras == resource.data.obras;
+    }
+
+    function obraIdMatchesIfPresent(obraId) {
+      return !('obraId' in request.resource.data) || request.resource.data.obraId == obraId;
+    }
+
+    function validDocumentoCreate(obraId) {
+      return request.resource.data.createdAt is timestamp
+        && request.resource.data.storagePath is string
+        && request.resource.data.contentType is string
+        && (
+          ('nome' in request.resource.data && request.resource.data.nome is string)
+          || ('filename' in request.resource.data && request.resource.data.filename is string)
+        )
+        && obraIdMatchesIfPresent(obraId);
+    }
+
+    function validFotoCreate(obraId) {
+      return request.resource.data.createdAt is timestamp
+        && request.resource.data.storagePath is string
+        && request.resource.data.contentType is string
+        && obraIdMatchesIfPresent(obraId);
+    }
+
+    function validFinancaCreate(obraId) {
+      return request.resource.data.createdAt is timestamp
+        && request.resource.data.valor is number
+        && request.resource.data.descricao is string
+        && obraIdMatchesIfPresent(obraId);
     }
 
     match /users/{uid} {
-      allow read, write: if isSignedIn() && request.auth.uid == uid;
+      allow read: if isSignedIn() && request.auth.uid == uid;
+      allow create: if isSignedIn() && isValidOwnUserCreate(uid);
+      allow update: if isSignedIn() && isValidOwnUserUpdate(uid);
+      allow delete: if false;
     }
 
     match /obras/{obraId} {
-      allow read: if hasObraAccess(obraId);
+      allow read: if hasObra(obraId);
       allow write: if false;
 
       match /documentos/{docId} {
-        allow read: if hasObraAccess(obraId);
-        allow write: if hasObraAccess(obraId) && isStaff();
+        allow read: if hasObra(obraId);
+        allow create: if hasObra(obraId) && isStaff() && validDocumentoCreate(obraId);
+        allow update, delete: if hasObra(obraId) && isStaff();
       }
 
       match /fotos/{fotoId} {
-        allow read: if hasObraAccess(obraId);
-        allow write: if hasObraAccess(obraId) && isStaff();
+        allow read: if hasObra(obraId);
+        allow create: if hasObra(obraId) && isStaff() && validFotoCreate(obraId);
+        allow update, delete: if hasObra(obraId) && isStaff();
       }
 
       match /financas/{itemId} {
-        allow read: if hasObraAccess(obraId);
-        allow write: if hasObraAccess(obraId) && isStaff();
+        allow read: if hasObra(obraId);
+        allow create: if hasObra(obraId) && isStaff() && validFinancaCreate(obraId);
+        allow update, delete: if hasObra(obraId) && isStaff();
       }
     }
 
-    // compatibilidade temporária (fallback de leitura)
+    // Compatibilidade temporária para leituras em coleções legadas de topo.
     match /documentos/{docId} {
-      allow read: if isSignedIn() && resource.data.obraId in currentUser().obras;
+      allow read: if isSignedIn() && ('obraId' in resource.data) && hasObra(resource.data.obraId);
       allow write: if false;
     }
 
     match /fotos/{fotoId} {
-      allow read: if isSignedIn() && resource.data.obraId in currentUser().obras;
+      allow read: if isSignedIn() && ('obraId' in resource.data) && hasObra(resource.data.obraId);
       allow write: if false;
     }
 
     match /financas/{itemId} {
-      allow read: if isSignedIn() && resource.data.obraId in currentUser().obras;
+      allow read: if isSignedIn() && ('obraId' in resource.data) && hasObra(resource.data.obraId);
       allow write: if false;
     }
   }
