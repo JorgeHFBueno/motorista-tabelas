@@ -6,7 +6,7 @@ import {
 } from "firebase/auth";
 import { doc, getDoc } from "firebase/firestore";
 import { createContext, ReactNode, useCallback, useContext, useEffect, useMemo, useState } from "react";
-import { auth, authPersistenceReady, db } from "@/lib/firebase";
+import { auth, authPersistenceReady, db, firebaseInitError } from "@/lib/firebase";
 import type { UserDoc } from "@/types/rbac";
 
 interface AuthContextData {
@@ -32,6 +32,9 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
   const [error, setError] = useState<string | null>(null);
 
   const fetchUserDoc = useCallback(async (uid: string) => {
+    if (!db) {
+      throw firebaseInitError ?? new Error("Firebase indisponível.");
+    }
     const userRef = doc(db, "users", uid);
     const snap = await getDoc(userRef);
     if (!snap.exists()) {
@@ -62,30 +65,33 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     let unsubscribe = () => {};
 
     const initializeAuth = async () => {
-      try {
-        await authPersistenceReady;
-      } finally {
-        unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
-          setUser(currentUser);
-          if (!currentUser) {
-            setUserDoc(null);
-            setLoading(false);
-            return;
-          }
+      await authPersistenceReady;
 
-          try {
-            setError(null);
-            const loadedUserDoc = await fetchUserDoc(currentUser.uid);
-            setUserDoc(loadedUserDoc);
-          } catch (err) {
-            console.debug("[AuthProvider] erro onAuthStateChanged", err);
-            setError("Falha ao carregar dados do usuário.");
-            setUserDoc(null);
-          } finally {
-            setLoading(false);
-          }
-        });
+      if (!auth) {
+        setLoading(false);
+        setError("Não foi possível inicializar autenticação.");
+        return;
       }
+      unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
+        setUser(currentUser);
+        if (!currentUser) {
+          setUserDoc(null);
+          setLoading(false);
+          return;
+        }
+
+        try {
+          setError(null);
+          const loadedUserDoc = await fetchUserDoc(currentUser.uid);
+          setUserDoc(loadedUserDoc);
+        } catch (err) {
+          console.debug("[AuthProvider] erro onAuthStateChanged", err);
+          setError("Falha ao carregar dados do usuário.");
+          setUserDoc(null);
+        } finally {
+          setLoading(false);
+        }
+      });
     };
 
     initializeAuth();
@@ -102,9 +108,15 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
       loading,
       error,
       login: async (email: string, senha: string) => {
+        if (!auth) {
+          throw firebaseInitError ?? new Error("Firebase indisponível para login.");
+        }
         await signInWithEmailAndPassword(auth, email, senha);
       },      
       logout: async () => {
+        if (!auth) {
+          throw firebaseInitError ?? new Error("Firebase indisponível para logout.");
+        }
         await signOut(auth);
       },
       refreshUserDoc,

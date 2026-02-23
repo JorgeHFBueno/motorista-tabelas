@@ -1,4 +1,3 @@
-// src/lib/firebase.ts
 import { getApp, getApps, initializeApp, type FirebaseApp } from "firebase/app";
 import {
   browserLocalPersistence,
@@ -56,20 +55,30 @@ const firebaseConfig =
       }
     : null;
 
-// 3) exports seguros (podem ser null se env faltou)
-const app: FirebaseApp | null = firebaseConfig
-  ? getApps().length
-    ? getApp()
-    : initializeApp(firebaseConfig)
-  : null;
+let app: FirebaseApp | null = null;
+let auth: Auth | null = null;
+let db: Firestore | null = null;
+let storage: FirebaseStorage | null = null;
 
-const auth: Auth | null = app ? getAuth(app) : null;
-const db: Firestore | null = app ? getFirestore(app) : null;
-const storage: FirebaseStorage | null = app ? getStorage(app) : null;
+if (firebaseConfig) {
+  try {
+    app = getApps().length ? getApp() : initializeApp(firebaseConfig);
+    auth = getAuth(app);
+    db = getFirestore(app);
+    storage = getStorage(app);
+  } catch (error) {
+    firebaseInitError =
+      error instanceof Error
+        ? error
+        : new Error("[Firebase] Failed to initialize Firebase services.");
+  }
+}
 
 // 4) authPersistenceReady sempre resolve (pra UI não travar)
 const authPersistenceReady: Promise<void> = auth
-  ? setPersistence(auth, browserLocalPersistence)
+  ? setPersistence(auth, browserLocalPersistence).catch((error) => {
+      console.error("[Firebase] Erro ao configurar persistência de autenticação", error);
+    })
   : Promise.resolve();
 
 export { app, auth, db, storage, authPersistenceReady };
