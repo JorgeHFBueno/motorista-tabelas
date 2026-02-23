@@ -24,6 +24,7 @@ import UploadPage from "@/pages/UploadPage";
 import StaffObrasPage from "@/pages/StaffObrasPage";
 import StaffObraDetailPage from "@/pages/StaffObraDetailPage";
 import StaffCadastrosPage from "@/pages/StaffCadastrosPage";
+import StaffObraUploadPage from "@/pages/StaffObraUploadPage";
 
 const queryClient = new QueryClient();
 
@@ -58,6 +59,9 @@ const App = () => {
                     <Route path="/painel/obras/:obraId" element={<StaffObraDetailPage />} />
                   </Route>
                   <Route path="/painel/upload" element={<UploadPage />} />
+                  <Route element={<ObraAccessRoute />}>
+                    <Route path="/painel/obras/:obraId/upload" element={<StaffObraUploadPage />} />
+                  </Route>
                   <Route path="/painel/cadastros" element={<StaffCadastrosPage />} />
                 </Route>
                 <Route path="*" element={<NotFound />} />

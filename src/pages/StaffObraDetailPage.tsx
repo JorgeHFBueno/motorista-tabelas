@@ -1,7 +1,8 @@
 import { useEffect } from "react";
-import { useParams } from "react-router-dom";
+import { useNavigate, useParams } from "react-router-dom";
 import ResponsiveLayout from "@/components/layout/ResponsiveLayout";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Button } from "@/components/ui/button";
 import { useDocumentos, useFotos, useObra } from "@/hooks/useAppQueries";
 import { useObra as useObraContext } from "@/contexts/ObraContext";
 
@@ -11,6 +12,7 @@ const StaffObraDetailPage = () => {
   const { data: documentos = [], isLoading: isLoadingDocs } = useDocumentos(obraId);
   const { data: fotos = [], isLoading: isLoadingFotos } = useFotos(obraId);
   const { setObraAtivaId } = useObraContext();
+  const navigate = useNavigate();
 
   useEffect(() => {
     if (obraId) {
@@ -21,6 +23,9 @@ const StaffObraDetailPage = () => {
   return (
     <ResponsiveLayout headerTitle={obra?.nome ?? "Detalhe da obra"} headerSubtitle="Documentos e fotos por obra">
       <div className="px-4 py-6 lg:px-8 lg:py-8">
+        <div className="mb-4 flex justify-end">
+          <Button onClick={() => navigate(`/painel/obras/${obraId}/upload`)}>Enviar arquivo</Button>
+        </div>
         <Tabs defaultValue="documentos" className="space-y-4">
           <TabsList>
             <TabsTrigger value="documentos">Documentos</TabsTrigger>

@@ -1,4 +1,4 @@
-import { Building2, Camera, FileText, FolderCog, Upload, Wallet } from "lucide-react";
+import { Building2, Camera, FileText, FolderCog, Wallet } from "lucide-react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import { cn } from "@/lib/utils";
@@ -19,7 +19,6 @@ const BottomNavigation = () => {
       ]
     : [
         { icon: Building2, label: "Obras", path: "/painel/obras" },
-        { icon: Upload, label: "Upload", path: "/painel/upload" },
         { icon: FolderCog, label: "Cadastro", path: "/painel/cadastros" },
       ];
 
