@@ -59,10 +59,12 @@ export const useUserDoc = (uid?: string) =>
   user,
   userDoc,
   onEnsured,
+  enabled = true,
 }: {
   user: User | null;
   userDoc: UserDoc | null;
   onEnsured?: () => Promise<void>;
+  enabled?: boolean;
 }) => {
   const hasAttempted = useRef(false);
   const queryClient = useQueryClient();
@@ -72,11 +74,23 @@ export const useUserDoc = (uid?: string) =>
       const userRef = doc(db, "users", currentUser.uid);
       try {
         await currentUser.getIdToken(true);
-        console.info("[Firestore][createUserDoc] user/project", {
+          console.info("[Firestore][ensureUserDoc] user/project", {
           uid: currentUser.uid,
           projectId: getApp().options.projectId ?? "unknown",
         });
         
+        const snap = await getDoc(userRef);
+        console.info("[Firestore][ensureUserDoc] getUserDoc.exists", {
+          uid: currentUser.uid,
+          exists: snap.exists(),
+        });
+
+        if (snap.exists()) {
+          console.info("[Firestore][ensureUserDoc] branch=return_existing", { uid: currentUser.uid });
+          return snap.data() as UserDoc;
+        }
+
+        console.info("[Firestore][ensureUserDoc] branch=create", { uid: currentUser.uid });
         await setDoc(
           userRef,
           {
@@ -89,8 +103,15 @@ export const useUserDoc = (uid?: string) =>
           },
           { merge: false },
         );
+
+        const createdSnap = await getDoc(userRef);
+        console.info("[Firestore][ensureUserDoc] getUserDoc.exists_after_create", {
+          uid: currentUser.uid,
+          exists: createdSnap.exists(),
+        });
+        return createdSnap.exists() ? (createdSnap.data() as UserDoc) : null;
       } catch (err) {
-        logFirestoreError("createUserDoc", err);
+        logFirestoreError("ensureUserDoc", err);
         throw err;
       }
     },
@@ -105,13 +126,16 @@ export const useUserDoc = (uid?: string) =>
   });
 
   useEffect(() => {
-    if (!user || userDoc || hasAttempted.current || mutation.isPending) {
-      return;
+    hasAttempted.current = false;
+  }, [user?.uid]);
+  useEffect(() => {
+    if (!enabled || !user || userDoc || hasAttempted.current || mutation.isPending) {
+    return;
     }
 
     hasAttempted.current = true;
     mutation.mutate(user);
-  }, [mutation, user, userDoc]);
+  }, [enabled, mutation, user, userDoc]);
 
   return mutation;
 };

@@ -18,11 +18,11 @@ const ResponsiveHeader = ({
 }: ResponsiveHeaderProps) => {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const { obraAtiva } = useObra();
-  const { signOut } = useAuth();
+  const { logout, userDoc } = useAuth();
   const navigate = useNavigate();
 
   const handleSignOut = async () => {
-    await signOut();
+    await logout();
     navigate("/login", { replace: true });
   };
 
@@ -132,7 +132,7 @@ const ResponsiveHeader = ({
           </button>
           <button className="flex items-center gap-3 p-2 px-3 bg-primary-foreground/10 hover:bg-primary-foreground/15 rounded-lg transition-colors">
             <User className="w-5 h-5" />
-            <span className="text-sm font-medium">João Silva</span>
+            <span className="text-sm font-medium">{userDoc?.nome ?? "(sem nome)"}</span>
           </button>
           <button
             className="flex items-center gap-2 p-2 px-3 bg-primary-foreground/10 hover:bg-primary-foreground/15 rounded-lg transition-colors"

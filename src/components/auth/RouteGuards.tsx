@@ -10,13 +10,31 @@ const CenterLoader = () => (
   </div>
 );
 
+const CenterError = ({ message }: { message: string }) => (
+  <div className="flex min-h-screen items-center justify-center bg-background px-4">
+    <div className="max-w-lg rounded-lg border bg-card p-6 text-card-foreground shadow-sm">
+      <h2 className="text-lg font-semibold">Erro ao carregar acesso</h2>
+      <p className="mt-2 text-sm text-muted-foreground">{message}</p>
+    </div>
+  </div>
+);
+
 export const ProtectedRoute = ({ children }: { children?: ReactNode }) => {
-  const { user, userDoc, loading, authReady, userDocReady, refreshUserDoc } = useAuth();
+  const { user, userDoc, loading, authReady, userDocReady, refreshUserDoc, error } = useAuth();
   const location = useLocation();
-  const ensureUserDoc = useEnsureUserDoc({ user, userDoc, onEnsured: refreshUserDoc });
+const ensureUserDoc = useEnsureUserDoc({
+    user,
+    userDoc,
+    onEnsured: refreshUserDoc,
+    enabled: !error,
+  });
 
   if (loading || !authReady || !userDocReady || ensureUserDoc.isPending) {
     return <CenterLoader />;
+  }
+
+  if (error) {
+    return <CenterError message={error} />;
   }
 
   if (!user) {
@@ -28,7 +46,7 @@ export const ProtectedRoute = ({ children }: { children?: ReactNode }) => {
   }
 
   if (!userDoc.ativo) {
-    return <Navigate to="/conta-desativada" replace />
+    return <Navigate to="/conta-desativada" replace />;
   }
 
   if (children) {

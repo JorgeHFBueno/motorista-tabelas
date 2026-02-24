@@ -39,9 +39,8 @@ service cloud.firestore {
         && hasObra(resource.data.obraId);
     }
 
-    function isValidOwnUserCreate(uid) {
-      return request.auth.uid == uid
-        && request.resource.data.keys().hasOnly([
+    function isValidNewUser() {
+      return request.resource.data.keys().hasOnly([
           'nome',
           'tipo',
           'role',
@@ -70,10 +69,8 @@ service cloud.firestore {
         );
     }
 
-    function isValidOwnUserUpdate(uid) {
-      return request.auth.uid == uid
-        && exists(userPath(uid))
-        && request.resource.data.diff(resource.data).changedKeys().hasOnly(['nome'])
+    function isValidUserUpdate() {
+      return request.resource.data.diff(resource.data).changedKeys().hasOnly(['nome'])
         && request.resource.data.nome is string
         && request.resource.data.tipo == resource.data.tipo
         && request.resource.data.role == resource.data.role
@@ -140,8 +137,8 @@ service cloud.firestore {
 
     match /users/{uid} {
       allow read: if isSignedIn() && request.auth.uid == uid;
-      allow create: if isSignedIn() && isValidOwnUserCreate(uid);
-      allow update: if isSignedIn() && isValidOwnUserUpdate(uid);
+      allow create: if isSignedIn() && request.auth.uid == uid && isValidNewUser();
+      allow update: if isSignedIn() && request.auth.uid == uid && isValidUserUpdate();
       allow delete: if false;
 
       match /accessRequests/{requestId} {

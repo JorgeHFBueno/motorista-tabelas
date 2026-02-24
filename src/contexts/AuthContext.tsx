@@ -19,6 +19,11 @@ const logFirestoreError = (tag: string, err: unknown) => {
   });
 };
 
+const getFirestoreErrorCode = (err: unknown): string => {
+  const firestoreError = err as { code?: string };
+  return firestoreError?.code ?? "unknown";
+};
+
 interface AuthContextData {
   user: User | null;
   userDoc: UserDoc | null;
@@ -64,11 +69,48 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
 
     const userRef = doc(db, "users", currentUser.uid);
     const snap = await getDoc(userRef);
+    console.info("[AuthProvider][getUserDoc] getUserDoc.exists", {
+      uid: currentUser.uid,
+      exists: snap.exists(),
+    });
+
     if (!snap.exists()) {
       return null;
     }
+
     return snap.data() as UserDoc;
   }, []);
+
+  const resolveAuthUserState = useCallback(async (currentUser: User) => {
+    setUserDocReady(false);
+    setError(null);
+
+    try {
+      const loadedUserDoc = await fetchUserDoc(currentUser);
+
+      if (loadedUserDoc) {
+        console.info("[AuthProvider] branch=return_existing", { uid: currentUser.uid });
+        setUserDoc(loadedUserDoc);
+        return;
+      }
+
+      console.info("[AuthProvider] branch=create", { uid: currentUser.uid });
+      setUserDoc(null);
+    } catch (err) {
+      const code = getFirestoreErrorCode(err);
+      logFirestoreError("getUserDoc", err);
+      console.error("[AuthProvider][getUserDoc] code", { code });
+
+      if (code === "permission-denied") {
+        setError("Sem permissão para carregar dados do usuário.");
+      } else {
+        setError("Falha ao carregar dados do usuário.");
+      }
+      setUserDoc(null);
+    } finally {
+      setUserDocReady(true);
+    }
+  }, [fetchUserDoc]);
 
   const refreshUserDoc = useCallback(async () => {
     if (!user) {
@@ -77,20 +119,8 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
       return;
     }
 
-    try {
-      setUserDocReady(false);
-      setError(null);
-      const loadedUserDoc = await fetchUserDoc(user);
-      setUserDoc(loadedUserDoc);
-      console.debug("[AuthProvider] userDoc atualizado", { uid: user.uid, exists: !!loadedUserDoc });
-    } catch (err) {
-      logFirestoreError("getUserDoc", err);
-      setError("Falha ao carregar dados do usuário.");
-      throw err;
-      } finally {
-      setUserDocReady(true);
-    }
-  }, [fetchUserDoc, user]);
+    await resolveAuthUserState(user);
+  }, [resolveAuthUserState, user]);
 
   useEffect(() => {
     let unsubscribe = () => {};
@@ -116,19 +146,8 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
           return;
         }
 
-        try {
-          setUserDocReady(false);
-          setError(null);
-          const loadedUserDoc = await fetchUserDoc(currentUser);
-          setUserDoc(loadedUserDoc);
-        } catch (err) {
-          logFirestoreError("getUserDoc", err);
-          setError("Falha ao carregar dados do usuário.");
-          setUserDoc(null);
-        } finally {
-          setUserDocReady(true);
-          setLoading(false);
-        }
+        await resolveAuthUserState(currentUser);
+        setLoading(false);
       });
     };
 
@@ -137,7 +156,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     return () => {
       unsubscribe();
     };
-  }, [fetchUserDoc]);
+  }, [resolveAuthUserState]);
 
   const value = useMemo(
     () => ({
