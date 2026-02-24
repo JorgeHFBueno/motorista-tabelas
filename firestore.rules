@@ -143,6 +143,12 @@ service cloud.firestore {
       allow create: if isSignedIn() && isValidOwnUserCreate(uid);
       allow update: if isSignedIn() && isValidOwnUserUpdate(uid);
       allow delete: if false;
+
+      match /accessRequests/{requestId} {
+        allow get, list: if isSignedIn() && request.auth.uid == uid;
+        allow create: if isSignedIn() && request.auth.uid == uid && isValidAccessRequestCreate();
+        allow update, delete: if false;
+      }
     }
 
     match /obras/{obraId} {
@@ -185,6 +191,10 @@ service cloud.firestore {
       allow get: if legacyHasObra();
       allow list: if false;
       allow write: if false;
+    }
+
+    match /accessRequests/{requestId} {
+      allow read, write: if false;
     }
   }
 }

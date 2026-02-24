@@ -9,10 +9,21 @@ import { createContext, ReactNode, useCallback, useContext, useEffect, useMemo, 
 import { auth, authPersistenceReady, db, firebaseInitError } from "@/lib/firebase";
 import type { UserDoc } from "@/types/rbac";
 
+const logFirestoreError = (tag: string, err: unknown) => {
+  const firestoreError = err as { code?: string; message?: string };
+  console.error(`[AuthProvider][${tag}] Firestore error`, {
+    code: firestoreError?.code ?? "unknown",
+    message: firestoreError?.message ?? "unknown",
+    rawError: err,
+  });
+};
+
 interface AuthContextData {
   user: User | null;
   userDoc: UserDoc | null;
   loading: boolean;
+  authReady: boolean;
+  userDocReady: boolean;
   error: string | null;
   login: (email: string, senha: string) => Promise<void>;
   logout: () => Promise<void>;
@@ -28,6 +39,8 @@ interface AuthProviderProps {
 export const AuthProvider = ({ children }: AuthProviderProps) => {
   const [user, setUser] = useState<User | null>(null);
   const [userDoc, setUserDoc] = useState<UserDoc | null>(null);
+  const [authReady, setAuthReady] = useState(false);
+  const [userDocReady, setUserDocReady] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -46,18 +59,22 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
   const refreshUserDoc = useCallback(async () => {
     if (!user) {
       setUserDoc(null);
+      setUserDocReady(true);
       return;
     }
 
     try {
+      setUserDocReady(false);
       setError(null);
       const loadedUserDoc = await fetchUserDoc(user.uid);
       setUserDoc(loadedUserDoc);
       console.debug("[AuthProvider] userDoc atualizado", { uid: user.uid, exists: !!loadedUserDoc });
     } catch (err) {
-      console.debug("[AuthProvider] erro ao atualizar userDoc", err);
+      logFirestoreError("getUserDoc", err);
       setError("Falha ao carregar dados do usuário.");
       throw err;
+      } finally {
+      setUserDocReady(true);
     }
   }, [fetchUserDoc, user]);
 
@@ -69,26 +86,33 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
 
       if (!auth) {
         setLoading(false);
+        setAuthReady(true);
+        setUserDocReady(true);
         setError("Não foi possível inicializar autenticação.");
         return;
       }
       unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
         setUser(currentUser);
+        setAuthReady(true);
+
         if (!currentUser) {
           setUserDoc(null);
+          setUserDocReady(true);
           setLoading(false);
           return;
         }
 
         try {
+          setUserDocReady(false);
           setError(null);
           const loadedUserDoc = await fetchUserDoc(currentUser.uid);
           setUserDoc(loadedUserDoc);
         } catch (err) {
-          console.debug("[AuthProvider] erro onAuthStateChanged", err);
+          logFirestoreError("getUserDoc", err);
           setError("Falha ao carregar dados do usuário.");
           setUserDoc(null);
         } finally {
+          setUserDocReady(true);
           setLoading(false);
         }
       });
@@ -106,6 +130,8 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
       user,
       userDoc,
       loading,
+      authReady,
+      userDocReady,
       error,
       login: async (email: string, senha: string) => {
         if (!auth) {
@@ -121,7 +147,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
       },
       refreshUserDoc,
     }),
-    [error, loading, refreshUserDoc, user, userDoc],
+        [authReady, error, loading, refreshUserDoc, user, userDoc, userDocReady],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

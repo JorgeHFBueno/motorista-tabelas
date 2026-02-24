@@ -7,7 +7,7 @@ import { toast } from "@/hooks/use-toast";
 
 const ClienteSemObraPage = () => {
   const { user, userDoc, logout } = useAuth();
-  const { data: requests = [], isLoading } = useMyAccessRequests(user?.uid);
+  const { data: requests = [], isLoading, isError } = useMyAccessRequests(user?.uid);
   const createRequest = useCreateAccessRequest();
 
   const hasPendingRequest = requests.some((item) => item.status === "pendente");
@@ -43,10 +43,14 @@ const ClienteSemObraPage = () => {
           </CardHeader>
           <CardContent className="space-y-3">
             {isLoading && <p className="text-sm text-muted-foreground">Carregando solicitações...</p>}
+            {isError && <p className="text-sm text-muted-foreground">Nenhum pedido encontrado no momento.</p>}
             {!isLoading && latestRequest && (
               <p className="text-sm text-muted-foreground">
                 Último pedido: <span className="font-medium">{latestRequest.status}</span>
               </p>
+            )}
+            {!isLoading && !latestRequest && !isError && (
+              <p className="text-sm text-muted-foreground">Nenhum pedido encontrado no momento.</p>
             )}
             <div className="flex flex-wrap gap-2">
               <Button

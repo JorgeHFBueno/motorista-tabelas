@@ -11,11 +11,11 @@ const CenterLoader = () => (
 );
 
 export const ProtectedRoute = ({ children }: { children?: ReactNode }) => {
-  const { user, userDoc, loading, refreshUserDoc } = useAuth();
+  const { user, userDoc, loading, authReady, userDocReady, refreshUserDoc } = useAuth();
   const location = useLocation();
   const ensureUserDoc = useEnsureUserDoc({ user, userDoc, onEnsured: refreshUserDoc });
 
-  if (loading || ensureUserDoc.isPending) {
+  if (loading || !authReady || !userDocReady || ensureUserDoc.isPending) {
     return <CenterLoader />;
   }
 

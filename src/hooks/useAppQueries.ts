@@ -19,6 +19,15 @@ import type { FirestoreItem, ObraDoc, UserDoc } from "@/types/rbac";
 const mapItems = (docs: Awaited<ReturnType<typeof getDocs>>): FirestoreItem[] =>
   docs.docs.map((item) => ({ id: item.id, ...(item.data() as Record<string, unknown>),}));
 
+const logFirestoreError = (tag: string, err: unknown) => {
+  const firestoreError = err as { code?: string; message?: string };
+  console.error(`[Firestore][${tag}]`, {
+    code: firestoreError?.code ?? "unknown",
+    message: firestoreError?.message ?? "unknown",
+    rawError: err,
+  });
+};
+
 export const useUserDoc = (uid?: string) =>
   useQuery({
     queryKey: ["userDoc", uid],
@@ -28,14 +37,19 @@ export const useUserDoc = (uid?: string) =>
       }
 
       const userRef = doc(db, "users", uid);
-      const snap = await getDoc(userRef);
+      try {
+        const snap = await getDoc(userRef);
 
       if (!snap.exists()) {
-        console.debug("[useUserDoc] documento não encontrado", { uid });
-        return null;
-      }
+          console.debug("[useUserDoc] documento não encontrado", { uid });
+          return null;
+        }
 
       return { ...(snap.data() as UserDoc) };
+      } catch (err) {
+        logFirestoreError("getUserDoc", err);
+        throw err;
+      }
     },
     enabled: !!uid,
   });
@@ -55,14 +69,19 @@ export const useUserDoc = (uid?: string) =>
   const mutation = useMutation({
     mutationFn: async (currentUser: User) => {
       const userRef = doc(db, "users", currentUser.uid);
-      await setDoc(userRef, {
-        nome: currentUser.displayName || currentUser.email || "Usuário",
-        tipo: "cliente",
-        role: "cliente",
-        ativo: true,
-        obras: [],
-        createdAt: serverTimestamp(),
-      });
+      try {
+        await setDoc(userRef, {
+          nome: currentUser.displayName || currentUser.email || "Usuário",
+          tipo: "cliente",
+          role: "cliente",
+          ativo: true,
+          obras: [],
+          createdAt: serverTimestamp(),
+        });
+      } catch (err) {
+        logFirestoreError("createUserDoc", err);
+        throw err;
+      }
     },
     onSuccess: async () => {
       if (user) {
@@ -146,22 +165,27 @@ export const useMyAccessRequests = (uid?: string) =>
       if (!uid) {
         return [] as AccessRequestDoc[];
       }
-      const requestsQuery = query(collection(db, "accessRequests"), where("uid", "==", uid));
-      const snap = await getDocs(requestsQuery);
+      try {
+        const requestsRef = collection(db, "users", uid, "accessRequests");
+        const snap = await getDocs(requestsRef);
 
-      return snap.docs
-        .map(
-          (item) =>
-            ({
-              id: item.id,
-              ...(item.data() as Omit<AccessRequestDoc, "id">),
-            }) as AccessRequestDoc,
-        )
-        .sort((a, b) => {
-          const aValue = (a.createdAt as { seconds?: number })?.seconds ?? 0;
-          const bValue = (b.createdAt as { seconds?: number })?.seconds ?? 0;
-          return bValue - aValue;
-        });
+        return snap.docs
+          .map(
+            (item) =>
+              ({
+                id: item.id,
+                ...(item.data() as Omit<AccessRequestDoc, "id">),
+              }) as AccessRequestDoc,
+          )
+          .sort((a, b) => {
+            const aValue = (a.createdAt as { seconds?: number })?.seconds ?? 0;
+            const bValue = (b.createdAt as { seconds?: number })?.seconds ?? 0;
+            return bValue - aValue;
+          });
+      } catch (err) {
+        logFirestoreError("queryAccessRequests", err);
+        throw err;
+      }
     },
     enabled: !!uid,
   });
@@ -171,13 +195,18 @@ export const useCreateAccessRequest = () => {
 
   return useMutation({
     mutationFn: async ({ uid, nomeSnapshot, emailSnapshot }: { uid: string; nomeSnapshot: string; emailSnapshot: string }) => {
-      await addDoc(collection(db, "accessRequests"), {
-        uid,
-        nomeSnapshot,
-        emailSnapshot,
-        createdAt: serverTimestamp(),
-        status: "pendente",
-      });
+      try {
+        await addDoc(collection(db, "users", uid, "accessRequests"), {
+          uid,
+          nomeSnapshot,
+          emailSnapshot,
+          createdAt: serverTimestamp(),
+          status: "pendente",
+        });
+      } catch (err) {
+        logFirestoreError("createAccessRequest", err);
+        throw err;
+      }
     },
     onSuccess: async (_, variables) => {
       await queryClient.invalidateQueries({ queryKey: ["accessRequests", variables.uid] });
