@@ -25,13 +25,18 @@ import StaffObrasPage from "@/pages/StaffObrasPage";
 import StaffObraDetailPage from "@/pages/StaffObraDetailPage";
 import StaffCadastrosPage from "@/pages/StaffCadastrosPage";
 import StaffObraUploadPage from "@/pages/StaffObraUploadPage";
+import ClienteSemObraPage from "@/pages/ClienteSemObraPage";
+import ContaDesativadaPage from "@/pages/ContaDesativadaPage";
+import AguardandoLiberacaoPage from "@/pages/AguardandoLiberacaoPage";
 
 const queryClient = new QueryClient();
 
 const App = () => {
   if (firebaseInitError) {
+    console.log("[build]", import.meta.env.MODE, "__BUILD__", "__DATE__");
     return <FirebaseInitErrorScreen />;
   }
+  console.log("[build]", import.meta.env.MODE, "__BUILD__", "__DATE__");
 
   return (
     <QueryClientProvider client={queryClient}>
@@ -47,6 +52,7 @@ const App = () => {
                 <Route path="/" element={<RoleHomeRedirect />} />
 
                 <Route element={<ClientRoute />}>
+                 <Route path="/cliente/sem-obra" element={<ClienteSemObraPage />} />
                   <Route path="/cliente/obra" element={<Obra />} />
                   <Route path="/cliente/financas" element={<Financas />} />
                   <Route path="/cliente/documentos" element={<Documentos />} />
@@ -64,6 +70,8 @@ const App = () => {
                   </Route>
                   <Route path="/painel/cadastros" element={<StaffCadastrosPage />} />
                 </Route>
+                <Route path="/conta-desativada" element={<ContaDesativadaPage />} />
+                <Route path="/aguardando-liberacao" element={<AguardandoLiberacaoPage />} />
                 <Route path="*" element={<NotFound />} />
               </Route>
             </Routes>

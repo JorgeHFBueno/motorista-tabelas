@@ -28,7 +28,7 @@ export const useActiveObraId = () => {
 
   useEffect(() => {
     if (isClientArea && userDoc?.role === "cliente" && !derivedClientObraId) {
-      navigate("/cliente/obra", { replace: true });
+      navigate("/cliente/sem-obra", { replace: true });
     }
   }, [derivedClientObraId, isClientArea, navigate, userDoc?.role]);
 

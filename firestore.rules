@@ -24,9 +24,19 @@ service cloud.firestore {
 
     function hasObra(obraId) {
       return isSignedIn()
+        && (obraId is string)
+        && (obraId != "")
         && ('obras' in userDoc())
         && (userDoc().obras is list)
         && (obraId in userDoc().obras);
+    }
+
+    function legacyHasObra() {
+      return isSignedIn()
+        && ('obraId' in resource.data)
+        && (resource.data.obraId is string)
+        && (resource.data.obraId != "")
+        && hasObra(resource.data.obraId);
     }
 
     function isValidOwnUserCreate(uid) {
@@ -70,6 +80,33 @@ service cloud.firestore {
         && request.resource.data.ativo == resource.data.ativo
         && request.resource.data.createdAt == resource.data.createdAt
         && request.resource.data.obras == resource.data.obras;
+    }
+
+    function isValidAccessRequestCreate() {
+      return request.resource.data.keys().hasOnly([
+          'uid',
+          'nomeSnapshot',
+          'emailSnapshot',
+          'createdAt',
+          'status',
+          'observacao'
+        ])
+        && request.resource.data.keys().hasAll([
+          'uid',
+          'nomeSnapshot',
+          'emailSnapshot',
+          'createdAt',
+          'status'
+        ])
+        && request.resource.data.uid == request.auth.uid
+        && request.resource.data.nomeSnapshot is string
+        && request.resource.data.emailSnapshot is string
+        && request.resource.data.createdAt is timestamp
+        && request.resource.data.status == 'pendente'
+        && (
+          !('observacao' in request.resource.data)
+          || request.resource.data.observacao is string
+        );
     }
 
     function obraIdMatchesIfPresent(obraId) {
@@ -133,17 +170,20 @@ service cloud.firestore {
 
     // Compatibilidade temporária para leituras em coleções legadas de topo.
     match /documentos/{docId} {
-      allow read: if isSignedIn() && ('obraId' in resource.data) && hasObra(resource.data.obraId);
+      allow get: if legacyHasObra();
+      allow list: if false;
       allow write: if false;
     }
 
     match /fotos/{fotoId} {
-      allow read: if isSignedIn() && ('obraId' in resource.data) && hasObra(resource.data.obraId);
+      allow get: if legacyHasObra();
+      allow list: if false;
       allow write: if false;
     }
 
     match /financas/{itemId} {
-      allow read: if isSignedIn() && ('obraId' in resource.data) && hasObra(resource.data.obraId);
+      allow get: if legacyHasObra();
+      allow list: if false;
       allow write: if false;
     }
   }

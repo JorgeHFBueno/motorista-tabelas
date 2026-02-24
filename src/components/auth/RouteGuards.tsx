@@ -2,6 +2,7 @@ import { ReactNode } from "react";
 import { Loader2 } from "lucide-react";
 import { Navigate, Outlet, useLocation, useParams } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
+import { useEnsureUserDoc } from "@/hooks/useAppQueries";
 
 const CenterLoader = () => (
   <div className="flex min-h-screen items-center justify-center bg-background">
@@ -9,31 +10,12 @@ const CenterLoader = () => (
   </div>
 );
 
-const InfoScreen = ({
-  title,
-  description,
-  onLogout,
-}: {
-  title: string;
-  description: string;
-  onLogout: () => Promise<void>;
-}) => (
-  <div className="flex min-h-screen items-center justify-center px-4">
-    <div className="max-w-md space-y-4 text-center">
-      <h1 className="text-2xl font-semibold">{title}</h1>
-      <p className="text-muted-foreground">{description}</p>
-      <button onClick={() => void onLogout()} className="text-primary underline">
-        Sair
-      </button>
-    </div>
-  </div>
-);
-
 export const ProtectedRoute = ({ children }: { children?: ReactNode }) => {
-  const { user, userDoc, loading, logout } = useAuth();
+  const { user, userDoc, loading, refreshUserDoc } = useAuth();
   const location = useLocation();
+  const ensureUserDoc = useEnsureUserDoc({ user, userDoc, onEnsured: refreshUserDoc });
 
-  if (loading) {
+  if (loading || ensureUserDoc.isPending) {
     return <CenterLoader />;
   }
 
@@ -42,17 +24,11 @@ export const ProtectedRoute = ({ children }: { children?: ReactNode }) => {
   }
 
   if (!userDoc) {
-    return (
-      <InfoScreen
-        title="Aguardando liberação do administrador"
-        description="Seu login foi validado, mas ainda não existe um cadastro em users/{uid}."
-        onLogout={logout}
-      />
-    );
+    return <Navigate to="/aguardando-liberacao" replace />;
   }
 
   if (!userDoc.ativo) {
-    return <InfoScreen title="Conta desativada" description="Entre em contato com o administrador." onLogout={logout} />;
+    return <Navigate to="/conta-desativada" replace />
   }
 
   if (children) {
@@ -70,7 +46,7 @@ export const RoleHomeRedirect = () => {
   }
 
   if (userDoc.role === "cliente") {
-    return <Navigate to="/cliente/obra" replace />;
+    return <Navigate to={userDoc.obras.length === 0 ? "/cliente/sem-obra" : "/cliente/obra"} replace />;
   }
 
   return <Navigate to="/painel/obras" replace />;
@@ -78,6 +54,7 @@ export const RoleHomeRedirect = () => {
 
 export const ClientRoute = ({ children }: { children?: ReactNode }) => {
   const { userDoc } = useAuth();
+  const location = useLocation();
 
   if (!userDoc) {
     return null;
@@ -85,6 +62,14 @@ export const ClientRoute = ({ children }: { children?: ReactNode }) => {
 
   if (userDoc.role !== "cliente") {
     return <Navigate to="/painel/obras" replace />;
+  }
+
+  if (userDoc.obras.length === 0 && location.pathname !== "/cliente/sem-obra") {
+    return <Navigate to="/cliente/sem-obra" replace />;
+  }
+
+  if (userDoc.obras.length > 0 && location.pathname === "/cliente/sem-obra") {
+    return <Navigate to="/cliente/obra" replace />;
   }
 
   if (children) {

@@ -1,19 +1,23 @@
-import { useQuery } from "@tanstack/react-query";
+import { useEffect, useRef } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
+  addDoc,
   collection,
   documentId,
+  doc,
   getDoc,
   getDocs,
   query,
+  serverTimestamp,
+  setDoc,
   where,
-  doc,
 } from "firebase/firestore";
+import type { User } from "firebase/auth";
 import { db } from "@/lib/firebase";
 import type { FirestoreItem, ObraDoc, UserDoc } from "@/types/rbac";
 
 const mapItems = (docs: Awaited<ReturnType<typeof getDocs>>): FirestoreItem[] =>
   docs.docs.map((item) => ({ id: item.id, ...(item.data() as Record<string, unknown>),}));
-
 
 export const useUserDoc = (uid?: string) =>
   useQuery({
@@ -35,6 +39,52 @@ export const useUserDoc = (uid?: string) =>
     },
     enabled: !!uid,
   });
+
+  export const useEnsureUserDoc = ({
+  user,
+  userDoc,
+  onEnsured,
+}: {
+  user: User | null;
+  userDoc: UserDoc | null;
+  onEnsured?: () => Promise<void>;
+}) => {
+  const hasAttempted = useRef(false);
+  const queryClient = useQueryClient();
+
+  const mutation = useMutation({
+    mutationFn: async (currentUser: User) => {
+      const userRef = doc(db, "users", currentUser.uid);
+      await setDoc(userRef, {
+        nome: currentUser.displayName || currentUser.email || "Usuário",
+        tipo: "cliente",
+        role: "cliente",
+        ativo: true,
+        obras: [],
+        createdAt: serverTimestamp(),
+      });
+    },
+    onSuccess: async () => {
+      if (user) {
+        await queryClient.invalidateQueries({ queryKey: ["userDoc", user.uid] });
+      }
+      if (onEnsured) {
+        await onEnsured();
+      }
+    },
+  });
+
+  useEffect(() => {
+    if (!user || userDoc || hasAttempted.current || mutation.isPending) {
+      return;
+    }
+
+    hasAttempted.current = true;
+    mutation.mutate(user);
+  }, [mutation, user, userDoc]);
+
+  return mutation;
+};
 
 export const useObra = (obraId?: string) =>
   useQuery({
@@ -67,9 +117,7 @@ export const useObrasByIds = (ids: string[]) =>
       );
 
       const snapshots = await Promise.all(
-        chunks.map((chunk) =>
-          getDocs(query(collection(db, "obras"), where(documentId(), "in", chunk))),
-        ),
+        chunks.map((chunk) => getDocs(query(collection(db, "obras"), where(documentId(), "in", chunk)))),
       );
 
       return snapshots.flatMap((snapshot) =>
@@ -80,6 +128,62 @@ export const useObrasByIds = (ids: string[]) =>
     },
     enabled: ids.length > 0,
   });
+
+  export interface AccessRequestDoc {
+  id: string;
+  uid: string;
+  nomeSnapshot: string;
+  emailSnapshot: string;
+  status: "pendente" | "aprovado" | "negado";
+  observacao?: string;
+  createdAt?: unknown;
+}
+
+export const useMyAccessRequests = (uid?: string) =>
+  useQuery({
+    queryKey: ["accessRequests", uid],
+    queryFn: async () => {
+      if (!uid) {
+        return [] as AccessRequestDoc[];
+      }
+      const requestsQuery = query(collection(db, "accessRequests"), where("uid", "==", uid));
+      const snap = await getDocs(requestsQuery);
+
+      return snap.docs
+        .map(
+          (item) =>
+            ({
+              id: item.id,
+              ...(item.data() as Omit<AccessRequestDoc, "id">),
+            }) as AccessRequestDoc,
+        )
+        .sort((a, b) => {
+          const aValue = (a.createdAt as { seconds?: number })?.seconds ?? 0;
+          const bValue = (b.createdAt as { seconds?: number })?.seconds ?? 0;
+          return bValue - aValue;
+        });
+    },
+    enabled: !!uid,
+  });
+
+export const useCreateAccessRequest = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({ uid, nomeSnapshot, emailSnapshot }: { uid: string; nomeSnapshot: string; emailSnapshot: string }) => {
+      await addDoc(collection(db, "accessRequests"), {
+        uid,
+        nomeSnapshot,
+        emailSnapshot,
+        createdAt: serverTimestamp(),
+        status: "pendente",
+      });
+    },
+    onSuccess: async (_, variables) => {
+      await queryClient.invalidateQueries({ queryKey: ["accessRequests", variables.uid] });
+    },
+  });
+};
 
 const listWithFallback = async (
   obraId: string,
