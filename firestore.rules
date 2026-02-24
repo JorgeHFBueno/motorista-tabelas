@@ -22,6 +22,10 @@ service cloud.firestore {
       return isSignedIn() && role() != "cliente";
     }
 
+    function isAdmin() {
+      return isSignedIn() && role() == "admin";
+    }
+
     function hasObra(obraId) {
       return isSignedIn()
         && (obraId is string)
@@ -149,25 +153,25 @@ service cloud.firestore {
     }
 
     match /obras/{obraId} {
-      allow read: if hasObra(obraId);
+      allow read: if isAdmin() || hasObra(obraId);
       allow write: if false;
 
       match /documentos/{docId} {
-        allow read: if hasObra(obraId);
-        allow create: if hasObra(obraId) && isStaff() && validDocumentoCreate(obraId);
-        allow update, delete: if hasObra(obraId) && isStaff();
+        allow read: if isAdmin() || hasObra(obraId);
+        allow create: if isStaff() && (isAdmin() || hasObra(obraId)) && validDocumentoCreate(obraId);
+        allow update, delete: if isStaff() && (isAdmin() || hasObra(obraId));
       }
 
       match /fotos/{fotoId} {
-        allow read: if hasObra(obraId);
-        allow create: if hasObra(obraId) && isStaff() && validFotoCreate(obraId);
-        allow update, delete: if hasObra(obraId) && isStaff();
+        allow read: if isAdmin() || hasObra(obraId);
+        allow create: if isStaff() && (isAdmin() || hasObra(obraId)) && validFotoCreate(obraId);
+        allow update, delete: if isStaff() && (isAdmin() || hasObra(obraId));
       }
 
       match /financas/{itemId} {
-        allow read: if hasObra(obraId);
-        allow create: if hasObra(obraId) && isStaff() && validFinancaCreate(obraId);
-        allow update, delete: if hasObra(obraId) && isStaff();
+        allow read: if isAdmin() || hasObra(obraId);
+        allow create: if isStaff() && (isAdmin() || hasObra(obraId)) && validFinancaCreate(obraId);
+        allow update, delete: if isStaff() && (isAdmin() || hasObra(obraId));
       }
     }
 

@@ -157,6 +157,16 @@ export const useObra = (obraId?: string) =>
     enabled: !!obraId,
   });
 
+  export const useAllObras = (enabled = true) =>
+  useQuery({
+    queryKey: ["allObras"],
+    queryFn: async () => {
+      const snapshot = await getDocs(collection(db, "obras"));
+      return snapshot.docs.map((obra) => ({ id: obra.id, ...(obra.data() as Omit<ObraDoc, "id">) }) as ObraDoc);
+    },
+    enabled,
+  });
+
 export const useObrasByIds = (ids: string[]) =>
   useQuery({
     queryKey: ["obrasByIds", ids],

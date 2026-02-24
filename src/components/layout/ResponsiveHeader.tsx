@@ -20,6 +20,7 @@ const ResponsiveHeader = ({
   const { obraAtiva } = useObra();
   const { logout, userDoc } = useAuth();
   const navigate = useNavigate();
+  const obraNome = obraAtiva?.nome ?? "Nenhuma obra selecionada";
 
   const handleSignOut = async () => {
     await logout();
@@ -39,7 +40,7 @@ const ResponsiveHeader = ({
             <div className="w-7 h-7 bg-secondary rounded flex items-center justify-center">
               <span className="text-secondary-foreground text-xs font-bold">L</span>
             </div>
-            <span className="font-medium text-sm max-w-[140px] truncate">{obraAtiva.nome}</span>
+            <span className="font-medium text-sm max-w-[140px] truncate">{obraNome}</span>
             <ChevronDown className="w-4 h-4 opacity-60" />
           </motion.button>
 
@@ -85,7 +86,7 @@ const ResponsiveHeader = ({
             </div>
             <div>
               <h1 className="font-semibold">Ledur Pré-Fabricados</h1>
-              <p className="text-xs text-primary-foreground/60">{obraAtiva.nome}</p>
+              <p className="text-xs text-primary-foreground/60">{obraNome}</p>
             </div>
           </div>
         </div>

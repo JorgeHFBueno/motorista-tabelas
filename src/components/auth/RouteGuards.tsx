@@ -1,8 +1,9 @@
-import { ReactNode } from "react";
+import { ReactNode, useEffect, useRef } from "react";
 import { Loader2 } from "lucide-react";
 import { Navigate, Outlet, useLocation, useParams } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { useEnsureUserDoc } from "@/hooks/useAppQueries";
+import { toast } from "@/hooks/use-toast";
 
 const CenterLoader = () => (
   <div className="flex min-h-screen items-center justify-center bg-background">
@@ -104,6 +105,10 @@ export const StaffRoute = ({ children }: { children?: ReactNode }) => {
     return null;
   }
 
+  if (!userDoc.ativo) {
+    return <Navigate to="/conta-desativada" replace />;
+  }
+
   if (userDoc.role === "cliente") {
     return <Navigate to="/cliente/obra" replace />;
   }
@@ -118,12 +123,26 @@ export const StaffRoute = ({ children }: { children?: ReactNode }) => {
 export const ObraAccessRoute = ({ children }: { children?: ReactNode }) => {
   const { userDoc } = useAuth();
   const { obraId } = useParams();
+  const deniedRef = useRef(false);
+
+  const hasAccess = !!userDoc && !!obraId && (userDoc.role === "admin" || userDoc.obras.includes(obraId));
+
+  useEffect(() => {
+    if (userDoc && obraId && !hasAccess && !deniedRef.current) {
+      deniedRef.current = true;
+      toast({
+        title: "Acesso negado",
+        description: "Você não tem permissão para acessar esta obra.",
+        variant: "destructive",
+      });
+    }
+  }, [hasAccess, obraId, userDoc]);
 
   if (!userDoc || !obraId) {
     return <Navigate to="/painel/obras" replace />;
   }
 
-  if (!userDoc.obras.includes(obraId)) {
+  if (!hasAccess) {
     return <Navigate to="/painel/obras" replace />;
   }
 
