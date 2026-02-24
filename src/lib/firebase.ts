@@ -17,6 +17,8 @@ const REQUIRED_FIREBASE_ENV_VARS = [
   "VITE_FIREBASE_APP_ID",
 ] as const;
 
+const FIREBASE_RULES_PROJECT_ID = import.meta.env.VITE_FIREBASE_RULES_PROJECT_ID;
+
 type RequiredEnvName = (typeof REQUIRED_FIREBASE_ENV_VARS)[number];
 
 export let firebaseInitError: Error | null = null;
@@ -63,6 +65,21 @@ let storage: FirebaseStorage | null = null;
 if (firebaseConfig) {
   try {
     app = getApps().length ? getApp() : initializeApp(firebaseConfig);
+    const { projectId, authDomain } = app.options;
+    console.info("[Firebase][project-check] active config", { projectId, authDomain });
+
+    if (
+      typeof FIREBASE_RULES_PROJECT_ID === "string"
+      && FIREBASE_RULES_PROJECT_ID.trim().length > 0
+      && FIREBASE_RULES_PROJECT_ID !== projectId
+    ) {
+      console.error("[Firebase][project-check] mismatch", {
+        activeProjectId: projectId,
+        rulesProjectId: FIREBASE_RULES_PROJECT_ID,
+        message:
+          "As regras podem ter sido aplicadas em outro projeto Firebase. Verifique o VITE_FIREBASE_RULES_PROJECT_ID.",
+      });
+    }
     auth = getAuth(app);
     db = getFirestore(app);
     storage = getStorage(app);

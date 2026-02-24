@@ -1,4 +1,5 @@
 import { useEffect, useRef } from "react";
+import { getApp } from "firebase/app";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   addDoc,
@@ -70,14 +71,24 @@ export const useUserDoc = (uid?: string) =>
     mutationFn: async (currentUser: User) => {
       const userRef = doc(db, "users", currentUser.uid);
       try {
-        await setDoc(userRef, {
-          nome: currentUser.displayName || currentUser.email || "Usuário",
-          tipo: "cliente",
-          role: "cliente",
-          ativo: true,
-          obras: [],
-          createdAt: serverTimestamp(),
+        await currentUser.getIdToken(true);
+        console.info("[Firestore][createUserDoc] user/project", {
+          uid: currentUser.uid,
+          projectId: getApp().options.projectId ?? "unknown",
         });
+        
+        await setDoc(
+          userRef,
+          {
+            nome: currentUser.displayName || currentUser.email || "Usuário",
+            tipo: "cliente",
+            role: "cliente",
+            ativo: true,
+            obras: [],
+            createdAt: serverTimestamp(),
+          },
+          { merge: false },
+        );
       } catch (err) {
         logFirestoreError("createUserDoc", err);
         throw err;

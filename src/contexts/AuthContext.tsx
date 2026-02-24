@@ -4,6 +4,7 @@ import {
   signInWithEmailAndPassword,
   signOut,
 } from "firebase/auth";
+import { getApp } from "firebase/app";
 import { doc, getDoc } from "firebase/firestore";
 import { createContext, ReactNode, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import { auth, authPersistenceReady, db, firebaseInitError } from "@/lib/firebase";
@@ -44,11 +45,24 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const fetchUserDoc = useCallback(async (uid: string) => {
+  const fetchUserDoc = useCallback(async (currentUser: User | null) => {
+    if (!currentUser) {
+      console.warn("[AuthProvider][getUserDoc] currentUser ausente; leitura no Firestore ignorada");
+      return null;
+    }
+
     if (!db) {
       throw firebaseInitError ?? new Error("Firebase indisponível.");
     }
-    const userRef = doc(db, "users", uid);
+
+    await currentUser.getIdToken(true);
+    const projectId = getApp().options.projectId ?? "unknown";
+    console.info("[AuthProvider][getUserDoc] user/project", {
+      uid: currentUser.uid,
+      projectId,
+    });
+
+    const userRef = doc(db, "users", currentUser.uid);
     const snap = await getDoc(userRef);
     if (!snap.exists()) {
       return null;
@@ -66,7 +80,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     try {
       setUserDocReady(false);
       setError(null);
-      const loadedUserDoc = await fetchUserDoc(user.uid);
+      const loadedUserDoc = await fetchUserDoc(user);
       setUserDoc(loadedUserDoc);
       console.debug("[AuthProvider] userDoc atualizado", { uid: user.uid, exists: !!loadedUserDoc });
     } catch (err) {
@@ -105,7 +119,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
         try {
           setUserDocReady(false);
           setError(null);
-          const loadedUserDoc = await fetchUserDoc(currentUser.uid);
+          const loadedUserDoc = await fetchUserDoc(currentUser);
           setUserDoc(loadedUserDoc);
         } catch (err) {
           logFirestoreError("getUserDoc", err);
