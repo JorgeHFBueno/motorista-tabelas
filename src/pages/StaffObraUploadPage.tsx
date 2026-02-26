@@ -17,7 +17,11 @@ import type { DocumentoTipoPdf, FotoTipoImagem, UploadKind } from "@/types/uploa
 
 const isAccepted = (file: File) => ACCEPTED_UPLOAD_MIME_TYPES.includes(file.type as (typeof ACCEPTED_UPLOAD_MIME_TYPES)[number]);
 
-const StaffObraUploadPage = () => {
+interface StaffObraUploadPageProps {
+  basePath?: "/painel" | "/cliente";
+}
+
+const StaffObraUploadPage = ({ basePath = "/painel" }: StaffObraUploadPageProps) => {
   const { obraId = "" } = useParams();
   const navigate = useNavigate();
   const inputRef = useRef<HTMLInputElement>(null);
@@ -105,7 +109,7 @@ const StaffObraUploadPage = () => {
       }
 
       toast({ title: "Upload concluído", description: "Arquivo enviado com sucesso para a obra." });
-      navigate(`/painel/obras/${obraId}`);
+      navigate(basePath === "/cliente" ? "/cliente/documentos" : `/painel/obras/${obraId}`);
     } catch (error) {
       const message = error instanceof Error ? error.message : "Erro ao enviar arquivo.";
       toast({ title: "Falha no upload", description: message, variant: "destructive" });
@@ -113,7 +117,10 @@ const StaffObraUploadPage = () => {
   };
 
   return (
-    <ResponsiveLayout headerTitle="Upload da obra" headerSubtitle={obra?.nome ?? "Envio contextual por obra"}>
+    <ResponsiveLayout
+      headerTitle="Upload da obra"
+      headerSubtitle={basePath === "/cliente" ? (obra?.nome ?? "Envie documentos e fotos da sua obra") : (obra?.nome ?? "Envio contextual por obra")}
+    >
       <div className="px-4 py-6 lg:px-8 lg:py-8">
         <Card className="mx-auto max-w-2xl">
           <CardHeader>
@@ -204,7 +211,13 @@ const StaffObraUploadPage = () => {
             {isUploading && <p className="text-xs text-muted-foreground">Enviando... {Math.round(progress)}%</p>}
 
             <div className="flex justify-end gap-2">
-              <Button variant="outline" onClick={() => navigate(`/painel/obras/${obraId}`)} disabled={isUploading}>Cancelar</Button>
+              <Button
+                variant="outline"
+                onClick={() => navigate(basePath === "/cliente" ? "/cliente/documentos" : `/painel/obras/${obraId}`)}
+                disabled={isUploading}
+              >
+                Cancelar
+              </Button>
               <Button onClick={handleUpload} disabled={isUploading || !selectedFile || !tipo}>
                 {isUploading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                 Enviar arquivo

@@ -1,8 +1,10 @@
 import { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import { Camera, Calendar, Layers, X, ZoomIn } from "lucide-react";
 import ResponsiveLayout from "@/components/layout/ResponsiveLayout";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { useActiveObraId } from "@/hooks/useActiveObraId";
 import { useFotos } from "@/hooks/useAppQueries";
 
@@ -31,6 +33,7 @@ const stages = ["Todas", "Fundação", "Estrutura", "Cobertura", "Fechamento"];
 
 const Fotos = () => {
   const { activeObraId, hasClientObra } = useActiveObraId();
+  const navigate = useNavigate();
   const { data: fotosData = [], isLoading } = useFotos(activeObraId ?? undefined);
   const [selectedStage, setSelectedStage] = useState("Todas");
   const [selectedPhoto, setSelectedPhoto] = useState<Photo | null>(null);
@@ -72,9 +75,14 @@ const Fotos = () => {
   return (
     <ResponsiveLayout headerTitle="Fotos" headerSubtitle="Registro visual da evolução da obra">
       <div className="px-4 py-6 lg:px-8 lg:py-8 space-y-6">
-        <div className="rounded-xl border bg-card p-4 text-sm text-muted-foreground">
-        {!hasClientObra ? "Sem obra vinculada." : isLoading ? "Carregando fotos da obra..." : `Fotos carregadas: ${fotosData.length}`}
-      </div>
+        <div className="rounded-xl border bg-card p-4 text-sm text-muted-foreground flex items-center justify-between gap-3">
+          <span>{!hasClientObra ? "Sem obra vinculada." : isLoading ? "Carregando fotos da obra..." : `Fotos carregadas: ${fotosData.length}`}</span>
+          {activeObraId && (
+            <Button size="sm" onClick={() => navigate(`/cliente/obras/${activeObraId}/upload`)}>
+              Enviar arquivo
+            </Button>
+          )}
+        </div>
         {/* Summary Stats */}
         <motion.div
           initial={{ opacity: 0, y: 10 }}

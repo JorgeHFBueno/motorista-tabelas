@@ -138,12 +138,14 @@ export const ObraAccessRoute = ({ children }: { children?: ReactNode }) => {
     }
   }, [hasAccess, obraId, userDoc]);
 
+  const fallbackPath = userDoc?.role === "cliente" ? "/cliente/obra" : "/painel/obras";
+
   if (!userDoc || !obraId) {
-    return <Navigate to="/painel/obras" replace />;
+    return <Navigate to={fallbackPath} replace />;
   }
 
   if (!hasAccess) {
-    return <Navigate to="/painel/obras" replace />;
+    return <Navigate to={fallbackPath} replace />;
   }
 
   if (children) {

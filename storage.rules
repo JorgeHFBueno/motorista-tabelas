@@ -1,0 +1,44 @@
+rules_version = '2';
+
+service firebase.storage {
+  match /b/{bucket}/o {
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function userDoc() {
+      return firestore.get(/databases/(default)/documents/users/$(request.auth.uid)).data;
+    }
+
+    function role() {
+      return userDoc().role;
+    }
+
+    function isAdmin() {
+      return isSignedIn() && role() == "admin";
+    }
+
+    function hasObra(obraId) {
+      return isSignedIn()
+        && (obraId is string)
+        && (obraId != "")
+        && ('obras' in userDoc())
+        && (userDoc().obras is list)
+        && (obraId in userDoc().obras);
+    }
+
+    function isAllowedContentType() {
+      return request.resource.contentType.matches('image/.*')
+        || request.resource.contentType == 'application/pdf';
+    }
+
+    function isAllowedSize() {
+      return request.resource.size < 20 * 1024 * 1024;
+    }
+
+    match /obras/{obraId}/{subpath=**} {
+      allow read: if isAdmin() || hasObra(obraId);
+      allow write: if (isAdmin() || hasObra(obraId)) && isAllowedSize() && isAllowedContentType();
+    }
+  }
+}

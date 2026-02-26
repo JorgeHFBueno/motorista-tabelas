@@ -25,6 +25,7 @@ import StaffObrasPage from "@/pages/StaffObrasPage";
 import StaffObraDetailPage from "@/pages/StaffObraDetailPage";
 import StaffCadastrosPage from "@/pages/StaffCadastrosPage";
 import StaffObraUploadPage from "@/pages/StaffObraUploadPage";
+import ClientObraUploadPage from "@/pages/ClientObraUploadPage";
 import ClienteSemObraPage from "@/pages/ClienteSemObraPage";
 import ContaDesativadaPage from "@/pages/ContaDesativadaPage";
 import AguardandoLiberacaoPage from "@/pages/AguardandoLiberacaoPage";
@@ -36,7 +37,7 @@ const App = () => {
     console.log("[build]", import.meta.env.MODE, "__BUILD__", "__DATE__");
     return <FirebaseInitErrorScreen />;
   }
-  console.log("[build]", import.meta.env.MODE, "__BUILD__", "256");
+  console.log("[build]", import.meta.env.MODE, "__BUILD__", "260");
 
   return (
     <QueryClientProvider client={queryClient}>
@@ -57,6 +58,9 @@ const App = () => {
                   <Route path="/cliente/financas" element={<Financas />} />
                   <Route path="/cliente/documentos" element={<Documentos />} />
                   <Route path="/cliente/fotos" element={<Fotos />} />
+                  <Route element={<ObraAccessRoute />}>
+                    <Route path="/cliente/obras/:obraId/upload" element={<ClientObraUploadPage />} />
+                  </Route>
                 </Route>
 
                 <Route element={<StaffRoute />}>

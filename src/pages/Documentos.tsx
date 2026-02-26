@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { 
   FileText, Download, Eye, Filter, Search, FileCheck, Clock, 
@@ -215,6 +216,7 @@ const signatureStatusConfig: Record<SignatureStatus, {
 
 const Documentos = () => {
   const { activeObraId, hasClientObra } = useActiveObraId();
+  const navigate = useNavigate();
   const { data: documentosData = [], isLoading } = useDocumentos(activeObraId ?? undefined);
   const [selectedCategory, setSelectedCategory] = useState("Todos");
   const [searchQuery, setSearchQuery] = useState("");
@@ -248,9 +250,14 @@ const Documentos = () => {
   return (
     <ResponsiveLayout headerTitle="Documentos" headerSubtitle="Arquivo institucional e contratos">
       <div className="px-4 py-6 lg:px-8 lg:py-8 space-y-6">
-        <div className="rounded-xl border bg-card p-4 text-sm text-muted-foreground">
-        {!hasClientObra ? "Sem obra vinculada." : isLoading ? "Carregando documentos da obra..." : `Documentos carregados: ${documentosData.length}`}
-      </div>
+        <div className="rounded-xl border bg-card p-4 text-sm text-muted-foreground flex items-center justify-between gap-3">
+          <span>{!hasClientObra ? "Sem obra vinculada." : isLoading ? "Carregando documentos da obra..." : `Documentos carregados: ${documentosData.length}`}</span>
+          {activeObraId && (
+            <Button size="sm" onClick={() => navigate(`/cliente/obras/${activeObraId}/upload`)}>
+              Enviar arquivo
+            </Button>
+          )}
+        </div>
       
         {/* Search */}
         <motion.div
