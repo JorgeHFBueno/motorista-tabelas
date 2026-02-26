@@ -10,15 +10,50 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import { useAuth } from "@/contexts/AuthContext";
 import { useObrasByIds } from "@/hooks/useAppQueries";
 import { db } from "@/lib/firebase";
+import { adminCreateUser, adminLinkObra, adminSetRole, adminUnlinkObra } from "@/lib/functions";
 import { toast } from "@/hooks/use-toast";
+import type { UserRole, UserType } from "@/types/rbac";
+
+const ROLE_OPTIONS: UserRole[] = ["admin", "gerente", "operacional", "cliente"];
+const TIPO_OPTIONS: UserType[] = ["cliente", "funcionario"];
+
+const getErrorMessage = (error: unknown) => {
+  if (error instanceof Error) return error.message;
+
+  const maybeError = error as { message?: string };
+  if (typeof maybeError?.message === "string") return maybeError.message;
+
+  return "Falha ao executar operação.";
+};
 
 const StaffCadastrosPage = () => {
   const { userDoc } = useAuth();
+  const isAdmin = userDoc?.role === "admin";
+
   const [search, setSearch] = useState("");
   const [nome, setNome] = useState("");
   const [descricao, setDescricao] = useState("");
   const [status, setStatus] = useState<"ativa" | "concluida">("ativa");
   const [isCreating, setIsCreating] = useState(false);
+
+  const [novoEmail, setNovoEmail] = useState("");
+  const [novaSenha, setNovaSenha] = useState("");
+  const [novoNome, setNovoNome] = useState("");
+  const [novoTipo, setNovoTipo] = useState<UserType>("cliente");
+  const [novoRole, setNovoRole] = useState<UserRole>("cliente");
+  const [novoObrasRaw, setNovoObrasRaw] = useState("");
+  const [creatingUser, setCreatingUser] = useState(false);
+
+  const [targetUidRole, setTargetUidRole] = useState("");
+  const [targetRole, setTargetRole] = useState<UserRole>("cliente");
+  const [targetTipo, setTargetTipo] = useState<UserType>("cliente");
+  const [targetAtivo, setTargetAtivo] = useState<"true" | "false">("true");
+  const [updatingRole, setUpdatingRole] = useState(false);
+
+  const [targetUidObra, setTargetUidObra] = useState("");
+  const [targetObraId, setTargetObraId] = useState("");
+  const [linkingObra, setLinkingObra] = useState(false);
+  const [unlinkingObra, setUnlinkingObra] = useState(false);
 
   const obraIds = userDoc?.obras ?? [];
   const { data: obras = [], isLoading } = useObrasByIds(obraIds);
@@ -57,25 +92,94 @@ const StaffCadastrosPage = () => {
 
       toast({
         title: "Obra criada",
-        description: "Obra registrada. Para visualização, inclua o obraId em users/{uid}.obras no Console.",
+        description: "Obra registrada com sucesso.",
       });
     } catch (error) {
-      const message = error instanceof Error ? error.message : "Não foi possível criar a obra.";
-      toast({ title: "Sem permissão para criar", description: message, variant: "destructive" });
+      toast({ title: "Sem permissão para criar", description: getErrorMessage(error), variant: "destructive" });
     } finally {
       setIsCreating(false);
     }
   };
 
+  const handleAdminCreateUser = async () => {
+    try {
+      setCreatingUser(true);
+      const obras = novoObrasRaw
+        .split(",")
+        .map((item) => item.trim())
+        .filter(Boolean);
+
+      const result = await adminCreateUser({
+        email: novoEmail,
+        password: novaSenha,
+        nome: novoNome,
+        tipo: novoTipo,
+        role: novoRole,
+        obras,
+      });
+
+      toast({ title: "Usuário criado", description: `UID criado: ${result.uid}` });
+      setNovoEmail("");
+      setNovaSenha("");
+      setNovoNome("");
+      setNovoTipo("cliente");
+      setNovoRole("cliente");
+      setNovoObrasRaw("");
+    } catch (error) {
+      toast({ title: "Erro ao criar usuário", description: getErrorMessage(error), variant: "destructive" });
+    } finally {
+      setCreatingUser(false);
+    }
+  };
+
+  const handleAdminSetRole = async () => {
+    try {
+      setUpdatingRole(true);
+      await adminSetRole({
+        uid: targetUidRole,
+        role: targetRole,
+        tipo: targetTipo,
+        ativo: targetAtivo === "true",
+      });
+      toast({ title: "Permissões atualizadas", description: "Role/tipo/ativo atualizados com sucesso." });
+    } catch (error) {
+      toast({ title: "Erro ao atualizar role", description: getErrorMessage(error), variant: "destructive" });
+    } finally {
+      setUpdatingRole(false);
+    }
+  };
+
+  const handleAdminLinkObra = async () => {
+    try {
+      setLinkingObra(true);
+      await adminLinkObra({ uid: targetUidObra, obraId: targetObraId });
+      toast({ title: "Obra vinculada", description: "Vínculo realizado com sucesso." });
+    } catch (error) {
+      toast({ title: "Erro ao vincular obra", description: getErrorMessage(error), variant: "destructive" });
+    } finally {
+      setLinkingObra(false);
+    }
+  };
+
+  const handleAdminUnlinkObra = async () => {
+    try {
+      setUnlinkingObra(true);
+      await adminUnlinkObra({ uid: targetUidObra, obraId: targetObraId });
+      toast({ title: "Obra desvinculada", description: "Vínculo removido com sucesso." });
+    } catch (error) {
+      toast({ title: "Erro ao desvincular obra", description: getErrorMessage(error), variant: "destructive" });
+    } finally {
+      setUnlinkingObra(false);
+    }
+  };
+
   return (
-    <ResponsiveLayout headerTitle="Cadastros" headerSubtitle="Obras e instruções de vínculo">
+    <ResponsiveLayout headerTitle="Cadastros" headerSubtitle="Obras e administração de usuários">
       <div className="px-4 py-6 lg:px-8 lg:py-8 space-y-4">
         <Card>
           <CardHeader>
             <CardTitle>Cadastro de obras</CardTitle>
-            <CardDescription>
-              Crie obras quando as regras permitirem gravação. A edição de obra está reservada para próxima etapa.
-            </CardDescription>
+            <CardDescription>Criação básica de obras no Firestore.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">
             <div className="grid gap-3 md:grid-cols-2">
@@ -108,6 +212,146 @@ const StaffCadastrosPage = () => {
 
         <Card>
           <CardHeader>
+            <CardTitle>Painel administrativo (Cloud Functions)</CardTitle>
+            <CardDescription>
+              Gestão de usuários via callable functions. Apenas usuários com role admin conseguem executar.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-6">
+            {!isAdmin && (
+              <p className="text-sm text-destructive">
+                Seu usuário atual não é admin. As ações abaixo devem retornar permissão negada.
+              </p>
+            )}
+
+            <div className="space-y-3 rounded-lg border p-4">
+              <h3 className="font-medium">Criar usuário</h3>
+              <div className="grid gap-3 md:grid-cols-2">
+                <div className="space-y-1">
+                  <Label htmlFor="novo-email">Email</Label>
+                  <Input id="novo-email" value={novoEmail} onChange={(event) => setNovoEmail(event.target.value)} />
+                </div>
+                <div className="space-y-1">
+                  <Label htmlFor="novo-password">Senha</Label>
+                  <Input id="novo-password" type="password" value={novaSenha} onChange={(event) => setNovaSenha(event.target.value)} />
+                </div>
+                <div className="space-y-1">
+                  <Label htmlFor="novo-nome">Nome</Label>
+                  <Input id="novo-nome" value={novoNome} onChange={(event) => setNovoNome(event.target.value)} />
+                </div>
+                <div className="space-y-1">
+                  <Label>Tipo</Label>
+                  <Select value={novoTipo} onValueChange={(value: UserType) => setNovoTipo(value)}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {TIPO_OPTIONS.map((option) => (
+                        <SelectItem key={option} value={option}>{option}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-1">
+                  <Label>Role</Label>
+                  <Select value={novoRole} onValueChange={(value: UserRole) => setNovoRole(value)}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {ROLE_OPTIONS.map((option) => (
+                        <SelectItem key={option} value={option}>{option}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-1">
+                  <Label htmlFor="novo-obras">Obras (csv de obraId, opcional)</Label>
+                  <Input id="novo-obras" value={novoObrasRaw} onChange={(event) => setNovoObrasRaw(event.target.value)} />
+                </div>
+              </div>
+              <Button onClick={() => void handleAdminCreateUser()} disabled={creatingUser}>
+                {creatingUser ? "Criando usuário..." : "Criar usuário via Function"}
+              </Button>
+            </div>
+
+            <div className="space-y-3 rounded-lg border p-4">
+              <h3 className="font-medium">Alterar role/tipo/ativo</h3>
+              <div className="grid gap-3 md:grid-cols-2">
+                <div className="space-y-1">
+                  <Label htmlFor="target-uid-role">UID</Label>
+                  <Input id="target-uid-role" value={targetUidRole} onChange={(event) => setTargetUidRole(event.target.value)} />
+                </div>
+                <div className="space-y-1">
+                  <Label>Role</Label>
+                  <Select value={targetRole} onValueChange={(value: UserRole) => setTargetRole(value)}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {ROLE_OPTIONS.map((option) => (
+                        <SelectItem key={option} value={option}>{option}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-1">
+                  <Label>Tipo</Label>
+                  <Select value={targetTipo} onValueChange={(value: UserType) => setTargetTipo(value)}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {TIPO_OPTIONS.map((option) => (
+                        <SelectItem key={option} value={option}>{option}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-1">
+                  <Label>Ativo</Label>
+                  <Select value={targetAtivo} onValueChange={(value: "true" | "false") => setTargetAtivo(value)}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="true">true</SelectItem>
+                      <SelectItem value="false">false</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+              <Button onClick={() => void handleAdminSetRole()} disabled={updatingRole}>
+                {updatingRole ? "Atualizando..." : "Atualizar role"}
+              </Button>
+            </div>
+
+            <div className="space-y-3 rounded-lg border p-4">
+              <h3 className="font-medium">Vincular ou desvincular obra</h3>
+              <div className="grid gap-3 md:grid-cols-2">
+                <div className="space-y-1">
+                  <Label htmlFor="target-uid-obra">UID</Label>
+                  <Input id="target-uid-obra" value={targetUidObra} onChange={(event) => setTargetUidObra(event.target.value)} />
+                </div>
+                <div className="space-y-1">
+                  <Label htmlFor="target-obra-id">Obra ID</Label>
+                  <Input id="target-obra-id" value={targetObraId} onChange={(event) => setTargetObraId(event.target.value)} />
+                </div>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <Button onClick={() => void handleAdminLinkObra()} disabled={linkingObra}>
+                  {linkingObra ? "Vinculando..." : "Vincular obra"}
+                </Button>
+                <Button variant="outline" onClick={() => void handleAdminUnlinkObra()} disabled={unlinkingObra}>
+                  {unlinkingObra ? "Desvinculando..." : "Desvincular obra"}
+                </Button>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
             <CardTitle>Obras vinculadas ao seu acesso</CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
@@ -130,24 +374,12 @@ const StaffCadastrosPage = () => {
                           </Button>
                         </span>
                       </TooltipTrigger>
-                      <TooltipContent>Disponível quando funções forem habilitadas.</TooltipContent>
+                      <TooltipContent>Disponível quando fluxo completo de edição for habilitado.</TooltipContent>
                     </Tooltip>
                   </TooltipProvider>
                 </div>
               ))}
             </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle>Como vincular cliente à obra</CardTitle>
-          </CardHeader>
-          <CardContent className="text-sm text-muted-foreground space-y-2">
-            <p>1. Abra o Firebase Console &gt; Firestore &gt; coleção users.</p>
-            <p>2. Localize o documento do cliente em users/{`{uid}`}. </p>
-            <p>3. No campo obras (array), adicione o obraId desejado.</p>
-            <p>4. Salve e peça para o cliente atualizar a sessão.</p>
           </CardContent>
         </Card>
       </div>

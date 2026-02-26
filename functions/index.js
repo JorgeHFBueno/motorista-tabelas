@@ -1,32 +1,139 @@
-/**
- * Import function triggers from their respective submodules:
- *
- * const {onCall} = require("firebase-functions/v2/https");
- * const {onDocumentWritten} = require("firebase-functions/v2/firestore");
- *
- * See a full list of supported triggers at https://firebase.google.com/docs/functions
- */
-
-const {setGlobalOptions} = require("firebase-functions");
-const {onRequest} = require("firebase-functions/https");
+const admin = require("firebase-admin");
+const {onCall, HttpsError} = require("firebase-functions/v2/https");
+const {setGlobalOptions} = require("firebase-functions/v2/options");
 const logger = require("firebase-functions/logger");
 
-// For cost control, you can set the maximum number of containers that can be
-// running at the same time. This helps mitigate the impact of unexpected
-// traffic spikes by instead downgrading performance. This limit is a
-// per-function limit. You can override the limit for each function using the
-// `maxInstances` option in the function's options, e.g.
-// `onRequest({ maxInstances: 5 }, (req, res) => { ... })`.
-// NOTE: setGlobalOptions does not apply to functions using the v1 API. V1
-// functions should each use functions.runWith({ maxInstances: 10 }) instead.
-// In the v1 API, each function can only serve one request per container, so
-// this will be the maximum concurrent request count.
-setGlobalOptions({ maxInstances: 10 });
+const {db, requireAuth, requireAdmin} = require("./lib/authz");
+const {
+  validateAdminCreateUser,
+  validateAdminSetRole,
+  validateAdminLinkObra,
+} = require("./lib/validators");
+const {
+  FieldValue,
+  userRef,
+  ensureUserDocExists,
+  buildAdminSetRoleUpdate,
+} = require("./lib/firestore");
 
-// Create and deploy your first functions
-// https://firebase.google.com/docs/functions/get-started
+if (!admin.apps.length) {
+  admin.initializeApp();
+}
 
-// exports.helloWorld = onRequest((request, response) => {
-//   logger.info("Hello logs!", {structuredData: true});
-//   response.send("Hello from Firebase!");
-// });
+setGlobalOptions({maxInstances: 10, region: "southamerica-east1"});
+
+exports.adminCreateUser = onCall(async (request) => {
+  const callerUid = requireAuth(request);
+  await requireAdmin(callerUid);
+
+  const payload = validateAdminCreateUser(request.data);
+
+  try {
+    const authUser = await admin.auth().createUser({
+      email: payload.email,
+      password: payload.password,
+      displayName: payload.nome,
+    });
+
+    await userRef(db, authUser.uid).set({
+      nome: payload.nome,
+      tipo: payload.tipo,
+      role: payload.role,
+      obras: payload.obras,
+      ativo: true,
+      createdAt: FieldValue.serverTimestamp(),
+    });
+
+    logger.info("[admin-functions][adminCreateUser] success", {
+      callerUid,
+      newUid: authUser.uid,
+      role: payload.role,
+      tipo: payload.tipo,
+    });
+
+    return {uid: authUser.uid};
+  } catch (error) {
+    logger.error("[admin-functions][adminCreateUser] failed", {
+      callerUid,
+      message: error instanceof Error ? error.message : String(error),
+    });
+
+    if (error instanceof HttpsError) {
+      throw error;
+    }
+
+    throw new HttpsError("internal", "Falha ao criar usuário administrativo.");
+  }
+});
+
+exports.adminSetRole = onCall(async (request) => {
+  const callerUid = requireAuth(request);
+  await requireAdmin(callerUid);
+
+  const payload = validateAdminSetRole(request.data);
+  const targetRef = await ensureUserDocExists(db, payload.uid);
+
+  if (!targetRef) {
+    throw new HttpsError("not-found", "Usuário alvo não encontrado em users/{uid}.");
+  }
+
+  await targetRef.update(buildAdminSetRoleUpdate(payload));
+
+  logger.info("[admin-functions][adminSetRole] success", {
+    callerUid,
+    uid: payload.uid,
+    role: payload.role,
+    tipo: payload.tipo ?? null,
+    ativo: payload.ativo ?? null,
+  });
+
+  return {ok: true};
+});
+
+exports.adminLinkObra = onCall(async (request) => {
+  const callerUid = requireAuth(request);
+  await requireAdmin(callerUid);
+
+  const payload = validateAdminLinkObra(request.data);
+  const targetRef = await ensureUserDocExists(db, payload.uid);
+
+  if (!targetRef) {
+    throw new HttpsError("not-found", "Usuário alvo não encontrado em users/{uid}.");
+  }
+
+  await targetRef.update({
+    obras: FieldValue.arrayUnion(payload.obraId),
+  });
+
+  logger.info("[admin-functions][adminLinkObra] success", {
+    callerUid,
+    uid: payload.uid,
+    obraId: payload.obraId,
+  });
+
+  return {ok: true};
+});
+
+exports.adminUnlinkObra = onCall(async (request) => {
+  const callerUid = requireAuth(request);
+  await requireAdmin(callerUid);
+
+  const payload = validateAdminLinkObra(request.data);
+  const targetRef = await ensureUserDocExists(db, payload.uid);
+
+  if (!targetRef) {
+    throw new HttpsError("not-found", "Usuário alvo não encontrado em users/{uid}.");
+  }
+
+  await targetRef.update({
+    obras: FieldValue.arrayRemove(payload.obraId),
+  });
+
+  logger.info("[admin-functions][adminUnlinkObra] success", {
+    callerUid,
+    uid: payload.uid,
+    obraId: payload.obraId,
+  });
+
+  return {ok: true};
+});
