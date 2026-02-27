@@ -6,34 +6,41 @@ service firebase.storage {
       return request.auth != null;
     }
 
-    function userDoc() {
-      return firestore.get(/databases/(default)/documents/users/$(request.auth.uid)).data;
+    function userDocSnap() {
+      return firestore.get(/databases/(default)/documents/users/$(request.auth.uid));
     }
 
-    function role() {
-      return userDoc().role;
+    function userData() {
+      return userDocSnap().data;
     }
 
     function isAdmin() {
-      return isSignedIn() && role() == "admin";
+      return isSignedIn()
+        && userData() != null
+        && userData().role == "admin";
     }
 
     function hasObra(obraId) {
       return isSignedIn()
+        && userData() != null
         && (obraId is string)
         && (obraId != "")
-        && ('obras' in userDoc())
-        && (userDoc().obras is list)
-        && (obraId in userDoc().obras);
+        && ('obras' in userData())
+        && (userData().obras is list)
+        && (obraId in userData().obras);
     }
 
     function isAllowedContentType() {
-      return request.resource.contentType.matches('image/.*')
-        || request.resource.contentType == 'application/pdf';
+      return request.resource != null
+        && (
+          request.resource.contentType.matches('image/.*')
+          || request.resource.contentType == 'application/pdf'
+        );
     }
 
     function isAllowedSize() {
-      return request.resource.size < 20 * 1024 * 1024;
+      return request.resource != null
+        && request.resource.size < 20 * 1024 * 1024;
     }
 
     match /obras/{obraId}/{subpath=**} {
