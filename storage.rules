@@ -6,72 +6,8 @@ service firebase.storage {
       return request.auth != null;
     }
 
-    function userDocSnap() {
-      return firestore.get(/databases/(default)/documents/users/$(request.auth.uid));
-    }
-
-    function userData() {
-      return userDocSnap().data;
-    }
-
-    function isAdmin() {
-      return isSignedIn()
-        && userData() != null
-        && userData().role == "admin";
-    }
-
-    function hasObra(obraId) {
-      return isSignedIn()
-        && userData() != null
-        && (obraId is string)
-        && (obraId != "")
-        && ('obras' in userData())
-        && (userData().obras is list)
-        && (obraId in userData().obras);
-    }
-
-    function isAllowedContentType() {
-      return request.resource != null
-        && (
-          request.resource.contentType.matches('image/.*')
-          || request.resource.contentType == 'application/pdf'
-        );
-    }
-
-    function isAllowedDocContentType() {
-      return request.resource != null
-        && (
-          request.resource.contentType == 'application/pdf'
-          || request.resource.contentType.matches('image/.*')
-        );
-    }
-
-    function isAllowedSize() {
-      return request.resource != null
-         && request.resource.size < 25 * 1024 * 1024;
-    }
-
-    function canAccessObra(obraId) {
-      return isAdmin()
-        || obraId == 'geral'
-        || hasObra(obraId);
-    }
-
-    match /obras/{obraId}/{subpath=**} {
-      allow read: if isAdmin() || hasObra(obraId);
-      allow write: if (isAdmin() || hasObra(obraId)) && isAllowedSize() && isAllowedContentType();
-    }
-
-    match /documentos/{obraId}/{docId}/{fileName} {
-      allow read: if isSignedIn() && canAccessObra(obraId);
-
-      allow create: if isSignedIn()
-        && canAccessObra(obraId)
-        && isAllowedDocContentType()
-        && isAllowedSize();
-
-      allow update: if false;
-      allow delete: if isAdmin();
+    match /{allPaths=**} {
+      allow read, write: if isSignedIn();
     }
   }
 }
