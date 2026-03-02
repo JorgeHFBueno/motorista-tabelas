@@ -188,7 +188,13 @@ export const listDocumentos = async ({ obraId, categoria, searchText }: ListDocu
     });
   }
 
-  const snap = await getDocs(baseQuery);
+  let snap;
+  try {
+    snap = await getDocs(baseQuery);
+  } catch (err) {
+    console.error("[DOCS-DIAG] listDocumentos getDocs failed", err);
+    throw err;
+  }
 
   console.log("[DIAG] Documentos retornados do Firestore:", snap.docs.length);
   snap.docs.forEach((docItem) => {
@@ -197,6 +203,19 @@ export const listDocumentos = async ({ obraId, categoria, searchText }: ListDocu
 
   if (import.meta.env.DEV) {
   console.log("[documentos] snap.size", snap.size);
+  console.log("[DOCS-DIAG] listDocumentos snapshot size", snap.size);
+  console.log(
+    "[DOCS-DIAG] listDocumentos first docs",
+    snap.docs.slice(0, 3).map((docItem) => {
+      const data = docItem.data();
+      return {
+        id: docItem.id,
+        obraId: data.obraId,
+        categoria: data.categoria,
+        createdAt: data.createdAt,
+      };
+    }),
+  );
   }
 
   if (import.meta.env.DEV) {

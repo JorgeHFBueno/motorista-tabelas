@@ -1,3 +1,4 @@
+import { useEffect } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   downloadDocumento,
@@ -25,7 +26,7 @@ export const useDocumentosList = (obraId: string | undefined, categoria: Documen
   const params = { obraId, categoria, searchText };
   console.log("[DIAG] useDocumentosList params:", params);
 
-  return useQuery({
+  const queryResult = useQuery({
     queryKey: documentosKeys.list(params.obraId, params.categoria, params.searchText),
     queryFn: async () => {
       console.log("[DIAG] Executando query Firestore...");
@@ -33,6 +34,13 @@ export const useDocumentosList = (obraId: string | undefined, categoria: Documen
     },
     enabled: true,
   });
+  useEffect(() => {
+    if (queryResult.isError) {
+      console.error("[DOCS-DIAG] useDocumentosList error", queryResult.error);
+    }
+  }, [queryResult.error, queryResult.isError]);
+
+  return queryResult;
   };
 
 export const useDocumento = (id?: string, enabled = true) =>

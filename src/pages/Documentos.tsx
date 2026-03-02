@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { collection, getDocs, limit, query } from "firebase/firestore";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   FileText,
@@ -45,6 +46,7 @@ import {
   useVersoes,
 } from "@/lib/documentos/documentos.queries";
 import { DOCUMENT_CATEGORIES, type Documento, type DocumentoCategoria } from "@/lib/documentos/documentos.types";
+import { db } from "@/lib/firebase";
 
 type SignatureStatusView = "rascunho" | "enviado" | "assinado" | "finalizado";
 
@@ -85,11 +87,31 @@ const formatBytes = (bytes: number) => {
 
 const getDefaultTitle = (fileName: string) => fileName.replace(/\.[^/.]+$/, "");
 
+const runDocumentosLocationDiagnostic = async (activeObraId?: string | null) => {
+  if (!import.meta.env.DEV || !db) return;
+
+  try {
+    const rootSnap = await getDocs(query(collection(db, "documentos"), limit(3)));
+    console.log(`[DOCS-DIAG] root /documentos sample size: ${rootSnap.size}`);
+  } catch (err) {
+    console.error("[DOCS-DIAG] root /documentos sample failed", err);
+  }
+
+  if (!activeObraId) return;
+
+  try {
+    const subSnap = await getDocs(query(collection(db, "obras", activeObraId, "documentos"), limit(3)));
+    console.log(`[DOCS-DIAG] sub /obras/${activeObraId}/documentos sample size: ${subSnap.size}`);
+  } catch (err) {
+    console.error("[DOCS-DIAG] sub /obras/{activeObraId}/documentos sample failed", err);
+  }
+};
+
 const Documentos = () => {
   console.log("[DIAG] Documentos page mounted");
   const { activeObraId, hasClientObra } = useActiveObraId();
   console.log("[DIAG] activeObraId:", activeObraId);
-  const { userDoc } = useAuth();
+  const { user, userDoc } = useAuth();
   console.log("[DIAG] userDoc.obras:", userDoc?.obras);
   const { toast } = useToast();
   const [selectedCategory, setSelectedCategory] = useState<DocumentoCategoria | null>(null);
@@ -103,7 +125,13 @@ const Documentos = () => {
   const [uploadTitle, setUploadTitle] = useState("");
   const [requiresSignature, setRequiresSignature] = useState(false);
 
-  const { data: documentosData = [], isLoading } = useDocumentosList(
+  const {
+    data: documentosData = [],
+    isLoading,
+    isFetching,
+    isError,
+    error,
+  } = useDocumentosList(
     activeObraId ?? undefined,
     selectedCategory,
     debouncedSearch,
@@ -120,6 +148,10 @@ const Documentos = () => {
     const timeout = window.setTimeout(() => setDebouncedSearch(searchInput), 300);
     return () => window.clearTimeout(timeout);
   }, [searchInput]);
+
+  useEffect(() => {
+    void runDocumentosLocationDiagnostic(activeObraId);
+  }, [activeObraId]);
 
   const signatureCounts = useMemo(
     () => ({
@@ -195,6 +227,30 @@ const Documentos = () => {
   return (
     <ResponsiveLayout headerTitle="Documentos" headerSubtitle="Arquivo institucional e contratos">
       <div className="px-4 py-6 lg:px-8 lg:py-8 space-y-6">
+         {import.meta.env.DEV && (
+          <pre className="rounded-xl border bg-muted/30 p-4 text-xs text-muted-foreground whitespace-pre-wrap break-words">
+            {JSON.stringify(
+              {
+                activeObraId,
+                userUid: user?.uid ?? null,
+                userRole: userDoc?.role ?? null,
+                userObras: userDoc?.obras ?? null,
+                selectedCategory,
+                debouncedSearch,
+                query: {
+                  isLoading,
+                  isFetching,
+                  isError,
+                  errorMessage: error instanceof Error ? error.message : null,
+                  dataLength: documentosData.length,
+                },
+              },
+              null,
+              2,
+            )}
+          </pre>
+        )}
+        
         <div className="rounded-xl border bg-card p-4 text-sm text-muted-foreground flex items-center justify-between gap-3">
           <span>
             {!hasClientObra
