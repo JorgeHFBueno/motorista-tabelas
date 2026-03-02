@@ -39,6 +39,12 @@ const ALLOWED_MIME_TYPES = new Set([
 ]);
 
 const categorySet = new Set<string>(DOCUMENT_CATEGORIES);
+const INVALID_OBRA_FILTERS = new Set(["todas", "todos", "all"]);
+
+const normalize = (value: unknown) => (typeof value === "string" ? value.trim() : "");
+
+const isValidCategoria = (value: unknown): value is DocumentoCategoria =>
+  typeof value === "string" && categorySet.has(value);
 
 const coerceCategoria = (value: unknown): DocumentoCategoria => {
   if (typeof value === "string" && categorySet.has(value)) {
@@ -160,19 +166,39 @@ const mapAuditoria = (snap: QueryDocumentSnapshot<DocumentData>): AuditoriaEvent
 
 export const listDocumentos = async ({ obraId, categoria, searchText }: ListDocumentosInput): Promise<Documento[]> => {
   const constraints: QueryConstraint[] = [orderBy("createdAt", "desc")];
-  if (obraId) constraints.unshift(where("obraId", "==", obraId));
-  if (categoria) constraints.unshift(where("categoria", "==", categoria));
+  
+  const obra = normalize(obraId);
+  if (obra && !INVALID_OBRA_FILTERS.has(obra.toLowerCase())) {
+    constraints.unshift(where("obraId", "==", obra));
+  }
+
+  if (isValidCategoria(categoria)) {
+    constraints.unshift(where("categoria", "==", categoria));
+  }
 
   const baseQuery = query(collection(db, "documentos"), ...constraints);
 
-  const snap = await getDocs(baseQuery);
-  const mapped = snap.docs.map(mapDocumento);
+  if (import.meta.env.DEV) {
+    console.debug("[documentos] list", {
+      obraId: obra && !INVALID_OBRA_FILTERS.has(obra.toLowerCase()) ? obra : null,
+      categoria: isValidCategoria(categoria) ? categoria : null,
+      searchText,
+    });
+  }
 
-  if (!searchText.trim()) {
+  const snap = await getDocs(baseQuery);
+
+  if (import.meta.env.DEV) {
+    console.debug("[documentos] fetched", { count: snap.size });
+  }
+  
+  const mapped = snap.docs.map(mapDocumento);
+  const normalizedSearch = normalize(searchText).toLowerCase();
+
+  if (!normalizedSearch) {
     return mapped;
   }
 
-  const normalizedSearch = searchText.trim().toLowerCase();
   return mapped.filter((docItem) => docItem.titulo.toLowerCase().includes(normalizedSearch));
 };
 

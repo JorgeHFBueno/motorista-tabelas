@@ -87,7 +87,7 @@ const getDefaultTitle = (fileName: string) => fileName.replace(/\.[^/.]+$/, "");
 const Documentos = () => {
   const { activeObraId, hasClientObra } = useActiveObraId();
   const { toast } = useToast();
-  const [selectedCategory, setSelectedCategory] = useState<(typeof categories)[number]>("Todos");
+  const [selectedCategory, setSelectedCategory] = useState<DocumentoCategoria | null>(null);
   const [searchInput, setSearchInput] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [selectedDocumentId, setSelectedDocumentId] = useState<string | null>(null);
@@ -100,7 +100,7 @@ const Documentos = () => {
 
   const { data: documentosData = [], isLoading } = useDocumentosList(
     activeObraId ?? undefined,
-    selectedCategory === "Todos" ? null : selectedCategory,
+    selectedCategory,
     debouncedSearch,
   );
   const detailsEnabled = Boolean(selectedDocumentId) && isDetailOpen;
@@ -222,8 +222,8 @@ const Documentos = () => {
           {categories.map((category) => (
             <button
               key={category}
-              onClick={() => setSelectedCategory(category)}
-              className={`px-3 py-1.5 rounded-full text-xs font-medium whitespace-nowrap transition-colors ${selectedCategory === category
+              onClick={() => setSelectedCategory(category === "Todos" ? null : category)}
+              className={`px-3 py-1.5 rounded-full text-xs font-medium whitespace-nowrap transition-colors ${(category === "Todos" ? selectedCategory === null : selectedCategory === category)
                   ? "bg-primary text-primary-foreground"
                   : "bg-muted text-muted-foreground hover:bg-muted/80"
                 }`}

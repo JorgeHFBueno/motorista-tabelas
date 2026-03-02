@@ -38,14 +38,40 @@ service firebase.storage {
         );
     }
 
+    function isAllowedDocContentType() {
+      return request.resource != null
+        && (
+          request.resource.contentType == 'application/pdf'
+          || request.resource.contentType.matches('image/.*')
+        );
+    }
+
     function isAllowedSize() {
       return request.resource != null
-        && request.resource.size < 20 * 1024 * 1024;
+         && request.resource.size < 25 * 1024 * 1024;
+    }
+
+    function canAccessObra(obraId) {
+      return isAdmin()
+        || obraId == 'geral'
+        || hasObra(obraId);
     }
 
     match /obras/{obraId}/{subpath=**} {
       allow read: if isAdmin() || hasObra(obraId);
       allow write: if (isAdmin() || hasObra(obraId)) && isAllowedSize() && isAllowedContentType();
+    }
+
+    match /documentos/{obraId}/{docId}/{fileName} {
+      allow read: if isSignedIn() && canAccessObra(obraId);
+
+      allow create: if isSignedIn()
+        && canAccessObra(obraId)
+        && isAllowedDocContentType()
+        && isAllowedSize();
+
+      allow update: if false;
+      allow delete: if isAdmin();
     }
   }
 }
