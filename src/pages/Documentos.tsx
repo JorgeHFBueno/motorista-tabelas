@@ -35,10 +35,13 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useActiveObraId } from "@/hooks/useActiveObraId";
 import { useToast } from "@/hooks/use-toast";
 import {
+  useAssinaturas,
+  useAuditoria,
   useDocumento,
   useDocumentosList,
   useDownloadDocumento,
   useUploadDocumento,
+  useVersoes,
 } from "@/lib/documentos/documentos.queries";
 import { DOCUMENT_CATEGORIES, type Documento, type DocumentoCategoria } from "@/lib/documentos/documentos.types";
 
@@ -100,7 +103,11 @@ const Documentos = () => {
     selectedCategory === "Todos" ? null : selectedCategory,
     debouncedSearch,
   );
-  const { data: selectedDocument, isLoading: loadingDetail } = useDocumento(selectedDocumentId ?? undefined);
+  const detailsEnabled = Boolean(selectedDocumentId) && isDetailOpen;
+  const { data: selectedDocument, isLoading: loadingDetail } = useDocumento(selectedDocumentId ?? undefined, detailsEnabled);
+  const { data: auditoriaData = [] } = useAuditoria(selectedDocumentId ?? undefined, detailsEnabled);
+  const { data: assinaturasData = [] } = useAssinaturas(selectedDocumentId ?? undefined, detailsEnabled);
+  const { data: versoesData = [] } = useVersoes(selectedDocumentId ?? undefined, detailsEnabled);
   const uploadMutation = useUploadDocumento();
   const downloadMutation = useDownloadDocumento();
 
@@ -416,8 +423,8 @@ const Documentos = () => {
                     </TabsContent>
 
                     <TabsContent value="signatures" className="mt-0 space-y-3">
-                      {(selectedDocument?.assinaturas?.length ?? 0) > 0 ? (
-                        selectedDocument?.assinaturas?.map((signer, idx) => (
+                      {(assinaturasData.length ?? 0) > 0 ? (
+                        assinaturasData.map((signer, idx) => (
                           <div key={`${signer.nome}-${idx}`} className="card-institutional p-4 space-y-3">
                             <div className="flex items-center justify-between">
                               <div className="flex items-center gap-2">
@@ -462,17 +469,17 @@ const Documentos = () => {
                     </TabsContent>
 
                     <TabsContent value="audit" className="mt-0">
-                      {(selectedDocument?.auditoria?.length ?? 0) > 0 ? (
+                      {(auditoriaData.length ?? 0) > 0 ? (
                         <div className="relative">
                           <div className="absolute left-4 top-0 bottom-0 w-px bg-border" />
                           <div className="space-y-4">
-                            {selectedDocument?.auditoria?.map((event, idx) => (
+                            {auditoriaData.map((event, idx) => (
                               <div key={`${event.titulo}-${idx}`} className="relative pl-10">
                                 <div className="absolute left-2 w-4 h-4 rounded-full bg-primary border-2 border-white" />
                                 <div className="card-institutional p-3">
                                   <p className="font-medium text-sm">{event.titulo}</p>
                                   <div className="flex items-center gap-3 mt-1 text-xs text-muted-foreground">
-                                    <span>{formatDateTime(event.em)}</span>
+                                    <span>{formatDateTime(event.createdAt)}</span>
                                     <span>•</span>
                                     <span>{event.por}</span>
                                     {event.ip && (
@@ -496,12 +503,12 @@ const Documentos = () => {
                     </TabsContent>
 
                     <TabsContent value="versions" className="mt-0 space-y-3">
-                      {(selectedDocument?.versoes?.length ?? 0) > 0 ? (
-                        selectedDocument?.versoes?.map((version, idx) => (
+                      {(versoesData.length ?? 0) > 0 ? (
+                        versoesData.map((version, idx) => (
                           <div key={`${version.versao}-${idx}`} className="card-institutional p-4">
                             <div className="flex items-center justify-between mb-2">
                               <span className="font-semibold text-sm">Versão {version.versao}</span>
-                              <span className="text-xs text-muted-foreground">{formatDate(version.em)}</span>
+                              <span className="text-xs text-muted-foreground">{formatDate(version.createdAt)}</span>
                             </div>
                             <p className="text-sm text-muted-foreground">{version.descricao}</p>
                             <p className="text-xs text-muted-foreground mt-2">

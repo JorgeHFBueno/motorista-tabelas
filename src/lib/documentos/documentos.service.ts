@@ -10,20 +10,25 @@ import {
   updateDoc,
   where,
   type DocumentData,
+  type QueryConstraint,
   type QueryDocumentSnapshot,
 } from "firebase/firestore";
 import { getDownloadURL, ref, uploadBytes } from "firebase/storage";
 import { db, storage } from "@/lib/firebase";
 import {
   DOCUMENT_CATEGORIES,
+  type AddAssinaturaInput,
+  type AddAuditoriaEventInput,
+  type AddVersaoInput,
+  type AssinaturaDocumento,
+  type AssinaturaStatus,
+  type AuditoriaEvento,
   type Documento,
-  type DocumentoAssinatura,
-  type DocumentoAuditoria,
   type DocumentoCategoria,
   type DocumentoStatus,
-  type DocumentoVersao,
   type ListDocumentosInput,
   type UploadDocumentoInput,
+  type VersaoDocumento,
 } from "./documentos.types";
 
 const ALLOWED_MIME_TYPES = new Set([
@@ -52,80 +57,33 @@ const coerceStatus = (value: unknown): DocumentoStatus => {
   return "Requer assinatura";
 };
 
-const normalizeAssinaturas = (value: unknown): DocumentoAssinatura[] => {
-  if (!Array.isArray(value)) return [];
+const coerceAssinaturaStatus = (value: unknown, requerAssinatura: boolean): AssinaturaStatus => {
+  if (value === "ASSINADO" || value === "AGUARDANDO" || value === "REQUER_ASSINATURA") {
+    return value;
+  }
 
-  return value.map((item) => {
-    const obj = (item ?? {}) as Record<string, unknown>;
-    const status = obj.status === "ASSINADO" ? "ASSINADO" : "PENDENTE";
-
-    return {
-      nome: String(obj.nome ?? obj.signer ?? "—"),
-      papel: String(obj.papel ?? obj.role ?? "—"),
-      assinadoEm: obj.assinadoEm as DocumentoAssinatura["assinadoEm"],
-      ip: typeof obj.ip === "string" ? obj.ip : "—",
-      metodo: typeof obj.metodo === "string" ? obj.metodo : typeof obj.method === "string" ? obj.method : "—",
-      status,
-    };
-  });
-};
-
-const normalizeAuditoria = (value: unknown): DocumentoAuditoria[] => {
-  if (!Array.isArray(value)) return [];
-
-  return value.map((item) => {
-    const obj = (item ?? {}) as Record<string, unknown>;
-    return {
-      titulo: String(obj.titulo ?? obj.action ?? "Evento"),
-      em: obj.em as DocumentoAuditoria["em"],
-      por: String(obj.por ?? obj.user ?? "Sistema"),
-      ip: typeof obj.ip === "string" ? obj.ip : undefined,
-    };
-  });
-};
-
-const normalizeVersoes = (value: unknown): DocumentoVersao[] => {
-  if (!Array.isArray(value)) return [];
-
-  return value.map((item) => {
-    const obj = (item ?? {}) as Record<string, unknown>;
-    return {
-      versao: String(obj.versao ?? obj.version ?? "1.0"),
-      descricao: String(obj.descricao ?? obj.changes ?? "—"),
-      em: obj.em as DocumentoVersao["em"],
-      por: String(obj.por ?? obj.author ?? "Sistema"),
-    };
-  });
+return requerAssinatura ? "REQUER_ASSINATURA" : "ASSINADO";
 };
 
 const mapDocumento = (snap: QueryDocumentSnapshot<DocumentData>): Documento => {
   const data = snap.data();
-  const titulo = String(data.titulo ?? data.name ?? "Documento sem título");
   const requerAssinatura = Boolean(data.requerAssinatura ?? data.requiresSignature);
-  const assinaturaStatus =
-    data.assinaturaStatus === "ASSINADO" ||
-    data.assinaturaStatus === "AGUARDANDO" ||
-    data.assinaturaStatus === "REQUER_ASSINATURA"
-      ? data.assinaturaStatus
-      : requerAssinatura
-        ? "REQUER_ASSINATURA"
-        : "ASSINADO";
 
   return {
     id: snap.id,
-    titulo,
+    titulo: String(data.titulo ?? data.name ?? "Documento sem título"),
     categoria: coerceCategoria(data.categoria ?? data.category),
     createdAt: data.createdAt,
     updatedAt: data.updatedAt,
-    obraId: typeof data.obraId === "string" ? data.obraId : undefined,
+    obraId: typeof data.obraId === "string" && data.obraId ? data.obraId : undefined,
     obraNomeSnapshot: typeof data.obraNomeSnapshot === "string" ? data.obraNomeSnapshot : undefined,
     fileName: String(data.fileName ?? ""),
     filePath: String(data.filePath ?? ""),
     fileSizeBytes: Number(data.fileSizeBytes ?? 0),
     mimeType: String(data.mimeType ?? "application/octet-stream"),
-    status: coerceStatus(data.status ?? data.signatureStatus),
+    status: coerceStatus(data.status),
     requerAssinatura,
-    assinaturaStatus,
+    assinaturaStatus: coerceAssinaturaStatus(data.assinaturaStatus, requerAssinatura),
     certificado: data.certificado
       ? {
           id: String((data.certificado as Record<string, unknown>).id ?? "—"),
@@ -134,27 +92,78 @@ const mapDocumento = (snap: QueryDocumentSnapshot<DocumentData>): Documento => {
           algoritmo: "SHA-256",
         }
       : undefined,
-    assinaturas: normalizeAssinaturas(data.assinaturas ?? data.signers),
-    auditoria: normalizeAuditoria(data.auditoria ?? data.auditTrail),
-    versoes: normalizeVersoes(data.versoes ?? data.versions),
+    assinaturasResumo: data.assinaturasResumo
+      ? {
+          total: Number((data.assinaturasResumo as Record<string, unknown>).total ?? 0),
+          assinadas: Number((data.assinaturasResumo as Record<string, unknown>).assinadas ?? 0),
+          pendentes: Number((data.assinaturasResumo as Record<string, unknown>).pendentes ?? 0),
+        }
+      : undefined,
+    auditoriaResumo: data.auditoriaResumo
+      ? {
+          ultimoEventoTitulo:
+            typeof (data.auditoriaResumo as Record<string, unknown>).ultimoEventoTitulo === "string"
+              ? String((data.auditoriaResumo as Record<string, unknown>).ultimoEventoTitulo)
+              : undefined,
+          ultimoEventoEm: (data.auditoriaResumo as Record<string, unknown>).ultimoEventoEm as Documento["auditoriaResumo"]["ultimoEventoEm"],
+        }
+      : undefined,
+    versoesResumo: data.versoesResumo
+      ? {
+          atual:
+            typeof (data.versoesResumo as Record<string, unknown>).atual === "string"
+              ? String((data.versoesResumo as Record<string, unknown>).atual)
+              : undefined,
+          total: Number((data.versoesResumo as Record<string, unknown>).total ?? 0),
+        }
+      : undefined,
+  };
+};
+
+const mapAuditoria = (snap: QueryDocumentSnapshot<DocumentData>): AuditoriaEvento => {
+  const data = snap.data();
+  return {
+    id: snap.id,
+    titulo: String(data.titulo ?? "Evento"),
+    por: String(data.por ?? "Sistema"),
+    ip: typeof data.ip === "string" ? data.ip : undefined,
+    createdAt: data.createdAt,
+    meta: (data.meta as Record<string, unknown>) ?? undefined,
+  };
+};
+
+  const mapVersao = (snap: QueryDocumentSnapshot<DocumentData>): VersaoDocumento => {
+  const data = snap.data();
+  return {
+    id: snap.id,
+    versao: String(data.versao ?? "1.0"),
+    descricao: String(data.descricao ?? "—"),
+    por: String(data.por ?? "Sistema"),
+    createdAt: data.createdAt,
+  };
+};
+
+  const mapAssinatura = (snap: QueryDocumentSnapshot<DocumentData>): AssinaturaDocumento => {
+  const data = snap.data();
+  return {
+    id: snap.id,
+    nome: String(data.nome ?? "—"),
+    papel: String(data.papel ?? "—"),
+    metodo: typeof data.metodo === "string" ? data.metodo : undefined,
+    ip: typeof data.ip === "string" ? data.ip : undefined,
+    status: data.status === "ASSINADO" ? "ASSINADO" : "PENDENTE",
+    assinadoEm: data.assinadoEm,
+    createdAt: data.createdAt,
+    updatedAt: data.updatedAt,
   };
 };
 
 export const listDocumentos = async ({ obraId, categoria, searchText }: ListDocumentosInput): Promise<Documento[]> => {
-  let baseQuery = query(collection(db, "documentos"), orderBy("createdAt", "desc"));
+  const constraints: QueryConstraint[] = [orderBy("createdAt", "desc")];
+  if (obraId) constraints.unshift(where("obraId", "==", obraId));
+  if (categoria) constraints.unshift(where("categoria", "==", categoria));
 
-  if (obraId) {
-    baseQuery = query(collection(db, "documentos"), where("obraId", "==", obraId), orderBy("createdAt", "desc"));
-  }
-
-  if (categoria) {
-    baseQuery = query(
-      collection(db, "documentos"),
-      ...(obraId ? [where("obraId", "==", obraId)] : []),
-      where("categoria", "==", categoria),
-      orderBy("createdAt", "desc"),
-    );
-  }
+  const baseQuery = query(collection(db, "documentos"), ...constraints);
 
   const snap = await getDocs(baseQuery);
   const mapped = snap.docs.map(mapDocumento);
@@ -178,6 +187,71 @@ export const getDocumentoById = async (id: string): Promise<Documento | null> =>
   return mapDocumento(snap as QueryDocumentSnapshot<DocumentData>);
 };
 
+export const listAuditoria = async (docId: string): Promise<AuditoriaEvento[]> => {
+  const q = query(collection(db, "documentos", docId, "auditoria"), orderBy("createdAt", "asc"));
+  const snap = await getDocs(q);
+  return snap.docs.map(mapAuditoria);
+};
+
+export const listVersoes = async (docId: string): Promise<VersaoDocumento[]> => {
+  const q = query(collection(db, "documentos", docId, "versoes"), orderBy("createdAt", "desc"));
+  const snap = await getDocs(q);
+  return snap.docs.map(mapVersao);
+};
+
+export const listAssinaturas = async (docId: string): Promise<AssinaturaDocumento[]> => {
+  const q = query(collection(db, "documentos", docId, "assinaturas"), orderBy("createdAt", "asc"));
+  const snap = await getDocs(q);
+  return snap.docs.map(mapAssinatura);
+};
+
+export const addAuditoriaEvent = async (
+  docId: string,
+  payload: AddAuditoriaEventInput,
+): Promise<{ id: string; createdAt?: AuditoriaEvento["createdAt"] }> => {
+  const created = await addDoc(collection(db, "documentos", docId, "auditoria"), {
+    titulo: payload.titulo,
+    por: payload.por,
+    ip: payload.ip ?? null,
+    meta: payload.meta ?? null,
+    createdAt: serverTimestamp(),
+  });
+
+  const createdSnap = await getDoc(created);
+  const createdData = createdSnap.data();
+
+  return {
+    id: created.id,
+    createdAt: createdData?.createdAt as AuditoriaEvento["createdAt"],
+  };
+};
+
+export const addVersao = async (docId: string, payload: AddVersaoInput): Promise<string> => {
+  const created = await addDoc(collection(db, "documentos", docId, "versoes"), {
+    versao: payload.versao,
+    descricao: payload.descricao,
+    por: payload.por,
+    createdAt: serverTimestamp(),
+  });
+
+  return created.id;
+};
+
+export const addAssinatura = async (docId: string, payload: AddAssinaturaInput): Promise<string> => {
+  const created = await addDoc(collection(db, "documentos", docId, "assinaturas"), {
+    nome: payload.nome,
+    papel: payload.papel,
+    metodo: payload.metodo ?? null,
+    ip: payload.ip ?? null,
+    status: payload.status ?? "PENDENTE",
+    assinadoEm: payload.assinadoEm ?? null,
+    createdAt: serverTimestamp(),
+    updatedAt: serverTimestamp(),
+  });
+
+  return created.id;
+};
+
 export const uploadDocumento = async ({
   file,
   categoria,
@@ -191,7 +265,7 @@ export const uploadDocumento = async ({
   }
 
   const status: DocumentoStatus = requerAssinatura ? "Requer assinatura" : "Finalizado";
-  const assinaturaStatus = requerAssinatura ? "REQUER_ASSINATURA" : "ASSINADO";
+  const assinaturaStatus: AssinaturaStatus = requerAssinatura ? "AGUARDANDO" : "ASSINADO";
 
   const created = await addDoc(collection(db, "documentos"), {
     titulo,
@@ -207,22 +281,14 @@ export const uploadDocumento = async ({
     status,
     requerAssinatura,
     assinaturaStatus,
-    assinaturas: [],
-    auditoria: [
-      {
-        titulo: "Documento criado",
-        em: serverTimestamp(),
-        por: "Sistema",
-      },
-    ],
-    versoes: [
-      {
-        versao: "1.0",
-        descricao: "Versão inicial do documento",
-        em: serverTimestamp(),
-        por: "Sistema",
-      },
-    ],
+    assinaturasResumo: requerAssinatura
+      ? { total: 2, assinadas: 0, pendentes: 2 }
+      : { total: 0, assinadas: 0, pendentes: 0 },
+    versoesResumo: { atual: "1.0", total: 1 },
+    auditoriaResumo: {
+      ultimoEventoTitulo: "Documento criado",
+      ultimoEventoEm: null,
+    },
   });
 
   const filePath = `documentos/${obraId ?? "geral"}/${created.id}/${file.name}`;
@@ -234,6 +300,43 @@ export const uploadDocumento = async ({
     fileSizeBytes: file.size,
     mimeType: file.type,
     fileName: file.name,
+    updatedAt: serverTimestamp(),
+  });
+
+  const auditoriaCreated = await addAuditoriaEvent(created.id, {
+    titulo: "Documento criado",
+    por: "Sistema",
+  });
+
+  await updateDoc(doc(db, "documentos", created.id), {
+    auditoriaResumo: {
+      ultimoEventoTitulo: "Documento criado",
+      ultimoEventoEm: auditoriaCreated.createdAt ?? null,
+    },
+    updatedAt: serverTimestamp(),
+  });
+
+  if (requerAssinatura) {
+    await Promise.all([
+      addAssinatura(created.id, { nome: "Contratante", papel: "Contratante", status: "PENDENTE" }),
+      addAssinatura(created.id, { nome: "Contratada", papel: "Contratada", status: "PENDENTE" }),
+    ]);
+
+    await updateDoc(doc(db, "documentos", created.id), {
+      assinaturaStatus: "AGUARDANDO",
+      assinaturasResumo: { total: 2, assinadas: 0, pendentes: 2 },
+      updatedAt: serverTimestamp(),
+    });
+  }
+
+  await addVersao(created.id, {
+    versao: "1.0",
+    descricao: "Versão inicial do contrato",
+    por: "Dep. Jurídico",
+  });
+
+  await updateDoc(doc(db, "documentos", created.id), {
+    versoesResumo: { atual: "1.0", total: 1 },
     updatedAt: serverTimestamp(),
   });
 

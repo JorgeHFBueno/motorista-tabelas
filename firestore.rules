@@ -129,6 +129,14 @@ service cloud.firestore {
         && obraIdMatchesIfPresent(obraId);
     }
 
+    function canReadDocumentos(obraId) {
+      return isAdmin() || (obraId is string && obraId != "" && hasObra(obraId)) || (obraId == null && isSignedIn());
+    }
+
+    function canWriteDocumentos(obraId) {
+      return isAdmin() || (obraId is string && obraId != "" && hasObra(obraId));
+    }
+
     function validFotoWrite(obraId) {
       return request.resource.data.createdAt is timestamp
         && request.resource.data.storagePath is string
@@ -179,11 +187,27 @@ service cloud.firestore {
       }
     }
 
-    // Compatibilidade temporária para leituras em coleções legadas de topo.
     match /documentos/{docId} {
-      allow get: if legacyHasObra();
-      allow list: if false;
-      allow write: if false;
+      allow read: if canReadDocumentos(resource.data.obraId);
+      allow create: if canWriteDocumentos(request.resource.data.obraId);
+      allow update: if canWriteDocumentos(resource.data.obraId);
+      allow delete: if canWriteDocumentos(resource.data.obraId);
+
+      match /auditoria/{eventId} {
+        allow read: if canReadDocumentos(get(/databases/$(database)/documents/documentos/$(docId)).data.obraId);
+        allow create: if canWriteDocumentos(get(/databases/$(database)/documents/documentos/$(docId)).data.obraId);
+        allow update, delete: if false;
+      }
+
+      match /versoes/{versionId} {
+        allow read: if canReadDocumentos(get(/databases/$(database)/documents/documentos/$(docId)).data.obraId);
+        allow create, update, delete: if canWriteDocumentos(get(/databases/$(database)/documents/documentos/$(docId)).data.obraId);
+      }
+
+      match /assinaturas/{signatureId} {
+        allow read: if canReadDocumentos(get(/databases/$(database)/documents/documentos/$(docId)).data.obraId);
+        allow create, update, delete: if canWriteDocumentos(get(/databases/$(database)/documents/documentos/$(docId)).data.obraId);
+      }
     }
 
     match /fotos/{fotoId} {
