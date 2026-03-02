@@ -8,7 +8,6 @@ import {
   query,
   serverTimestamp,
   updateDoc,
-  where,
   type DocumentData,
   type QueryConstraint,
   type QueryDocumentSnapshot,
@@ -173,14 +172,12 @@ export const listDocumentos = async ({ obraId, categoria, searchText }: ListDocu
   }
 
   const obra = normalize(obraId);
-  if (obra && !INVALID_OBRA_FILTERS.has(obra.toLowerCase())) {
-    constraints.unshift(where("obraId", "==", obra));
-  }
-
+  
   if (isValidCategoria(categoria)) {
-    constraints.unshift(where("categoria", "==", categoria));
+    console.log("[DIAG] Filtro de categoria ativo:", categoria);
   }
 
+  console.log("[DIAG] Query sem filtro obraId");
   const baseQuery = query(collection(db, "documentos"), ...constraints);
 
   if (import.meta.env.DEV) {
@@ -192,6 +189,11 @@ export const listDocumentos = async ({ obraId, categoria, searchText }: ListDocu
   }
 
   const snap = await getDocs(baseQuery);
+
+  console.log("[DIAG] Documentos retornados do Firestore:", snap.docs.length);
+  snap.docs.forEach((docItem) => {
+    console.log("[DIAG] Documento:", docItem.id, docItem.data());
+  });
 
   if (import.meta.env.DEV) {
   console.log("[documentos] snap.size", snap.size);

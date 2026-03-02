@@ -21,11 +21,16 @@ export const documentosKeys = {
 };
 
 export const useDocumentosList = (obraId: string | undefined, categoria: DocumentoCategoria | null, searchText: string) => {
+  console.log("[DIAG] Hook useDocumentosList chamado");
   const params = { obraId, categoria, searchText };
+  console.log("[DIAG] useDocumentosList params:", params);
 
   return useQuery({
     queryKey: documentosKeys.list(params.obraId, params.categoria, params.searchText),
-    queryFn: () => listDocumentos(params),
+    queryFn: async () => {
+      console.log("[DIAG] Executando query Firestore...");
+      return listDocumentos(params);
+    },
     enabled: true,
   });
   };

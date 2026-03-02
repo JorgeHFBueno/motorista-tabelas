@@ -34,6 +34,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useActiveObraId } from "@/hooks/useActiveObraId";
 import { useToast } from "@/hooks/use-toast";
+import { useAuth } from "@/contexts/AuthContext";
 import {
   useAssinaturas,
   useAuditoria,
@@ -85,7 +86,11 @@ const formatBytes = (bytes: number) => {
 const getDefaultTitle = (fileName: string) => fileName.replace(/\.[^/.]+$/, "");
 
 const Documentos = () => {
+  console.log("[DIAG] Documentos page mounted");
   const { activeObraId, hasClientObra } = useActiveObraId();
+  console.log("[DIAG] activeObraId:", activeObraId);
+  const { userDoc } = useAuth();
+  console.log("[DIAG] userDoc.obras:", userDoc?.obras);
   const { toast } = useToast();
   const [selectedCategory, setSelectedCategory] = useState<DocumentoCategoria | null>(null);
   const [searchInput, setSearchInput] = useState("");

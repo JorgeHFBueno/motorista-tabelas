@@ -65,6 +65,7 @@ let storage: FirebaseStorage | null = null;
 if (firebaseConfig) {
   try {
     app = getApps().length ? getApp() : initializeApp(firebaseConfig);
+    console.log("[DIAG] Firebase Project ID:", app.options.projectId);
     const { projectId, authDomain } = app.options;
     console.info("[Firebase][project-check] active config", { projectId, authDomain });
 
