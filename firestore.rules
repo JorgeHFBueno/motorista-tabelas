@@ -137,6 +137,10 @@ service cloud.firestore {
       return isAdmin() || (obraId is string && obraId != "" && hasObra(obraId));
     }
 
+    function hasSafeDocumentosListLimit() {
+      return request.query.limit != null && request.query.limit <= 200;
+    }
+
     function validFotoWrite(obraId) {
       return request.resource.data.createdAt is timestamp
         && request.resource.data.storagePath is string
@@ -188,9 +192,22 @@ service cloud.firestore {
     }
 
     match /documentos/{docId} {
-      allow read: if canReadDocumentos(resource.data.obraId);
-      allow create: if canWriteDocumentos(request.resource.data.obraId);
-      allow update: if canWriteDocumentos(resource.data.obraId);
+      // Firestore list/query auth is all-or-nothing: rules do not filter query
+      // results. A global query on /documentos fails whenever it could match any
+      // document the user cannot read, so clients should query with
+      // where("obraId", "==", "...") to align with these rules.
+      allow get: if canReadDocumentos(resource.data.obraId);
+      allow list: if request.auth != null
+        && hasSafeDocumentosListLimit()
+        && canReadDocumentos(resource.data.obraId);
+
+      allow create: if canWriteDocumentos(request.resource.data.obraId)
+        && request.resource.data.obraId is string
+        && request.resource.data.obraId != "";
+
+      allow update: if canWriteDocumentos(resource.data.obraId)
+        && request.resource.data.obraId == resource.data.obraId
+        && request.resource.data.createdAt == resource.data.createdAt;
       allow delete: if canWriteDocumentos(resource.data.obraId);
 
       match /auditoria/{eventId} {
