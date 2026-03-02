@@ -1,4 +1,3 @@
-import { useEffect } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   downloadDocumento,
@@ -22,23 +21,14 @@ export const documentosKeys = {
 };
 
 export const useDocumentosList = (obraId: string | undefined, categoria: DocumentoCategoria | null, searchText: string) => {
-  console.log("[DIAG] Hook useDocumentosList chamado");
   const params = { obraId, categoria, searchText };
-  console.log("[DIAG] useDocumentosList params:", params);
+  const hasObraId = Boolean(obraId && obraId.trim().length > 0);
 
   const queryResult = useQuery({
     queryKey: documentosKeys.list(params.obraId, params.categoria, params.searchText),
-    queryFn: async () => {
-      console.log("[DIAG] Executando query Firestore...");
-      return listDocumentos(params);
-    },
-    enabled: true,
+    queryFn: () => listDocumentos(params),
+    enabled: hasObraId,
   });
-  useEffect(() => {
-    if (queryResult.isError) {
-      console.error("[DOCS-DIAG] useDocumentosList error", queryResult.error);
-    }
-  }, [queryResult.error, queryResult.isError]);
 
   return queryResult;
   };

@@ -46,7 +46,6 @@ import {
   useVersoes,
 } from "@/lib/documentos/documentos.queries";
 import { DOCUMENT_CATEGORIES, type Documento, type DocumentoCategoria } from "@/lib/documentos/documentos.types";
-import { db } from "@/lib/firebase";
 
 type SignatureStatusView = "rascunho" | "enviado" | "assinado" | "finalizado";
 
@@ -87,32 +86,9 @@ const formatBytes = (bytes: number) => {
 
 const getDefaultTitle = (fileName: string) => fileName.replace(/\.[^/.]+$/, "");
 
-const runDocumentosLocationDiagnostic = async (activeObraId?: string | null) => {
-  if (!import.meta.env.DEV || !db) return;
-
-  try {
-    const rootSnap = await getDocs(query(collection(db, "documentos"), limit(3)));
-    console.log(`[DOCS-DIAG] root /documentos sample size: ${rootSnap.size}`);
-  } catch (err) {
-    console.error("[DOCS-DIAG] root /documentos sample failed", err);
-  }
-
-  if (!activeObraId) return;
-
-  try {
-    const subSnap = await getDocs(query(collection(db, "obras", activeObraId, "documentos"), limit(3)));
-    console.log(`[DOCS-DIAG] sub /obras/${activeObraId}/documentos sample size: ${subSnap.size}`);
-  } catch (err) {
-    console.error("[DOCS-DIAG] sub /obras/{activeObraId}/documentos sample failed", err);
-  }
-};
-
 const Documentos = () => {
-  console.log("[DIAG] Documentos page mounted");
   const { activeObraId, hasClientObra } = useActiveObraId();
-  console.log("[DIAG] activeObraId:", activeObraId);
   const { user, userDoc } = useAuth();
-  console.log("[DIAG] userDoc.obras:", userDoc?.obras);
   const { toast } = useToast();
   const [selectedCategory, setSelectedCategory] = useState<DocumentoCategoria | null>(null);
   const [searchInput, setSearchInput] = useState("");
@@ -148,10 +124,6 @@ const Documentos = () => {
     const timeout = window.setTimeout(() => setDebouncedSearch(searchInput), 300);
     return () => window.clearTimeout(timeout);
   }, [searchInput]);
-
-  useEffect(() => {
-    void runDocumentosLocationDiagnostic(activeObraId);
-  }, [activeObraId]);
 
   const signatureCounts = useMemo(
     () => ({
@@ -250,7 +222,7 @@ const Documentos = () => {
             )}
           </pre>
         )}
-        
+
         <div className="rounded-xl border bg-card p-4 text-sm text-muted-foreground flex items-center justify-between gap-3">
           <span>
             {!hasClientObra
@@ -336,7 +308,9 @@ const Documentos = () => {
           )}
 
           {!isLoading && documentosData.length === 0 && (
-            <div className="card-institutional p-4 text-sm text-muted-foreground">Nenhum documento encontrado.</div>
+            <div className="card-institutional p-4 text-sm text-muted-foreground">
+              {activeObraId ? "Nenhum documento encontrado." : "Selecione uma obra para visualizar documentos."}
+            </div>
           )}
 
            {!isLoading && documentosData.map((doc, index) => {

@@ -8,8 +8,8 @@ import {
   query,
   serverTimestamp,
   updateDoc,
+  where,
   type DocumentData,
-  type QueryConstraint,
   type QueryDocumentSnapshot,
 } from "firebase/firestore";
 import { getDownloadURL, ref, uploadBytes } from "firebase/storage";
@@ -39,7 +39,6 @@ const ALLOWED_MIME_TYPES = new Set([
 
 console.log("[documentos.service] carregado");
 const categorySet = new Set<string>(DOCUMENT_CATEGORIES);
-const INVALID_OBRA_FILTERS = new Set(["todas", "todos", "all"]);
 
 const normalize = (value: unknown) => (typeof value === "string" ? value.trim() : "");
 
@@ -165,62 +164,17 @@ const mapAuditoria = (snap: QueryDocumentSnapshot<DocumentData>): AuditoriaEvent
 };
 
 export const listDocumentos = async ({ obraId, categoria, searchText }: ListDocumentosInput): Promise<Documento[]> => {
-  const constraints: QueryConstraint[] = [orderBy("createdAt", "desc")];
-  
-  if (import.meta.env.DEV) {
-  console.log("[documentos] listDocumentos called", { obraId, categoria, searchText });
-  }
-
   const obra = normalize(obraId);
   
-  if (isValidCategoria(categoria)) {
-    console.log("[DIAG] Filtro de categoria ativo:", categoria);
+  if (!obra) {
+    if (import.meta.env.DEV) {
+      console.log("[DOCS] obraId ausente; retornando vazio para evitar query global");
+    }
+    return [];
   }
 
-  console.log("[DIAG] Query sem filtro obraId");
-  const baseQuery = query(collection(db, "documentos"), ...constraints);
-
-  if (import.meta.env.DEV) {
-    console.debug("[documentos] list", {
-      obraId: obra && !INVALID_OBRA_FILTERS.has(obra.toLowerCase()) ? obra : null,
-      categoria: isValidCategoria(categoria) ? categoria : null,
-      searchText,
-    });
-  }
-
-  let snap;
-  try {
-    snap = await getDocs(baseQuery);
-  } catch (err) {
-    console.error("[DOCS-DIAG] listDocumentos getDocs failed", err);
-    throw err;
-  }
-
-  console.log("[DIAG] Documentos retornados do Firestore:", snap.docs.length);
-  snap.docs.forEach((docItem) => {
-    console.log("[DIAG] Documento:", docItem.id, docItem.data());
-  });
-
-  if (import.meta.env.DEV) {
-  console.log("[documentos] snap.size", snap.size);
-  console.log("[DOCS-DIAG] listDocumentos snapshot size", snap.size);
-  console.log(
-    "[DOCS-DIAG] listDocumentos first docs",
-    snap.docs.slice(0, 3).map((docItem) => {
-      const data = docItem.data();
-      return {
-        id: docItem.id,
-        obraId: data.obraId,
-        categoria: data.categoria,
-        createdAt: data.createdAt,
-      };
-    }),
-  );
-  }
-
-  if (import.meta.env.DEV) {
-    console.debug("[documentos] fetched", { count: snap.size });
-  }
+  const baseQuery = query(collection(db, "documentos"), where("obraId", "==", obra), orderBy("createdAt", "desc"));
+  const snap = await getDocs(baseQuery);
   
   const mapped = snap.docs.map(mapDocumento);
   const normalizedSearch = normalize(searchText).toLowerCase();
