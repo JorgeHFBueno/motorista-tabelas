@@ -20,12 +20,15 @@ export const documentosKeys = {
   assinaturas: (id?: string) => [...documentosKeys.all, "assinaturas", id ?? ""] as const,
 };
 
-export const useDocumentosList = (obraId: string | undefined, categoria: DocumentoCategoria | null, searchText: string) =>
-  useQuery({
-    queryKey: documentosKeys.list(obraId, categoria, searchText),
-    queryFn: () => listDocumentos({ obraId, categoria, searchText }),
+export const useDocumentosList = (obraId: string | undefined, categoria: DocumentoCategoria | null, searchText: string) => {
+  const params = { obraId, categoria, searchText };
+
+  return useQuery({
+    queryKey: documentosKeys.list(params.obraId, params.categoria, params.searchText),
+    queryFn: () => listDocumentos(params),
     enabled: true,
   });
+  };
 
 export const useDocumento = (id?: string, enabled = true) =>
   useQuery({

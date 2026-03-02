@@ -262,11 +262,23 @@ const Documentos = () => {
             <Filter className="w-4 h-4 text-muted-foreground" />
           </div>
 
+          {isLoading && (
+            <div className="space-y-3">
+              {Array.from({ length: 3 }).map((_, index) => (
+                <div key={`skeleton-${index}`} className="card-institutional p-4 animate-pulse">
+                  <div className="h-4 w-2/3 rounded bg-muted" />
+                  <div className="mt-2 h-3 w-1/3 rounded bg-muted" />
+                  <div className="mt-4 h-8 w-full rounded bg-muted" />
+                </div>
+              ))}
+            </div>
+          )}
+
           {!isLoading && documentosData.length === 0 && (
             <div className="card-institutional p-4 text-sm text-muted-foreground">Nenhum documento encontrado.</div>
           )}
 
-          {documentosData.map((doc, index) => {
+           {!isLoading && documentosData.map((doc, index) => {
             const signatureStatus = toViewStatus(doc);
             const status = signatureStatusConfig[signatureStatus];
             const StatusIcon = status.icon;

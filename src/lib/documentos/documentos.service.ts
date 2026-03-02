@@ -169,12 +169,8 @@ export const listDocumentos = async ({ obraId, categoria, searchText }: ListDocu
   const constraints: QueryConstraint[] = [orderBy("createdAt", "desc")];
   
   if (import.meta.env.DEV) {
-  console.log("[DEBUG] filtros recebidos:", {
-    obraId,
-    categoria,
-    searchText,
-  });
-}
+  console.log("[documentos] listDocumentos called", { obraId, categoria, searchText });
+  }
 
   const obra = normalize(obraId);
   if (obra && !INVALID_OBRA_FILTERS.has(obra.toLowerCase())) {
@@ -198,9 +194,8 @@ export const listDocumentos = async ({ obraId, categoria, searchText }: ListDocu
   const snap = await getDocs(baseQuery);
 
   if (import.meta.env.DEV) {
-  console.log("[DEBUG] documentos encontrados:", snap.size);
-  console.log("[DEBUG] ids:", snap.docs.map(d => d.id));
-}
+  console.log("[documentos] snap.size", snap.size);
+  }
 
   if (import.meta.env.DEV) {
     console.debug("[documentos] fetched", { count: snap.size });
