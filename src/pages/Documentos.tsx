@@ -107,11 +107,7 @@ const Documentos = () => {
     isFetching,
     isError,
     error,
-  } = useDocumentosList(
-    activeObraId ?? undefined,
-    selectedCategory,
-    debouncedSearch,
-  );
+   } = useDocumentosList(activeObraId, selectedCategory, debouncedSearch);
   const detailsEnabled = Boolean(selectedDocumentId) && isDetailOpen;
   const { data: selectedDocument, isLoading: loadingDetail } = useDocumento(selectedDocumentId ?? undefined, detailsEnabled);
   const { data: auditoriaData = [] } = useAuditoria(selectedDocumentId ?? undefined, detailsEnabled);

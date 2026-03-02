@@ -6,6 +6,7 @@ import {
   getDocs,
   orderBy,
   query,
+  type QueryConstraint,
   serverTimestamp,
   updateDoc,
   where,
@@ -37,7 +38,6 @@ const ALLOWED_MIME_TYPES = new Set([
   "image/webp",
 ]);
 
-console.log("[documentos.service] carregado");
 const categorySet = new Set<string>(DOCUMENT_CATEGORIES);
 
 const normalize = (value: unknown) => (typeof value === "string" ? value.trim() : "");
@@ -166,14 +166,21 @@ const mapAuditoria = (snap: QueryDocumentSnapshot<DocumentData>): AuditoriaEvent
 export const listDocumentos = async ({ obraId, categoria, searchText }: ListDocumentosInput): Promise<Documento[]> => {
   const obra = normalize(obraId);
   
-  if (!obra) {
-    if (import.meta.env.DEV) {
-      console.log("[DOCS] obraId ausente; retornando vazio para evitar query global");
-    }
-    return [];
+  const constraints: QueryConstraint[] = [];
+
+  if (obra) {
+    constraints.push(where("obraId", "==", obra));
+  } else if (import.meta.env.DEV) {
+    console.debug("[DOCS-DIAG] listDocumentos sem obraId (consulta global habilitada para fluxos explícitos)");
   }
 
-  const baseQuery = query(collection(db, "documentos"), where("obraId", "==", obra), orderBy("createdAt", "desc"));
+  if (isValidCategoria(categoria)) {
+    constraints.push(where("categoria", "==", categoria));
+  }
+
+  constraints.push(orderBy("createdAt", "desc"));
+
+  const baseQuery = query(collection(db, "documentos"), ...constraints);
   const snap = await getDocs(baseQuery);
   
   const mapped = snap.docs.map(mapDocumento);

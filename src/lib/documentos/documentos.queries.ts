@@ -22,15 +22,12 @@ export const documentosKeys = {
 
 export const useDocumentosList = (obraId: string | undefined, categoria: DocumentoCategoria | null, searchText: string) => {
   const params = { obraId, categoria, searchText };
-  const hasObraId = Boolean(obraId && obraId.trim().length > 0);
-
-  const queryResult = useQuery({
+  return useQuery({
     queryKey: documentosKeys.list(params.obraId, params.categoria, params.searchText),
     queryFn: () => listDocumentos(params),
-    enabled: hasObraId,
+    enabled: Boolean(obraId),
   });
 
-  return queryResult;
   };
 
 export const useDocumento = (id?: string, enabled = true) =>
