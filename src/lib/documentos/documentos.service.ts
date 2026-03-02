@@ -38,6 +38,7 @@ const ALLOWED_MIME_TYPES = new Set([
   "image/webp",
 ]);
 
+console.log("[documentos.service] carregado");
 const categorySet = new Set<string>(DOCUMENT_CATEGORIES);
 const INVALID_OBRA_FILTERS = new Set(["todas", "todos", "all"]);
 
@@ -167,6 +168,14 @@ const mapAuditoria = (snap: QueryDocumentSnapshot<DocumentData>): AuditoriaEvent
 export const listDocumentos = async ({ obraId, categoria, searchText }: ListDocumentosInput): Promise<Documento[]> => {
   const constraints: QueryConstraint[] = [orderBy("createdAt", "desc")];
   
+  if (import.meta.env.DEV) {
+  console.log("[DEBUG] filtros recebidos:", {
+    obraId,
+    categoria,
+    searchText,
+  });
+}
+
   const obra = normalize(obraId);
   if (obra && !INVALID_OBRA_FILTERS.has(obra.toLowerCase())) {
     constraints.unshift(where("obraId", "==", obra));
@@ -187,6 +196,11 @@ export const listDocumentos = async ({ obraId, categoria, searchText }: ListDocu
   }
 
   const snap = await getDocs(baseQuery);
+
+  if (import.meta.env.DEV) {
+  console.log("[DEBUG] documentos encontrados:", snap.size);
+  console.log("[DEBUG] ids:", snap.docs.map(d => d.id));
+}
 
   if (import.meta.env.DEV) {
     console.debug("[documentos] fetched", { count: snap.size });
@@ -383,3 +397,4 @@ export const downloadDocumento = async (documento: Documento): Promise<void> => 
   anchor.click();
   window.document.body.removeChild(anchor);
 };
+
