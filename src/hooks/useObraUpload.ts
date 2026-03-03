@@ -72,6 +72,27 @@ const uploadWithProgress = (
 
 const mapPdfTipoToCategoria = (tipo: DocumentoTipoPdf) => (tipo === "ART/RRT" ? "ART / RRT" : tipo);
 
+const addDocumentAuditEvent = async ({
+  docId,
+  type,
+  actorUid,
+  actorNomeSnapshot,
+  meta,
+}: {
+  docId: string;
+  type: "upload" | "sign" | "version_upload";
+  actorUid: string;
+  actorNomeSnapshot?: string | null;
+  meta?: Record<string, unknown>;
+}) =>
+  addDoc(collection(db, "documentos", docId, "auditoria"), {
+    type,
+    actorUid,
+    actorNomeSnapshot: actorNomeSnapshot ?? null,
+    createdAt: serverTimestamp(),
+    meta: meta ?? null,
+  });
+
 export const useObraUpload = (obraId: string) => {
   const { user, userDoc } = useAuth();
   const queryClient = useQueryClient();
@@ -84,8 +105,8 @@ export const useObraUpload = (obraId: string) => {
       const { yyyy, mm } = toDateParts(now);
       const safeName = sanitizeFileName(file.name);
       const fileUuid = crypto.randomUUID();
-      const filename = `${fileUuid}_${safeName}`;
-      const storagePath = `obras/${obraId}/documentos/${yyyy}/${mm}/${filename}`;
+      const storedName = `${fileUuid}_${safeName}`;
+      const storagePath = `obras/${obraId}/documentos/${yyyy}/${mm}/${storedName}`;
 
       const result = await uploadWithProgress(
         storagePath,
@@ -103,16 +124,19 @@ export const useObraUpload = (obraId: string) => {
       );
 
       try {
-        await addDoc(collection(db, "documentos"), {
+        const created = await addDoc(collection(db, "documentos"), {
           obraId,
           obraNomeSnapshot: payload.obraNomeSnapshot ?? null,
           tipo: payload.tipo,
           categoria: mapPdfTipoToCategoria(payload.tipo),
-          titulo: filename,
+          titulo: file.name,
           createdAt: payload.registroEm ? Timestamp.fromDate(new Date(payload.registroEm)) : serverTimestamp(),
           updatedAt: serverTimestamp(),
-          filename,
-          fileName: filename,
+          displayName: file.name,
+          originalName: file.name,
+          storedName,
+          filename: storedName,
+          fileName: storedName,
           contentType: file.type,
           mimeType: file.type,
           storagePath: result.storagePath,
@@ -125,6 +149,17 @@ export const useObraUpload = (obraId: string) => {
           status: "Finalizado",
           requerAssinatura: false,
           assinaturaStatus: "ASSINADO",
+        });
+        await addDocumentAuditEvent({
+          docId: created.id,
+          type: "upload",
+          actorUid: user.uid,
+          actorNomeSnapshot: userDoc?.nome,
+          meta: {
+            storagePath: result.storagePath,
+            storedName,
+            originalName: file.name,
+          },
         });
       } catch (error) {
         if (isDev) {
@@ -154,8 +189,8 @@ export const useObraUpload = (obraId: string) => {
       const { yyyy, mm } = toDateParts(now);
       const safeName = sanitizeFileName(file.name);
       const fileUuid = crypto.randomUUID();
-      const filename = `${fileUuid}_${safeName}`;
-      const storagePath = `obras/${obraId}/fotos/${yyyy}/${mm}/${filename}`;
+      const storedName = `${fileUuid}_${safeName}`;
+      const storagePath = `obras/${obraId}/fotos/${yyyy}/${mm}/${storedName}`;
 
       const result = await uploadWithProgress(
         storagePath,
@@ -179,8 +214,11 @@ export const useObraUpload = (obraId: string) => {
           tipo: payload.tipo,
           etapa: mapFotoTipoToEtapa(payload.tipo),
           etapaLabel: payload.tipo,
-          filename,
-          fileName: filename,
+          displayName: file.name,
+          originalName: file.name,
+          storedName,
+          filename: storedName,
+          fileName: storedName,
           contentType: file.type,
           storagePath: result.storagePath,
           filePath: result.storagePath,

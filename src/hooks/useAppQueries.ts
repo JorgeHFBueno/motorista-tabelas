@@ -57,6 +57,22 @@ const toEpoch = (value: unknown): number => {
 const sortByCreatedAtDesc = (items: FirestoreItem[]): FirestoreItem[] =>
   [...items].sort((a, b) => toEpoch(b.createdAt) - toEpoch(a.createdAt));
 
+const UUID_PREFIX_NAME_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}_(.+)$/i;
+
+const deriveDisplayName = (item: Record<string, unknown>) => {
+  const direct = [item.displayName, item.originalName, item.titulo]
+    .find((value) => typeof value === "string" && value.trim().length > 0);
+  if (typeof direct === "string") return direct;
+
+  const candidate = [item.storedName, item.filename, item.fileName]
+    .find((value) => typeof value === "string" && value.trim().length > 0);
+
+  if (typeof candidate !== "string") return "Documento";
+
+  const match = candidate.match(UUID_PREFIX_NAME_REGEX);
+  return match?.[1] ?? candidate;
+};
+
 const listCompatDocumentos = async (obraId: string): Promise<FirestoreItem[]> => {
   try {
     const [primary, legacySnap] = await Promise.all([
@@ -72,9 +88,17 @@ const listCompatDocumentos = async (obraId: string): Promise<FirestoreItem[]> =>
       titulo: doc.titulo,
       filename: doc.fileName,
       fileName: doc.fileName,
+      storedName: doc.fileName,
+      displayName: deriveDisplayName({
+        displayName: (doc as unknown as Record<string, unknown>).displayName,
+        originalName: (doc as unknown as Record<string, unknown>).originalName,
+        titulo: doc.titulo,
+        storedName: doc.fileName,
+      }),
+      originalName: (doc as unknown as Record<string, unknown>).originalName ?? null,
       storagePath: doc.filePath,
       filePath: doc.filePath,
-      url: "",
+      url: (doc as unknown as Record<string, unknown>).url ?? "",
       contentType: doc.mimeType,
       mimeType: doc.mimeType,
       createdAt: doc.createdAt,
@@ -84,6 +108,9 @@ const listCompatDocumentos = async (obraId: string): Promise<FirestoreItem[]> =>
 
     const legacyItems: FirestoreItem[] = mapItems(legacySnap).map((item) => ({
       ...item,
+      displayName: deriveDisplayName(item),
+      originalName: item.originalName ?? null,
+      storedName: item.storedName ?? item.filename ?? item.fileName,
       fileName: item.fileName ?? item.filename,
       filename: item.filename ?? item.fileName,
       filePath: item.filePath ?? item.storagePath,
