@@ -1,13 +1,18 @@
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { addDoc, collection, getDocs, orderBy, query, serverTimestamp, updateDoc, doc } from "firebase/firestore";
+import { Timestamp, addDoc, collection, doc, getDocs, orderBy, query, serverTimestamp, updateDoc } from "firebase/firestore";
 import { getDownloadURL, ref, uploadBytesResumable } from "firebase/storage";
-import { Download, PenTool, Trash2, UploadCloud } from "lucide-react";
+import { ChevronDown, Download, PenTool, Trash2, UploadCloud } from "lucide-react";
 import { useNavigate, useParams } from "react-router-dom";
 import ResponsiveLayout from "@/components/layout/ResponsiveLayout";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { Input } from "@/components/ui/input";
+import { Progress } from "@/components/ui/progress";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -24,6 +29,7 @@ import { useToast } from "@/hooks/use-toast";
 import { db, storage } from "@/lib/firebase";
 import { getItemPreviewUrl, listTrashItems, moveToTrash, restoreFromTrash, type TrashType } from "@/lib/trash/trash.service";
 import { getCallableErrorMessage } from "@/lib/functions";
+import { bootstrapStatusIfEmpty, listFases, setDatas, toggleItem, type ObraStatusFase } from "@/services/obraStatus.service";
 import type { FirestoreItem } from "@/types/rbac";
 
 const UUID_PREFIX_NAME_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}_(.+)$/i;
@@ -94,6 +100,8 @@ const StaffObraDetailPage = () => {
   const [isPreviewLoading, setIsPreviewLoading] = useState(false);
   const [trashCandidate, setTrashCandidate] = useState<{ item: FirestoreItem; type: TrashType } | null>(null);
   const [trashTab, setTrashTab] = useState<TrashType>("documentos");
+  const [activeTab, setActiveTab] = useState("documentos");
+  const [expandedPhases, setExpandedPhases] = useState<Record<string, boolean>>({});
   const versionInputRef = useRef<HTMLInputElement>(null);
 
   const selectedDocId = asText(selectedDocument?.id);
@@ -128,10 +136,86 @@ const StaffObraDetailPage = () => {
     enabled: Boolean(obraId),
   });
 
+  const { data: fases = [] } = useQuery({
+    queryKey: ["obraStatus", obraId],
+    queryFn: () => listFases(obraId as string),
+    enabled: Boolean(obraId && activeTab === "status"),
+  });
+
   const downloadUrl = useMemo(
     () => asText(selectedDocument?.url) || resolvedDownloadUrl,
     [resolvedDownloadUrl, selectedDocument],
   );
+
+  const actor = useMemo(
+    () => ({ uid: user?.uid ?? "", nome: userDoc?.nome ?? "Equipe" }),
+    [user?.uid, userDoc?.nome],
+  );
+
+  useEffect(() => {
+    if (!obraId || activeTab !== "status" || !user?.uid) return;
+
+    void bootstrapStatusIfEmpty(obraId, actor)
+      .then((created) => {
+        if (created) return queryClient.invalidateQueries({ queryKey: ["obraStatus", obraId] });
+        return Promise.resolve();
+      })
+      .catch((error) => {
+        if (import.meta.env.DEV) console.error("[STATUS] falha no bootstrap", { obraId, error });
+        toast({ title: "Falha ao carregar status", description: "Não foi possível inicializar as fases.", variant: "destructive" });
+      });
+  }, [activeTab, actor, obraId, queryClient, toast, user?.uid]);
+
+  const toggleItemMutation = useMutation({
+    mutationFn: ({ faseId, itemId }: { faseId: string; itemId: string }) => toggleItem(obraId as string, faseId, itemId, actor),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ["obraStatus", obraId] });
+    },
+    onError: (error) => {
+      toast({ title: "Falha ao atualizar item", description: error instanceof Error ? error.message : "Erro inesperado.", variant: "destructive" });
+    },
+  });
+
+  const setDatasMutation = useMutation({
+    mutationFn: ({ faseId, inicio, fim }: { faseId: string; inicio: Timestamp | null; fim: Timestamp | null }) =>
+      setDatas(obraId as string, faseId, inicio, fim, actor),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ["obraStatus", obraId] });
+    },
+    onError: (error) => {
+      toast({ title: "Falha ao atualizar datas", description: error instanceof Error ? error.message : "Erro inesperado.", variant: "destructive" });
+    },
+  });
+
+  const getProgress = (fase: ObraStatusFase) => {
+    const total = fase.itens?.length ?? 0;
+    if (!total) return 0;
+    const completed = fase.itens.filter((item) => item.done).length;
+    return Math.round((completed / total) * 100);
+  };
+
+  const getStatusMeta = (progress: number) => {
+    if (progress === 0) return { label: "Pendente", variant: "outline" as const };
+    if (progress === 100) return { label: "Concluída", variant: "default" as const };
+    return { label: "Em andamento", variant: "secondary" as const };
+  };
+
+  const formatDateInput = (value: unknown) => {
+    const cast = value as { toDate?: () => Date; seconds?: number };
+    let date: Date | null = null;
+    if (typeof cast?.toDate === "function") date = cast.toDate();
+    else if (typeof cast?.seconds === "number") date = new Date(cast.seconds * 1000);
+    if (!date) return "";
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, "0");
+    const day = String(date.getDate()).padStart(2, "0");
+    return `${year}-${month}-${day}`;
+  };
+
+  const toTimestampFromInput = (value: string) => {
+    if (!value) return null;
+    return Timestamp.fromDate(new Date(`${value}T00:00:00`));
+  };
 
   const signMutation = useMutation({
     mutationFn: async () => {
@@ -280,8 +364,9 @@ const StaffObraDetailPage = () => {
         <div className="mb-4 flex justify-end">
           <Button onClick={() => navigate(`/painel/obras/${obraId}/upload`)}>Enviar arquivo</Button>
         </div>
-        <Tabs defaultValue="documentos" className="space-y-4">
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
           <TabsList>
+            <TabsTrigger value="status">Status</TabsTrigger>
             <TabsTrigger value="documentos">Documentos</TabsTrigger>
             <TabsTrigger value="fotos">Fotos</TabsTrigger>
             <TabsTrigger value="lixeira">Lixeira</TabsTrigger>
@@ -349,6 +434,77 @@ const StaffObraDetailPage = () => {
                 ))}
               </TabsContent>
             </Tabs>
+          </TabsContent>
+          <TabsContent value="status" className="rounded-xl border p-4 space-y-3">
+            {fases.length === 0 ? <p>Carregando status da obra...</p> : fases.map((fase) => {
+              const progress = getProgress(fase);
+              const statusMeta = getStatusMeta(progress);
+              const isOpen = expandedPhases[fase.id] ?? true;
+              return (
+                <Collapsible
+                  key={fase.id}
+                  open={isOpen}
+                  onOpenChange={(nextOpen) => setExpandedPhases((prev) => ({ ...prev, [fase.id]: nextOpen }))}
+                  className="rounded border p-3"
+                >
+                  <CollapsibleTrigger asChild>
+                    <button className="flex w-full items-center justify-between gap-2 text-left">
+                      <div className="space-y-1">
+                        <p className="font-medium">{fase.titulo}</p>
+                        <div className="flex items-center gap-2">
+                          <Badge variant={statusMeta.variant}>{statusMeta.label}</Badge>
+                          <span className="text-xs text-muted-foreground">{progress}%</span>
+                        </div>
+                      </div>
+                      <ChevronDown className={`h-4 w-4 transition-transform ${isOpen ? "rotate-180" : ""}`} />
+                    </button>
+                  </CollapsibleTrigger>
+
+                  <CollapsibleContent className="mt-3 space-y-3">
+                    <Progress value={progress} />
+
+                    <div className="grid gap-2 md:grid-cols-2">
+                      <label className="space-y-1 text-sm">
+                        <span>Início</span>
+                        <Input
+                          type="date"
+                          defaultValue={formatDateInput(fase.inicio)}
+                          onBlur={(event) => {
+                            const inicio = toTimestampFromInput(event.target.value);
+                            const fim = toTimestampFromInput(formatDateInput(fase.fim));
+                            setDatasMutation.mutate({ faseId: fase.id, inicio, fim });
+                          }}
+                        />
+                      </label>
+                      <label className="space-y-1 text-sm">
+                        <span>Fim</span>
+                        <Input
+                          type="date"
+                          defaultValue={formatDateInput(fase.fim)}
+                          onBlur={(event) => {
+                            const inicio = toTimestampFromInput(formatDateInput(fase.inicio));
+                            const fim = toTimestampFromInput(event.target.value);
+                            setDatasMutation.mutate({ faseId: fase.id, inicio, fim });
+                          }}
+                        />
+                      </label>
+                    </div>
+
+                    <div className="space-y-2">
+                      {fase.itens.map((item) => (
+                        <label key={item.id} className="flex items-center gap-2 text-sm">
+                          <Checkbox
+                            checked={item.done}
+                            onCheckedChange={() => toggleItemMutation.mutate({ faseId: fase.id, itemId: item.id })}
+                          />
+                          <span>{item.label}</span>
+                        </label>
+                      ))}
+                    </div>
+                  </CollapsibleContent>
+                </Collapsible>
+              );
+            })}
           </TabsContent>
         </Tabs>
       </div>
