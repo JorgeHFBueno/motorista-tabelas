@@ -12,13 +12,18 @@ import {
   serverTimestamp,
   setDoc,
   where,
+  orderBy,
 } from "firebase/firestore";
 import type { User } from "firebase/auth";
 import { db } from "@/lib/firebase";
 import type { FirestoreItem, ObraDoc, UserDoc } from "@/types/rbac";
+import { listDocumentos } from "@/lib/documentos/documentos.service";
+import { listFotos } from "@/lib/fotos/fotos.service";
 
 const mapItems = (docs: Awaited<ReturnType<typeof getDocs>>): FirestoreItem[] =>
   docs.docs.map((item) => ({ id: item.id, ...(item.data() as Record<string, unknown>),}));
+
+const isDev = import.meta.env.DEV;
 
 const logFirestoreError = (tag: string, err: unknown) => {
   const firestoreError = err as { code?: string; message?: string };
@@ -27,6 +32,156 @@ const logFirestoreError = (tag: string, err: unknown) => {
     message: firestoreError?.message ?? "unknown",
     rawError: err,
   });
+};
+
+const dedupeByPathOrUrl = (items: FirestoreItem[]): FirestoreItem[] => {
+  const seen = new Set<string>();
+  return items.filter((item) => {
+    const key = String(item.storagePath ?? item.filePath ?? item.url ?? item.id ?? "");
+    if (!key || seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+};
+
+const toEpoch = (value: unknown): number => {
+  const withSeconds = value as { seconds?: number };
+  if (typeof withSeconds?.seconds === "number") return withSeconds.seconds;
+  const maybeDate = value as { toDate?: () => Date };
+  if (typeof maybeDate?.toDate === "function") {
+    return Math.floor(maybeDate.toDate().getTime() / 1000);
+  }
+  return 0;
+};
+
+const sortByCreatedAtDesc = (items: FirestoreItem[]): FirestoreItem[] =>
+  [...items].sort((a, b) => toEpoch(b.createdAt) - toEpoch(a.createdAt));
+
+const listCompatDocumentos = async (obraId: string): Promise<FirestoreItem[]> => {
+  try {
+    const [primary, legacySnap] = await Promise.all([
+      listDocumentos({ obraId, categoria: null, searchText: "" }),
+      getDocs(query(collection(db, "obras", obraId, "documentos"), orderBy("createdAt", "desc"))),
+    ]);
+
+    const primaryItems: FirestoreItem[] = primary.map((doc) => ({
+      id: doc.id,
+      obraId: doc.obraId,
+      obraNomeSnapshot: doc.obraNomeSnapshot,
+      tipo: doc.categoria,
+      titulo: doc.titulo,
+      filename: doc.fileName,
+      fileName: doc.fileName,
+      storagePath: doc.filePath,
+      filePath: doc.filePath,
+      url: "",
+      contentType: doc.mimeType,
+      mimeType: doc.mimeType,
+      createdAt: doc.createdAt,
+      observacao: null,
+      origin: "global",
+    }));
+
+    const legacyItems: FirestoreItem[] = mapItems(legacySnap).map((item) => ({
+      ...item,
+      fileName: item.fileName ?? item.filename,
+      filename: item.filename ?? item.fileName,
+      filePath: item.filePath ?? item.storagePath,
+      storagePath: item.storagePath ?? item.filePath,
+      mimeType: item.mimeType ?? item.contentType,
+      contentType: item.contentType ?? item.mimeType,
+      titulo: item.titulo ?? item.filename ?? item.fileName ?? "Documento",
+      categoria: item.categoria ?? item.tipo ?? "Contratos",
+      origin: "legacy_subcollection",
+    }));
+
+    const merged = sortByCreatedAtDesc(dedupeByPathOrUrl([...primaryItems, ...legacyItems]));
+
+    if (isDev) {
+      console.info("[OBRA_FILES] documentos listados", {
+        obraId,
+        source: "global_documentos",
+        total: merged.length,
+        globalCount: primaryItems.length,
+        legacyCount: legacyItems.length,
+      });
+    }
+
+    return merged;
+  } catch (error) {
+    if (isDev) {
+      console.error("[OBRA_FILES] erro ao listar documentos", { obraId, error });
+    }
+    throw error;
+  }
+};
+
+const mapEtapaLabelToCode = (tipo: unknown) => {
+  if (tipo === "Fundação") return "FUNDACAO";
+  if (tipo === "Estrutura") return "ESTRUTURA";
+  if (tipo === "Cobertura") return "COBERTURA";
+  if (tipo === "Fechamento") return "FECHAMENTO";
+  return "ESTRUTURA";
+};
+
+const listCompatFotos = async (obraId: string): Promise<FirestoreItem[]> => {
+  try {
+    const [primary, legacySnap] = await Promise.all([
+      listFotos({ obraId, etapa: null }),
+      getDocs(query(collection(db, "obras", obraId, "fotos"), orderBy("createdAt", "desc"))),
+    ]);
+
+    const primaryItems: FirestoreItem[] = primary.map((foto) => ({
+      id: foto.id,
+      obraId: foto.obraId,
+      obraNomeSnapshot: foto.obraNomeSnapshot,
+      tipo: foto.etapaLabel,
+      etapa: foto.etapa,
+      filename: foto.fileName,
+      fileName: foto.fileName,
+      storagePath: foto.filePath,
+      filePath: foto.filePath,
+      url: "",
+      contentType: foto.contentType,
+      mimeType: foto.contentType,
+      createdAt: foto.createdAt,
+      observacao: foto.observacaoTecnica ?? null,
+      origin: "global",
+    }));
+
+    const legacyItems: FirestoreItem[] = mapItems(legacySnap).map((item) => ({
+      ...item,
+      obraId,
+      fileName: item.fileName ?? item.filename,
+      filename: item.filename ?? item.fileName,
+      filePath: item.filePath ?? item.storagePath,
+      storagePath: item.storagePath ?? item.filePath,
+      mimeType: item.mimeType ?? item.contentType,
+      contentType: item.contentType ?? item.mimeType,
+      etapa: item.etapa ?? mapEtapaLabelToCode(item.tipo),
+      observacaoTecnica: item.observacaoTecnica ?? item.observacao ?? "",
+      origin: "legacy_subcollection",
+    }));
+
+    const merged = sortByCreatedAtDesc(dedupeByPathOrUrl([...primaryItems, ...legacyItems]));
+
+    if (isDev) {
+      console.info("[OBRA_FILES] fotos listadas", {
+        obraId,
+        source: "global_fotos",
+        total: merged.length,
+        globalCount: primaryItems.length,
+        legacyCount: legacyItems.length,
+      });
+    }
+
+    return merged;
+  } catch (error) {
+    if (isDev) {
+      console.error("[OBRA_FILES] erro ao listar fotos", { obraId, error });
+    }
+    throw error;
+  }
 };
 
 export const useUserDoc = (uid?: string) =>
@@ -259,24 +414,6 @@ export const useCreateAccessRequest = () => {
   });
 };
 
-const listWithFallback = async (
-  obraId: string,
-  subCollection: "documentos" | "fotos" | "financas",
-): Promise<FirestoreItem[]> => {
-  const subCollectionRef = collection(db, "obras", obraId, subCollection);
-  const subCollectionSnap = await getDocs(subCollectionRef);
-
-  if (!subCollectionSnap.empty) {
-    return mapItems(subCollectionSnap);
-  }
-
-  console.debug(`[${subCollection}] fallback para coleção global`, { obraId });
-  // TODO: remover fallback quando toda a base for migrada para subcoleções por obra.
-  const oldQuery = query(collection(db, subCollection), where("obraId", "==", obraId));
-  const oldSnap = await getDocs(oldQuery);
-  return mapItems(oldSnap);
-};
-
 export const useDocumentos = (obraId?: string) =>
   useQuery({
     queryKey: ["documentos", obraId],
@@ -284,7 +421,7 @@ export const useDocumentos = (obraId?: string) =>
       if (!obraId) {
         return [] as FirestoreItem[];
       }
-      return listWithFallback(obraId, "documentos");
+      return listCompatDocumentos(obraId);
     },
     enabled: !!obraId,
   });
@@ -296,7 +433,7 @@ export const useFotos = (obraId?: string) =>
       if (!obraId) {
         return [] as FirestoreItem[];
       }
-      return listWithFallback(obraId, "fotos");
+      return listCompatFotos(obraId);
     },
     enabled: !!obraId,
   });
@@ -308,7 +445,9 @@ export const useFinancas = (obraId?: string) =>
       if (!obraId) {
         return [] as FirestoreItem[];
       }
-      return listWithFallback(obraId, "financas");
+      const subCollectionRef = collection(db, "obras", obraId, "financas");
+      const subCollectionSnap = await getDocs(subCollectionRef);
+      return mapItems(subCollectionSnap);
     },
     enabled: !!obraId,
   });

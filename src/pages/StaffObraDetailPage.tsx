@@ -9,8 +9,18 @@ import { useObra as useObraContext } from "@/contexts/ObraContext";
 const StaffObraDetailPage = () => {
   const { obraId } = useParams();
   const { data: obra } = useObra(obraId);
-  const { data: documentos = [], isLoading: isLoadingDocs } = useDocumentos(obraId);
-  const { data: fotos = [], isLoading: isLoadingFotos } = useFotos(obraId);
+  const {
+    data: documentos = [],
+    isLoading: isLoadingDocs,
+    isError: isDocsError,
+    error: docsError,
+  } = useDocumentos(obraId);
+  const {
+    data: fotos = [],
+    isLoading: isLoadingFotos,
+    isError: isFotosError,
+    error: fotosError,
+  } = useFotos(obraId);
   const { setObraAtivaId } = useObraContext();
   const navigate = useNavigate();
 
@@ -33,9 +43,11 @@ const StaffObraDetailPage = () => {
           </TabsList>
           <TabsContent value="documentos" className="rounded-xl border p-4">
             {isLoadingDocs ? "Carregando documentos..." : `Total documentos: ${documentos.length}`}
+            {isDocsError && <p className="mt-2 text-sm text-destructive">Erro ao carregar documentos: {docsError instanceof Error ? docsError.message : "erro desconhecido"}</p>}
           </TabsContent>
           <TabsContent value="fotos" className="rounded-xl border p-4">
             {isLoadingFotos ? "Carregando fotos..." : `Total fotos: ${fotos.length}`}
+            {isFotosError && <p className="mt-2 text-sm text-destructive">Erro ao carregar fotos: {fotosError instanceof Error ? fotosError.message : "erro desconhecido"}</p>}
           </TabsContent>
         </Tabs>
       </div>

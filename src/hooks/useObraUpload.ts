@@ -1,6 +1,6 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { addDoc, collection, serverTimestamp, Timestamp } from "firebase/firestore";
-import { getDownloadURL, ref, uploadBytesResumable } from "firebase/storage";
+import { deleteObject, getDownloadURL, ref, uploadBytesResumable } from "firebase/storage";
 import { useAuth } from "@/contexts/AuthContext";
 import { db, storage } from "@/lib/firebase";
 import type { DocumentoTipoPdf, FotoTipoImagem } from "@/types/upload";
@@ -8,6 +8,7 @@ import type { DocumentoTipoPdf, FotoTipoImagem } from "@/types/upload";
 interface UploadBasePayload {
   observacao?: string;
   registroEm?: string;
+  obraNomeSnapshot?: string | null;
 }
 
 interface UploadPdfPayload extends UploadBasePayload {
@@ -17,6 +18,8 @@ interface UploadPdfPayload extends UploadBasePayload {
 interface UploadImagePayload extends UploadBasePayload {
   tipo: FotoTipoImagem;
 }
+
+const isDev = import.meta.env.DEV;
 
 const sanitizeFileName = (fileName: string) =>
   fileName
@@ -60,6 +63,15 @@ const uploadWithProgress = (
     );
   });
 
+  const mapFotoTipoToEtapa = (tipo: FotoTipoImagem) => {
+  if (tipo === "Fundação") return "FUNDACAO" as const;
+  if (tipo === "Estrutura") return "ESTRUTURA" as const;
+  if (tipo === "Cobertura") return "COBERTURA" as const;
+  return "FECHAMENTO" as const;
+};
+
+const mapPdfTipoToCategoria = (tipo: DocumentoTipoPdf) => (tipo === "ART/RRT" ? "ART / RRT" : tipo);
+
 export const useObraUpload = (obraId: string) => {
   const { user, userDoc } = useAuth();
   const queryClient = useQueryClient();
@@ -90,19 +102,46 @@ export const useObraUpload = (obraId: string) => {
         onProgress,
       );
 
-      await addDoc(collection(db, "obras", obraId, "documentos"), {
-        createdAt: payload.registroEm ? Timestamp.fromDate(new Date(payload.registroEm)) : serverTimestamp(),
-        tipo: payload.tipo,
-        filename,
-        contentType: file.type,
-        storagePath: result.storagePath,
-        url: result.url,
-        observacao: payload.observacao?.trim() || null,
-        createdByUid: user.uid,
-        createdByNomeSnapshot: userDoc?.nome ?? null,
-      });
+      try {
+        await addDoc(collection(db, "documentos"), {
+          obraId,
+          obraNomeSnapshot: payload.obraNomeSnapshot ?? null,
+          tipo: payload.tipo,
+          categoria: mapPdfTipoToCategoria(payload.tipo),
+          titulo: filename,
+          createdAt: payload.registroEm ? Timestamp.fromDate(new Date(payload.registroEm)) : serverTimestamp(),
+          updatedAt: serverTimestamp(),
+          filename,
+          fileName: filename,
+          contentType: file.type,
+          mimeType: file.type,
+          storagePath: result.storagePath,
+          filePath: result.storagePath,
+          url: result.url,
+          fileSizeBytes: file.size,
+          observacao: payload.observacao?.trim() || null,
+          createdByUid: user.uid,
+          createdByNomeSnapshot: userDoc?.nome ?? null,
+          status: "Finalizado",
+          requerAssinatura: false,
+          assinaturaStatus: "ASSINADO",
+        });
+      } catch (error) {
+        if (isDev) {
+          console.error("[UPLOAD] falha ao salvar documento no Firestore; rollback no Storage", { obraId, storagePath, error });
+        }
+        await deleteObject(ref(storage, result.storagePath)).catch((rollbackError) => {
+          console.error("[UPLOAD] rollback falhou para documento", { obraId, storagePath, rollbackError });
+        });
+        throw error;
+      }
+
+      if (isDev) {
+        console.info("[UPLOAD] documento enviado", { obraId, source: "global_documentos", storagePath: result.storagePath });
+      }
 
       await queryClient.invalidateQueries({ queryKey: ["documentos", obraId] });
+      await queryClient.invalidateQueries({ queryKey: ["documentos"] });
       return result;
     },
   });
@@ -133,20 +172,43 @@ export const useObraUpload = (obraId: string) => {
         onProgress,
       );
 
-      await addDoc(collection(db, "obras", obraId, "fotos"), {
-        createdAt: payload.registroEm ? Timestamp.fromDate(new Date(payload.registroEm)) : serverTimestamp(),
-        obraId,
-        tipo: payload.tipo,
-        filename,
-        contentType: file.type,
-        storagePath: result.storagePath,
-        url: result.url,
-        observacao: payload.observacao?.trim() || null,
-        createdByUid: user.uid,
-        createdByNomeSnapshot: userDoc?.nome ?? null,
-      });
+      try {
+        await addDoc(collection(db, "fotos"), {
+          obraId,
+          obraNomeSnapshot: payload.obraNomeSnapshot ?? null,
+          tipo: payload.tipo,
+          etapa: mapFotoTipoToEtapa(payload.tipo),
+          etapaLabel: payload.tipo,
+          filename,
+          fileName: filename,
+          contentType: file.type,
+          storagePath: result.storagePath,
+          filePath: result.storagePath,
+          url: result.url,
+          sizeBytes: file.size,
+          observacao: payload.observacao?.trim() || null,
+          observacaoTecnica: payload.observacao?.trim() || "",
+          createdByUid: user.uid,
+          createdByNomeSnapshot: userDoc?.nome ?? null,
+          createdAt: payload.registroEm ? Timestamp.fromDate(new Date(payload.registroEm)) : serverTimestamp(),
+          updatedAt: serverTimestamp(),
+        });
+      } catch (error) {
+        if (isDev) {
+          console.error("[UPLOAD] falha ao salvar foto no Firestore; rollback no Storage", { obraId, storagePath, error });
+        }
+        await deleteObject(ref(storage, result.storagePath)).catch((rollbackError) => {
+          console.error("[UPLOAD] rollback falhou para foto", { obraId, storagePath, rollbackError });
+        });
+        throw error;
+      }
+
+      if (isDev) {
+        console.info("[UPLOAD] foto enviada", { obraId, source: "global_fotos", storagePath: result.storagePath });
+      }
 
       await queryClient.invalidateQueries({ queryKey: ["fotos", obraId] });
+      await queryClient.invalidateQueries({ queryKey: ["fotos"] });
       return result;
     },
   });

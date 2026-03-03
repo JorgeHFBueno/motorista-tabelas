@@ -93,6 +93,7 @@ const StaffObraUploadPage = ({ basePath = "/painel" }: StaffObraUploadPageProps)
             tipo: tipo as DocumentoTipoPdf,
             observacao,
             registroEm: registroEm || undefined,
+            obraNomeSnapshot: obra?.nome ?? null,
           },
           onProgress: setProgress,
         });
@@ -103,6 +104,7 @@ const StaffObraUploadPage = ({ basePath = "/painel" }: StaffObraUploadPageProps)
             tipo: tipo as FotoTipoImagem,
             observacao,
             registroEm: registroEm || undefined,
+            obraNomeSnapshot: obra?.nome ?? null,
           },
           onProgress: setProgress,
         });
