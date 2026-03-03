@@ -2,8 +2,8 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Timestamp, addDoc, collection, doc, getDocs, orderBy, query, serverTimestamp, updateDoc } from "firebase/firestore";
 import { getDownloadURL, ref, uploadBytesResumable } from "firebase/storage";
-import { ChevronDown, Download, PenTool, Trash2, UploadCloud } from "lucide-react";
-import { useNavigate, useParams } from "react-router-dom";
+import { ChevronDown, Download, Loader2, PenTool, Trash2, UploadCloud } from "lucide-react";
+import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import ResponsiveLayout from "@/components/layout/ResponsiveLayout";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -29,7 +29,7 @@ import { useToast } from "@/hooks/use-toast";
 import { db, storage } from "@/lib/firebase";
 import { getItemPreviewUrl, listTrashItems, moveToTrash, restoreFromTrash, type TrashType } from "@/lib/trash/trash.service";
 import { getCallableErrorMessage } from "@/lib/functions";
-import { bootstrapStatusIfEmpty, listFases, setDatas, toggleItem, type ObraStatusFase } from "@/services/obraStatus.service";
+import { bootstrapStatusIfEmpty, listFases, updateFaseDraft, type ObraStatusFase } from "@/services/obraStatus.service";
 import type { FirestoreItem } from "@/types/rbac";
 
 const UUID_PREFIX_NAME_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}_(.+)$/i;
@@ -60,6 +60,13 @@ interface VersionItem {
   por?: string;
   createdAt?: unknown;
 }
+
+interface DraftFase {
+  inicio: Timestamp | null;
+  fim: Timestamp | null;
+  itens: ObraStatusFase["itens"];
+}
+
 
 const asText = (value: unknown) => (typeof value === "string" && value.trim() ? value : "");
 const toDateTime = (value: unknown) => {
@@ -92,6 +99,10 @@ const StaffObraDetailPage = () => {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
+
+  const tabParam = searchParams.get("tab");
+  const defaultTab = tabParam || "status";
 
   const [selectedDocument, setSelectedDocument] = useState<FirestoreItem | null>(null);
   const [isDetailOpen, setIsDetailOpen] = useState(false);
@@ -100,8 +111,10 @@ const StaffObraDetailPage = () => {
   const [isPreviewLoading, setIsPreviewLoading] = useState(false);
   const [trashCandidate, setTrashCandidate] = useState<{ item: FirestoreItem; type: TrashType } | null>(null);
   const [trashTab, setTrashTab] = useState<TrashType>("documentos");
-  const [activeTab, setActiveTab] = useState("documentos");
+  const [activeTab, setActiveTab] = useState(defaultTab);
   const [expandedPhases, setExpandedPhases] = useState<Record<string, boolean>>({});
+  const [editingFaseId, setEditingFaseId] = useState<string | null>(null);
+  const [drafts, setDrafts] = useState<Record<string, DraftFase>>({});
   const versionInputRef = useRef<HTMLInputElement>(null);
 
   const selectedDocId = asText(selectedDocument?.id);
@@ -166,24 +179,31 @@ const StaffObraDetailPage = () => {
       });
   }, [activeTab, actor, obraId, queryClient, toast, user?.uid]);
 
-  const toggleItemMutation = useMutation({
-    mutationFn: ({ faseId, itemId }: { faseId: string; itemId: string }) => toggleItem(obraId as string, faseId, itemId, actor),
-    onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: ["obraStatus", obraId] });
-    },
-    onError: (error) => {
-      toast({ title: "Falha ao atualizar item", description: error instanceof Error ? error.message : "Erro inesperado.", variant: "destructive" });
-    },
-  });
+  useEffect(() => {
+    if (tabParam && tabParam !== activeTab) {
+      setActiveTab(tabParam);
+      return;
+    }
+    if (!tabParam && activeTab !== "status") {
+      setActiveTab("status");
+    }
+  }, [activeTab, tabParam]);
 
-  const setDatasMutation = useMutation({
-    mutationFn: ({ faseId, inicio, fim }: { faseId: string; inicio: Timestamp | null; fim: Timestamp | null }) =>
-      setDatas(obraId as string, faseId, inicio, fim, actor),
-    onSuccess: async () => {
+  const saveFaseMutation = useMutation({
+    mutationFn: ({ faseId, patch }: { faseId: string; patch: Pick<ObraStatusFase, "itens" | "inicio"> & { fim?: Timestamp | null } }) =>
+      updateFaseDraft(obraId as string, faseId, patch, actor),
+    onSuccess: async (_, variables) => {
       await queryClient.invalidateQueries({ queryKey: ["obraStatus", obraId] });
+      setEditingFaseId((current) => (current === variables.faseId ? null : current));
+      setDrafts((current) => {
+        const next = { ...current };
+        delete next[variables.faseId];
+        return next;
+      });
+      toast({ title: "Status salvo" });
     },
     onError: (error) => {
-      toast({ title: "Falha ao atualizar datas", description: error instanceof Error ? error.message : "Erro inesperado.", variant: "destructive" });
+      toast({ title: "Falha ao salvar status", description: error instanceof Error ? error.message : "Erro inesperado.", variant: "destructive" });
     },
   });
 
@@ -215,6 +235,80 @@ const StaffObraDetailPage = () => {
   const toTimestampFromInput = (value: string) => {
     if (!value) return null;
     return Timestamp.fromDate(new Date(`${value}T00:00:00`));
+  };
+
+  const cloneFaseToDraft = (fase: ObraStatusFase): DraftFase => ({
+    inicio: fase.inicio ?? null,
+    fim: fase.fim ?? null,
+    itens: (fase.itens ?? []).map((item) => ({ ...item })),
+  });
+
+  const getFaseData = (fase: ObraStatusFase) => drafts[fase.id] ?? cloneFaseToDraft(fase);
+
+  const startEditing = (fase: ObraStatusFase) => {
+    if (editingFaseId && editingFaseId !== fase.id) {
+      const shouldDiscard = window.confirm("Descartar alterações da fase atual?");
+      if (!shouldDiscard) return;
+    }
+
+    setDrafts((current) => ({ ...current, [fase.id]: cloneFaseToDraft(fase) }));
+    setEditingFaseId(fase.id);
+  };
+
+  const cancelEditing = (faseId: string) => {
+    setEditingFaseId((current) => (current === faseId ? null : current));
+    setDrafts((current) => {
+      const next = { ...current };
+      delete next[faseId];
+      return next;
+    });
+  };
+
+  const updateDraftInicio = (faseId: string, inicio: string) => {
+    const inicioTimestamp = toTimestampFromInput(inicio);
+    setDrafts((current) => {
+      const draft = current[faseId];
+      if (!draft) return current;
+      return {
+        ...current,
+        [faseId]: {
+          ...draft,
+          inicio: inicioTimestamp,
+        },
+      };
+    });
+  };
+
+  const updateDraftItem = (faseId: string, itemId: string, checked: boolean) => {
+    setDrafts((current) => {
+      const draft = current[faseId];
+      if (!draft) return current;
+      return {
+        ...current,
+        [faseId]: {
+          ...draft,
+          itens: draft.itens.map((item) => (item.id === itemId ? { ...item, done: checked } : item)),
+        },
+      };
+    });
+  };
+
+  const saveFase = (fase: ObraStatusFase) => {
+    const draft = drafts[fase.id];
+    if (!draft) return;
+
+    const previousProgress = getProgress(fase);
+    const nextProgress = getProgress({ ...fase, itens: draft.itens });
+    const shouldSetFim = previousProgress < 100 && nextProgress === 100 && !draft.fim;
+
+    saveFaseMutation.mutate({
+      faseId: fase.id,
+      patch: {
+        itens: draft.itens,
+        inicio: draft.inicio,
+        ...(shouldSetFim ? { fim: Timestamp.fromDate(new Date()) } : {}),
+      },
+    });
   };
 
   const signMutation = useMutation({
@@ -364,7 +458,12 @@ const StaffObraDetailPage = () => {
         <div className="mb-4 flex justify-end">
           <Button onClick={() => navigate(`/painel/obras/${obraId}/upload`)}>Enviar arquivo</Button>
         </div>
-        <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
+        <Tabs value={activeTab} onValueChange={(value) => {
+          setActiveTab(value);
+          const nextParams = new URLSearchParams(searchParams);
+          nextParams.set("tab", value);
+          setSearchParams(nextParams, { replace: true });
+        }} className="space-y-4">
           <TabsList>
             <TabsTrigger value="status">Status</TabsTrigger>
             <TabsTrigger value="documentos">Documentos</TabsTrigger>
@@ -437,9 +536,13 @@ const StaffObraDetailPage = () => {
           </TabsContent>
           <TabsContent value="status" className="rounded-xl border p-4 space-y-3">
             {fases.length === 0 ? <p>Carregando status da obra...</p> : fases.map((fase) => {
-              const progress = getProgress(fase);
+              const faseData = getFaseData(fase);
+              const progress = getProgress({ ...fase, itens: faseData.itens });
               const statusMeta = getStatusMeta(progress);
-              const isOpen = expandedPhases[fase.id] ?? true;
+              const isOpen = expandedPhases[fase.id] ?? false;
+              const isEditing = editingFaseId === fase.id;
+              const isSaving = saveFaseMutation.isPending && saveFaseMutation.variables?.faseId === fase.id;
+
               return (
                 <Collapsible
                   key={fase.id}
@@ -463,39 +566,41 @@ const StaffObraDetailPage = () => {
                   <CollapsibleContent className="mt-3 space-y-3">
                     <Progress value={progress} />
 
-                    <div className="grid gap-2 md:grid-cols-2">
+                    <div className="flex items-center justify-end gap-2">
+                      {isEditing ? (
+                        <Button variant="outline" size="sm" onClick={() => cancelEditing(fase.id)} disabled={isSaving}>Cancelar</Button>
+                      ) : (
+                        <Button variant="outline" size="sm" onClick={() => startEditing(fase)} disabled={Boolean(editingFaseId) && editingFaseId !== fase.id}>Editar</Button>
+                      )}
+                      <Button size="sm" onClick={() => saveFase(fase)} disabled={!isEditing || isSaving}>
+                        {isSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                        Salvar
+                      </Button>
+                    </div>
+
+                    <div className="grid gap-2 md:grid-cols-1">
                       <label className="space-y-1 text-sm">
                         <span>Início</span>
                         <Input
                           type="date"
-                          defaultValue={formatDateInput(fase.inicio)}
-                          onBlur={(event) => {
-                            const inicio = toTimestampFromInput(event.target.value);
-                            const fim = toTimestampFromInput(formatDateInput(fase.fim));
-                            setDatasMutation.mutate({ faseId: fase.id, inicio, fim });
-                          }}
-                        />
-                      </label>
-                      <label className="space-y-1 text-sm">
-                        <span>Fim</span>
-                        <Input
-                          type="date"
-                          defaultValue={formatDateInput(fase.fim)}
-                          onBlur={(event) => {
-                            const inicio = toTimestampFromInput(formatDateInput(fase.inicio));
-                            const fim = toTimestampFromInput(event.target.value);
-                            setDatasMutation.mutate({ faseId: fase.id, inicio, fim });
-                          }}
+                          value={formatDateInput(faseData.inicio)}
+                          disabled={!isEditing || isSaving}
+                          onChange={(event) => updateDraftInicio(fase.id, event.target.value)}
                         />
                       </label>
                     </div>
 
+                    {faseData.fim ? (
+                      <p className="text-xs text-muted-foreground">Concluída em: {toDateTime(faseData.fim)}</p>
+                    ) : null}
+
                     <div className="space-y-2">
-                      {fase.itens.map((item) => (
+                       {faseData.itens.map((item) => (
                         <label key={item.id} className="flex items-center gap-2 text-sm">
                           <Checkbox
                             checked={item.done}
-                            onCheckedChange={() => toggleItemMutation.mutate({ faseId: fase.id, itemId: item.id })}
+                            disabled={!isEditing || isSaving}
+                            onCheckedChange={(checked) => updateDraftItem(fase.id, item.id, checked === true)}
                           />
                           <span>{item.label}</span>
                         </label>

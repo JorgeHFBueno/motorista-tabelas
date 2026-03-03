@@ -129,3 +129,22 @@ export const setDatas = async (
 
   if (import.meta.env.DEV) console.info("[STATUS] datas atualizadas", { obraId, faseId, inicio, fim });
 };
+export const updateFaseDraft = async (
+  obraId: string,
+  faseId: string,
+  payload: Pick<ObraStatusFase, "itens" | "inicio"> & { fim?: Timestamp | null },
+  actor: UpdateActor,
+) => {
+  const faseRef = doc(db, "obras", obraId, "status", faseId);
+
+  await updateDoc(faseRef, {
+    itens: payload.itens,
+    inicio: payload.inicio,
+    ...(payload.fim !== undefined ? { fim: payload.fim } : {}),
+    updatedAt: serverTimestamp(),
+    updatedByUid: actor.uid,
+    updatedByNomeSnapshot: actor.nome,
+  });
+
+  if (import.meta.env.DEV) console.info("[STATUS] fase atualizada via draft", { obraId, faseId, payload });
+};
