@@ -1,4 +1,6 @@
 import {
+  deleteField,
+  type FieldValue,
   Timestamp,
   collection,
   doc,
@@ -30,6 +32,8 @@ export interface ObraStatusFase {
   updatedByUid?: string;
   updatedByNomeSnapshot?: string;
 }
+
+export type ObraStatusResumo = "-" | "Em andamento" | "Concluída";
 
 interface UpdateActor {
   uid: string;
@@ -132,12 +136,19 @@ export const setDatas = async (
 export const updateFaseDraft = async (
   obraId: string,
   faseId: string,
-  payload: Pick<ObraStatusFase, "itens" | "inicio"> & { fim?: Timestamp | null },
+  payload: {
+    itens: ObraStatusFase["itens"];
+    inicio: Timestamp | null | FieldValue;
+    fim?: Timestamp | null | FieldValue;
+    statusResumo?: ObraStatusResumo | null;
+  },
   actor: UpdateActor,
 ) => {
   const faseRef = doc(db, "obras", obraId, "status", faseId);
+  const obraRef = doc(db, "obras", obraId);
+  const batch = writeBatch(db);
 
-  await updateDoc(faseRef, {
+  batch.update(faseRef, {
     itens: payload.itens,
     inicio: payload.inicio,
     ...(payload.fim !== undefined ? { fim: payload.fim } : {}),
@@ -145,6 +156,13 @@ export const updateFaseDraft = async (
     updatedByUid: actor.uid,
     updatedByNomeSnapshot: actor.nome,
   });
+
+    batch.update(obraRef, {
+    statusResumo: payload.statusResumo ?? deleteField(),
+    statusResumoUpdatedAt: serverTimestamp(),
+  });
+
+  await batch.commit();
 
   if (import.meta.env.DEV) console.info("[STATUS] fase atualizada via draft", { obraId, faseId, payload });
 };

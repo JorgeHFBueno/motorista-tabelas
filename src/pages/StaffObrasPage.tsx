@@ -27,7 +27,7 @@ const StaffObrasPage = () => {
         {obras.map((obra) => (
           <Link key={obra.id} to={`/painel/obras/${obra.id}`} className="block rounded-xl border p-4 hover:bg-muted/40">
             <p className="font-medium">{obra.nome ?? "Obra sem nome"}</p>
-            <p className="text-sm text-muted-foreground">Status: {obra.status ?? "-"}</p>
+            <p className="text-sm text-muted-foreground">Status: {obra.statusResumo ?? "-"}</p>
           </Link>
         ))}
       </div>

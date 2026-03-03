@@ -15,6 +15,8 @@ export interface ObraDoc {
   nome: string;
   descricao?: string;
   status: "ativa" | "concluida";
+  statusResumo?: "-" | "Em andamento" | "Concluída" | null;
+  statusResumoUpdatedAt?: unknown;
   createdAt?: unknown;
 }
 

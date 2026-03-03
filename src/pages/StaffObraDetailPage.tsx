@@ -29,7 +29,7 @@ import { useToast } from "@/hooks/use-toast";
 import { db, storage } from "@/lib/firebase";
 import { getItemPreviewUrl, listTrashItems, moveToTrash, restoreFromTrash, type TrashType } from "@/lib/trash/trash.service";
 import { getCallableErrorMessage } from "@/lib/functions";
-import { bootstrapStatusIfEmpty, listFases, updateFaseDraft, type ObraStatusFase } from "@/services/obraStatus.service";
+import { bootstrapStatusIfEmpty, listFases, updateFaseDraft, type ObraStatusFase, type ObraStatusResumo } from "@/services/obraStatus.service";
 import type { FirestoreItem } from "@/types/rbac";
 
 const UUID_PREFIX_NAME_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}_(.+)$/i;
@@ -115,6 +115,7 @@ const StaffObraDetailPage = () => {
   const [expandedPhases, setExpandedPhases] = useState<Record<string, boolean>>({});
   const [editingFaseId, setEditingFaseId] = useState<string | null>(null);
   const [drafts, setDrafts] = useState<Record<string, DraftFase>>({});
+  const hasInitializedExpandedPhases = useRef(false);
   const versionInputRef = useRef<HTMLInputElement>(null);
 
   const selectedDocId = asText(selectedDocument?.id);
@@ -189,9 +190,40 @@ const StaffObraDetailPage = () => {
     }
   }, [activeTab, tabParam]);
 
+  useEffect(() => {
+    hasInitializedExpandedPhases.current = false;
+    setExpandedPhases({});
+  }, [obraId]);
+
+
+  useEffect(() => {
+    if (activeTab !== "status" || hasInitializedExpandedPhases.current || fases.length === 0) return;
+
+    const nextExpanded: Record<string, boolean> = {};
+    fases.forEach((fase) => {
+      const total = fase.itens?.length ?? 0;
+      const doneCount = (fase.itens ?? []).filter((item) => item.done).length;
+      const isInProgress = total > 0 && doneCount > 0 && doneCount < total;
+      if (isInProgress) nextExpanded[fase.id] = true;
+    });
+
+    setExpandedPhases(nextExpanded);
+    hasInitializedExpandedPhases.current = true;
+  }, [activeTab, fases]);
+
   const saveFaseMutation = useMutation({
-    mutationFn: ({ faseId, patch }: { faseId: string; patch: Pick<ObraStatusFase, "itens" | "inicio"> & { fim?: Timestamp | null } }) =>
-      updateFaseDraft(obraId as string, faseId, patch, actor),
+    mutationFn: ({
+      faseId,
+      patch,
+    }: {
+      faseId: string;
+      patch: {
+        itens: ObraStatusFase["itens"];
+        inicio: Timestamp | null;
+        fim?: Timestamp | null;
+        statusResumo: ObraStatusResumo | null;
+      };
+    }) => updateFaseDraft(obraId as string, faseId, patch, actor),
     onSuccess: async (_, variables) => {
       await queryClient.invalidateQueries({ queryKey: ["obraStatus", obraId] });
       setEditingFaseId((current) => (current === variables.faseId ? null : current));
@@ -220,11 +252,15 @@ const StaffObraDetailPage = () => {
     return { label: "Em andamento", variant: "secondary" as const };
   };
 
-  const formatDateInput = (value: unknown) => {
+  const getDateFromValue = (value: unknown) => {
     const cast = value as { toDate?: () => Date; seconds?: number };
-    let date: Date | null = null;
-    if (typeof cast?.toDate === "function") date = cast.toDate();
-    else if (typeof cast?.seconds === "number") date = new Date(cast.seconds * 1000);
+    if (typeof cast?.toDate === "function") return cast.toDate();
+    if (typeof cast?.seconds === "number") return new Date(cast.seconds * 1000);
+    return null;
+  };
+
+  const formatDateInput = (value: unknown) => {
+    const date = getDateFromValue(value);
     if (!date) return "";
     const year = date.getFullYear();
     const month = String(date.getMonth() + 1).padStart(2, "0");
@@ -232,9 +268,25 @@ const StaffObraDetailPage = () => {
     return `${year}-${month}-${day}`;
   };
 
+  const formatDateTimeInput = (value: unknown) => {
+    const date = getDateFromValue(value);
+    if (!date) return "";
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, "0");
+    const day = String(date.getDate()).padStart(2, "0");
+    const hours = String(date.getHours()).padStart(2, "0");
+    const minutes = String(date.getMinutes()).padStart(2, "0");
+    return `${year}-${month}-${day}T${hours}:${minutes}`;
+  };
+
   const toTimestampFromInput = (value: string) => {
     if (!value) return null;
     return Timestamp.fromDate(new Date(`${value}T00:00:00`));
+  };
+
+  const toTimestampFromDateTimeInput = (value: string) => {
+    if (!value) return null;
+    return Timestamp.fromDate(new Date(value));
   };
 
   const cloneFaseToDraft = (fase: ObraStatusFase): DraftFase => ({
@@ -279,6 +331,21 @@ const StaffObraDetailPage = () => {
     });
   };
 
+  const updateDraftFim = (faseId: string, fim: string) => {
+    const fimTimestamp = toTimestampFromDateTimeInput(fim);
+    setDrafts((current) => {
+      const draft = current[faseId];
+      if (!draft) return current;
+      return {
+        ...current,
+        [faseId]: {
+          ...draft,
+          fim: fimTimestamp,
+        },
+      };
+    });
+  };
+
   const updateDraftItem = (faseId: string, itemId: string, checked: boolean) => {
     setDrafts((current) => {
       const draft = current[faseId];
@@ -293,20 +360,62 @@ const StaffObraDetailPage = () => {
     });
   };
 
+  const computeObraStatusResumo = (nextFases: ObraStatusFase[]): ObraStatusResumo | null => {
+    if (nextFases.length === 0) return null;
+
+    const hasAnyChange = nextFases.some((fase) => {
+      const hasDoneItem = (fase.itens ?? []).some((item) => item.done);
+      return hasDoneItem || Boolean(fase.inicio) || Boolean(fase.fim);
+    });
+
+    if (!hasAnyChange) return null;
+
+    const allDone = nextFases.length > 0 && nextFases.every((fase) => {
+      const total = fase.itens?.length ?? 0;
+      if (total === 0) return false;
+      const doneCount = (fase.itens ?? []).filter((item) => item.done).length;
+      return doneCount === total;
+    });
+
+    return allDone ? "Concluída" : "Em andamento";
+  };
+
   const saveFase = (fase: ObraStatusFase) => {
     const draft = drafts[fase.id];
     if (!draft) return;
 
-    const previousProgress = getProgress(fase);
-    const nextProgress = getProgress({ ...fase, itens: draft.itens });
-    const shouldSetFim = previousProgress < 100 && nextProgress === 100 && !draft.fim;
+    const total = fase.itens?.length ?? 0;
+    const doneCountAntes = (fase.itens ?? []).filter((item) => item.done).length;
+    const doneCountDepois = (draft.itens ?? []).filter((item) => item.done).length;
+    const wasComplete = total > 0 && doneCountAntes === total;
+    const willComplete = total > 0 && doneCountDepois === total;
+
+    let inicioPatch: Timestamp | null = draft.inicio;
+    let fimPatch: Timestamp | null | undefined = undefined;
+
+    if (willComplete && !wasComplete) {
+      if (!draft.inicio) inicioPatch = Timestamp.fromDate(new Date());
+      if (!fase.fim && !draft.fim) fimPatch = Timestamp.fromDate(new Date());
+    }
+
+    const fimChangedManually = draft.fim?.seconds !== fase.fim?.seconds;
+    if (fimChangedManually) fimPatch = draft.fim;
+
+    const faseAtualizada: ObraStatusFase = {
+      ...fase,
+      itens: draft.itens,
+      inicio: inicioPatch,
+      fim: fimPatch !== undefined ? fimPatch : fase.fim,
+    };
+    const nextFases = fases.map((item) => (item.id === fase.id ? faseAtualizada : item));
 
     saveFaseMutation.mutate({
       faseId: fase.id,
       patch: {
         itens: draft.itens,
-        inicio: draft.inicio,
-        ...(shouldSetFim ? { fim: Timestamp.fromDate(new Date()) } : {}),
+        inicio: inicioPatch,
+        ...(fimPatch !== undefined ? { fim: fimPatch } : {}),
+        statusResumo: computeObraStatusResumo(nextFases),
       },
     });
   };
@@ -591,7 +700,15 @@ const StaffObraDetailPage = () => {
                     </div>
 
                     {faseData.fim ? (
-                      <p className="text-xs text-muted-foreground">Concluída em: {toDateTime(faseData.fim)}</p>
+                      <label className="space-y-1 text-sm">
+                        <span>Fim</span>
+                        <Input
+                          type="datetime-local"
+                          value={formatDateTimeInput(faseData.fim)}
+                          disabled={!isEditing || isSaving}
+                          onChange={(event) => updateDraftFim(fase.id, event.target.value)}
+                        />
+                      </label>
                     ) : null}
 
                     <div className="space-y-2">
