@@ -2,16 +2,27 @@ import { useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { addDoc, collection, getDocs, orderBy, query, serverTimestamp, updateDoc, doc } from "firebase/firestore";
 import { getDownloadURL, ref, uploadBytesResumable } from "firebase/storage";
-import { Download, FileText, PenTool, UploadCloud } from "lucide-react";
+import { Download, PenTool, Trash2, UploadCloud } from "lucide-react";
 import { useNavigate, useParams } from "react-router-dom";
 import ResponsiveLayout from "@/components/layout/ResponsiveLayout";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { useDocumentos, useFotos, useObra } from "@/hooks/useAppQueries";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
 import { db, storage } from "@/lib/firebase";
+import { getItemPreviewUrl, listTrashItems, moveToTrash, restoreFromTrash, type TrashType } from "@/lib/trash/trash.service";
 import type { FirestoreItem } from "@/types/rbac";
 
 const UUID_PREFIX_NAME_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}_(.+)$/i;
@@ -77,7 +88,11 @@ const StaffObraDetailPage = () => {
 
   const [selectedDocument, setSelectedDocument] = useState<FirestoreItem | null>(null);
   const [isDetailOpen, setIsDetailOpen] = useState(false);
+  const [selectedKind, setSelectedKind] = useState<TrashType>("documentos");
   const [resolvedDownloadUrl, setResolvedDownloadUrl] = useState<string>("");
+  const [isPreviewLoading, setIsPreviewLoading] = useState(false);
+  const [trashCandidate, setTrashCandidate] = useState<{ item: FirestoreItem; type: TrashType } | null>(null);
+  const [trashTab, setTrashTab] = useState<TrashType>("documentos");
   const versionInputRef = useRef<HTMLInputElement>(null);
 
   const selectedDocId = asText(selectedDocument?.id);
@@ -98,6 +113,18 @@ const StaffObraDetailPage = () => {
     queryKey: ["documentos", selectedDocId, "versoes"],
     queryFn: () => listSubcollection<VersionItem>(selectedDocId, "versoes"),
     enabled: Boolean(selectedDocId && isDetailOpen),
+  });
+
+  const { data: trashedDocuments = [] } = useQuery({
+    queryKey: ["documentos-lixo", obraId],
+    queryFn: () => listTrashItems({ obraId: obraId as string, type: "documentos" }),
+    enabled: Boolean(obraId),
+  });
+
+  const { data: trashedPhotos = [] } = useQuery({
+    queryKey: ["fotos-lixo", obraId],
+    queryFn: () => listTrashItems({ obraId: obraId as string, type: "fotos" }),
+    enabled: Boolean(obraId),
   });
 
   const downloadUrl = useMemo(
@@ -185,17 +212,63 @@ const StaffObraDetailPage = () => {
     },
   });
 
-  const openDetails = async (item: FirestoreItem) => {
+  const trashMutation = useMutation({
+    mutationFn: async ({ item, type }: { item: FirestoreItem; type: TrashType }) => {
+      if (!obraId) throw new Error("Obra inválida.");
+      const sizeBytes = Number(item.fileSizeBytes ?? item.sizeBytes ?? 0);
+      if (sizeBytes > 15 * 1024 * 1024) {
+        toast({ title: "Arquivo grande", description: "Mover para lixeira pode demorar para arquivos acima de 15MB." });
+      }
+      await moveToTrash({ item, type, obraId, userUid: user?.uid, userName: userDoc?.nome });
+    },
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["documentos", obraId] }),
+        queryClient.invalidateQueries({ queryKey: ["fotos", obraId] }),
+        queryClient.invalidateQueries({ queryKey: ["documentos-lixo", obraId] }),
+        queryClient.invalidateQueries({ queryKey: ["fotos-lixo", obraId] }),
+      ]);
+      setTrashCandidate(null);
+      toast({ title: "Movido para lixeira", description: "O item foi movido e pode ser restaurado." });
+    },
+    onError: (error) => {
+      toast({ title: "Falha ao mover para lixeira", description: error instanceof Error ? error.message : "Erro ao excluir item.", variant: "destructive" });
+      if (import.meta.env.DEV) console.error("[TRASH] erro ao mover", error);
+    },
+  });
+
+  const restoreMutation = useMutation({
+    mutationFn: async ({ item, type }: { item: FirestoreItem; type: TrashType }) => {
+      await restoreFromTrash({ item, type });
+    },
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["documentos", obraId] }),
+        queryClient.invalidateQueries({ queryKey: ["fotos", obraId] }),
+        queryClient.invalidateQueries({ queryKey: ["documentos-lixo", obraId] }),
+        queryClient.invalidateQueries({ queryKey: ["fotos-lixo", obraId] }),
+      ]);
+      toast({ title: "Item restaurado", description: "O item voltou para a coleção original." });
+    },
+    onError: (error) => {
+      toast({ title: "Falha ao restaurar", description: error instanceof Error ? error.message : "Erro ao restaurar item.", variant: "destructive" });
+      if (import.meta.env.DEV) console.error("[TRASH] erro ao restaurar", error);
+    },
+  });
+
+  const openDetails = async (item: FirestoreItem, type: TrashType) => {
+    setSelectedKind(type);
     setSelectedDocument(item);
     setResolvedDownloadUrl("");
+    setIsPreviewLoading(true);
     setIsDetailOpen(true);
-    if (!asText(item.url) && asText(item.storagePath)) {
-      try {
-        const url = await getDownloadURL(ref(storage, asText(item.storagePath)));
-        setResolvedDownloadUrl(url);
-      } catch {
-        // noop
-      }
+    try {
+      const url = await getItemPreviewUrl(item);
+      setResolvedDownloadUrl(url);
+    } catch {
+      if (import.meta.env.DEV) console.info(type === "fotos" ? "[PHOTOS] prévia indisponível" : "[DOCS] download url indisponível", { id: item.id });
+    } finally {
+      setIsPreviewLoading(false);
     }
   };
 
@@ -209,6 +282,7 @@ const StaffObraDetailPage = () => {
           <TabsList>
             <TabsTrigger value="documentos">Documentos</TabsTrigger>
             <TabsTrigger value="fotos">Fotos</TabsTrigger>
+            <TabsTrigger value="lixeira">Lixeira</TabsTrigger>
           </TabsList>
           <TabsContent value="documentos" className="rounded-xl border p-4 space-y-3">
             {isLoadingDocs ? "Carregando documentos..." : `Total documentos: ${documentos.length}`}
@@ -218,12 +292,61 @@ const StaffObraDetailPage = () => {
                   <p className="text-sm font-medium">{getDisplayName(docItem)}</p>
                   <p className="text-xs text-muted-foreground">{asText(docItem.tipo) || asText(docItem.categoria) || "Documento"}</p>
                 </div>
-                <Button variant="outline" size="sm" onClick={() => void openDetails(docItem)}>Detalhes</Button>
+                <div className="flex gap-2">
+                  <Button variant="outline" size="sm" onClick={() => void openDetails(docItem, "documentos")}>Detalhes</Button>
+                  <Button variant="destructive" size="sm" onClick={() => setTrashCandidate({ item: docItem, type: "documentos" })}>
+                    <Trash2 className="mr-2 h-4 w-4" /> Excluir
+                  </Button>
+                </div>
               </div>
             ))}
           </TabsContent>
-          <TabsContent value="fotos" className="rounded-xl border p-4">
+          <TabsContent value="fotos" className="rounded-xl border p-4 space-y-3">
             {isLoadingFotos ? "Carregando fotos..." : `Total fotos: ${fotos.length}`}
+            {fotos.map((fotoItem) => (
+              <div key={String(fotoItem.id)} className="flex items-center justify-between rounded border p-2">
+                <div>
+                  <p className="text-sm font-medium">{getDisplayName(fotoItem)}</p>
+                  <p className="text-xs text-muted-foreground">{asText(fotoItem.tipo) || asText(fotoItem.categoria) || "Foto"} • {toDateTime(fotoItem.createdAt)}</p>
+                </div>
+                <div className="flex gap-2">
+                  <Button variant="outline" size="sm" onClick={() => void openDetails(fotoItem, "fotos")}>Detalhes</Button>
+                  <Button variant="destructive" size="sm" onClick={() => setTrashCandidate({ item: fotoItem, type: "fotos" })}>
+                    <Trash2 className="mr-2 h-4 w-4" /> Excluir
+                  </Button>
+                </div>
+              </div>
+            ))}
+          </TabsContent>
+          <TabsContent value="lixeira" className="rounded-xl border p-4 space-y-3">
+            <Tabs value={trashTab} onValueChange={(value) => setTrashTab(value as TrashType)}>
+              <TabsList>
+                <TabsTrigger value="documentos">Documentos</TabsTrigger>
+                <TabsTrigger value="fotos">Fotos</TabsTrigger>
+              </TabsList>
+              <TabsContent value="documentos" className="space-y-3 mt-2">
+                {trashedDocuments.length === 0 ? <p>Nenhum documento na lixeira.</p> : trashedDocuments.map((item) => (
+                  <div key={String(item.id)} className="flex items-center justify-between rounded border p-2">
+                    <div>
+                      <p className="text-sm font-medium">{getDisplayName(item)}</p>
+                      <p className="text-xs text-muted-foreground">Excluído em: {toDateTime(item.deletedAt)}</p>
+                    </div>
+                    <Button size="sm" onClick={() => restoreMutation.mutate({ item, type: "documentos" })}>Restaurar</Button>
+                  </div>
+                ))}
+              </TabsContent>
+              <TabsContent value="fotos" className="space-y-3 mt-2">
+                {trashedPhotos.length === 0 ? <p>Nenhuma foto na lixeira.</p> : trashedPhotos.map((item) => (
+                  <div key={String(item.id)} className="flex items-center justify-between rounded border p-2">
+                    <div>
+                      <p className="text-sm font-medium">{getDisplayName(item)}</p>
+                      <p className="text-xs text-muted-foreground">Excluído em: {toDateTime(item.deletedAt)}</p>
+                    </div>
+                    <Button size="sm" onClick={() => restoreMutation.mutate({ item, type: "fotos" })}>Restaurar</Button>
+                  </div>
+                ))}
+              </TabsContent>
+            </Tabs>
           </TabsContent>
         </Tabs>
       </div>
@@ -237,12 +360,23 @@ const StaffObraDetailPage = () => {
           <Tabs defaultValue="info" className="mt-4">
             <TabsList>
               <TabsTrigger value="info">Informações</TabsTrigger>
-              <TabsTrigger value="signatures">Assinaturas</TabsTrigger>
-              <TabsTrigger value="audit">Auditoria</TabsTrigger>
-              <TabsTrigger value="versions">Versões</TabsTrigger>
+              {selectedKind === "documentos" && <TabsTrigger value="signatures">Assinaturas</TabsTrigger>}
+              {selectedKind === "documentos" && <TabsTrigger value="audit">Auditoria</TabsTrigger>}
+              {selectedKind === "documentos" && <TabsTrigger value="versions">Versões</TabsTrigger>}
             </TabsList>
 
             <TabsContent value="info" className="space-y-2 text-sm">
+              {selectedKind === "fotos" && (
+                <div className="mb-2">
+                  {isPreviewLoading ? (
+                    <div className="h-40 w-40 animate-pulse rounded-md bg-muted" />
+                  ) : downloadUrl ? (
+                    <img src={downloadUrl} alt={selectedDocument ? getDisplayName(selectedDocument) : "Prévia da foto"} className="h-40 w-40 rounded-md object-cover" />
+                  ) : (
+                    <div className="flex h-40 w-40 items-center justify-center rounded-md border text-xs text-muted-foreground">Prévia indisponível</div>
+                  )}
+                </div>
+              )}
               <p><strong>Nome:</strong> {selectedDocument ? getDisplayName(selectedDocument) : "—"}</p>
               <p><strong>Tipo:</strong> {asText(selectedDocument?.tipo) || asText(selectedDocument?.categoria) || "—"}</p>
               <p><strong>Content-Type:</strong> {asText(selectedDocument?.contentType) || asText(selectedDocument?.mimeType) || "—"}</p>
@@ -257,7 +391,7 @@ const StaffObraDetailPage = () => {
               </Button>
             </TabsContent>
 
-            <TabsContent value="signatures" className="space-y-2 text-sm">
+            {selectedKind === "documentos" && <TabsContent value="signatures" className="space-y-2 text-sm">
               <Button onClick={() => signMutation.mutate()} disabled={signMutation.isPending || !selectedDocument}>
                 <PenTool className="mr-2 h-4 w-4" /> Assinar
               </Button>
@@ -267,18 +401,18 @@ const StaffObraDetailPage = () => {
                   <p className="text-xs text-muted-foreground">Status: {asText(sign.status) || "—"} • {toDateTime(sign.createdAt)}</p>
                 </div>
               ))}
-            </TabsContent>
+            </TabsContent>}
 
-            <TabsContent value="audit" className="space-y-2 text-sm">
+            {selectedKind === "documentos" && <TabsContent value="audit" className="space-y-2 text-sm">
               {auditoria.length === 0 ? <p>Sem eventos de auditoria.</p> : auditoria.map((event) => (
                 <div key={String(event.id)} className="rounded border p-2">
                   <p>{asText(event.type) || asText(event.titulo) || "evento"}</p>
                   <p className="text-xs text-muted-foreground">{asText(event.actorNomeSnapshot) || asText(event.por) || "Sistema"} • {toDateTime(event.createdAt)}</p>
                 </div>
               ))}
-            </TabsContent>
+            </TabsContent>}
 
-            <TabsContent value="versions" className="space-y-2 text-sm">
+            {selectedKind === "documentos" && <TabsContent value="versions" className="space-y-2 text-sm">
               <input
                 ref={versionInputRef}
                 type="file"
@@ -299,10 +433,31 @@ const StaffObraDetailPage = () => {
                   <p className="text-xs text-muted-foreground">{asText(version.createdByNomeSnapshot) || asText(version.por) || "Sistema"} • {toDateTime(version.createdAt)}</p>
                 </div>
               ))}
-            </TabsContent>
+            </TabsContent>}
           </Tabs>
         </SheetContent>
       </Sheet>
+
+      <AlertDialog open={Boolean(trashCandidate)} onOpenChange={(open) => !open && setTrashCandidate(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Mover para lixeira?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Este item não será excluído definitivamente e poderá ser restaurado na aba Lixeira.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                if (trashCandidate) trashMutation.mutate(trashCandidate);
+              }}
+            >
+              Confirmar
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </ResponsiveLayout>
   );
 };
