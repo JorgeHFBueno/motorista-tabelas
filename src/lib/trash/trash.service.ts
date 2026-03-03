@@ -1,6 +1,7 @@
-import { collection, deleteDoc, doc, getDocs, query, serverTimestamp, setDoc, where } from "firebase/firestore";
-import { deleteObject, getDownloadURL, ref, uploadBytes } from "firebase/storage";
+import { collection, doc, getDocs, query, where } from "firebase/firestore";
+import { getDownloadURL, ref } from "firebase/storage";
 import { db, storage } from "@/lib/firebase";
+import { trashMove, trashRestore } from "@/lib/functions";
 import type { FirestoreItem } from "@/types/rbac";
 
 const isDev = import.meta.env.DEV;
@@ -17,9 +18,9 @@ const toEpoch = (value: unknown): number => {
   return 0;
 };
 
-const logDev = (prefix: "[TRASH]" | "[DOCS]" | "[PHOTOS]", message: string, payload?: unknown) => {
-  if (isDev) {
-    console.info(`${prefix} ${message}`, payload ?? "");
+const logDev = (message: string, payload?: unknown) => {
+    if (isDev) {
+    console.info(`[TRASH] ${message}`, payload ?? "");
   }
 };
 
@@ -41,93 +42,59 @@ const buildTrashPath = ({ obraId, type, storedName }: { obraId: string; type: Tr
   return `obras/${obraId}/lixeira/${segment}/${yyyy}/${mm}/${storedName}`;
 };
 
-const copyStorageObject = async ({ sourcePath, targetPath, contentType }: { sourcePath: string; targetPath: string; contentType?: string }) => {
-  const oldRef = ref(storage, sourcePath);
-  const url = await getDownloadURL(oldRef);
-  const response = await fetch(url);
-  if (!response.ok) throw new Error("Falha ao baixar arquivo para mover.");
-  const blob = await response.blob();
-  await uploadBytes(ref(storage, targetPath), blob, {
-    contentType: contentType || blob.type || "application/octet-stream",
-    customMetadata: { movedBy: "trash-flow" },
-  });
-};
-
-export const moveToTrash = async ({ item, type, obraId, userUid, userName }: {
+export const moveToTrash = async ({ item, type, obraId, userName }: {
   item: FirestoreItem;
   type: TrashType;
   obraId: string;
-  userUid?: string;
   userName?: string;
 }) => {
   const originalCollection = type;
-  const trashCollection = getTrashCollection(type);
-  const originalId = asText(item.id);
-  if (!originalId) throw new Error("Item inválido.");
+  const originalDocId = asText(item.id);
+  if (!originalDocId) throw new Error("Item inválido.");
 
   const originalStoragePath = resolveStoragePath(item);
   const storedName = resolveStoredName(item);
   const trashedStoragePath = originalStoragePath ? buildTrashPath({ obraId, type, storedName }) : "";
 
-  const payload: Record<string, unknown> = {
-    ...item,
-    obraId,
-    originalCollection,
-    originalId,
-    originalStoragePath,
-    trashedStoragePath,
-    deletedAt: serverTimestamp(),
-    deletedByUid: userUid ?? null,
+  const kind = type === "documentos" ? "documento" : "foto";
+  const extra = {
     deletedByNomeSnapshot: userName ?? null,
   };
 
-  const trashRef = doc(db, trashCollection, originalId);
-  await setDoc(trashRef, payload, { merge: true });
-  logDev("[TRASH]", "Documento criado na lixeira", { trashCollection, originalId });
-
-  if (originalStoragePath && trashedStoragePath) {
-    await copyStorageObject({ sourcePath: originalStoragePath, targetPath: trashedStoragePath, contentType: asText(item.contentType) || asText(item.mimeType) });
-    await deleteObject(ref(storage, originalStoragePath));
-    const movedUrl = await getDownloadURL(ref(storage, trashedStoragePath));
-    await setDoc(trashRef, { storagePath: trashedStoragePath, filePath: trashedStoragePath, url: movedUrl }, { merge: true });
-    logDev(type === "documentos" ? "[DOCS]" : "[PHOTOS]", "Arquivo movido para lixeira", { originalStoragePath, trashedStoragePath });
-  }
-
-  await deleteDoc(doc(db, originalCollection, originalId));
+  logDev("callable trash_move start", { kind, obraId, originalCollection, originalDocId });
+  const response = await trashMove({
+    kind,
+    obraId,
+    originalDocId,
+    originalCollection,
+    originalStoragePath,
+    trashedStoragePath,
+    extra,
+  });
+  logDev("callable trash_move end", response);
 };
 
-export const restoreFromTrash = async ({ item, type }: { item: FirestoreItem; type: TrashType }) => {
-  const trashCollection = getTrashCollection(type);
-  const originalCollection = asText(item.originalCollection) || type;
-  const itemId = asText(item.id);
-  const originalId = asText(item.originalId) || itemId;
-  const originalStoragePath = asText(item.originalStoragePath) || resolveStoragePath(item);
+export const restoreFromTrash = async ({ item, type, obraId }: { item: FirestoreItem; type: TrashType; obraId: string }) => {
+  const originalCollection = (asText(item.originalCollection) || type) as TrashType;
+  const trashedDocId = asText(item.id);
+  const originalDocId = asText(item.originalDocId) || trashedDocId;
+  const originalStoragePath = asText(item.originalStoragePath);
   const trashedStoragePath = asText(item.trashedStoragePath) || resolveStoragePath(item);
 
-  if (!itemId || !originalId) throw new Error("Item de lixeira inválido.");
+  if (!trashedDocId || !originalDocId) throw new Error("Item de lixeira inválido.");
 
-  if (trashedStoragePath && originalStoragePath) {
-    await copyStorageObject({ sourcePath: trashedStoragePath, targetPath: originalStoragePath, contentType: asText(item.contentType) || asText(item.mimeType) });
-  }
-
-  const restorePayload = { ...item } as Record<string, unknown>;
-  delete restorePayload.deletedAt;
-  delete restorePayload.deletedByUid;
-  delete restorePayload.deletedByNomeSnapshot;
-  delete restorePayload.originalCollection;
-  delete restorePayload.originalId;
-  delete restorePayload.trashedStoragePath;
-  restorePayload.storagePath = originalStoragePath;
-  restorePayload.filePath = originalStoragePath;
-
-  await setDoc(doc(db, originalCollection, originalId), restorePayload, { merge: true });
-  await deleteDoc(doc(db, trashCollection, itemId));
-
-  if (trashedStoragePath && originalStoragePath) {
-    await deleteObject(ref(storage, trashedStoragePath));
-  }
-
-  logDev("[TRASH]", "Item restaurado", { originalCollection, originalId });
+  const kind = type === "documentos" ? "documento" : "foto";
+  logDev("callable trash_restore start", { kind, obraId, originalCollection, originalDocId, trashedDocId });
+  const response = await trashRestore({
+    kind,
+    obraId,
+    trashedDocId,
+    trashedStoragePath,
+    originalStoragePath,
+    originalCollection,
+    originalDocId,
+  });
+  logDev("callable trash_restore end", response);
 };
 
 export const listTrashItems = async ({ obraId, type }: { obraId: string; type: TrashType }): Promise<FirestoreItem[]> => {
@@ -139,9 +106,9 @@ export const listTrashItems = async ({ obraId, type }: { obraId: string; type: T
 
   return items.sort((a, b) => {
       const deleted = toEpoch(b.deletedAt) - toEpoch(a.deletedAt);
-      if (deleted !== 0) return deleted;
-      return toEpoch(b.createdAt) - toEpoch(a.createdAt);
-    });
+    if (deleted !== 0) return deleted;
+    return toEpoch(b.createdAt) - toEpoch(a.createdAt);
+  });
 };
 
 export const getItemPreviewUrl = async (item: FirestoreItem): Promise<string> => {

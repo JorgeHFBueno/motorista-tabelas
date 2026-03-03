@@ -23,6 +23,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
 import { db, storage } from "@/lib/firebase";
 import { getItemPreviewUrl, listTrashItems, moveToTrash, restoreFromTrash, type TrashType } from "@/lib/trash/trash.service";
+import { getCallableErrorMessage } from "@/lib/functions";
 import type { FirestoreItem } from "@/types/rbac";
 
 const UUID_PREFIX_NAME_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}_(.+)$/i;
@@ -219,7 +220,7 @@ const StaffObraDetailPage = () => {
       if (sizeBytes > 15 * 1024 * 1024) {
         toast({ title: "Arquivo grande", description: "Mover para lixeira pode demorar para arquivos acima de 15MB." });
       }
-      await moveToTrash({ item, type, obraId, userUid: user?.uid, userName: userDoc?.nome });
+      await moveToTrash({ item, type, obraId, userName: userDoc?.nome });
     },
     onSuccess: async () => {
       await Promise.all([
@@ -232,14 +233,15 @@ const StaffObraDetailPage = () => {
       toast({ title: "Movido para lixeira", description: "O item foi movido e pode ser restaurado." });
     },
     onError: (error) => {
-      toast({ title: "Falha ao mover para lixeira", description: error instanceof Error ? error.message : "Erro ao excluir item.", variant: "destructive" });
+      toast({ title: "Falha ao mover para lixeira", description: getCallableErrorMessage(error, "Erro ao excluir item."), variant: "destructive" });
       if (import.meta.env.DEV) console.error("[TRASH] erro ao mover", error);
     },
   });
 
   const restoreMutation = useMutation({
     mutationFn: async ({ item, type }: { item: FirestoreItem; type: TrashType }) => {
-      await restoreFromTrash({ item, type });
+      if (!obraId) throw new Error("Obra inválida.");
+      await restoreFromTrash({ item, type, obraId });
     },
     onSuccess: async () => {
       await Promise.all([
@@ -251,7 +253,7 @@ const StaffObraDetailPage = () => {
       toast({ title: "Item restaurado", description: "O item voltou para a coleção original." });
     },
     onError: (error) => {
-      toast({ title: "Falha ao restaurar", description: error instanceof Error ? error.message : "Erro ao restaurar item.", variant: "destructive" });
+      toast({ title: "Falha ao restaurar", description: getCallableErrorMessage(error, "Erro ao restaurar item."), variant: "destructive" });
       if (import.meta.env.DEV) console.error("[TRASH] erro ao restaurar", error);
     },
   });

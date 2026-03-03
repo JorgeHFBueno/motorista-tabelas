@@ -1,8 +1,11 @@
+import { FirebaseError } from "firebase/app";
 import { httpsCallable, getFunctions } from "firebase/functions";
 import { app, firebaseInitError } from "@/lib/firebase";
 
 type UserType = "cliente" | "funcionario";
 type UserRole = "admin" | "gerente" | "operacional" | "cliente";
+type TrashKind = "documento" | "foto";
+type TrashCollection = "documentos" | "fotos";
 
 function requireFunctionsInstance() {
   if (!app) {
@@ -31,6 +34,26 @@ export interface AdminSetRoleInput {
 export interface AdminLinkObraInput {
   uid: string;
   obraId: string;
+}
+
+export interface TrashMoveInput {
+  kind: TrashKind;
+  obraId: string;
+  originalDocId: string;
+  originalCollection: TrashCollection;
+  originalStoragePath: string;
+  trashedStoragePath: string;
+  extra?: Record<string, unknown>;
+}
+
+export interface TrashRestoreInput {
+  kind: TrashKind;
+  obraId: string;
+  trashedDocId: string;
+  trashedStoragePath: string;
+  originalStoragePath: string;
+  originalCollection: TrashCollection;
+  originalDocId: string;
 }
 
 export async function adminCreateUser(input: AdminCreateUserInput): Promise<{ uid: string }> {
@@ -67,4 +90,34 @@ export async function adminUnlinkObra(input: AdminLinkObraInput): Promise<{ ok: 
   );
   const result = await callable(input);
   return result.data;
+}
+
+export async function trashMove(input: TrashMoveInput): Promise<{ ok: true; trashedDocId: string; trashedStoragePath: string }> {
+  const callable = httpsCallable<TrashMoveInput, { ok: true; trashedDocId: string; trashedStoragePath: string }>(
+    requireFunctionsInstance(),
+    "trash_move",
+  );
+  const result = await callable(input);
+  return result.data;
+}
+
+export async function trashRestore(input: TrashRestoreInput): Promise<{ ok: true; restoredDocId: string }> {
+  const callable = httpsCallable<TrashRestoreInput, { ok: true; restoredDocId: string }>(
+    requireFunctionsInstance(),
+    "trash_restore",
+  );
+  const result = await callable(input);
+  return result.data;
+}
+
+export function getCallableErrorMessage(error: unknown, fallback: string): string {
+  if (error instanceof FirebaseError && error.code === "functions/permission-denied") {
+    return "Sem permissão para mover para lixeira";
+  }
+
+  if (error instanceof Error && typeof error.message === "string" && error.message.trim().length > 0) {
+    return error.message;
+  }
+
+  return fallback;
 }
