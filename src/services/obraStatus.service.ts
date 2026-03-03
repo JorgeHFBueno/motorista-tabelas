@@ -14,26 +14,7 @@ import {
 } from "firebase/firestore";
 import { OBRA_STATUS_TEMPLATE } from "@/constants/obraStatusTemplate";
 import { db } from "@/lib/firebase";
-
-export interface ObraStatusItem {
-  id: string;
-  label: string;
-  done: boolean;
-}
-
-export interface ObraStatusFase {
-  id: string;
-  titulo: string;
-  ordem: number;
-  inicio: Timestamp | null;
-  fim: Timestamp | null;
-  itens: ObraStatusItem[];
-  updatedAt?: unknown;
-  updatedByUid?: string;
-  updatedByNomeSnapshot?: string;
-}
-
-export type ObraStatusResumo = "-" | "Em andamento" | "Concluída";
+import type { ObraStatusFase, ObraStatusResumo } from "@/types/obraStatus";
 
 interface UpdateActor {
   uid: string;
@@ -42,13 +23,15 @@ interface UpdateActor {
 
 const buildStatusCollectionRef = (obraId: string) => collection(db, "obras", obraId, "status");
 
-export const listFases = async (obraId: string): Promise<ObraStatusFase[]> => {
+export const listObraStatusFases = async (obraId: string): Promise<ObraStatusFase[]> => {
   const snap = await getDocs(query(buildStatusCollectionRef(obraId), orderBy("ordem", "asc")));
   return snap.docs.map((faseDoc) => ({
     id: faseDoc.id,
     ...(faseDoc.data() as Omit<ObraStatusFase, "id">),
   }));
 };
+
+export const listFases = listObraStatusFases;
 
 export const bootstrapStatusIfEmpty = async (obraId: string, actor: UpdateActor) => {
   const statusRef = buildStatusCollectionRef(obraId);

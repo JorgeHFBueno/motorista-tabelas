@@ -29,7 +29,8 @@ import { useToast } from "@/hooks/use-toast";
 import { db, storage } from "@/lib/firebase";
 import { getItemPreviewUrl, listTrashItems, moveToTrash, restoreFromTrash, type TrashType } from "@/lib/trash/trash.service";
 import { getCallableErrorMessage } from "@/lib/functions";
-import { bootstrapStatusIfEmpty, listFases, updateFaseDraft, type ObraStatusFase, type ObraStatusResumo } from "@/services/obraStatus.service";
+import { bootstrapStatusIfEmpty, listFases, updateFaseDraft } from "@/services/obraStatus.service";
+import type { ObraStatusFase, ObraStatusResumo } from "@/types/obraStatus";
 import type { FirestoreItem } from "@/types/rbac";
 
 const UUID_PREFIX_NAME_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}_(.+)$/i;
