@@ -2,6 +2,8 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import {
   addDoc,
   collection,
+  doc,
+  getDoc,
   getDocs,
   limit,
   orderBy,
@@ -494,28 +496,7 @@ const StaffCadastrosPage = () => {
 
       try {
       const usersRef = collection(db, "users");
-      const schemaSnapshot = await getDocs(query(usersRef, limit(20)));
-      const hasEmailField = schemaSnapshot.docs.some((doc) => typeof (doc.data() as { email?: unknown }).email === "string");
-      const hasEmailLowerField = schemaSnapshot.docs.some(
-        (doc) => typeof (doc.data() as { emailLower?: unknown }).emailLower === "string",
-      );
-      const hasInconsistentEmailCase = schemaSnapshot.docs.some((doc) => {
-        const email = (doc.data() as { email?: unknown }).email;
-        return typeof email === "string" && email.trim().toLowerCase() !== email.trim();
-      });
-
-      if (!hasEmailField && !hasEmailLowerField) {
-        if (requestId !== emailCheckRequestRef.current) return;
-        setEmailCheckStatus("unknown");
-        setEmailCheckMessage("Não foi possível validar este email automaticamente.");
-        return;
-      }
-
-      const emailQuery = hasEmailLowerField
-        ? query(usersRef, where("emailLower", "==", emailNorm), limit(1))
-        : query(usersRef, where("email", "==", emailNorm), limit(1));
-
-      const snapshot = await getDocs(emailQuery);
+      const snapshot = await getDocs(query(usersRef, where("emailLower", "==", emailNorm), limit(1)));
 
       if (requestId !== emailCheckRequestRef.current) return;
 
@@ -525,12 +506,6 @@ const StaffCadastrosPage = () => {
         const identifier = data.nome?.trim() || data.uid?.trim() || docSnap.id;
         setEmailCheckStatus("exists");
         setEmailCheckMessage(`Email já cadastrado: ${identifier}`);
-        return;
-      }
-
-      if (hasInconsistentEmailCase && !hasEmailLowerField) {
-        setEmailCheckStatus("unknown");
-        setEmailCheckMessage("Não foi possível validar este email automaticamente.");
         return;
       }
 
@@ -558,54 +533,21 @@ const StaffCadastrosPage = () => {
     setObraNameCheckMessage("Verificando...");
 
     try {
-      const obrasRef = collection(db, "obras");
-      const schemaSnapshot = await getDocs(query(obrasRef, limit(5)));
-      const hasNomeLowerField = schemaSnapshot.docs.some((doc) => typeof (doc.data() as { nomeLower?: unknown }).nomeLower === "string");
-      const hasNomeField = schemaSnapshot.docs.some((doc) => typeof (doc.data() as { nome?: unknown }).nome === "string");
-
-      if (hasNomeLowerField) {
-        const snapshot = await getDocs(query(obrasRef, where("nomeLower", "==", nomeNorm), limit(1)));
+      const obrasRef = collection(db, "obras");const snapshot = await getDocs(query(obrasRef, where("nomeLower", "==", nomeNorm), limit(1)));
 
         if (requestId !== obraNameCheckRequestRef.current) return;
 
         if (!snapshot.empty) {
-          const obraDoc = snapshot.docs[0];
-          const data = obraDoc.data() as { nome?: string; obraId?: string };
-          const identifier = data.nome?.trim() || data.obraId?.trim() || obraDoc.id;
-          setObraNameCheckStatus("exists");
-          setObraNameCheckMessage(`Já existe uma obra com este nome: ${identifier}`);
-          return;
-        }
-
-        setObraNameCheckStatus("notExists");
-        setObraNameCheckMessage("Nome disponível");
+        const obraDoc = snapshot.docs[0];
+        const data = obraDoc.data() as { nome?: string; obraId?: string };
+        const identifier = data.nome?.trim() || data.obraId?.trim() || obraDoc.id;
+        setObraNameCheckStatus("exists");
+        setObraNameCheckMessage(`Já existe uma obra com este nome: ${identifier}`);
         return;
       }
 
-      if (hasNomeField) {
-        const snapshot = await getDocs(query(obrasRef, where("nome", "==", value.trim()), limit(1)));
-
-        if (requestId !== obraNameCheckRequestRef.current) return;
-
-        if (!snapshot.empty) {
-          const obraDoc = snapshot.docs[0];
-          const data = obraDoc.data() as { nome?: string; obraId?: string };
-          const identifier = data.nome?.trim() || data.obraId?.trim() || obraDoc.id;
-          setObraNameCheckStatus("exists");
-          setObraNameCheckMessage(`Já existe uma obra com este nome: ${identifier}`);
-          return;
-        }
-
-        setObraNameCheckStatus("unknown");
-        setObraNameCheckMessage(
-          "Não foi possível validar duplicidade automaticamente (case-insensitive) sem campo normalizado.",
-        );
-        return;
-      }
-
-      if (requestId !== obraNameCheckRequestRef.current) return;
-      setObraNameCheckStatus("unknown");
-      setObraNameCheckMessage("Não foi possível validar agora.");
+      setObraNameCheckStatus("notExists");
+      setObraNameCheckMessage("Nome disponível");
     } catch (error) {
       console.error("[painel-cadastros] erro ao verificar nome da obra", error);
       if (requestId !== obraNameCheckRequestRef.current) return;
@@ -695,6 +637,36 @@ const StaffCadastrosPage = () => {
         role: novoRole,
         obras,
       });
+
+      if (import.meta.env.DEV) {
+        const createdUserSnapshot = await getDoc(doc(db, "users", result.uid));
+
+        if (!createdUserSnapshot.exists()) {
+          console.warn("[painel-cadastros][adminCreateUser] users/{uid} não encontrado após criação", { uid: result.uid });
+        } else {
+          const userData = createdUserSnapshot.data() as {
+            email?: string;
+            emailLower?: string;
+            nome?: string;
+            role?: string;
+            tipo?: string;
+          };
+          const summary = {
+            uid: result.uid,
+            email: userData.email,
+            emailLower: userData.emailLower,
+            nome: userData.nome,
+            role: userData.role,
+            tipo: userData.tipo,
+          };
+
+          console.info("[painel-cadastros][adminCreateUser] resumo do users/{uid}", summary);
+
+          if (!userData.email || !userData.emailLower) {
+            console.warn("[painel-cadastros][adminCreateUser] email/emailLower ausente no users/{uid}", summary);
+          }
+        }
+      }
 
       toast({ title: "Usuário criado", description: `UID criado: ${result.uid}` });
       setNovoEmail("");

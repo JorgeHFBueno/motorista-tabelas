@@ -35,14 +35,37 @@ exports.adminCreateUser = onCall(async (request) => {
       displayName: payload.nome,
     });
 
-    await userRef(db, authUser.uid).set({
+    const userDocPayload = {
+      email: payload.email,
+      emailLower: payload.emailLower,
       nome: payload.nome,
       tipo: payload.tipo,
       role: payload.role,
       obras: payload.obras,
       ativo: true,
       createdAt: FieldValue.serverTimestamp(),
-    });
+    };
+
+    let lastWriteError = null;
+    for (let attempt = 1; attempt <= 2; attempt += 1) {
+      try {
+        await userRef(db, authUser.uid).set(userDocPayload, {merge: true});
+        lastWriteError = null;
+        break;
+      } catch (writeError) {
+        lastWriteError = writeError;
+        logger.error("[admin-functions][adminCreateUser] failed to persist users/{uid}", {
+          callerUid,
+          newUid: authUser.uid,
+          attempt,
+          message: writeError instanceof Error ? writeError.message : String(writeError),
+        });
+      }
+    }
+
+    if (lastWriteError) {
+      throw new HttpsError("internal", "Usuário Auth criado, mas falhou ao persistir users/{uid}.");
+    }
 
     logger.info("[admin-functions][adminCreateUser] success", {
       callerUid,

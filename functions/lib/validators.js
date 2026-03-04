@@ -40,15 +40,19 @@ function assertObraId(obraId) {
 function validateAdminCreateUser(data) {
   assertObject(data, "Payload");
 
-  const email = typeof data.email === "string" ? data.email.trim() : "";
+  const emailRaw = typeof data.email === "string" ? data.email.trim() : "";
+  const emailLower = emailRaw.toLowerCase();
   const password = typeof data.password === "string" ? data.password : "";
   const nome = typeof data.nome === "string" ? data.nome.trim() : "";
   const tipo = data.tipo;
   const role = data.role;
   const obras = data.obras ?? [];
 
-  if (!isNonEmptyString(email)) {
+  if (!isNonEmptyString(emailRaw)) {
     throw new HttpsError("invalid-argument", "email é obrigatório.");
+  }
+  if (!/^\S+@\S+\.\S+$/.test(emailLower)) {
+    throw new HttpsError("invalid-argument", "email inválido.");
   }
   if (password.length < 6) {
     throw new HttpsError("invalid-argument", "password deve ter no mínimo 6 caracteres.");
@@ -65,7 +69,8 @@ function validateAdminCreateUser(data) {
   }
 
   return {
-    email,
+    email: emailLower,
+    emailLower,
     password,
     nome,
     tipo,
