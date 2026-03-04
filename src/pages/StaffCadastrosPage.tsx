@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   addDoc,
   collection,
@@ -19,7 +20,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useAuth } from "@/contexts/AuthContext";
 import { db } from "@/lib/firebase";
-import { adminCreateUser, adminSetRole } from "@/lib/functions";
+import { adminCreateUser, adminLinkObra, adminSetRole, adminUnlinkObra } from "@/lib/functions";
 import { warnIfNotAdmin } from "@/lib/adminGuards";
 import { toast } from "@/hooks/use-toast";
 import type { UserRole, UserType } from "@/types/rbac";
@@ -39,6 +40,7 @@ type ObraOption = {
 };
 
 type EmailCheckStatus = "idle" | "loading" | "exists" | "available" | "error";
+type LinkStatus = "idle" | "checking" | "linked" | "not_linked" | "error";
 
 const normalizeEmail = (value: string) => value.trim().toLowerCase();
 
@@ -136,54 +138,100 @@ const CreateObraCard = ({ nome, descricao, status, isCreating, setNome, setDescr
 );
 
 type VincularDesvincularObraCardProps = {
+  isAdmin: boolean;
   users: UserOption[];
   obras: ObraOption[];
+  selectedUid: string;
+  selectedObraId: string;
+  status: LinkStatus;
+  isLinking: boolean;
+  isUnlinking: boolean;
+  onSelectUid: (value: string) => void;
+  onSelectObraId: (value: string) => void;
+  onLinkObra: () => Promise<void>;
+  onUnlinkObra: () => Promise<void>;
 };
 
-const VincularDesvincularObraCard = ({ users, obras }: VincularDesvincularObraCardProps) => (
-  <div className="space-y-3 rounded-lg border p-4">
-    <h3 className="font-medium">Vincular ou desvincular obra</h3>
-    <p className="text-sm text-amber-600">{PLACEHOLDER_MESSAGE}</p>
-    <div className="grid gap-3 md:grid-cols-2">
-      <div className="space-y-1">
-        <Label>UID</Label>
-        <Select disabled>
-          <SelectTrigger>
-            <SelectValue placeholder="Selecionar usuário" />
-          </SelectTrigger>
-          <SelectContent>
-            {users.map((user) => (
-              <SelectItem key={user.uid} value={user.uid}>
-                {user.nome}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+const VincularDesvincularObraCard = ({
+  isAdmin,
+  users,
+  obras,
+  selectedUid,
+  selectedObraId,
+  status,
+  isLinking,
+  isUnlinking,
+  onSelectUid,
+  onSelectObraId,
+  onLinkObra,
+  onUnlinkObra,
+}: VincularDesvincularObraCardProps) => {
+  const canLink = Boolean(selectedUid && selectedObraId) && status === "not_linked" && !isLinking && !isUnlinking;
+  const canUnlink = Boolean(selectedUid && selectedObraId) && status === "linked" && !isLinking && !isUnlinking;
+
+  const statusMessage = (() => {
+    switch (status) {
+      case "checking":
+        return "Verificando...";
+      case "linked":
+        return "Vinculado";
+      case "not_linked":
+        return "Não vinculado";
+      case "error":
+        return "Erro ao verificar vínculo.";
+      default:
+        return "Selecione usuário e obra";
+    }
+  })();
+
+  return (
+    <div className="space-y-3 rounded-lg border p-4">
+      <h3 className="font-medium">Vincular ou desvincular obra</h3>
+      {!isAdmin && <p className="text-xs text-muted-foreground">Ação administrativa: o backend valida permissões.</p>}
+      <p className={`text-sm ${status === "error" ? "text-destructive" : "text-muted-foreground"}`}>{statusMessage}</p>
+      <div className="grid gap-3 md:grid-cols-2">
+        <div className="space-y-1">
+          <Label>UID</Label>
+          <Select value={selectedUid} onValueChange={onSelectUid}>
+            <SelectTrigger>
+              <SelectValue placeholder="Selecionar usuário" />
+            </SelectTrigger>
+            <SelectContent>
+              {users.map((user) => (
+                <SelectItem key={user.uid} value={user.uid}>
+                  {user.nome}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="space-y-1">
+          <Label>Obra ID</Label>
+          <Select value={selectedObraId} onValueChange={onSelectObraId}>
+            <SelectTrigger>
+              <SelectValue placeholder="Selecionar obra" />
+            </SelectTrigger>
+            <SelectContent>
+              {obras.map((obra) => (
+                <SelectItem key={obra.id} value={obra.id}>
+                  {obra.nome}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
       </div>
-      <div className="space-y-1">
-        <Label>Obra ID</Label>
-        <Select disabled>
-          <SelectTrigger>
-            <SelectValue placeholder="Selecionar obra" />
-          </SelectTrigger>
-          <SelectContent>
-            {obras.map((obra) => (
-              <SelectItem key={obra.id} value={obra.id}>
-                {obra.nome}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+      <div className="flex flex-wrap gap-2">
+        <Button onClick={() => void onLinkObra()} disabled={!canLink}>
+          {isLinking ? "Vinculando..." : "Vincular obra"}
+        </Button>
+        <Button variant="outline" onClick={() => void onUnlinkObra()} disabled={!canUnlink}>
+          {isUnlinking ? "Desvinculando..." : "Desvincular obra"}
+        </Button>
       </div>
     </div>
-    <div className="flex flex-wrap gap-2">
-      <Button disabled>Vincular obra</Button>
-      <Button variant="outline" disabled>
-        Desvincular obra
-      </Button>
-    </div>
-  </div>
-);
+     );
+};
 
 type AdminFunctionsCardProps = {
   isAdmin: boolean;
@@ -214,6 +262,15 @@ type AdminFunctionsCardProps = {
   setTargetRole: (value: UserRole) => void;
   setTargetTipo: (value: UserType) => void;
   setTargetAtivo: (value: "true" | "false") => void;
+  selectedLinkUid: string;
+  selectedLinkObraId: string;
+  linkStatus: LinkStatus;
+  isLinkingObra: boolean;
+  isUnlinkingObra: boolean;
+  setSelectedLinkUid: (value: string) => void;
+  setSelectedLinkObraId: (value: string) => void;
+  onLinkObra: () => Promise<void>;
+  onUnlinkObra: () => Promise<void>;
   onAdminCreateUser: () => Promise<void>;
   onAdminSetRole: () => Promise<void>;
 };
@@ -247,6 +304,15 @@ const AdminFunctionsCard = ({
   setTargetRole,
   setTargetTipo,
   setTargetAtivo,
+  selectedLinkUid,
+  selectedLinkObraId,
+  linkStatus,
+  isLinkingObra,
+  isUnlinkingObra,
+  setSelectedLinkUid,
+  setSelectedLinkObraId,
+  onLinkObra,
+  onUnlinkObra,
   onAdminCreateUser,
   onAdminSetRole,
 }: AdminFunctionsCardProps) => (
@@ -395,7 +461,20 @@ const AdminFunctionsCard = ({
         </Button>
       </div>
 
-      <VincularDesvincularObraCard users={users} obras={obras} />
+      <VincularDesvincularObraCard
+        isAdmin={isAdmin}
+        users={users}
+        obras={obras}
+        selectedUid={selectedLinkUid}
+        selectedObraId={selectedLinkObraId}
+        status={linkStatus}
+        isLinking={isLinkingObra}
+        isUnlinking={isUnlinkingObra}
+        onSelectUid={setSelectedLinkUid}
+        onSelectObraId={setSelectedLinkObraId}
+        onLinkObra={onLinkObra}
+        onUnlinkObra={onUnlinkObra}
+      />
     </CardContent>
   </Card>
 );
@@ -415,6 +494,7 @@ const ObrasVinculadasCard = () => (
 
 const StaffCadastrosPage = () => {
   const { userDoc } = useAuth();
+  const queryClient = useQueryClient();
   const isAdmin = userDoc?.role === "admin";
 
   const [nome, setNome] = useState("");
@@ -437,6 +517,11 @@ const StaffCadastrosPage = () => {
   const [targetTipo, setTargetTipo] = useState<UserType>("cliente");
   const [targetAtivo, setTargetAtivo] = useState<"true" | "false">("true");
   const [updatingRole, setUpdatingRole] = useState(false);
+  const [selectedLinkUid, setSelectedLinkUid] = useState("");
+  const [selectedLinkObraId, setSelectedLinkObraId] = useState("");
+  const [linkStatus, setLinkStatus] = useState<LinkStatus>("idle");
+  const [isLinkingObra, setIsLinkingObra] = useState(false);
+  const [isUnlinkingObra, setIsUnlinkingObra] = useState(false);
 
   const [userOptions, setUserOptions] = useState<UserOption[]>([]);
   const [obraOptions, setObraOptions] = useState<ObraOption[]>([]);
@@ -457,6 +542,39 @@ const StaffCadastrosPage = () => {
 
     void loadOptions();
   }, []);
+
+  const selectedUserObrasQuery = useQuery({
+    queryKey: ["users", selectedLinkUid, "obras"],
+    enabled: Boolean(selectedLinkUid),
+    staleTime: 60_000,
+    queryFn: async () => {
+      const userRef = doc(db, "users", selectedLinkUid);
+      const userSnapshot = await getDoc(userRef);
+      const data = userSnapshot.data() as { obras?: unknown } | undefined;
+      const obras = Array.isArray(data?.obras) ? data.obras.filter((obra): obra is string => typeof obra === "string") : [];
+      return { obras };
+    },
+  });
+
+  useEffect(() => {
+    if (!selectedLinkUid || !selectedLinkObraId) {
+      setLinkStatus("idle");
+      return;
+    }
+
+    if (selectedUserObrasQuery.isFetching) {
+      setLinkStatus("checking");
+      return;
+    }
+
+    if (selectedUserObrasQuery.isError) {
+      setLinkStatus("error");
+      return;
+    }
+
+    const isLinked = selectedUserObrasQuery.data?.obras.includes(selectedLinkObraId) ?? false;
+    setLinkStatus(isLinked ? "linked" : "not_linked");
+  }, [selectedLinkObraId, selectedLinkUid, selectedUserObrasQuery.data, selectedUserObrasQuery.isError, selectedUserObrasQuery.isFetching]);
 
   const verifyEmailExists = async (value: string) => {
     const normalizedEmail = normalizeEmail(value);
@@ -609,6 +727,60 @@ const StaffCadastrosPage = () => {
       }
     };
 
+    const handleLinkObra = async () => {
+      const uid = selectedLinkUid.trim();
+      const obraId = selectedLinkObraId.trim();
+
+      if (!uid || !obraId) {
+        toast({
+          title: "Campos obrigatórios",
+          description: "Selecione usuário e obra para vincular.",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      warnIfNotAdmin(isAdmin);
+
+      try {
+        setIsLinkingObra(true);
+        await adminLinkObra({ uid, obraId });
+        toast({ title: "Obra vinculada", description: "A obra foi vinculada ao usuário com sucesso." });
+      } catch (error) {
+        toast({ title: "Erro ao vincular obra", description: getErrorMessage(error), variant: "destructive" });
+      } finally {
+        setIsLinkingObra(false);
+        await queryClient.invalidateQueries({ queryKey: ["users", uid, "obras"] });
+      }
+    };
+
+    const handleUnlinkObra = async () => {
+      const uid = selectedLinkUid.trim();
+      const obraId = selectedLinkObraId.trim();
+
+      if (!uid || !obraId) {
+        toast({
+          title: "Campos obrigatórios",
+          description: "Selecione usuário e obra para desvincular.",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      warnIfNotAdmin(isAdmin);
+
+      try {
+        setIsUnlinkingObra(true);
+        await adminUnlinkObra({ uid, obraId });
+        toast({ title: "Obra desvinculada", description: "A obra foi desvinculada do usuário com sucesso." });
+      } catch (error) {
+        toast({ title: "Erro ao desvincular obra", description: getErrorMessage(error), variant: "destructive" });
+      } finally {
+        setIsUnlinkingObra(false);
+        await queryClient.invalidateQueries({ queryKey: ["users", uid, "obras"] });
+      }
+    };
+
     const emailCheckTone = useMemo<"muted" | "warning">(
       () => (emailCheckStatus === "exists" || emailCheckStatus === "error" ? "warning" : "muted"),
       [emailCheckStatus],
@@ -657,6 +829,15 @@ const StaffCadastrosPage = () => {
             setTargetRole={setTargetRole}
             setTargetTipo={setTargetTipo}
             setTargetAtivo={setTargetAtivo}
+            selectedLinkUid={selectedLinkUid}
+            selectedLinkObraId={selectedLinkObraId}
+            linkStatus={linkStatus}
+            isLinkingObra={isLinkingObra}
+            isUnlinkingObra={isUnlinkingObra}
+            setSelectedLinkUid={setSelectedLinkUid}
+            setSelectedLinkObraId={setSelectedLinkObraId}
+            onLinkObra={handleLinkObra}
+            onUnlinkObra={handleUnlinkObra}
             onAdminCreateUser={handleAdminCreateUser}
             onAdminSetRole={handleAdminSetRole}
           />
