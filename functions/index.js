@@ -8,6 +8,7 @@ const {
   validateAdminCreateUser,
   validateAdminSetRole,
   validateAdminLinkObra,
+  validateUserUpdateSelfProfile,
 } = require("./lib/validators");
 const {
   FieldValue,
@@ -159,6 +160,29 @@ exports.adminUnlinkObra = onCall(async (request) => {
   });
 
   return {ok: true};
+});
+
+exports.userUpdateSelfProfile = onCall(async (request) => {
+  const uid = requireAuth(request);
+  const payload = validateUserUpdateSelfProfile(request.data);
+
+  await userRef(db, uid).set({
+    nome: payload.nome,
+    updatedAt: FieldValue.serverTimestamp(),
+  }, {merge: true});
+
+  try {
+    await admin.auth().updateUser(uid, {displayName: payload.nome});
+  } catch (error) {
+    logger.warn("[user-functions][userUpdateSelfProfile] displayName update failed", {
+      uid,
+      message: error instanceof Error ? error.message : String(error),
+    });
+  }
+
+  logger.info("[user-functions][userUpdateSelfProfile] success", {uid});
+
+  return {ok: true, nome: payload.nome};
 });
 
 function asText(value) {

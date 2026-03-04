@@ -36,6 +36,15 @@ export interface AdminLinkObraInput {
   obraId: string;
 }
 
+export interface UserUpdateSelfProfileInput {
+  nome: string;
+}
+
+export interface UserUpdateSelfProfileResponse {
+  ok: true;
+  nome: string;
+}
+
 export interface TrashMoveInput {
   kind: TrashKind;
   obraId: string;
@@ -87,6 +96,15 @@ export async function adminUnlinkObra(input: AdminLinkObraInput): Promise<{ ok: 
   const callable = httpsCallable<AdminLinkObraInput, { ok: boolean }>(
     requireFunctionsInstance(),
     "adminUnlinkObra",
+  );
+  const result = await callable(input);
+  return result.data;
+}
+
+export async function userUpdateSelfProfile(input: UserUpdateSelfProfileInput): Promise<UserUpdateSelfProfileResponse> {
+  const callable = httpsCallable<UserUpdateSelfProfileInput, UserUpdateSelfProfileResponse>(
+    requireFunctionsInstance(),
+    "userUpdateSelfProfile",
   );
   const result = await callable(input);
   return result.data;

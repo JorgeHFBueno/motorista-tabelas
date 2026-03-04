@@ -118,8 +118,25 @@ function validateAdminLinkObra(data) {
   return {uid, obraId};
 }
 
+function validateUserUpdateSelfProfile(data) {
+  assertObject(data, "Payload");
+
+  const nome = typeof data.nome === "string" ? data.nome.trim() : "";
+
+  if (nome.length < 2) {
+    throw new HttpsError("invalid-argument", "nome deve ter no mínimo 2 caracteres.");
+  }
+
+  if (nome.length > 80) {
+    throw new HttpsError("invalid-argument", "nome deve ter no máximo 80 caracteres.");
+  }
+
+  return {nome};
+}
+
 module.exports = {
   validateAdminCreateUser,
   validateAdminSetRole,
   validateAdminLinkObra,
+  validateUserUpdateSelfProfile,
 };
