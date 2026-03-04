@@ -471,17 +471,9 @@ const StaffCadastrosPage = () => {
       setEmailCheckStatus("loading");
       setEmailCheckMessage("Verificando email...");
 
-<<<<<<< HEAD
-      try {
-      const usersRef = collection(db, "users");
-      const snapshot = await getDocs(query(usersRef, where("emailLower", "==", emailNorm), limit(1)));
-
-      if (requestId !== emailCheckRequestRef.current) return;
-=======
       const snapshot = await getDocs(
         query(collection(db, "users"), where("email", "==", normalizedEmail), limit(1)),
       );
->>>>>>> parent of 732a25e (Melhora da pagina Admin - Cadastros MKII)
 
       if (!snapshot.empty) {
         const doc = snapshot.docs[0];
@@ -492,57 +484,12 @@ const StaffCadastrosPage = () => {
         return;
       }
 
-<<<<<<< HEAD
-      setEmailCheckStatus("notExists");
-=======
       setEmailCheckStatus("available");
->>>>>>> parent of 732a25e (Melhora da pagina Admin - Cadastros MKII)
       setEmailCheckMessage("Email disponível");
     } catch (error) {
       console.error("[painel-cadastros] erro ao verificar email", error);
       setEmailCheckStatus("error");
-<<<<<<< HEAD
-      setEmailCheckMessage("Não foi possível validar agora.");
-    }
-  };
-
-  const verifyObraNameExists = async (value: string) => {
-    const requestId = ++obraNameCheckRequestRef.current;
-    const nomeNorm = value.trim().toLowerCase();
-
-    if (!nomeNorm) {
-      setObraNameCheckStatus("idle");
-      setObraNameCheckMessage("");
-      return;
-    }
-
-    setObraNameCheckStatus("loading");
-    setObraNameCheckMessage("Verificando...");
-
-    try {
-      const obrasRef = collection(db, "obras");const snapshot = await getDocs(query(obrasRef, where("nomeLower", "==", nomeNorm), limit(1)));
-
-        if (requestId !== obraNameCheckRequestRef.current) return;
-
-        if (!snapshot.empty) {
-        const obraDoc = snapshot.docs[0];
-        const data = obraDoc.data() as { nome?: string; obraId?: string };
-        const identifier = data.nome?.trim() || data.obraId?.trim() || obraDoc.id;
-        setObraNameCheckStatus("exists");
-        setObraNameCheckMessage(`Já existe uma obra com este nome: ${identifier}`);
-        return;
-      }
-
-      setObraNameCheckStatus("notExists");
-      setObraNameCheckMessage("Nome disponível");
-    } catch (error) {
-      console.error("[painel-cadastros] erro ao verificar nome da obra", error);
-      if (requestId !== obraNameCheckRequestRef.current) return;
-      setObraNameCheckStatus("error");
-      setObraNameCheckMessage("Não foi possível validar agora.");
-=======
       setEmailCheckMessage("Não foi possível verificar o email agora.");
->>>>>>> parent of 732a25e (Melhora da pagina Admin - Cadastros MKII)
     }
   };
 
@@ -720,184 +667,4 @@ const StaffCadastrosPage = () => {
     );
   };
 
-<<<<<<< HEAD
-      const handleAdminCreateUser = async () => {
-    const email = normalizeEmail(novoEmail);
-    const senha = novaSenha.trim();
-    const nomeUsuario = novoNome.trim();
-
-    if (!email || !senha || !nomeUsuario) {
-      toast({
-        title: "Campos obrigatórios",
-        description: "Preencha email, senha e nome para criar o usuário.",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    warnIfNotAdmin(isAdmin);
-
-    try {
-      setCreatingUser(true);
-      const obras = novoObrasRaw
-        .split(",")
-        .map((item) => item.trim())
-        .filter(Boolean);
-
-      const result = await adminCreateUser({
-        email,
-        password: senha,
-        nome: nomeUsuario,
-        tipo: novoTipo,
-        role: novoRole,
-        obras,
-      });
-
-      if (import.meta.env.DEV) {
-        const createdUserSnapshot = await getDoc(doc(db, "users", result.uid));
-
-        if (!createdUserSnapshot.exists()) {
-          console.warn("[painel-cadastros][adminCreateUser] users/{uid} não encontrado após criação", { uid: result.uid });
-        } else {
-          const userData = createdUserSnapshot.data() as {
-            email?: string;
-            emailLower?: string;
-            nome?: string;
-            role?: string;
-            tipo?: string;
-          };
-          const summary = {
-            uid: result.uid,
-            email: userData.email,
-            emailLower: userData.emailLower,
-            nome: userData.nome,
-            role: userData.role,
-            tipo: userData.tipo,
-          };
-
-          console.info("[painel-cadastros][adminCreateUser] resumo do users/{uid}", summary);
-
-          if (!userData.email || !userData.emailLower) {
-            console.warn("[painel-cadastros][adminCreateUser] email/emailLower ausente no users/{uid}", summary);
-          }
-        }
-      }
-
-      toast({ title: "Usuário criado", description: `UID criado: ${result.uid}` });
-      setNovoEmail("");
-      setNovaSenha("");
-      setNovoNome("");
-      setNovoTipo("cliente");
-      setNovoRole("cliente");
-      setNovoObrasRaw("");
-      setEmailCheckStatus("idle");
-      setEmailCheckMessage("");
-    } catch (error) {
-      toast({ title: "Erro ao criar usuário", description: getErrorMessage(error), variant: "destructive" });
-    } finally {
-      setCreatingUser(false);
-    }
-  };
-
-      const handleAdminSetRole = async () => {
-    const uid = targetUidRole.trim();
-    if (!uid) {
-      toast({
-        title: "UID obrigatório",
-        description: "Selecione um usuário para atualizar role/tipo/ativo.",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    warnIfNotAdmin(isAdmin);
-
-    try {
-      setUpdatingRole(true);
-      await adminSetRole({
-        uid,
-        role: targetRole,
-        tipo: targetTipo,
-        ativo: targetAtivo === "true",
-      });
-      toast({ title: "Permissões atualizadas", description: "Role/tipo/ativo atualizados com sucesso." });
-    } catch (error) {
-      toast({ title: "Erro ao atualizar role", description: getErrorMessage(error), variant: "destructive" });
-    } finally {
-      setUpdatingRole(false);
-    }
-  };
-
-  const emailCheckTone = useMemo<"muted" | "warning">(
-    () => (emailCheckStatus === "exists" || emailCheckStatus === "error" || emailCheckStatus === "unknown" ? "warning" : "muted"),
-    [emailCheckStatus],
-  );
-
-  const obraNameCheckTone = useMemo<"muted" | "warning">(
-    () =>
-      obraNameCheckStatus === "exists" || obraNameCheckStatus === "error" || obraNameCheckStatus === "unknown"
-        ? "warning"
-        : "muted",
-    [obraNameCheckStatus],
-  );
-
-  return (
-    <ResponsiveLayout headerTitle="Cadastros" headerSubtitle="Obras e administração de usuários">
-      <div className="px-4 py-6 lg:px-8 lg:py-8 space-y-4">
-        <CreateObraCard
-          nome={nome}
-          descricao={descricao}
-          status={status}
-          isCreating={isCreating}
-          nomeCheckMessage={obraNameCheckMessage}
-          nomeCheckTone={obraNameCheckTone}
-          setNome={setNome}
-          setDescricao={setDescricao}
-          setStatus={setStatus}
-          onNomeBlur={() => void verifyObraNameExists(nome)}
-          onCreateObra={handleCreateObra}
-        />
-
-        <AdminFunctionsCard
-          isAdmin={isAdmin}
-          users={userOptions}
-          obras={obraOptions}
-          novoEmail={novoEmail}
-          novaSenha={novaSenha}
-          novoNome={novoNome}
-          novoTipo={novoTipo}
-          novoRole={novoRole}
-          novoObrasRaw={novoObrasRaw}
-          creatingUser={creatingUser}
-          targetUidRole={targetUidRole}
-          targetRole={targetRole}
-          targetTipo={targetTipo}
-          targetAtivo={targetAtivo}
-          updatingRole={updatingRole}
-          emailCheckMessage={emailCheckMessage}
-          emailCheckTone={emailCheckTone}
-          onNovoEmailChange={setNovoEmail}
-          onNovoEmailBlur={() => void verifyEmailExists(novoEmail)}
-          setNovaSenha={setNovaSenha}
-          setNovoNome={setNovoNome}
-          setNovoTipo={setNovoTipo}
-          setNovoRole={setNovoRole}
-          setNovoObrasRaw={setNovoObrasRaw}
-          setTargetUidRole={setTargetUidRole}
-          setTargetRole={setTargetRole}
-          setTargetTipo={setTargetTipo}
-          setTargetAtivo={setTargetAtivo}
-          onAdminCreateUser={handleAdminCreateUser}
-          onAdminSetRole={handleAdminSetRole}
-        />
-
-        <ObrasVinculadasCard />
-      </div>
-    </ResponsiveLayout>
-  );
-};
-
-export default StaffCadastrosPage;
-=======
   export default StaffCadastrosPage;
->>>>>>> parent of 732a25e (Melhora da pagina Admin - Cadastros MKII)
