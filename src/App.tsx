@@ -38,7 +38,11 @@ const App = () => {
     console.log("[build]", import.meta.env.MODE, "__BUILD__", "__DATE__");
     return <FirebaseInitErrorScreen />;
   }
+<<<<<<< HEAD
   console.log("[build]", import.meta.env.MODE, "__BUILD__", "370");
+=======
+  console.log("[build]", import.meta.env.MODE, "__BUILD__", "360");
+>>>>>>> parent of 732a25e (Melhora da pagina Admin - Cadastros MKII)
 
   return (
     <QueryClientProvider client={queryClient}>

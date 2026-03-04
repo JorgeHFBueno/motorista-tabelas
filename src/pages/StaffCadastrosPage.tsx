@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   addDoc,
   collection,
@@ -38,7 +38,7 @@ type ObraOption = {
   nome: string;
 };
 
-type ExistenceCheckStatus = "idle" | "loading" | "exists" | "notExists" | "error" | "unknown";
+type EmailCheckStatus = "idle" | "loading" | "exists" | "available" | "error";
 
 const normalizeEmail = (value: string) => value.trim().toLowerCase();
 
@@ -93,28 +93,13 @@ type CreateObraCardProps = {
   descricao: string;
   status: "ativa" | "concluida";
   isCreating: boolean;
-  nomeCheckMessage: string;
-  nomeCheckTone: "muted" | "warning";
   setNome: (value: string) => void;
   setDescricao: (value: string) => void;
   setStatus: (value: "ativa" | "concluida") => void;
-  onNomeBlur: () => void;
   onCreateObra: () => Promise<void>;
 };
 
-const CreateObraCard = ({
-  nome,
-  descricao,
-  status,
-  isCreating,
-  nomeCheckMessage,
-  nomeCheckTone,
-  setNome,
-  setDescricao,
-  setStatus,
-  onNomeBlur,
-  onCreateObra,
-}: CreateObraCardProps) => (
+const CreateObraCard = ({ nome, descricao, status, isCreating, setNome, setDescricao, setStatus, onCreateObra }: CreateObraCardProps) => (
   <Card>
     <CardHeader>
       <CardTitle>Cadastro de obras</CardTitle>
@@ -124,12 +109,7 @@ const CreateObraCard = ({
       <div className="grid gap-3 md:grid-cols-2">
         <div className="space-y-1">
           <Label htmlFor="nome-obra">Nome</Label>
-          <Input id="nome-obra" value={nome} onBlur={onNomeBlur} onChange={(event) => setNome(event.target.value)} />
-          {nomeCheckMessage && (
-            <p className={`text-xs ${nomeCheckTone === "warning" ? "text-destructive" : "text-muted-foreground"}`}>
-              {nomeCheckMessage}
-            </p>
-          )}
+          <Input id="nome-obra" value={nome} onChange={(event) => setNome(event.target.value)} />
         </div>
         <div className="space-y-1">
           <Label>Status</Label>
@@ -449,11 +429,8 @@ const StaffCadastrosPage = () => {
   const [novoRole, setNovoRole] = useState<UserRole>("cliente");
   const [novoObrasRaw, setNovoObrasRaw] = useState("");
   const [creatingUser, setCreatingUser] = useState(false);
-  const [emailCheckStatus, setEmailCheckStatus] = useState<ExistenceCheckStatus>("idle");
+  const [emailCheckStatus, setEmailCheckStatus] = useState<EmailCheckStatus>("idle");
   const [emailCheckMessage, setEmailCheckMessage] = useState("");
-
-  const [obraNameCheckStatus, setObraNameCheckStatus] = useState<ExistenceCheckStatus>("idle");
-  const [obraNameCheckMessage, setObraNameCheckMessage] = useState("");
 
   const [targetUidRole, setTargetUidRole] = useState("");
   const [targetRole, setTargetRole] = useState<UserRole>("cliente");
@@ -464,13 +441,13 @@ const StaffCadastrosPage = () => {
   const [userOptions, setUserOptions] = useState<UserOption[]>([]);
   const [obraOptions, setObraOptions] = useState<ObraOption[]>([]);
 
-  const emailCheckRequestRef = useRef(0);
-  const obraNameCheckRequestRef = useRef(0);
-
   useEffect(() => {
     const loadOptions = async () => {
       try {
-        const [usersSnapshot, obrasSnapshot] = await Promise.all([loadUsers(), getDocs(collection(db, "obras"))]);
+        const [usersSnapshot, obrasSnapshot] = await Promise.all([
+          loadUsers(),
+          getDocs(collection(db, "obras")),
+        ]);
         setUserOptions(mapUserOptions(usersSnapshot));
         setObraOptions(mapObraOptions(obrasSnapshot));
       } catch (error) {
@@ -482,39 +459,49 @@ const StaffCadastrosPage = () => {
   }, []);
 
   const verifyEmailExists = async (value: string) => {
-    const requestId = ++emailCheckRequestRef.current;
-    const emailNorm = normalizeEmail(value);
+    const normalizedEmail = normalizeEmail(value);
 
-    if (!emailNorm || !emailNorm.includes("@")) {
+    if (!normalizedEmail) {
       setEmailCheckStatus("idle");
       setEmailCheckMessage("");
       return;
     }
 
-    setEmailCheckStatus("loading");
-    setEmailCheckMessage("Verificando...");
+    try {
+      setEmailCheckStatus("loading");
+      setEmailCheckMessage("Verificando email...");
 
+<<<<<<< HEAD
       try {
       const usersRef = collection(db, "users");
       const snapshot = await getDocs(query(usersRef, where("emailLower", "==", emailNorm), limit(1)));
 
       if (requestId !== emailCheckRequestRef.current) return;
+=======
+      const snapshot = await getDocs(
+        query(collection(db, "users"), where("email", "==", normalizedEmail), limit(1)),
+      );
+>>>>>>> parent of 732a25e (Melhora da pagina Admin - Cadastros MKII)
 
       if (!snapshot.empty) {
-        const docSnap = snapshot.docs[0];
-        const data = docSnap.data() as { nome?: string; uid?: string };
-        const identifier = data.nome?.trim() || data.uid?.trim() || docSnap.id;
+        const doc = snapshot.docs[0];
+        const data = doc.data() as { nome?: string; uid?: string };
+        const identifier = data.nome?.trim() || data.uid?.trim() || doc.id;
         setEmailCheckStatus("exists");
-        setEmailCheckMessage(`Email já cadastrado: ${identifier}`);
+        setEmailCheckMessage(`Usuário já existe: ${identifier}`);
         return;
       }
 
+<<<<<<< HEAD
       setEmailCheckStatus("notExists");
+=======
+      setEmailCheckStatus("available");
+>>>>>>> parent of 732a25e (Melhora da pagina Admin - Cadastros MKII)
       setEmailCheckMessage("Email disponível");
     } catch (error) {
       console.error("[painel-cadastros] erro ao verificar email", error);
-      if (requestId !== emailCheckRequestRef.current) return;
       setEmailCheckStatus("error");
+<<<<<<< HEAD
       setEmailCheckMessage("Não foi possível validar agora.");
     }
   };
@@ -553,6 +540,9 @@ const StaffCadastrosPage = () => {
       if (requestId !== obraNameCheckRequestRef.current) return;
       setObraNameCheckStatus("error");
       setObraNameCheckMessage("Não foi possível validar agora.");
+=======
+      setEmailCheckMessage("Não foi possível verificar o email agora.");
+>>>>>>> parent of 732a25e (Melhora da pagina Admin - Cadastros MKII)
     }
   };
 
@@ -564,48 +554,173 @@ const StaffCadastrosPage = () => {
     return () => window.clearTimeout(timeoutId);
   }, [novoEmail]);
 
-  useEffect(() => {
-    const timeoutId = window.setTimeout(() => {
-      void verifyObraNameExists(nome);
-    }, 300);
-
-      return () => window.clearTimeout(timeoutId);
-  }, [nome]);
-
-    const handleCreateObra = async () => {
-    const nomeLimpo = nome.trim();
-    if (!nomeLimpo) {
-      toast({ title: "Nome obrigatório", description: "Informe o nome da obra.", variant: "destructive" });
-      return;
-    }
+  const handleCreateObra = async () => {
+      const nomeLimpo = nome.trim();
+      if (!nomeLimpo) {
+        toast({ title: "Nome obrigatório", description: "Informe o nome da obra.", variant: "destructive" });
+        return;
+      }
 
       try {
-      setIsCreating(true);
-      await addDoc(collection(db, "obras"), {
-        nome: nomeLimpo,
-        nomeLower: nomeLimpo.toLowerCase(),
-        descricao: descricao.trim() || null,
-        status,
-        createdAt: serverTimestamp(),
-      });
+        setIsCreating(true);
+        await addDoc(collection(db, "obras"), {
+          nome: nomeLimpo,
+          descricao: descricao.trim() || null,
+          status,
+          createdAt: serverTimestamp(),
+        });
 
-      setNome("");
-      setDescricao("");
-      setStatus("ativa");
-      setObraNameCheckStatus("idle");
-      setObraNameCheckMessage("");
+        setNome("");
+        setDescricao("");
+        setStatus("ativa");
 
-      toast({
-        title: "Obra criada",
-        description: "Obra registrada com sucesso.",
-      });
-    } catch (error) {
-      toast({ title: "Sem permissão para criar", description: getErrorMessage(error), variant: "destructive" });
-    } finally {
-      setIsCreating(false);
-    }
+        toast({
+          title: "Obra criada",
+          description: "Obra registrada com sucesso.",
+        });
+      } catch (error) {
+        toast({ title: "Sem permissão para criar", description: getErrorMessage(error), variant: "destructive" });
+      } finally {
+        setIsCreating(false);
+      }
+    };
+
+    const handleAdminCreateUser = async () => {
+      const email = normalizeEmail(novoEmail);
+      const senha = novaSenha.trim();
+      const nomeUsuario = novoNome.trim();
+
+      if (!email || !senha || !nomeUsuario) {
+        toast({
+          title: "Campos obrigatórios",
+          description: "Preencha email, senha e nome para criar o usuário.",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      warnIfNotAdmin(isAdmin);
+
+      try {
+        setCreatingUser(true);
+        const obras = novoObrasRaw
+          .split(",")
+          .map((item) => item.trim())
+          .filter(Boolean);
+
+        const result = await adminCreateUser({
+          email,
+          password: senha,
+          nome: nomeUsuario,
+          tipo: novoTipo,
+          role: novoRole,
+          obras,
+        });
+
+        toast({ title: "Usuário criado", description: `UID criado: ${result.uid}` });
+        setNovoEmail("");
+        setNovaSenha("");
+        setNovoNome("");
+        setNovoTipo("cliente");
+        setNovoRole("cliente");
+        setNovoObrasRaw("");
+        setEmailCheckStatus("idle");
+        setEmailCheckMessage("");
+      } catch (error) {
+        toast({ title: "Erro ao criar usuário", description: getErrorMessage(error), variant: "destructive" });
+      } finally {
+        setCreatingUser(false);
+      }
+    };
+
+    const handleAdminSetRole = async () => {
+      const uid = targetUidRole.trim();
+      if (!uid) {
+        toast({
+          title: "UID obrigatório",
+          description: "Selecione um usuário para atualizar role/tipo/ativo.",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      warnIfNotAdmin(isAdmin);
+
+      try {
+        setUpdatingRole(true);
+        await adminSetRole({
+          uid,
+          role: targetRole,
+          tipo: targetTipo,
+          ativo: targetAtivo === "true",
+        });
+        toast({ title: "Permissões atualizadas", description: "Role/tipo/ativo atualizados com sucesso." });
+      } catch (error) {
+        toast({ title: "Erro ao atualizar role", description: getErrorMessage(error), variant: "destructive" });
+      } finally {
+        setUpdatingRole(false);
+      }
+    };
+
+    const emailCheckTone = useMemo<"muted" | "warning">(
+      () => (emailCheckStatus === "exists" || emailCheckStatus === "error" ? "warning" : "muted"),
+      [emailCheckStatus],
+    );
+
+    return (
+      <ResponsiveLayout headerTitle="Cadastros" headerSubtitle="Obras e administração de usuários">
+        <div className="px-4 py-6 lg:px-8 lg:py-8 space-y-4">
+          <CreateObraCard
+            nome={nome}
+            descricao={descricao}
+            status={status}
+            isCreating={isCreating}
+            setNome={setNome}
+            setDescricao={setDescricao}
+            setStatus={setStatus}
+            onCreateObra={handleCreateObra}
+          />
+
+          <AdminFunctionsCard
+            isAdmin={isAdmin}
+            users={userOptions}
+            obras={obraOptions}
+            novoEmail={novoEmail}
+            novaSenha={novaSenha}
+            novoNome={novoNome}
+            novoTipo={novoTipo}
+            novoRole={novoRole}
+            novoObrasRaw={novoObrasRaw}
+            creatingUser={creatingUser}
+            targetUidRole={targetUidRole}
+            targetRole={targetRole}
+            targetTipo={targetTipo}
+            targetAtivo={targetAtivo}
+            updatingRole={updatingRole}
+            emailCheckMessage={emailCheckMessage}
+            emailCheckTone={emailCheckTone}
+            onNovoEmailChange={setNovoEmail}
+            onNovoEmailBlur={() => void verifyEmailExists(novoEmail)}
+            setNovaSenha={setNovaSenha}
+            setNovoNome={setNovoNome}
+            setNovoTipo={setNovoTipo}
+            setNovoRole={setNovoRole}
+            setNovoObrasRaw={setNovoObrasRaw}
+            setTargetUidRole={setTargetUidRole}
+            setTargetRole={setTargetRole}
+            setTargetTipo={setTargetTipo}
+            setTargetAtivo={setTargetAtivo}
+            onAdminCreateUser={handleAdminCreateUser}
+            onAdminSetRole={handleAdminSetRole}
+          />
+
+          <ObrasVinculadasCard />
+        </div>
+      </ResponsiveLayout>
+    );
   };
 
+<<<<<<< HEAD
       const handleAdminCreateUser = async () => {
     const email = normalizeEmail(novoEmail);
     const senha = novaSenha.trim();
@@ -783,3 +898,6 @@ const StaffCadastrosPage = () => {
 };
 
 export default StaffCadastrosPage;
+=======
+  export default StaffCadastrosPage;
+>>>>>>> parent of 732a25e (Melhora da pagina Admin - Cadastros MKII)
