@@ -29,6 +29,9 @@ function LoadingFallback({ label }: { label?: string }) {
     </Stack>
   );
 }
+
+console.log("[build]", import.meta.env.MODE, "__BUILD__", "1030");
+
 export default function App() {
   return (
    <BrowserRouter>

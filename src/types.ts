@@ -11,6 +11,7 @@ export interface Registro {
   local?: string;
   motivo?: string;
   observacao?: string;
+  obra?: string;
   km?: number;
   semKm?: string;
   tipoPlaca?: boolean;

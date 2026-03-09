@@ -1,11 +1,14 @@
 import { useCallback, useEffect, useState } from 'react';
 import * as api from '../services/combustivelApi';
+import { saveCombustivel } from '../services/combustivelFirestore';
+import { useAuth } from '../contexts/AuthContext';
 import type { Registro } from '../types';
 
 export default function useCombustivel() {
   const [data, setData] = useState<Registro[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const { currentUser } = useAuth();
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -23,8 +26,11 @@ export default function useCombustivel() {
   const create = useCallback(async (values: Omit<Registro, 'id'>) => {
     setLoading(true);
     try {
-      const res = await api.create(values);
-      setData(d => [...d, res as Registro]);
+      if (!currentUser?.email) {
+        throw new Error('Usuário não autenticado');
+      }
+      const res = await saveCombustivel({ ...values, email: currentUser.email });
+      setData((d) => [...d, res]);
       setError(null);
       return res;
     } catch (err: any) {
@@ -33,7 +39,7 @@ export default function useCombustivel() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [currentUser?.email]);
 
   const update = useCallback(async (id: string, values: Partial<Registro>) => {
     setLoading(true);

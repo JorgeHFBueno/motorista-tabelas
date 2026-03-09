@@ -1191,6 +1191,7 @@ export default function FrotaVeiculosPage() {
                             onChange={(event) =>
                                 setManutencaoForm((prev) => ({ ...prev, valor: event.target.value }))
                             }
+                            inputProps={{ className: 'no-number-spinner' }}
                             fullWidth
                             required
                         />
@@ -1201,6 +1202,7 @@ export default function FrotaVeiculosPage() {
                             onChange={(event) =>
                                 setManutencaoForm((prev) => ({ ...prev, quantidade: event.target.value }))
                             }
+                            inputProps={{ className: 'no-number-spinner' }}
                             fullWidth
                             required
                         />
