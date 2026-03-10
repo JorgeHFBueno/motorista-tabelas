@@ -1,10 +1,10 @@
 const FIREBASE_PREVIEW_FALLBACK = {
-  apiKey: "__LOVABLE_FIREBASE_API_KEY__",
-  authDomain: "__LOVABLE_FIREBASE_AUTH_DOMAIN__",
-  projectId: "__LOVABLE_FIREBASE_PROJECT_ID__",
-  storageBucket: "__LOVABLE_FIREBASE_STORAGE_BUCKET__",
-  messagingSenderId: "__LOVABLE_FIREBASE_MESSAGING_SENDER_ID__",
-  appId: "__LOVABLE_FIREBASE_APP_ID__",
+  apiKey: "AIzaSyDaG0byTRuZ-jQHj3svvkkBmlC968MsPrA",
+  authDomain: "ledur-clientes.firebaseapp.com",
+  projectId: "ledur-clientes",
+  storageBucket: "ledur-clientes.firebasestorage.app",
+  messagingSenderId: "653131571109",
+  appId: "1:653131571109:web:56fa2c57e7f821498f924c",
 } as const;
 
 function readEnvValue(name: string): string {
