@@ -14,9 +14,9 @@ function RouteGuardLoading() {
 
 export default function PrivateRoute() {
   const { currentUser, loading: authLoading } = useAuth();
-  const { loading: authorizationLoading, authorized, error } = useAdm2Authorization(currentUser);
+  const { loading: authorizationLoading, authorized, error } = useAdm2Authorization(currentUser, authLoading);
 
-  if (authLoading || authorizationLoading) {
+  if (authLoading) {
     return <RouteGuardLoading />;
   }
 
@@ -24,11 +24,15 @@ export default function PrivateRoute() {
     return <Navigate to="/login" replace />;
   }
 
+  if (authorizationLoading || authorized === null) {
+    return <RouteGuardLoading />;
+  }
+
   if (!currentUser.email?.trim()) {
     return <Navigate to="/acesso-negado" replace state={{ reason: 'missing-email' }} />;
   }
 
-  if (!authorized) {
+  if (authorized === false) {
     return (
       <Navigate
         to="/acesso-negado"
