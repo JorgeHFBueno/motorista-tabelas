@@ -31,7 +31,7 @@ function LoadingFallback({ label }: { label?: string }) {
   );
 }
 
-console.log("[build]", import.meta.env.MODE, "__BUILD__", "1040");
+console.log("[build]", import.meta.env.MODE, "__BUILD__", "1045");
 
 export default function App() {
   return (
@@ -42,19 +42,19 @@ export default function App() {
       <Header />
        <Suspense fallback={<LoadingFallback />}>
         <Routes>
-          <Route path="/login" element={<LoginPage />} />
-          <Route path="/signup" element={<SignupPage />} />
-          <Route path="/acesso-negado" element={<AccessDeniedPage />} />
+          <Route path="login" element={<LoginPage />} />
+          <Route path="signup" element={<SignupPage />} />
+          <Route path="acesso-negado" element={<AccessDeniedPage />} />
           <Route element={<PrivateRoute />}>
-          <Route path="/" element={<HomeDashboard />} />
-            <Route path="/combustivel" element={<TabelaCombustivel />} />
-            <Route path="/cadastros" element={<CadastrosPage />} />
-            <Route path="/cadastros/editar/:tipo" element={<CadastrosEditarPage />} />
-            <Route path="/registros" element={<RegistrosPage />} />
-            <Route path="/frota" element={<FrotaVeiculosPage />} />
-            <Route path="/frota/:placa" element={<FrotaVeiculoDetalhesPage />} />
-            <Route path="/bombas" element={<BombasPage />} />
-            <Route path="/portfolio" element={<PortifolioPage />} />
+          <Route index element={<HomeDashboard />} />
+            <Route path="combustivel" element={<TabelaCombustivel />} />
+            <Route path="cadastros" element={<CadastrosPage />} />
+            <Route path="cadastros/editar/:tipo" element={<CadastrosEditarPage />} />
+            <Route path="registros" element={<RegistrosPage />} />
+            <Route path="frota" element={<FrotaVeiculosPage />} />
+            <Route path="frota/:placa" element={<FrotaVeiculoDetalhesPage />} />
+            <Route path="bombas" element={<BombasPage />} />
+            <Route path="portfolio" element={<PortifolioPage />} />
           </Route>
         </Routes>
       </Suspense>
