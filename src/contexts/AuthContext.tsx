@@ -1,6 +1,9 @@
 import { createContext, useContext, useEffect, useState } from 'react';
 import { app } from '../firebase';
-import { getAuth, onAuthStateChanged, signInWithEmailAndPassword,
+import {
+  getAuth,
+  onAuthStateChanged,
+  signInWithEmailAndPassword,
   createUserWithEmailAndPassword,
   signOut as firebaseSignOut,
   type User,
@@ -30,8 +33,8 @@ export const useAuth = () => useContext(AuthContext);
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
-    const [customClaims, setCustomClaims] = useState<Record<string, any> | null>(null);
-const [loading, setLoading] = useState(true);
+  const [customClaims, setCustomClaims] = useState<Record<string, any> | null>(null);
+  const [loading, setLoading] = useState(true);
   const auth = getAuth(app);
 
   useEffect(() => {
@@ -47,7 +50,8 @@ const [loading, setLoading] = useState(true);
       setCustomClaims(null);
       return;
     }
-    currentUser.getIdTokenResult()
+    currentUser
+      .getIdTokenResult()
       .then(res => setCustomClaims(res.claims))
       .catch(() => setCustomClaims(null));
   }, [currentUser]);

@@ -20,6 +20,7 @@ const FrotaVeiculosPage = lazy(() => import('./pages/FrotaVeiculosPage'));
 const FrotaVeiculoDetalhesPage = lazy(() => import('./pages/FrotaVeiculoDetalhesPage'));
 const HomeDashboard = lazy(() => import('./pages/HomeDashboard'));
 const BombasPage = lazy(() => import('./pages/BombasPage'));
+const AccessDeniedPage = lazy(() => import('./pages/AccessDeniedPage'));
 
 function LoadingFallback({ label }: { label?: string }) {
   return (
@@ -30,7 +31,7 @@ function LoadingFallback({ label }: { label?: string }) {
   );
 }
 
-console.log("[build]", import.meta.env.MODE, "__BUILD__", "1030");
+console.log("[build]", import.meta.env.MODE, "__BUILD__", "1035");
 
 export default function App() {
   return (
@@ -43,6 +44,7 @@ export default function App() {
         <Routes>
           <Route path="/login" element={<LoginPage />} />
           <Route path="/signup" element={<SignupPage />} />
+          <Route path="/acesso-negado" element={<AccessDeniedPage />} />
           <Route element={<PrivateRoute />}>
           <Route path="/" element={<HomeDashboard />} />
             <Route path="/combustivel" element={<TabelaCombustivel />} />

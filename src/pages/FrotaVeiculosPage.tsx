@@ -1213,6 +1213,7 @@ export default function FrotaVeiculosPage() {
                             onChange={(event) =>
                                 setManutencaoForm((prev) => ({ ...prev, km: event.target.value }))
                             }
+                            inputProps={{ className: 'no-number-spinner' }}
                             fullWidth
                         />
                         <Autocomplete
