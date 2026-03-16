@@ -1,6 +1,9 @@
 import {
   Alert,
+  Autocomplete,
   Button,
+  Checkbox,
+  CircularProgress,
   Dialog,
   DialogActions,
   DialogContent,
@@ -8,8 +11,7 @@ import {
   FormControl,
   FormControlLabel,
   FormLabel,
-  Radio,
-  RadioGroup,
+  MenuItem,
   Stack,
   Switch,
   TextField,
@@ -17,6 +19,12 @@ import {
 import { type ChangeEvent, useEffect, useMemo, useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import type { Registro } from '../types';
+import { DESTINOS_OPTIONS } from '../constants/combustivel';
+import { listObrasNames } from '../services/obras.service';
+import { listVeiculosAtivos, type VeiculoOption } from '../services/veiculos.service';
+import { listMotoristasAtivos } from '../services/motoristas.service';
+import { listMotivosCombustivelAtivos } from '../services/motivos.service';
+import { getInitialLiValue } from '../services/combustivel.service';
 
 type KmMode = 'km' | 'semOdometro' | 'galao';
 
@@ -62,6 +70,14 @@ export default function CombustivelForm({ open, initialData, onClose, onSave }: 
   const [kmMode, setKmMode] = useState<KmMode>('km');
   const [submitting, setSubmitting] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
+  const [loadingOptions, setLoadingOptions] = useState(false);
+
+  const [obrasOptions, setObrasOptions] = useState<string[]>([]);
+  const [veiculosOptions, setVeiculosOptions] = useState<VeiculoOption[]>([]);
+  const [motoristasOptions, setMotoristasOptions] = useState<string[]>([]);
+  const [motivosOptions, setMotivosOptions] = useState<string[]>([]);
+
+  const [lfEditedManually, setLfEditedManually] = useState(false);
 
   const defaultMotorista = useMemo(() => {
     const email = currentUser?.email?.trim().toLowerCase() ?? '';
@@ -69,30 +85,124 @@ export default function CombustivelForm({ open, initialData, onClose, onSave }: 
   }, [currentUser?.email]);
 
   useEffect(() => {
+    if (!open) return;
+    let mounted = true;
+
+    const loadOptions = async () => {
+      setLoadingOptions(true);
+      setFormError(null);
+      try {
+        const [obras, veiculos, motoristas, motivos] = await Promise.all([
+          listObrasNames(),
+          listVeiculosAtivos(),
+          listMotoristasAtivos(),
+          listMotivosCombustivelAtivos(),
+        ]);
+
+        if (!mounted) return;
+        setObrasOptions(obras);
+        setVeiculosOptions(veiculos);
+        setMotoristasOptions(motoristas);
+        setMotivosOptions(motivos);
+      } catch (err) {
+        if (!mounted) return;
+        const message = err instanceof Error ? err.message : 'Erro ao carregar listas do formulário.';
+        setFormError(message);
+      } finally {
+        if (mounted) setLoadingOptions(false);
+      }
+    };
+
+    void loadOptions();
+
+    return () => {
+      mounted = false;
+    };
+  }, [open]);
+
+  useEffect(() => {
+    if (!open) return;
+
+    let mounted = true;
     const nextValues = initialData ? { ...initialData } : {};
+    
     if (!nextValues.motorista && defaultMotorista) {
       nextValues.motorista = defaultMotorista;
     }
     if (typeof nextValues.tipoPlaca !== 'boolean') {
       nextValues.tipoPlaca = true;
     }
-    setValues(nextValues);
-    setKmMode(getInitialKmMode(initialData));
-    setSubmitting(false);
-    setFormError(null);
+    
+    const initValues = async () => {
+      if (!initialData?.id && typeof nextValues.li === 'undefined') {
+        try {
+          const initialLi = await getInitialLiValue();
+          if (mounted && initialLi !== null) {
+            nextValues.li = initialLi;
+          }
+        } catch {
+          // silencioso: campo continua livre para preenchimento manual
+        }
+      }
+
+      if (!mounted) return;
+      setValues(nextValues);
+      setKmMode(getInitialKmMode(initialData));
+      setLfEditedManually(false);
+      setSubmitting(false);
+      setFormError(null);
+    };
+
+    void initValues();
+
+    return () => {
+      mounted = false;
+    };
   }, [initialData, defaultMotorista, open]);
 
+  useEffect(() => {
+    if (lfEditedManually) return;
+    const li = toInt(values.li);
+    const qa = toInt(values.qa);
+    const computedLf = li + qa;
+    if (toInt(values.lf) !== computedLf) {
+      setValues((current) => ({ ...current, lf: computedLf }));
+    }
+  }, [values.li, values.qa, values.lf, lfEditedManually]);
+
   const handleChange = (field: keyof Registro) => (e: ChangeEvent<HTMLInputElement>) => {
-    setValues((v) => ({ ...v, [field]: e.target.value }));
+    const nextValue = e.target.value;
+    if (field === 'lf') {
+      setLfEditedManually(true);
+    }
+    setValues((v) => ({ ...v, [field]: nextValue }));
   };
 
   const handleTipoPlacaChange = (e: ChangeEvent<HTMLInputElement>) => {
     setValues((v) => ({ ...v, tipoPlaca: e.target.checked }));
   };
 
+  const handleKmModeChange = (nextMode: KmMode) => {
+    setKmMode(nextMode);
+    setValues((current) => {
+      const next = { ...current };
+      if (nextMode === 'km') {
+        next.semKm = '';
+      } else if (nextMode === 'galao') {
+        next.km = undefined;
+        next.semKm = 'Galão';
+      } else {
+        next.km = undefined;
+        next.semKm = 'Sem Odômetro';
+      }
+      return next;
+    });
+  };
+
   const clearForm = () => {
     setValues({ motorista: defaultMotorista, tipoPlaca: true });
     setKmMode('km');
+    setLfEditedManually(false);
     setFormError(null);
   };
 
@@ -130,11 +240,14 @@ export default function CombustivelForm({ open, initialData, onClose, onSave }: 
 
     if (kmMode === 'km') {
       payload.km = km;
+      payload.semKm = '';
     }
     if (kmMode === 'semOdometro') {
+      payload.km = null as unknown as number;
       payload.semKm = 'Sem Odômetro';
     }
     if (kmMode === 'galao') {
+      payload.km = null as unknown as number;
       payload.semKm = 'Galão';
     }
 
@@ -158,6 +271,14 @@ export default function CombustivelForm({ open, initialData, onClose, onSave }: 
         <DialogContent sx={{ pt: 2 }}>
           <Stack spacing={2}>
             {formError && <Alert severity="error">{formError}</Alert>}
+            
+            {loadingOptions && (
+              <Stack direction="row" alignItems="center" spacing={1}>
+                <CircularProgress size={18} />
+                <Alert severity="info">Carregando listas do formulário...</Alert>
+              </Stack>
+            )}
+
             <TextField
               label="Data"
               type="datetime-local"
@@ -167,18 +288,70 @@ export default function CombustivelForm({ open, initialData, onClose, onSave }: 
             />
 
             <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
-              <TextField label="Placa" value={values.placa ?? ''} onChange={handleChange('placa')} fullWidth />
-              <TextField label="Obra" value={values.obra ?? ''} onChange={handleChange('obra')} fullWidth />
+               <Autocomplete
+                options={veiculosOptions}
+                getOptionLabel={(option) => option.identificador}
+                value={veiculosOptions.find((v) => v.identificador === values.placa) ?? null}
+                onChange={(_, vehicle) => {
+                  setValues((current) => ({
+                    ...current,
+                    placa: vehicle?.identificador ?? '',
+                    km: vehicle?.quilometragemUltima ?? current.km,
+                  }));
+                }}
+                loading={loadingOptions}
+                renderInput={(params) => <TextField {...params} label="Placa" fullWidth />}
+                fullWidth
+              />
+
+              <TextField select label="Obra" value={values.obra ?? ''} onChange={handleChange('obra')} fullWidth>
+                {obrasOptions.map((obra) => (
+                  <MenuItem key={obra} value={obra}>{obra}</MenuItem>
+                ))}
+              </TextField>
             </Stack>
 
             <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
-              <TextField label="Local" value={values.local ?? ''} onChange={handleChange('local')} fullWidth />
-              <TextField label="Motivo" value={values.motivo ?? ''} onChange={handleChange('motivo')} fullWidth />
+              <Autocomplete
+                freeSolo
+                options={DESTINOS_OPTIONS}
+                value={values.local ?? ''}
+                onInputChange={(_, value) => setValues((current) => ({ ...current, local: value }))}
+                renderInput={(params) => <TextField {...params} label="Local" fullWidth />}
+                fullWidth
+              />
+
+              <Autocomplete
+                freeSolo
+                options={motivosOptions}
+                value={values.motivo ?? ''}
+                onInputChange={(_, value) => setValues((current) => ({ ...current, motivo: value }))}
+                loading={loadingOptions}
+                renderInput={(params) => <TextField {...params} label="Motivo" fullWidth />}
+                fullWidth
+              />
             </Stack>
 
             <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
-              <TextField label="Para quem" value={values.para_quem ?? ''} onChange={handleChange('para_quem')} fullWidth />
-              <TextField label="Motorista" value={values.motorista ?? ''} onChange={handleChange('motorista')} fullWidth />
+              <Autocomplete
+                freeSolo
+                options={motoristasOptions}
+                value={values.para_quem ?? ''}
+                onInputChange={(_, value) => setValues((current) => ({ ...current, para_quem: value }))}
+                loading={loadingOptions}
+                renderInput={(params) => <TextField {...params} label="Para quem" fullWidth />}
+                fullWidth
+              />
+
+              <Autocomplete
+                freeSolo
+                options={motoristasOptions}
+                value={values.motorista ?? ''}
+                onInputChange={(_, value) => setValues((current) => ({ ...current, motorista: value }))}
+                loading={loadingOptions}
+                renderInput={(params) => <TextField {...params} label="Motorista" fullWidth />}
+                fullWidth
+              />
             </Stack>
 
             <TextField label="Observação" value={values.observacao ?? ''} onChange={handleChange('observacao')} fullWidth multiline minRows={2} />
@@ -190,11 +363,20 @@ export default function CombustivelForm({ open, initialData, onClose, onSave }: 
 
             <FormControl>
               <FormLabel>Modo de odômetro</FormLabel>
-              <RadioGroup row value={kmMode} onChange={(_, value) => setKmMode(value as KmMode)}>
-                <FormControlLabel value="km" control={<Radio />} label="KM" />
-                <FormControlLabel value="semOdometro" control={<Radio />} label="Sem Odômetro" />
-                <FormControlLabel value="galao" control={<Radio />} label="Galão" />
-              </RadioGroup>
+              <Stack direction="row" spacing={2}>
+                <FormControlLabel
+                  control={<Checkbox checked={kmMode === 'km'} onChange={() => handleKmModeChange('km')} />}
+                  label="KM"
+                />
+                <FormControlLabel
+                  control={<Checkbox checked={kmMode === 'galao'} onChange={() => handleKmModeChange('galao')} />}
+                  label="GALÃO"
+                />
+                <FormControlLabel
+                  control={<Checkbox checked={kmMode === 'semOdometro'} onChange={() => handleKmModeChange('semOdometro')} />}
+                  label="SEM ODÔMETRO"
+                />
+              </Stack>
             </FormControl>
 
             {kmMode === 'km' && (
@@ -211,7 +393,7 @@ export default function CombustivelForm({ open, initialData, onClose, onSave }: 
         </DialogContent>
         <DialogActions>
           <Button onClick={onClose} disabled={submitting}>Cancelar</Button>
-          <Button type="submit" variant="contained" disabled={submitting}>
+          <Button type="submit" variant="contained" disabled={submitting || loadingOptions}>
             {submitting ? 'Salvando...' : 'Salvar'}
           </Button>
         </DialogActions>

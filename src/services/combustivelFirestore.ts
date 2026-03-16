@@ -73,8 +73,10 @@ export async function saveCombustivel(input: SaveCombustivelInput): Promise<Regi
 
   if (usingSemKm) {
     payload.semKm = semKmRaw;
+    payload.km = null;
   } else {
     payload.km = toInt(kmRaw);
+    payload.semKm = '';
   }
 
   if (import.meta.env.DEV) {
