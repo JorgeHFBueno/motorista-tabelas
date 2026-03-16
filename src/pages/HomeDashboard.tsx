@@ -4,6 +4,7 @@ import ListAltIcon from '@mui/icons-material/ListAlt';
 import DirectionsCarFilledIcon from '@mui/icons-material/DirectionsCarFilled';
 import LocalGasStationIcon from '@mui/icons-material/LocalGasStation';
 import WorkspacesIcon from '@mui/icons-material/Workspaces';
+import { useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { useAuthorizationProfile } from '../hooks/useAuthorizationProfile';
@@ -36,7 +37,7 @@ const actions = [
     description: 'Controle de abastecimentos',
     icon: <LocalGasStationIcon fontSize="large" />,
     color: '#fb8500',
-    to: '/combustivel',
+    to: '/combustivel/novo',
   },
   {
     label: 'Portifólio',
@@ -54,13 +55,11 @@ export default function HomeDashboard() {
   const isAdm1 = profile?.adm1 === true;
   const { requestAccess, dialog } = useAdm1MontanteGate(isAdm1);
 
-  const resolvedActions = actions.map((action) => {
-    if (action.to === '/combustivel' && isAdm1) {
-      return { ...action, to: '/combustivel/novo' };
-    }
+  const handleCombustivelClick = useCallback(() => {
+    requestAccess(() => navigate('/combustivel/novo'));
+  }, [navigate, requestAccess]);
 
-    return action;
-  }).filter((action) => !isAdm1 || action.label === 'Combustível');
+  const resolvedActions = actions.filter((action) => !isAdm1 || action.label === 'Combustível');
 
   if (authorizationLoading || !profile) {
     return null;
@@ -98,7 +97,7 @@ export default function HomeDashboard() {
           {resolvedActions.map((action) => (
             <Card key={action.label} elevation={3} sx={{ borderRadius: 3 }}>
               <CardActionArea
-                onClick={() => requestAccess(() => navigate(action.to))}
+                onClick={action.label === 'Combustível' ? handleCombustivelClick : () => navigate(action.to)}
                 sx={{
                   height: { xs: 150, sm: 200 },
                   backgroundColor: action.color,
@@ -130,6 +129,7 @@ export default function HomeDashboard() {
           ))}
         </Box>
       </Box>
+      {dialog}
     </Box>
   );
 }

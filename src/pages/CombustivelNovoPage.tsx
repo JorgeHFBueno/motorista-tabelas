@@ -9,6 +9,10 @@ import {
   FormLabel,
   MenuItem,
   Paper,
+  Dialog,
+  DialogActions,
+  DialogContent,
+  DialogTitle,
   Snackbar,
   Stack,
   Switch,
@@ -26,7 +30,7 @@ import { listVeiculosAtivos, type VeiculoOption } from '../services/veiculos.ser
 import { listMotoristasAtivos } from '../services/motoristas.service';
 import { listMotivosCombustivelAtivos } from '../services/motivos.service';
 import { getInitialLiValue } from '../services/combustivel.service';
-import { saveCombustivel } from '../services/combustivelFirestore';
+import { saveCombustivelAndUpdateDieselPatio } from '../services/combustivelFirestore';
 import PersistentErrorAlert from '../components/ui/PersistentErrorAlert';
 import { toUserFriendlyLoadError } from '../utils/firestoreError';
 
@@ -66,6 +70,7 @@ export default function CombustivelNovoPage() {
   const [submitting, setSubmitting] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
   const [snack, setSnack] = useState<string | null>(null);
+  const [successOpen, setSuccessOpen] = useState(false);
 
   const [obrasOptions, setObrasOptions] = useState<string[]>([]);
   const [veiculosOptions, setVeiculosOptions] = useState<VeiculoOption[]>([]);
@@ -301,9 +306,13 @@ export default function CombustivelNovoPage() {
         });
       }
       setSubmitting(true);
-      await saveCombustivel({ ...payload, email: currentUser.email });
-      setSnack('Registro salvo com sucesso.');
-      navigate(isAdm1 ? '/combustivel/novo' : '/combustivel');
+      await saveCombustivelAndUpdateDieselPatio({
+        ...payload,
+        email: currentUser.email,
+        frentista: currentUser.displayName?.trim() || currentUser.email,
+      });
+      setSnack('Abastecimento e bomba atualizados com sucesso.');
+      setSuccessOpen(true);
     } catch (err) {
       console.error('[combustivel/novo] erro ao salvar abastecimento', err);
       const message = err instanceof Error ? err.message : 'Não foi possível salvar o registro.';
@@ -499,6 +508,30 @@ export default function CombustivelNovoPage() {
       </Paper>
 
       <Snackbar open={!!snack} onClose={() => setSnack(null)} message={snack} autoHideDuration={10000} />
+
+      <Dialog open={successOpen} onClose={() => { }} maxWidth="sm" fullWidth>
+        <DialogTitle sx={{ fontSize: 30, textAlign: 'center', fontWeight: 700 }}>✅ Sucesso!</DialogTitle>
+        <DialogContent>
+          <Typography variant="h5" align="center" sx={{ fontWeight: 700 }}>
+            Abastecimento salvo com sucesso.
+          </Typography>
+          <Typography align="center" sx={{ mt: 1 }}>
+            O documento bombas/diesel_patio também foi atualizado.
+          </Typography>
+        </DialogContent>
+        <DialogActions sx={{ justifyContent: 'center', pb: 3 }}>
+          <Button
+            variant="contained"
+            size="large"
+            onClick={() => {
+              setSuccessOpen(false);
+              navigate('/');
+            }}
+          >
+            Ir para o menu principal
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Stack>
   );
 }

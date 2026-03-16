@@ -1,6 +1,7 @@
-import { Timestamp, doc, setDoc } from 'firebase/firestore';
+import { Timestamp, doc,runTransaction, setDoc } from 'firebase/firestore';
 import { db } from '../firebase';
 import type { Registro } from '../types';
+import type { Bomba } from '../types/Bomba';
 
 const COLLECTION_NAME = '03-combustivel';
 
@@ -9,6 +10,10 @@ interface SaveCombustivelInput extends Partial<Registro> {
   data?: Date | string | Timestamp;
   email: string;
   diesel?: number;
+}
+
+interface SaveCombustivelWithBombaInput extends SaveCombustivelInput {
+  frentista: string;
 }
 
 function normalizeString(value: unknown): string {
@@ -24,6 +29,22 @@ function toInt(value: unknown): number {
     return Number.isFinite(parsed) ? Math.trunc(parsed) : 0;
   }
   return 0;
+}
+
+function parseRequiredNumber(value: unknown, fieldLabel: string): number {
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    return value;
+  }
+  if (typeof value === 'string') {
+    const sanitized = value.replace(',', '.').trim();
+    if (sanitized) {
+      const parsed = Number(sanitized);
+      if (Number.isFinite(parsed)) {
+        return parsed;
+      }
+    }
+  }
+  throw new Error(`Campo ${fieldLabel} inválido para atualizar bomba.`);
 }
 
 function toDate(value: Date | string | Timestamp | undefined): Date {
@@ -105,4 +126,82 @@ export async function saveCombustivel(input: SaveCombustivelInput): Promise<Regi
   };
 }
 
-export default { saveCombustivel };
+export async function saveCombustivelAndUpdateDieselPatio(input: SaveCombustivelWithBombaInput): Promise<Registro> {
+  const dataDate = toDate(input.data);
+  const data = Timestamp.fromDate(dataDate);
+  const finalEmail = input.email.trim().toLowerCase();
+  const dateStr = toDateStr(dataDate);
+  const docId = `${dateStr} ${finalEmail}`;
+
+  const kmRaw = input.km;
+  const semKmRaw = normalizeString(input.semKm);
+  const usingSemKm = semKmRaw === 'Sem Odômetro' || semKmRaw === 'Galão';
+
+  const payload: Omit<Registro, 'id'> = {
+    data,
+    tipoPlaca: Boolean(input.tipoPlaca),
+    li: toInt(input.li),
+    lf: toInt(input.lf),
+    qa: toInt(input.qa),
+    arla: toInt(input.arla),
+    para_quem: normalizeString(input.para_quem),
+    motivo: normalizeString(input.motivo),
+    local: normalizeString(input.local),
+    placa: normalizeString(input.placa),
+    obra: normalizeString(input.obra),
+    motorista: normalizeString(input.motorista),
+    observacao: normalizeString(input.observacao),
+  } as Omit<Registro, 'id'>;
+
+  if (typeof input.diesel !== 'undefined') {
+    (payload as Omit<Registro, 'id'> & { diesel?: number }).diesel = toInt(input.diesel);
+  }
+
+  if (usingSemKm) {
+    payload.semKm = semKmRaw;
+    payload.km = null;
+  } else {
+    payload.km = toInt(kmRaw);
+    payload.semKm = '';
+  }
+
+  const qaNumber = parseRequiredNumber(input.qa, 'QA');
+  const lfNumber = parseRequiredNumber(input.lf, 'LF');
+  const frentista = normalizeString(input.frentista);
+  if (!frentista) {
+    throw new Error('Não foi possível identificar o frentista para atualizar a bomba.');
+  }
+
+  const combustivelRef = doc(db, COLLECTION_NAME, docId);
+  const dieselPatioRef = doc(db, 'bombas', 'diesel_patio');
+
+  await runTransaction(db, async (transaction) => {
+    const dieselPatioSnapshot = await transaction.get(dieselPatioRef);
+    if (!dieselPatioSnapshot.exists()) {
+      throw new Error('Documento bombas/diesel_patio não encontrado.');
+    }
+
+    const dieselPatioData = dieselPatioSnapshot.data() as Omit<Bomba, 'id'>;
+    const estoqueAtualAnterior = dieselPatioData.estoqueAtual;
+    if (typeof estoqueAtualAnterior !== 'number' || !Number.isFinite(estoqueAtualAnterior)) {
+      throw new Error('Campo estoqueAtual de bombas/diesel_patio inválido.');
+    }
+
+    const novoEstoqueAtual = estoqueAtualAnterior - qaNumber;
+
+    transaction.set(combustivelRef, payload, { merge: false });
+    transaction.update(dieselPatioRef, {
+      montanteAtual: lfNumber,
+      estoqueAtual: novoEstoqueAtual,
+      ultimoAbastecimento: data,
+      ultimoFrentista: frentista,
+    });
+  });
+
+  return {
+    id: docId,
+    ...payload,
+  };
+}
+
+export default { saveCombustivel, saveCombustivelAndUpdateDieselPatio };

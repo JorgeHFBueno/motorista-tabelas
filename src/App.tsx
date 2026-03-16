@@ -33,7 +33,7 @@ function LoadingFallback({ label }: { label?: string }) {
   );
 }
 
-console.log("[build]", import.meta.env.MODE, "__BUILD__", "1075");
+console.log("[build]", import.meta.env.MODE, "__BUILD__", "1085");
 
 export default function App() {
   return (
