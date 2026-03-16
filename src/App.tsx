@@ -10,6 +10,7 @@ import PwaUpdateOverlay from './components/PwaUpdateOverlay';
 import { CircularProgress, Stack, Typography } from '@mui/material';
 
 const TabelaCombustivel = lazy(() => import('./components/TabelaCombustivel'));
+const CombustivelNovoPage = lazy(() => import('./pages/CombustivelNovoPage'));
 const PortifolioPage = lazy(() => import('./components/PortifolioPage'));
 const LoginPage = lazy(() => import('./pages/LoginPage'));
 const SignupPage = lazy(() => import('./pages/SignupPage'));
@@ -31,7 +32,7 @@ function LoadingFallback({ label }: { label?: string }) {
   );
 }
 
-console.log("[build]", import.meta.env.MODE, "__BUILD__", "1050");
+console.log("[build]", import.meta.env.MODE, "__BUILD__", "1055");
 
 export default function App() {
   return (
@@ -48,6 +49,7 @@ export default function App() {
           <Route element={<PrivateRoute />}>
           <Route index element={<HomeDashboard />} />
             <Route path="combustivel" element={<TabelaCombustivel />} />
+            <Route path="combustivel/novo" element={<CombustivelNovoPage />} />
             <Route path="cadastros" element={<CadastrosPage />} />
             <Route path="cadastros/editar/:tipo" element={<CadastrosEditarPage />} />
             <Route path="registros" element={<RegistrosPage />} />

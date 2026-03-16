@@ -1,4 +1,4 @@
-import { collection, getDocs, orderBy, query, where } from 'firebase/firestore';
+import { collection, getDocs } from 'firebase/firestore';
 import { db } from '../firebase';
 
 export interface VeiculoOption {
@@ -9,17 +9,18 @@ export interface VeiculoOption {
 }
 
 export async function listVeiculosAtivos(): Promise<VeiculoOption[]> {
-  const snapshot = await getDocs(
-    query(collection(db, 'veiculos'), where('ativo', '==', true), orderBy('identificador')),
-  );
+  // Query simplificada para reduzir dependência de índice composto no Firestore.
+  const snapshot = await getDocs(collection(db, 'veiculos'));
 
   return snapshot.docs
     .map((doc) => {
       const data = doc.data() as {
         identificador?: unknown;
+        ativo?: unknown;
         categoria?: unknown;
         quilometragemUltima?: unknown;
       };
+      if (data.ativo !== true) return null;
       const identificador = typeof data.identificador === 'string' ? data.identificador.trim() : '';
       if (!identificador) return null;
 
@@ -35,5 +36,6 @@ export async function listVeiculosAtivos(): Promise<VeiculoOption[]> {
         quilometragemUltima,
       };
     })
-    .filter((item): item is VeiculoOption => item !== null);
+    .filter((item): item is VeiculoOption => item !== null)
+    .sort((a, b) => a.identificador.localeCompare(b.identificador));
 }

@@ -3,6 +3,7 @@ import { DataGrid, type GridColDef } from '@mui/x-data-grid';
 import dayjs from 'dayjs';
 import { Button, Stack, IconButton, Snackbar, Alert, Dialog, DialogTitle, DialogContent, DialogActions, TextField, MenuItem } from '@mui/material';
 import DeleteIcon from '@mui/icons-material/Delete';
+import { useNavigate } from 'react-router-dom';
 import type { Registro } from '../types';
 import useCombustivel from '../hooks/useCombustivel';
 import CombustivelForm from './CombustivelForm';
@@ -23,6 +24,7 @@ interface CustoRow {
 
 export default function TabelaCombustivel() {
   const { data: rows, loading, create, update, remove } = useCombustivel();
+  const navigate = useNavigate();
   const { isAdmin } = useAuth();
   const { isOnline } = useOnlineStatus();
 
@@ -411,7 +413,7 @@ export default function TabelaCombustivel() {
         </Alert>
       )}
       <Stack direction="row" spacing={2} mt={2}>
-        <Button variant="contained" onClick={() => setEditing({} as Registro)} sx={{ mb: 1 }}>
+        <Button variant="contained" onClick={() => navigate('/combustivel/novo')} sx={{ mb: 1 }}>
           Novo
         </Button>
         <Button
