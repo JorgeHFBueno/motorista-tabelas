@@ -58,7 +58,7 @@ export default function HomeDashboard() {
     }
 
     return action;
-  });
+  }).filter((action) => !isAdm1 || action.label === 'Combustível');
 
   if (authorizationLoading || !profile) {
     return null;

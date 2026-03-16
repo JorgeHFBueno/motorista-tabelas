@@ -28,15 +28,19 @@ export default function Header() {
                   <Nav.Link as={Link} to={isAdm1 ? '/combustivel/novo' : '/combustivel'}>
                     Cliente
                   </Nav.Link>
-                  <Nav.Link as={Link} to="/registros">
-                    Registros
-                  </Nav.Link>
-                  <Nav.Link as={Link} to="/frota">
-                    Frota
-                  </Nav.Link>                  
-                  <Nav.Link as={Link} to="/portfolio">
-                    Portifólio
-                  </Nav.Link>
+                  {!isAdm1 && (
+                    <>
+                      <Nav.Link as={Link} to="/registros">
+                        Registros
+                      </Nav.Link>
+                      <Nav.Link as={Link} to="/frota">
+                        Frota
+                      </Nav.Link>
+                      <Nav.Link as={Link} to="/portfolio">
+                        Portifólio
+                      </Nav.Link>
+                    </>
+                  )}
                 </>
               )}
             </Nav>

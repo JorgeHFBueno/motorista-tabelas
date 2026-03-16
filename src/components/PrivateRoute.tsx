@@ -1,7 +1,8 @@
-import { Navigate, Outlet } from 'react-router-dom';
+import { Navigate, Outlet, useLocation } from 'react-router-dom';
 import { CircularProgress, Stack, Typography } from '@mui/material';
 import { useAuth } from '../contexts/AuthContext';
 import { useAuthorizationProfile } from '../hooks/useAuthorizationProfile';
+import { isAdm1RouteRestricted } from '../services/adm1RouteAuthorization';
 
 function RouteGuardLoading() {
   return (
@@ -13,6 +14,7 @@ function RouteGuardLoading() {
 }
 
 export default function PrivateRoute() {
+  const location = useLocation();
   const { currentUser, loading: authLoading } = useAuth();
   const { loading: authorizationLoading, profile, error } = useAuthorizationProfile(currentUser, authLoading);
 
@@ -42,6 +44,16 @@ export default function PrivateRoute() {
         state={{ reason: error ? 'firestore-error' : 'missing-admin' }}
         />
     );
+  }
+
+  const shouldRestrictByAdm1 = isAdm1RouteRestricted(location.pathname, profile.adm1 === true);
+
+  if (shouldRestrictByAdm1) {
+    if (import.meta.env.DEV) {
+      console.info(`[authz] adm1 blocked route: ${location.pathname} -> /`);
+    }
+
+    return <Navigate to="/" replace />;
   }
 
   return <Outlet />;

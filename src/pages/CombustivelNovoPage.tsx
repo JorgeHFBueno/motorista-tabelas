@@ -428,7 +428,7 @@ export default function CombustivelNovoPage() {
 
               {isAdm1 ? (
                 <TextField
-                  label="Motorista (UID do usuário logado)"
+                  label="Frentista (usuário logado)"
                   value={currentUser?.uid ?? ''}
                   fullWidth
                   disabled
@@ -472,7 +472,7 @@ export default function CombustivelNovoPage() {
                 onChange={handleChange('li')}
                 fullWidth
                 disabled={isAdm1}
-                helperText={isAdm1 ? 'LI automático para perfil adm1.' : undefined}
+                helperText={isAdm1 ? 'Se errado avisar TI. MAS fazer abastecimento normalmente' : undefined}
               />
               <TextField label="LF" type="number" value={values.lf ?? ''} onChange={handleChange('lf')} fullWidth />
               <TextField label="QA" type="number" value={values.qa ?? ''} onChange={handleChange('qa')} fullWidth />
