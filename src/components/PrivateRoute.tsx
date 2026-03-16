@@ -1,7 +1,7 @@
 import { Navigate, Outlet } from 'react-router-dom';
 import { CircularProgress, Stack, Typography } from '@mui/material';
 import { useAuth } from '../contexts/AuthContext';
-import { useAdm2Authorization } from '../hooks/useAdm2Authorization';
+import { useAuthorizationProfile } from '../hooks/useAuthorizationProfile';
 
 function RouteGuardLoading() {
   return (
@@ -14,7 +14,7 @@ function RouteGuardLoading() {
 
 export default function PrivateRoute() {
   const { currentUser, loading: authLoading } = useAuth();
-  const { loading: authorizationLoading, authorized, error } = useAdm2Authorization(currentUser, authLoading);
+  const { loading: authorizationLoading, profile, error } = useAuthorizationProfile(currentUser, authLoading);
 
   if (authLoading) {
     return <RouteGuardLoading />;
@@ -24,21 +24,23 @@ export default function PrivateRoute() {
     return <Navigate to="/login" replace />;
   }
 
-  if (authorizationLoading || authorized === null) {
-    return <RouteGuardLoading />;
+  if (authorizationLoading || profile === null) {
+        return <RouteGuardLoading />;
   }
 
   if (!currentUser.email?.trim()) {
     return <Navigate to="/acesso-negado" replace state={{ reason: 'missing-email' }} />;
   }
 
-  if (authorized === false) {
+  const authorized = profile.adm1 || profile.adm2;
+
+  if (!authorized) {
     return (
       <Navigate
         to="/acesso-negado"
         replace
-        state={{ reason: error ? 'firestore-error' : 'missing-adm2' }}
-      />
+        state={{ reason: error ? 'firestore-error' : 'missing-admin' }}
+        />
     );
   }
 

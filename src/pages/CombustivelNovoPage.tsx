@@ -19,6 +19,7 @@ import { type ChangeEvent, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import type { Registro } from '../types';
+import { useAuthorizationProfile } from '../hooks/useAuthorizationProfile';
 import { DESTINOS_OPTIONS } from '../constants/combustivel';
 import { listObrasNames } from '../services/obras.service';
 import { listVeiculosAtivos, type VeiculoOption } from '../services/veiculos.service';
@@ -56,7 +57,9 @@ function normalizeText(value: unknown): string {
 
 export default function CombustivelNovoPage() {
   const navigate = useNavigate();
-  const { currentUser } = useAuth();
+  const { currentUser, loading: authLoading } = useAuth();
+  const { loading: authorizationLoading, profile } = useAuthorizationProfile(currentUser, authLoading);
+  const isAdm1 = profile?.adm1 === true;
 
   const [values, setValues] = useState<Partial<Registro>>({});
   const [kmMode, setKmMode] = useState<KmMode>('km');
@@ -74,6 +77,7 @@ export default function CombustivelNovoPage() {
   const [motoristasLoading, setMotoristasLoading] = useState(false);
   const [motivosLoading, setMotivosLoading] = useState(false);
   const [liLoading, setLiLoading] = useState(false);
+  const [autoLi, setAutoLi] = useState<number | null>(null);
 
   const [obrasError, setObrasError] = useState<string | null>(null);
   const [veiculosError, setVeiculosError] = useState<string | null>(null);
@@ -83,18 +87,30 @@ export default function CombustivelNovoPage() {
 
   const [lfEditedManually, setLfEditedManually] = useState(false);
 
-  const defaultMotorista = useMemo(() => {
-    const email = currentUser?.email?.trim().toLowerCase() ?? '';
-    return email.split('@')[0] || '';
-  }, [currentUser?.email]);
 
   useEffect(() => {
-    setValues({
+    if (authorizationLoading || !profile) return;
+    if (import.meta.env.DEV) {
+      console.info('[combustivel/novo] renderização escolhida', { isAdm1, adm2: profile.adm2 });
+    }
+  }, [authorizationLoading, profile, isAdm1]);
+
+  const defaultMotorista = useMemo(() => {
+    const email = currentUser?.email?.trim().toLowerCase() ?? '';
+    if (isAdm1 && currentUser?.uid) {
+      return currentUser.uid;
+    }
+    return email.split('@')[0] || '';
+  }, [isAdm1, currentUser?.uid, currentUser?.email]);
+
+  useEffect(() => {
+    setValues((current) => ({
+      ...current,
       motorista: defaultMotorista,
-      tipoPlaca: true,
-      data: new Date(),
-    });
-  }, [defaultMotorista]);
+      tipoPlaca: typeof current.tipoPlaca === 'boolean' ? current.tipoPlaca : true,
+      data: isAdm1 ? new Date() : (current.data ?? new Date()),
+    }));
+  }, [defaultMotorista, isAdm1]);
 
   const loadObras = async () => {
     setObrasLoading(true);
@@ -163,7 +179,8 @@ export default function CombustivelNovoPage() {
       console.info('[combustivel/novo] LI inicial carregado', initialLi);
       setLiError(null);
       if (initialLi !== null) {
-        setValues((current) => (typeof current.li === 'undefined' ? { ...current, li: initialLi } : current));
+        setAutoLi(initialLi);
+        setValues((current) => ({ ...current, li: initialLi }));
       }
     } catch (err) {
       console.error('[combustivel/novo] erro ao carregar LI inicial', err);
@@ -188,6 +205,10 @@ export default function CombustivelNovoPage() {
   }, [values.li, values.qa, values.lf, lfEditedManually]);
 
   const handleChange = (field: keyof Registro) => (e: ChangeEvent<HTMLInputElement>) => {
+    if (isAdm1 && (field === 'data' || field === 'li' || field === 'motorista')) {
+      return;
+    }
+
     const nextValue = e.target.value;
     if (field === 'lf') {
       setLfEditedManually(true);
@@ -231,6 +252,10 @@ export default function CombustivelNovoPage() {
       return;
     }
 
+    const lockedDataForAdm1 = new Date();
+    const lockedLiForAdm1 = toInt(autoLi ?? values.li);
+    const lockedMotoristaUid = currentUser.uid;
+
     const km = toInt(values.km);
     if (kmMode === 'km' && km < 0) {
       setFormError('KM deve ser maior ou igual a zero.');
@@ -238,15 +263,15 @@ export default function CombustivelNovoPage() {
     }
 
     const payload: Partial<Registro> = {
-      data,
+      data: isAdm1 ? lockedDataForAdm1 : data,
       placa: normalizeText(values.placa),
       obra: normalizeText(values.obra),
       local: normalizeText(values.local),
       motivo: normalizeText(values.motivo),
       para_quem: normalizeText(values.para_quem),
-      motorista: normalizeText(values.motorista),
+      motorista: isAdm1 ? lockedMotoristaUid : normalizeText(values.motorista),
       observacao: normalizeText(values.observacao),
-      li: toInt(values.li),
+      li: isAdm1 ? lockedLiForAdm1 : toInt(values.li),
       lf: toInt(values.lf),
       qa: toInt(values.qa),
       arla: toInt(values.arla),
@@ -267,6 +292,14 @@ export default function CombustivelNovoPage() {
     }
 
     try {
+      if (import.meta.env.DEV) {
+        console.info('[combustivel/novo] payload sanitizado', {
+          isAdm1,
+          motorista: payload.motorista,
+          data: payload.data,
+          li: payload.li,
+        });
+      }
       setSubmitting(true);
       await saveCombustivel({ ...payload, email: currentUser.email });
       setSnack('Registro salvo com sucesso.');
@@ -280,11 +313,20 @@ export default function CombustivelNovoPage() {
     }
   };
 
+  if (authorizationLoading || !profile) {
+    return (
+      <Stack direction="row" spacing={1} alignItems="center" justifyContent="center" p={3}>
+        <CircularProgress size={22} />
+        <Typography variant="body2">Validando perfil de acesso...</Typography>
+      </Stack>
+    );
+  }
+
   return (
     <Stack spacing={2} sx={{ p: 2 }}>
       <Stack direction="row" alignItems="center" justifyContent="space-between">
         <Typography variant="h5">Novo abastecimento</Typography>
-        <Button onClick={() => navigate('/combustivel')} disabled={submitting}>
+        <Button onClick={() => navigate(isAdm1 ? '/' : '/combustivel')} disabled={submitting}>
           Voltar
         </Button>
       </Stack>
@@ -322,6 +364,8 @@ export default function CombustivelNovoPage() {
               value={toDateInputValue(values.data)}
               onChange={handleChange('data')}
               InputLabelProps={{ shrink: true }}
+              disabled={isAdm1}
+              helperText={isAdm1 ? 'Data automática para perfil adm1.' : undefined}
             />
 
             <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
@@ -382,15 +426,24 @@ export default function CombustivelNovoPage() {
                 fullWidth
               />
 
-              <Autocomplete
-                freeSolo
-                options={motoristasOptions}
-                value={values.motorista ?? ''}
-                onInputChange={(_, value) => setValues((current) => ({ ...current, motorista: value }))}
-                loading={motoristasLoading}
-                renderInput={(params) => <TextField {...params} label="Motorista" fullWidth />}
-                fullWidth
-              />
+              {isAdm1 ? (
+                <TextField
+                  label="Motorista (UID do usuário logado)"
+                  value={currentUser?.uid ?? ''}
+                  fullWidth
+                  disabled
+                />
+              ) : (
+                <Autocomplete
+                  freeSolo
+                  options={motoristasOptions}
+                  value={values.motorista ?? ''}
+                  onInputChange={(_, value) => setValues((current) => ({ ...current, motorista: value }))}
+                  loading={motoristasLoading}
+                  renderInput={(params) => <TextField {...params} label="Motorista" fullWidth />}
+                  fullWidth
+                />
+              )}
             </Stack>
 
             <TextField label="Observação" value={values.observacao ?? ''} onChange={handleChange('observacao')} fullWidth multiline minRows={2} />
@@ -412,14 +465,22 @@ export default function CombustivelNovoPage() {
             {kmMode === 'km' && <TextField label="KM" type="number" inputProps={{ min: 0 }} value={values.km ?? ''} onChange={handleChange('km')} required />}
 
             <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
-              <TextField label="LI" type="number" value={values.li ?? ''} onChange={handleChange('li')} fullWidth />
+              <TextField
+                label="LI"
+                type="number"
+                value={values.li ?? ''}
+                onChange={handleChange('li')}
+                fullWidth
+                disabled={isAdm1}
+                helperText={isAdm1 ? 'LI automático para perfil adm1.' : undefined}
+              />
               <TextField label="LF" type="number" value={values.lf ?? ''} onChange={handleChange('lf')} fullWidth />
               <TextField label="QA" type="number" value={values.qa ?? ''} onChange={handleChange('qa')} fullWidth />
               <TextField label="ARLA" type="number" value={values.arla ?? ''} onChange={handleChange('arla')} fullWidth />
             </Stack>
 
             <Stack direction="row" justifyContent="flex-end" spacing={1}>
-              <Button onClick={() => navigate('/combustivel')} disabled={submitting}>
+              <Button onClick={() => navigate(isAdm1 ? '/' : '/combustivel')} disabled={submitting}>
                 Cancelar
               </Button>
               <Button

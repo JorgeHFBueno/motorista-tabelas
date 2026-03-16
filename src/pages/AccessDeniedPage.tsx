@@ -1,31 +1,35 @@
-import { Alert, Button, Stack, Typography } from '@mui/material';
-import { Link, useLocation } from 'react-router-dom';
+import { Box, Button, Paper, Stack, Typography } from '@mui/material';
+import { useLocation, useNavigate } from 'react-router-dom';
 
 const reasonMessages: Record<string, string> = {
-  'missing-email': 'Não foi possível validar seu acesso porque sua conta não possui e-mail válido.',
-  'missing-adm2': 'Seu usuário não possui autorização administrativa (adm2) para acessar esta área.',
+  'missing-admin': 'Seu usuário não possui autorização administrativa (adm1/adm2) para acessar esta área.',
+  'missing-email': 'Seu usuário autenticado não possui e-mail associado e não pode ser validado.',
   'firestore-error':
     'Não foi possível confirmar sua autorização administrativa agora. Tente novamente em instantes.',
 };
 
 export default function AccessDeniedPage() {
   const location = useLocation();
-  const reason = typeof location.state?.reason === 'string' ? location.state.reason : 'missing-adm2';
-  const message = reasonMessages[reason] ?? reasonMessages['missing-adm2'];
+  const navigate = useNavigate();
+
+  const reason = typeof location.state?.reason === 'string' ? location.state.reason : 'missing-admin';
+  const message = reasonMessages[reason] ?? reasonMessages['missing-admin'];
 
   return (
-    <Stack spacing={2} maxWidth={640} mx="auto" mt={6} px={2}>
-      <Typography variant="h5">Acesso negado</Typography>
-      <Alert severity="warning">{message}</Alert>
-      <Typography variant="body2" color="text.secondary">
-        Para continuar, solicite a liberação do seu e-mail na coleção <strong>00-autorizados</strong> com
-        o campo <strong>adm2</strong> definido como <strong>true</strong>.
-      </Typography>
-      <Stack direction="row" spacing={1}>
-        <Button component={Link} to="/login" variant="contained">
-          Ir para login
-        </Button>
-      </Stack>
-    </Stack>
+    <Box sx={{ minHeight: 'calc(100vh - 72px)', display: 'grid', placeItems: 'center', p: 2 }}>
+      <Paper sx={{ p: 3, maxWidth: 560, width: '100%' }} elevation={3}>
+        <Stack spacing={2}>
+          <Typography variant="h5" fontWeight={700}>Acesso negado</Typography>
+          <Typography variant="body1">{message}</Typography>
+          <Typography variant="body2" color="text.secondary">
+            Para acessar a aplicação, peça para um administrador confirmar no Firestore
+            o campo <strong>adm1</strong> ou <strong>adm2</strong> definido como <strong>true</strong>.
+          </Typography>
+          <Stack direction="row" spacing={1} justifyContent="flex-end">
+            <Button variant="outlined" onClick={() => navigate('/login', { replace: true })}>Ir para login</Button>
+          </Stack>
+        </Stack>
+      </Paper>
+    </Box>
   );
 }
