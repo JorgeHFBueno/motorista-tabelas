@@ -5,6 +5,8 @@ import DirectionsCarFilledIcon from '@mui/icons-material/DirectionsCarFilled';
 import LocalGasStationIcon from '@mui/icons-material/LocalGasStation';
 import WorkspacesIcon from '@mui/icons-material/Workspaces';
 import { useNavigate } from 'react-router-dom';
+import { useAuth } from '../contexts/AuthContext';
+import { useAuthorizationProfile } from '../hooks/useAuthorizationProfile';
 
 const actions = [
   {
@@ -46,6 +48,21 @@ const actions = [
 
 export default function HomeDashboard() {
   const navigate = useNavigate();
+  const { currentUser, loading: authLoading } = useAuth();
+  const { loading: authorizationLoading, profile } = useAuthorizationProfile(currentUser, authLoading);
+  const isAdm1 = profile?.adm1 === true;
+
+  const resolvedActions = actions.map((action) => {
+    if (action.to === '/combustivel' && isAdm1) {
+      return { ...action, to: '/combustivel/novo' };
+    }
+
+    return action;
+  });
+
+  if (authorizationLoading || !profile) {
+    return null;
+  }
 
   return (
     <Box
@@ -76,7 +93,7 @@ export default function HomeDashboard() {
             gap: 3,
           }}
         >
-          {actions.map((action) => (
+          {resolvedActions.map((action) => (
             <Card key={action.label} elevation={3} sx={{ borderRadius: 3 }}>
               <CardActionArea
                 onClick={() => navigate(action.to)}

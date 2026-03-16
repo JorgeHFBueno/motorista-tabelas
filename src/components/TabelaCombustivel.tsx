@@ -1,14 +1,13 @@
 import { useState, useMemo, useEffect } from 'react';
 import { DataGrid, type GridColDef } from '@mui/x-data-grid';
 import dayjs from 'dayjs';
-import { Button, Stack, IconButton, Snackbar, Alert, Dialog, DialogTitle, DialogContent, DialogActions, TextField, MenuItem, CircularProgress, Typography } from '@mui/material';
+import { Button, Stack, IconButton, Snackbar, Alert, Dialog, DialogTitle, DialogContent, DialogActions, TextField, MenuItem } from '@mui/material';
 import DeleteIcon from '@mui/icons-material/Delete';
 import { useNavigate } from 'react-router-dom';
 import type { Registro } from '../types';
 import useCombustivel from '../hooks/useCombustivel';
 import CombustivelForm from './CombustivelForm';
 import { useAuth } from '../contexts/AuthContext';
-import { useAuthorizationProfile } from '../hooks/useAuthorizationProfile';
 import * as XLSX from 'xlsx';
 import useOnlineStatus from '../hooks/useOnlineStatus';
 
@@ -26,9 +25,7 @@ interface CustoRow {
 export default function TabelaCombustivel() {
   const { data: rows, loading, create, update, remove } = useCombustivel();
   const navigate = useNavigate();
-  const { currentUser, loading: authLoading, isAdmin } = useAuth();
-  const { loading: authorizationLoading, profile } = useAuthorizationProfile(currentUser, authLoading);
-  const isAdm1 = profile?.adm1 === true;
+  const { isAdmin } = useAuth();
   const { isOnline } = useOnlineStatus();
 
   const [view, setView] = useState<View>('principal');
@@ -49,18 +46,6 @@ export default function TabelaCombustivel() {
   const [fromMonth, setFromMonth] = useState(dayjs().format('YYYY-MM'));
   const [toMonth, setToMonth] = useState(dayjs().format('YYYY-MM'));
   const [selectedMonth, setSelectedMonth] = useState('');
-
-  useEffect(() => {
-    if (authorizationLoading || !profile) return;
-
-    if (import.meta.env.DEV) {
-      console.info('[combustivel] renderização escolhida', { isAdm1, adm2: profile.adm2 });
-    }
-
-    if (isAdm1) {
-      navigate('/combustivel/novo', { replace: true });
-    }
-  }, [authorizationLoading, profile, isAdm1, navigate]);
 
   async function handleSave(values: Partial<Registro>) {
     try {
@@ -419,19 +404,6 @@ export default function TabelaCombustivel() {
   ],
   [brNumberFormatter, kmFormatter],
 );
-
-if (authorizationLoading || !profile) {
-    return (
-      <Stack direction="row" spacing={1} alignItems="center" justifyContent="center" p={3}>
-        <CircularProgress size={22} />
-        <Typography variant="body2">Validando perfil de acesso...</Typography>
-      </Stack>
-    );
-  }
-
-  if (isAdm1) {
-    return null;
-  }
   
   return (
     <>

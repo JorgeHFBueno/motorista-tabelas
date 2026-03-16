@@ -1,8 +1,9 @@
-import { BrowserRouter, Routes, Route } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { Suspense, lazy } from 'react';
 import './App.css';
 import Header from './components/Header';
 import PrivateRoute from './components/PrivateRoute';
+import CombustivelRouteGuard from './components/CombustivelRouteGuard';
 import NetworkStatusBanner from './components/NetworkStatusBanner';
 import PwaUpdateBanner from './components/PwaUpdateBanner';
 import PwaUpdateOverlay from './components/PwaUpdateOverlay';
@@ -32,7 +33,7 @@ function LoadingFallback({ label }: { label?: string }) {
   );
 }
 
-console.log("[build]", import.meta.env.MODE, "__BUILD__", "1060");
+console.log("[build]", import.meta.env.MODE, "__BUILD__", "1065");
 
 export default function App() {
   return (
@@ -48,8 +49,11 @@ export default function App() {
           <Route path="acesso-negado" element={<AccessDeniedPage />} />
           <Route element={<PrivateRoute />}>
           <Route index element={<HomeDashboard />} />
-            <Route path="combustivel" element={<TabelaCombustivel />} />
-            <Route path="combustivel/novo" element={<CombustivelNovoPage />} />
+            <Route element={<CombustivelRouteGuard />}>
+              <Route path="combustivel" element={<TabelaCombustivel />} />
+              <Route path="combustivel/novo" element={<CombustivelNovoPage />} />
+              <Route path="combustivel/*" element={<Navigate to="/combustivel" replace />} />
+            </Route>
             <Route path="cadastros" element={<CadastrosPage />} />
             <Route path="cadastros/editar/:tipo" element={<CadastrosEditarPage />} />
             <Route path="registros" element={<RegistrosPage />} />

@@ -303,7 +303,7 @@ export default function CombustivelNovoPage() {
       setSubmitting(true);
       await saveCombustivel({ ...payload, email: currentUser.email });
       setSnack('Registro salvo com sucesso.');
-      navigate('/combustivel');
+      navigate(isAdm1 ? '/combustivel/novo' : '/combustivel');
     } catch (err) {
       console.error('[combustivel/novo] erro ao salvar abastecimento', err);
       const message = err instanceof Error ? err.message : 'Não foi possível salvar o registro.';

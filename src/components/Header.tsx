@@ -5,10 +5,13 @@ import { Link } from 'react-router-dom';
 import { useState } from 'react';
 import PerfilDialog from './PerfilDialog';
 import { useAuth } from '../contexts/AuthContext';
+import { useAuthorizationProfile } from '../hooks/useAuthorizationProfile';
 
 export default function Header() {
-  const { currentUser, signOut } = useAuth();
-    const [perfilOpen, setPerfilOpen] = useState(false);
+  const { currentUser, signOut, loading: authLoading } = useAuth();
+  const { loading: authorizationLoading, profile } = useAuthorizationProfile(currentUser, authLoading);
+  const isAdm1 = profile?.adm1 === true;
+  const [perfilOpen, setPerfilOpen] = useState(false);
 
   return (
     <>
@@ -20,9 +23,9 @@ export default function Header() {
           <Navbar.Toggle aria-controls="basic-navbar-nav" />
           <Navbar.Collapse id="basic-navbar-nav">
             <Nav className="me-auto">
-              {currentUser && (
+              {currentUser && !authorizationLoading && profile && (
                 <>
-                  <Nav.Link as={Link} to="/combustivel">
+                  <Nav.Link as={Link} to={isAdm1 ? '/combustivel/novo' : '/combustivel'}>
                     Cliente
                   </Nav.Link>
                   <Nav.Link as={Link} to="/registros">
