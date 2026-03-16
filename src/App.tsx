@@ -31,6 +31,7 @@ import ContaDesativadaPage from "@/pages/ContaDesativadaPage";
 import DocumentosV2 from "@/pages/DocumentosV2";
 import AguardandoLiberacaoPage from "@/pages/AguardandoLiberacaoPage";
 import FinancasOG from "./pages/FinancasOG";
+import Index from "./pages/Index"
 
 const queryClient = new QueryClient();
 
@@ -80,6 +81,7 @@ const App = () => {
                 <Route path="/painel/financas" element={<FinancasOG />} />
                 <Route path="/conta-desativada" element={<ContaDesativadaPage />} />
                 <Route path="/aguardando-liberacao" element={<AguardandoLiberacaoPage />} />
+                <Route path="/testeIX" element={<Index />} />
                 <Route path="*" element={<NotFound />} />
               </Route>
             </Routes>
