@@ -5,6 +5,7 @@ export interface Registro {
   qa?: number;
   li?: number;
   arla?: number;
+  diesel?: number;
   motorista?: string;
   para_quem?: string;
   placa?: string;

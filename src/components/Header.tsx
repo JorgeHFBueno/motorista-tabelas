@@ -1,17 +1,20 @@
 import Container from 'react-bootstrap/Container';
 import Nav from 'react-bootstrap/Nav';
 import Navbar from 'react-bootstrap/Navbar';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate  } from 'react-router-dom';
 import { useState } from 'react';
 import PerfilDialog from './PerfilDialog';
 import { useAuth } from '../contexts/AuthContext';
 import { useAuthorizationProfile } from '../hooks/useAuthorizationProfile';
+import { useAdm1MontanteGate } from '../hooks/useAdm1MontanteGate';
 
 export default function Header() {
   const { currentUser, signOut, loading: authLoading } = useAuth();
   const { loading: authorizationLoading, profile } = useAuthorizationProfile(currentUser, authLoading);
   const isAdm1 = profile?.adm1 === true;
   const [perfilOpen, setPerfilOpen] = useState(false);
+  const navigate = useNavigate();
+  const { requestAccess, dialog } = useAdm1MontanteGate(isAdm1);
 
   return (
     <>
@@ -25,7 +28,15 @@ export default function Header() {
             <Nav className="me-auto">
               {currentUser && !authorizationLoading && profile && (
                 <>
-                  <Nav.Link as={Link} to={isAdm1 ? '/combustivel/novo' : '/combustivel'}>
+                  <Nav.Link
+                    as={Link}
+                    to={isAdm1 ? '/combustivel/novo' : '/combustivel'}
+                    onClick={(event) => {
+                      if (!isAdm1) return;
+                      event.preventDefault();
+                      requestAccess(() => navigate('/combustivel/novo'));
+                    }}
+                  >
                     Cliente
                   </Nav.Link>
                   {!isAdm1 && (
@@ -65,6 +76,7 @@ export default function Header() {
         </Container>
       </Navbar>
       <PerfilDialog open={perfilOpen} onClose={() => setPerfilOpen(false)} />
+      {dialog}
     </>
   );
 }

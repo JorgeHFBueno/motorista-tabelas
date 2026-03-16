@@ -8,6 +8,8 @@ import type { Registro } from '../types';
 import useCombustivel from '../hooks/useCombustivel';
 import CombustivelForm from './CombustivelForm';
 import { useAuth } from '../contexts/AuthContext';
+import { useAuthorizationProfile } from '../hooks/useAuthorizationProfile';
+import { useAdm1MontanteGate } from '../hooks/useAdm1MontanteGate';
 import * as XLSX from 'xlsx';
 import useOnlineStatus from '../hooks/useOnlineStatus';
 
@@ -25,7 +27,10 @@ interface CustoRow {
 export default function TabelaCombustivel() {
   const { data: rows, loading, create, update, remove } = useCombustivel();
   const navigate = useNavigate();
-  const { isAdmin } = useAuth();
+  const { currentUser, loading: authLoading, isAdmin } = useAuth();
+  const { profile } = useAuthorizationProfile(currentUser, authLoading);
+  const isAdm1 = profile?.adm1 === true;
+  const { requestAccess, dialog } = useAdm1MontanteGate(isAdm1);
   const { isOnline } = useOnlineStatus();
 
   const [view, setView] = useState<View>('principal');
@@ -413,7 +418,7 @@ export default function TabelaCombustivel() {
         </Alert>
       )}
       <Stack direction="row" spacing={2} mt={2}>
-        <Button variant="contained" onClick={() => navigate('/combustivel/novo')} sx={{ mb: 1 }}>
+        <Button variant="contained" onClick={() => requestAccess(() => navigate('/combustivel/novo'))} sx={{ mb: 1 }}>
           Novo
         </Button>
         <Button
@@ -549,6 +554,7 @@ export default function TabelaCombustivel() {
           <Button variant="contained" onClick={exportExcel}>Exportar</Button>
         </DialogActions>
       </Dialog>
+      {dialog}
     </>
   );
 }

@@ -1,4 +1,4 @@
-import { doc, setDoc } from 'firebase/firestore';
+import { Timestamp, doc, setDoc } from 'firebase/firestore';
 import { db } from '../firebase';
 import type { Registro } from '../types';
 
@@ -6,8 +6,9 @@ const COLLECTION_NAME = '03-combustivel';
 
 interface SaveCombustivelInput extends Partial<Registro> {
   obra?: string;
-  data?: Date | string;
+  data?: Date | string | Timestamp;
   email: string;
+  diesel?: number;
 }
 
 function normalizeString(value: unknown): string {
@@ -25,7 +26,10 @@ function toInt(value: unknown): number {
   return 0;
 }
 
-function toDate(value: Date | string | undefined): Date {
+function toDate(value: Date | string | Timestamp | undefined): Date {
+  if (value instanceof Timestamp) {
+    return value.toDate();
+  }
   if (value instanceof Date && !Number.isNaN(value.getTime())) return value;
   if (typeof value === 'string') {
     const parsed = new Date(value);
@@ -46,9 +50,10 @@ function toDateStr(date: Date): string {
 }
 
 export async function saveCombustivel(input: SaveCombustivelInput): Promise<Registro> {
-  const data = toDate(input.data);
+  const dataDate = toDate(input.data);
+  const data = Timestamp.fromDate(dataDate);
   const finalEmail = input.email.trim().toLowerCase();
-  const dateStr = toDateStr(data);
+  const dateStr = toDateStr(dataDate);
   const docId = `${dateStr} ${finalEmail}`;
 
   const kmRaw = input.km;
@@ -70,6 +75,10 @@ export async function saveCombustivel(input: SaveCombustivelInput): Promise<Regi
     motorista: normalizeString(input.motorista),
     observacao: normalizeString(input.observacao),
   } as Omit<Registro, 'id'>;
+
+  if (typeof input.diesel !== 'undefined') {
+    (payload as Omit<Registro, 'id'> & { diesel?: number }).diesel = toInt(input.diesel);
+  }
 
   if (usingSemKm) {
     payload.semKm = semKmRaw;

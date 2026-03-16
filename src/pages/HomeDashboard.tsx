@@ -7,6 +7,7 @@ import WorkspacesIcon from '@mui/icons-material/Workspaces';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { useAuthorizationProfile } from '../hooks/useAuthorizationProfile';
+import { useAdm1MontanteGate } from '../hooks/useAdm1MontanteGate';
 
 const actions = [
   {
@@ -51,6 +52,7 @@ export default function HomeDashboard() {
   const { currentUser, loading: authLoading } = useAuth();
   const { loading: authorizationLoading, profile } = useAuthorizationProfile(currentUser, authLoading);
   const isAdm1 = profile?.adm1 === true;
+  const { requestAccess, dialog } = useAdm1MontanteGate(isAdm1);
 
   const resolvedActions = actions.map((action) => {
     if (action.to === '/combustivel' && isAdm1) {
@@ -96,7 +98,7 @@ export default function HomeDashboard() {
           {resolvedActions.map((action) => (
             <Card key={action.label} elevation={3} sx={{ borderRadius: 3 }}>
               <CardActionArea
-                onClick={() => navigate(action.to)}
+                onClick={() => requestAccess(() => navigate(action.to))}
                 sx={{
                   height: { xs: 150, sm: 200 },
                   backgroundColor: action.color,
