@@ -3,29 +3,11 @@ import { motion, AnimatePresence } from "framer-motion";
 import { Calendar, ChevronDown, CheckCircle2, Clock, AlertTriangle } from "lucide-react";
 import ResponsiveLayout from "@/components/layout/ResponsiveLayout";
 import { cn } from "@/lib/utils";
-import { useActiveObraId } from "@/hooks/useActiveObraId";
-import { useObra } from "@/hooks/useAppQueries";
+import { useClientObraOverview } from "@/hooks/useClientObraOverview";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Progress } from "@/components/ui/progress";
-import { useObraStatus } from "@/hooks/useObraStatus";
 import type { ObraStatusFase } from "@/types/obraStatus";
-
-const formatPtBrDate = (value: unknown) => {
-  const cast = value as { toDate?: () => Date; seconds?: number };
-  if (typeof cast?.toDate === "function") return cast.toDate().toLocaleDateString("pt-BR");
-  if (typeof cast?.seconds === "number") return new Date(cast.seconds * 1000).toLocaleDateString("pt-BR");
-  return null;
-};
-
-const deriveFase = (fase: ObraStatusFase) => {
-  const total = fase.itens?.length ?? 0;
-  const doneCount = (fase.itens ?? []).filter((item) => item.done).length;
-  const progress = total ? Math.round((doneCount / total) * 100) : 0;
-
-  if (doneCount === 0) return { total, doneCount, progress, status: "pending" as const };
-  if (doneCount === total) return { total, doneCount, progress, status: "completed" as const };
-  return { total, doneCount, progress, status: "in-progress" as const };
-};
+import { deriveFaseProgress, formatPtBrDate } from "@/lib/obraStatus";
 
 const StatusBadge = ({ status }: { status: "pending" | "in-progress" | "completed" }) => {
   const config = {
@@ -52,7 +34,7 @@ const StageCard = ({
   isOpen: boolean;
   onToggle: () => void;
 }) => {
-  const { progress, status, doneCount, total } = deriveFase(fase);
+  const { progress, status, doneCount, total } = deriveFaseProgress(fase);
   const inicio = formatPtBrDate(fase.inicio);
   const fim = formatPtBrDate(fase.fim);
 
@@ -117,9 +99,7 @@ const StageCard = ({
 };
 
 const Obra = () => {
-  const { activeObraId, hasClientObra } = useActiveObraId();
-  const { data: obraData } = useObra(activeObraId ?? undefined);
-  const { data: fases = [], isLoading, error } = useObraStatus(activeObraId);
+  const { activeObraId, hasClientObra, obra, fases, isLoading, error, progressData } = useClientObraOverview();
   const [expandedPhases, setExpandedPhases] = useState<Record<string, boolean>>({});
   const initializedExpanded = useRef(false);
 
@@ -133,7 +113,7 @@ const Obra = () => {
 
     const nextExpanded: Record<string, boolean> = {};
     fases.forEach((fase) => {
-      const { status } = deriveFase(fase);
+      const { status } = deriveFaseProgress(fase);
       if (status === "in-progress") nextExpanded[fase.id] = true;
     });
 
@@ -141,7 +121,7 @@ const Obra = () => {
     initializedExpanded.current = true;
   }, [fases]);
 
-  const completedStages = useMemo(() => fases.filter((fase) => deriveFase(fase).status === "completed").length, [fases]);
+  const completedStages = useMemo(() => progressData.completedStages, [progressData.completedStages]);
   const isPermissionDenied = (error as { code?: string } | null)?.code === "permission-denied";
 
   useEffect(() => {
@@ -156,8 +136,8 @@ const Obra = () => {
         <div className="rounded-xl border bg-card p-4 text-sm text-muted-foreground">
           {!hasClientObra || !activeObraId
             ? "Nenhuma obra selecionada."
-            : obraData
-              ? `Obra ativa: ${obraData.nome}`
+            : obra
+              ? `Obra ativa: ${obra.nome}`
               : "Carregando dados da obra..."}
         </div>
 

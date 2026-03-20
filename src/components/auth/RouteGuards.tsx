@@ -65,7 +65,7 @@ export const RoleHomeRedirect = () => {
   }
 
   if (userDoc.role === "cliente") {
-    return <Navigate to={userDoc.obras.length === 0 ? "/cliente/sem-obra" : "/cliente/obra"} replace />;
+        return <Navigate to={userDoc.obras.length === 0 ? "/cliente/sem-obra" : "/cliente"} replace />;
   }
 
   return <Navigate to="/painel/obras" replace />;
@@ -88,7 +88,7 @@ export const ClientRoute = ({ children }: { children?: ReactNode }) => {
   }
 
   if (userDoc.obras.length > 0 && location.pathname === "/cliente/sem-obra") {
-    return <Navigate to="/cliente/obra" replace />;
+    return <Navigate to="/cliente" replace />;
   }
 
   if (children) {
@@ -110,7 +110,7 @@ export const StaffRoute = ({ children }: { children?: ReactNode }) => {
   }
 
   if (userDoc.role === "cliente") {
-    return <Navigate to="/cliente/obra" replace />;
+    return <Navigate to="/cliente" replace />;
   }
 
   if (children) {
@@ -138,7 +138,7 @@ export const ObraAccessRoute = ({ children }: { children?: ReactNode }) => {
     }
   }, [hasAccess, obraId, userDoc]);
 
-  const fallbackPath = userDoc?.role === "cliente" ? "/cliente/obra" : "/painel/obras";
+  const fallbackPath = userDoc?.role === "cliente" ? "/cliente" : "/painel/obras";
 
   if (!userDoc || !obraId) {
     return <Navigate to={fallbackPath} replace />;

@@ -1,4 +1,4 @@
-import { Building2, Camera, FileText, FolderCog, Wallet } from "lucide-react";
+import { Building2, Camera, FileText, FolderCog, House, Wallet } from "lucide-react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import { cn } from "@/lib/utils";
@@ -12,6 +12,7 @@ const BottomNavigation = () => {
 
   const navItems = userDoc?.role === "cliente"
     ? [
+        { icon: House, label: "Início", path: "/cliente" },
         { icon: Building2, label: "Obra", path: "/cliente/obra" },
         { icon: Wallet, label: "Finanças", path: "/cliente/financas" },
         { icon: FileText, label: "Docs", path: "/cliente/documentos" },
@@ -27,7 +28,9 @@ const BottomNavigation = () => {
       <div className="bg-primary mx-4 mb-4 rounded-xl shadow-lg overflow-hidden border border-primary/20">
         <div className="flex items-center justify-around py-1.5">
           {navItems.map((item) => {
-            const isActive = location.pathname === item.path;
+            const isActive = item.path === "/cliente"
+              ? location.pathname === "/cliente"
+              : location.pathname === item.path;
             return (
               <button
                 key={item.path}

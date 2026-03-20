@@ -40,56 +40,56 @@ const App = () => {
     console.log("[build]", import.meta.env.MODE, "__BUILD__", "__DATE__");
     return <FirebaseInitErrorScreen />;
   }
-  console.log("[build]", import.meta.env.MODE, "__BUILD__", "700");
+  console.log("[build]", import.meta.env.MODE, "__BUILD__", "710");
 
   return (
     <QueryClientProvider client={queryClient}>
-    <TooltipProvider>
-      <Toaster />
-      <Sonner />
-      <BrowserRouter>
-        <AuthProvider>
-          <ObraProvider>
-            <Routes>
-              <Route path="/login" element={<LoginPage />} />
-              <Route element={<ProtectedRoute />}>
-                <Route path="/" element={<RoleHomeRedirect />} />
+      <TooltipProvider>
+        <Toaster />
+        <Sonner />
+        <BrowserRouter>
+          <AuthProvider>
+            <ObraProvider>
+              <Routes>
+                <Route path="/login" element={<LoginPage />} />
+                <Route element={<ProtectedRoute />}>
+                  <Route path="/" element={<RoleHomeRedirect />} />
 
-                <Route element={<ClientRoute />}>
-                 <Route path="/cliente/sem-obra" element={<ClienteSemObraPage />} />
-                  <Route path="/cliente/obra" element={<Obra />} />
-                  <Route path="/cliente/financas" element={<Financas />} />
-                  <Route path="/cliente/documentos" element={<Documentos />} />
-                  <Route path="/cliente/documentos-v2" element={<DocumentosV2 />} />
-                  <Route path="/cliente/fotos" element={<Fotos />} />
-                  <Route element={<ObraAccessRoute />}>
-                    <Route path="/cliente/obras/:obraId/upload" element={<ClientObraUploadPage />} />
+                  <Route element={<ClientRoute />}>
+                    <Route path="/cliente/sem-obra" element={<ClienteSemObraPage />} />
+                    <Route path="/cliente" element={<Index />} />
+                    <Route path="/cliente/obra" element={<Obra />} />
+                    <Route path="/cliente/financas" element={<Financas />} />
+                    <Route path="/cliente/documentos" element={<Documentos />} />
+                    <Route path="/cliente/documentos-v2" element={<DocumentosV2 />} />
+                    <Route path="/cliente/fotos" element={<Fotos />} />
+                    <Route element={<ObraAccessRoute />}>
+                      <Route path="/cliente/obras/:obraId/upload" element={<ClientObraUploadPage />} />
+                    </Route>
                   </Route>
-                </Route>
 
-                <Route element={<StaffRoute />}>
-                  <Route path="/painel/obras" element={<StaffObrasPage />} />
-                  <Route element={<ObraAccessRoute />}>
-                    <Route path="/painel/obras/:obraId" element={<StaffObraDetailPage />} />
+                  <Route element={<StaffRoute />}>
+                    <Route path="/painel/obras" element={<StaffObrasPage />} />
+                    <Route element={<ObraAccessRoute />}>
+                      <Route path="/painel/obras/:obraId" element={<StaffObraDetailPage />} />
+                    </Route>
+                    <Route path="/painel/upload" element={<UploadPage />} />
+                    <Route element={<ObraAccessRoute />}>
+                      <Route path="/painel/obras/:obraId/upload" element={<StaffObraUploadPage />} />
+                    </Route>
+                    <Route path="/painel/cadastros" element={<StaffCadastrosPage />} />
                   </Route>
-                  <Route path="/painel/upload" element={<UploadPage />} />
-                  <Route element={<ObraAccessRoute />}>
-                    <Route path="/painel/obras/:obraId/upload" element={<StaffObraUploadPage />} />
-                  </Route>
-                  <Route path="/painel/cadastros" element={<StaffCadastrosPage />} />
+                  <Route path="/painel/financas" element={<FinancasOG />} />
+                  <Route path="/conta-desativada" element={<ContaDesativadaPage />} />
+                  <Route path="/aguardando-liberacao" element={<AguardandoLiberacaoPage />} />
+                  <Route path="*" element={<NotFound />} />
                 </Route>
-                <Route path="/painel/financas" element={<FinancasOG />} />
-                <Route path="/conta-desativada" element={<ContaDesativadaPage />} />
-                <Route path="/aguardando-liberacao" element={<AguardandoLiberacaoPage />} />
-                <Route path="/testeIX" element={<Index />} />
-                <Route path="*" element={<NotFound />} />
-              </Route>
-            </Routes>
-          </ObraProvider>
-        </AuthProvider>
-      </BrowserRouter>
-    </TooltipProvider>
-   </QueryClientProvider>
+              </Routes>
+            </ObraProvider>
+          </AuthProvider>
+        </BrowserRouter>
+      </TooltipProvider>
+    </QueryClientProvider>
   );
 };
 

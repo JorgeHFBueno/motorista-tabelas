@@ -1,4 +1,4 @@
-import { Building2, Camera, FileText, FolderCog, Wallet, X } from "lucide-react";
+import { Building2, Camera, FileText, FolderCog, House, Wallet, X } from "lucide-react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/contexts/AuthContext";
@@ -14,6 +14,7 @@ const MobileNav = ({ onClose }: MobileNavProps) => {
 
   const navItems = userDoc?.role === "cliente"
     ? [
+      { icon: House, label: "Dashboard", path: "/cliente" },
       { icon: Building2, label: "Obra", path: "/cliente/obra" },
       { icon: Wallet, label: "Finanças", path: "/cliente/financas" },
       { icon: FileText, label: "Documentos", path: "/cliente/documentos" },
@@ -33,7 +34,9 @@ const MobileNav = ({ onClose }: MobileNavProps) => {
       <nav className="flex-1 p-4">
         <ul className="space-y-1">
           {navItems.map((item) => {
-            const isActive = location.pathname === item.path;
+            const isActive = item.path === "/cliente"
+              ? location.pathname === "/cliente"
+              : location.pathname === item.path;
             return (
               <li key={item.path}>
                 <button
