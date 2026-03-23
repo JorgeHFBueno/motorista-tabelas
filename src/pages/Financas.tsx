@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Timestamp } from "firebase/firestore";
 import { motion } from "framer-motion";
 import {
@@ -12,7 +12,11 @@ import {
   TrendingDown,
   TrendingUp,
   Wallet,
+  CheckCircle2,
+  Loader2,
+  UploadCloud,
 } from "lucide-react";
+import { useAuth } from "@/contexts/AuthContext";
 import ResponsiveLayout from "@/components/layout/ResponsiveLayout";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -24,9 +28,21 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { useToast } from "@/hooks/use-toast";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useActiveObraId } from "@/hooks/useActiveObraId";
-import { useFinancialInstallmentsList, useFinancialOverview } from "@/lib/financas/financas.queries";
+import {
+  useFinancialInstallmentsList,
+  useFinancialOverview,
+  useSubmitFinancialReceiptMutation,
+} from "@/lib/financas/financas.queries";
+import {
+  FINANCIAL_RECEIPT_ACCEPTED_TYPES,
+  canClientSubmitReceiptForStatus,
+  validateFinancialReceiptFile,
+} from "@/lib/financas/financas.service";
 import type { FinancialInstallment, FinancialInstallmentStatus } from "@/lib/financas/financas.types";
 import { cn } from "@/lib/utils";
 
@@ -39,6 +55,11 @@ const formatDate = (value?: Timestamp) => {
   if (!value) return "Sem vencimento informado";
 
   return value.toDate().toLocaleDateString("pt-BR");
+};
+
+const formatDateTime = (value?: Timestamp) => {
+  if (!value) return "Ainda não enviado";
+  return value.toDate().toLocaleString("pt-BR");
 };
 
 const statusConfig: Record<FinancialInstallmentStatus, {
@@ -77,6 +98,9 @@ const getInstallmentTitle = (parcela: FinancialInstallment) => {
   const fallback = `Parcela ${parcela.numero}`;
   return parcela.descricao?.trim() ? `${parcela.numero}. ${parcela.descricao}` : fallback;
 };
+
+const getReceiptActionLabel = (parcela: FinancialInstallment) =>
+  parcela.status === "rejeitado" ? "Reenviar comprovante" : "Enviar comprovante";
 
 const FinancasLoading = () => (
   <div className="space-y-6">
@@ -176,26 +200,60 @@ const FinancasErrorState = ({ onRetry }: FinancasErrorStateProps) => (
 
 const Financas = () => {
   const { activeObraId, hasClientObra } = useActiveObraId();
-  const [selectedInstallment, setSelectedInstallment] = useState<FinancialInstallment | null>(null);
+  const { user, userDoc } = useAuth();
+  const { toast } = useToast();
+  const receiptInputRef = useRef<HTMLInputElement>(null);
+  const [selectedInstallmentId, setSelectedInstallmentId] = useState<string | null>(null);
+  const [receiptDraftInstallmentId, setReceiptDraftInstallmentId] = useState<string | null>(null);
+  const [receiptObservation, setReceiptObservation] = useState("");
+  const [selectedReceiptFile, setSelectedReceiptFile] = useState<File | null>(null);
 
   const overviewQuery = useFinancialOverview(activeObraId ?? undefined);
   const installmentsQuery = useFinancialInstallmentsList(activeObraId ?? undefined);
+  const submitReceiptMutation = useSubmitFinancialReceiptMutation();
 
-  const parcelas = installmentsQuery.data ?? [];
+  const parcelas = useMemo(() => installmentsQuery.data ?? [], [installmentsQuery.data]);
   const overview = overviewQuery.data;
   const isLoading = overviewQuery.isLoading || installmentsQuery.isLoading;
   const isFetching = overviewQuery.isFetching || installmentsQuery.isFetching;
   const isError = overviewQuery.isError || installmentsQuery.isError;
 
+  const selectedInstallment = useMemo(
+    () => parcelas.find((parcela) => parcela.id === selectedInstallmentId) ?? null,
+    [parcelas, selectedInstallmentId],
+  );
+
   const nextInstallment = useMemo(() => {
     if (!overview?.proximaParcela) return null;
-    return (installmentsQuery.data ?? []).find((parcela) => parcela.id === overview.proximaParcela?.id) ?? null;
-  }, [installmentsQuery.data, overview?.proximaParcela]);
+    return parcelas.find((parcela) => parcela.id === overview.proximaParcela?.id) ?? null;
+  }, [overview?.proximaParcela, parcelas]);
 
   const progressPercentage = useMemo(() => {
     if (!overview?.valorTotalContrato) return 0;
     return Math.min((overview.valorPago / overview.valorTotalContrato) * 100, 100);
   }, [overview?.valorPago, overview?.valorTotalContrato]);
+
+  const selectedInstallmentCanUpload = selectedInstallment
+    ? canClientSubmitReceiptForStatus(selectedInstallment.status)
+    : false;
+  const isUploadingReceipt = submitReceiptMutation.isPending;
+
+  useEffect(() => {
+    if (!selectedInstallment) {
+      setReceiptDraftInstallmentId(null);
+      setReceiptObservation("");
+      setSelectedReceiptFile(null);
+      if (receiptInputRef.current) receiptInputRef.current.value = "";
+      return;
+    }
+
+    if (receiptDraftInstallmentId !== selectedInstallment.id) {
+      setReceiptDraftInstallmentId(selectedInstallment.id);
+      setReceiptObservation(selectedInstallment.status === "rejeitado" ? selectedInstallment.observacaoCliente ?? "" : "");
+      setSelectedReceiptFile(null);
+      if (receiptInputRef.current) receiptInputRef.current.value = "";
+    }
+  }, [receiptDraftInstallmentId, selectedInstallment]);
 
   const handleRetry = () => {
     void Promise.all([overviewQuery.refetch(), installmentsQuery.refetch()]);
@@ -204,9 +262,95 @@ const Financas = () => {
   const showNoObra = !hasClientObra || !activeObraId;
   const showEmpty = !isLoading && !isError && parcelas.length === 0;
 
+  const openInstallmentDetail = (parcela: FinancialInstallment) => {
+    setSelectedInstallmentId(parcela.id);
+  };
+
+  const openReceiptPicker = () => {
+    if (!selectedInstallmentCanUpload) return;
+    receiptInputRef.current?.click();
+  };
+
+  const handleReceiptFileSelection = (file?: File) => {
+    if (!file) return;
+
+    try {
+      validateFinancialReceiptFile(file);
+      setSelectedReceiptFile(file);
+    } catch (error) {
+      toast({
+        title: "Arquivo inválido",
+        description: error instanceof Error ? error.message : "Não foi possível validar o arquivo selecionado.",
+        variant: "destructive",
+      });
+      if (receiptInputRef.current) receiptInputRef.current.value = "";
+    }
+  };
+
+  const handleSubmitReceipt = async () => {
+    if (!selectedInstallment || !activeObraId) return;
+
+    if (!selectedInstallmentCanUpload) {
+      toast({
+        title: "Envio indisponível",
+        description: "Esta parcela não pode receber um novo comprovante neste momento.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (!selectedReceiptFile) {
+      toast({
+        title: "Comprovante obrigatório",
+        description: "Selecione um arquivo PDF, JPG/JPEG ou PNG antes de enviar.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      const updatedInstallment = await submitReceiptMutation.mutateAsync({
+        obraId: activeObraId,
+        parcelaId: selectedInstallment.id,
+        file: selectedReceiptFile,
+        observacaoCliente: receiptObservation.trim() || undefined,
+        comprovanteEnviadoPor: {
+          uid: user?.uid,
+          nome: userDoc?.nome ?? user?.displayName ?? user?.email ?? undefined,
+          email: userDoc?.email ?? user?.email ?? undefined,
+        },
+      });
+
+      if (updatedInstallment) {
+        setSelectedInstallmentId(updatedInstallment.id);
+      }
+      setReceiptObservation("");
+      setSelectedReceiptFile(null);
+      if (receiptInputRef.current) receiptInputRef.current.value = "";
+      toast({
+        title: "Comprovante enviado",
+        description: "Recebemos seu comprovante e a parcela agora aguarda análise administrativa.",
+      });
+    } catch (error) {
+      toast({
+        title: "Erro ao enviar comprovante",
+        description: error instanceof Error ? error.message : "O upload não pôde ser concluído.",
+        variant: "destructive",
+      });
+    }
+  };
+
   return (
     <ResponsiveLayout headerTitle="Finanças" headerSubtitle="Gestão financeira da obra">
       <div className="space-y-6 px-4 py-6 lg:px-8 lg:py-8">
+        <input
+          ref={receiptInputRef}
+          type="file"
+          className="hidden"
+          accept={FINANCIAL_RECEIPT_ACCEPTED_TYPES.join(",")}
+          onChange={(event) => handleReceiptFileSelection(event.target.files?.[0])}
+        />
+
         <div className="rounded-xl border bg-card p-4 text-sm text-muted-foreground">
           {showNoObra
             ? "Nenhuma obra ativa vinculada para consulta financeira."
@@ -284,7 +428,7 @@ const Financas = () => {
                     </div>
                     <p className="text-xl font-bold text-success lg:text-2xl">{overview.quantidadePagas}</p>
                   </div>
-                  <div className="rounded-xl bg-secondary p-3 lg:col-span-1 lg:p-4 col-span-2">
+                  <div className="col-span-2 rounded-xl bg-secondary p-3 lg:col-span-1 lg:p-4">
                     <div className="mb-1 flex items-center gap-1 text-secondary-foreground/80">
                       <TrendingDown className="h-4 w-4" />
                       <span className="text-xs font-medium">Pendentes</span>
@@ -333,7 +477,7 @@ const Financas = () => {
                         </Button>
                       )}
 
-                      <Button variant="outline" className="w-full" onClick={() => setSelectedInstallment(nextInstallment)}>
+                      <Button variant="outline" className="w-full" onClick={() => openInstallmentDetail(nextInstallment)}>
                         Ver detalhes
                       </Button>
                     </div>
@@ -372,6 +516,7 @@ const Financas = () => {
                 {parcelas.map((parcela, index) => {
                   const meta = statusConfig[parcela.status];
                   const StatusIcon = meta.icon;
+                  const canUploadReceipt = canClientSubmitReceiptForStatus(parcela.status);
 
                   return (
                     <motion.button
@@ -381,7 +526,7 @@ const Financas = () => {
                       animate={{ opacity: 1, x: 0 }}
                       transition={{ delay: 0.25 + index * 0.04 }}
                       className="flex w-full items-center justify-between gap-3 p-4 text-left transition-colors hover:bg-muted/50 lg:p-5"
-                      onClick={() => setSelectedInstallment(parcela)}
+                      onClick={() => openInstallmentDetail(parcela)}
                     >
                       <div className="flex min-w-0 items-center gap-3 lg:gap-4">
                         <div className={cn(
@@ -404,6 +549,8 @@ const Financas = () => {
                             {meta.label}
                           </Badge>
                           {parcela.boletoUrl ? <Badge variant="outline">Boleto</Badge> : null}
+                          {parcela.comprovanteUrl ? <Badge variant="outline">Comprovante</Badge> : null}
+                          {canUploadReceipt ? <Badge variant="outline">Enviar comprovante</Badge> : null}
                         </div>
                         <ChevronRight className="h-4 w-4 text-muted-foreground" />
                       </div>
@@ -415,8 +562,8 @@ const Financas = () => {
           </>
         )}
 
-        <Dialog open={Boolean(selectedInstallment)} onOpenChange={(open) => !open && setSelectedInstallment(null)}>
-          <DialogContent>
+        <Dialog open={Boolean(selectedInstallment)} onOpenChange={(open) => !open && setSelectedInstallmentId(null)}>
+          <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-2xl">
             <DialogHeader>
               <DialogTitle>{selectedInstallment ? getInstallmentTitle(selectedInstallment) : "Detalhe da parcela"}</DialogTitle>
             </DialogHeader>
@@ -438,7 +585,7 @@ const Financas = () => {
                   <Badge variant={statusConfig[selectedInstallment.status].badgeVariant}>
                     {statusConfig[selectedInstallment.status].label}
                   </Badge>
-                  {selectedInstallment.boletoUrl ? <Badge variant="outline">Boleto disponível</Badge> : <Badge variant="outline">Sem boleto</Badge>}
+                  {selectedInstallment.comprovanteUrl ? <Badge variant="outline">Comprovante enviado</Badge> : null}
                 </div>
 
                 {(selectedInstallment.observacaoAdmin || selectedInstallment.observacaoCliente) && (
@@ -458,6 +605,102 @@ const Financas = () => {
                   </div>
                 )}
 
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <div className="rounded-xl border border-dashed p-3">
+                    <p className="text-xs uppercase tracking-wide text-muted-foreground">Boleto</p>
+                    <p className="mt-1 text-muted-foreground">
+                      {selectedInstallment.boletoUrl
+                        ? "O boleto desta parcela está disponível para consulta."
+                        : "Esta parcela ainda não possui boleto anexado."}
+                    </p>
+                  </div>
+                  <div className="rounded-xl border border-dashed p-3">
+                    <p className="text-xs uppercase tracking-wide text-muted-foreground">Comprovante</p>
+                    <p className="mt-1 text-muted-foreground">
+                      {selectedInstallment.comprovanteUrl
+                        ? `Enviado em ${formatDateTime(selectedInstallment.comprovanteEnviadoEm)}.`
+                        : "Nenhum comprovante foi enviado ainda para esta parcela."}
+                    </p>
+                    {selectedInstallment.comprovanteEnviadoPor?.nome || selectedInstallment.comprovanteEnviadoPor?.email ? (
+                      <p className="mt-1 text-xs text-muted-foreground">
+                        Por {selectedInstallment.comprovanteEnviadoPor?.nome ?? selectedInstallment.comprovanteEnviadoPor?.email}
+                      </p>
+                    ) : null}
+                  </div>
+                </div>
+
+                {selectedInstallment.comprovanteUrl ? (
+                  <div className="flex items-center justify-between rounded-xl border bg-primary/5 p-3">
+                    <div className="flex items-start gap-3">
+                      <CheckCircle2 className="mt-0.5 h-4 w-4 text-primary" />
+                      <div>
+                        <p className="font-medium text-foreground">Comprovante já enviado</p>
+                        <p className="text-xs text-muted-foreground">
+                          A parcela permanece em análise até aprovação ou rejeição administrativa.
+                        </p>
+                      </div>
+                    </div>
+                    <Button asChild variant="outline" size="sm">
+                      <a href={selectedInstallment.comprovanteUrl} target="_blank" rel="noreferrer">
+                        <ExternalLink className="h-4 w-4" />
+                        Abrir comprovante
+                      </a>
+                    </Button>
+                  </div>
+                ) : null}
+
+                {selectedInstallmentCanUpload ? (
+                  <div className="space-y-3 rounded-xl border p-4">
+                    <div>
+                      <p className="font-medium text-foreground">{getReceiptActionLabel(selectedInstallment)}</p>
+                      <p className="text-xs text-muted-foreground">
+                        Envie um arquivo em PDF, JPG/JPEG ou PNG. O status será atualizado para comprovante enviado e continuará pendente de validação administrativa.
+                      </p>
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="observacao-cliente">Observação do cliente</Label>
+                      <Textarea
+                        id="observacao-cliente"
+                        placeholder="Opcional: informe banco, data do pagamento ou outro contexto relevante."
+                        value={receiptObservation}
+                        onChange={(event) => setReceiptObservation(event.target.value)}
+                        disabled={isUploadingReceipt}
+                      />
+                    </div>
+
+                    <div className="flex flex-col gap-3 rounded-xl bg-muted/40 p-3 sm:flex-row sm:items-center sm:justify-between">
+                      <div className="min-w-0">
+                        <p className="font-medium text-foreground">
+                          {selectedReceiptFile ? selectedReceiptFile.name : "Nenhum comprovante selecionado"}
+                        </p>
+                        <p className="text-xs text-muted-foreground">
+                          Tipos aceitos: PDF, JPG/JPEG e PNG.
+                        </p>
+                      </div>
+                      <Button type="button" variant="outline" onClick={openReceiptPicker} disabled={isUploadingReceipt}>
+                        <UploadCloud className="h-4 w-4" />
+                        Selecionar arquivo
+                      </Button>
+                    </div>
+
+                    <div className="flex flex-col gap-2 sm:flex-row sm:justify-end">
+                      <Button type="button" onClick={() => void handleSubmitReceipt()} disabled={isUploadingReceipt || !selectedReceiptFile}>
+                        {isUploadingReceipt ? <Loader2 className="h-4 w-4 animate-spin" /> : <UploadCloud className="h-4 w-4" />}
+                        {isUploadingReceipt ? "Enviando..." : getReceiptActionLabel(selectedInstallment)}
+                      </Button>
+                    </div>
+                  </div>
+                ) : selectedInstallment.status === "comprovante_enviado" ? (
+                  <div className="rounded-xl border border-primary/20 bg-primary/5 p-4 text-sm text-primary">
+                    Um comprovante já foi enviado e está aguardando análise administrativa. Nesta etapa, o cliente não pode substituir livremente esse arquivo.
+                  </div>
+                ) : selectedInstallment.status === "pago" ? (
+                  <div className="rounded-xl border border-success/20 bg-success/10 p-4 text-sm text-success">
+                    Parcela já confirmada como paga pela administração. Nenhum novo comprovante é necessário.
+                  </div>
+                ) : null}
+
                 <div className="flex flex-col gap-2 sm:flex-row sm:justify-end">
                   {selectedInstallment.boletoUrl ? (
                     <Button asChild>
@@ -467,7 +710,7 @@ const Financas = () => {
                       </a>
                     </Button>
                   ) : null}
-                  <Button variant="outline" onClick={() => setSelectedInstallment(null)}>
+                  <Button variant="outline" onClick={() => setSelectedInstallmentId(null)}>
                     Fechar
                   </Button>
                 </div>

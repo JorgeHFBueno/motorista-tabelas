@@ -26,11 +26,13 @@ import {
   type FinancialInstallmentStatus,
   type FinancialOverview,
   type ListFinancialInstallmentsInput,
+  type SubmitFinancialReceiptPayload,
   type UpdateFinancialInstallmentInput,
 } from "./financas.types";
 
 const FINANCIAL_INSTALLMENTS_COLLECTION = "financeiroParcelas";
 const installmentStatusSet = new Set<string>(FINANCIAL_INSTALLMENT_STATUSES);
+export const FINANCIAL_RECEIPT_ACCEPTED_TYPES = ["application/pdf", "image/jpeg", "image/png"] as const;
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null;
@@ -265,6 +267,27 @@ const isPayableOpenStatus = (status: FinancialInstallmentStatus) =>
   status === "comprovante_enviado" ||
   status === "rejeitado";
 
+export const canClientSubmitReceiptForStatus = (
+  status: FinancialInstallmentStatus,
+) => status === "pendente" || status === "rejeitado";
+
+const assertReceiptUploadAllowed = (parcela: FinancialInstallment) => {
+  if (!canClientSubmitReceiptForStatus(parcela.status)) {
+    throw new Error(
+      parcela.status === "comprovante_enviado"
+        ? "Já existe um comprovante enviado para esta parcela aguardando análise."
+        : "Esta parcela não aceita envio de comprovante no momento.",
+    );
+  }
+};
+
+export const validateFinancialReceiptFile = (file: File) => {
+  const normalizedType = normalizeString(file.type).toLowerCase();
+  if (!FINANCIAL_RECEIPT_ACCEPTED_TYPES.includes(normalizedType as (typeof FINANCIAL_RECEIPT_ACCEPTED_TYPES)[number])) {
+    throw new Error("Envie um comprovante em PDF, JPG/JPEG ou PNG.");
+  }
+};
+
 export const selectUpcomingInstallment = (parcelas: FinancialInstallment[]) => {
   return [...parcelas]
     .filter((parcela) => isPayableOpenStatus(parcela.status))
@@ -291,7 +314,7 @@ export const buildFinancialOverview = (
   );
   const valorTotalContrato =
     typeof valorTotalContratoOverride === "number" &&
-    Number.isFinite(valorTotalContratoOverride)
+      Number.isFinite(valorTotalContratoOverride)
       ? valorTotalContratoOverride
       : valorParcelado;
   const parcelasPagas = parcelas.filter((parcela) => parcela.status === "pago");
@@ -321,13 +344,13 @@ export const buildFinancialOverview = (
     quantidadePendentes,
     proximaParcela: proximaParcela
       ? {
-          id: proximaParcela.id,
-          numero: proximaParcela.numero,
-          descricao: proximaParcela.descricao,
-          valor: proximaParcela.valor,
-          vencimento: proximaParcela.vencimento,
-          status: proximaParcela.status,
-        }
+        id: proximaParcela.id,
+        numero: proximaParcela.numero,
+        descricao: proximaParcela.descricao,
+        valor: proximaParcela.valor,
+        vencimento: proximaParcela.vencimento,
+        status: proximaParcela.status,
+      }
       : undefined,
     atualizadoEm,
   };
@@ -468,6 +491,102 @@ export const uploadFinancialBoletoFile = async ({
   });
 
   return { boletoUrl, boletoPath };
+};
+
+export const submitFinancialReceipt = async ({
+  parcelaId,
+  obraId,
+  comprovantePath,
+  comprovanteUrl,
+  observacaoCliente,
+  comprovanteEnviadoPor,
+}: SubmitFinancialReceiptPayload) => {
+  const parcela = await getFinancialInstallmentById(parcelaId);
+
+  if (!parcela) {
+    throw new Error("Parcela financeira não encontrada.");
+  }
+
+  if (parcela.obraId !== normalizeString(obraId)) {
+    throw new Error("A parcela informada não pertence à obra selecionada.");
+  }
+
+  assertReceiptUploadAllowed(parcela);
+
+  await updateDoc(doc(db, FINANCIAL_INSTALLMENTS_COLLECTION, parcelaId), {
+    comprovanteUrl: normalizeOptionalString(comprovanteUrl) ?? null,
+    comprovantePath: normalizeString(comprovantePath),
+    comprovante: {
+      ...(parcela.comprovante ?? {}),
+      url: normalizeOptionalString(comprovanteUrl),
+      path: normalizeString(comprovantePath),
+    },
+    comprovanteEnviadoEm: serverTimestamp(),
+    comprovanteEnviadoPor: comprovanteEnviadoPor ?? null,
+    observacaoCliente: normalizeOptionalString(observacaoCliente) ?? null,
+    status: "comprovante_enviado",
+    atualizadoEm: serverTimestamp(),
+  });
+
+  return getFinancialInstallmentById(parcelaId);
+};
+
+export const uploadFinancialReceiptFile = async ({
+  obraId,
+  parcelaId,
+  file,
+  observacaoCliente,
+  comprovanteEnviadoPor,
+}: {
+  obraId: string;
+  parcelaId: string;
+  file: File;
+  observacaoCliente?: string;
+  comprovanteEnviadoPor?: FinancialActorReference;
+}) => {
+  validateFinancialReceiptFile(file);
+
+  const parcela = await getFinancialInstallmentById(parcelaId);
+  if (!parcela) {
+    throw new Error("Parcela financeira não encontrada.");
+  }
+
+  if (parcela.obraId !== normalizeString(obraId)) {
+    throw new Error("A parcela informada não pertence à obra selecionada.");
+  }
+
+  assertReceiptUploadAllowed(parcela);
+
+  const safeName = `${Date.now()}_${sanitizeFileName(file.name) || "comprovante"}`;
+  const comprovantePath = financialInstallmentStoragePaths.comprovante(
+    obraId,
+    parcelaId,
+    safeName,
+  );
+  const storageRef = ref(storage, comprovantePath);
+  await uploadBytes(storageRef, file, {
+    contentType: file.type || "application/octet-stream",
+  });
+  const comprovanteUrl = await getDownloadURL(storageRef);
+
+  await updateDoc(doc(db, FINANCIAL_INSTALLMENTS_COLLECTION, parcelaId), {
+    comprovanteUrl,
+    comprovantePath,
+    comprovante: {
+      url: comprovanteUrl,
+      path: comprovantePath,
+      fileName: file.name,
+      contentType: file.type || "application/octet-stream",
+      sizeBytes: file.size,
+    },
+    comprovanteEnviadoEm: serverTimestamp(),
+    comprovanteEnviadoPor: comprovanteEnviadoPor ?? null,
+    observacaoCliente: normalizeOptionalString(observacaoCliente) ?? null,
+    status: "comprovante_enviado",
+    atualizadoEm: serverTimestamp(),
+  });
+
+  return getFinancialInstallmentById(parcelaId);
 };
 
 export const updateFinancialContractValue = async (
