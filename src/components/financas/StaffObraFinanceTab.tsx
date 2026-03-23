@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useParams } from "react-router-dom";
 import { Timestamp } from "firebase/firestore";
 import {
   ExternalLink,
@@ -15,6 +16,7 @@ import {
 } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/contexts/AuthContext";
+import { useObra as useObraContext } from "@/contexts/ObraContext";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -133,22 +135,47 @@ interface StaffObraFinanceTabProps {
   obraId: string;
 }
 
-const StaffObraFinanceTab = ({ obraId }: StaffObraFinanceTabProps) => {
+const isDev = import.meta.env.DEV;
+
+const logFinanceDebug = (message: string, payload?: Record<string, unknown>) => {
+  if (!isDev) return;
+  console.info(`[FINANCEIRO_ADMIN] ${message}`, payload ?? {});
+};
+
+const logFinanceError = (message: string, payload?: Record<string, unknown>) => {
+  if (!isDev) return;
+  console.error(`[FINANCEIRO_ADMIN] ${message}`, payload ?? {});
+};
+
+const StaffObraFinanceTab = ({ obraId: propObraId }: StaffObraFinanceTabProps) => {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const boletoInputRef = useRef<HTMLInputElement>(null);
   const { user, userDoc } = useAuth();
-  const { data: obra } = useObra(obraId);
+  const { obraAtivaId } = useObraContext();
+  const { obraId: routeObraId } = useParams();
+
+  const resolvedObraId = useMemo(() => {
+    const candidates = [routeObraId, propObraId, obraAtivaId];
+    return (
+      candidates.find((candidate) => typeof candidate === "string" && candidate.trim().length > 0)?.trim() ??
+      ""
+    );
+  }, [obraAtivaId, propObraId, routeObraId]);
+
+  const { data: obra } = useObra(resolvedObraId || undefined);
   const {
     data: overview,
     isLoading: isLoadingOverview,
     isError: isOverviewError,
-  } = useFinancialOverview(obraId);
+  error: overviewError,
+  } = useFinancialOverview(resolvedObraId || undefined);
   const {
     data: parcelas = [],
     isLoading: isLoadingParcelas,
     isError: isParcelasError,
-  } = useFinancialInstallmentsList(obraId);
+  error: parcelasError,
+  } = useFinancialInstallmentsList(resolvedObraId || undefined);
   const approveReceiptMutation = useApproveFinancialReceiptMutation();
   const rejectReceiptMutation = useRejectFinancialReceiptMutation();
 
@@ -189,6 +216,51 @@ const StaffObraFinanceTab = ({ obraId }: StaffObraFinanceTabProps) => {
     setContractValueInput(String(valorTotalContratoAtual ?? ""));
   }, [valorTotalContratoAtual]);
 
+  useEffect(() => {
+    logFinanceDebug("contexto resolvido da aba financeira", {
+      routeObraId: routeObraId ?? null,
+      propObraId: propObraId ?? null,
+      obraAtivaId: obraAtivaId ?? null,
+      resolvedObraId: resolvedObraId || null,
+      loadedObraId: obra?.id ?? null,
+    });
+  }, [obra?.id, obraAtivaId, propObraId, resolvedObraId, routeObraId]);
+
+  useEffect(() => {
+    logFinanceDebug("resultado da query de listagem", {
+      resolvedObraId,
+      total: parcelas.length,
+      parcelaIds: parcelas.map((parcela) => parcela.id),
+      persistedObraIds: [...new Set(parcelas.map((parcela) => parcela.obraId))],
+    });
+  }, [parcelas, resolvedObraId]);
+
+  useEffect(() => {
+    logFinanceDebug("resultado da query de overview", {
+      resolvedObraId,
+      overview: overview
+        ? {
+            obraId: overview.obraId,
+            valorTotalContrato: overview.valorTotalContrato,
+            quantidadeParcelas: overview.quantidadeParcelas,
+            quantidadePendentes: overview.quantidadePendentes,
+          }
+        : null,
+    });
+  }, [overview, resolvedObraId]);
+
+  useEffect(() => {
+    if (overviewError) {
+      logFinanceError("erro bruto capturado no overview", { resolvedObraId, error: overviewError });
+    }
+  }, [overviewError, resolvedObraId]);
+
+  useEffect(() => {
+    if (parcelasError) {
+      logFinanceError("erro bruto capturado na listagem", { resolvedObraId, error: parcelasError });
+    }
+  }, [parcelasError, resolvedObraId]);
+
   const resetForm = () => {
     setEditingParcelaId(null);
     setForm(EMPTY_FORM);
@@ -209,12 +281,13 @@ const StaffObraFinanceTab = ({ obraId }: StaffObraFinanceTabProps) => {
   };
 
   const refreshFinancas = async () => {
+    if (!resolvedObraId) return;
     await Promise.all([
-      queryClient.invalidateQueries({ queryKey: financasKeys.list(obraId) }),
+      queryClient.invalidateQueries({ queryKey: financasKeys.list(resolvedObraId) }),
       queryClient.invalidateQueries({
-        queryKey: financasKeys.overview(obraId),
+        queryKey: financasKeys.overview(resolvedObraId),
       }),
-      queryClient.invalidateQueries({ queryKey: ["obra", obraId] }),
+      queryClient.invalidateQueries({ queryKey: ["obra", resolvedObraId] }),
     ]);
   };
 
@@ -243,6 +316,13 @@ const StaffObraFinanceTab = ({ obraId }: StaffObraFinanceTabProps) => {
       return;
     }
 
+    if (!resolvedObraId) {
+      const description = "Não foi possível resolver o ID real da obra atual.";
+      setFormError(description);
+      toast({ title: "Obra inválida", description, variant: "destructive" });
+      return;
+    }
+
     setFormError(null);
     setIsSavingInstallment(true);
     try {
@@ -259,7 +339,9 @@ const StaffObraFinanceTab = ({ obraId }: StaffObraFinanceTabProps) => {
         await updateFinancialInstallment(editingParcelaId, payload);
         toast({ title: "Parcela atualizada" });
       } else {
-        await createFinancialInstallment({ obraId, ...payload });
+        logFinanceDebug("payload de criação de parcela", { routeObraId, propObraId, obraAtivaId, resolvedObraId, payload: { obraId: resolvedObraId, ...payload } });
+        const createdRef = await createFinancialInstallment({ obraId: resolvedObraId, ...payload });
+        logFinanceDebug("mutation de criação concluída", { resolvedObraId, parcelaId: createdRef.id });
         toast({ title: "Parcela criada" });
       }
 
@@ -300,6 +382,10 @@ const StaffObraFinanceTab = ({ obraId }: StaffObraFinanceTabProps) => {
   };
 
   const handleContractSave = async () => {
+    if (!resolvedObraId) {
+      toast({ title: "Obra inválida", description: "Não foi possível resolver o ID da obra.", variant: "destructive" });
+      return;
+    }
     const parsed = parseCurrencyInput(contractValueInput);
     if (!Number.isFinite(parsed) || parsed < 0) {
       toast({
@@ -312,7 +398,7 @@ const StaffObraFinanceTab = ({ obraId }: StaffObraFinanceTabProps) => {
 
     setIsSavingContract(true);
     try {
-      await updateFinancialContractValue(obraId, parsed);
+      await updateFinancialContractValue(resolvedObraId, parsed);
       await refreshFinancas();
       toast({ title: "Contrato atualizado" });
     } catch (error) {
@@ -333,6 +419,10 @@ const StaffObraFinanceTab = ({ obraId }: StaffObraFinanceTabProps) => {
 
   const handleBoletoFile = async (file?: File) => {
     if (!file || !selectedBoletoParcelaId) return;
+    if (!resolvedObraId) {
+      toast({ title: "Obra inválida", description: "Não foi possível resolver o ID da obra.", variant: "destructive" });
+      return;
+    }
 
     const parcela = parcelas.find(
       (item) => item.id === selectedBoletoParcelaId,
@@ -344,7 +434,7 @@ const StaffObraFinanceTab = ({ obraId }: StaffObraFinanceTabProps) => {
 
     setUploadingParcelaId(parcela.id);
     try {
-      await uploadFinancialBoletoFile({ obraId, parcelaId: parcela.id, file });
+      await uploadFinancialBoletoFile({ obraId:resolvedObraId, parcelaId: parcela.id, file });
       await refreshFinancas();
       toast({
         title: "Boleto vinculado",
@@ -364,9 +454,13 @@ const StaffObraFinanceTab = ({ obraId }: StaffObraFinanceTabProps) => {
   };
 
   const handleApproveReceipt = async (parcela: FinancialInstallment) => {
+    if (!resolvedObraId) {
+      toast({ title: "Obra inválida", description: "Não foi possível resolver o ID da obra.", variant: "destructive" });
+      return;
+    }
     try {
       await approveReceiptMutation.mutateAsync({
-        obraId,
+        obraId: resolvedObraId,
         parcelaId: parcela.id,
         confirmadoPagoPor: reviewActor,
       });
@@ -396,6 +490,10 @@ const StaffObraFinanceTab = ({ obraId }: StaffObraFinanceTabProps) => {
 
   const handleRejectReceipt = async () => {
     if (!rejectingParcela) return;
+    if (!resolvedObraId) {
+      toast({ title: "Obra inválida", description: "Não foi possível resolver o ID da obra.", variant: "destructive" });
+      return;
+    }
 
     const trimmedReason = rejectReason.trim();
     if (!trimmedReason) {
@@ -409,7 +507,7 @@ const StaffObraFinanceTab = ({ obraId }: StaffObraFinanceTabProps) => {
 
     try {
       await rejectReceiptMutation.mutateAsync({
-        obraId,
+        obraId: resolvedObraId,
         parcelaId: rejectingParcela.id,
         observacaoAdmin: trimmedReason,
       });
@@ -600,7 +698,7 @@ const StaffObraFinanceTab = ({ obraId }: StaffObraFinanceTabProps) => {
             </CardTitle>
             <CardDescription>
               O obraId é resolvido pelo contexto da obra atual:{" "}
-              <span className="font-mono">{obraId}</span>.
+              <span className="font-mono">{resolvedObraId || "—"}</span>.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">

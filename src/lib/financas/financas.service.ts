@@ -5,7 +5,6 @@ import {
   doc,
   getDoc,
   getDocs,
-  orderBy,
   query,
   serverTimestamp,
   Timestamp,
@@ -34,6 +33,17 @@ import {
 const FINANCIAL_INSTALLMENTS_COLLECTION = "financeiroParcelas";
 const installmentStatusSet = new Set<string>(FINANCIAL_INSTALLMENT_STATUSES);
 export const FINANCIAL_RECEIPT_ACCEPTED_TYPES = ["application/pdf", "image/jpeg", "image/png"] as const;
+const isDev = import.meta.env.DEV;
+
+const logFinancialDebug = (message: string, payload?: Record<string, unknown>) => {
+  if (!isDev) return;
+  console.info(`[FINANCAS_SERVICE] ${message}`, payload ?? {});
+};
+
+const logFinancialError = (message: string, payload?: Record<string, unknown>) => {
+  if (!isDev) return;
+  console.error(`[FINANCAS_SERVICE] ${message}`, payload ?? {});
+};
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null;
@@ -229,18 +239,31 @@ export const listFinancialInstallments = async ({
     return [];
   }
 
-  const constraints: QueryConstraint[] = [
-    where("obraId", "==", normalizedObraId),
-    orderBy("numero", "asc"),
-  ];
-  const snap = await getDocs(
-    query(collection(db, FINANCIAL_INSTALLMENTS_COLLECTION), ...constraints),
-  );
-  const parcelas = snap.docs.map(mapFinancialInstallment);
+  const constraints: QueryConstraint[] = [where("obraId", "==", normalizedObraId)];
 
-  return includeRejected
-    ? parcelas
-    : parcelas.filter((parcela) => parcela.status !== "rejeitado");
+  try {
+    const snap = await getDocs(
+      query(collection(db, FINANCIAL_INSTALLMENTS_COLLECTION), ...constraints),
+    );
+    const parcelas = snap.docs
+      .map(mapFinancialInstallment)
+      .sort((left, right) => left.numero - right.numero);
+    const filtered = includeRejected
+      ? parcelas
+      : parcelas.filter((parcela) => parcela.status !== "rejeitado");
+
+    logFinancialDebug("resultado da listagem por obra", {
+      obraId: normalizedObraId,
+      total: filtered.length,
+      parcelaIds: filtered.map((parcela) => parcela.id),
+      persistedObraIds: [...new Set(filtered.map((parcela) => parcela.obraId))],
+    });
+
+    return filtered;
+  } catch (error) {
+    logFinancialError("erro ao listar parcelas por obra", { obraId: normalizedObraId, error });
+    throw error;
+  }
 };
 
 export const getFinancialInstallmentById = async (
@@ -387,11 +410,23 @@ export const getFinancialOverviewByObra = async (
     return null;
   }
 
-  const [parcelas, valorTotalContrato] = await Promise.all([
-    listFinancialInstallments({ obraId: normalizedObraId }),
-    getFinancialContractValueFromObra(normalizedObraId),
-  ]);
-  return buildFinancialOverview(normalizedObraId, parcelas, valorTotalContrato);
+  try {
+    const [parcelas, valorTotalContrato] = await Promise.all([
+      listFinancialInstallments({ obraId: normalizedObraId }),
+      getFinancialContractValueFromObra(normalizedObraId),
+    ]);
+    const overview = buildFinancialOverview(normalizedObraId, parcelas, valorTotalContrato);
+    logFinancialDebug("resultado do overview por obra", {
+      obraId: normalizedObraId,
+      quantidadeParcelas: overview.quantidadeParcelas,
+      valorTotalContrato: overview.valorTotalContrato,
+      valorPago: overview.valorPago,
+    });
+    return overview;
+  } catch (error) {
+    logFinancialError("erro ao montar overview financeiro", { obraId: normalizedObraId, error });
+    throw error;
+  }
 };
 
 export const financialInstallmentStoragePaths = {
@@ -410,8 +445,14 @@ const toFirestoreDate = (value: TimestampType | Date | null | undefined) => {
 export const createFinancialInstallment = async (
   input: CreateFinancialInstallmentInput,
 ) => {
+  const normalizedObraId = normalizeString(input.obraId);
+
+  if (!normalizedObraId) {
+    throw new Error("Não foi possível salvar a parcela sem um obraId válido.");
+  }
+
   const payload = {
-    obraId: normalizeString(input.obraId),
+    obraId: normalizedObraId,
     numero: input.numero,
     descricao: input.descricao.trim(),
     valor: input.valor,
@@ -424,7 +465,10 @@ export const createFinancialInstallment = async (
     atualizadoEm: serverTimestamp(),
   };
 
-  return addDoc(collection(db, FINANCIAL_INSTALLMENTS_COLLECTION), payload);
+  logFinancialDebug("payload normalizado para criação de parcela", payload as Record<string, unknown>);
+  const docRef = await addDoc(collection(db, FINANCIAL_INSTALLMENTS_COLLECTION), payload);
+  logFinancialDebug("parcela criada com sucesso", { obraId: normalizedObraId, parcelaId: docRef.id });
+  return docRef;
 };
 
 export const updateFinancialInstallment = async (
@@ -474,9 +518,20 @@ export const uploadFinancialBoletoFile = async ({
   parcelaId: string;
   file: File;
 }) => {
+  const normalizedObraId = normalizeString(obraId);
+  const parcela = await getFinancialInstallmentById(parcelaId);
+
+  if (!parcela) {
+    throw new Error("Parcela financeira não encontrada.");
+  }
+
+  if (parcela.obraId !== normalizedObraId) {
+    throw new Error("A parcela informada não pertence à obra selecionada.");
+  }
+
   const safeName = `${Date.now()}_${sanitizeFileName(file.name) || "boleto"}`;
   const boletoPath = financialInstallmentStoragePaths.boleto(
-    obraId,
+    normalizedObraId,
     parcelaId,
     safeName,
   );
@@ -499,6 +554,8 @@ export const uploadFinancialBoletoFile = async ({
     atualizadoEm: serverTimestamp(),
   });
 
+  logFinancialDebug("boleto vinculado com sucesso", { obraId: normalizedObraId, parcelaId, boletoPath });
+  
   return { boletoUrl, boletoPath };
 };
 
@@ -649,7 +706,7 @@ export const rejectFinancialReceipt = async (payload: Omit<ReviewFinancialReceip
     ...payload,
     aprovado: false,
   });
-  
+
 export const updateFinancialContractValue = async (
   obraId: string,
   valorTotalContrato: number,
