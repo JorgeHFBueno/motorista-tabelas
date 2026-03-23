@@ -41,12 +41,41 @@ const Index = () => {
     isLoading,
     error,
     isEmpty,
+    isEmptyState,
+    isResolvingAuth,
+    isResolvingUserDoc,
+    isResolvingClientObra,
+    isResolvingDashboardData,
+    isActiveObraReady,
   } = useClientObraOverview();
 
   const hasObraData = Boolean(activeObraId && obra);
   const projectSummary = hasObraData
     ? `${summary}${obra?.nome ? ` Obra ativa: ${obra.nome}.` : ""}`
     : "Assim que uma obra estiver vinculada ao seu acesso, o progresso aparecerá aqui.";
+
+    if (import.meta.env.DEV) {
+    console.info("[ClientDashboard] decisão de UI", {
+      activeObraId,
+      hasClientObra,
+      hasObraData,
+      isLoading,
+      isEmptyState,
+      hasError: Boolean(error),
+      isResolvingAuth,
+      isResolvingUserDoc,
+      isResolvingClientObra,
+      isResolvingDashboardData,
+      isActiveObraReady,
+      branch: isLoading
+        ? "loading"
+        : isEmptyState
+          ? "empty"
+          : error
+            ? "error"
+            : "loaded",
+    });
+  }
 
   return (
     <ResponsiveLayout headerTitle="Dashboard" headerSubtitle="Visão geral da sua obra">
@@ -60,7 +89,7 @@ const Index = () => {
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           {isLoading ? (
             <DashboardCardSkeleton />
-          ) : !hasClientObra || !activeObraId ? (
+          ) : isEmptyState ? (
             <DashboardAlert message="Nenhuma obra ativa foi encontrada para este acesso no momento." />
           ) : error ? (
             <DashboardAlert message="Não foi possível carregar o progresso da obra agora. Tente novamente em instantes." />
@@ -98,7 +127,7 @@ const Index = () => {
         ) : (
           <StagesOverview
             fases={fases}
-            emptyMessage={hasClientObra ? "Sua obra ainda não possui etapas cadastradas para exibição no dashboard." : "Nenhuma obra vinculada para exibir etapas."}
+            emptyMessage={isEmptyState ? "Nenhuma obra vinculada para exibir etapas." : "Sua obra ainda não possui etapas cadastradas para exibição no dashboard."}
           />
         )}
       </div>

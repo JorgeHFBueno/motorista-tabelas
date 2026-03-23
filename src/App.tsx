@@ -40,7 +40,7 @@ const App = () => {
     console.log("[build]", import.meta.env.MODE, "__BUILD__", "__DATE__");
     return <FirebaseInitErrorScreen />;
   }
-  console.log("[build]", import.meta.env.MODE, "__BUILD__", "718");
+  console.log("[build]", import.meta.env.MODE, "__BUILD__", "719");
 
   return (
     <QueryClientProvider client={queryClient}>
