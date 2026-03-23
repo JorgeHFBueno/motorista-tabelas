@@ -20,6 +20,7 @@ export interface ObraDoc {
   status: "ativa" | "concluida";
   statusResumo?: "-" | "Em andamento" | "Concluída" | null;
   statusResumoUpdatedAt?: unknown;
+  valorTotalContrato?: number | null;
   createdAt?: unknown;
   updatedAt?: unknown;
 }

@@ -1,24 +1,32 @@
 import {
+  addDoc,
+  deleteDoc,
   collection,
   doc,
   getDoc,
   getDocs,
   orderBy,
   query,
+  serverTimestamp,
+  Timestamp,
+  updateDoc,
   where,
   type DocumentData,
   type QueryConstraint,
   type QueryDocumentSnapshot,
-  type Timestamp,
+  type Timestamp as TimestampType,
 } from "firebase/firestore";
-import { db } from "@/lib/firebase";
+import { getDownloadURL, ref, uploadBytes } from "firebase/storage";
+import { db, storage } from "@/lib/firebase";
 import {
   FINANCIAL_INSTALLMENT_STATUSES,
+  type CreateFinancialInstallmentInput,
   type FinancialActorReference,
   type FinancialInstallment,
   type FinancialInstallmentStatus,
   type FinancialOverview,
   type ListFinancialInstallmentsInput,
+  type UpdateFinancialInstallmentInput,
 } from "./financas.types";
 
 const FINANCIAL_INSTALLMENTS_COLLECTION = "financeiroParcelas";
@@ -27,7 +35,8 @@ const installmentStatusSet = new Set<string>(FINANCIAL_INSTALLMENT_STATUSES);
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null;
 
-const normalizeString = (value: unknown): string => (typeof value === "string" ? value.trim() : "");
+const normalizeString = (value: unknown): string =>
+  typeof value === "string" ? value.trim() : "";
 
 const normalizeOptionalString = (value: unknown): string | undefined => {
   const normalized = normalizeString(value);
@@ -47,14 +56,14 @@ const normalizeNumber = (value: unknown): number => {
   return 0;
 };
 
-const isTimestamp = (value: unknown): value is Timestamp =>
-  isRecord(value)
-  && typeof value.toDate === "function"
-  && typeof value.toMillis === "function"
-  && typeof value.seconds === "number"
-  && typeof value.nanoseconds === "number";
+const isTimestamp = (value: unknown): value is TimestampType =>
+  isRecord(value) &&
+  typeof value.toDate === "function" &&
+  typeof value.toMillis === "function" &&
+  typeof value.seconds === "number" &&
+  typeof value.nanoseconds === "number";
 
-const normalizeTimestamp = (value: unknown): Timestamp | undefined => {
+const normalizeTimestamp = (value: unknown): TimestampType | undefined => {
   if (isTimestamp(value)) {
     return value;
   }
@@ -62,7 +71,9 @@ const normalizeTimestamp = (value: unknown): Timestamp | undefined => {
   return undefined;
 };
 
-const normalizeActor = (value: unknown): FinancialActorReference | undefined => {
+const normalizeActor = (
+  value: unknown,
+): FinancialActorReference | undefined => {
   if (!isRecord(value)) {
     return undefined;
   }
@@ -94,10 +105,22 @@ const coerceFileReference = (
   directUrl: unknown,
   directPath: unknown,
   nested: unknown,
-): Pick<FinancialInstallment, "boleto" | "boletoPath" | "boletoUrl" | "comprovante" | "comprovantePath" | "comprovanteUrl"> => {
+): Pick<
+  FinancialInstallment,
+  | "boleto"
+  | "boletoPath"
+  | "boletoUrl"
+  | "comprovante"
+  | "comprovantePath"
+  | "comprovanteUrl"
+> => {
   const nestedRecord = isRecord(nested) ? nested : undefined;
-  const boletoUrl = normalizeOptionalString(directUrl) ?? normalizeOptionalString(nestedRecord?.url);
-  const boletoPath = normalizeOptionalString(directPath) ?? normalizeOptionalString(nestedRecord?.path);
+  const boletoUrl =
+    normalizeOptionalString(directUrl) ??
+    normalizeOptionalString(nestedRecord?.url);
+  const boletoPath =
+    normalizeOptionalString(directPath) ??
+    normalizeOptionalString(nestedRecord?.path);
 
   if (!nestedRecord && !boletoUrl && !boletoPath) {
     return {};
@@ -111,7 +134,10 @@ const coerceFileReference = (
       path: boletoPath,
       fileName: normalizeOptionalString(nestedRecord?.fileName),
       contentType: normalizeOptionalString(nestedRecord?.contentType),
-      sizeBytes: typeof nestedRecord?.sizeBytes === "number" ? nestedRecord.sizeBytes : undefined,
+      sizeBytes:
+        typeof nestedRecord?.sizeBytes === "number"
+          ? nestedRecord.sizeBytes
+          : undefined,
     },
   };
 };
@@ -120,10 +146,17 @@ const coerceReceiptReference = (
   directUrl: unknown,
   directPath: unknown,
   nested: unknown,
-): Pick<FinancialInstallment, "comprovante" | "comprovantePath" | "comprovanteUrl"> => {
+): Pick<
+  FinancialInstallment,
+  "comprovante" | "comprovantePath" | "comprovanteUrl"
+> => {
   const nestedRecord = isRecord(nested) ? nested : undefined;
-  const comprovanteUrl = normalizeOptionalString(directUrl) ?? normalizeOptionalString(nestedRecord?.url);
-  const comprovantePath = normalizeOptionalString(directPath) ?? normalizeOptionalString(nestedRecord?.path);
+  const comprovanteUrl =
+    normalizeOptionalString(directUrl) ??
+    normalizeOptionalString(nestedRecord?.url);
+  const comprovantePath =
+    normalizeOptionalString(directPath) ??
+    normalizeOptionalString(nestedRecord?.path);
 
   if (!nestedRecord && !comprovanteUrl && !comprovantePath) {
     return {};
@@ -137,21 +170,36 @@ const coerceReceiptReference = (
       path: comprovantePath,
       fileName: normalizeOptionalString(nestedRecord?.fileName),
       contentType: normalizeOptionalString(nestedRecord?.contentType),
-      sizeBytes: typeof nestedRecord?.sizeBytes === "number" ? nestedRecord.sizeBytes : undefined,
+      sizeBytes:
+        typeof nestedRecord?.sizeBytes === "number"
+          ? nestedRecord.sizeBytes
+          : undefined,
     },
   };
 };
 
-export const mapFinancialInstallment = (snap: QueryDocumentSnapshot<DocumentData>): FinancialInstallment => {
+export const mapFinancialInstallment = (
+  snap: QueryDocumentSnapshot<DocumentData>,
+): FinancialInstallment => {
   const data = snap.data();
-  const boleto = coerceFileReference(data.boletoUrl, data.boletoPath, data.boleto);
-  const comprovante = coerceReceiptReference(data.comprovanteUrl, data.comprovantePath, data.comprovante);
+  const boleto = coerceFileReference(
+    data.boletoUrl,
+    data.boletoPath,
+    data.boleto,
+  );
+  const comprovante = coerceReceiptReference(
+    data.comprovanteUrl,
+    data.comprovantePath,
+    data.comprovante,
+  );
 
   return {
     id: snap.id,
     obraId: normalizeString(data.obraId),
     numero: normalizeNumber(data.numero),
-    descricao: normalizeOptionalString(data.descricao) ?? `Parcela ${normalizeNumber(data.numero) || ""}`.trim(),
+    descricao:
+      normalizeOptionalString(data.descricao) ??
+      `Parcela ${normalizeNumber(data.numero) || ""}`.trim(),
     valor: normalizeNumber(data.valor),
     vencimento: normalizeTimestamp(data.vencimento),
     status: normalizeStatus(data.status),
@@ -178,21 +226,32 @@ export const listFinancialInstallments = async ({
     return [];
   }
 
-  const constraints: QueryConstraint[] = [where("obraId", "==", normalizedObraId), orderBy("numero", "asc")];
-  const snap = await getDocs(query(collection(db, FINANCIAL_INSTALLMENTS_COLLECTION), ...constraints));
+  const constraints: QueryConstraint[] = [
+    where("obraId", "==", normalizedObraId),
+    orderBy("numero", "asc"),
+  ];
+  const snap = await getDocs(
+    query(collection(db, FINANCIAL_INSTALLMENTS_COLLECTION), ...constraints),
+  );
   const parcelas = snap.docs.map(mapFinancialInstallment);
 
-  return includeRejected ? parcelas : parcelas.filter((parcela) => parcela.status !== "rejeitado");
+  return includeRejected
+    ? parcelas
+    : parcelas.filter((parcela) => parcela.status !== "rejeitado");
 };
 
-export const getFinancialInstallmentById = async (id: string): Promise<FinancialInstallment | null> => {
+export const getFinancialInstallmentById = async (
+  id: string,
+): Promise<FinancialInstallment | null> => {
   const parcelaId = normalizeString(id);
 
   if (!parcelaId) {
     return null;
   }
 
-  const snap = await getDoc(doc(db, FINANCIAL_INSTALLMENTS_COLLECTION, parcelaId));
+  const snap = await getDoc(
+    doc(db, FINANCIAL_INSTALLMENTS_COLLECTION, parcelaId),
+  );
 
   if (!snap.exists()) {
     return null;
@@ -202,7 +261,9 @@ export const getFinancialInstallmentById = async (id: string): Promise<Financial
 };
 
 const isPayableOpenStatus = (status: FinancialInstallmentStatus) =>
-  status === "pendente" || status === "comprovante_enviado" || status === "rejeitado";
+  status === "pendente" ||
+  status === "comprovante_enviado" ||
+  status === "rejeitado";
 
 export const selectUpcomingInstallment = (parcelas: FinancialInstallment[]) => {
   return [...parcelas]
@@ -219,18 +280,35 @@ export const selectUpcomingInstallment = (parcelas: FinancialInstallment[]) => {
     })[0];
 };
 
-export const buildFinancialOverview = (obraId: string, parcelas: FinancialInstallment[]): FinancialOverview => {
-  const valorTotalContrato = parcelas.reduce((acc, parcela) => acc + parcela.valor, 0);
+export const buildFinancialOverview = (
+  obraId: string,
+  parcelas: FinancialInstallment[],
+  valorTotalContratoOverride?: number,
+): FinancialOverview => {
+  const valorParcelado = parcelas.reduce(
+    (acc, parcela) => acc + parcela.valor,
+    0,
+  );
+  const valorTotalContrato =
+    typeof valorTotalContratoOverride === "number" &&
+    Number.isFinite(valorTotalContratoOverride)
+      ? valorTotalContratoOverride
+      : valorParcelado;
   const parcelasPagas = parcelas.filter((parcela) => parcela.status === "pago");
-  const valorPago = parcelasPagas.reduce((acc, parcela) => acc + parcela.valor, 0);
+  const valorPago = parcelasPagas.reduce(
+    (acc, parcela) => acc + parcela.valor,
+    0,
+  );
   const quantidadePagas = parcelasPagas.length;
   const quantidadeParcelas = parcelas.length;
-  const quantidadePendentes = parcelas.filter((parcela) => parcela.status !== "pago").length;
+  const quantidadePendentes = parcelas.filter(
+    (parcela) => parcela.status !== "pago",
+  ).length;
   const valorEmAberto = Math.max(valorTotalContrato - valorPago, 0);
   const proximaParcela = selectUpcomingInstallment(parcelas);
   const atualizadoEm = [...parcelas]
     .map((parcela) => parcela.atualizadoEm ?? parcela.criadoEm)
-    .filter((value): value is Timestamp => Boolean(value))
+    .filter((value): value is TimestampType => Boolean(value))
     .sort((left, right) => right.toMillis() - left.toMillis())[0];
 
   return {
@@ -255,15 +333,33 @@ export const buildFinancialOverview = (obraId: string, parcelas: FinancialInstal
   };
 };
 
-export const getFinancialOverviewByObra = async (obraId?: string): Promise<FinancialOverview | null> => {
+const getFinancialContractValueFromObra = async (
+  obraId: string,
+): Promise<number | undefined> => {
+  const obraSnap = await getDoc(doc(db, "obras", obraId));
+  if (!obraSnap.exists()) return undefined;
+
+  const obraData = obraSnap.data();
+  if (!("valorTotalContrato" in obraData)) return undefined;
+
+  const valorTotalContrato = normalizeNumber(obraData.valorTotalContrato);
+  return Number.isFinite(valorTotalContrato) ? valorTotalContrato : undefined;
+};
+
+export const getFinancialOverviewByObra = async (
+  obraId?: string,
+): Promise<FinancialOverview | null> => {
   const normalizedObraId = normalizeString(obraId);
 
   if (!normalizedObraId) {
     return null;
   }
 
-  const parcelas = await listFinancialInstallments({ obraId: normalizedObraId });
-  return buildFinancialOverview(normalizedObraId, parcelas);
+  const [parcelas, valorTotalContrato] = await Promise.all([
+    listFinancialInstallments({ obraId: normalizedObraId }),
+    getFinancialContractValueFromObra(normalizedObraId),
+  ]);
+  return buildFinancialOverview(normalizedObraId, parcelas, valorTotalContrato);
 };
 
 export const financialInstallmentStoragePaths = {
@@ -271,4 +367,115 @@ export const financialInstallmentStoragePaths = {
     `financeiro/${obraId}/${parcelaId}/boleto/${fileName}`,
   comprovante: (obraId: string, parcelaId: string, fileName: string) =>
     `financeiro/${obraId}/${parcelaId}/comprovante/${fileName}`,
+};
+
+const toFirestoreDate = (value: TimestampType | Date | null | undefined) => {
+  if (value === null) return null;
+  if (value instanceof Date) return Timestamp.fromDate(value);
+  return value;
+};
+
+export const createFinancialInstallment = async (
+  input: CreateFinancialInstallmentInput,
+) => {
+  const payload = {
+    obraId: normalizeString(input.obraId),
+    numero: input.numero,
+    descricao: input.descricao.trim(),
+    valor: input.valor,
+    vencimento: toFirestoreDate(input.vencimento),
+    status: input.status ?? "pendente",
+    boletoUrl: normalizeOptionalString(input.boletoUrl) ?? null,
+    boletoPath: normalizeOptionalString(input.boletoPath) ?? null,
+    observacaoAdmin: normalizeOptionalString(input.observacaoAdmin) ?? null,
+    criadoEm: serverTimestamp(),
+    atualizadoEm: serverTimestamp(),
+  };
+
+  return addDoc(collection(db, FINANCIAL_INSTALLMENTS_COLLECTION), payload);
+};
+
+export const updateFinancialInstallment = async (
+  parcelaId: string,
+  input: UpdateFinancialInstallmentInput,
+) => {
+  const payload = {
+    ...(input.numero !== undefined ? { numero: input.numero } : {}),
+    ...(input.descricao !== undefined
+      ? { descricao: input.descricao.trim() }
+      : {}),
+    ...(input.valor !== undefined ? { valor: input.valor } : {}),
+    ...(input.vencimento !== undefined
+      ? { vencimento: toFirestoreDate(input.vencimento) }
+      : {}),
+    ...(input.status !== undefined ? { status: input.status } : {}),
+    ...(input.boletoUrl !== undefined ? { boletoUrl: input.boletoUrl } : {}),
+    ...(input.boletoPath !== undefined ? { boletoPath: input.boletoPath } : {}),
+    ...(input.observacaoAdmin !== undefined
+      ? { observacaoAdmin: input.observacaoAdmin }
+      : {}),
+    ...(input.observacaoCliente !== undefined
+      ? { observacaoCliente: input.observacaoCliente }
+      : {}),
+    atualizadoEm: serverTimestamp(),
+  };
+
+  await updateDoc(
+    doc(db, FINANCIAL_INSTALLMENTS_COLLECTION, parcelaId),
+    payload,
+  );
+};
+
+export const deleteFinancialInstallment = async (parcelaId: string) => {
+  await deleteDoc(doc(db, FINANCIAL_INSTALLMENTS_COLLECTION, parcelaId));
+};
+
+const sanitizeFileName = (fileName: string) =>
+  fileName.replace(/\s+/g, "-").replace(/[^a-zA-Z0-9._-]/g, "");
+
+export const uploadFinancialBoletoFile = async ({
+  obraId,
+  parcelaId,
+  file,
+}: {
+  obraId: string;
+  parcelaId: string;
+  file: File;
+}) => {
+  const safeName = `${Date.now()}_${sanitizeFileName(file.name) || "boleto"}`;
+  const boletoPath = financialInstallmentStoragePaths.boleto(
+    obraId,
+    parcelaId,
+    safeName,
+  );
+  const storageRef = ref(storage, boletoPath);
+  await uploadBytes(storageRef, file, {
+    contentType: file.type || "application/octet-stream",
+  });
+  const boletoUrl = await getDownloadURL(storageRef);
+
+  await updateDoc(doc(db, FINANCIAL_INSTALLMENTS_COLLECTION, parcelaId), {
+    boletoUrl,
+    boletoPath,
+    boleto: {
+      url: boletoUrl,
+      path: boletoPath,
+      fileName: file.name,
+      contentType: file.type || "application/octet-stream",
+      sizeBytes: file.size,
+    },
+    atualizadoEm: serverTimestamp(),
+  });
+
+  return { boletoUrl, boletoPath };
+};
+
+export const updateFinancialContractValue = async (
+  obraId: string,
+  valorTotalContrato: number,
+) => {
+  await updateDoc(doc(db, "obras", obraId), {
+    valorTotalContrato,
+    updatedAt: serverTimestamp(),
+  });
 };
