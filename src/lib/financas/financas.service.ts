@@ -27,6 +27,7 @@ import {
   type FinancialOverview,
   type ListFinancialInstallmentsInput,
   type SubmitFinancialReceiptPayload,
+  type ReviewFinancialReceiptPayload,
   type UpdateFinancialInstallmentInput,
 } from "./financas.types";
 
@@ -277,6 +278,14 @@ const assertReceiptUploadAllowed = (parcela: FinancialInstallment) => {
       parcela.status === "comprovante_enviado"
         ? "Já existe um comprovante enviado para esta parcela aguardando análise."
         : "Esta parcela não aceita envio de comprovante no momento.",
+    );
+  }
+};
+
+const assertReceiptReviewAllowed = (parcela: FinancialInstallment) => {
+  if (parcela.status !== "comprovante_enviado") {
+    throw new Error(
+      "Somente parcelas com comprovante enviado podem ser aprovadas ou rejeitadas.",
     );
   }
 };
@@ -589,6 +598,58 @@ export const uploadFinancialReceiptFile = async ({
   return getFinancialInstallmentById(parcelaId);
 };
 
+export const reviewFinancialReceipt = async ({
+  parcelaId,
+  obraId,
+  aprovado,
+  observacaoAdmin,
+  confirmadoPagoPor,
+}: ReviewFinancialReceiptPayload) => {
+  const parcela = await getFinancialInstallmentById(parcelaId);
+
+  if (!parcela) {
+    throw new Error("Parcela financeira não encontrada.");
+  }
+
+  if (parcela.obraId !== normalizeString(obraId)) {
+    throw new Error("A parcela informada não pertence à obra selecionada.");
+  }
+
+  assertReceiptReviewAllowed(parcela);
+
+  if (!aprovado && !normalizeOptionalString(observacaoAdmin)) {
+    throw new Error("Informe um motivo para rejeitar o comprovante.");
+  }
+
+  await updateDoc(doc(db, FINANCIAL_INSTALLMENTS_COLLECTION, parcelaId), {
+    status: aprovado ? "pago" : "rejeitado",
+    ...(aprovado
+      ? {
+          confirmadoPagoEm: serverTimestamp(),
+          confirmadoPagoPor: confirmadoPagoPor ?? null,
+          observacaoAdmin: normalizeOptionalString(observacaoAdmin) ?? null,
+        }
+      : {
+          observacaoAdmin: normalizeOptionalString(observacaoAdmin) ?? null,
+        }),
+    atualizadoEm: serverTimestamp(),
+  });
+
+  return getFinancialInstallmentById(parcelaId);
+};
+
+export const approveFinancialReceipt = async (payload: Omit<ReviewFinancialReceiptPayload, "aprovado">) =>
+  reviewFinancialReceipt({
+    ...payload,
+    aprovado: true,
+  });
+
+export const rejectFinancialReceipt = async (payload: Omit<ReviewFinancialReceiptPayload, "aprovado">) =>
+  reviewFinancialReceipt({
+    ...payload,
+    aprovado: false,
+  });
+  
 export const updateFinancialContractValue = async (
   obraId: string,
   valorTotalContrato: number,

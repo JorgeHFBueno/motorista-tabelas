@@ -1,11 +1,16 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
+  approveFinancialReceipt,
+  rejectFinancialReceipt,
   getFinancialInstallmentById,
   getFinancialOverviewByObra,
   listFinancialInstallments,
   uploadFinancialReceiptFile,
 } from "./financas.service";
-import type { FinancialActorReference, FinancialInstallment } from "./financas.types";
+import type {
+  FinancialActorReference,
+  FinancialInstallment,
+} from "./financas.types";
 
 export const financasKeys = {
   all: ["financas"] as const,
@@ -43,6 +48,45 @@ export const useFinancialInstallment = (parcelaId?: string, enabled = true) =>
   comprovanteEnviadoPor?: FinancialActorReference;
 }
 
+interface ApproveReceiptVariables {
+  obraId: string;
+  parcelaId: string;
+  confirmadoPagoPor?: FinancialActorReference;
+}
+
+interface RejectReceiptVariables {
+  obraId: string;
+  parcelaId: string;
+  observacaoAdmin: string;
+}
+
+const syncFinancialInstallmentCache = (
+  queryClient: ReturnType<typeof useQueryClient>,
+  obraId: string,
+  parcelaId: string,
+  updatedInstallment: FinancialInstallment | null,
+) => {
+  if (updatedInstallment) {
+    queryClient.setQueryData<FinancialInstallment[]>(
+      financasKeys.list(obraId),
+      (current = []) =>
+        current.map((parcela) =>
+          parcela.id === updatedInstallment.id ? updatedInstallment : parcela,
+        ),
+    );
+    queryClient.setQueryData(
+      financasKeys.detail(updatedInstallment.id),
+      updatedInstallment,
+    );
+  }
+
+  return Promise.all([
+    queryClient.invalidateQueries({ queryKey: financasKeys.list(obraId) }),
+    queryClient.invalidateQueries({ queryKey: financasKeys.overview(obraId) }),
+    queryClient.invalidateQueries({ queryKey: financasKeys.detail(parcelaId) }),
+  ]);
+};
+
 export const useSubmitFinancialReceiptMutation = () => {
   const queryClient = useQueryClient();
 
@@ -50,25 +94,46 @@ export const useSubmitFinancialReceiptMutation = () => {
     mutationFn: async (variables: SubmitReceiptVariables) =>
       uploadFinancialReceiptFile(variables) as Promise<FinancialInstallment | null>,
     onSuccess: async (updatedInstallment, variables) => {
-      if (updatedInstallment) {
-        queryClient.setQueryData<FinancialInstallment[]>(
-          financasKeys.list(variables.obraId),
-          (current = []) =>
-            current.map((parcela) =>
-              parcela.id === updatedInstallment.id ? updatedInstallment : parcela,
-            ),
-        );
-        queryClient.setQueryData(
-          financasKeys.detail(updatedInstallment.id),
-          updatedInstallment,
-        );
-      }
+      await syncFinancialInstallmentCache(
+        queryClient,
+        variables.obraId,
+        variables.parcelaId,
+        updatedInstallment,
+      );
+    },
+  });
+};
 
-      await Promise.all([
-        queryClient.invalidateQueries({ queryKey: financasKeys.list(variables.obraId) }),
-        queryClient.invalidateQueries({ queryKey: financasKeys.overview(variables.obraId) }),
-        queryClient.invalidateQueries({ queryKey: financasKeys.detail(variables.parcelaId) }),
-      ]);
+      export const useApproveFinancialReceiptMutation = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (variables: ApproveReceiptVariables) =>
+      approveFinancialReceipt(variables) as Promise<FinancialInstallment | null>,
+    onSuccess: async (updatedInstallment, variables) => {
+      await syncFinancialInstallmentCache(
+        queryClient,
+        variables.obraId,
+        variables.parcelaId,
+        updatedInstallment,
+      );
+    },
+  });
+};
+
+export const useRejectFinancialReceiptMutation = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (variables: RejectReceiptVariables) =>
+      rejectFinancialReceipt(variables) as Promise<FinancialInstallment | null>,
+    onSuccess: async (updatedInstallment, variables) => {
+      await syncFinancialInstallmentCache(
+        queryClient,
+        variables.obraId,
+        variables.parcelaId,
+        updatedInstallment,
+      );
     },
   });
 };
