@@ -106,7 +106,10 @@ const Index = () => {
             />
           )}
 
-          <FinancialSummaryCard comingSoon comingSoonMessage="Disponível em 23/03/26" />
+          <FinancialSummaryCard
+            obraId={activeObraId ?? undefined}
+            hasActiveObra={Boolean(activeObraId && obra)}
+          />
         </div>
         
         {isLoading ? (
