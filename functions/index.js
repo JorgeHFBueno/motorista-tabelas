@@ -1,5 +1,7 @@
 const admin = require("firebase-admin");
 const {onCall, HttpsError} = require("firebase-functions/v2/https");
+const {onDocumentCreated, onDocumentUpdated} = require("firebase-functions/v2/firestore");
+const {onSchedule} = require("firebase-functions/v2/scheduler");
 const {setGlobalOptions} = require("firebase-functions/v2/options");
 const logger = require("firebase-functions/logger");
 
@@ -16,6 +18,19 @@ const {
   ensureUserDocExists,
   buildAdminSetRoleUpdate,
 } = require("./lib/firestore");
+
+const {
+  getClientUsersByObraId,
+  getObraNome,
+  createNotificationsForUsers,
+  sendNotificationEmail,
+  detectProgressChanges,
+  getChangedStatusFields,
+  shouldNotifyUpcomingDue,
+  normalizeString,
+  normalizeNumber,
+  toIsoDate,
+} = require("./lib/notifications");
 
 if (!admin.apps.length) {
   admin.initializeApp();
@@ -348,4 +363,258 @@ exports.trash_restore = onCall(async (request) => {
   });
 
   return {ok: true, restoredDocId: payload.originalDocId};
+});
+async function dispatchNotificationFromEvent({
+  obraId,
+  tipo,
+  titulo,
+  mensagem,
+  origemColecao,
+  origemId,
+  metadata,
+  idempotencyKey,
+  obraNomeSnapshot,
+}) {
+  const normalizedObraId = normalizeString(obraId);
+  if (!normalizedObraId) return;
+
+  const users = await getClientUsersByObraId(db, normalizedObraId);
+  if (users.length === 0) {
+    logger.info("[notifications] nenhum usuário elegível para notificar", {obraId: normalizedObraId, tipo});
+    return;
+  }
+
+  await createNotificationsForUsers(db, users, {
+    obraId: normalizedObraId,
+    tipo,
+    titulo,
+    mensagem,
+    origemColecao: origemColecao ?? null,
+    origemId: origemId ?? null,
+    metadata: metadata ?? {},
+    idempotencyKey,
+  });
+
+  const obraNome = await getObraNome(db, normalizedObraId, obraNomeSnapshot);
+
+  await sendNotificationEmail({
+    users,
+    tipo,
+    titulo,
+    mensagem,
+    obraNome,
+    rotaDestino: metadata?.rotaDestino,
+  });
+
+  logger.info("[notifications] evento processado", {
+    obraId: normalizedObraId,
+    tipo,
+    totalUsuarios: users.length,
+  });
+}
+
+exports.notifyOnNewPhoto = onDocumentCreated("fotos/{fotoId}", async (event) => {
+  const data = event.data?.data() ?? {};
+  const obraId = normalizeString(data.obraId);
+  if (!obraId) return;
+
+  await dispatchNotificationFromEvent({
+    obraId,
+    tipo: "foto_nova",
+    titulo: "Nova foto adicionada",
+    mensagem: "Uma nova foto foi publicada na sua obra.",
+    origemColecao: "fotos",
+    origemId: event.params.fotoId,
+    metadata: {
+      nomeArquivo: normalizeString(data.displayName) || normalizeString(data.originalName),
+      etapa: normalizeString(data.etapaLabel) || normalizeString(data.etapa),
+      rotaDestino: "/cliente/fotos",
+    },
+    idempotencyKey: `fotos:${event.params.fotoId}`,
+    obraNomeSnapshot: data.obraNomeSnapshot,
+  });
+});
+
+exports.notifyOnNewDocument = onDocumentCreated("documentos/{documentoId}", async (event) => {
+  const data = event.data?.data() ?? {};
+  const obraId = normalizeString(data.obraId);
+  if (!obraId) return;
+
+  await dispatchNotificationFromEvent({
+    obraId,
+    tipo: "documento_novo",
+    titulo: "Novo documento disponível",
+    mensagem: "Um novo documento foi enviado para a sua obra.",
+    origemColecao: "documentos",
+    origemId: event.params.documentoId,
+    metadata: {
+      nomeArquivo: normalizeString(data.displayName) || normalizeString(data.originalName),
+      rotaDestino: "/cliente/documentos",
+    },
+    idempotencyKey: `documentos:${event.params.documentoId}`,
+    obraNomeSnapshot: data.obraNomeSnapshot,
+  });
+});
+
+exports.notifyOnObraProgressUpdate = onDocumentUpdated("obras/{obraId}/status/{faseId}", async (event) => {
+  const beforeData = event.data?.before?.data() ?? {};
+  const afterData = event.data?.after?.data() ?? {};
+
+  const diff = detectProgressChanges(beforeData, afterData);
+  if (!diff.changed) {
+    return;
+  }
+
+  const obraId = event.params.obraId;
+  const faseId = event.params.faseId;
+  const etapa = diff.etapa;
+
+  const mensagem = diff.toggledCount > 1
+    ? `A etapa '${etapa}' teve ${diff.toggledCount} atualizações no andamento.`
+    : `A etapa '${etapa}' teve atualização no andamento.`;
+
+  await dispatchNotificationFromEvent({
+    obraId,
+    tipo: "progresso_obra",
+    titulo: "Atualização no progresso da obra",
+    mensagem,
+    origemColecao: "obras_status",
+    origemId: faseId,
+    metadata: {
+      etapa,
+      toggledCount: diff.toggledCount,
+      dateChanged: diff.dateChanged,
+      rotaDestino: "/cliente/obra",
+    },
+    idempotencyKey: `status:${obraId}:${faseId}:${event.data.after.updateTime.toMillis()}`,
+  });
+});
+
+exports.notifyOnFinancialInstallmentCreated = onDocumentCreated("financeiroParcelas/{parcelaId}", async (event) => {
+  const data = event.data?.data() ?? {};
+  const obraId = normalizeString(data.obraId);
+  if (!obraId) return;
+
+  const numeroParcela = normalizeNumber(data.numero);
+
+  await dispatchNotificationFromEvent({
+    obraId,
+    tipo: "financeiro_nova_parcela",
+    titulo: "Nova parcela criada",
+    mensagem: `Uma nova parcela${numeroParcela ? ` (#${numeroParcela})` : ""} foi adicionada ao financeiro da sua obra.`,
+    origemColecao: "financeiroParcelas",
+    origemId: event.params.parcelaId,
+    metadata: {
+      numeroParcela: numeroParcela ?? undefined,
+      valor: normalizeNumber(data.valor) ?? undefined,
+      vencimento: toIsoDate(data.vencimento) || undefined,
+      rotaDestino: "/cliente/financas",
+    },
+    idempotencyKey: `fin:create:${event.params.parcelaId}`,
+    obraNomeSnapshot: data.obraNomeSnapshot,
+  });
+});
+
+exports.notifyOnFinancialInstallmentUpdated = onDocumentUpdated("financeiroParcelas/{parcelaId}", async (event) => {
+  const beforeData = event.data?.before?.data() ?? {};
+  const afterData = event.data?.after?.data() ?? {};
+  const obraId = normalizeString(afterData.obraId || beforeData.obraId);
+  if (!obraId) return;
+
+  const parcelaId = event.params.parcelaId;
+  const numeroParcela = normalizeNumber(afterData.numero) ?? normalizeNumber(beforeData.numero);
+
+  const beforeBoleto = normalizeString(beforeData.boletoPath || beforeData.boletoUrl || beforeData?.boleto?.path || beforeData?.boleto?.url);
+  const afterBoleto = normalizeString(afterData.boletoPath || afterData.boletoUrl || afterData?.boleto?.path || afterData?.boleto?.url);
+
+  if (!beforeBoleto && afterBoleto) {
+    await dispatchNotificationFromEvent({
+      obraId,
+      tipo: "financeiro_boleto_disponivel",
+      titulo: "Boleto disponível",
+      mensagem: `O boleto da parcela${numeroParcela ? ` #${numeroParcela}` : ""} foi disponibilizado para você.`,
+      origemColecao: "financeiroParcelas",
+      origemId: parcelaId,
+      metadata: {
+        numeroParcela: numeroParcela ?? undefined,
+        rotaDestino: "/cliente/financas",
+      },
+      idempotencyKey: `fin:boleto:${parcelaId}:${event.data.after.updateTime.toMillis()}`,
+      obraNomeSnapshot: afterData.obraNomeSnapshot,
+    });
+    return;
+  }
+
+  const statusDiff = getChangedStatusFields(beforeData, afterData);
+  if (statusDiff.changed) {
+    await dispatchNotificationFromEvent({
+      obraId,
+      tipo: "financeiro_status_alterado",
+      titulo: "Status financeiro atualizado",
+      mensagem: `A parcela${numeroParcela ? ` #${numeroParcela}` : ""} mudou de status para '${statusDiff.after || "atualizado"}'.`,
+      origemColecao: "financeiroParcelas",
+      origemId: parcelaId,
+      metadata: {
+        numeroParcela: numeroParcela ?? undefined,
+        statusAnterior: statusDiff.before || undefined,
+        statusNovo: statusDiff.after || undefined,
+        rotaDestino: "/cliente/financas",
+      },
+      idempotencyKey: `fin:status:${parcelaId}:${statusDiff.before}->${statusDiff.after}:${event.data.after.updateTime.toMillis()}`,
+      obraNomeSnapshot: afterData.obraNomeSnapshot,
+    });
+  }
+});
+
+exports.notifyUpcomingFinancialDueDates = onSchedule({
+  schedule: "every day 08:00",
+  timeZone: "America/Sao_Paulo",
+}, async () => {
+  const now = new Date();
+  const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const limitDate = new Date(startOfToday);
+  limitDate.setDate(limitDate.getDate() + 5);
+
+  const snap = await db
+    .collection("financeiroParcelas")
+    .where("status", "in", ["pendente", "comprovante_enviado", "rejeitado"])
+    .where("vencimento", ">=", admin.firestore.Timestamp.fromDate(startOfToday))
+    .where("vencimento", "<=", admin.firestore.Timestamp.fromDate(limitDate))
+    .get();
+
+  for (const docSnap of snap.docs) {
+    const data = docSnap.data() ?? {};
+    const dueDate = data.vencimento?.toDate ? data.vencimento.toDate() : null;
+    if (!dueDate) continue;
+
+    const daysUntilDue = Math.ceil((dueDate.getTime() - startOfToday.getTime()) / (1000 * 60 * 60 * 24));
+    if (!shouldNotifyUpcomingDue(data, daysUntilDue)) {
+      continue;
+    }
+
+    const warningKey = `${docSnap.id}:${dueDate.toISOString().slice(0, 10)}`;
+
+    await dispatchNotificationFromEvent({
+      obraId: normalizeString(data.obraId),
+      tipo: "financeiro_vencimento_proximo",
+      titulo: "Parcela próxima do vencimento",
+      mensagem: `A parcela${normalizeNumber(data.numero) ? ` #${normalizeNumber(data.numero)}` : ""} vence em ${daysUntilDue} dia(s).`,
+      origemColecao: "financeiroParcelas",
+      origemId: docSnap.id,
+      metadata: {
+        numeroParcela: normalizeNumber(data.numero) ?? undefined,
+        vencimento: toIsoDate(data.vencimento) || undefined,
+        valor: normalizeNumber(data.valor) ?? undefined,
+        diasParaVencimento: daysUntilDue,
+        warningKey,
+        rotaDestino: "/cliente/financas",
+      },
+      idempotencyKey: `fin:due:${warningKey}`,
+      obraNomeSnapshot: data.obraNomeSnapshot,
+    });
+  }
+
+  logger.info("[notifications] rotina de vencimentos executada", {
+    totalParcelasAvaliadas: snap.size,
+  });
 });

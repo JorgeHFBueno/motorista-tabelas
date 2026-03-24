@@ -6,7 +6,52 @@ service cloud.firestore {
       return request.auth != null;
     }
 
-    match /{document=**} {
+    function isSelf(uid) {
+      return isSignedIn() && request.auth.uid == uid;
+    }
+
+    function isClientNotificationReadUpdate(uid) {
+      return isSelf(uid)
+        && request.resource.data.diff(resource.data).changedKeys().hasOnly(['lida'])
+        && request.resource.data.lida is bool;
+    }
+
+    match /users/{uid}/notificacoes/{notificacaoId} {
+      allow read: if isSelf(uid);
+      allow create, delete: if false;
+      allow update: if isClientNotificationReadUpdate(uid);
+    }
+
+    match /users/{uid} {
+      allow read, write: if isSignedIn();
+    }
+    match /obras/{obraId} {
+      allow read, write: if isSignedIn();
+      match /{sub=**} {
+        allow read, write: if isSignedIn();
+      }
+    }
+
+    match /documentos/{docId} {
+      allow read, write: if isSignedIn();
+      match /{sub=**} {
+        allow read, write: if isSignedIn();
+      }
+    }
+
+    match /fotos/{fotoId} {
+      allow read, write: if isSignedIn();
+    }
+
+    match /financeiroParcelas/{parcelaId} {
+      allow read, write: if isSignedIn();
+    }
+
+    match /documentos-lixo/{docId} {
+      allow read, write: if isSignedIn();
+    }
+
+    match /fotos-lixo/{fotoId} {
       allow read, write: if isSignedIn();
     }
   }

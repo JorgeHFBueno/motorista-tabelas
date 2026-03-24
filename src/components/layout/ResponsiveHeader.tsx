@@ -1,4 +1,4 @@
-import { Bell, User, ChevronDown, Menu, LogOut, Loader2 } from "lucide-react";
+import { User, ChevronDown, Menu, LogOut, Loader2 } from "lucide-react";
 import { motion } from "framer-motion";
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
@@ -6,6 +6,7 @@ import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { sendPasswordResetEmail } from "firebase/auth";
 import { useAuth } from "@/contexts/AuthContext";
 import MobileNav from "./MobileNav";
+import NotificationBell from "./NotificationBell";
 import { useObra } from "@/contexts/ObraContext";
 import {
   DropdownMenu,
@@ -34,7 +35,7 @@ interface ResponsiveHeaderProps {
   pageSubtitle?: string;
 }
 
-const ResponsiveHeader = ({ 
+const ResponsiveHeader = ({
   pageTitle,
   pageSubtitle,
 }: ResponsiveHeaderProps) => {
@@ -135,10 +136,7 @@ const ResponsiveHeader = ({
             animate={{ opacity: 1, x: 0 }}
             className="flex items-center gap-1.5"
           >
-            <button className="relative p-2 bg-primary-foreground/10 hover:bg-primary-foreground/15 rounded-lg transition-colors">
-              <Bell className="w-5 h-5" />
-              <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-secondary rounded-full" />
-            </button>
+            <NotificationBell className="p-2" />
             <button className="p-2 bg-primary-foreground/10 hover:bg-primary-foreground/15 rounded-lg transition-colors">
               <User className="w-5 h-5" />
             </button>
@@ -165,7 +163,7 @@ const ResponsiveHeader = ({
               <MobileNav onClose={() => setIsMobileMenuOpen(false)} />
             </SheetContent>
           </Sheet>
-          
+
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 bg-secondary rounded-lg flex items-center justify-center">
               <span className="text-secondary-foreground text-lg font-bold">L</span>
@@ -178,10 +176,7 @@ const ResponsiveHeader = ({
         </div>
 
         <div className="flex items-center gap-2">
-          <button className="relative p-2.5 bg-primary-foreground/10 hover:bg-primary-foreground/15 rounded-lg transition-colors">
-            <Bell className="w-5 h-5" />
-            <span className="absolute top-2 right-2 w-2 h-2 bg-secondary rounded-full" />
-          </button>
+          <NotificationBell />
           <button className="p-2.5 bg-primary-foreground/10 hover:bg-primary-foreground/15 rounded-lg transition-colors">
             <User className="w-5 h-5" />
           </button>
@@ -213,10 +208,7 @@ const ResponsiveHeader = ({
         </div>
 
         <div className="flex items-center gap-3">
-          <button className="relative p-2.5 bg-primary-foreground/10 hover:bg-primary-foreground/15 rounded-lg transition-colors">
-            <Bell className="w-5 h-5" />
-            <span className="absolute top-2 right-2 w-2 h-2 bg-secondary rounded-full" />
-          </button>
+          <NotificationBell />
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <button className="flex items-center gap-3 p-2 px-3 bg-primary-foreground/10 hover:bg-primary-foreground/15 rounded-lg transition-colors">
