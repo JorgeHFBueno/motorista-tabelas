@@ -65,7 +65,7 @@ const LoginPage = () => {
     <div className="flex min-h-screen items-center justify-center bg-muted/30 px-4">
       <Card className="w-full max-w-md">
         <CardHeader className="items-center text-center">
-          <img src={logoLedur} alt="Ledur Pré-Fabricados" className="h-28 w-auto mb-4" />
+          <img src={logoLedur} alt="Ledur Pré-Fabricados" className="h-36 w-auto mb-4" />
           <CardTitle>Acesso ao sistema</CardTitle>
           <CardDescription>Entre com seu e-mail e senha.</CardDescription>
         </CardHeader>
