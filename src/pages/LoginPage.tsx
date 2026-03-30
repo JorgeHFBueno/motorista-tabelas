@@ -11,6 +11,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useAuth } from "@/contexts/AuthContext";
+import logoLedur from "@/assets/logo-ledur.jpg";
 
 const loginSchema = z.object({
   email: z.string().min(1, "E-mail é obrigatório").email("Informe um e-mail válido"),
