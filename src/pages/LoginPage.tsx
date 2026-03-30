@@ -11,6 +11,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useAuth } from "@/contexts/AuthContext";
+import logoLedur from "@/assets/logo-ledur.jpg";
 
 const loginSchema = z.object({
   email: z.string().min(1, "E-mail é obrigatório").email("Informe um e-mail válido"),
@@ -63,7 +64,8 @@ const LoginPage = () => {
   return (
     <div className="flex min-h-screen items-center justify-center bg-muted/30 px-4">
       <Card className="w-full max-w-md">
-        <CardHeader>
+        <CardHeader className="items-center text-center">
+          <img src={logoLedur} alt="Ledur Pré-Fabricados" className="h-20 w-auto mb-2" />
           <CardTitle>Acesso ao sistema</CardTitle>
           <CardDescription>Entre com seu e-mail e senha.</CardDescription>
         </CardHeader>

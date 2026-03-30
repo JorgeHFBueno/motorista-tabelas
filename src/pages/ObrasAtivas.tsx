@@ -46,7 +46,8 @@ const obrasComDetalhes = [
 
 const ObrasAtivas = () => {
   const navigate = useNavigate();
-  const { obras, setObraAtiva } = useObra();
+  const { setObraAtiva } = useObra();
+  const obras: any[] = [];
 
   const handleObraClick = (obraId: number) => {
     const obraSelecionada = obras.find(o => o.id === obraId);
