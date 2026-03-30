@@ -1,4 +1,5 @@
 import { User, ChevronDown, Menu, LogOut, Loader2 } from "lucide-react";
+import logoLedurBranco from "@/assets/logo-ledur-branco.png";
 import { motion } from "framer-motion";
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
@@ -169,7 +170,7 @@ const ResponsiveHeader = ({
               <span className="text-secondary-foreground text-lg font-bold">L</span>
             </div>
             <div>
-              <h1 className="font-semibold">Ledur Pré-Fabricados</h1>
+              <img src={logoLedurBranco} alt="Ledur Pré-Fabricados" className="h-8 w-auto" />
               <p className="text-xs text-primary-foreground/60">{obraNome}</p>
             </div>
           </div>

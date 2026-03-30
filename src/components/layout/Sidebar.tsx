@@ -1,4 +1,5 @@
 import { Building2, Camera, FileText, FolderCog, House, Wallet } from "lucide-react";
+import logoLedurBranco from "@/assets/logo-ledur-branco.png";
 import { useLocation, useNavigate } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/contexts/AuthContext";
@@ -24,7 +25,7 @@ const Sidebar = () => {
   return (
     <aside className="hidden lg:flex flex-col w-64 bg-primary text-primary-foreground h-screen sticky top-0">
       <div className="p-6 border-b border-primary-foreground/10">
-        <h1 className="font-semibold text-lg">Ledur</h1>
+        <img src={logoLedurBranco} alt="Ledur Pré-Fabricados" className="h-10 w-auto" />
         <p className="text-xs text-primary-foreground/60">Command Center</p>
       </div>
       
