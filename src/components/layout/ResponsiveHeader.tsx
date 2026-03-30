@@ -1,4 +1,5 @@
 import { User, ChevronDown, Menu, LogOut, Loader2 } from "lucide-react";
+import logoLedurBranco from "@/assets/logo-ledur-branco.png";
 import { motion } from "framer-motion";
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";

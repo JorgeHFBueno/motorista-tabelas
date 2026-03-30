@@ -1,4 +1,5 @@
 import { Building2, Camera, FileText, FolderCog, House, Wallet } from "lucide-react";
+import logoLedurBranco from "@/assets/logo-ledur-branco.png";
 import { useLocation, useNavigate } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/contexts/AuthContext";
