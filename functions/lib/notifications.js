@@ -1,24 +1,7 @@
 const crypto = require("node:crypto");
 const admin = require("firebase-admin");
-const logger = require("firebase-functions/logger");
-const {defineString} = require("firebase-functions/params");
-
-const EMAIL_API_URL = defineString("EMAIL_API_URL");
-const EMAIL_API_KEY = defineString("EMAIL_API_KEY");
-const EMAIL_FROM = defineString("EMAIL_FROM");
-const APP_BASE_URL = defineString("APP_BASE_URL");
 
 const STATUSS_EM_ABERTO = new Set(["pendente", "comprovante_enviado", "rejeitado"]);
-
-const EMAIL_SUBJECTS = {
-  foto_nova: "[Ledur] Nova foto na sua obra",
-  documento_novo: "[Ledur] Novo documento disponível",
-  progresso_obra: "[Ledur] Atualização no progresso da obra",
-  financeiro_nova_parcela: "[Ledur] Atualização financeira da sua obra",
-  financeiro_boleto_disponivel: "[Ledur] Atualização financeira da sua obra",
-  financeiro_status_alterado: "[Ledur] Atualização financeira da sua obra",
-  financeiro_vencimento_proximo: "[Ledur] Parcela próxima do vencimento",
-};
 
 function normalizeString(value) {
   return typeof value === "string" ? value.trim() : "";
@@ -61,16 +44,6 @@ async function getClientUsersByObraId(db, obraId) {
     }));
 }
 
-async function getObraNome(db, obraId, fallbackNome) {
-  const fallback = normalizeString(fallbackNome);
-  if (fallback) return fallback;
-
-  const obraSnap = await db.collection("obras").doc(obraId).get();
-  if (!obraSnap.exists) return "sua obra";
-
-  return normalizeString(obraSnap.data()?.nome) || "sua obra";
-}
-
 function buildNotificationPayload(base) {
   return {
     userId: base.userId,
@@ -108,69 +81,6 @@ async function createNotificationsForUsers(db, users, payloadBase) {
   });
 
   return Promise.all(writes);
-}
-
-function buildEmailHtml({nomeCliente, obraNome, titulo, mensagem, rotaDestino}) {
-  const baseUrl = normalizeString(APP_BASE_URL.value());
-  const route = normalizeString(rotaDestino);
-  const ctaUrl = baseUrl && route ? `${baseUrl}${route}` : baseUrl || "";
-
-  return `
-    <div style="font-family:Arial,sans-serif;line-height:1.5;color:#222">
-      <p>Olá, ${nomeCliente}.</p>
-      <p><strong>${titulo}</strong></p>
-      <p>${mensagem}</p>
-      <p>Obra: <strong>${obraNome}</strong></p>
-      <p>Acesse a plataforma da Ledur para acompanhar os detalhes.</p>
-      ${ctaUrl ? `<p><a href="${ctaUrl}">Abrir plataforma</a></p>` : ""}
-      <p style="margin-top:24px">Equipe Ledur</p>
-    </div>
-  `;
-}
-
-async function sendNotificationEmail({users, tipo, titulo, mensagem, obraNome, rotaDestino}) {
-  const endpoint = EMAIL_API_URL.value();
-  const apiKey = EMAIL_API_KEY.value();
-  const from = EMAIL_FROM.value();
-
-  if (!endpoint || !apiKey || !from) {
-    logger.warn("[notifications][email] provedor de e-mail não configurado; envio ignorado", {
-      tipo,
-      recipients: users.length,
-    });
-    return;
-  }
-
-  const subject = EMAIL_SUBJECTS[tipo] || "[Ledur] Atualização da sua obra";
-
-  await Promise.all(users
-    .filter((user) => user.email)
-    .map(async (user) => {
-      const response = await fetch(endpoint, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${apiKey}`,
-        },
-        body: JSON.stringify({
-          from,
-          to: user.email,
-          subject,
-          html: buildEmailHtml({
-            nomeCliente: user.nome,
-            obraNome,
-            titulo,
-            mensagem,
-            rotaDestino,
-          }),
-        }),
-      });
-
-      if (!response.ok) {
-        const body = await response.text();
-        throw new Error(`Falha ao enviar email (${response.status}): ${body}`);
-      }
-    }));
 }
 
 function getChangedStatusFields(beforeData, afterData) {
@@ -220,9 +130,7 @@ function shouldNotifyUpcomingDue(installmentData, daysUntilDue) {
 
 module.exports = {
   getClientUsersByObraId,
-  getObraNome,
   createNotificationsForUsers,
-  sendNotificationEmail,
   buildNotificationPayload,
   detectProgressChanges,
   getChangedStatusFields,

@@ -21,9 +21,7 @@ const {
 
 const {
   getClientUsersByObraId,
-  getObraNome,
   createNotificationsForUsers,
-  sendNotificationEmail,
   detectProgressChanges,
   getChangedStatusFields,
   shouldNotifyUpcomingDue,
@@ -373,8 +371,7 @@ async function dispatchNotificationFromEvent({
   origemId,
   metadata,
   idempotencyKey,
-  obraNomeSnapshot,
-}) {
+  }) {
   const normalizedObraId = normalizeString(obraId);
   if (!normalizedObraId) return;
 
@@ -393,17 +390,6 @@ async function dispatchNotificationFromEvent({
     origemId: origemId ?? null,
     metadata: metadata ?? {},
     idempotencyKey,
-  });
-
-  const obraNome = await getObraNome(db, normalizedObraId, obraNomeSnapshot);
-
-  await sendNotificationEmail({
-    users,
-    tipo,
-    titulo,
-    mensagem,
-    obraNome,
-    rotaDestino: metadata?.rotaDestino,
   });
 
   logger.info("[notifications] evento processado", {
@@ -431,7 +417,6 @@ exports.notifyOnNewPhoto = onDocumentCreated("fotos/{fotoId}", async (event) => 
       rotaDestino: "/cliente/fotos",
     },
     idempotencyKey: `fotos:${event.params.fotoId}`,
-    obraNomeSnapshot: data.obraNomeSnapshot,
   });
 });
 
@@ -452,7 +437,6 @@ exports.notifyOnNewDocument = onDocumentCreated("documentos/{documentoId}", asyn
       rotaDestino: "/cliente/documentos",
     },
     idempotencyKey: `documentos:${event.params.documentoId}`,
-    obraNomeSnapshot: data.obraNomeSnapshot,
   });
 });
 
@@ -511,7 +495,6 @@ exports.notifyOnFinancialInstallmentCreated = onDocumentCreated("financeiroParce
       rotaDestino: "/cliente/financas",
     },
     idempotencyKey: `fin:create:${event.params.parcelaId}`,
-    obraNomeSnapshot: data.obraNomeSnapshot,
   });
 });
 
@@ -540,7 +523,6 @@ exports.notifyOnFinancialInstallmentUpdated = onDocumentUpdated("financeiroParce
         rotaDestino: "/cliente/financas",
       },
       idempotencyKey: `fin:boleto:${parcelaId}:${event.data.after.updateTime.toMillis()}`,
-      obraNomeSnapshot: afterData.obraNomeSnapshot,
     });
     return;
   }
@@ -561,7 +543,6 @@ exports.notifyOnFinancialInstallmentUpdated = onDocumentUpdated("financeiroParce
         rotaDestino: "/cliente/financas",
       },
       idempotencyKey: `fin:status:${parcelaId}:${statusDiff.before}->${statusDiff.after}:${event.data.after.updateTime.toMillis()}`,
-      obraNomeSnapshot: afterData.obraNomeSnapshot,
     });
   }
 });
@@ -610,7 +591,6 @@ exports.notifyUpcomingFinancialDueDates = onSchedule({
         rotaDestino: "/cliente/financas",
       },
       idempotencyKey: `fin:due:${warningKey}`,
-      obraNomeSnapshot: data.obraNomeSnapshot,
     });
   }
 
