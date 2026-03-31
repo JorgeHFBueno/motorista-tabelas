@@ -1,37 +1,103 @@
 {
- "indexes": [
+  "indexes": [
     {
       "collectionGroup": "fotos",
       "queryScope": "COLLECTION",
       "fields": [
-        { "fieldPath": "obraId", "mode": "ASCENDING" },
-        { "fieldPath": "createdAt", "mode": "DESCENDING" }
+        {
+          "fieldPath": "obraId",
+          "mode": "ASCENDING"
+        },
+        {
+          "fieldPath": "createdAt",
+          "mode": "DESCENDING"
+        }
       ]
     },
     {
       "collectionGroup": "fotos",
       "queryScope": "COLLECTION",
       "fields": [
-        { "fieldPath": "obraId", "mode": "ASCENDING" },
-        { "fieldPath": "etapa", "mode": "ASCENDING" },
-        { "fieldPath": "createdAt", "mode": "DESCENDING" }
-      ]
-      },
-    {
-      "collectionGroup": "documentos",
-      "queryScope": "COLLECTION",
-      "fields": [
-        { "fieldPath": "obraId", "mode": "ASCENDING" },
-        { "fieldPath": "createdAt", "mode": "DESCENDING" }
+        {
+          "fieldPath": "obraId",
+          "mode": "ASCENDING"
+        },
+        {
+          "fieldPath": "etapa",
+          "mode": "ASCENDING"
+        },
+        {
+          "fieldPath": "createdAt",
+          "mode": "DESCENDING"
+        }
       ]
     },
     {
       "collectionGroup": "documentos",
       "queryScope": "COLLECTION",
       "fields": [
-        { "fieldPath": "obraId", "mode": "ASCENDING" },
-        { "fieldPath": "categoria", "mode": "ASCENDING" },
-        { "fieldPath": "createdAt", "mode": "DESCENDING" }
+        {
+          "fieldPath": "obraId",
+          "mode": "ASCENDING"
+        },
+        {
+          "fieldPath": "createdAt",
+          "mode": "DESCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "documentos",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "obraId",
+          "mode": "ASCENDING"
+        },
+        {
+          "fieldPath": "categoria",
+          "mode": "ASCENDING"
+        },
+        {
+          "fieldPath": "createdAt",
+          "mode": "DESCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "noticias",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "status",
+          "mode": "ASCENDING"
+        },
+        {
+          "fieldPath": "categoria",
+          "mode": "ASCENDING"
+        },
+        {
+          "fieldPath": "publicadoEm",
+          "mode": "DESCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "noticias",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "categoria",
+          "mode": "ASCENDING"
+        },
+        {
+          "fieldPath": "origem",
+          "mode": "ASCENDING"
+        },
+        {
+          "fieldPath": "updatedAt",
+          "mode": "DESCENDING"
+        }
       ]
     }
   ],

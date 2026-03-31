@@ -4,6 +4,7 @@ const {onDocumentCreated, onDocumentUpdated} = require("firebase-functions/v2/fi
 const {onSchedule} = require("firebase-functions/v2/scheduler");
 const {setGlobalOptions} = require("firebase-functions/v2/options");
 const logger = require("firebase-functions/logger");
+const {scheduledIngestNews} = require("./src/news/scheduledIngestNews");
 
 const {db, requireAuth, requireAdmin} = require("./lib/authz");
 const {
@@ -598,3 +599,4 @@ exports.notifyUpcomingFinancialDueDates = onSchedule({
     totalParcelasAvaliadas: snap.size,
   });
 });
+exports.scheduledIngestNews = scheduledIngestNews;

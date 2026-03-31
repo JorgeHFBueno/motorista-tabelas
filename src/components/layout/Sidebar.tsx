@@ -1,4 +1,4 @@
-import { Building2, Camera, FileText, FolderCog, House, Wallet } from "lucide-react";
+import { Building2, Camera, FileText, FolderCog, House, Newspaper, Wallet } from "lucide-react";
 import logoLedurBranco from "@/assets/logo-ledur-branco.png";
 import { useLocation, useNavigate } from "react-router-dom";
 import { cn } from "@/lib/utils";
@@ -16,10 +16,12 @@ const Sidebar = () => {
         { icon: Wallet, label: "Finanças", path: "/cliente/financas" },
         { icon: FileText, label: "Documentos", path: "/cliente/documentos" },
         { icon: Camera, label: "Fotos", path: "/cliente/fotos" },
+        { icon: Newspaper, label: "Notícias", path: "/cliente/noticias" },
       ]
     : [
         { icon: Building2, label: "Obras", path: "/painel/obras" },
         { icon: FolderCog, label: "Cadastros", path: "/painel/cadastros" },
+        { icon: Newspaper, label: "Notícias", path: "/painel/noticias" },
       ];
 
   return (

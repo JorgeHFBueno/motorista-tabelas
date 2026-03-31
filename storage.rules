@@ -6,6 +6,16 @@ service firebase.storage {
       return request.auth != null;
     }
 
+function isStaff() {
+      return isSignedIn()
+        && firestore.get(/databases/(default)/documents/users/$(request.auth.uid)).data.role in ['admin', 'gerente', 'operacional'];
+    }
+
+    match /noticias-institucionais/{uid}/{fileName} {
+      allow read: if isSignedIn();
+      allow write: if isStaff() && request.auth.uid == uid;
+    }
+    
     match /{allPaths=**} {
       allow read, write: if isSignedIn();
     }

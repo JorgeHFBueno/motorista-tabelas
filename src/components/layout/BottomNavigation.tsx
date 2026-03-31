@@ -1,4 +1,4 @@
-import { Building2, Camera, FileText, FolderCog, House, Wallet } from "lucide-react";
+import { Building2, Camera, FileText, FolderCog, House, Newspaper, Wallet } from "lucide-react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import { cn } from "@/lib/utils";
@@ -17,10 +17,12 @@ const BottomNavigation = () => {
         { icon: Wallet, label: "Finanças", path: "/cliente/financas" },
         { icon: FileText, label: "Docs", path: "/cliente/documentos" },
         { icon: Camera, label: "Fotos", path: "/cliente/fotos" },
+        { icon: Newspaper, label: "News", path: "/cliente/noticias" },
       ]
     : [
         { icon: Building2, label: "Obras", path: "/painel/obras" },
         { icon: FolderCog, label: "Cadastro", path: "/painel/cadastros" },
+        { icon: Newspaper, label: "Notícias", path: "/painel/noticias" },
       ];
 
   return (
