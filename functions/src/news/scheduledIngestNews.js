@@ -41,6 +41,7 @@ async function fetchForCategory(category) {
 
 async function runExternalNewsIngestion(context = {}) {
   const summary = {};
+  const contributingSources = new Set();
   const totals = {
     fetched: 0,
     curated: 0,
@@ -48,6 +49,7 @@ async function runExternalNewsIngestion(context = {}) {
     created: 0,
     updated: 0,
     skipped: 0,
+    contributingSources: 0,
   };
   const affectedCategories = [];
 
@@ -55,12 +57,20 @@ async function runExternalNewsIngestion(context = {}) {
     const {items: rawItems, sourceResults} = await fetchForCategory(category);
     const curatedResult = curateCategoryItems(category, rawItems);
     const curated = curatedResult.items.slice(0, CURATION_CONFIG.maxPerCategory);
+    const categoryContributingSources = Array.from(new Set(curated.map((item) => item.fonte)));
+    categoryContributingSources.forEach((source) => contributingSources.add(source));
 
     const persisted = await saveCuratedNews(curated);
     const categorySummary = {
       fetched: rawItems.length,
       curated: curated.length,
       discarded: curatedResult.discarded.length,
+      contributingSources: categoryContributingSources.length,
+      contributingSourceLabels: categoryContributingSources,
+      discardedReasons: curatedResult.discarded.reduce((acc, item) => {
+        acc[item.reason] = (acc[item.reason] || 0) + 1;
+        return acc;
+      }, {}),
       sources: sourceResults,
       ...persisted,
     };
@@ -77,6 +87,8 @@ async function runExternalNewsIngestion(context = {}) {
       affectedCategories.push(category);
     }
   }
+
+  totals.contributingSources = contributingSources.size;
 
   const result = {
     trigger: context.trigger || "unknown",

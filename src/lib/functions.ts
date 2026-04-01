@@ -72,6 +72,9 @@ export interface ExternalNewsCategorySummary {
   created: number;
   updated: number;
   skipped: number;
+  contributingSources: number;
+  contributingSourceLabels: string[];
+  discardedReasons: Record<string, number>;
   sources: Array<{
     source: string;
     fetched: number;
@@ -91,6 +94,7 @@ export interface ExternalNewsRefreshResponse {
     created: number;
     updated: number;
     skipped: number;
+    contributingSources: number;
   };
   affectedCategories: string[];
   categories: Record<string, ExternalNewsCategorySummary>;

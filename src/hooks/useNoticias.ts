@@ -34,7 +34,7 @@ export const usePublicNoticias = () => {
     queries: PUBLIC_CATEGORIES.map((categoria) => ({
       queryKey: noticiasKeys.publicByCategory(categoria),
       queryFn: () => listPublicNoticiasByCategoria(categoria),
-      staleTime: 60 * 1000,
+      staleTime: 15 * 1000,
       gcTime: 10 * 60 * 1000,
       refetchOnMount: "always" as const,
     })),
@@ -112,9 +112,10 @@ export const useRefreshExternalNoticias = () => {
       await refetchNoticiasQueries(queryClient);
       await Promise.all(
         PUBLIC_CATEGORIES.map((categoria) =>
-          queryClient.refetchQueries({queryKey: noticiasKeys.publicByCategory(categoria)}),
+          queryClient.refetchQueries({queryKey: noticiasKeys.publicByCategory(categoria), type: "all"}),
         ),
       );
+      await queryClient.refetchQueries({queryKey: noticiasKeys.adminInstitutional(), type: "all"});
     },
   });
 };

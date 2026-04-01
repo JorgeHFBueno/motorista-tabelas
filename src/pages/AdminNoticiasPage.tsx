@@ -30,10 +30,18 @@ const buildRefreshSummary = (result: ExternalNewsRefreshResponse) => {
     `Buscadas: ${result.totals.fetched}`,
     `Aproveitadas: ${result.totals.curated}`,
     `Descartadas: ${result.totals.discarded}`,
+    `Fontes: ${result.totals.contributingSources}`,
     `Categorias afetadas: ${categories}`,
     `Atualizado em: ${executedAt}`,
   ].join(" | ");
 };
+
+const buildRefreshDetails = (result: ExternalNewsRefreshResponse) =>
+  Object.entries(result.categories)
+    .map(([category, summary]) => (
+      `${category}: ${summary.curated} aproveitadas, ${summary.discarded} descartadas, ${summary.contributingSources} fontes`
+    ))
+    .join("\n");
 
 const AdminNoticiasPage = () => {
   const { user } = useAuth();
@@ -57,6 +65,7 @@ const AdminNoticiasPage = () => {
 
   const busy = createMutation.isPending || updateMutation.isPending || deleteMutation.isPending || uploadMutation.isPending;
   const refreshSummary = refreshExternalMutation.data ? buildRefreshSummary(refreshExternalMutation.data) : null;
+  const refreshDetails = refreshExternalMutation.data ? buildRefreshDetails(refreshExternalMutation.data) : null;
 
   const userPayload = useMemo(
     () => ({uid: user?.uid ?? "", nome: user?.displayName ?? undefined, email: user?.email ?? undefined}),
@@ -156,7 +165,12 @@ const AdminNoticiasPage = () => {
                 {refreshExternalMutation.isPending ? "Atualizando noticias externas..." : "Atualizar noticias externas agora"}
               </Button>
               {refreshSummary && (
-                <p className="text-xs text-muted-foreground">{refreshSummary}</p>
+                <div className="space-y-1">
+                  <p className="text-xs text-muted-foreground">{refreshSummary}</p>
+                  {refreshDetails && (
+                    <pre className="whitespace-pre-wrap text-[11px] text-muted-foreground font-sans">{refreshDetails}</pre>
+                  )}
+                </div>
               )}
             </div>
 

@@ -1,4 +1,5 @@
 const {CURATION_CONFIG} = require("../config");
+const {EXTERNAL_CATEGORIES} = require("../types");
 const {
   jaccardSimilarity,
   normalizeTitle,
@@ -25,6 +26,13 @@ function scoreKeywordList(text, keywords, weight) {
   return keywords.reduce((score, keyword) => score + (countKeywordMatches(text, normalizeTitle(keyword)) * weight), 0);
 }
 
+function countDistinctMatches(text, keywords) {
+  if (!text || !Array.isArray(keywords) || keywords.length === 0) return 0;
+  return keywords.reduce((count, keyword) => (
+    text.includes(normalizeTitle(keyword)) ? count + 1 : count
+  ), 0);
+}
+
 function buildScoredText(item) {
   return {
     title: normalizeTitle(item.title),
@@ -37,7 +45,8 @@ function buildScoredText(item) {
 function computeCategoryScore(category, item) {
   const scoring = CURATION_CONFIG.scoring[category];
   const texts = buildScoredText(item);
-  const fullText = [texts.title, texts.summary, texts.sourceName, texts.sourceHints].filter(Boolean).join(" ");
+  const editorialText = [texts.title, texts.summary, texts.sourceName].filter(Boolean).join(" ");
+  const fullText = [editorialText, texts.sourceHints].filter(Boolean).join(" ");
 
   const positiveScore =
     scoreKeywordList(texts.title, scoring.positive, 4) +
@@ -50,22 +59,98 @@ function computeCategoryScore(category, item) {
     scoreKeywordList(texts.summary, scoring.negative, 3) +
     scoreKeywordList(fullText, scoring.negative, 1);
 
-  const requiredMatch = scoring.requiredAny.some((keyword) => fullText.includes(normalizeTitle(keyword)));
-  const score = positiveScore - negativeScore + (item.imageUrl ? 1 : 0) + (requiredMatch ? 2 : -4);
+  const requiredMatches = countDistinctMatches(editorialText, scoring.requiredAny);
+  const contextMatches = countDistinctMatches(editorialText, scoring.contextAny);
+  const requiredMatch = requiredMatches > 0;
+  const contextMatch = !Array.isArray(scoring.contextAny) || contextMatches > 0;
+  const score =
+    positiveScore -
+    negativeScore +
+    (item.imageUrl ? 1 : 0) +
+    (requiredMatches * 2) +
+    Math.min(contextMatches, 3) -
+    (requiredMatch ? 0 : 6) -
+    (contextMatch ? 0 : 6);
 
   return {
     score,
     requiredMatch,
+    contextMatch,
+    requiredMatches,
+    contextMatches,
     positiveScore,
     negativeScore,
-    matchedTags: scoring.positive.filter((keyword) => fullText.includes(normalizeTitle(keyword))).slice(0, 6),
+    matchedTags: scoring.positive.filter((keyword) => editorialText.includes(normalizeTitle(keyword))).slice(0, 6),
   };
+}
+
+function classifyItem(item) {
+  const ranked = EXTERNAL_CATEGORIES
+    .map((category) => ({category, ...computeCategoryScore(category, item)}))
+    .sort((a, b) => {
+      if (b.score !== a.score) return b.score - a.score;
+      return b.requiredMatches - a.requiredMatches;
+    });
+
+  const best = ranked[0];
+  const runnerUp = ranked[1] || null;
+  const minimumScore = CURATION_CONFIG.minCategoryScore[best.category] || 0;
+  const minimumLeadScore = CURATION_CONFIG.classification.minimumLeadScore || 0;
+
+  if (!best.requiredMatch || !best.contextMatch || best.score < minimumScore) {
+    return {
+      bestCategory: null,
+      best,
+      runnerUp,
+    };
+  }
+
+  if (runnerUp && (best.score - runnerUp.score) < minimumLeadScore && runnerUp.score >= (CURATION_CONFIG.minCategoryScore[runnerUp.category] || 0)) {
+    return {
+      bestCategory: null,
+      best,
+      runnerUp,
+    };
+  }
+
+  return {
+    bestCategory: best.category,
+    best,
+    runnerUp,
+  };
+}
+
+function pickItemsWithSourceDiversity(items) {
+  const selected = [];
+  const pending = [...items];
+  const sourceCounts = new Map();
+
+  while (pending.length > 0 && selected.length < CURATION_CONFIG.maxPerCategory) {
+    pending.sort((a, b) => {
+      const sourcePenaltyA = (sourceCounts.get(a.fonte) || 0) * CURATION_CONFIG.sourceDiversityPenalty;
+      const sourcePenaltyB = (sourceCounts.get(b.fonte) || 0) * CURATION_CONFIG.sourceDiversityPenalty;
+      const effectiveA = a.relevanciaScore - sourcePenaltyA;
+      const effectiveB = b.relevanciaScore - sourcePenaltyB;
+
+      if (effectiveB !== effectiveA) return effectiveB - effectiveA;
+      if (b.relevanciaScore !== a.relevanciaScore) return b.relevanciaScore - a.relevanciaScore;
+      return b.publicadoEm.getTime() - a.publicadoEm.getTime();
+    });
+
+    const next = pending.shift();
+    if (!next) break;
+
+    selected.push(next);
+    sourceCounts.set(next.fonte, (sourceCounts.get(next.fonte) || 0) + 1);
+  }
+
+  return selected;
 }
 
 function curateCategoryItems(category, rawItems) {
   const byUrl = new Set();
   const byHash = new Set();
-  const selected = [];
+  const candidates = [];
   const discarded = [];
   const minimumScore = CURATION_CONFIG.minCategoryScore[category] || 0;
 
@@ -96,7 +181,7 @@ function curateCategoryItems(category, rawItems) {
       continue;
     }
 
-    const tooSimilar = selected.some((existing) =>
+    const tooSimilar = candidates.some((existing) =>
       jaccardSimilarity(existing.titulo, titulo) >= CURATION_CONFIG.titleSimilarityThreshold,
     );
     if (tooSimilar) {
@@ -105,6 +190,23 @@ function curateCategoryItems(category, rawItems) {
     }
 
     const scoring = computeCategoryScore(category, item);
+    const classification = classifyItem(item);
+
+    if (!classification.bestCategory) {
+      discarded.push({reason: "no_category_match", title: titulo, score: scoring.score});
+      continue;
+    }
+
+    if (classification.bestCategory !== category) {
+      discarded.push({
+        reason: "better_fit_other_category",
+        title: titulo,
+        score: scoring.score,
+        bestCategory: classification.bestCategory,
+      });
+      continue;
+    }
+
     if (scoring.score < minimumScore) {
       discarded.push({reason: "low_score", title: titulo, score: scoring.score});
       continue;
@@ -126,23 +228,21 @@ function curateCategoryItems(category, rawItems) {
       relevanciaScore: scoring.score,
     };
 
-    selected.push(curated);
+    candidates.push(curated);
     if (normalizedUrl) byUrl.add(normalizedUrl);
     byHash.add(hashDedupe);
   }
 
-  selected.sort((a, b) => {
-    if (b.relevanciaScore !== a.relevanciaScore) return b.relevanciaScore - a.relevanciaScore;
-    return b.publicadoEm.getTime() - a.publicadoEm.getTime();
-  });
+  const selected = pickItemsWithSourceDiversity(candidates);
 
   return {
-    items: selected.slice(0, CURATION_CONFIG.maxPerCategory),
+    items: selected,
     discarded,
   };
 }
 
 module.exports = {
   curateCategoryItems,
+  classifyItem,
   computeCategoryScore,
 };
