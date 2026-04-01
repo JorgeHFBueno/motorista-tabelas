@@ -8,21 +8,35 @@ import {
   updateInstitutionalNoticia,
   uploadInstitutionalImage,
 } from "@/services/noticiasService";
+import { adminRefreshExternalNews } from "@/lib/functions";
 import type { NoticiaCategoria, NoticiaCreateInput, NoticiaUpdateInput } from "@/types/noticias";
 
 const CATEGORIAS: NoticiaCategoria[] = ["economia", "infraestrutura", "logistica", "inovacao", "institucional"];
+const PUBLIC_CATEGORIES = CATEGORIAS;
 
 export const noticiasKeys = {
   all: ["noticias"] as const,
-  publicByCategory: (categoria: NoticiaCategoria) => [...noticiasKeys.all, "public", categoria] as const,
-  adminInstitutional: () => [...noticiasKeys.all, "admin", "institucional"] as const,
+  public: () => [...noticiasKeys.all, "public"] as const,
+  publicByCategory: (categoria: NoticiaCategoria) => [...noticiasKeys.public(), categoria] as const,
+  admin: () => [...noticiasKeys.all, "admin"] as const,
+  adminInstitutional: () => [...noticiasKeys.admin(), "institucional"] as const,
 };
+
+export async function refetchNoticiasQueries(queryClient: ReturnType<typeof useQueryClient>) {
+  await Promise.all([
+    queryClient.invalidateQueries({ queryKey: noticiasKeys.public() }),
+    queryClient.invalidateQueries({ queryKey: noticiasKeys.admin() }),
+  ]);
+}
 
 export const usePublicNoticias = () => {
   const queries = useQueries({
-    queries: CATEGORIAS.map((categoria) => ({
+    queries: PUBLIC_CATEGORIES.map((categoria) => ({
       queryKey: noticiasKeys.publicByCategory(categoria),
       queryFn: () => listPublicNoticiasByCategoria(categoria),
+      staleTime: 60 * 1000,
+      gcTime: 10 * 60 * 1000,
+      refetchOnMount: "always" as const,
     })),
   });
 
@@ -31,7 +45,7 @@ export const usePublicNoticias = () => {
 
   const data = buildEmptyNoticiasByCategoria(CATEGORIAS);
   queries.forEach((item, index) => {
-    data[CATEGORIAS[index]] = item.data ?? [];
+    data[PUBLIC_CATEGORIES[index]] = item.data ?? [];
   });
 
   return {
@@ -56,7 +70,7 @@ export const useCreateInstitutionalNoticia = () => {
     mutationFn: (payload: { input: NoticiaCreateInput; user: { uid: string; nome?: string; email?: string } }) =>
       createInstitutionalNoticia(payload.input, payload.user),
     onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: noticiasKeys.all });
+      await refetchNoticiasQueries(queryClient);
     },
   });
 };
@@ -68,7 +82,7 @@ export const useUpdateInstitutionalNoticia = () => {
     mutationFn: (payload: { id: string; input: NoticiaUpdateInput; user: { uid: string; nome?: string; email?: string } }) =>
       updateInstitutionalNoticia(payload.id, payload.input, payload.user),
     onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: noticiasKeys.all });
+      await refetchNoticiasQueries(queryClient);
     },
   });
 };
@@ -79,12 +93,28 @@ export const useDeleteInstitutionalNoticia = () => {
   return useMutation({
     mutationFn: (id: string) => deleteInstitutionalNoticia(id),
     onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: noticiasKeys.all });
+      await refetchNoticiasQueries(queryClient);
     },
   });
 };
 
 export const useUploadInstitutionalImage = () =>
   useMutation({
-    mutationFn: ({ uid, file }: { uid: string; file: File }) => uploadInstitutionalImage(uid, file),
+    mutationFn: ({uid, file}: { uid: string; file: File }) => uploadInstitutionalImage(uid, file),
   });
+
+export const useRefreshExternalNoticias = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: adminRefreshExternalNews,
+    onSuccess: async () => {
+      await refetchNoticiasQueries(queryClient);
+      await Promise.all(
+        PUBLIC_CATEGORIES.map((categoria) =>
+          queryClient.refetchQueries({queryKey: noticiasKeys.publicByCategory(categoria)}),
+        ),
+      );
+    },
+  });
+};

@@ -1,7 +1,8 @@
 import { ExternalLink, ImageOff } from "lucide-react";
+import { useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
-import type { NoticiaDoc } from "@/types/noticias";
+import { NEWS_CATEGORY_LABELS, type NoticiaDoc } from "@/types/noticias";
 
 const formatDate = (value: NoticiaDoc["publicadoEm"]) => {
   try {
@@ -13,12 +14,20 @@ const formatDate = (value: NoticiaDoc["publicadoEm"]) => {
 
 export const NewsCard = ({ noticia }: { noticia: NoticiaDoc }) => {
   const imageUrl = noticia.imagemUrl?.trim();
+  const [imageError, setImageError] = useState(false);
+  const showImage = Boolean(imageUrl) && !imageError;
 
   return (
     <Card className="overflow-hidden">
       <div className="h-40 bg-muted flex items-center justify-center">
-        {imageUrl ? (
-          <img src={imageUrl} alt={noticia.titulo} className="w-full h-full object-cover" loading="lazy" />
+        {showImage ? (
+          <img
+            src={imageUrl ?? ""}
+            alt={noticia.titulo}
+            className="w-full h-full object-cover"
+            loading="lazy"
+            onError={() => setImageError(true)}
+          />
         ) : (
           <div className="flex items-center gap-2 text-muted-foreground text-sm">
             <ImageOff className="w-4 h-4" /> Sem imagem
@@ -27,7 +36,7 @@ export const NewsCard = ({ noticia }: { noticia: NoticiaDoc }) => {
       </div>
       <CardContent className="p-4 space-y-3">
         <div className="flex gap-2 flex-wrap">
-          <Badge variant="secondary" className="capitalize">{noticia.categoria}</Badge>
+          <Badge variant="secondary">{NEWS_CATEGORY_LABELS[noticia.categoria]}</Badge>
           <Badge variant="outline" className="capitalize">{noticia.origem}</Badge>
         </div>
         <h3 className="font-semibold text-sm leading-snug">{noticia.titulo}</h3>

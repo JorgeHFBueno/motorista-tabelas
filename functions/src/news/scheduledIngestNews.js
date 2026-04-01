@@ -8,23 +8,86 @@ const {saveCuratedNews} = require("./saveNews");
 async function fetchForCategory(category) {
   const sources = NEWS_SOURCE_CONFIG[category] || [];
   const allItems = [];
+  const sourceResults = [];
 
   for (const source of sources) {
     try {
-      if (source.type === "rss") {
-        const fetched = await fetchRssNews(source, category);
-        allItems.push(...fetched);
-      }
+      if (source.type !== "rss") continue;
+
+      const fetched = await fetchRssNews(source, category);
+      allItems.push(...fetched);
+      sourceResults.push({
+        source: source.label,
+        fetched: fetched.length,
+        fallback: Boolean(source.fallback),
+      });
     } catch (error) {
       logger.error("[news-ingest] source failed", {
         category,
         source: source.label,
         message: error instanceof Error ? error.message : String(error),
       });
+      sourceResults.push({
+        source: source.label,
+        fetched: 0,
+        fallback: Boolean(source.fallback),
+        error: error instanceof Error ? error.message : String(error),
+      });
     }
   }
 
-  return allItems;
+  return {items: allItems, sourceResults};
+}
+
+async function runExternalNewsIngestion(context = {}) {
+  const summary = {};
+  const totals = {
+    fetched: 0,
+    curated: 0,
+    discarded: 0,
+    created: 0,
+    updated: 0,
+    skipped: 0,
+  };
+  const affectedCategories = [];
+
+  for (const category of EXTERNAL_CATEGORIES) {
+    const {items: rawItems, sourceResults} = await fetchForCategory(category);
+    const curatedResult = curateCategoryItems(category, rawItems);
+    const curated = curatedResult.items.slice(0, CURATION_CONFIG.maxPerCategory);
+
+    const persisted = await saveCuratedNews(curated);
+    const categorySummary = {
+      fetched: rawItems.length,
+      curated: curated.length,
+      discarded: curatedResult.discarded.length,
+      sources: sourceResults,
+      ...persisted,
+    };
+
+    summary[category] = categorySummary;
+    totals.fetched += categorySummary.fetched;
+    totals.curated += categorySummary.curated;
+    totals.discarded += categorySummary.discarded;
+    totals.created += categorySummary.created;
+    totals.updated += categorySummary.updated;
+    totals.skipped += categorySummary.skipped;
+
+    if (categorySummary.created || categorySummary.updated) {
+      affectedCategories.push(category);
+    }
+  }
+
+  const result = {
+    trigger: context.trigger || "unknown",
+    executedAt: new Date().toISOString(),
+    totals,
+    affectedCategories,
+    categories: summary,
+  };
+
+  logger.info("[news-ingest] finished", result);
+  return result;
 }
 
 const scheduledIngestNews = onSchedule(
@@ -33,28 +96,10 @@ const scheduledIngestNews = onSchedule(
     timeZone: "America/Sao_Paulo",
     region: "southamerica-east1",
   },
-  async () => {
-    const summary = {};
-
-    for (const category of EXTERNAL_CATEGORIES) {
-      const rawItems = await fetchForCategory(category);
-      const curated = curateCategoryItems(category, rawItems)
-        .sort((a, b) => b.publicadoEm.getTime() - a.publicadoEm.getTime())
-        .slice(0, CURATION_CONFIG.maxPerCategory);
-
-      const persisted = await saveCuratedNews(curated);
-      summary[category] = {
-        fetched: rawItems.length,
-        curated: curated.length,
-        ...persisted,
-      };
-    }
-
-    logger.info("[news-ingest] finished", summary);
-    return summary;
-  },
+  async () => runExternalNewsIngestion({trigger: "schedule"}),
 );
 
 module.exports = {
+  runExternalNewsIngestion,
   scheduledIngestNews,
 };

@@ -8,11 +8,25 @@ function stripHtml(value) {
   return normalizeWhitespace(String(value || "").replace(/<[^>]*>/g, " "));
 }
 
-function normalizeUrl(rawUrl) {
+function decodeHtmlEntities(value) {
+  return String(value || "")
+    .replace(/&nbsp;/gi, " ")
+    .replace(/&amp;/gi, "&")
+    .replace(/&quot;/gi, "\"")
+    .replace(/&#39;/gi, "'")
+    .replace(/&lt;/gi, "<")
+    .replace(/&gt;/gi, ">");
+}
+
+function stripAccents(value) {
+  return String(value || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+}
+
+function normalizeUrl(rawUrl, baseUrl) {
   if (!rawUrl) return "";
 
   try {
-    const parsed = new URL(rawUrl);
+    const parsed = baseUrl ? new URL(rawUrl, baseUrl) : new URL(rawUrl);
     parsed.hash = "";
     parsed.search = "";
     return parsed.toString().replace(/\/$/, "");
@@ -22,12 +36,12 @@ function normalizeUrl(rawUrl) {
 }
 
 function normalizeTitle(value) {
-  return normalizeWhitespace(value).toLowerCase();
+  return stripAccents(normalizeWhitespace(value)).toLowerCase();
 }
 
 function tokenize(value) {
   return normalizeTitle(value)
-    .split(/\W+/)
+    .split(/[^\p{L}\p{N}]+/u)
     .map((item) => item.trim())
     .filter(Boolean);
 }
@@ -55,11 +69,35 @@ function stableDedupeHash({category, url, title}) {
   return crypto.createHash("sha256").update(base).digest("hex");
 }
 
+function extractFirstImageFromHtml(value, baseUrl) {
+  const html = String(value || "");
+  const imagePatterns = [
+    /<meta[^>]+property=["']og:image["'][^>]+content=["']([^"']+)["']/i,
+    /<meta[^>]+content=["']([^"']+)["'][^>]+property=["']og:image["']/i,
+    /<meta[^>]+name=["']twitter:image["'][^>]+content=["']([^"']+)["']/i,
+    /<meta[^>]+content=["']([^"']+)["'][^>]+name=["']twitter:image["']/i,
+    /<img[^>]+src=["']([^"']+)["']/i,
+  ];
+
+  for (const pattern of imagePatterns) {
+    const match = html.match(pattern);
+    if (match?.[1]) {
+      return normalizeUrl(match[1], baseUrl);
+    }
+  }
+
+  return "";
+}
+
 module.exports = {
-  normalizeWhitespace,
-  stripHtml,
-  normalizeUrl,
-  normalizeTitle,
+  decodeHtmlEntities,
+  extractFirstImageFromHtml,
   jaccardSimilarity,
+  normalizeTitle,
+  normalizeUrl,
+  normalizeWhitespace,
   stableDedupeHash,
+  stripAccents,
+  stripHtml,
+  tokenize,
 };

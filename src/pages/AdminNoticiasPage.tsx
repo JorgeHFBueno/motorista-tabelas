@@ -12,13 +12,28 @@ import {
   useAdminInstitutionalNoticias,
   useCreateInstitutionalNoticia,
   useDeleteInstitutionalNoticia,
+  useRefreshExternalNoticias,
   useUpdateInstitutionalNoticia,
   useUploadInstitutionalImage,
 } from "@/hooks/useNoticias";
 import { toast } from "@/hooks/use-toast";
+import type { ExternalNewsRefreshResponse } from "@/lib/functions";
 import type { NoticiaCreateInput, NoticiaDoc, NoticiaStatus } from "@/types/noticias";
 
 const toDateInputValue = (d = new Date()) => new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
+
+const buildRefreshSummary = (result: ExternalNewsRefreshResponse) => {
+  const executedAt = new Date(result.executedAt).toLocaleString("pt-BR");
+  const categories = result.affectedCategories.length > 0 ? result.affectedCategories.join(", ") : "nenhuma";
+
+  return [
+    `Buscadas: ${result.totals.fetched}`,
+    `Aproveitadas: ${result.totals.curated}`,
+    `Descartadas: ${result.totals.discarded}`,
+    `Categorias afetadas: ${categories}`,
+    `Atualizado em: ${executedAt}`,
+  ].join(" | ");
+};
 
 const AdminNoticiasPage = () => {
   const { user } = useAuth();
@@ -27,6 +42,7 @@ const AdminNoticiasPage = () => {
   const updateMutation = useUpdateInstitutionalNoticia();
   const deleteMutation = useDeleteInstitutionalNoticia();
   const uploadMutation = useUploadInstitutionalImage();
+  const refreshExternalMutation = useRefreshExternalNoticias();
 
   const [editing, setEditing] = useState<NoticiaDoc | null>(null);
   const [titulo, setTitulo] = useState("");
@@ -40,8 +56,12 @@ const AdminNoticiasPage = () => {
   const [publicadoEm, setPublicadoEm] = useState(toDateInputValue());
 
   const busy = createMutation.isPending || updateMutation.isPending || deleteMutation.isPending || uploadMutation.isPending;
+  const refreshSummary = refreshExternalMutation.data ? buildRefreshSummary(refreshExternalMutation.data) : null;
 
-  const userPayload = useMemo(() => ({ uid: user?.uid ?? "", nome: user?.displayName ?? undefined, email: user?.email ?? undefined }), [user]);
+  const userPayload = useMemo(
+    () => ({uid: user?.uid ?? "", nome: user?.displayName ?? undefined, email: user?.email ?? undefined}),
+    [user],
+  );
 
   const resetForm = () => {
     setEditing(null);
@@ -85,27 +105,64 @@ const AdminNoticiasPage = () => {
     if (!userPayload.uid) return;
     try {
       if (editing) {
-        await updateMutation.mutateAsync({ id: editing.id, input: buildInput(), user: userPayload });
-        toast({ title: "Notícia atualizada", description: "A notícia institucional foi atualizada." });
+        await updateMutation.mutateAsync({id: editing.id, input: buildInput(), user: userPayload});
+        toast({title: "Noticia atualizada", description: "A noticia institucional foi atualizada."});
       } else {
-        await createMutation.mutateAsync({ input: buildInput(), user: userPayload });
-        toast({ title: "Notícia criada", description: "A notícia institucional foi criada." });
+        await createMutation.mutateAsync({input: buildInput(), user: userPayload});
+        toast({title: "Noticia criada", description: "A noticia institucional foi criada."});
       }
       resetForm();
     } catch (error) {
-      toast({ title: "Erro", description: "Não foi possível salvar a notícia.", variant: "destructive" });
+      toast({title: "Erro", description: "Nao foi possivel salvar a noticia.", variant: "destructive"});
+    }
+  };
+
+  const onRefreshExternalNews = async () => {
+    try {
+      const result = await refreshExternalMutation.mutateAsync();
+      toast({
+        title: "Noticias externas atualizadas",
+        description: buildRefreshSummary(result),
+      });
+    } catch (error) {
+      toast({
+        title: "Erro na atualizacao",
+        description: "Nao foi possivel executar a ingestao externa agora.",
+        variant: "destructive",
+      });
     }
   };
 
   return (
-    <ResponsiveLayout headerTitle="Notícias institucionais" headerSubtitle="Gerencie os conteúdos institucionais">
+    <ResponsiveLayout headerTitle="Noticias institucionais" headerSubtitle="Gerencie os conteudos institucionais e dispare a ingestao externa">
       <div className="px-4 py-6 lg:px-8 lg:py-8 grid grid-cols-1 lg:grid-cols-3 gap-6">
         <Card className="lg:col-span-1">
-          <CardHeader><CardTitle>{editing ? "Editar notícia" : "Nova notícia"}</CardTitle></CardHeader>
+          <CardHeader>
+            <CardTitle>{editing ? "Editar noticia" : "Nova noticia"}</CardTitle>
+          </CardHeader>
           <CardContent className="space-y-3">
-            <div className="space-y-1"><Label>Título</Label><Input value={titulo} onChange={(e) => setTitulo(e.target.value)} /></div>
+            <div className="rounded-lg border bg-muted/30 p-3 space-y-2">
+              <div className="space-y-1">
+                <Label>Atualizacao externa</Label>
+                <p className="text-sm text-muted-foreground">
+                  Usa a mesma pipeline do scheduler de 12h para economia, infraestrutura, logistica e inovacao.
+                </p>
+              </div>
+              <Button
+                className="w-full"
+                disabled={refreshExternalMutation.isPending}
+                onClick={() => void onRefreshExternalNews()}
+              >
+                {refreshExternalMutation.isPending ? "Atualizando noticias externas..." : "Atualizar noticias externas agora"}
+              </Button>
+              {refreshSummary && (
+                <p className="text-xs text-muted-foreground">{refreshSummary}</p>
+              )}
+            </div>
+
+            <div className="space-y-1"><Label>Titulo</Label><Input value={titulo} onChange={(e) => setTitulo(e.target.value)} /></div>
             <div className="space-y-1"><Label>Resumo</Label><Textarea value={resumo} onChange={(e) => setResumo(e.target.value)} /></div>
-            <div className="space-y-1"><Label>Conteúdo (opcional)</Label><Textarea value={conteudo} onChange={(e) => setConteudo(e.target.value)} /></div>
+            <div className="space-y-1"><Label>Conteudo (opcional)</Label><Textarea value={conteudo} onChange={(e) => setConteudo(e.target.value)} /></div>
             <div className="space-y-1"><Label>URL (opcional)</Label><Input value={url} onChange={(e) => setUrl(e.target.value)} /></div>
             <div className="space-y-1"><Label>Imagem URL (opcional)</Label><Input value={imagemUrl} onChange={(e) => setImagemUrl(e.target.value)} /></div>
             <div className="space-y-1">
@@ -116,8 +173,12 @@ const AdminNoticiasPage = () => {
                 onChange={async (e) => {
                   const file = e.target.files?.[0];
                   if (!file || !user?.uid) return;
-                  const uploadedUrl = await uploadMutation.mutateAsync({ uid: user.uid, file });
-                  setImagemUrl(uploadedUrl);
+                  try {
+                    const uploadedUrl = await uploadMutation.mutateAsync({uid: user.uid, file});
+                    setImagemUrl(uploadedUrl);
+                  } catch (error) {
+                    toast({title: "Erro no upload", description: "Nao foi possivel enviar a imagem.", variant: "destructive"});
+                  }
                 }}
               />
             </div>
@@ -131,8 +192,8 @@ const AdminNoticiasPage = () => {
                 </SelectContent>
               </Select>
             </div>
-            <div className="space-y-1"><Label>Tags (separadas por vírgula)</Label><Input value={tags} onChange={(e) => setTags(e.target.value)} /></div>
-            <div className="space-y-1"><Label>Data de publicação</Label><Input type="datetime-local" value={publicadoEm} onChange={(e) => setPublicadoEm(e.target.value)} /></div>
+            <div className="space-y-1"><Label>Tags (separadas por virgula)</Label><Input value={tags} onChange={(e) => setTags(e.target.value)} /></div>
+            <div className="space-y-1"><Label>Data de publicacao</Label><Input type="datetime-local" value={publicadoEm} onChange={(e) => setPublicadoEm(e.target.value)} /></div>
             <div className="flex items-center justify-between"><Label>Destaque</Label><Switch checked={destaque} onCheckedChange={setDestaque} /></div>
             <div className="flex gap-2">
               <Button disabled={busy} onClick={() => void onSubmit()}>{editing ? "Salvar" : "Criar"}</Button>
@@ -142,7 +203,7 @@ const AdminNoticiasPage = () => {
         </Card>
 
         <Card className="lg:col-span-2">
-          <CardHeader><CardTitle>Notícias institucionais</CardTitle></CardHeader>
+          <CardHeader><CardTitle>Noticias institucionais</CardTitle></CardHeader>
           <CardContent className="space-y-3">
             {isLoading && <p className="text-sm text-muted-foreground">Carregando...</p>}
             {data.map((item) => (
@@ -159,9 +220,13 @@ const AdminNoticiasPage = () => {
                     size="sm"
                     disabled={deleteMutation.isPending}
                     onClick={async () => {
-                      await deleteMutation.mutateAsync(item.id);
-                      toast({ title: "Notícia excluída" });
-                      if (editing?.id === item.id) resetForm();
+                      try {
+                        await deleteMutation.mutateAsync(item.id);
+                        toast({title: "Noticia excluida"});
+                        if (editing?.id === item.id) resetForm();
+                      } catch (error) {
+                        toast({title: "Erro", description: "Nao foi possivel excluir a noticia.", variant: "destructive"});
+                      }
                     }}
                   >
                     Excluir

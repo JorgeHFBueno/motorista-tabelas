@@ -17,7 +17,7 @@ function isStaff() {
     }
     
     match /{allPaths=**} {
-      allow read, write: if isSignedIn();
+      allow read, write: if isSignedIn() && !allPaths.matches('noticias-institucionais/.*');
     }
   }
 }

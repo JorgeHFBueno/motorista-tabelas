@@ -10,10 +10,44 @@ service cloud.firestore {
       return isSignedIn() && request.auth.uid == uid;
     }
 
+    function getRole() {
+      return isSignedIn()
+        ? get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role
+        : null;
+    }
+
+    function isStaff() {
+      return getRole() in ['admin', 'gerente', 'operacional'];
+    }
+
     function isClientNotificationReadUpdate(uid) {
       return isSelf(uid)
         && request.resource.data.diff(resource.data).changedKeys().hasOnly(['lida'])
         && request.resource.data.lida is bool;
+    }
+
+    function isPublishedNewsRead() {
+      return resource.data.status == 'publicada';
+    }
+
+    function isInstitutionalNewsCreate() {
+      return isStaff()
+        && request.resource.data.categoria == 'institucional'
+        && request.resource.data.origem == 'institucional';
+    }
+
+    function isInstitutionalNewsUpdate() {
+      return isStaff()
+        && resource.data.categoria == 'institucional'
+        && resource.data.origem == 'institucional'
+        && request.resource.data.categoria == 'institucional'
+        && request.resource.data.origem == 'institucional';
+    }
+
+    function isInstitutionalNewsDelete() {
+      return isStaff()
+        && resource.data.categoria == 'institucional'
+        && resource.data.origem == 'institucional';
     }
 
     match /users/{uid}/notificacoes/{notificacaoId} {
@@ -53,6 +87,13 @@ service cloud.firestore {
 
     match /fotos-lixo/{fotoId} {
       allow read, write: if isSignedIn();
+    }
+
+    match /noticias/{noticiaId} {
+      allow read: if isSignedIn() && (isPublishedNewsRead() || isStaff());
+      allow create: if isInstitutionalNewsCreate();
+      allow update: if isInstitutionalNewsUpdate();
+      allow delete: if isInstitutionalNewsDelete();
     }
   }
 }
