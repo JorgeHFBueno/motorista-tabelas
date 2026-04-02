@@ -16,14 +16,56 @@ service cloud.firestore {
         : null;
     }
 
+    function getUserRole(uid) {
+      return isSignedIn()
+        ? get(/databases/$(database)/documents/users/$(uid)).data.role
+        : null;
+    }
+
     function isStaff() {
       return getRole() in ['admin', 'gerente', 'operacional'];
+    }
+
+    function isStaffUser(uid) {
+      return getUserRole(uid) in ['admin', 'gerente', 'operacional'];
+    }
+
+    function supportTicketPath(ticketId) {
+      return /databases/$(database)/documents/suporteTickets/$(ticketId);
+    }
+
+    function canReadSupportTicketData(ticketData) {
+      return isStaff() || isSelf(ticketData.clienteUid);
+    }
+
+    function isSupportNotificationType() {
+      return request.resource.data.tipo in [
+        'suporte_ticket_novo',
+        'suporte_ticket_resposta',
+        'suporte_ticket_status',
+      ];
     }
 
     function isClientNotificationReadUpdate(uid) {
       return isSelf(uid)
         && request.resource.data.diff(resource.data).changedKeys().hasOnly(['lida'])
         && request.resource.data.lida is bool;
+    }
+
+    function isSupportNotificationCreate(uid) {
+      return isSignedIn()
+        && request.resource.data.userId == uid
+        && request.resource.data.origemColecao == 'suporteTickets'
+        && request.resource.data.origemId is string
+        && exists(supportTicketPath(request.resource.data.origemId))
+        && isSupportNotificationType()
+        && (
+          (isStaff() && get(supportTicketPath(request.resource.data.origemId)).data.clienteUid == uid)
+          || (
+            request.auth.uid == get(supportTicketPath(request.resource.data.origemId)).data.clienteUid
+            && isStaffUser(uid)
+          )
+        );
     }
 
     function isPublishedNewsRead() {
@@ -50,15 +92,102 @@ service cloud.firestore {
         && resource.data.origem == 'institucional';
     }
 
+    function isOwnSupportTicketCreate() {
+      return isSignedIn()
+        && !isStaff()
+        && request.resource.data.clienteUid == request.auth.uid
+        && request.resource.data.criadoPorTipo == 'cliente'
+        && request.resource.data.ultimaMensagemPorTipo == 'cliente'
+        && request.resource.data.naoLidasCliente == 0
+        && request.resource.data.naoLidasAdmin is int
+        && request.resource.data.status == 'aberto';
+    }
+
+    function isClientSupportTicketUpdate() {
+      return isSignedIn()
+        && resource.data.clienteUid == request.auth.uid
+        && resource.data.status != 'fechado'
+        && request.resource.data.diff(resource.data).changedKeys().hasOnly([
+          'status',
+          'atualizadoEm',
+          'ultimaMensagemResumo',
+          'ultimaMensagemEm',
+          'ultimaMensagemPorTipo',
+          'naoLidasCliente',
+          'naoLidasAdmin',
+        ])
+        && request.resource.data.clienteUid == resource.data.clienteUid
+        && request.resource.data.clienteNome == resource.data.clienteNome
+        && request.resource.data.clienteEmail == resource.data.clienteEmail
+        && request.resource.data.obraId == resource.data.obraId
+        && request.resource.data.obraNome == resource.data.obraNome
+        && request.resource.data.titulo == resource.data.titulo
+        && request.resource.data.descricaoInicial == resource.data.descricaoInicial
+        && request.resource.data.categoria == resource.data.categoria
+        && request.resource.data.prioridade == resource.data.prioridade
+        && request.resource.data.criadoPorTipo == resource.data.criadoPorTipo
+        && request.resource.data.criadoEm == resource.data.criadoEm
+        && request.resource.data.responsavelUid == resource.data.responsavelUid
+        && request.resource.data.responsavelNome == resource.data.responsavelNome
+        && request.resource.data.naoLidasCliente == 0
+        && request.resource.data.naoLidasAdmin >= resource.data.naoLidasAdmin
+        && (
+          request.resource.data.status == resource.data.status
+          || request.resource.data.status == 'em_andamento'
+        )
+        && (
+          request.resource.data.ultimaMensagemPorTipo == resource.data.ultimaMensagemPorTipo
+          || request.resource.data.ultimaMensagemPorTipo == 'cliente'
+        );
+    }
+
+    function canReadSupportTicket(ticketId) {
+      return exists(supportTicketPath(ticketId))
+        && canReadSupportTicketData(get(supportTicketPath(ticketId)).data);
+    }
+
+    function isClientSupportMessageCreate(ticketId) {
+      return exists(supportTicketPath(ticketId))
+        && get(supportTicketPath(ticketId)).data.clienteUid == request.auth.uid
+        && get(supportTicketPath(ticketId)).data.status != 'fechado'
+        && request.resource.data.autorUid == request.auth.uid
+        && request.resource.data.autorTipo == 'cliente'
+        && request.resource.data.mensagem is string;
+    }
+
+    function isStaffSupportMessageCreate(ticketId) {
+      return exists(supportTicketPath(ticketId))
+        && isStaff()
+        && get(supportTicketPath(ticketId)).data.status != 'fechado'
+        && request.resource.data.autorUid == request.auth.uid
+        && request.resource.data.autorTipo == 'admin'
+        && request.resource.data.mensagem is string;
+    }
+
     match /users/{uid}/notificacoes/{notificacaoId} {
       allow read: if isSelf(uid);
-      allow create, delete: if false;
+      allow create: if isSupportNotificationCreate(uid);
+      allow delete: if false;
       allow update: if isClientNotificationReadUpdate(uid);
     }
 
     match /users/{uid} {
       allow read, write: if isSignedIn();
     }
+
+    match /suporteTickets/{ticketId} {
+      allow read: if canReadSupportTicketData(resource.data);
+      allow create: if isOwnSupportTicketCreate() || isStaff();
+      allow update: if isStaff() || isClientSupportTicketUpdate();
+      allow delete: if false;
+
+      match /mensagens/{mensagemId} {
+        allow read: if canReadSupportTicket(ticketId);
+        allow create: if isClientSupportMessageCreate(ticketId) || isStaffSupportMessageCreate(ticketId);
+        allow update, delete: if false;
+      }
+    }
+
     match /obras/{obraId} {
       allow read, write: if isSignedIn();
       match /{sub=**} {

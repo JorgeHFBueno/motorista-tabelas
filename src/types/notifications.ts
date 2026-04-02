@@ -8,6 +8,9 @@ export const NOTIFICATION_TYPES = [
   "financeiro_boleto_disponivel",
   "financeiro_status_alterado",
   "financeiro_vencimento_proximo",
+  "suporte_ticket_novo",
+  "suporte_ticket_resposta",
+  "suporte_ticket_status",
 ] as const;
 
 export type NotificationType = (typeof NOTIFICATION_TYPES)[number];

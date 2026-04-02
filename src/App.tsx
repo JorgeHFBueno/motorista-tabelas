@@ -34,6 +34,8 @@ import FinancasOG from "./pages/FinancasOG";
 import Index from "./pages/Index";
 import Noticias from "@/pages/Noticias";
 import AdminNoticiasPage from "@/pages/AdminNoticiasPage";
+import Atendimento from "@/pages/Atendimento";
+import StaffAtendimentoPage from "@/pages/StaffAtendimentoPage";
 
 const queryClient = new QueryClient();
 
@@ -66,6 +68,7 @@ const App = () => {
                     <Route path="/cliente/documentos-v2" element={<DocumentosV2 />} />
                     <Route path="/cliente/fotos" element={<Fotos />} />
                     <Route path="/cliente/noticias" element={<Noticias />} />
+                    <Route path="/cliente/atendimento" element={<Atendimento />} />
                     <Route element={<ObraAccessRoute />}>
                       <Route path="/cliente/obras/:obraId/upload" element={<ClientObraUploadPage />} />
                     </Route>
@@ -80,6 +83,7 @@ const App = () => {
                     <Route element={<ObraAccessRoute />}>
                       <Route path="/painel/obras/:obraId/upload" element={<StaffObraUploadPage />} />
                     </Route>
+                    <Route path="/painel/atendimento" element={<StaffAtendimentoPage />} />
                     <Route path="/painel/cadastros" element={<StaffCadastrosPage />} />
                     <Route path="/painel/noticias" element={<AdminNoticiasPage />} />
                   </Route>
