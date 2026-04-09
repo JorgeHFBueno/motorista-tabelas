@@ -18,10 +18,11 @@ export default function Header() {
 
   return (
     <>
-      <Navbar expand="lg" className="bg-body-tertiary">
+      <Navbar expand="lg" className="ledur-navbar" variant="dark">
         <Container>
           <Navbar.Brand as={Link} to="/">
-            JHFB
+            <img src="/logo-ledur-branco.png" alt="" aria-hidden="true" />
+            Ledur
           </Navbar.Brand>
           <Navbar.Toggle aria-controls="basic-navbar-nav" />
           <Navbar.Collapse id="basic-navbar-nav">

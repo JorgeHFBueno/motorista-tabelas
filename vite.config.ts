@@ -9,7 +9,7 @@ export default defineConfig({
       registerType: 'autoUpdate',
       manifest: false,
       includeAssets: [
-        'logo_vetor.png',
+        'logo-ledur-branco.png',
         'perfil1.svg',
         'perfil2.svg',
         'icons/icon-192x192.png',

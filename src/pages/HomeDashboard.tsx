@@ -15,35 +15,40 @@ const actions = [
     label: 'Cadastros',
     description: 'Cadastrar e organizar pessoas',
     icon: <AssignmentIndIcon fontSize="large" />,
-    color: '#8ecae6',
+    color: '#EAF2F8',
+    accent: '#2F6B98',
     to: '/cadastros',
   },
   {
     label: 'Registros',
     description: 'Acompanhe registros e gráficos',
     icon: <ListAltIcon fontSize="large" />,
-    color: '#ffb703',
+    color: '#F6F7F8',
+    accent: '#5B5D5B',
     to: '/registros',
   },
   {
     label: 'Frota',
     description: 'Gerencie veículos (placa e extra)',
     icon: <DirectionsCarFilledIcon fontSize="large" />,
-    color: '#ffd166',
+    color: '#EEF5F1',
+    accent: '#2E9D6F',
     to: '/frota',
   },
   {
     label: 'Combustível',
     description: 'Controle de abastecimentos',
     icon: <LocalGasStationIcon fontSize="large" />,
-    color: '#fb8500',
+    color: '#FFF6E8',
+    accent: '#E79A25',
     to: '/combustivel/novo',
   },
   {
     label: 'Portifólio',
     description: 'Campo de ideias a serem exploradas',
     icon: <WorkspacesIcon fontSize="large" />,
-    color: '#90be6d',
+    color: '#EDF3F7',
+    accent: '#12293B',
     to: '/portfolio',
   },
 ];
@@ -73,7 +78,8 @@ export default function HomeDashboard() {
         alignItems: 'center',
         justifyContent: 'center',
         p: 3,
-        background: 'linear-gradient(180deg, #f8fbff 0%, #eef4ff 100%)',
+        background:
+          'radial-gradient(circle at top left, rgba(47, 107, 152, 0.12), transparent 28rem), linear-gradient(180deg, #ffffff 0%, #f7f9fb 100%)',
       }}
     >
       <Box maxWidth={960} width="100%">
@@ -95,16 +101,17 @@ export default function HomeDashboard() {
           }}
         >
           {resolvedActions.map((action) => (
-            <Card key={action.label} elevation={3} sx={{ borderRadius: 3 }}>
+            <Card key={action.label} elevation={1}>
               <CardActionArea
                 onClick={action.label === 'Combustível' ? handleCombustivelClick : () => navigate(action.to)}
                 sx={{
                   height: { xs: 150, sm: 200 },
                   backgroundColor: action.color,
+                  borderTop: `4px solid ${action.accent}`,
                   transition: 'transform 0.2s ease, box-shadow 0.2s ease',
                   '&:hover': {
-                    transform: 'translateY(-4px)',
-                    boxShadow: 6,
+                    transform: 'translateY(-3px)',
+                    boxShadow: '0 8px 24px -4px rgb(0 0 0 / 0.1)',
                   },
                 }}
               >
@@ -113,9 +120,9 @@ export default function HomeDashboard() {
                     alignItems="center"
                     justifyContent="center"
                     spacing={1.5}
-                    sx={{ height: '100%', color: '#0b1b2b' }}
+                    sx={{ height: '100%', color: '#12293B' }}
                   >
-                    {action.icon}
+                    <Box sx={{ color: action.accent }}>{action.icon}</Box>
                     <Typography variant="h6" fontWeight={700}>
                       {action.label}
                     </Typography>

@@ -1,57 +1,76 @@
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,100..1000;1,9..40,100..1000&display=swap');
+
 :root {
-  font-family: system-ui, Avenir, Helvetica, Arial, sans-serif;
-  line-height: 1.5;
-  font-weight: 400;
+  --ledur-background: #f7f9fb;
+  --ledur-foreground: #000000;
+  --ledur-card: #ffffff;
+  --ledur-card-foreground: #12293b;
+  --ledur-primary: #12293b;
+  --ledur-primary-hover: #193750;
+  --ledur-primary-foreground: #ffffff;
+  --ledur-secondary: #2f6b98;
+  --ledur-secondary-hover: #285b82;
+  --ledur-secondary-foreground: #ffffff;
+  --ledur-muted: #f3f5f7;
+  --ledur-muted-foreground: #5b5d5b;
+  --ledur-border: #dde3e8;
+  --ledur-input: #d9e1e8;
+  --ledur-success: #2e9d6f;
+  --ledur-warning: #e79a25;
+  --ledur-destructive: #c13b3b;
+  --ledur-radius: 8px;
+  --ledur-shadow-sm: 0 1px 3px 0 rgb(0 0 0 / 0.05);
+  --ledur-shadow-md: 0 4px 12px -2px rgb(0 0 0 / 0.08);
+  --ledur-shadow-lg: 0 8px 24px -4px rgb(0 0 0 / 0.1);
 
-  color-scheme: light dark;
-  color: rgba(255, 255, 255, 0.87);
-  background-color: #242424;
-
+  font-family: 'DM Sans', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  color: var(--ledur-foreground);
+  background: var(--ledur-background);
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
 
-a {
-  font-weight: 500;
-  color: #646cff;
-  text-decoration: inherit;
+* {
+  box-sizing: border-box;
 }
-a:hover {
-  color: #535bf2;
+
+html {
+  min-width: 320px;
+  min-height: 100%;
+  background: var(--ledur-background);
 }
 
 body {
   margin: 0;
-  display: flex;
-  place-items: center;
   min-width: 320px;
   min-height: 100vh;
+  background:
+    radial-gradient(circle at top left, rgb(47 107 152 / 0.08), transparent 32rem),
+    linear-gradient(180deg, #ffffff 0%, var(--ledur-background) 42%);
+  color: var(--ledur-foreground);
 }
 
-h1 {
-  font-size: 3.2em;
-  line-height: 1.1;
+button,
+input,
+textarea,
+select {
+  font: inherit;
 }
 
-button {
-  border-radius: 8px;
-  border: 1px solid transparent;
-  padding: 0.6em 1.2em;
-  font-size: 1em;
-  font-weight: 500;
-  font-family: inherit;
-  background-color: #1a1a1a;
-  cursor: pointer;
-  transition: border-color 0.25s;
+a {
+  color: var(--ledur-secondary);
+  font-weight: 600;
+  text-decoration: none;
 }
-button:hover {
-  border-color: #646cff;
+
+a:hover {
+  color: var(--ledur-primary);
 }
-button:focus,
-button:focus-visible {
-  outline: 4px auto -webkit-focus-ring-color;
+
+::selection {
+  background: rgb(47 107 152 / 0.22);
 }
 
 .no-number-spinner::-webkit-outer-spin-button,
@@ -64,15 +83,70 @@ button:focus-visible {
   -moz-appearance: textfield;
 }
 
-@media (prefers-color-scheme: light) {
-  :root {
-    color: #213547;
-    background-color: #ffffff;
-  }
-  a:hover {
-    color: #747bff;
-  }
-  button {
-    background-color: #f9f9f9;
-  }
+.ledur-navbar.navbar {
+  background: var(--ledur-primary) !important;
+  border-bottom: 1px solid rgb(255 255 255 / 0.12);
+  box-shadow: var(--ledur-shadow-md);
+}
+
+.ledur-navbar .navbar-brand,
+.ledur-navbar .nav-link {
+  color: var(--ledur-primary-foreground) !important;
+}
+
+.ledur-navbar .navbar-brand {
+  align-items: center;
+  display: inline-flex;
+  font-weight: 800;
+  gap: 0.625rem;
+  letter-spacing: 0;
+}
+
+.ledur-navbar .navbar-brand img {
+  background: #ffffff;
+  border-radius: 6px;
+  height: 34px;
+  object-fit: contain;
+  padding: 3px;
+  width: 34px;
+}
+
+.ledur-navbar .nav-link {
+  border-radius: var(--ledur-radius);
+  font-weight: 700;
+  margin: 0.125rem;
+  padding-left: 0.75rem !important;
+  padding-right: 0.75rem !important;
+  transition: background-color 160ms ease, color 160ms ease;
+}
+
+.ledur-navbar .nav-link:hover,
+.ledur-navbar .nav-link:focus {
+  background: rgb(255 255 255 / 0.12);
+  color: #ffffff !important;
+}
+
+.ledur-navbar .navbar-toggler {
+  border-color: rgb(255 255 255 / 0.35);
+}
+
+.ledur-navbar .navbar-toggler:focus {
+  box-shadow: 0 0 0 0.2rem rgb(47 107 152 / 0.35);
+}
+
+.MuiDataGrid-root {
+  background: var(--ledur-card);
+  border-color: var(--ledur-border) !important;
+  border-radius: var(--ledur-radius) !important;
+  box-shadow: var(--ledur-shadow-sm);
+}
+
+.MuiDataGrid-columnHeaders {
+  background: var(--ledur-muted);
+  color: var(--ledur-primary);
+  font-weight: 800;
+}
+
+.MuiDataGrid-row:hover {
+  background: rgb(47 107 152 / 0.06) !important;
 }

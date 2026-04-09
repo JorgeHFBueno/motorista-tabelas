@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
-import { Stack, TextField, Button, Alert, Typography } from '@mui/material';
+import { Box, Paper, Stack, TextField, Button, Alert, Typography } from '@mui/material';
 
 export default function LoginPage() {
   const { signIn } = useAuth();
@@ -32,8 +32,18 @@ export default function LoginPage() {
   };
 
   return (
-    <form onSubmit={handleSubmit} style={{ padding: 20 }}> {/* simples */}
-      <Stack spacing={2} sx={{ maxWidth: 300 }}>
+    <Box
+      component="main"
+      sx={{
+        display: 'grid',
+        minHeight: 'calc(100vh - 72px)',
+        placeItems: 'center',
+        px: 2,
+        py: 4,
+      }}
+    >
+      <Paper component="form" onSubmit={handleSubmit} elevation={2} sx={{ maxWidth: 380, p: 3, width: '100%' }}>
+      <Stack spacing={2}>
         <Typography variant="h4">Login</Typography>
         {error && <Alert severity="error">{error}</Alert>}
         <TextField
@@ -52,6 +62,7 @@ export default function LoginPage() {
         <TextField label="Senha" type="password" value={password} onChange={e => setPassword(e.target.value)} required />
         <Button type="submit" variant="contained">Entrar</Button>
       </Stack>
-    </form>
+      </Paper>
+    </Box>
   );
 }

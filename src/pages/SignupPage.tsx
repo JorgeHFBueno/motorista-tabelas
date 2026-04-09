@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
-import { Stack, TextField, Button, Alert, Typography } from '@mui/material';
+import { Box, Paper, Stack, TextField, Button, Alert, Typography } from '@mui/material';
 
 export default function SignupPage() {
   const { signUp } = useAuth();
@@ -21,8 +21,18 @@ export default function SignupPage() {
   };
 
   return (
-    <form onSubmit={handleSubmit} style={{ padding: 20 }}>
-      <Stack spacing={2} sx={{ maxWidth: 300 }}>
+    <Box
+      component="main"
+      sx={{
+        display: 'grid',
+        minHeight: 'calc(100vh - 72px)',
+        placeItems: 'center',
+        px: 2,
+        py: 4,
+      }}
+    >
+      <Paper component="form" onSubmit={handleSubmit} elevation={2} sx={{ maxWidth: 380, p: 3, width: '100%' }}>
+      <Stack spacing={2}>
         <Typography variant="h4">Cadastro</Typography>
         {error && <Alert severity="error">{error}</Alert>}
         <TextField label="E-mail" type="email" value={email} onChange={e => setEmail(e.target.value)} required />
@@ -30,6 +40,7 @@ export default function SignupPage() {
         <Button type="submit" variant="contained">Cadastrar</Button>
         <Button component={Link} to="/login">Já tenho conta</Button>
       </Stack>
-    </form>
+      </Paper>
+    </Box>
   );
 }
