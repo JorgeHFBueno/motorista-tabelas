@@ -340,7 +340,7 @@ export const deriveObraStatusResumo = (
   statusData: ObraStatusData | null,
 ): ObraStatusResumo | null => {
   if (!statusData || statusData.etapas.length === 0) return null;
-  if (statusData.progressoGeral <= 0) return null;
+  if (statusData.progressoGeral <= 0) return "-";
   if (statusData.progressoGeral >= 100) return "Concluida";
   return "Em andamento";
 };

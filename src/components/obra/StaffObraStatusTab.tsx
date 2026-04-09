@@ -236,7 +236,7 @@ const StaffObraStatusTab = ({ obraId, actor }: StaffObraStatusTabProps) => {
 
   return (
     <div className="space-y-4">
-      <div className="rounded-xl border p-4 space-y-3">
+      <div className="rounded-xl border border-border/80 bg-card p-4 shadow-sm space-y-3">
         <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
           <div className="space-y-1">
             <h3 className="text-base font-semibold text-foreground">
@@ -272,7 +272,7 @@ const StaffObraStatusTab = ({ obraId, actor }: StaffObraStatusTabProps) => {
       </div>
 
       {stageCount === 0 ? (
-        <div className="rounded-xl border border-dashed p-5 text-sm text-muted-foreground">
+        <div className="rounded-xl border border-dashed bg-muted/40 p-5 text-sm text-muted-foreground">
           Nenhuma etapa cadastrada. Use "Adicionar etapa" para iniciar.
         </div>
       ) : (
@@ -288,12 +288,12 @@ const StaffObraStatusTab = ({ obraId, actor }: StaffObraStatusTabProps) => {
               onOpenChange={(nextOpen) =>
                 setExpandedStages((current) => ({ ...current, [etapa.id]: nextOpen }))
               }
-              className="rounded-xl border"
+              className="rounded-xl border border-border/80 bg-muted/35 shadow-sm"
             >
               <CollapsibleTrigger asChild>
                 <button
                   type="button"
-                  className="flex w-full items-center justify-between gap-3 p-4 text-left"
+                  className="flex w-full items-center justify-between gap-3 rounded-xl p-4 text-left transition-colors hover:bg-muted/50"
                 >
                   <div className="min-w-0 flex-1 space-y-2">
                     <div className="flex items-center gap-2 flex-wrap">
@@ -327,7 +327,7 @@ const StaffObraStatusTab = ({ obraId, actor }: StaffObraStatusTabProps) => {
                 </button>
               </CollapsibleTrigger>
 
-              <CollapsibleContent className="border-t p-4 space-y-4">
+              <CollapsibleContent className="border-t border-border/80 bg-background/80 p-4 space-y-4">
                 <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
                   {isEditing ? (
                     <Input
@@ -349,7 +349,7 @@ const StaffObraStatusTab = ({ obraId, actor }: StaffObraStatusTabProps) => {
                       placeholder="Nome da etapa"
                     />
                   ) : (
-                    <div className="text-sm text-muted-foreground">
+                    <div className="rounded-lg border border-border/70 bg-muted/45 px-3 py-2 text-sm text-muted-foreground">
                       Status derivado automaticamente pelo percentual medio dos itens.
                     </div>
                   )}
@@ -436,7 +436,7 @@ const StaffObraStatusTab = ({ obraId, actor }: StaffObraStatusTabProps) => {
 
                 <div className="space-y-3">
                   {etapa.itens.length === 0 ? (
-                    <div className="rounded-lg border border-dashed p-3 text-sm text-muted-foreground">
+                    <div className="rounded-lg border border-dashed bg-muted/45 p-3 text-sm text-muted-foreground">
                       Esta etapa ainda nao possui itens.
                     </div>
                   ) : (
@@ -444,7 +444,10 @@ const StaffObraStatusTab = ({ obraId, actor }: StaffObraStatusTabProps) => {
                       const itemTone = getProgressStatusTone(item.status);
 
                       return (
-                        <div key={item.id} className="rounded-xl border p-3 space-y-3">
+                        <div
+                          key={item.id}
+                          className="rounded-xl border border-border/80 bg-card p-3 shadow-sm space-y-3"
+                        >
                           <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
                             <div className="min-w-0 flex-1 space-y-2">
                               {isEditing ? (

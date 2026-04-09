@@ -5,6 +5,7 @@ export interface ObraStatusTemplateEtapa {
   itens: string[];
 }
 
+// Fonte oficial para o estado base de status das obras.
 export const OBRA_STATUS_TEMPLATE: ObraStatusTemplateEtapa[] = [
   {
     id: "projeto",
@@ -18,15 +19,15 @@ export const OBRA_STATUS_TEMPLATE: ObraStatusTemplateEtapa[] = [
   },
   {
     id: "producao",
-    nome: "Producao",
+    nome: "Produção",
     ordem: 2,
     itens: ["Pilares", "Placas", "Vigas", "Laje", "Cobertura"],
   },
   {
     id: "fundacao",
-    nome: "Fundacao",
+    nome: "Fundação",
     ordem: 3,
-    itens: ["Sondagem", "Calculo", "Execucao"],
+    itens: ["Sondagem", "Cálculo", "Execução"],
   },
   {
     id: "montagem",
