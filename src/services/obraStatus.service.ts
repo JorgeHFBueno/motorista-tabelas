@@ -1,7 +1,4 @@
 import {
-  deleteField,
-  type FieldValue,
-  Timestamp,
   collection,
   doc,
   getDoc,
@@ -10,142 +7,118 @@ import {
   query,
   serverTimestamp,
   updateDoc,
-  writeBatch,
 } from "firebase/firestore";
-import { OBRA_STATUS_TEMPLATE } from "@/constants/obraStatusTemplate";
 import { db } from "@/lib/firebase";
-import type { ObraStatusFase, ObraStatusResumo } from "@/types/obraStatus";
+import {
+  convertLegacyFasesToStatus,
+  createDefaultObraStatus,
+  deriveObraStatusResumo,
+  normalizeObraStatusData,
+  recomputeObraStatus,
+} from "@/lib/obraStatus";
+import type { ObraStatusData } from "@/types/obraStatus";
 
 interface UpdateActor {
   uid: string;
   nome: string;
 }
 
-const buildStatusCollectionRef = (obraId: string) => collection(db, "obras", obraId, "status");
+const buildObraRef = (obraId: string) => doc(db, "obras", obraId);
+const buildLegacyStatusCollectionRef = (obraId: string) =>
+  collection(db, "obras", obraId, "status");
 
-export const listObraStatusFases = async (obraId: string): Promise<ObraStatusFase[]> => {
-  const snap = await getDocs(query(buildStatusCollectionRef(obraId), orderBy("ordem", "asc")));
+const listLegacyFases = async (obraId: string) => {
+  const snap = await getDocs(
+    query(buildLegacyStatusCollectionRef(obraId), orderBy("ordem", "asc")),
+  );
+
   return snap.docs.map((faseDoc) => ({
     id: faseDoc.id,
-    ...(faseDoc.data() as Omit<ObraStatusFase, "id">),
+    ...(faseDoc.data() as Record<string, unknown>),
   }));
 };
 
-export const listFases = listObraStatusFases;
+const buildPersistedPayload = (
+  statusObra: ObraStatusData,
+  actor: UpdateActor,
+) => ({
+  statusObra: {
+    ...statusObra,
+    updatedAt: serverTimestamp(),
+    updatedByUid: actor.uid,
+    updatedByNomeSnapshot: actor.nome,
+  },
+  statusResumo: deriveObraStatusResumo(statusObra),
+  statusResumoUpdatedAt: serverTimestamp(),
+});
 
-export const bootstrapStatusIfEmpty = async (obraId: string, actor: UpdateActor) => {
-  const statusRef = buildStatusCollectionRef(obraId);
-  const existing = await getDocs(statusRef);
-  if (!existing.empty) {
-    if (import.meta.env.DEV) console.info("[STATUS] bootstrap ignorado: fases já existentes", { obraId, count: existing.size });
-    return false;
+export const getObraStatus = async (
+  obraId: string,
+): Promise<ObraStatusData> => {
+  const obraSnap = await getDoc(buildObraRef(obraId));
+  const obraData = obraSnap.exists()
+    ? (obraSnap.data() as { statusObra?: unknown })
+    : {};
+
+  const normalized = normalizeObraStatusData(obraData.statusObra);
+  if (normalized) return normalized;
+
+  const legacyFases = await listLegacyFases(obraId);
+  if (legacyFases.length > 0) {
+    return convertLegacyFasesToStatus(legacyFases);
   }
 
-  const batch = writeBatch(db);
+  return createDefaultObraStatus();
+};
 
-  OBRA_STATUS_TEMPLATE.forEach((faseTemplate) => {
-    const faseRef = doc(db, "obras", obraId, "status", faseTemplate.id);
-    batch.set(faseRef, {
-      titulo: faseTemplate.titulo,
-      ordem: faseTemplate.ordem,
-      inicio: null,
-      fim: null,
-      itens: faseTemplate.itens.map((label, index) => ({
-        id: `${faseTemplate.id}_${index + 1}`,
-        label,
-        done: false,
-      })),
-      updatedAt: serverTimestamp(),
-      updatedByUid: actor.uid,
-      updatedByNomeSnapshot: actor.nome,
+export const ensureObraStatus = async (
+  obraId: string,
+  actor: UpdateActor,
+): Promise<ObraStatusData> => {
+  const obraRef = buildObraRef(obraId);
+  const obraSnap = await getDoc(obraRef);
+  const obraData = obraSnap.exists()
+    ? (obraSnap.data() as { statusObra?: unknown })
+    : {};
+
+  const normalized = normalizeObraStatusData(obraData.statusObra);
+  if (normalized) return normalized;
+
+  const legacyFases = await listLegacyFases(obraId);
+  const nextStatus =
+    legacyFases.length > 0
+      ? convertLegacyFasesToStatus(legacyFases)
+      : createDefaultObraStatus();
+
+  await updateDoc(obraRef, buildPersistedPayload(nextStatus, actor));
+
+  if (import.meta.env.DEV) {
+    console.info("[STATUS] statusObra inicializado", {
+      obraId,
+      fromLegacy: legacyFases.length > 0,
+      etapas: nextStatus.etapas.length,
     });
-  });
+  }
 
-  await batch.commit();
-
-  if (import.meta.env.DEV) console.info("[STATUS] bootstrap concluído", { obraId, totalFases: OBRA_STATUS_TEMPLATE.length });
-
-  return true;
+  return nextStatus;
 };
 
-export const toggleItem = async (
+export const saveObraStatus = async (
   obraId: string,
-  faseId: string,
-  itemId: string,
+  payload: ObraStatusData,
   actor: UpdateActor,
 ) => {
-  const faseRef = doc(db, "obras", obraId, "status", faseId);
-  const faseSnap = await getDoc(faseRef);
-  if (!faseSnap.exists()) throw new Error("Fase não encontrada.");
+  const obraRef = buildObraRef(obraId);
+  const normalized = recomputeObraStatus(payload);
+  await updateDoc(obraRef, buildPersistedPayload(normalized, actor));
 
-  const fase = faseSnap.data() as Omit<ObraStatusFase, "id">;
-  const itens = (fase.itens ?? []).map((item) =>
-    item.id === itemId
-      ? {
-          ...item,
-          done: !item.done,
-        }
-      : item,
-  );
+  if (import.meta.env.DEV) {
+    console.info("[STATUS] statusObra salvo", {
+      obraId,
+      etapas: normalized.etapas.length,
+      progressoGeral: normalized.progressoGeral,
+    });
+  }
 
-  await updateDoc(faseRef, {
-    itens,
-    updatedAt: serverTimestamp(),
-    updatedByUid: actor.uid,
-    updatedByNomeSnapshot: actor.nome,
-  });
-
-  if (import.meta.env.DEV) console.info("[STATUS] item atualizado", { obraId, faseId, itemId });
-};
-
-export const setDatas = async (
-  obraId: string,
-  faseId: string,
-  inicio: Timestamp | null,
-  fim: Timestamp | null,
-  actor: UpdateActor,
-) => {
-  const faseRef = doc(db, "obras", obraId, "status", faseId);
-  await updateDoc(faseRef, {
-    inicio,
-    fim,
-    updatedAt: serverTimestamp(),
-    updatedByUid: actor.uid,
-    updatedByNomeSnapshot: actor.nome,
-  });
-
-  if (import.meta.env.DEV) console.info("[STATUS] datas atualizadas", { obraId, faseId, inicio, fim });
-};
-export const updateFaseDraft = async (
-  obraId: string,
-  faseId: string,
-  payload: {
-    itens: ObraStatusFase["itens"];
-    inicio: Timestamp | null | FieldValue;
-    fim?: Timestamp | null | FieldValue;
-    statusResumo?: ObraStatusResumo | null;
-  },
-  actor: UpdateActor,
-) => {
-  const faseRef = doc(db, "obras", obraId, "status", faseId);
-  const obraRef = doc(db, "obras", obraId);
-  const batch = writeBatch(db);
-
-  batch.update(faseRef, {
-    itens: payload.itens,
-    inicio: payload.inicio,
-    ...(payload.fim !== undefined ? { fim: payload.fim } : {}),
-    updatedAt: serverTimestamp(),
-    updatedByUid: actor.uid,
-    updatedByNomeSnapshot: actor.nome,
-  });
-
-    batch.update(obraRef, {
-    statusResumo: payload.statusResumo ?? deleteField(),
-    statusResumoUpdatedAt: serverTimestamp(),
-  });
-
-  await batch.commit();
-
-  if (import.meta.env.DEV) console.info("[STATUS] fase atualizada via draft", { obraId, faseId, payload });
+  return normalized;
 };

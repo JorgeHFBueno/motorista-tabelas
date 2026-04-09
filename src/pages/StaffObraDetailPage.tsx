@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
-  Timestamp,
   addDoc,
   collection,
   doc,
@@ -22,6 +21,7 @@ import {
 } from "lucide-react";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import ResponsiveLayout from "@/components/layout/ResponsiveLayout";
+import StaffObraStatusTab from "@/components/obra/StaffObraStatusTab";
 import {
   Sheet,
   SheetContent,
@@ -29,16 +29,8 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Checkbox } from "@/components/ui/checkbox";
-import {
-  Collapsible,
-  CollapsibleContent,
-  CollapsibleTrigger,
-} from "@/components/ui/collapsible";
 import { Input } from "@/components/ui/input";
-import { Progress } from "@/components/ui/progress";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -62,12 +54,6 @@ import {
   type TrashType,
 } from "@/lib/trash/trash.service";
 import { getCallableErrorMessage } from "@/lib/functions";
-import {
-  bootstrapStatusIfEmpty,
-  listFases,
-  updateFaseDraft,
-} from "@/services/obraStatus.service";
-import type { ObraStatusFase, ObraStatusResumo } from "@/types/obraStatus";
 import type { FirestoreItem } from "@/types/rbac";
 
 const UUID_PREFIX_NAME_REGEX =
@@ -97,12 +83,6 @@ interface VersionItem {
   createdByNomeSnapshot?: string;
   por?: string;
   createdAt?: unknown;
-}
-
-interface DraftFase {
-  inicio: Timestamp | null;
-  fim: Timestamp | null;
-  itens: ObraStatusFase["itens"];
 }
 
 const asText = (value: unknown) =>
@@ -172,12 +152,6 @@ const StaffObraDetailPage = () => {
   } | null>(null);
   const [trashTab, setTrashTab] = useState<TrashType>("documentos");
   const [activeTab, setActiveTab] = useState(defaultTab);
-  const [expandedPhases, setExpandedPhases] = useState<Record<string, boolean>>(
-    {},
-  );
-  const [editingFaseId, setEditingFaseId] = useState<string | null>(null);
-  const [drafts, setDrafts] = useState<Record<string, DraftFase>>({});
-  const hasInitializedExpandedPhases = useRef(false);
   const versionInputRef = useRef<HTMLInputElement>(null);
 
   const selectedDocId = asText(selectedDocument?.id);
@@ -214,43 +188,10 @@ const StaffObraDetailPage = () => {
     enabled: Boolean(obraId),
   });
 
-  const { data: fases = [] } = useQuery({
-    queryKey: ["obraStatus", obraId],
-    queryFn: () => listFases(obraId as string),
-    enabled: Boolean(obraId && activeTab === "status"),
-  });
-
-  const downloadUrl = useMemo(
-    () => asText(selectedDocument?.url) || resolvedDownloadUrl,
-    [resolvedDownloadUrl, selectedDocument],
-  );
-
   const actor = useMemo(
     () => ({ uid: user?.uid ?? "", nome: userDoc?.nome ?? "Equipe" }),
     [user?.uid, userDoc?.nome],
   );
-
-  useEffect(() => {
-    if (!obraId || activeTab !== "status" || !user?.uid) return;
-
-    void bootstrapStatusIfEmpty(obraId, actor)
-      .then((created) => {
-        if (created)
-          return queryClient.invalidateQueries({
-            queryKey: ["obraStatus", obraId],
-          });
-        return Promise.resolve();
-      })
-      .catch((error) => {
-        if (import.meta.env.DEV)
-          console.error("[STATUS] falha no bootstrap", { obraId, error });
-        toast({
-          title: "Falha ao carregar status",
-          description: "Não foi possível inicializar as fases.",
-          variant: "destructive",
-        });
-      });
-  }, [activeTab, actor, obraId, queryClient, toast, user?.uid]);
 
   useEffect(() => {
     if (tabParam && tabParam !== activeTab) {
@@ -261,268 +202,6 @@ const StaffObraDetailPage = () => {
       setActiveTab("status");
     }
   }, [activeTab, tabParam]);
-
-  useEffect(() => {
-    hasInitializedExpandedPhases.current = false;
-    setExpandedPhases({});
-  }, [obraId]);
-
-  useEffect(() => {
-    if (
-      activeTab !== "status" ||
-      hasInitializedExpandedPhases.current ||
-      fases.length === 0
-    )
-      return;
-
-    const nextExpanded: Record<string, boolean> = {};
-    fases.forEach((fase) => {
-      const total = fase.itens?.length ?? 0;
-      const doneCount = (fase.itens ?? []).filter((item) => item.done).length;
-      const isInProgress = total > 0 && doneCount > 0 && doneCount < total;
-      if (isInProgress) nextExpanded[fase.id] = true;
-    });
-
-    setExpandedPhases(nextExpanded);
-    hasInitializedExpandedPhases.current = true;
-  }, [activeTab, fases]);
-
-  const saveFaseMutation = useMutation({
-    mutationFn: ({
-      faseId,
-      patch,
-    }: {
-      faseId: string;
-      patch: {
-        itens: ObraStatusFase["itens"];
-        inicio: Timestamp | null;
-        fim?: Timestamp | null;
-        statusResumo: ObraStatusResumo | null;
-      };
-    }) => updateFaseDraft(obraId as string, faseId, patch, actor),
-    onSuccess: async (_, variables) => {
-      await queryClient.invalidateQueries({ queryKey: ["obraStatus", obraId] });
-      setEditingFaseId((current) =>
-        current === variables.faseId ? null : current,
-      );
-      setDrafts((current) => {
-        const next = { ...current };
-        delete next[variables.faseId];
-        return next;
-      });
-      toast({ title: "Status salvo" });
-    },
-    onError: (error) => {
-      toast({
-        title: "Falha ao salvar status",
-        description:
-          error instanceof Error ? error.message : "Erro inesperado.",
-        variant: "destructive",
-      });
-    },
-  });
-
-  const getProgress = (fase: ObraStatusFase) => {
-    const total = fase.itens?.length ?? 0;
-    if (!total) return 0;
-    const completed = fase.itens.filter((item) => item.done).length;
-    return Math.round((completed / total) * 100);
-  };
-
-  const getStatusMeta = (progress: number) => {
-    if (progress === 0)
-      return { label: "Pendente", variant: "outline" as const };
-    if (progress === 100)
-      return { label: "Concluída", variant: "default" as const };
-    return { label: "Em andamento", variant: "secondary" as const };
-  };
-
-  const getDateFromValue = (value: unknown) => {
-    const cast = value as { toDate?: () => Date; seconds?: number };
-    if (typeof cast?.toDate === "function") return cast.toDate();
-    if (typeof cast?.seconds === "number") return new Date(cast.seconds * 1000);
-    return null;
-  };
-
-  const formatDateInput = (value: unknown) => {
-    const date = getDateFromValue(value);
-    if (!date) return "";
-    const year = date.getFullYear();
-    const month = String(date.getMonth() + 1).padStart(2, "0");
-    const day = String(date.getDate()).padStart(2, "0");
-    return `${year}-${month}-${day}`;
-  };
-
-  const formatDateTimeInput = (value: unknown) => {
-    const date = getDateFromValue(value);
-    if (!date) return "";
-    const year = date.getFullYear();
-    const month = String(date.getMonth() + 1).padStart(2, "0");
-    const day = String(date.getDate()).padStart(2, "0");
-    const hours = String(date.getHours()).padStart(2, "0");
-    const minutes = String(date.getMinutes()).padStart(2, "0");
-    return `${year}-${month}-${day}T${hours}:${minutes}`;
-  };
-
-  const toTimestampFromInput = (value: string) => {
-    if (!value) return null;
-    return Timestamp.fromDate(new Date(`${value}T00:00:00`));
-  };
-
-  const toTimestampFromDateTimeInput = (value: string) => {
-    if (!value) return null;
-    return Timestamp.fromDate(new Date(value));
-  };
-
-  const cloneFaseToDraft = (fase: ObraStatusFase): DraftFase => ({
-    inicio: fase.inicio ?? null,
-    fim: fase.fim ?? null,
-    itens: (fase.itens ?? []).map((item) => ({ ...item })),
-  });
-
-  const getFaseData = (fase: ObraStatusFase) =>
-    drafts[fase.id] ?? cloneFaseToDraft(fase);
-
-  const startEditing = (fase: ObraStatusFase) => {
-    if (editingFaseId && editingFaseId !== fase.id) {
-      const shouldDiscard = window.confirm(
-        "Descartar alterações da fase atual?",
-      );
-      if (!shouldDiscard) return;
-    }
-
-    setDrafts((current) => ({ ...current, [fase.id]: cloneFaseToDraft(fase) }));
-    setEditingFaseId(fase.id);
-  };
-
-  const cancelEditing = (faseId: string) => {
-    setEditingFaseId((current) => (current === faseId ? null : current));
-    setDrafts((current) => {
-      const next = { ...current };
-      delete next[faseId];
-      return next;
-    });
-  };
-
-  const updateDraftInicio = (faseId: string, inicio: string) => {
-    const inicioTimestamp = toTimestampFromInput(inicio);
-    setDrafts((current) => {
-      const draft = current[faseId];
-      if (!draft) return current;
-      return {
-        ...current,
-        [faseId]: {
-          ...draft,
-          inicio: inicioTimestamp,
-        },
-      };
-    });
-  };
-
-  const updateDraftFim = (faseId: string, fim: string) => {
-    const fimTimestamp = toTimestampFromDateTimeInput(fim);
-    setDrafts((current) => {
-      const draft = current[faseId];
-      if (!draft) return current;
-      return {
-        ...current,
-        [faseId]: {
-          ...draft,
-          fim: fimTimestamp,
-        },
-      };
-    });
-  };
-
-  const updateDraftItem = (
-    faseId: string,
-    itemId: string,
-    checked: boolean,
-  ) => {
-    setDrafts((current) => {
-      const draft = current[faseId];
-      if (!draft) return current;
-      return {
-        ...current,
-        [faseId]: {
-          ...draft,
-          itens: draft.itens.map((item) =>
-            item.id === itemId ? { ...item, done: checked } : item,
-          ),
-        },
-      };
-    });
-  };
-
-  const computeObraStatusResumo = (
-    nextFases: ObraStatusFase[],
-  ): ObraStatusResumo | null => {
-    if (nextFases.length === 0) return null;
-
-    const hasAnyChange = nextFases.some((fase) => {
-      const hasDoneItem = (fase.itens ?? []).some((item) => item.done);
-      return hasDoneItem || Boolean(fase.inicio) || Boolean(fase.fim);
-    });
-
-    if (!hasAnyChange) return null;
-
-    const allDone =
-      nextFases.length > 0 &&
-      nextFases.every((fase) => {
-        const total = fase.itens?.length ?? 0;
-        if (total === 0) return false;
-        const doneCount = (fase.itens ?? []).filter((item) => item.done).length;
-        return doneCount === total;
-      });
-
-    return allDone ? "Concluída" : "Em andamento";
-  };
-
-  const saveFase = (fase: ObraStatusFase) => {
-    const draft = drafts[fase.id];
-    if (!draft) return;
-
-    const total = fase.itens?.length ?? 0;
-    const doneCountAntes = (fase.itens ?? []).filter(
-      (item) => item.done,
-    ).length;
-    const doneCountDepois = (draft.itens ?? []).filter(
-      (item) => item.done,
-    ).length;
-    const wasComplete = total > 0 && doneCountAntes === total;
-    const willComplete = total > 0 && doneCountDepois === total;
-
-    let inicioPatch: Timestamp | null = draft.inicio;
-    let fimPatch: Timestamp | null | undefined = undefined;
-
-    if (willComplete && !wasComplete) {
-      if (!draft.inicio) inicioPatch = Timestamp.fromDate(new Date());
-      if (!fase.fim && !draft.fim) fimPatch = Timestamp.fromDate(new Date());
-    }
-
-    const fimChangedManually = draft.fim?.seconds !== fase.fim?.seconds;
-    if (fimChangedManually) fimPatch = draft.fim;
-
-    const faseAtualizada: ObraStatusFase = {
-      ...fase,
-      itens: draft.itens,
-      inicio: inicioPatch,
-      fim: fimPatch !== undefined ? fimPatch : fase.fim,
-    };
-    const nextFases = fases.map((item) =>
-      item.id === fase.id ? faseAtualizada : item,
-    );
-
-    saveFaseMutation.mutate({
-      faseId: fase.id,
-      patch: {
-        itens: draft.itens,
-        inicio: inicioPatch,
-        ...(fimPatch !== undefined ? { fim: fimPatch } : {}),
-        statusResumo: computeObraStatusResumo(nextFases),
-      },
-    });
-  };
 
   const signMutation = useMutation({
     mutationFn: async () => {
@@ -934,145 +613,7 @@ const StaffObraDetailPage = () => {
             value="status"
             className="rounded-xl border p-4 space-y-3"
           >
-            {fases.length === 0 ? (
-              <p>Carregando status da obra...</p>
-            ) : (
-              fases.map((fase) => {
-                const faseData = getFaseData(fase);
-                const progress = getProgress({
-                  ...fase,
-                  itens: faseData.itens,
-                });
-                const statusMeta = getStatusMeta(progress);
-                const isOpen = expandedPhases[fase.id] ?? false;
-                const isEditing = editingFaseId === fase.id;
-                const isSaving =
-                  saveFaseMutation.isPending &&
-                  saveFaseMutation.variables?.faseId === fase.id;
-
-                return (
-                  <Collapsible
-                    key={fase.id}
-                    open={isOpen}
-                    onOpenChange={(nextOpen) =>
-                      setExpandedPhases((prev) => ({
-                        ...prev,
-                        [fase.id]: nextOpen,
-                      }))
-                    }
-                    className="rounded border p-3"
-                  >
-                    <CollapsibleTrigger asChild>
-                      <button className="flex w-full items-center justify-between gap-2 text-left">
-                        <div className="space-y-1">
-                          <p className="font-medium">{fase.titulo}</p>
-                          <div className="flex items-center gap-2">
-                            <Badge variant={statusMeta.variant}>
-                              {statusMeta.label}
-                            </Badge>
-                            <span className="text-xs text-muted-foreground">
-                              {progress}%
-                            </span>
-                          </div>
-                        </div>
-                        <ChevronDown
-                          className={`h-4 w-4 transition-transform ${isOpen ? "rotate-180" : ""}`}
-                        />
-                      </button>
-                    </CollapsibleTrigger>
-
-                    <CollapsibleContent className="mt-3 space-y-3">
-                      <Progress value={progress} />
-
-                      <div className="flex items-center justify-end gap-2">
-                        {isEditing ? (
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => cancelEditing(fase.id)}
-                            disabled={isSaving}
-                          >
-                            Cancelar
-                          </Button>
-                        ) : (
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => startEditing(fase)}
-                            disabled={
-                              Boolean(editingFaseId) &&
-                              editingFaseId !== fase.id
-                            }
-                          >
-                            Editar
-                          </Button>
-                        )}
-                        <Button
-                          size="sm"
-                          onClick={() => saveFase(fase)}
-                          disabled={!isEditing || isSaving}
-                        >
-                          {isSaving && (
-                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                          )}
-                          Salvar
-                        </Button>
-                      </div>
-
-                      <div className="grid gap-2 md:grid-cols-1">
-                        <label className="space-y-1 text-sm">
-                          <span>Início</span>
-                          <Input
-                            type="date"
-                            value={formatDateInput(faseData.inicio)}
-                            disabled={!isEditing || isSaving}
-                            onChange={(event) =>
-                              updateDraftInicio(fase.id, event.target.value)
-                            }
-                          />
-                        </label>
-                      </div>
-
-                      {faseData.fim ? (
-                        <label className="space-y-1 text-sm">
-                          <span>Fim</span>
-                          <Input
-                            type="datetime-local"
-                            value={formatDateTimeInput(faseData.fim)}
-                            disabled={!isEditing || isSaving}
-                            onChange={(event) =>
-                              updateDraftFim(fase.id, event.target.value)
-                            }
-                          />
-                        </label>
-                      ) : null}
-
-                      <div className="space-y-2">
-                        {faseData.itens.map((item) => (
-                          <label
-                            key={item.id}
-                            className="flex items-center gap-2 text-sm"
-                          >
-                            <Checkbox
-                              checked={item.done}
-                              disabled={!isEditing || isSaving}
-                              onCheckedChange={(checked) =>
-                                updateDraftItem(
-                                  fase.id,
-                                  item.id,
-                                  checked === true,
-                                )
-                              }
-                            />
-                            <span>{item.label}</span>
-                          </label>
-                        ))}
-                      </div>
-                    </CollapsibleContent>
-                  </Collapsible>
-                );
-              })
-            )}
+            {obraId ? <StaffObraStatusTab obraId={obraId} actor={actor} /> : null}
           </TabsContent>
         </Tabs>
       </div>
@@ -1104,9 +645,9 @@ const StaffObraDetailPage = () => {
                 <div className="mb-2">
                   {isPreviewLoading ? (
                     <div className="h-40 w-40 animate-pulse rounded-md bg-muted" />
-                  ) : downloadUrl ? (
+                  ) : resolvedDownloadUrl ? (
                     <img
-                      src={downloadUrl}
+                      src={resolvedDownloadUrl}
                       alt={
                         selectedDocument
                           ? getDisplayName(selectedDocument)
@@ -1155,8 +696,12 @@ const StaffObraDetailPage = () => {
                 <strong>Observação:</strong>{" "}
                 {asText(selectedDocument?.observacao) || "—"}
               </p>
-              <Button disabled={!downloadUrl} asChild>
-                <a href={downloadUrl || "#"} target="_blank" rel="noreferrer">
+              <Button disabled={!resolvedDownloadUrl} asChild>
+                <a
+                  href={resolvedDownloadUrl || "#"}
+                  target="_blank"
+                  rel="noreferrer"
+                >
                   <Download className="mr-2 h-4 w-4" /> Download
                 </a>
               </Button>

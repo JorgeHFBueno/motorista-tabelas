@@ -1,39 +1,37 @@
-export interface ObraStatusTemplateFase {
+export interface ObraStatusTemplateEtapa {
   id: string;
-  titulo: string;
+  nome: string;
   ordem: number;
   itens: string[];
 }
 
-export const OBRA_STATUS_TEMPLATE: ObraStatusTemplateFase[] = [
+export const OBRA_STATUS_TEMPLATE: ObraStatusTemplateEtapa[] = [
   {
-    id: "preparo",
-    titulo: "Preparo do terreno",
+    id: "projeto",
+    nome: "Projeto",
     ordem: 1,
-    itens: ["Limpeza do terreno", "Nivelamento", "Demarcação"],
+    itens: [
+      "Projeto Executivo - Assinatura",
+      "Projeto Estrutural",
+      "Detalhamento",
+    ],
+  },
+  {
+    id: "producao",
+    nome: "Producao",
+    ordem: 2,
+    itens: ["Pilares", "Placas", "Vigas", "Laje", "Cobertura"],
   },
   {
     id: "fundacao",
-    titulo: "Fundação",
-    ordem: 2,
-    itens: ["Escavação", "Armação de ferragem", "Concretagem", "Cura do concreto"],
-  },
-  {
-    id: "estrutura",
-    titulo: "Estrutura",
+    nome: "Fundacao",
     ordem: 3,
-    itens: ["Pilares", "Vigas", "Lajes", "Escadas"],
+    itens: ["Sondagem", "Calculo", "Execucao"],
   },
   {
-    id: "vedacao",
-    titulo: "Vedação",
+    id: "montagem",
+    nome: "Montagem",
     ordem: 4,
-    itens: ["Alvenaria externa", "Alvenaria interna"],
-  },
-  {
-    id: "instalacoes",
-    titulo: "Instalações",
-    ordem: 5,
-    itens: ["Elétrica", "Hidráulica", "Gás"],
+    itens: ["Pilares", "Placas", "Vigas", "Laje", "Cobertura"],
   },
 ];

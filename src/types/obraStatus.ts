@@ -1,21 +1,33 @@
-import type { Timestamp } from "firebase/firestore";
+export type ObraStatusProgressLabel =
+  | "pendente"
+  | "em_andamento"
+  | "finalizando"
+  | "completo";
 
 export interface ObraStatusItem {
   id: string;
-  label: string;
-  done: boolean;
+  nome: string;
+  ordem: number;
+  progresso: number;
+  status: ObraStatusProgressLabel;
 }
 
-export interface ObraStatusFase {
+export interface ObraStatusEtapa {
   id: string;
-  titulo: string;
+  nome: string;
   ordem: number;
-  inicio: Timestamp | null;
-  fim: Timestamp | null;
+  progresso: number;
+  status: ObraStatusProgressLabel;
   itens: ObraStatusItem[];
+}
+
+export interface ObraStatusData {
+  etapas: ObraStatusEtapa[];
+  // Progresso geral por media simples das etapas; cada etapa ja e media simples dos itens.
+  progressoGeral: number;
   updatedAt?: unknown;
   updatedByUid?: string;
   updatedByNomeSnapshot?: string;
 }
 
-export type ObraStatusResumo = "-" | "Em andamento" | "Concluída";
+export type ObraStatusResumo = "-" | "Em andamento" | "Concluida";

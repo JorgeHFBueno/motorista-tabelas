@@ -24,8 +24,9 @@ export const useClientObraOverview = () => {
   const isResolvingDashboardData = Boolean(activeObraId) && (obraQuery.isLoading || statusQuery.isLoading);
 
   const overview = useMemo(() => {
-    const fases = statusQuery.data ?? [];
-    const progressData = deriveOverallProgress(fases);
+    const statusData = statusQuery.data ?? null;
+    const fases = statusData?.etapas ?? [];
+    const progressData = deriveOverallProgress(statusData);
     const status = deriveDashboardStatus(obraQuery.data?.statusResumo, progressData.progress, progressData.inProgressStages);
     const isLoading = isResolvingAuth || isResolvingUserDoc || isResolvingClientObra || isResolvingDashboardData;
     const isEmptyState = isActiveObraReady && !activeObraId && !hasClientObra;
@@ -54,12 +55,13 @@ export const useClientObraOverview = () => {
       activeObraId,
       hasClientObra,
       obra: obraQuery.data ?? null,
+      statusData,
       fases,
       faseSummaries: fases.map((fase) => ({ fase, ...deriveFaseProgress(fase) })),
       progressData,
       status,
       summary: deriveDashboardSummary(progressData),
-      deliveryDateLabel: deriveDeliveryLabel(fases),
+      deliveryDateLabel: deriveDeliveryLabel(statusData),
       isLoading,
       error: obraQuery.error ?? statusQuery.error ?? null,
       isEmpty: Boolean(activeObraId) && !statusQuery.isLoading && fases.length === 0,

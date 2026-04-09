@@ -1,9 +1,9 @@
 import { useQuery } from "@tanstack/react-query";
-import { listObraStatusFases } from "@/services/obraStatus.service";
+import { getObraStatus } from "@/services/obraStatus.service";
 
 export const useObraStatus = (obraId?: string | null) =>
   useQuery({
     queryKey: ["obraStatus", obraId],
-    queryFn: () => listObraStatusFases(obraId as string),
+    queryFn: () => getObraStatus(obraId as string),
     enabled: Boolean(obraId),
   });

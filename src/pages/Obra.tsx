@@ -1,59 +1,69 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { motion, AnimatePresence } from "framer-motion";
-import { Calendar, ChevronDown, CheckCircle2, Clock, AlertTriangle } from "lucide-react";
+import { AnimatePresence, motion } from "framer-motion";
+import { ChevronDown } from "lucide-react";
 import ResponsiveLayout from "@/components/layout/ResponsiveLayout";
-import { cn } from "@/lib/utils";
-import { useClientObraOverview } from "@/hooks/useClientObraOverview";
-import { Skeleton } from "@/components/ui/skeleton";
+import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
-import type { ObraStatusFase } from "@/types/obraStatus";
-import { deriveFaseProgress, formatPtBrDate } from "@/lib/obraStatus";
-
-const StatusBadge = ({ status }: { status: "pending" | "in-progress" | "completed" }) => {
-  const config = {
-    completed: { icon: CheckCircle2, label: "Concluída", className: "bg-success/10 text-success" },
-    "in-progress": { icon: Clock, label: "Em andamento", className: "bg-progress-fill/10 text-progress-fill" },
-    pending: { icon: AlertTriangle, label: "Pendente", className: "bg-muted text-muted-foreground" },
-  };
-  const { icon: Icon, label, className } = config[status];
-
-  return (
-    <span className={cn("inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium", className)}>
-      <Icon className="h-3 w-3" />
-      {label}
-    </span>
-  );
-};
+import { Skeleton } from "@/components/ui/skeleton";
+import { useClientObraOverview } from "@/hooks/useClientObraOverview";
+import {
+  getProgressStatusBadgeVariant,
+  getProgressStatusLabel,
+  getProgressStatusTone,
+} from "@/lib/obraStatus";
+import { cn } from "@/lib/utils";
+import type { ObraStatusEtapa } from "@/types/obraStatus";
 
 const StageCard = ({
   fase,
   isOpen,
   onToggle,
 }: {
-  fase: ObraStatusFase;
+  fase: ObraStatusEtapa;
   isOpen: boolean;
   onToggle: () => void;
 }) => {
-  const { progress, status, doneCount, total } = deriveFaseProgress(fase);
-  const inicio = formatPtBrDate(fase.inicio);
-  const fim = formatPtBrDate(fase.fim);
+  const tone = getProgressStatusTone(fase.status);
 
   return (
-    <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className="bg-card rounded-2xl shadow-card overflow-hidden">
-      <button type="button" onClick={onToggle} className="w-full p-4 flex items-center justify-between text-left">
+    <motion.div
+      initial={{ opacity: 0, y: 8 }}
+      animate={{ opacity: 1, y: 0 }}
+      className="bg-card rounded-2xl shadow-card overflow-hidden"
+    >
+      <button
+        type="button"
+        onClick={onToggle}
+        className="w-full p-4 flex items-center justify-between text-left"
+      >
         <div className="flex-1 space-y-2">
           <div className="flex items-center gap-2 flex-wrap">
-            <h3 className="font-semibold text-foreground">{fase.titulo}</h3>
-            <StatusBadge status={status} />
+            <h3 className="font-semibold text-foreground">{fase.nome}</h3>
+            <Badge variant={getProgressStatusBadgeVariant(fase.status)}>
+              {getProgressStatusLabel(fase.status)}
+            </Badge>
           </div>
 
           <div className="flex items-center gap-3">
-            <Progress value={progress} className="h-2" />
-            <span className="text-sm font-bold min-w-12 text-right">{progress}%</span>
+            <Progress
+              value={fase.progresso}
+              className="h-2"
+              indicatorClassName={tone.indicatorClass}
+            />
+            <span className="text-sm font-bold min-w-12 text-right">
+              {fase.progresso}%
+            </span>
           </div>
-          <p className="text-xs text-muted-foreground">{doneCount}/{total} itens concluídos</p>
+          <p className="text-xs text-muted-foreground">
+            {fase.itens.length} itens nesta etapa
+          </p>
         </div>
-        <ChevronDown className={cn("w-5 h-5 text-muted-foreground transition-transform ml-2", isOpen && "rotate-180")} />
+        <ChevronDown
+          className={cn(
+            "w-5 h-5 text-muted-foreground transition-transform ml-2",
+            isOpen && "rotate-180",
+          )}
+        />
       </button>
 
       <AnimatePresence>
@@ -66,29 +76,34 @@ const StageCard = ({
             className="overflow-hidden"
           >
             <div className="px-4 pb-4 border-t border-border pt-3 space-y-3">
-              {(inicio || fim) && (
-                <div className="flex items-center gap-2 text-xs text-muted-foreground flex-wrap">
-                  <Calendar className="w-3.5 h-3.5" />
-                  {inicio && <span>Início: {inicio}</span>}
-                  {fim && <span>Fim: {fim}</span>}
-                </div>
-              )}
+              <div className="space-y-3">
+                {fase.itens.map((item) => {
+                  const itemTone = getProgressStatusTone(item.status);
 
-              <div className="space-y-2">
-                {(fase.itens ?? []).map((item) => (
-                  <div key={item.id} className="flex items-center gap-2">
-                    <div
-                      className={cn(
-                        "w-5 h-5 rounded-full flex items-center justify-center shrink-0",
-                        item.done ? "bg-success" : "border-2 border-muted",
-                      )}
-                      aria-hidden="true"
-                    >
-                      {item.done && <CheckCircle2 className="w-3 h-3 text-success-foreground" />}
+                  return (
+                    <div key={item.id} className="rounded-xl border p-3 space-y-2">
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <p className="text-sm font-medium text-foreground">
+                            {item.nome}
+                          </p>
+                          <p className={cn("text-xs", itemTone.textClass)}>
+                            {getProgressStatusLabel(item.status)}
+                          </p>
+                        </div>
+                        <span className="text-sm font-semibold text-foreground">
+                          {item.progresso}%
+                        </span>
+                      </div>
+
+                      <Progress
+                        value={item.progresso}
+                        className="h-2"
+                        indicatorClassName={itemTone.indicatorClass}
+                      />
                     </div>
-                    <span className={cn("text-sm", item.done ? "text-foreground" : "text-muted-foreground")}>{item.label}</span>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             </div>
           </motion.div>
@@ -99,8 +114,11 @@ const StageCard = ({
 };
 
 const Obra = () => {
-  const { activeObraId, hasClientObra, obra, fases, isLoading, error, progressData } = useClientObraOverview();
-  const [expandedPhases, setExpandedPhases] = useState<Record<string, boolean>>({});
+  const { activeObraId, hasClientObra, obra, fases, isLoading, error, progressData } =
+    useClientObraOverview();
+  const [expandedPhases, setExpandedPhases] = useState<Record<string, boolean>>(
+    {},
+  );
   const initializedExpanded = useRef(false);
 
   useEffect(() => {
@@ -113,25 +131,33 @@ const Obra = () => {
 
     const nextExpanded: Record<string, boolean> = {};
     fases.forEach((fase) => {
-      const { status } = deriveFaseProgress(fase);
-      if (status === "in-progress") nextExpanded[fase.id] = true;
+      if (fase.status === "em_andamento" || fase.status === "finalizando") {
+        nextExpanded[fase.id] = true;
+      }
     });
 
     setExpandedPhases(nextExpanded);
     initializedExpanded.current = true;
   }, [fases]);
 
-  const completedStages = useMemo(() => progressData.completedStages, [progressData.completedStages]);
-  const isPermissionDenied = (error as { code?: string } | null)?.code === "permission-denied";
+  const completedStages = useMemo(
+    () => progressData.completedStages,
+    [progressData.completedStages],
+  );
+  const isPermissionDenied =
+    (error as { code?: string } | null)?.code === "permission-denied";
 
   useEffect(() => {
     if (import.meta.env.DEV && error) {
-      console.error("[CLIENT-STATUS] erro ao carregar status", { activeObraId, error });
+      console.error("[CLIENT-STATUS] erro ao carregar status", {
+        activeObraId,
+        error,
+      });
     }
   }, [activeObraId, error]);
 
   return (
-    <ResponsiveLayout headerTitle="Obra" headerSubtitle="Acompanhamento da construção">
+    <ResponsiveLayout headerTitle="Obra" headerSubtitle="Acompanhamento da construcao">
       <div className="px-4 py-6 lg:px-8 lg:py-8 space-y-6">
         <div className="rounded-xl border bg-card p-4 text-sm text-muted-foreground">
           {!hasClientObra || !activeObraId
@@ -141,16 +167,29 @@ const Obra = () => {
               : "Carregando dados da obra..."}
         </div>
 
-        <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className="bg-card rounded-2xl p-5 lg:p-6 shadow-card">
+        <motion.div
+          initial={{ opacity: 0, y: 8 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="bg-card rounded-2xl p-5 lg:p-6 shadow-card"
+        >
           <div className="flex items-center justify-between mb-2">
-            <h2 className="text-lg lg:text-xl font-bold text-foreground">Status da Obra</h2>
-            <span className="text-sm lg:text-base text-muted-foreground">{completedStages}/{fases.length} etapas</span>
+            <h2 className="text-lg lg:text-xl font-bold text-foreground">
+              Status da Obra
+            </h2>
+            <span className="text-sm lg:text-base text-muted-foreground">
+              {completedStages}/{fases.length} etapas
+            </span>
           </div>
-          <p className="text-sm lg:text-base text-muted-foreground">Acompanhe o progresso detalhado de cada etapa da sua construção.</p>
+          <p className="text-sm lg:text-base text-muted-foreground">
+            Acompanhe o progresso percentual de cada etapa e de cada item da sua
+            obra.
+          </p>
         </motion.div>
 
         {!activeObraId ? (
-          <div className="rounded-xl border bg-card p-4 text-sm text-muted-foreground">Nenhuma obra selecionada.</div>
+          <div className="rounded-xl border bg-card p-4 text-sm text-muted-foreground">
+            Nenhuma obra selecionada.
+          </div>
         ) : isLoading ? (
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 lg:gap-6">
             {Array.from({ length: 3 }).map((_, idx) => (
@@ -166,11 +205,13 @@ const Obra = () => {
         ) : error ? (
           <div className="rounded-xl border bg-card p-4 text-sm text-muted-foreground">
             {isPermissionDenied
-              ? "Sem permissão para visualizar status desta obra."
-              : "Não foi possível carregar o status da obra agora. Tente novamente em instantes."}
+              ? "Sem permissao para visualizar status desta obra."
+              : "Nao foi possivel carregar o status da obra agora. Tente novamente em instantes."}
           </div>
         ) : fases.length === 0 ? (
-          <div className="rounded-xl border bg-card p-4 text-sm text-muted-foreground">Status ainda não foi iniciado.</div>
+          <div className="rounded-xl border bg-card p-4 text-sm text-muted-foreground">
+            Status ainda nao foi iniciado.
+          </div>
         ) : (
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 lg:gap-6">
             {fases.map((fase) => (
@@ -178,7 +219,12 @@ const Obra = () => {
                 key={fase.id}
                 fase={fase}
                 isOpen={Boolean(expandedPhases[fase.id])}
-                onToggle={() => setExpandedPhases((current) => ({ ...current, [fase.id]: !current[fase.id] }))}
+                onToggle={() =>
+                  setExpandedPhases((current) => ({
+                    ...current,
+                    [fase.id]: !current[fase.id],
+                  }))
+                }
               />
             ))}
           </div>

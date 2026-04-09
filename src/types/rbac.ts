@@ -1,3 +1,5 @@
+import type { ObraStatusData } from "@/types/obraStatus";
+
 export type UserType = "cliente" | "funcionario";
 export type UserRole = "admin" | "gerente" | "operacional" | "cliente";
 
@@ -18,8 +20,9 @@ export interface ObraDoc {
   nome: string;
   descricao?: string;
   status: "ativa" | "concluida";
-  statusResumo?: "-" | "Em andamento" | "Concluída" | null;
+  statusResumo?: "-" | "Em andamento" | "Concluida" | null;
   statusResumoUpdatedAt?: unknown;
+  statusObra?: ObraStatusData | null;
   valorTotalContrato?: number | null;
   createdAt?: unknown;
   updatedAt?: unknown;

@@ -91,35 +91,64 @@ function getChangedStatusFields(beforeData, afterData) {
 }
 
 function detectProgressChanges(beforeData, afterData) {
-  const beforeItens = Array.isArray(beforeData?.itens) ? beforeData.itens : [];
-  const afterItens = Array.isArray(afterData?.itens) ? afterData.itens : [];
+  const beforeEtapas = Array.isArray(beforeData?.etapas) ? beforeData.etapas : [];
+  const afterEtapas = Array.isArray(afterData?.etapas) ? afterData.etapas : [];
 
-  const toggled = [];
-  const beforeMap = new Map(beforeItens.map((item) => [normalizeString(item.id), !!item.done]));
-
-  afterItens.forEach((item) => {
-    const id = normalizeString(item.id);
-    if (!id) return;
-    const beforeDone = beforeMap.get(id);
-    const afterDone = !!item.done;
-    if (beforeDone === undefined || beforeDone === afterDone) return;
-    toggled.push({id, done: afterDone, label: normalizeString(item.label)});
+  const beforeItemsMap = new Map();
+  beforeEtapas.forEach((etapa) => {
+    const itens = Array.isArray(etapa?.itens) ? etapa.itens : [];
+    itens.forEach((item) => {
+      const id = normalizeString(item?.id);
+      if (!id) return;
+      beforeItemsMap.set(id, normalizeNumber(item?.progresso) ?? (item?.done ? 100 : 0));
+    });
   });
 
-  const beforeInicio = toIsoDate(beforeData?.inicio);
-  const afterInicio = toIsoDate(afterData?.inicio);
-  const beforeFim = toIsoDate(beforeData?.fim);
-  const afterFim = toIsoDate(afterData?.fim);
+  const changedItems = [];
+  const changedStages = [];
 
-  const dateChanged = beforeInicio !== afterInicio || beforeFim !== afterFim;
-  const etapa = normalizeString(afterData?.titulo) || normalizeString(beforeData?.titulo) || "Etapa da obra";
+  afterEtapas.forEach((etapa) => {
+    const etapaId = normalizeString(etapa?.id);
+    const etapaNome = normalizeString(etapa?.nome || etapa?.titulo) || "Etapa da obra";
+    const afterProgress = normalizeNumber(etapa?.progresso) ?? 0;
+
+    const beforeEtapa = beforeEtapas.find((current) => normalizeString(current?.id) === etapaId);
+    const beforeProgress = normalizeNumber(beforeEtapa?.progresso) ?? 0;
+    if (beforeEtapa && beforeProgress !== afterProgress) {
+      changedStages.push({
+        id: etapaId,
+        nome: etapaNome,
+        beforeProgress,
+        afterProgress,
+      });
+    }
+
+    const itens = Array.isArray(etapa?.itens) ? etapa.itens : [];
+    itens.forEach((item) => {
+      const itemId = normalizeString(item?.id);
+      if (!itemId) return;
+      const previousProgress = beforeItemsMap.get(itemId);
+      const currentProgress = normalizeNumber(item?.progresso) ?? (item?.done ? 100 : 0);
+      if (previousProgress === undefined || previousProgress === currentProgress) return;
+      changedItems.push({
+        id: itemId,
+        nome: normalizeString(item?.nome || item?.label) || "Item",
+        etapa: etapaNome,
+        beforeProgress: previousProgress,
+        afterProgress: currentProgress,
+      });
+    });
+  });
+
+  const etapa = changedStages[0]?.nome || changedItems[0]?.etapa || "Etapa da obra";
 
   return {
-    changed: toggled.length > 0 || dateChanged,
+    changed: changedItems.length > 0 || changedStages.length > 0,
     etapa,
-    toggledCount: toggled.length,
-    toggled,
-    dateChanged,
+    toggledCount: changedItems.length,
+    toggled: changedItems,
+    dateChanged: false,
+    changedStages,
   };
 }
 

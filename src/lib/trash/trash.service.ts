@@ -10,6 +10,27 @@ export type TrashType = "documentos" | "fotos";
 
 const asText = (value: unknown) => (typeof value === "string" ? value.trim() : "");
 
+const resolveDirectUrl = (item: FirestoreItem) => {
+  const urlKeys = [
+    "url",
+    "downloadUrl",
+    "downloadURL",
+    "arquivoUrl",
+    "fileUrl",
+    "fotoUrl",
+    "boletoUrl",
+    "comprovanteUrl",
+    "latestUrl",
+  ] as const;
+
+  for (const key of urlKeys) {
+    const candidate = asText(item[key]);
+    if (candidate) return candidate;
+  }
+
+  return "";
+};
+
 const toEpoch = (value: unknown): number => {
   const withSeconds = value as { seconds?: number };
   if (typeof withSeconds?.seconds === "number") return withSeconds.seconds;
@@ -112,7 +133,7 @@ export const listTrashItems = async ({ obraId, type }: { obraId: string; type: T
 };
 
 export const getItemPreviewUrl = async (item: FirestoreItem): Promise<string> => {
-  const directUrl = asText(item.url);
+  const directUrl = resolveDirectUrl(item);
   if (directUrl) return directUrl;
   const storagePath = resolveStoragePath(item);
   if (!storagePath) return "";

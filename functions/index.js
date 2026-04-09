@@ -441,37 +441,36 @@ exports.notifyOnNewDocument = onDocumentCreated("documentos/{documentoId}", asyn
   });
 });
 
-exports.notifyOnObraProgressUpdate = onDocumentUpdated("obras/{obraId}/status/{faseId}", async (event) => {
+exports.notifyOnObraProgressUpdate = onDocumentUpdated("obras/{obraId}", async (event) => {
   const beforeData = event.data?.before?.data() ?? {};
   const afterData = event.data?.after?.data() ?? {};
 
-  const diff = detectProgressChanges(beforeData, afterData);
+  const diff = detectProgressChanges(beforeData.statusObra, afterData.statusObra);
   if (!diff.changed) {
     return;
   }
 
   const obraId = event.params.obraId;
-  const faseId = event.params.faseId;
   const etapa = diff.etapa;
 
   const mensagem = diff.toggledCount > 1
-    ? `A etapa '${etapa}' teve ${diff.toggledCount} atualizações no andamento.`
-    : `A etapa '${etapa}' teve atualização no andamento.`;
+    ? `A etapa '${etapa}' teve ${diff.toggledCount} itens com progresso atualizado.`
+    : `A etapa '${etapa}' teve atualizacao no andamento.`;
 
   await dispatchNotificationFromEvent({
     obraId,
     tipo: "progresso_obra",
-    titulo: "Atualização no progresso da obra",
+    titulo: "Atualizacao no progresso da obra",
     mensagem,
-    origemColecao: "obras_status",
-    origemId: faseId,
+    origemColecao: "obras",
+    origemId: obraId,
     metadata: {
       etapa,
       toggledCount: diff.toggledCount,
-      dateChanged: diff.dateChanged,
+      changedStages: diff.changedStages,
       rotaDestino: "/cliente/obra",
     },
-    idempotencyKey: `status:${obraId}:${faseId}:${event.data.after.updateTime.toMillis()}`,
+    idempotencyKey: `status:${obraId}:${event.data.after.updateTime.toMillis()}`,
   });
 });
 
