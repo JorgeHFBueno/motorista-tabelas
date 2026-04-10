@@ -13,6 +13,7 @@ import {
 } from '@mui/material';
 import { addDoc, collection, serverTimestamp } from 'firebase/firestore';
 import { db } from '../firebase';
+import { createFornecedorComNumero, getFornecedorNumeroErrorMessage } from '../services/fornecedores.service';
 
 interface CadastroBasicoFormProps {
   buttonLabel?: string;
@@ -21,6 +22,7 @@ interface CadastroBasicoFormProps {
   collectionName: string;
   successMessage: string;
   disabled?: boolean;
+  autoGenerateFornecedorNumero?: boolean;
 }
 
 export default function CadastroBasicoForm({
@@ -30,6 +32,7 @@ export default function CadastroBasicoForm({
   collectionName,
   successMessage,
   disabled,
+  autoGenerateFornecedorNumero = false,
 }: CadastroBasicoFormProps) {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [nome, setNome] = useState('');
@@ -62,16 +65,20 @@ export default function CadastroBasicoForm({
 
     try {
       setSaving(true);
-      await addDoc(collection(db, collectionName), {
-        nome: nomeTrim,
-        descricao: descricao.trim(),
-        createdAt: serverTimestamp(),
-      });
+      if (autoGenerateFornecedorNumero) {
+        await createFornecedorComNumero({ nome: nomeTrim, descricao });
+      } else {
+        await addDoc(collection(db, collectionName), {
+          nome: nomeTrim,
+          descricao: descricao.trim(),
+          createdAt: serverTimestamp(),
+        });
+      }
       setSnackbar({ message: successMessage, severity: 'success' });
       handleCloseDialog();
     } catch (error) {
       console.error('Erro ao salvar cadastro básico', error);
-      setSnackbar({ message: 'Erro ao salvar.', severity: 'error' });
+      setSnackbar({ message: getFornecedorNumeroErrorMessage(error) ?? 'Erro ao salvar.', severity: 'error' });
       setSaving(false);
     }
   };

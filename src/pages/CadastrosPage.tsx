@@ -107,6 +107,7 @@ export default function CadastrosPage() {
                 dialogTitle="Adicionar fornecedor"
                 collectionName="notas-fornecedores"
                 successMessage="Fornecedor cadastrado com sucesso."
+                autoGenerateFornecedorNumero
               />
               <Button variant="outlined" component={RouterLink} to="/cadastros/editar/fornecedores">
                 Editar

@@ -103,7 +103,7 @@ a:hover {
 }
 
 .ledur-navbar .navbar-brand img {
-  background: #ffffff;
+  background: transparent;
   border-radius: 6px;
   height: 34px;
   object-fit: contain;

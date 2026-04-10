@@ -24,3 +24,4 @@ dist-ssr
 *.sw?
 functions/lib
 visual-identity-export/
+docs/patch-notes/

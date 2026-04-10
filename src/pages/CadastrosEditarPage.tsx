@@ -19,6 +19,11 @@ import { collection, deleteDoc, doc, getDocs, orderBy, query, serverTimestamp, u
 import { db } from '../firebase';
 import CadastroEditModal, { type CadastroEditFormValues } from '../components/CadastroEditModal';
 import CadastroEditTable, { type CadastroRow } from '../components/CadastroEditTable';
+import {
+  getFornecedorNumeroErrorMessage,
+  normalizeFornecedorNumero,
+  updateFornecedorCadastro,
+} from '../services/fornecedores.service';
 
 type CadastroTipo = 'obras' | 'categorias' | 'fornecedores';
 
@@ -48,6 +53,7 @@ export default function CadastrosEditarPage() {
   const [editing, setEditing] = useState<CadastroRow | null>(null);
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState<CadastroRow | null>(null);
+  const [editError, setEditError] = useState<string | null>(null);
 
   const dateFormatter = useMemo(() => new Intl.DateTimeFormat('pt-BR', {
     dateStyle: 'short',
@@ -83,25 +89,42 @@ export default function CadastrosEditarPage() {
     return rows.filter((row) => {
       const nomeMatch = row.nome?.toLowerCase().includes(term);
       const descricaoMatch = row.descricao?.toLowerCase().includes(term);
-      return nomeMatch || descricaoMatch;
+      const numeroMatch = cadastroTipo === 'fornecedores' && String(row.numero ?? '').includes(term);
+      return nomeMatch || descricaoMatch || numeroMatch;
     });
-  }, [rows, search]);
+  }, [cadastroTipo, rows, search]);
 
   const handleSave = async (values: CadastroEditFormValues) => {
     if (!config || !editing) return;
     setSaving(true);
+    setEditError(null);
     try {
-      await updateDoc(doc(db, config.collectionName, editing.id), {
-        nome: values.nome.trim(),
-        descricao: values.descricao.trim(),
-        updatedAt: serverTimestamp(),
-      });
+      if (cadastroTipo === 'fornecedores') {
+        await updateFornecedorCadastro({
+          id: editing.id,
+          nome: values.nome,
+          descricao: values.descricao,
+          numero: values.numero,
+          numeroAtual: editing.numero,
+        });
+      } else {
+        await updateDoc(doc(db, config.collectionName, editing.id), {
+          nome: values.nome.trim(),
+          descricao: values.descricao.trim(),
+          updatedAt: serverTimestamp(),
+        });
+      }
       setSnackbar({ message: 'Cadastro atualizado com sucesso.', severity: 'success' });
       setEditing(null);
       await loadRows();
     } catch (error) {
       console.error('Erro ao atualizar cadastro', error);
-      setSnackbar({ message: 'Erro ao atualizar cadastro.', severity: 'error' });
+      const numeroErrorMessage = getFornecedorNumeroErrorMessage(error);
+      if (numeroErrorMessage) {
+        setEditError(numeroErrorMessage);
+      } else {
+        setSnackbar({ message: 'Erro ao atualizar cadastro.', severity: 'error' });
+      }
     } finally {
       setSaving(false);
     }
@@ -163,9 +186,13 @@ export default function CadastrosEditarPage() {
             <CadastroEditTable
               rows={filteredRows}
               loading={loading}
-              onEdit={(row) => setEditing(row)}
+              onEdit={(row) => {
+                setEditError(null);
+                setEditing(row);
+              }}
               onDelete={(row) => setDeleting(row)}
               dateFormatter={dateFormatter}
+              showNumero={cadastroTipo === 'fornecedores'}
             />
           </Stack>
         </Paper>
@@ -177,10 +204,16 @@ export default function CadastrosEditarPage() {
         initialValues={{
           nome: editing?.nome ?? '',
           descricao: editing?.descricao ?? '',
+          numero: normalizeFornecedorNumero(editing?.numero)?.toString() ?? '',
         }}
-        onClose={() => setEditing(null)}
+        onClose={() => {
+          setEditing(null);
+          setEditError(null);
+        }}
         onSave={handleSave}
         saving={saving}
+        showNumero={cadastroTipo === 'fornecedores'}
+        submitError={editError}
       />
 
       <Dialog open={Boolean(deleting)} onClose={() => setDeleting(null)} fullWidth maxWidth="xs">

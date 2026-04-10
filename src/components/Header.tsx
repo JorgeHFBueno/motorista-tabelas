@@ -22,7 +22,6 @@ export default function Header() {
         <Container>
           <Navbar.Brand as={Link} to="/">
             <img src="/logo-ledur-branco.png" alt="" aria-hidden="true" />
-            Ledur
           </Navbar.Brand>
           <Navbar.Toggle aria-controls="basic-navbar-nav" />
           <Navbar.Collapse id="basic-navbar-nav">

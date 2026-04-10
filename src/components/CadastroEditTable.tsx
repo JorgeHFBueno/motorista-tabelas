@@ -6,6 +6,7 @@ import EditOutlinedIcon from '@mui/icons-material/EditOutlined';
 
 export type CadastroRow = {
   id: string;
+  numero?: unknown;
   nome: string;
   descricao?: string;
   createdAt?: unknown;
@@ -17,6 +18,7 @@ interface CadastroEditTableProps {
   onEdit: (row: CadastroRow) => void;
   onDelete: (row: CadastroRow) => void;
   dateFormatter: Intl.DateTimeFormat;
+  showNumero?: boolean;
 }
 
 const toDate = (raw: unknown): Date | null => {
@@ -34,8 +36,17 @@ export default function CadastroEditTable({
   onEdit,
   onDelete,
   dateFormatter,
+  showNumero = false,
 }: CadastroEditTableProps) {
   const columns = useMemo<GridColDef<CadastroRow>[]>(() => [
+    ...(showNumero ? [{
+      field: 'numero',
+      headerName: 'Numero',
+      type: 'number',
+      minWidth: 110,
+      flex: 0.4,
+      renderCell: (params) => params.value || '-',
+    } satisfies GridColDef<CadastroRow>] : []),
     {
       field: 'nome',
       headerName: 'Nome',
@@ -80,7 +91,7 @@ export default function CadastroEditTable({
         </Stack>
       ),
     },
-  ], [dateFormatter, onDelete, onEdit]);
+  ], [dateFormatter, onDelete, onEdit, showNumero]);
 
   return (
     <DataGrid
