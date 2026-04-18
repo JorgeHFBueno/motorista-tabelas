@@ -1,14 +1,28 @@
-import { useState } from 'react';
-import { Alert, Box, Button, Container, Dialog,
-  DialogActions, DialogContent, DialogTitle,
-  Paper, Stack, TextField, Typography } from '@mui/material';
-import { Link as RouterLink } from 'react-router-dom';
+import { useEffect, useState } from 'react';
+import {
+  Alert,
+  Box,
+  Button,
+  Container,
+  Dialog,
+  DialogActions,
+  DialogContent,
+  DialogTitle,
+  Paper,
+  Snackbar,
+  Stack,
+  TextField,
+  Typography,
+} from '@mui/material';
+import { Link as RouterLink, useLocation, useNavigate } from 'react-router-dom';
 import useAdminUsers from '../hooks/useAdminUsers';
 import { useAuth } from '../contexts/AuthContext';
 import ObrasSection from '../components/ObrasSection';
 import CadastroBasicoForm from '../components/CadastroBasicoForm';
 
 export default function CadastrosPage() {
+  const location = useLocation();
+  const navigate = useNavigate();
   const { createUser } = useAdminUsers({ loadOnMount: false, refreshOnChange: false });
   const { isAdmin } = useAuth();
   const [dialogAberto, setDialogAberto] = useState(false);
@@ -17,6 +31,14 @@ export default function CadastrosPage() {
   const [displayName, setDisplayName] = useState('');
   const [saving, setSaving] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
+  const [snackbar, setSnackbar] = useState<{ message: string; severity: 'success' | 'error' } | null>(null);
+
+  useEffect(() => {
+    if (location.state && (location.state as { vehicleCreated?: boolean }).vehicleCreated) {
+      setSnackbar({ message: 'VeÃ­culo cadastrado com sucesso.', severity: 'success' });
+      navigate(location.pathname, { replace: true });
+    }
+  }, [location.pathname, location.state, navigate]);
 
   const handleFecharDialog = () => {
     setDialogAberto(false);
@@ -44,6 +66,23 @@ export default function CadastrosPage() {
     }
   };
 
+  const cardActionStackSx = {
+    width: { xs: '100%', sm: 'auto' },
+    flexWrap: 'wrap' as const,
+    justifyContent: { xs: 'stretch', sm: 'flex-end' },
+    alignItems: 'stretch',
+    '& > *': {
+      flex: { xs: '1 1 100%', sm: '0 0 auto' },
+      minWidth: { sm: 168 },
+      minHeight: 40,
+    },
+  };
+
+  const cardPaperSx = {
+    p: 3,
+    height: '100%',
+  };
+
   return (
     <Container maxWidth="lg" sx={{ py: 3 }}>
       <Stack spacing={3}>
@@ -52,69 +91,131 @@ export default function CadastrosPage() {
             Cadastros
           </Typography>
           <Typography variant="body1" color="text.secondary">
-            Administre usuários e veículos do sistema. Algumas ações podem ser restritas a administradores.
+            Administre usuários e veículos do sistema.
           </Typography>
         </Box>
 
-        <Paper elevation={1} sx={{ p: 3 }}>
-          <Stack direction={{ xs: 'column', sm: 'row' }} justifyContent="space-between" spacing={2} mb={2} alignItems={{ sm: 'center' }}>
-            <Box>
-              <Typography variant="h6">Usuários</Typography>
-              <Typography variant="body2" color="text.secondary">Cadastro de funcionários.</Typography>              
-            </Box>
-             <Stack direction="row" spacing={1}>
-              <Button variant="contained" disabled>
-                Cadastrar funcionário
-              </Button>
-              <Button variant="outlined" disabled>
-                Editar
-              </Button>
+        <Box
+          sx={{
+            display: 'grid',
+            gridTemplateColumns: {
+              xs: '1fr',
+              sm: 'repeat(2, minmax(0, 1fr))',
+              lg: 'repeat(3, minmax(0, 1fr))',
+            },
+            gap: 3,
+            alignItems: 'stretch',
+          }}
+        >
+          <Paper elevation={1} sx={cardPaperSx}>
+            <Stack
+              direction={{ xs: 'column', sm: 'row' }}
+              justifyContent="space-between"
+              spacing={2}
+              mb={2}
+              alignItems={{ sm: 'center' }}
+            >
+              <Box>
+                <Typography variant="h6">Usuários</Typography>
+                <Typography variant="body2" color="text.secondary">
+                  Cadastro de funcionários.
+                </Typography>
+              </Box>
+              <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} sx={cardActionStackSx}>
+                <Button variant="contained" disabled>
+                  Cadastrar
+                </Button>
+                <Button variant="outlined" disabled>
+                  Editar
+                </Button>
+              </Stack>
             </Stack>
-          </Stack>          
-        </Paper>
-        
-        <ObrasSection />
-        <Paper elevation={1} sx={{ p: 3 }}>
-          <Stack direction={{ xs: 'column', sm: 'row' }} justifyContent="space-between" spacing={2} mb={2} alignItems={{ sm: 'center' }}>
-            <Box>
-              <Typography variant="h6">Categorias</Typography>
-              <Typography variant="body2" color="text.secondary">Cadastro de categorias para manutenções.</Typography>
-              
-            </Box>
-            <Stack direction="row" spacing={1}>
-              <CadastroBasicoForm
-                buttonLabel="Cadastrar categoria"
-                dialogTitle="Adicionar categoria"
-                collectionName="notas-categorias"
-                successMessage="Categoria cadastrada com sucesso."
-              />
-              <Button variant="outlined" component={RouterLink} to="/cadastros/editar/categorias">
-                Editar
-              </Button>
-            </Stack>
-          </Stack>
-        </Paper>
+          </Paper>
 
-        <Paper elevation={1} sx={{ p: 3 }}>
-          <Stack direction={{ xs: 'column', sm: 'row' }} justifyContent="space-between" spacing={2} mb={2} alignItems={{ sm: 'center' }}>
-            <Box>
-              <Typography variant="h6">Fornecedores</Typography>
-              <Typography variant="body2" color="text.secondary">Cadastro de fornecedores para manutenções.</Typography>
-            </Box>
-            <Stack direction="row" spacing={1}>
-              <CadastroBasicoForm
-                buttonLabel="Cadastrar fornecedor"
-                dialogTitle="Adicionar fornecedor"
-                collectionName="notas-fornecedores"
-                successMessage="Fornecedor cadastrado com sucesso."
-                autoGenerateFornecedorNumero
-              />
-              <Button variant="outlined" component={RouterLink} to="/cadastros/editar/fornecedores">
-                Editar
-              </Button>
+          <ObrasSection />
+
+          <Paper elevation={1} sx={cardPaperSx}>
+            <Stack
+              direction={{ xs: 'column', sm: 'row' }}
+              justifyContent="space-between"
+              spacing={2}
+              mb={2}
+              alignItems={{ sm: 'center' }}
+            >
+              <Box>
+                <Typography variant="h6">Categorias</Typography>
+                <Typography variant="body2" color="text.secondary">
+                  Cadastro de categorias para manutenções.
+                </Typography>
+              </Box>
+              <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} sx={cardActionStackSx}>
+                <CadastroBasicoForm
+                  buttonLabel="Cadastrar"
+                  dialogTitle="Adicionar categoria"
+                  collectionName="notas-categorias"
+                  successMessage="Categoria cadastrada com sucesso."
+                />
+                <Button variant="outlined" component={RouterLink} to="/cadastros/editar/categorias">
+                  Editar
+                </Button>
+              </Stack>
             </Stack>
-          </Stack>
-        </Paper>
+          </Paper>
+
+          <Paper elevation={1} sx={cardPaperSx}>
+            <Stack
+              direction={{ xs: 'column', sm: 'row' }}
+              justifyContent="space-between"
+              spacing={2}
+              mb={2}
+              alignItems={{ sm: 'center' }}
+            >
+              <Box>
+                <Typography variant="h6">Fornecedores</Typography>
+                <Typography variant="body2" color="text.secondary">
+                  Cadastro de fornecedores para manutenções.
+                </Typography>
+              </Box>
+              <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} sx={cardActionStackSx}>
+                <CadastroBasicoForm
+                  buttonLabel="Cadastrar"
+                  dialogTitle="Adicionar fornecedor"
+                  collectionName="notas-fornecedores"
+                  successMessage="Fornecedor cadastrado com sucesso."
+                  autoGenerateFornecedorNumero
+                />
+                <Button variant="outlined" component={RouterLink} to="/cadastros/editar/fornecedores">
+                  Editar
+                </Button>
+              </Stack>
+            </Stack>
+          </Paper>
+
+          <Paper elevation={1} sx={cardPaperSx}>
+            <Stack
+              direction={{ xs: 'column', sm: 'row' }}
+              justifyContent="space-between"
+              spacing={2}
+              mb={2}
+              alignItems={{ sm: 'center' }}
+            >
+              <Box>
+                <Typography variant="h6">Veículos</Typography>
+                <Typography variant="body2" color="text.secondary">
+                  Cadastro de Veículos.
+                </Typography>
+              </Box>
+              <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} sx={cardActionStackSx}>
+                <Button variant="contained" component={RouterLink} to="/cadastros/veiculos/novo">
+                  Cadastrar
+                </Button>
+                <Button variant="outlined" component={RouterLink} to="/frota">
+                  Editar
+                </Button>
+              </Stack>
+            </Stack>
+          </Paper>
+        </Box>
       </Stack>
 
       <Dialog open={dialogAberto} onClose={handleFecharDialog} fullWidth maxWidth="sm">
@@ -142,7 +243,7 @@ export default function CadastrosPage() {
               fullWidth
             />
             <Alert severity="info">
-              Esta ação utiliza o endpoint admin (/api/admin/users). Caso não esteja implementado, será exibido um erro.
+              Esta aÃ§Ã£o utiliza o endpoint admin (/api/admin/users). Caso nÃ£o esteja implementado, serÃ¡ exibido um erro.
             </Alert>
             {actionError && <Alert severity="error">{actionError}</Alert>}
           </Stack>
@@ -156,6 +257,19 @@ export default function CadastrosPage() {
           </Button>
         </DialogActions>
       </Dialog>
+
+      {snackbar && (
+        <Snackbar
+          open={Boolean(snackbar)}
+          autoHideDuration={4000}
+          onClose={() => setSnackbar(null)}
+          anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
+        >
+          <Alert onClose={() => setSnackbar(null)} severity={snackbar.severity} sx={{ width: '100%' }}>
+            {snackbar.message}
+          </Alert>
+        </Snackbar>
+      )}
     </Container>
   );
 }

@@ -16,6 +16,7 @@ const PortifolioPage = lazy(() => import('./components/PortifolioPage'));
 const LoginPage = lazy(() => import('./pages/LoginPage'));
 const SignupPage = lazy(() => import('./pages/SignupPage'));
 const CadastrosPage = lazy(() => import('./pages/CadastrosPage'));
+const CadastroVeiculoNovoPage = lazy(() => import('./pages/CadastroVeiculoNovoPage'));
 const CadastrosEditarPage = lazy(() => import('./pages/CadastrosEditarPage'));
 const RegistrosPage = lazy(() => import('./pages/RegistrosPage'));
 const FrotaVeiculosPage = lazy(() => import('./pages/FrotaVeiculosPage'));
@@ -33,28 +34,29 @@ function LoadingFallback({ label }: { label?: string }) {
   );
 }
 
-console.log("[build]", import.meta.env.MODE, "__BUILD__", "1100");
+console.log('[build]', import.meta.env.MODE, '__BUILD__', '1111');
 
 export default function App() {
   return (
-   <BrowserRouter>
-   <NetworkStatusBanner />
-   <PwaUpdateOverlay />
+    <BrowserRouter>
+      <NetworkStatusBanner />
+      <PwaUpdateOverlay />
       <PwaUpdateBanner />
       <Header />
-       <Suspense fallback={<LoadingFallback />}>
+      <Suspense fallback={<LoadingFallback />}>
         <Routes>
           <Route path="login" element={<LoginPage />} />
           <Route path="signup" element={<SignupPage />} />
           <Route path="acesso-negado" element={<AccessDeniedPage />} />
           <Route element={<PrivateRoute />}>
-          <Route index element={<HomeDashboard />} />
+            <Route index element={<HomeDashboard />} />
             <Route element={<CombustivelRouteGuard />}>
               <Route path="combustivel" element={<TabelaCombustivel />} />
               <Route path="combustivel/novo" element={<CombustivelNovoPage />} />
               <Route path="combustivel/*" element={<Navigate to="/combustivel" replace />} />
             </Route>
             <Route path="cadastros" element={<CadastrosPage />} />
+            <Route path="cadastros/veiculos/novo" element={<CadastroVeiculoNovoPage />} />
             <Route path="cadastros/editar/:tipo" element={<CadastrosEditarPage />} />
             <Route path="registros" element={<RegistrosPage />} />
             <Route path="frota" element={<FrotaVeiculosPage />} />

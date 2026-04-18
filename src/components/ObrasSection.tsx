@@ -25,6 +25,18 @@ export default function ObrasSection() {
   const [formError, setFormError] = useState<string | null>(null);
   const [snackbar, setSnackbar] = useState<{ message: string; severity: 'success' | 'error' } | null>(null);
 
+  const cardActionStackSx = {
+    width: { xs: '100%', sm: 'auto' },
+    flexWrap: 'wrap' as const,
+    justifyContent: { xs: 'stretch', sm: 'flex-end' },
+    alignItems: 'stretch',
+    '& > *': {
+      flex: { xs: '1 1 100%', sm: '0 0 auto' },
+      minWidth: { sm: 168 },
+      minHeight: 40,
+    },
+  };
+
   const handleOpenDialog = () => {
     setDialogOpen(true);
     setFormError(null);
@@ -44,7 +56,7 @@ export default function ObrasSection() {
     if (!nomeTrim) {
       setFormError('Informe o nome da obra.');
       return;
-    }    
+    }
 
     try {
       setSaving(true);
@@ -58,21 +70,29 @@ export default function ObrasSection() {
   };
 
   return (
-    <Paper elevation={1} sx={{ p: 3 }}>
-      <Stack direction={{ xs: 'column', sm: 'row' }} justifyContent="space-between" spacing={2} mb={2} alignItems={{ sm: 'center' }}>
+    <Paper elevation={1} sx={{ p: 3, height: '100%' }}>
+      <Stack
+        direction={{ xs: 'column', sm: 'row' }}
+        justifyContent="space-between"
+        spacing={2}
+        mb={2}
+        alignItems={{ sm: 'center' }}
+      >
         <Box>
           <Typography variant="h6">Obras</Typography>
-          <Typography variant="body2" color="text.secondary">Cadastro de obras.</Typography>
+          <Typography variant="body2" color="text.secondary">
+            Cadastro de obras.
+          </Typography>
         </Box>
-         <Stack direction="row" spacing={1}>
+        <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} sx={cardActionStackSx}>
           <Button variant="contained" onClick={handleOpenDialog}>
-            Cadastrar obra
+            Cadastrar
           </Button>
           <Button variant="outlined" component={RouterLink} to="/cadastros/editar/obras">
             Editar
           </Button>
         </Stack>
-      </Stack>      
+      </Stack>
 
       <Dialog open={dialogOpen} onClose={handleCloseDialog} fullWidth maxWidth="sm">
         <DialogTitle>Adicionar obra</DialogTitle>
