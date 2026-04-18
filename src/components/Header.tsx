@@ -37,7 +37,7 @@ export default function Header() {
                       requestAccess(() => navigate('/combustivel/novo'));
                     }}
                   >
-                    Cliente
+                    Combustível
                   </Nav.Link>
                   {!isAdm1 && (
                     <>

@@ -22,15 +22,23 @@ import {
     ToggleButton,
     ToggleButtonGroup,
     Typography,
+    createFilterOptions,
 } from '@mui/material';
 import { DataGrid, type GridColDef } from '@mui/x-data-grid';
 import { Timestamp, addDoc, collection, doc, getDocs, orderBy, query, serverTimestamp, updateDoc } from 'firebase/firestore';
 import { useNavigate } from 'react-router-dom';
 import FrotaCharts, { type ChartPoint } from '../components/FrotaCharts';
+import {
+    ABASTECIMENTO_EXTERNO,
+    type CategoriaManutencao,
+    DEFAULT_MANUTENCAO_FORM,
+    type Fornecedor,
+    type ManutencaoForm,
+    type TipoVeiculo,
+} from '../components/manutencaoFormShared';
 import { useAuth } from '../contexts/AuthContext';
 import { db } from '../firebase';
-
-type TipoVeiculo = 'PLACA' | 'EXTRA';
+import { normalizeFornecedorNumero } from '../services/fornecedores.service';
 
 type Veiculo = {
     id: string;
@@ -51,24 +59,6 @@ type VeiculoForm = {
     quilometragemUltima: string;
 };
 
-type ManutencaoForm = {
-    identificador: string;
-    tipoVeiculo: TipoVeiculo | '';
-    categoriaId: string;
-    categoriaNomeSnapshot: string;
-    valor: string;
-    quantidade: string;
-    fornecedorId: string;
-    fornecedorNomeSnapshot: string;
-    dataModo: 'ATUAL' | 'MANUAL';
-    dataManual: string;
-    descricao: string;
-    km: string;
-    motorista: string;
-    nota: string;
-    status: 'NORMAL' | 'SUSPEITO' | 'SUPER_FATURADO';
-};
-
 type ManutencaoRow = {
     id: string;
     identificador?: string;
@@ -84,38 +74,22 @@ const DEFAULT_FORM: VeiculoForm = {
     quilometragemUltima: '',
 };
 
-const DEFAULT_MANUTENCAO_FORM: ManutencaoForm = {
-    identificador: '',
-    tipoVeiculo: '',
-    categoriaId: '',
-    categoriaNomeSnapshot: '',
-    valor: '',
-    quantidade: '1',
-    fornecedorId: '',
-    fornecedorNomeSnapshot: '',
-    dataModo: 'ATUAL',
-    dataManual: '',
-    descricao: '',
-    km: '',
-    motorista: '',
-    nota: '',
-    status: 'NORMAL',
-};
-
-const ABASTECIMENTO_EXTERNO = 'ABASTECIMENTO EXTERNO';
 const MANUTENCAO_CUTOFF = new Date('2026-01-01T00:00:00.000Z');
 
 const DEBUG = true;
 
-type Fornecedor = {
-    id: string;
-    nome: string;
-};
+function getFornecedorOptionLabel(fornecedor: Fornecedor | null): string {
+    if (!fornecedor) return '';
+    const nome = fornecedor.nome.trim();
+    if (fornecedor.numero) {
+        return nome ? `${fornecedor.numero}-${nome}` : String(fornecedor.numero);
+    }
+    return nome;
+}
 
-type CategoriaManutencao = {
-    id: string;
-    nome: string;
-};
+const fornecedorFilterOptions = createFilterOptions<Fornecedor>({
+    stringify: (option) => [getFornecedorOptionLabel(option), option.numero?.toString() ?? '', option.nome].join(' '),
+});
 
 function toDate(raw: unknown): Date | null {
     if (!raw) return null;
@@ -354,10 +328,14 @@ export default function FrotaVeiculosPage() {
                 const fornecedoresQuery = query(collection(db, 'notas-fornecedores'), orderBy('nome'));
                 const snapshot = await getDocs(fornecedoresQuery);
                 if (!active) return;
-                const data = snapshot.docs.map((docSnap) => ({
-                    id: docSnap.id,
-                    nome: (docSnap.data().nome as string) ?? '',
-                }));
+                const data = snapshot.docs.map((docSnap) => {
+                    const raw = docSnap.data();
+                    return {
+                        id: docSnap.id,
+                        nome: (raw.nome as string) ?? '',
+                        numero: normalizeFornecedorNumero(raw.numero),
+                    };
+                });
                 setFornecedores(data);
                 setFornecedoresLoaded(true);
             } catch (err) {
@@ -1219,7 +1197,8 @@ export default function FrotaVeiculosPage() {
                         <Autocomplete
                             options={fornecedores}
                             value={fornecedorSelecionado}
-                            getOptionLabel={(option) => option.nome}
+                            getOptionLabel={getFornecedorOptionLabel}
+                            filterOptions={fornecedorFilterOptions}
                             onChange={(_event, value) =>
                                 setManutencaoForm((prev) => ({
                                     ...prev,

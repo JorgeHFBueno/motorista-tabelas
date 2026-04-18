@@ -21,7 +21,7 @@ const actions = [
   },
   {
     label: 'Registros',
-    description: 'Acompanhe registros e gráficos',
+    description: 'Acompanhe registros de chegadas e saídas da frota',
     icon: <ListAltIcon fontSize="large" />,
     color: '#F6F7F8',
     accent: '#5B5D5B',
@@ -29,7 +29,7 @@ const actions = [
   },
   {
     label: 'Frota',
-    description: 'Gerencie veículos (placa e extra)',
+    description: 'Gerencie veículos (placas, maquinas, registros)',
     icon: <DirectionsCarFilledIcon fontSize="large" />,
     color: '#EEF5F1',
     accent: '#2E9D6F',
@@ -58,11 +58,19 @@ export default function HomeDashboard() {
   const { currentUser, loading: authLoading } = useAuth();
   const { loading: authorizationLoading, profile } = useAuthorizationProfile(currentUser, authLoading);
   const isAdm1 = profile?.adm1 === true;
+  const isAdm2 = profile?.adm2 === true;
   const { requestAccess, dialog } = useAdm1MontanteGate(isAdm1);
 
   const handleCombustivelClick = useCallback(() => {
-    requestAccess(() => navigate('/combustivel/novo'));
-  }, [navigate, requestAccess]);
+    const combustivelDestino = isAdm2 ? '/combustivel' : '/combustivel/novo';
+
+    if (combustivelDestino === '/combustivel/novo') {
+      requestAccess(() => navigate(combustivelDestino));
+      return;
+    }
+
+    navigate(combustivelDestino);
+  }, [isAdm2, navigate, requestAccess]);
 
   const resolvedActions = actions.filter((action) => !isAdm1 || action.label === 'Combustível');
 

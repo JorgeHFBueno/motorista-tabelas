@@ -1,15 +1,28 @@
 import { Suspense, lazy, useEffect, useMemo, useState, type ReactNode, type SyntheticEvent } from 'react';
-import { Box, Tabs, Tab, Typography, Container, Stack, Paper, TextField, Alert } from '@mui/material';
+import { Alert, Box, Button, Container, Paper, Stack, Tab, Tabs, TextField, Typography } from '@mui/material';
 import { useSearchParams } from 'react-router-dom';
 import { DataGrid, type GridColDef } from '@mui/x-data-grid';
 import useAtividade from '../hooks/useAtividade';
-import Plot from 'react-plotly.js';
-import type { Data, Layout } from 'plotly.js';
 import useOnlineStatus from '../hooks/useOnlineStatus';
 import type { ChartKey, ChartPoint } from '../components/FrotaCharts';
 
 const FrotaCharts = lazy(() => import('../components/FrotaCharts'));
+
 type TabKey = 'geral' | 'graficos' | 'hibrido';
+
+type MotoristaResumo = {
+  id: string;
+  totalRegistros: number;
+  ultimoRegistroGeral: Date | null;
+  registrosPeriodo: number;
+  ultimoRegistroPeriodo: Date | null;
+};
+
+type ChartDateFilter = {
+  dataInicial: string;
+  dataFinal: string;
+};
+
 const TAB_KEYS: TabKey[] = ['geral', 'graficos', 'hibrido'];
 const DEFAULT_TAB: TabKey = 'geral';
 
@@ -24,7 +37,45 @@ function getValidTab(tabParam: string | null): TabKey {
   if (tabParam && TAB_KEYS.includes(tabParam as TabKey)) {
     return tabParam as TabKey;
   }
+
   return DEFAULT_TAB;
+}
+
+function formatDateInputValue(date: Date): string {
+  const localDate = new Date(date.getTime() - date.getTimezoneOffset() * 60000);
+  return localDate.toISOString().slice(0, 10);
+}
+
+function getDefaultChartDateFilter(): ChartDateFilter {
+  const hoje = new Date();
+  hoje.setHours(0, 0, 0, 0);
+
+  const inicio = new Date(hoje);
+  inicio.setDate(inicio.getDate() - 29);
+
+  return {
+    dataInicial: formatDateInputValue(inicio),
+    dataFinal: formatDateInputValue(hoje),
+  };
+}
+
+function parseDateRange(dataInicial: string, dataFinal: string) {
+  if (!dataInicial || !dataFinal) {
+    return { error: 'Informe data inicial e data final para aplicar o filtro.' } as const;
+  }
+
+  const inicio = new Date(`${dataInicial}T00:00:00`);
+  const fim = new Date(`${dataFinal}T23:59:59.999`);
+
+  if (Number.isNaN(inicio.getTime()) || Number.isNaN(fim.getTime())) {
+    return { error: 'Informe um intervalo de datas valido.' } as const;
+  }
+
+  if (inicio > fim) {
+    return { error: 'A data inicial nao pode ser maior que a data final.' } as const;
+  }
+
+  return { inicio, fim, error: null } as const;
 }
 
 function TabPanel({
@@ -48,40 +99,32 @@ function TabPanel({
   );
 }
 
-type MotoristaResumo = {
-  id: string;
-  totalRegistros: number;
-  ultimoRegistroGeral: Date | null;
-  registrosPeriodo: number;
-  ultimoRegistroPeriodo: Date | null;
-};
+function toDateAny(raw: any): Date | null {
+  if (!raw) return null;
+  if (typeof raw.toDate === 'function') return raw.toDate();
+  if (raw.seconds != null) return new Date(raw.seconds * 1e3 + (raw.nanoseconds ?? 0) / 1e6);
+  if (raw._seconds != null) return new Date(raw._seconds * 1e3 + (raw._nanoseconds ?? 0) / 1e6);
+
+  const date = new Date(raw);
+  return Number.isNaN(date.getTime()) ? null : date;
+}
 
 export default function RegistrosPage() {
   const { isOnline } = useOnlineStatus();
   const [searchParams, setSearchParams] = useSearchParams();
-  const [tab, setTab] = useState<TabKey>(() =>
-    getValidTab(searchParams.get('tab')),
-  );
-
+  const [tab, setTab] = useState<TabKey>(() => getValidTab(searchParams.get('tab')));
   const [chartTab, setChartTab] = useState<ChartKey>('caminhoes');
   const { data: atividade, loading: loadingAtividade } = useAtividade();
   const [filtroDataInicial, setFiltroDataInicial] = useState('');
   const [filtroDataFinal, setFiltroDataFinal] = useState('');
-  
-  function toDateAny(raw: any): Date | null {
-    if (!raw) return null;
-    if (typeof raw.toDate === 'function') return raw.toDate();
-    if (raw.seconds != null) return new Date(raw.seconds * 1e3 + (raw.nanoseconds ?? 0) / 1e6);
-    if (raw._seconds != null) return new Date(raw._seconds * 1e3 + (raw._nanoseconds ?? 0) / 1e6);
-    const d = new Date(raw);
-    return isNaN(d.getTime()) ? null : d;
-  }
+  const [graficoFiltroRascunho, setGraficoFiltroRascunho] = useState<ChartDateFilter>(() => getDefaultChartDateFilter());
+  const [graficoFiltroAplicado, setGraficoFiltroAplicado] = useState<ChartDateFilter>(() => getDefaultChartDateFilter());
+  const [graficoFiltroErro, setGraficoFiltroErro] = useState<string | null>(null);
 
   const rowsAtividade = useMemo(
     () =>
       atividade.map((item) => {
         const dataJS = toDateAny((item as any).data);
-        if (!dataJS) console.log('Data inválida:', item);
         return { ...item, dataJS };
       }),
     [atividade],
@@ -109,8 +152,8 @@ export default function RegistrosPage() {
         minWidth: 160,
         flex: 1.2,
         renderCell: (params) => {
-          const v = params.row.dataJS as Date | null;
-          return v ? dateFmt.format(v) : '—';
+          const value = params.row.dataJS as Date | null;
+          return value ? dateFmt.format(value) : '—';
         },
         sortComparator: (a, b) => {
           const ta = a instanceof Date ? a.getTime() : 0;
@@ -128,8 +171,7 @@ export default function RegistrosPage() {
         headerName: 'KM',
         minWidth: 120,
         flex: 1,
-        renderCell: ({ value }) =>
-          isNaN(Number(value)) ? '—' : kmFormatter.format(Number(value)),
+        renderCell: ({ value }) => (Number.isNaN(Number(value)) ? '—' : kmFormatter.format(Number(value))),
       },
     ],
     [dateFmt, kmFormatter],
@@ -141,29 +183,29 @@ export default function RegistrosPage() {
   }, [searchParams]);
 
   const handleTabChange = (_event: SyntheticEvent, newValue: TabKey) => {
-    const newTab = getValidTab(newValue);
-    setTab(newTab);
-    setSearchParams((prev) => {
-      const params = new URLSearchParams(prev);
-      params.set('tab', newTab);
-      return params;
-    }, { replace: true });
+    const nextTab = getValidTab(newValue);
+    setTab(nextTab);
+    setSearchParams(
+      (prev) => {
+        const params = new URLSearchParams(prev);
+        params.set('tab', nextTab);
+        return params;
+      },
+      { replace: true },
+    );
   };
 
   const motoristaResumo: MotoristaResumo[] = useMemo(() => {
-    let dataInicial: Date | null = filtroDataInicial
-      ? new Date(filtroDataInicial)
-      : null;
+    let dataInicial: Date | null = filtroDataInicial ? new Date(filtroDataInicial) : null;
     let dataFinal: Date | null = filtroDataFinal ? new Date(filtroDataFinal) : null;
 
     if (dataInicial) dataInicial.setHours(0, 0, 0, 0);
     if (dataFinal) dataFinal.setHours(23, 59, 59, 999);
 
     if (dataInicial && dataFinal && dataInicial > dataFinal) {
-      // Se o usuário inverter as datas, trocamos para manter o intervalo válido.
-      const tmp = dataInicial;
+      const temporaria = dataInicial;
       dataInicial = dataFinal;
-      dataFinal = tmp;
+      dataFinal = temporaria;
     }
 
     const acc = new Map<string, MotoristaResumo>();
@@ -178,15 +220,14 @@ export default function RegistrosPage() {
         registrosPeriodo: 0,
         ultimoRegistroPeriodo: null,
       };
+
       if (data) {
         current.totalRegistros += 1;
         if (!current.ultimoRegistroGeral || current.ultimoRegistroGeral < data) {
           current.ultimoRegistroGeral = data;
         }
 
-        const dentroIntervalo =
-          (!dataInicial || data >= dataInicial) &&
-          (!dataFinal || data <= dataFinal);
+        const dentroIntervalo = (!dataInicial || data >= dataInicial) && (!dataFinal || data <= dataFinal);
 
         if (dentroIntervalo) {
           current.registrosPeriodo += 1;
@@ -202,7 +243,7 @@ export default function RegistrosPage() {
     return Array.from(acc.values()).sort(
       (a, b) => b.registrosPeriodo - a.registrosPeriodo || b.totalRegistros - a.totalRegistros,
     );
-  }, [rowsAtividade, filtroDataInicial, filtroDataFinal]);
+  }, [filtroDataFinal, filtroDataInicial, rowsAtividade]);
 
   const colunasMotoristaResumo: GridColDef<MotoristaResumo>[] = useMemo(
     () => [
@@ -229,48 +270,70 @@ export default function RegistrosPage() {
     ],
     [dateFmt, kmFormatter],
   );
-  
-  const chartData = useMemo(() => {
-    // Usa registros dos últimos 30 dias para os gráficos
-    const cutoff = new Date();
-    cutoff.setDate(cutoff.getDate() - 30);
 
-    const recent = rowsAtividade.filter(
-      (row) => row.dataJS && (row.dataJS as Date) >= cutoff,
+  const chartData = useMemo(() => {
+    const intervalo = parseDateRange(graficoFiltroAplicado.dataInicial, graficoFiltroAplicado.dataFinal);
+    if (intervalo.error) {
+      return {
+        caminhoes: [],
+        km: [],
+        motorista: [],
+      };
+    }
+
+    const dadosFiltrados = rowsAtividade.filter(
+      (row) =>
+        row.dataJS &&
+        (row.dataJS as Date) >= intervalo.inicio &&
+        (row.dataJS as Date) <= intervalo.fim,
     );
 
     const countByPlaca = new Map<string, number>();
     const kmByPlaca = new Map<string, number>();
     const countByMotorista = new Map<string, number>();
 
-    recent.forEach((row) => {
+    dadosFiltrados.forEach((row) => {
       const placa = row.placa || '—';
       const motorista = row.motorista || '—';
       const kmValue = Number(row.km) || 0;
 
       countByPlaca.set(placa, (countByPlaca.get(placa) ?? 0) + 1);
       kmByPlaca.set(placa, (kmByPlaca.get(placa) ?? 0) + kmValue);
-      countByMotorista.set(
-        motorista,
-        (countByMotorista.get(motorista) ?? 0) + 1,
-      );
+      countByMotorista.set(motorista, (countByMotorista.get(motorista) ?? 0) + 1);
     });
 
-    const sortDesc = (arr: ChartPoint[]) => arr.sort((a, b) => b.value - a.value);
-
+    const sortDesc = (items: ChartPoint[]) => items.sort((a, b) => b.value - a.value);
     const toPoints = (map: Map<string, number>) =>
-      sortDesc(
-        Array.from(map.entries()).map(([label, value]) => ({ label, value })),
-      );
+      sortDesc(Array.from(map.entries()).map(([label, value]) => ({ label, value })));
 
     return {
       caminhoes: toPoints(countByPlaca),
       km: toPoints(kmByPlaca),
       motorista: toPoints(countByMotorista),
     };
-  }, [rowsAtividade]);
+  }, [graficoFiltroAplicado.dataFinal, graficoFiltroAplicado.dataInicial, rowsAtividade]);
 
   const currentChartData = chartData[chartTab];
+  const chartDateRangeLabel = `${graficoFiltroAplicado.dataInicial} a ${graficoFiltroAplicado.dataFinal}`;
+
+  const handleAplicarFiltroGraficos = () => {
+    const intervalo = parseDateRange(graficoFiltroRascunho.dataInicial, graficoFiltroRascunho.dataFinal);
+
+    if (intervalo.error) {
+      setGraficoFiltroErro(intervalo.error);
+      return;
+    }
+
+    setGraficoFiltroErro(null);
+    setGraficoFiltroAplicado(graficoFiltroRascunho);
+  };
+
+  const handleResetarFiltroGraficos = () => {
+    const filtroPadrao = getDefaultChartDateFilter();
+    setGraficoFiltroErro(null);
+    setGraficoFiltroRascunho(filtroPadrao);
+    setGraficoFiltroAplicado(filtroPadrao);
+  };
 
   return (
     <Container sx={{ py: 3 }}>
@@ -312,16 +375,61 @@ export default function RegistrosPage() {
           </div>
         </Box>
       </TabPanel>
+
       <TabPanel value={tab} tabKey="graficos">
         <Stack spacing={2} mt={1}>
-           {!isOnline && (
+          {!isOnline && (
             <Alert severity="info">
               Você está offline. Os gráficos usam os dados em cache e podem não refletir atualizações recentes.
             </Alert>
           )}
+
+          <Paper elevation={1} sx={{ p: 2 }}>
+            <Stack spacing={2}>
+              <Stack
+                direction={{ xs: 'column', md: 'row' }}
+                spacing={2}
+                alignItems={{ xs: 'stretch', md: 'flex-end' }}
+              >
+                <TextField
+                  label="Data inicial"
+                  type="date"
+                  size="small"
+                  value={graficoFiltroRascunho.dataInicial}
+                  onChange={(event) => {
+                    setGraficoFiltroErro(null);
+                    setGraficoFiltroRascunho((current) => ({ ...current, dataInicial: event.target.value }));
+                  }}
+                  InputLabelProps={{ shrink: true }}
+                />
+                <TextField
+                  label="Data final"
+                  type="date"
+                  size="small"
+                  value={graficoFiltroRascunho.dataFinal}
+                  onChange={(event) => {
+                    setGraficoFiltroErro(null);
+                    setGraficoFiltroRascunho((current) => ({ ...current, dataFinal: event.target.value }));
+                  }}
+                  InputLabelProps={{ shrink: true }}
+                />
+                <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}>
+                  <Button variant="contained" onClick={handleAplicarFiltroGraficos}>
+                    Aplicar filtro
+                  </Button>
+                  <Button variant="outlined" onClick={handleResetarFiltroGraficos}>
+                    Últimos 30 dias
+                  </Button>
+                </Stack>
+              </Stack>
+
+              {graficoFiltroErro && <Alert severity="warning">{graficoFiltroErro}</Alert>}
+            </Stack>
+          </Paper>
+
           <Tabs
             value={chartTab}
-            onChange={(_e, val) => setChartTab(val)}
+            onChange={(_event, value) => setChartTab(value)}
             aria-label="Gráficos da frota"
             variant="scrollable"
             allowScrollButtonsMobile
@@ -332,23 +440,26 @@ export default function RegistrosPage() {
           </Tabs>
 
           {currentChartData.length === 0 ? (
-            <Typography variant="body1">
-              Sem dados para o período selecionado.
-            </Typography>
+            <Typography variant="body1">Sem dados para o período selecionado.</Typography>
           ) : (
             <Suspense fallback={<Typography>Carregando gráficos...</Typography>}>
-              <FrotaCharts chartTab={chartTab} data={currentChartData as ChartPoint[]} />
+              <FrotaCharts
+                chartTab={chartTab}
+                data={currentChartData as ChartPoint[]}
+                dateRangeLabel={chartDateRangeLabel}
+                hoverMode="valueOnly"
+              />
             </Suspense>
           )}
         </Stack>
       </TabPanel>
+
       <TabPanel value={tab} tabKey="hibrido">
         <Stack spacing={2} mt={1}>
           <Paper elevation={1} sx={{ p: 2 }}>
             <Stack direction={{ xs: 'column', md: 'row' }} justifyContent="space-between" spacing={2} mb={2}>
               <Typography variant="h6">Sobre motorista</Typography>
               <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
-                {/* Campos simples com type="date" para selecionar o intervalo desejado */}
                 <TextField
                   label="Data inicial"
                   type="date"
@@ -385,11 +496,9 @@ export default function RegistrosPage() {
             </div>
           </Paper>
 
-          <Paper elevation={1} sx={{ p: 2 }}>
-            
-          </Paper>
+          <Paper elevation={1} sx={{ p: 2 }} />
         </Stack>
-      </TabPanel>      
+      </TabPanel>
     </Container>
   );
 }

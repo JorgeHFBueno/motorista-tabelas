@@ -19,6 +19,7 @@ type FieldType = 'string' | 'number' | 'boolean' | 'timestamp' | 'json';
 
 interface EditableFieldRowProps {
   fieldPath: string;
+  label?: string;
   value: EditableFieldValue;
   isAdmin: boolean;
   onSave: (fieldPath: string, value: unknown) => Promise<void>;
@@ -52,6 +53,7 @@ const toDateTimeLocalValue = (date: Date) => {
 
 export default function EditableFieldRow({
   fieldPath,
+  label,
   value,
   isAdmin,
   onSave,
@@ -187,7 +189,7 @@ export default function EditableFieldRow({
     >
       <Box sx={{ minWidth: { xs: '100%', md: 220 } }}>
         <Typography variant="subtitle2" color="text.secondary">
-          {fieldPath}
+          {label ?? fieldPath}
         </Typography>
       </Box>
       <Box sx={{ flex: 1, width: '100%' }}>

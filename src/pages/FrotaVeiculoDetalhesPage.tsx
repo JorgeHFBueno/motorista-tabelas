@@ -14,6 +14,8 @@ import {
     Typography,
 } from '@mui/material';
 import {
+    Timestamp,
+    addDoc,
     collection,
     deleteDoc,
     deleteField,
@@ -29,6 +31,7 @@ import {
 } from 'firebase/firestore';
 import { useNavigate, useParams } from 'react-router-dom';
 import FrotaCharts, { type ChartPoint } from '../components/FrotaCharts';
+import ManutencaoDialog from '../components/ManutencaoDialog';
 import ManutencaoDetailPanel from '../components/ManutencaoDetailPanel';
 import ManutencoesList, {
     type FonteEvento,
@@ -37,9 +40,18 @@ import ManutencoesList, {
     type MasterDetailListItem,
     type TipoEvento,
 } from '../components/ManutencoesList';
+import {
+    ABASTECIMENTO_EXTERNO,
+    type CategoriaManutencao,
+    DEFAULT_MANUTENCAO_FORM,
+    type Fornecedor,
+    getManutencaoValidationError,
+    getVeiculoLabel,
+    type ManutencaoForm,
+} from '../components/manutencaoFormShared';
 import { useAuth } from '../contexts/AuthContext';
 import { db } from '../firebase';
-
+import { normalizeFornecedorNumero } from '../services/fornecedores.service';
 type Veiculo = {
     id: string;
     ativo?: boolean;
@@ -100,11 +112,15 @@ type LinhaEvento = {
     categoriaId?: string | null;
     categoriaNomeSnapshot?: string | null;
     valor?: number | null;
+    km?: number | null;
     quantidade?: number | null;
     fornecedor?: string | null;
     fornecedorId?: string | null;
     fornecedorNomeSnapshot?: string | null;
+    motorista?: string | null;
     descricao?: string | null;
+    nota?: string | null;
+    status?: string | null;
 };
 
 const DEFAULT_FORM: VeiculoForm = {
@@ -113,18 +129,6 @@ const DEFAULT_FORM: VeiculoForm = {
     extra: '',
     quilometragemInicial: '',
     quilometragemUltima: '',
-};
-
-const ABASTECIMENTO_EXTERNO = 'ABASTECIMENTO EXTERNO';
-
-type Fornecedor = {
-    id: string;
-    nome: string;
-};
-
-type CategoriaManutencao = {
-    id: string;
-    nome: string;
 };
 
 function toDate(raw: unknown): Date | null {
@@ -224,11 +228,15 @@ async function fetchManutencoes(
                 categoriaId: manutencao.categoriaId ?? null,
                 categoriaNomeSnapshot: manutencao.categoriaNomeSnapshot ?? null,
                 valor: manutencao.valor ?? null,
+                km: manutencao.km ?? null,
                 quantidade: manutencao.quantidade ?? null,
                 fornecedor: manutencao.fornecedor ?? null,
                 fornecedorId: manutencao.fornecedorId ?? null,
                 fornecedorNomeSnapshot: manutencao.fornecedorNomeSnapshot ?? null,
+                motorista: manutencao.motorista ?? null,
                 descricao: manutencao.descricao ?? null,
+                nota: manutencao.nota ?? null,
+                status: manutencao.status ?? null,
             };
         },
     );
@@ -237,7 +245,7 @@ async function fetchManutencoes(
 export default function FrotaVeiculoDetalhesPage() {
     const { placa } = useParams();
     const navigate = useNavigate();
-    const { isAdmin } = useAuth();
+    const { isAdmin, currentUser } = useAuth();
 
     const [veiculo, setVeiculo] = useState<Veiculo | null>(null);
     const [loading, setLoading] = useState(true);
@@ -268,6 +276,9 @@ export default function FrotaVeiculoDetalhesPage() {
     const [selectedError, setSelectedError] = useState<string | null>(null);
     const [fornecedores, setFornecedores] = useState<Fornecedor[]>([]);
     const [categoriasManutencao, setCategoriasManutencao] = useState<CategoriaManutencao[]>([]);
+    const [manutencaoOpen, setManutencaoOpen] = useState(false);
+    const [manutencaoSaving, setManutencaoSaving] = useState(false);
+    const [manutencaoForm, setManutencaoForm] = useState<ManutencaoForm>(DEFAULT_MANUTENCAO_FORM);
     const cacheRef = useRef(new Map<string, Record<string, unknown>>());
 
     const [snackbar, setSnackbar] = useState<{
@@ -510,10 +521,14 @@ export default function FrotaVeiculoDetalhesPage() {
                 const fornecedoresQuery = query(collection(db, 'notas-fornecedores'), orderBy('nome'));
                 const snapshot = await getDocs(fornecedoresQuery);
                 if (!active) return;
-                const data = snapshot.docs.map((docSnap) => ({
-                    id: docSnap.id,
-                    nome: (docSnap.data().nome as string) ?? '',
-                }));
+                const data = snapshot.docs.map((docSnap) => {
+                    const raw = docSnap.data() as { nome?: string; numero?: unknown };
+                    return {
+                        id: docSnap.id,
+                        nome: raw.nome ?? '',
+                        numero: normalizeFornecedorNumero(raw.numero),
+                    };
+                });
                 setFornecedores(data);
             } catch (err) {
                 console.error('Erro ao carregar fornecedores', err);
@@ -634,6 +649,129 @@ export default function FrotaVeiculoDetalhesPage() {
         }
     }
 
+    const manutencaoVeiculoSelecionado = useMemo(
+        () => (veiculo ? { id: veiculo.id, categoria: tipoVeiculo, placa: veiculo.placa, extra: veiculo.extra } : null),
+        [tipoVeiculo, veiculo],
+    );
+    const motoristaAtual = (currentUser?.displayName || currentUser?.email || '').trim();
+    const veiculoLabelSelecionado = getVeiculoLabel(manutencaoVeiculoSelecionado);
+    const isAbastecimentoExterno = manutencaoForm.categoriaNomeSnapshot === ABASTECIMENTO_EXTERNO;
+
+    function openManutencaoDialog() {
+        if (!veiculo) return;
+        setManutencaoForm({
+            ...DEFAULT_MANUTENCAO_FORM,
+            identificador: veiculo.id,
+            tipoVeiculo,
+        });
+        setManutencaoOpen(true);
+    }
+
+    function closeManutencaoDialog() {
+        if (manutencaoSaving) return;
+        setManutencaoOpen(false);
+        setManutencaoForm(DEFAULT_MANUTENCAO_FORM);
+    }
+
+    async function handleSaveManutencao() {
+        const validationError = getManutencaoValidationError(manutencaoForm);
+        if (validationError) {
+            setSnackbar({ open: true, severity: 'error', message: validationError });
+            return;
+        }
+
+        setManutencaoSaving(true);
+        try {
+            const data =
+                manutencaoForm.dataModo === 'MANUAL'
+                    ? Timestamp.fromDate(new Date(manutencaoForm.dataManual))
+                    : Timestamp.fromDate(new Date());
+            const valor = Number(manutencaoForm.valor);
+            const quantidade = Number(manutencaoForm.quantidade);
+            const kmValue = manutencaoForm.km.trim();
+            const km = kmValue ? Number(kmValue) : undefined;
+            const nota = manutencaoForm.nota.trim();
+            const fornecedorNomeSnapshot = manutencaoForm.fornecedorNomeSnapshot.trim();
+            const categoriaNomeSnapshot = manutencaoForm.categoriaNomeSnapshot.trim();
+            const payload = {
+                identificador: manutencaoForm.identificador,
+                tipoVeiculo: manutencaoForm.tipoVeiculo,
+                categoriaId: manutencaoForm.categoriaId,
+                categoriaNomeSnapshot,
+                valor,
+                quantidade,
+                ...(kmValue ? { km } : {}),
+                fornecedorId: manutencaoForm.fornecedorId,
+                fornecedorNomeSnapshot,
+                motorista: manutencaoForm.motorista.trim(),
+                descricao: manutencaoForm.descricao.trim(),
+                nota,
+                status: manutencaoForm.status,
+                data,
+            };
+
+            const docRef = await addDoc(collection(db, 'manutencoes'), payload);
+
+            if (isAbastecimentoExterno) {
+                const qa = Number.isFinite(quantidade) ? quantidade : 0;
+                await addDoc(collection(db, '03-combustivel'), {
+                    data,
+                    observacao: manutencaoForm.descricao.trim(),
+                    fornecedor: motoristaAtual || 'Não informado',
+                    motorista: fornecedorNomeSnapshot || 'Não informado',
+                    para_quem: manutencaoForm.motorista.trim(),
+                    placa: veiculoLabelSelecionado || manutencaoForm.identificador,
+                    qa,
+                });
+            }
+
+            const newRow: LinhaEvento = {
+                id: `manutencoes_${docRef.id}`,
+                docId: docRef.id,
+                collection: 'manutencoes',
+                origem: 'manutencao2026',
+                tipo: 'MANUTENCAO',
+                data: toDate(data),
+                categoria: categoriaNomeSnapshot || null,
+                categoriaId: manutencaoForm.categoriaId || null,
+                categoriaNomeSnapshot: categoriaNomeSnapshot || null,
+                valor,
+                km: km ?? null,
+                quantidade,
+                fornecedor: fornecedorNomeSnapshot || null,
+                fornecedorId: manutencaoForm.fornecedorId || null,
+                fornecedorNomeSnapshot: fornecedorNomeSnapshot || null,
+                motorista: manutencaoForm.motorista.trim() || null,
+                descricao: manutencaoForm.descricao.trim() || null,
+                nota: nota || null,
+                status: manutencaoForm.status,
+            };
+
+            setManutencoes2026Rows((prev) =>
+                [...prev, newRow].sort((a, b) => (b.data?.getTime() ?? 0) - (a.data?.getTime() ?? 0)),
+            );
+            setShowManutencoes2026(true);
+            cacheRef.current.set(buildCacheKey('manutencoes', docRef.id), payload as Record<string, unknown>);
+            setSelectedDocId(docRef.id);
+            setSelectedCollection('manutencoes');
+            setSelectedTipo('manutencao2026');
+            setSelectedDocData(payload as Record<string, unknown>);
+            setSelectedError(null);
+            setSnackbar({ open: true, severity: 'success', message: 'Manutenção adicionada com sucesso.' });
+            setManutencaoOpen(false);
+            setManutencaoForm(DEFAULT_MANUTENCAO_FORM);
+        } catch (err) {
+            console.error('Erro ao salvar manutenção', err);
+            setSnackbar({
+                open: true,
+                severity: 'error',
+                message: 'Não foi possível salvar a manutenção. Tente novamente.',
+            });
+        } finally {
+            setManutencaoSaving(false);
+        }
+    }
+
     useEffect(() => {
         let active = true;
 
@@ -720,16 +858,16 @@ export default function FrotaVeiculoDetalhesPage() {
             }
         }
         if (!showManutencoes2026) return;
-        if (!placa) {
+        if (!veiculo?.id) {
             setManutencoes2026Rows([]);
             return;
         }
 
-        loadManutencoes2026(placa);
+        loadManutencoes2026(veiculo.id);
         return () => {
             active = false;
         };
-    }, [placa, showManutencoes2026]);
+    }, [showManutencoes2026, veiculo?.id]);
 
     useEffect(() => {
         let active = true;
@@ -754,16 +892,16 @@ export default function FrotaVeiculoDetalhesPage() {
         }
 
         if (!showManutencoesLegado) return;
-        if (!placa) {
+        if (!veiculo?.id) {
             setManutencoesLegadoRows([]);
             return;
         }
 
-        loadManutencoesLegado(placa);
+        loadManutencoesLegado(veiculo.id);
         return () => {
             active = false;
         };
-    }, [placa, showManutencoesLegado]);
+    }, [showManutencoesLegado, veiculo?.id]);
 
     const fornecedoresById = useMemo(() => {
         return new Map(fornecedores.map((item) => [item.id, item.nome]));
@@ -777,13 +915,13 @@ export default function FrotaVeiculoDetalhesPage() {
         return (rows: LinhaEvento[]) =>
             rows.map((row) => {
                 const categoriaNome =
-                    (row.categoriaId && categoriasById.get(row.categoriaId)) ||
                     row.categoriaNomeSnapshot ||
+                    (row.categoriaId && categoriasById.get(row.categoriaId)) ||
                     row.categoria ||
                     null;
                 const fornecedorNome =
-                    (row.fornecedorId && fornecedoresById.get(row.fornecedorId)) ||
                     row.fornecedorNomeSnapshot ||
+                    (row.fornecedorId && fornecedoresById.get(row.fornecedorId)) ||
                     row.fornecedor ||
                     null;
                 return {
@@ -833,7 +971,7 @@ export default function FrotaVeiculoDetalhesPage() {
         }
         if (showManutencoes2026) {
             merged.push(
-                ...manutencoes2026Rows.map((row) => ({
+                ...rowsManutencoes2026.map((row) => ({
                     id: row.docId,
                     collection: row.collection,
                     tipo: row.origem,
@@ -845,7 +983,7 @@ export default function FrotaVeiculoDetalhesPage() {
         }
         if (showManutencoesLegado) {
             merged.push(
-                ...manutencoesLegadoRows.map((row) => ({
+                ...rowsManutencoesLegado.map((row) => ({
                     id: row.docId,
                     collection: row.collection,
                     tipo: row.origem,
@@ -858,8 +996,8 @@ export default function FrotaVeiculoDetalhesPage() {
         return merged.sort((a, b) => (b.data?.getTime() ?? 0) - (a.data?.getTime() ?? 0));
     }, [
         combustivelRows,
-        manutencoes2026Rows,
-        manutencoesLegadoRows,
+        rowsManutencoes2026,
+        rowsManutencoesLegado,
         showAbastecimento,
         showManutencoes2026,
         showManutencoesLegado,
@@ -1084,6 +1222,7 @@ export default function FrotaVeiculoDetalhesPage() {
                             isAdmin={isAdmin}
                             error={selectedError}
                             onReload={handleReloadSelected}
+                            onAdd={openManutencaoDialog}
                             onDeleteDoc={handleDeleteDoc}
                             onUpdateField={handleUpdateField}
                             onDeleteField={handleDeleteField}
@@ -1115,6 +1254,19 @@ export default function FrotaVeiculoDetalhesPage() {
                     />
                 )}
             </Box>
+
+            <ManutencaoDialog
+                open={manutencaoOpen}
+                saving={manutencaoSaving}
+                form={manutencaoForm}
+                veiculos={manutencaoVeiculoSelecionado ? [manutencaoVeiculoSelecionado] : []}
+                fornecedores={fornecedores}
+                categoriasManutencao={categoriasManutencao}
+                disableVehicleSelection
+                onClose={closeManutencaoDialog}
+                onSave={handleSaveManutencao}
+                onChange={(updater) => setManutencaoForm((prev) => updater(prev))}
+            />
 
             <Snackbar
                 open={snackbar.open}

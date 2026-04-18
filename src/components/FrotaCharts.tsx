@@ -12,35 +12,48 @@ interface Props {
   chartTab?: ChartKey;
   data: ChartPoint[];
   title?: string;
+  dateRangeLabel?: string;
   xAxisTitle?: string;
   yAxisTitle?: string;
   valueFormatter?: (value: number) => string;
   xAxisTickAngle?: number;
+  hoverMode?: 'labelAndValue' | 'valueOnly';
+}
+
+function getDefaultTitle(chartTab?: ChartKey, dateRangeLabel?: string) {
+  const suffix = dateRangeLabel ? ` (${dateRangeLabel})` : '';
+
+  if (chartTab === 'caminhoes') {
+    return `Caminh\u00f5es mais utilizados${suffix}`;
+  }
+
+  if (chartTab === 'km') {
+    return `Quilometragem por caminh\u00e3o${suffix}`;
+  }
+
+  if (chartTab === 'motorista') {
+    return `Registros por motorista${suffix}`;
+  }
+
+  return '';
 }
 
 export default function FrotaCharts({
   chartTab,
   data,
   title,
+  dateRangeLabel,
   xAxisTitle,
   yAxisTitle,
   valueFormatter,
   xAxisTickAngle,
+  hoverMode = 'labelAndValue',
 }: Props) {
   if (data.length === 0) {
     return null;
   }
 
-  const resolvedTitle =
-    title ??
-    (chartTab === 'caminhoes'
-      ? 'Caminhões mais utilizados (últimos 30 dias)'
-      : chartTab === 'km'
-        ? 'Quilometragem por caminhão (últimos 30 dias)'
-        : chartTab === 'motorista'
-          ? 'Registros por motorista (últimos 30 dias)'
-          : '');
-
+  const resolvedTitle = title ?? getDefaultTitle(chartTab, dateRangeLabel);
   const resolvedXAxisTitle =
     xAxisTitle ?? (chartTab === 'motorista' ? 'Motorista' : 'Placa');
   const resolvedYAxisTitle =
@@ -49,6 +62,12 @@ export default function FrotaCharts({
   const formattedValues = valueFormatter
     ? data.map((item) => valueFormatter(item.value))
     : undefined;
+  const hoverTemplate =
+    hoverMode === 'valueOnly'
+      ? '%{y}<extra></extra>'
+      : valueFormatter
+        ? '%{x}<br>%{text}<extra></extra>'
+        : undefined;
 
   return (
     <Plot
@@ -59,7 +78,7 @@ export default function FrotaCharts({
           y: data.map((item) => item.value),
           marker: { color: '#1976d2' },
           text: formattedValues,
-          hovertemplate: valueFormatter ? '%{x}<br>%{text}<extra></extra>' : undefined,
+          hovertemplate: hoverTemplate,
         },
       ] as Data[]}
       layout={{
