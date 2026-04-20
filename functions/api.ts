@@ -1,12 +1,7 @@
 import express, { Request, Response, NextFunction, Router } from 'express';
 import cors from 'cors';
-import { initializeApp } from 'firebase-admin/app';
-import { getAuth, DecodedIdToken } from 'firebase-admin/auth';
-import { getFirestore } from 'firebase-admin/firestore';
-import { admin } from './firebaseAdmin.js';
-
-initializeApp();
-const db = getFirestore(admin.app());
+import type { DecodedIdToken } from 'firebase-admin/auth';
+import { adminAuth, db } from './firebaseAdmin.js';
 
 interface AuthRequest extends Request {
   user?: DecodedIdToken & { admin?: boolean };
@@ -24,7 +19,7 @@ async function verifyIdToken(
   }
   try {
     const token = header.substring(7); // remove "Bearer "
-    req.user = await getAuth().verifyIdToken(token);
+    req.user = await adminAuth.verifyIdToken(token);
     next();
   } catch {
     res.status(401).json({ error: 'Unauthorized' });

@@ -1,7 +1,15 @@
 import { useCallback, useEffect, useState } from 'react';
-import { createUser as apiCreateUser, deleteUser as apiDeleteUser, listUsers,
-  registerAuthorizedUser as apiRegisterAuthorizedUser, type AdminUser, type CreateAdminUserInput,
-  type RegisterAuthorizedUserInput } from '../services/adminUsersApi';
+import {
+  createUser as apiCreateUser,
+  deleteUser as apiDeleteUser,
+  listUsers,
+  registerAuthorizedUser as apiRegisterAuthorizedUser,
+  updateUser as apiUpdateUser,
+  type AdminUser,
+  type CreateAdminUserInput,
+  type RegisterAuthorizedUserInput,
+  type UpdateAdminUserInput,
+} from '../services/adminUsersApi';
 
 interface UseAdminUsersOptions {
   loadOnMount?: boolean;
@@ -11,7 +19,7 @@ interface UseAdminUsersOptions {
 export default function useAdminUsers(options: UseAdminUsersOptions = {}) {
   const { loadOnMount = true, refreshOnChange = true } = options;
   const [users, setUsers] = useState<AdminUser[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(loadOnMount);
   const [error, setError] = useState<Error | null>(null);
 
   const loadUsers = useCallback(async () => {
@@ -64,6 +72,19 @@ export default function useAdminUsers(options: UseAdminUsersOptions = {}) {
     [loadUsers, refreshOnChange],
   );
 
+  const updateUser = useCallback(
+    async (input: UpdateAdminUserInput) => {
+      const updated = await apiUpdateUser(input);
+      if (refreshOnChange) {
+        await loadUsers();
+      } else {
+        setUsers((current) => current.map((user) => (user.uid === updated.uid ? updated : user)));
+      }
+      return updated;
+    },
+    [loadUsers, refreshOnChange],
+  );
+
   return {
     users,
     loading,
@@ -71,6 +92,7 @@ export default function useAdminUsers(options: UseAdminUsersOptions = {}) {
     createUser,
     deleteUser,
     registerAuthorizedUser,
+    updateUser,
     reload: loadUsers,
   } as const;
 }

@@ -19,13 +19,14 @@ import { collection, deleteDoc, doc, getDocs, orderBy, query, serverTimestamp, u
 import { db } from '../firebase';
 import CadastroEditModal, { type CadastroEditFormValues } from '../components/CadastroEditModal';
 import CadastroEditTable, { type CadastroRow } from '../components/CadastroEditTable';
+import CadastroUsuariosEditarPage from './CadastroUsuariosEditarPage';
 import {
   getFornecedorNumeroErrorMessage,
   normalizeFornecedorNumero,
   updateFornecedorCadastro,
 } from '../services/fornecedores.service';
 
-type CadastroTipo = 'obras' | 'categorias' | 'fornecedores';
+type CadastroTipo = 'usuarios' | 'obras' | 'categorias' | 'fornecedores';
 
 const CADASTRO_CONFIG: Record<CadastroTipo, { label: string; collectionName: string }> = {
   obras: {
@@ -45,6 +46,15 @@ const CADASTRO_CONFIG: Record<CadastroTipo, { label: string; collectionName: str
 export default function CadastrosEditarPage() {
   const { tipo } = useParams();
   const cadastroTipo = tipo as CadastroTipo;
+
+  if (cadastroTipo === 'usuarios') {
+    return <CadastroUsuariosEditarPage />;
+  }
+
+  return <GenericCadastrosEditarPage cadastroTipo={cadastroTipo} />;
+}
+
+function GenericCadastrosEditarPage({ cadastroTipo }: { cadastroTipo: Exclude<CadastroTipo, 'usuarios'> }) {
   const config = CADASTRO_CONFIG[cadastroTipo];
   const [rows, setRows] = useState<CadastroRow[]>([]);
   const [loading, setLoading] = useState(false);
