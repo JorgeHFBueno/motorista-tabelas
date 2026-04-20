@@ -3,7 +3,7 @@ import { admin } from './firebaseAdmin.js';
 
 export interface AdminRequest extends Request {
   // Attach decoded token after verification so handlers can inspect claims.
-  user?: admin.auth.DecodedIdToken & { isAdmin?: boolean };
+  user?: admin.auth.DecodedIdToken & { isAdmin?: boolean; admin?: boolean };
 }
 
 // Middleware that verifies the Firebase ID token and enforces the isAdmin claim.
@@ -24,12 +24,15 @@ export async function adminAuthMiddleware(
 
   try {
     const decoded = await admin.auth().verifyIdToken(idToken);
-    if (!decoded.isAdmin) {
+    if (!decoded.isAdmin && !decoded.admin) {
       res.status(403).json({ error: 'forbidden' });
       return;
     }
 
-    req.user = decoded;
+    req.user = {
+      ...decoded,
+      isAdmin: decoded.isAdmin === true || decoded.admin === true,
+    };
     next();
   } catch (err) {
     console.error('verifyIdToken error', err);

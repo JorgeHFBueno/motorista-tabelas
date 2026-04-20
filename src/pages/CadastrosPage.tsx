@@ -4,67 +4,34 @@ import {
   Box,
   Button,
   Container,
-  Dialog,
-  DialogActions,
-  DialogContent,
-  DialogTitle,
   Paper,
   Snackbar,
   Stack,
-  TextField,
   Typography,
 } from '@mui/material';
 import { Link as RouterLink, useLocation, useNavigate } from 'react-router-dom';
-import useAdminUsers from '../hooks/useAdminUsers';
-import { useAuth } from '../contexts/AuthContext';
 import ObrasSection from '../components/ObrasSection';
 import CadastroBasicoForm from '../components/CadastroBasicoForm';
 
 export default function CadastrosPage() {
   const location = useLocation();
   const navigate = useNavigate();
-  const { createUser } = useAdminUsers({ loadOnMount: false, refreshOnChange: false });
-  const { isAdmin } = useAuth();
-  const [dialogAberto, setDialogAberto] = useState(false);
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [displayName, setDisplayName] = useState('');
-  const [saving, setSaving] = useState(false);
-  const [actionError, setActionError] = useState<string | null>(null);
   const [snackbar, setSnackbar] = useState<{ message: string; severity: 'success' | 'error' } | null>(null);
 
   useEffect(() => {
-    if (location.state && (location.state as { vehicleCreated?: boolean }).vehicleCreated) {
-      setSnackbar({ message: 'VeÃ­culo cadastrado com sucesso.', severity: 'success' });
+    const navigationState = location.state as { vehicleCreated?: boolean; userCreated?: boolean } | null;
+
+    if (navigationState?.vehicleCreated) {
+      setSnackbar({ message: 'Veiculo cadastrado com sucesso.', severity: 'success' });
       navigate(location.pathname, { replace: true });
-    }
-  }, [location.pathname, location.state, navigate]);
-
-  const handleFecharDialog = () => {
-    setDialogAberto(false);
-    setEmail('');
-    setPassword('');
-    setDisplayName('');
-    setSaving(false);
-  };
-
-  const handleCreateUser = async () => {
-    setActionError(null);
-    if (!email || !password) {
-      setActionError('Informe email e senha para criar o usuário.');
       return;
     }
 
-    try {
-      setSaving(true);
-      await createUser({ email, password, displayName: displayName || undefined });
-      handleFecharDialog();
-    } catch (err) {
-      setActionError((err as Error).message);
-    } finally {
-      setSaving(false);
+    if (navigationState?.userCreated) {
+      setSnackbar({ message: 'Usuario cadastrado com sucesso.', severity: 'success' });
+      navigate(location.pathname, { replace: true });
     }
-  };
+  }, [location.pathname, location.state, navigate]);
 
   const cardActionStackSx = {
     width: { xs: '100%', sm: 'auto' },
@@ -91,7 +58,7 @@ export default function CadastrosPage() {
             Cadastros
           </Typography>
           <Typography variant="body1" color="text.secondary">
-            Administre usuários e veículos do sistema.
+            Administre usuarios e veiculos do sistema.
           </Typography>
         </Box>
 
@@ -116,13 +83,13 @@ export default function CadastrosPage() {
               alignItems={{ sm: 'center' }}
             >
               <Box>
-                <Typography variant="h6">Usuários</Typography>
+                <Typography variant="h6">Usuarios</Typography>
                 <Typography variant="body2" color="text.secondary">
-                  Cadastro de funcionários.
+                  Cadastro de funcionarios.
                 </Typography>
               </Box>
               <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} sx={cardActionStackSx}>
-                <Button variant="contained" disabled>
+                <Button variant="contained" component={RouterLink} to="/cadastros/usuarios/novo">
                   Cadastrar
                 </Button>
                 <Button variant="outlined" disabled>
@@ -145,7 +112,7 @@ export default function CadastrosPage() {
               <Box>
                 <Typography variant="h6">Categorias</Typography>
                 <Typography variant="body2" color="text.secondary">
-                  Cadastro de categorias para manutenções.
+                  Cadastro de categorias para manutencoes.
                 </Typography>
               </Box>
               <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} sx={cardActionStackSx}>
@@ -173,7 +140,7 @@ export default function CadastrosPage() {
               <Box>
                 <Typography variant="h6">Fornecedores</Typography>
                 <Typography variant="body2" color="text.secondary">
-                  Cadastro de fornecedores para manutenções.
+                  Cadastro de fornecedores para manutencoes.
                 </Typography>
               </Box>
               <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} sx={cardActionStackSx}>
@@ -200,9 +167,9 @@ export default function CadastrosPage() {
               alignItems={{ sm: 'center' }}
             >
               <Box>
-                <Typography variant="h6">Veículos</Typography>
+                <Typography variant="h6">Veiculos</Typography>
                 <Typography variant="body2" color="text.secondary">
-                  Cadastro de Veículos.
+                  Cadastro de veiculos.
                 </Typography>
               </Box>
               <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} sx={cardActionStackSx}>
@@ -217,46 +184,6 @@ export default function CadastrosPage() {
           </Paper>
         </Box>
       </Stack>
-
-      <Dialog open={dialogAberto} onClose={handleFecharDialog} fullWidth maxWidth="sm">
-        <DialogTitle>Adicionar usuário</DialogTitle>
-        <DialogContent dividers>
-          <Stack spacing={2} mt={1}>
-            <TextField
-              label="Email"
-              type="email"
-              value={email}
-              onChange={(event) => setEmail(event.target.value)}
-              fullWidth
-            />
-            <TextField
-              label="Senha"
-              type="password"
-              value={password}
-              onChange={(event) => setPassword(event.target.value)}
-              fullWidth
-            />
-            <TextField
-              label="Nome (opcional)"
-              value={displayName}
-              onChange={(event) => setDisplayName(event.target.value)}
-              fullWidth
-            />
-            <Alert severity="info">
-              Esta aÃ§Ã£o utiliza o endpoint admin (/api/admin/users). Caso nÃ£o esteja implementado, serÃ¡ exibido um erro.
-            </Alert>
-            {actionError && <Alert severity="error">{actionError}</Alert>}
-          </Stack>
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={handleFecharDialog} disabled={saving}>
-            Cancelar
-          </Button>
-          <Button onClick={handleCreateUser} variant="contained" disabled={saving || !isAdmin}>
-            Salvar
-          </Button>
-        </DialogActions>
-      </Dialog>
 
       {snackbar && (
         <Snackbar

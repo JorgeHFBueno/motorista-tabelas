@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { createUser as apiCreateUser, deleteUser as apiDeleteUser, listUsers,
-  type AdminUser, type CreateAdminUserInput } from '../services/adminUsersApi';
+  registerAuthorizedUser as apiRegisterAuthorizedUser, type AdminUser, type CreateAdminUserInput,
+  type RegisterAuthorizedUserInput } from '../services/adminUsersApi';
 
 interface UseAdminUsersOptions {
   loadOnMount?: boolean;
@@ -52,12 +53,24 @@ export default function useAdminUsers(options: UseAdminUsersOptions = {}) {
     [loadUsers, refreshOnChange],
   );
 
+  const registerAuthorizedUser = useCallback(
+    async (input: RegisterAuthorizedUserInput) => {
+      const created = await apiRegisterAuthorizedUser(input);
+      if (refreshOnChange) {
+        await loadUsers();
+      }
+      return created;
+    },
+    [loadUsers, refreshOnChange],
+  );
+
   return {
     users,
     loading,
     error,
     createUser,
     deleteUser,
+    registerAuthorizedUser,
     reload: loadUsers,
   } as const;
 }

@@ -17,6 +17,7 @@ const LoginPage = lazy(() => import('./pages/LoginPage'));
 const SignupPage = lazy(() => import('./pages/SignupPage'));
 const CadastrosPage = lazy(() => import('./pages/CadastrosPage'));
 const CadastroVeiculoNovoPage = lazy(() => import('./pages/CadastroVeiculoNovoPage'));
+const CadastroUsuarioNovoPage = lazy(() => import('./pages/CadastroUsuarioNovoPage'));
 const CadastrosEditarPage = lazy(() => import('./pages/CadastrosEditarPage'));
 const RegistrosPage = lazy(() => import('./pages/RegistrosPage'));
 const FrotaVeiculosPage = lazy(() => import('./pages/FrotaVeiculosPage'));
@@ -34,7 +35,7 @@ function LoadingFallback({ label }: { label?: string }) {
   );
 }
 
-console.log('[build]', import.meta.env.MODE, '__BUILD__', '1111');
+console.log('[build]', import.meta.env.MODE, '__BUILD__', '1115');
 
 export default function App() {
   return (
@@ -56,6 +57,7 @@ export default function App() {
               <Route path="combustivel/*" element={<Navigate to="/combustivel" replace />} />
             </Route>
             <Route path="cadastros" element={<CadastrosPage />} />
+            <Route path="cadastros/usuarios/novo" element={<CadastroUsuarioNovoPage />} />
             <Route path="cadastros/veiculos/novo" element={<CadastroVeiculoNovoPage />} />
             <Route path="cadastros/editar/:tipo" element={<CadastrosEditarPage />} />
             <Route path="registros" element={<RegistrosPage />} />
