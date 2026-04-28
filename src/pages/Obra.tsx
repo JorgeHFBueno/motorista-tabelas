@@ -181,8 +181,7 @@ const Obra = () => {
             </span>
           </div>
           <p className="text-sm lg:text-base text-muted-foreground">
-            Acompanhe o progresso percentual de cada etapa e de cada item da sua
-            obra.
+            Acompanhe o progresso de cada etapa e de cada item da sua obra.
           </p>
         </motion.div>
 

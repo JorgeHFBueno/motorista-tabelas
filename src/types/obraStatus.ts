@@ -4,6 +4,8 @@ export type ObraStatusProgressLabel =
   | "finalizando"
   | "completo";
 
+export type ObraStatusControlMode = "percentual" | "checklist";
+
 export interface ObraStatusItem {
   id: string;
   nome: string;
@@ -16,6 +18,7 @@ export interface ObraStatusEtapa {
   id: string;
   nome: string;
   ordem: number;
+  modoControle: ObraStatusControlMode;
   progresso: number;
   status: ObraStatusProgressLabel;
   itens: ObraStatusItem[];

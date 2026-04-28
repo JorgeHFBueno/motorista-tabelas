@@ -1,5 +1,6 @@
 import { OBRA_STATUS_TEMPLATE } from "@/constants/obraStatusTemplate";
 import type {
+  ObraStatusControlMode,
   ObraStatusData,
   ObraStatusEtapa,
   ObraStatusItem,
@@ -87,6 +88,38 @@ const averageProgress = (values: number[]) => {
   );
 };
 
+export const getDefaultControlModeForEtapa = ({
+  id,
+  nome,
+}: {
+  id?: string | null;
+  nome?: string | null;
+}): ObraStatusControlMode => {
+  const normalizedId = id?.trim().toLowerCase() ?? "";
+  const normalizedName = nome?.trim().toLowerCase() ?? "";
+  const searchable = `${normalizedId} ${normalizedName}`;
+
+  if (
+    searchable.includes("producao") ||
+    searchable.includes("produção") ||
+    searchable.includes("execucao") ||
+    searchable.includes("execução") ||
+    searchable.includes("montagem")
+  ) {
+    return "percentual";
+  }
+
+  return "checklist";
+};
+
+const normalizeControlMode = (
+  rawMode: unknown,
+  etapa: { id?: string | null; nome?: string | null },
+): ObraStatusControlMode =>
+  rawMode === "percentual" || rawMode === "checklist"
+    ? rawMode
+    : getDefaultControlModeForEtapa(etapa);
+
 export const createStatusId = (prefix: string) =>
   `${prefix}_${crypto.randomUUID()}`;
 
@@ -96,6 +129,7 @@ export const createDefaultObraStatus = (): ObraStatusData =>
       id: etapa.id,
       nome: etapa.nome,
       ordem: etapa.ordem,
+      modoControle: etapa.modoControle,
       progresso: 0,
       status: "pendente",
       itens: etapa.itens.map((nome, index) => ({
@@ -147,7 +181,19 @@ const normalizeEtapa = (rawEtapa: unknown, index: number): ObraStatusEtapa => {
         .sort((a, b) => a.ordem - b.ordem)
     : [];
 
-  const progresso = averageProgress(itens.map((item) => item.progresso));
+  const modoControle = normalizeControlMode(etapa.modoControle, {
+    id: etapaId,
+    nome:
+      typeof etapa.nome === "string"
+        ? etapa.nome
+        : typeof etapa.titulo === "string"
+          ? etapa.titulo
+          : null,
+  });
+  const progresso =
+    modoControle === "checklist"
+      ? averageProgress(itens.map((item) => (item.progresso >= 100 ? 100 : 0)))
+      : averageProgress(itens.map((item) => item.progresso));
 
   return {
     id: etapaId,
@@ -159,9 +205,20 @@ const normalizeEtapa = (rawEtapa: unknown, index: number): ObraStatusEtapa => {
       typeof etapa.ordem === "number" && Number.isFinite(etapa.ordem)
         ? etapa.ordem
         : index + 1,
+    modoControle,
     progresso,
     status: deriveProgressStatus(progresso),
-    itens,
+    itens:
+      modoControle === "checklist"
+        ? itens.map((item) => {
+            const progressoItem = item.progresso >= 100 ? 100 : 0;
+            return {
+              ...item,
+              progresso: progressoItem,
+              status: deriveProgressStatus(progressoItem),
+            };
+          })
+        : itens,
   };
 };
 

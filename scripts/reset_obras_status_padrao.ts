@@ -31,6 +31,7 @@ const createOfficialStatusPayload = () => ({
     id: etapa.id,
     nome: etapa.nome,
     ordem: etapa.ordem,
+    modoControle: etapa.modoControle,
     progresso: 0,
     status: "pendente",
     itens: etapa.itens.map((nome, index) => ({

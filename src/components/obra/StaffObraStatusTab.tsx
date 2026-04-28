@@ -3,6 +3,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { ChevronDown, Loader2, Pencil, Plus, Save, Trash2, X } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Collapsible,
   CollapsibleContent,
@@ -10,6 +11,13 @@ import {
 } from "@/components/ui/collapsible";
 import { Input } from "@/components/ui/input";
 import { Progress } from "@/components/ui/progress";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { useObraStatus } from "@/hooks/useObraStatus";
 import { useToast } from "@/hooks/use-toast";
 import {
@@ -21,7 +29,11 @@ import {
 } from "@/lib/obraStatus";
 import { cn } from "@/lib/utils";
 import { ensureObraStatus, saveObraStatus } from "@/services/obraStatus.service";
-import type { ObraStatusData, ObraStatusEtapa } from "@/types/obraStatus";
+import type {
+  ObraStatusControlMode,
+  ObraStatusData,
+  ObraStatusEtapa,
+} from "@/types/obraStatus";
 
 interface UpdateActor {
   uid: string;
@@ -192,6 +204,7 @@ const StaffObraStatusTab = ({ obraId, actor }: StaffObraStatusTabProps) => {
           id: stageId,
           nome: "Nova etapa",
           ordem: currentStatus.etapas.length + 1,
+          modoControle: "checklist",
           progresso: 0,
           status: "pendente",
           itens: [],
@@ -207,6 +220,66 @@ const StaffObraStatusTab = ({ obraId, actor }: StaffObraStatusTabProps) => {
   const saveCurrentDraft = () => {
     if (!draftStatus) return;
     saveMutation.mutate(draftStatus);
+  };
+
+  const persistStageMutation = (
+    stageId: string,
+    mutator: (currentStage: ObraStatusEtapa) => ObraStatusEtapa,
+  ) => {
+    if (editingStageId === stageId) {
+      updateDraft(
+        (current) => ({
+          ...current,
+          etapas: current.etapas.map((currentStage) =>
+            currentStage.id === stageId ? mutator(currentStage) : currentStage,
+          ),
+        }),
+        { stageId },
+      );
+      return;
+    }
+
+    const currentStatus = cloneStatus(statusData);
+    if (!currentStatus) return;
+
+    const nextStatus = reindexStatus({
+      ...currentStatus,
+      etapas: currentStatus.etapas.map((currentStage) =>
+        currentStage.id === stageId ? mutator(currentStage) : currentStage,
+      ),
+    });
+
+    setDraftStatus(nextStatus);
+    setExpandedStages((current) => ({ ...current, [stageId]: true }));
+    saveMutation.mutate(nextStatus);
+  };
+
+  const updateStageControlMode = (
+    stageId: string,
+    modoControle: ObraStatusControlMode,
+  ) => {
+    persistStageMutation(stageId, (currentStage) => ({
+      ...currentStage,
+      modoControle,
+    }));
+  };
+
+  const toggleChecklistItem = (
+    stageId: string,
+    itemId: string,
+    checked: boolean,
+  ) => {
+    persistStageMutation(stageId, (currentStage) => ({
+      ...currentStage,
+      itens: currentStage.itens.map((currentItem) =>
+        currentItem.id === itemId
+          ? {
+              ...currentItem,
+              progresso: checked ? 100 : 0,
+            }
+          : currentItem,
+      ),
+    }));
   };
 
   const overallTone = useMemo(
@@ -243,7 +316,7 @@ const StaffObraStatusTab = ({ obraId, actor }: StaffObraStatusTabProps) => {
               Progresso geral da obra
             </h3>
             <p className="text-sm text-muted-foreground">
-              O progresso geral e calculado por media simples das etapas, e cada etapa usa a media simples dos itens.
+              O progresso geral e calculado por media simples das etapas; cada etapa pode usar percentual informado ou checklist.
             </p>
           </div>
 
@@ -301,6 +374,9 @@ const StaffObraStatusTab = ({ obraId, actor }: StaffObraStatusTabProps) => {
                       <Badge variant={getProgressStatusBadgeVariant(etapa.status)}>
                         {getProgressStatusLabel(etapa.status)}
                       </Badge>
+                      <Badge variant="outline">
+                        {etapa.modoControle === "checklist" ? "Checklist" : "Barra de %"}
+                      </Badge>
                       <span className="text-xs text-muted-foreground">
                         {etapa.itens.length} itens
                       </span>
@@ -350,7 +426,7 @@ const StaffObraStatusTab = ({ obraId, actor }: StaffObraStatusTabProps) => {
                     />
                   ) : (
                     <div className="rounded-lg border border-border/70 bg-muted/45 px-3 py-2 text-sm text-muted-foreground">
-                      Status derivado automaticamente pelo percentual medio dos itens.
+                      Status derivado automaticamente pelo modo de acompanhamento da etapa.
                     </div>
                   )}
 
@@ -434,6 +510,32 @@ const StaffObraStatusTab = ({ obraId, actor }: StaffObraStatusTabProps) => {
                   </div>
                 </div>
 
+                <div className="flex flex-col gap-2 rounded-lg border border-border/70 bg-muted/30 p-3 md:flex-row md:items-center md:justify-between">
+                  <div className="space-y-1">
+                    <p className="text-sm font-medium text-foreground">
+                      Modo de acompanhamento
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      Checklist calcula o percentual pelos itens concluidos; barra de % usa o percentual informado.
+                    </p>
+                  </div>
+                  <Select
+                    value={etapa.modoControle}
+                    onValueChange={(value: ObraStatusControlMode) =>
+                      updateStageControlMode(etapa.id, value)
+                    }
+                    disabled={saveMutation.isPending}
+                  >
+                    <SelectTrigger className="w-full md:w-48">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="checklist">Checklist</SelectItem>
+                      <SelectItem value="percentual">Barra de %</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
                 <div className="space-y-3">
                   {etapa.itens.length === 0 ? (
                     <div className="rounded-lg border border-dashed bg-muted/45 p-3 text-sm text-muted-foreground">
@@ -497,37 +599,56 @@ const StaffObraStatusTab = ({ obraId, actor }: StaffObraStatusTabProps) => {
 
                             {isEditing ? (
                               <div className="flex items-center gap-2">
-                                <Input
-                                  type="number"
-                                  min={0}
-                                  max={100}
-                                  step={1}
-                                  value={item.progresso}
-                                  onChange={(event) =>
-                                    updateDraft(
-                                      (current) => ({
-                                        ...current,
-                                        etapas: current.etapas.map((currentStage) =>
-                                          currentStage.id === etapa.id
-                                            ? {
-                                                ...currentStage,
-                                                itens: currentStage.itens.map((currentItem) =>
-                                                  currentItem.id === item.id
-                                                    ? {
-                                                        ...currentItem,
-                                                        progresso: Number(event.target.value),
-                                                      }
-                                                    : currentItem,
-                                                ),
-                                              }
-                                            : currentStage,
-                                        ),
-                                      }),
-                                      { stageId: etapa.id },
-                                    )
-                                  }
-                                  className="w-24"
-                                />
+                                {etapa.modoControle === "checklist" ? (
+                                  <div className="flex items-center gap-2 rounded-md border px-3 py-2">
+                                    <Checkbox
+                                      checked={item.progresso >= 100}
+                                      onCheckedChange={(checked) =>
+                                        toggleChecklistItem(
+                                          etapa.id,
+                                          item.id,
+                                          checked === true,
+                                        )
+                                      }
+                                      disabled={saveMutation.isPending}
+                                    />
+                                    <span className="text-sm text-muted-foreground">
+                                      Concluido
+                                    </span>
+                                  </div>
+                                ) : (
+                                  <Input
+                                    type="number"
+                                    min={0}
+                                    max={100}
+                                    step={1}
+                                    value={item.progresso}
+                                    onChange={(event) =>
+                                      updateDraft(
+                                        (current) => ({
+                                          ...current,
+                                          etapas: current.etapas.map((currentStage) =>
+                                            currentStage.id === etapa.id
+                                              ? {
+                                                  ...currentStage,
+                                                  itens: currentStage.itens.map((currentItem) =>
+                                                    currentItem.id === item.id
+                                                      ? {
+                                                          ...currentItem,
+                                                          progresso: Number(event.target.value),
+                                                        }
+                                                      : currentItem,
+                                                  ),
+                                                }
+                                              : currentStage,
+                                          ),
+                                        }),
+                                        { stageId: etapa.id },
+                                      )
+                                    }
+                                    className="w-24"
+                                  />
+                                )}
                                 <Button
                                   variant="ghost"
                                   size="icon"
@@ -554,6 +675,23 @@ const StaffObraStatusTab = ({ obraId, actor }: StaffObraStatusTabProps) => {
                                 >
                                   <Trash2 className="h-4 w-4" />
                                 </Button>
+                              </div>
+                            ) : etapa.modoControle === "checklist" ? (
+                              <div className="flex items-center gap-2">
+                                <Checkbox
+                                  checked={item.progresso >= 100}
+                                  onCheckedChange={(checked) =>
+                                    toggleChecklistItem(
+                                      etapa.id,
+                                      item.id,
+                                      checked === true,
+                                    )
+                                  }
+                                  disabled={saveMutation.isPending}
+                                />
+                                <span className="text-sm font-semibold text-foreground">
+                                  {item.progresso >= 100 ? "Concluido" : "Pendente"}
+                                </span>
                               </div>
                             ) : (
                               <span className="text-sm font-semibold text-foreground">
