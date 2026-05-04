@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import { ChevronDown } from "lucide-react";
+import { CheckCircle2, ChevronDown, Circle } from "lucide-react";
 import ResponsiveLayout from "@/components/layout/ResponsiveLayout";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
@@ -24,6 +24,7 @@ const StageCard = ({
   onToggle: () => void;
 }) => {
   const tone = getProgressStatusTone(fase.status);
+  const isChecklist = fase.modoControle === "checklist";
 
   return (
     <motion.div
@@ -79,28 +80,52 @@ const StageCard = ({
               <div className="space-y-3">
                 {fase.itens.map((item) => {
                   const itemTone = getProgressStatusTone(item.status);
+                  const isDone = item.status === "completo";
+                  const ChecklistIcon = isDone ? CheckCircle2 : Circle;
 
                   return (
                     <div key={item.id} className="rounded-xl border p-3 space-y-2">
-                      <div className="flex items-start justify-between gap-3">
-                        <div className="min-w-0">
-                          <p className="text-sm font-medium text-foreground">
-                            {item.nome}
-                          </p>
-                          <p className={cn("text-xs", itemTone.textClass)}>
-                            {getProgressStatusLabel(item.status)}
-                          </p>
+                      {isChecklist ? (
+                        <div className="flex items-start gap-3">
+                          <ChecklistIcon
+                            className={cn(
+                              "mt-0.5 h-5 w-5 shrink-0",
+                              isDone ? "text-success" : "text-muted-foreground",
+                            )}
+                            aria-hidden="true"
+                          />
+                          <div className="min-w-0">
+                            <p className="text-sm font-medium text-foreground">
+                              {item.nome}
+                            </p>
+                            <p className={cn("text-xs", itemTone.textClass)}>
+                              {isDone ? "Concluido" : "Pendente"}
+                            </p>
+                          </div>
                         </div>
-                        <span className="text-sm font-semibold text-foreground">
-                          {item.progresso}%
-                        </span>
-                      </div>
+                      ) : (
+                        <>
+                          <div className="flex items-start justify-between gap-3">
+                            <div className="min-w-0">
+                              <p className="text-sm font-medium text-foreground">
+                                {item.nome}
+                              </p>
+                              <p className={cn("text-xs", itemTone.textClass)}>
+                                {getProgressStatusLabel(item.status)}
+                              </p>
+                            </div>
+                            <span className="text-sm font-semibold text-foreground">
+                              {item.progresso}%
+                            </span>
+                          </div>
 
-                      <Progress
-                        value={item.progresso}
-                        className="h-2"
-                        indicatorClassName={itemTone.indicatorClass}
-                      />
+                          <Progress
+                            value={item.progresso}
+                            className="h-2"
+                            indicatorClassName={itemTone.indicatorClass}
+                          />
+                        </>
+                      )}
                     </div>
                   );
                 })}

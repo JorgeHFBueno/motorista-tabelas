@@ -101,7 +101,9 @@ const StagesOverview = ({
                         {fase.nome}
                       </span>
                       <span className={cn("text-xs", meta.textClass)}>
-                        {meta.label} • {summary.doneCount}/{summary.total} itens
+                        {fase.modoControle === "checklist"
+                          ? `${meta.label} - Checklist - ${summary.doneCount}/${summary.total} marcados`
+                          : `${meta.label} - Percentual - ${summary.doneCount}/${summary.total} itens completos`}
                       </span>
                     </div>
                     <span className={cn("text-sm font-semibold ml-2 shrink-0", meta.textClass)}>
