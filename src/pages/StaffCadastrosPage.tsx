@@ -1,22 +1,14 @@
 import { useEffect, useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import {
-  addDoc,
-  collection,
-  doc,
-  getDoc,
-  getDocs,
-  limit,
-  orderBy,
-  query,
-  serverTimestamp,
-  where,
-} from "firebase/firestore";
+import { collection, doc, getDoc, getDocs, limit, orderBy, query, where } from "firebase/firestore";
+import { ChevronDown, ChevronRight } from "lucide-react";
 import ResponsiveLayout from "@/components/layout/ResponsiveLayout";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { CadastroObraForm } from "@/components/obra/CadastroObraForm";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useAuth } from "@/contexts/AuthContext";
 import { db } from "@/lib/firebase";
@@ -89,53 +81,6 @@ const mapObraOptions = (snapshot: Awaited<ReturnType<typeof getDocs>>) => {
 
   return obras.sort((a, b) => a.nome.localeCompare(b.nome, "pt-BR"));
 };
-
-type CreateObraCardProps = {
-  nome: string;
-  descricao: string;
-  status: "ativa" | "concluida";
-  isCreating: boolean;
-  setNome: (value: string) => void;
-  setDescricao: (value: string) => void;
-  setStatus: (value: "ativa" | "concluida") => void;
-  onCreateObra: () => Promise<void>;
-};
-
-const CreateObraCard = ({ nome, descricao, status, isCreating, setNome, setDescricao, setStatus, onCreateObra }: CreateObraCardProps) => (
-  <Card>
-    <CardHeader>
-      <CardTitle>Cadastro de obras</CardTitle>
-      <CardDescription>Criação básica de obras no Firestore.</CardDescription>
-    </CardHeader>
-    <CardContent className="space-y-3">
-      <div className="grid gap-3 md:grid-cols-2">
-        <div className="space-y-1">
-          <Label htmlFor="nome-obra">Nome</Label>
-          <Input id="nome-obra" value={nome} onChange={(event) => setNome(event.target.value)} />
-        </div>
-        <div className="space-y-1">
-          <Label>Status</Label>
-          <Select value={status} onValueChange={(value: "ativa" | "concluida") => setStatus(value)}>
-            <SelectTrigger>
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="ativa">Ativa</SelectItem>
-              <SelectItem value="concluida">Concluída</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-      </div>
-      <div className="space-y-1">
-        <Label htmlFor="descricao-obra">Descrição (opcional)</Label>
-        <Input id="descricao-obra" value={descricao} onChange={(event) => setDescricao(event.target.value)} />
-      </div>
-      <Button onClick={() => void onCreateObra()} disabled={isCreating}>
-        {isCreating ? "Criando..." : "Criar obra"}
-      </Button>
-    </CardContent>
-  </Card>
-);
 
 type VincularDesvincularObraCardProps = {
   isAdmin: boolean;
@@ -497,10 +442,7 @@ const StaffCadastrosPage = () => {
   const queryClient = useQueryClient();
   const isAdmin = userDoc?.role === "admin";
 
-  const [nome, setNome] = useState("");
-  const [descricao, setDescricao] = useState("");
-  const [status, setStatus] = useState<"ativa" | "concluida">("ativa");
-  const [isCreating, setIsCreating] = useState(false);
+  const [isObraCadastroOpen, setIsObraCadastroOpen] = useState(false);
 
   const [novoEmail, setNovoEmail] = useState("");
   const [novaSenha, setNovaSenha] = useState("");
@@ -542,6 +484,12 @@ const StaffCadastrosPage = () => {
 
     void loadOptions();
   }, []);
+
+  const handleObraCreated = async () => {
+    const obrasSnapshot = await getDocs(collection(db, "obras"));
+    setObraOptions(mapObraOptions(obrasSnapshot));
+    setIsObraCadastroOpen(false);
+  };
 
   const selectedUserObrasQuery = useQuery({
     queryKey: ["users", selectedLinkUid, "obras"],
@@ -618,37 +566,6 @@ const StaffCadastrosPage = () => {
 
     return () => window.clearTimeout(timeoutId);
   }, [novoEmail]);
-
-  const handleCreateObra = async () => {
-      const nomeLimpo = nome.trim();
-      if (!nomeLimpo) {
-        toast({ title: "Nome obrigatório", description: "Informe o nome da obra.", variant: "destructive" });
-        return;
-      }
-
-      try {
-        setIsCreating(true);
-        await addDoc(collection(db, "obras"), {
-          nome: nomeLimpo,
-          descricao: descricao.trim() || null,
-          status,
-          createdAt: serverTimestamp(),
-        });
-
-        setNome("");
-        setDescricao("");
-        setStatus("ativa");
-
-        toast({
-          title: "Obra criada",
-          description: "Obra registrada com sucesso.",
-        });
-      } catch (error) {
-        toast({ title: "Sem permissão para criar", description: getErrorMessage(error), variant: "destructive" });
-      } finally {
-        setIsCreating(false);
-      }
-    };
 
     const handleAdminCreateUser = async () => {
       const email = normalizeEmail(novoEmail);
@@ -789,16 +706,27 @@ const StaffCadastrosPage = () => {
     return (
       <ResponsiveLayout headerTitle="Cadastros" headerSubtitle="Obras e administração de usuários">
         <div className="px-4 py-6 lg:px-8 lg:py-8 space-y-4">
-          <CreateObraCard
-            nome={nome}
-            descricao={descricao}
-            status={status}
-            isCreating={isCreating}
-            setNome={setNome}
-            setDescricao={setDescricao}
-            setStatus={setStatus}
-            onCreateObra={handleCreateObra}
-          />
+          <Collapsible open={isObraCadastroOpen} onOpenChange={setIsObraCadastroOpen}>
+            <Card>
+              <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <CardTitle>Cadastro de obras</CardTitle>
+                  <CardDescription>Criação básica de obras no Firestore.</CardDescription>
+                </div>
+                <CollapsibleTrigger asChild>
+                  <Button variant="outline" size="sm" className="w-full gap-2 sm:w-auto">
+                    {isObraCadastroOpen ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+                    {isObraCadastroOpen ? "Recolher" : "Expandir"}
+                  </Button>
+                </CollapsibleTrigger>
+              </CardHeader>
+              <CollapsibleContent>
+                <CardContent>
+                  <CadastroObraForm onSuccess={handleObraCreated} />
+                </CardContent>
+              </CollapsibleContent>
+            </Card>
+          </Collapsible>
 
           <AdminFunctionsCard
             isAdmin={isAdmin}
