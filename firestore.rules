@@ -52,6 +52,10 @@ service cloud.firestore {
         && request.resource.data.lida is bool;
     }
 
+    function isObraUpdateWithoutExecucaoEquipeChange() {
+      return !request.resource.data.diff(resource.data).affectedKeys().hasAny(['execucaoEquipe']);
+    }
+
     function isSupportNotificationCreate(uid) {
       return isSignedIn()
         && request.resource.data.userId == uid
@@ -189,7 +193,9 @@ service cloud.firestore {
     }
 
     match /obras/{obraId} {
-      allow read, write: if isSignedIn();
+      allow read, create, delete: if isSignedIn();
+      allow update: if isSignedIn()
+        && (isStaff() || isObraUpdateWithoutExecucaoEquipeChange());
       match /{sub=**} {
         allow read, write: if isSignedIn();
       }

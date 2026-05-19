@@ -11,6 +11,8 @@ export const NOTIFICATION_TYPES = [
   "suporte_ticket_novo",
   "suporte_ticket_resposta",
   "suporte_ticket_status",
+  "equipe_saida_confirmada",
+  "equipe_chegada_confirmada",
 ] as const;
 
 export type NotificationType = (typeof NOTIFICATION_TYPES)[number];

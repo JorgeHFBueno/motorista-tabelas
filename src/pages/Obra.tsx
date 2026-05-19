@@ -3,6 +3,7 @@ import { AnimatePresence, motion } from "framer-motion";
 import { CheckCircle2, ChevronDown, Circle } from "lucide-react";
 import ResponsiveLayout from "@/components/layout/ResponsiveLayout";
 import { Badge } from "@/components/ui/badge";
+import ExecucaoEquipeCard from "@/components/obra/ExecucaoEquipeCard";
 import { Progress } from "@/components/ui/progress";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useClientObraOverview } from "@/hooks/useClientObraOverview";
@@ -209,6 +210,14 @@ const Obra = () => {
             Acompanhe o progresso de cada etapa e de cada item da sua obra.
           </p>
         </motion.div>
+
+        {activeObraId ? (
+          <ExecucaoEquipeCard
+            mode="client"
+            obraId={activeObraId}
+            confirmacoes={obra?.execucaoEquipe}
+          />
+        ) : null}
 
         {!activeObraId ? (
           <div className="rounded-xl border bg-card p-4 text-sm text-muted-foreground">

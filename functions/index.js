@@ -400,6 +400,46 @@ async function dispatchNotificationFromEvent({
   });
 }
 
+function timestampMillis(value) {
+  if (!value) return null;
+  if (typeof value.toMillis === "function") return value.toMillis();
+  if (typeof value.seconds === "number") return value.seconds * 1000;
+  return null;
+}
+
+function formatDateTimePtBr(value) {
+  const millis = timestampMillis(value);
+  if (!millis) return "";
+
+  return new Intl.DateTimeFormat("pt-BR", {
+    dateStyle: "short",
+    timeStyle: "short",
+    timeZone: "America/Sao_Paulo",
+  }).format(new Date(millis));
+}
+
+function getExecucaoEquipeChanges(beforeData, afterData) {
+  const beforeExecucao = beforeData?.execucaoEquipe ?? {};
+  const afterExecucao = afterData?.execucaoEquipe ?? {};
+
+  return ["saida", "chegada"]
+    .map((tipo) => {
+      const beforeConfirmacao = beforeExecucao?.[tipo] ?? null;
+      const afterConfirmacao = afterExecucao?.[tipo] ?? null;
+      const beforeMillis = timestampMillis(beforeConfirmacao?.dataHora);
+      const afterMillis = timestampMillis(afterConfirmacao?.dataHora);
+      const changed = Boolean(afterConfirmacao?.confirmado === true && afterMillis && beforeMillis !== afterMillis);
+
+      return {
+        tipo,
+        changed,
+        dataHora: afterConfirmacao?.dataHora,
+        millis: afterMillis,
+      };
+    })
+    .filter((item) => item.changed);
+}
+
 exports.notifyOnNewPhoto = onDocumentCreated("fotos/{fotoId}", async (event) => {
   const data = event.data?.data() ?? {};
   const obraId = normalizeString(data.obraId);
@@ -446,32 +486,59 @@ exports.notifyOnObraProgressUpdate = onDocumentUpdated("obras/{obraId}", async (
   const afterData = event.data?.after?.data() ?? {};
 
   const diff = detectProgressChanges(beforeData.statusObra, afterData.statusObra);
-  if (!diff.changed) {
+  const execucaoEquipeChanges = getExecucaoEquipeChanges(beforeData, afterData);
+  if (!diff.changed && execucaoEquipeChanges.length === 0) {
     return;
   }
 
   const obraId = event.params.obraId;
-  const etapa = diff.etapa;
 
-  const mensagem = diff.toggledCount > 1
-    ? `A etapa '${etapa}' teve ${diff.toggledCount} itens com progresso atualizado.`
-    : `A etapa '${etapa}' teve atualizacao no andamento.`;
+  if (diff.changed) {
+    const etapa = diff.etapa;
 
-  await dispatchNotificationFromEvent({
-    obraId,
-    tipo: "progresso_obra",
-    titulo: "Atualizacao no progresso da obra",
-    mensagem,
-    origemColecao: "obras",
-    origemId: obraId,
-    metadata: {
-      etapa,
-      toggledCount: diff.toggledCount,
-      changedStages: diff.changedStages,
-      rotaDestino: "/cliente/obra",
-    },
-    idempotencyKey: `status:${obraId}:${event.data.after.updateTime.toMillis()}`,
-  });
+    const mensagem = diff.toggledCount > 1
+      ? `A etapa '${etapa}' teve ${diff.toggledCount} itens com progresso atualizado.`
+      : `A etapa '${etapa}' teve atualizacao no andamento.`;
+
+    await dispatchNotificationFromEvent({
+      obraId,
+      tipo: "progresso_obra",
+      titulo: "Atualizacao no progresso da obra",
+      mensagem,
+      origemColecao: "obras",
+      origemId: obraId,
+      metadata: {
+        etapa,
+        toggledCount: diff.toggledCount,
+        changedStages: diff.changedStages,
+        rotaDestino: "/cliente/obra",
+      },
+      idempotencyKey: `status:${obraId}:${event.data.after.updateTime.toMillis()}`,
+    });
+  }
+
+  for (const change of execucaoEquipeChanges) {
+    const dataHoraLabel = formatDateTimePtBr(change.dataHora);
+    const obraNome = normalizeString(afterData.nome) || "obra";
+    const isSaida = change.tipo === "saida";
+
+    await dispatchNotificationFromEvent({
+      obraId,
+      tipo: isSaida ? "equipe_saida_confirmada" : "equipe_chegada_confirmada",
+      titulo: isSaida ? "Equipe a caminho da obra" : "Equipe chegou a obra",
+      mensagem: isSaida
+        ? `A equipe de execucao teve saida confirmada para a obra ${obraNome} em ${dataHoraLabel}.`
+        : `A chegada da equipe de execucao na obra ${obraNome} foi confirmada em ${dataHoraLabel}.`,
+      origemColecao: "obras",
+      origemId: obraId,
+      metadata: {
+        rotaDestino: "/cliente/obra",
+        eventoExecucaoEquipe: change.tipo,
+        dataHoraConfirmada: change.millis ? new Date(change.millis).toISOString() : null,
+      },
+      idempotencyKey: `execucaoEquipe:${obraId}:${change.tipo}:${change.millis}`,
+    });
+  }
 });
 
 exports.notifyOnFinancialInstallmentCreated = onDocumentCreated("financeiroParcelas/{parcelaId}", async (event) => {

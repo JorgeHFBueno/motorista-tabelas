@@ -21,6 +21,7 @@ import {
 } from "lucide-react";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import ResponsiveLayout from "@/components/layout/ResponsiveLayout";
+import ExecucaoEquipeCard from "@/components/obra/ExecucaoEquipeCard";
 import StaffObraStatusTab from "@/components/obra/StaffObraStatusTab";
 import {
   Sheet,
@@ -613,7 +614,17 @@ const StaffObraDetailPage = () => {
             value="status"
             className="rounded-xl border p-4 space-y-3"
           >
-            {obraId ? <StaffObraStatusTab obraId={obraId} actor={actor} /> : null}
+            {obraId ? (
+              <>
+                <ExecucaoEquipeCard
+                  mode="admin"
+                  obraId={obraId}
+                  confirmacoes={obra?.execucaoEquipe}
+                  actor={actor}
+                />
+                <StaffObraStatusTab obraId={obraId} actor={actor} />
+              </>
+            ) : null}
           </TabsContent>
         </Tabs>
       </div>
