@@ -41,6 +41,7 @@ async function getClientUsersByObraId(db, obraId) {
       uid: user.uid,
       nome: normalizeString(user.nome) || "Cliente",
       email: normalizeString(user.email),
+      emailLower: normalizeString(user.emailLower),
     }));
 }
 
