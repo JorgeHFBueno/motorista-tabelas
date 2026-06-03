@@ -45,6 +45,26 @@ const resendApiKey = defineSecret("RESEND_API_KEY");
 const DEFAULT_FROM =
   "Ledur Pré-Fabricados <obras@notificacoes.ledurprefabricados.com.br>";
 
+const EMAIL_NOTIFICATION_TYPES = new Set([
+  "foto_nova",
+  "documento_novo",
+  "progresso_obra",
+  "financeiro_nova_parcela",
+  "financeiro_boleto_disponivel",
+  "financeiro_status_alterado",
+  "financeiro_vencimento_proximo",
+]);
+
+const EMAIL_SUBJECT_FALLBACKS = {
+  foto_nova: "Nova foto adicionada a sua obra",
+  documento_novo: "Novo documento disponivel",
+  progresso_obra: "Atualizacao no progresso da obra",
+  financeiro_nova_parcela: "Nova parcela adicionada",
+  financeiro_boleto_disponivel: "Boleto disponivel",
+  financeiro_status_alterado: "Status financeiro atualizado",
+  financeiro_vencimento_proximo: "Parcela proxima do vencimento",
+};
+
 /**
  * @typedef {Object} EmailNotificationPayload
  * @property {string|string[]=} to
@@ -384,6 +404,329 @@ exports.trash_restore = onCall(async (request) => {
 
   return {ok: true, restoredDocId: payload.originalDocId};
 });
+function escapeHtml(value) {
+  return String(value ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
+function formatCurrencyPtBr(value) {
+  if (value === undefined || value === null || value === "") return "";
+
+  const rawValue = String(value).trim();
+  const number = typeof value === "number"
+    ? value
+    : rawValue.includes(",")
+      ? Number(rawValue.replace(/\./g, "").replace(",", "."))
+      : Number(rawValue);
+
+  if (!Number.isFinite(number)) return normalizeString(String(value));
+
+  return new Intl.NumberFormat("pt-BR", {
+    style: "currency",
+    currency: "BRL",
+  }).format(number);
+}
+
+function formatDatePtBr(value) {
+  const millis = timestampMillis(value);
+  if (!millis) return normalizeString(String(value ?? ""));
+
+  return new Intl.DateTimeFormat("pt-BR", {
+    dateStyle: "short",
+    timeZone: "America/Sao_Paulo",
+  }).format(new Date(millis));
+}
+
+function metadataTextValue(value) {
+  if (value === undefined || value === null || value === "") return "";
+  if (typeof value === "number" && Number.isFinite(value)) return String(value);
+  return normalizeString(String(value));
+}
+
+function buildClientEmailDetailLines(tipo, metadata) {
+  const details = [];
+  const safeMetadata = metadata && typeof metadata === "object" ? metadata : {};
+
+  const add = (label, value) => {
+    const normalized = metadataTextValue(value);
+    if (normalized) details.push(`${label}: ${normalized}`);
+  };
+
+  const addCurrency = (label, value) => {
+    const formatted = formatCurrencyPtBr(value);
+    if (formatted) details.push(`${label}: ${formatted}`);
+  };
+
+  const addDate = (label, value) => {
+    const formatted = formatDatePtBr(value);
+    if (formatted) details.push(`${label}: ${formatted}`);
+  };
+
+  if (tipo === "foto_nova") {
+    add("Arquivo", safeMetadata.nomeArquivo);
+    add("Etapa", safeMetadata.etapa);
+  } else if (tipo === "documento_novo") {
+    add("Arquivo", safeMetadata.nomeArquivo);
+  } else if (tipo === "progresso_obra") {
+    add("Etapa", safeMetadata.etapa);
+    add("Itens atualizados", safeMetadata.toggledCount);
+  } else if (tipo === "financeiro_nova_parcela") {
+    add("Parcela", safeMetadata.numeroParcela);
+    addCurrency("Valor", safeMetadata.valor);
+    addDate("Vencimento", safeMetadata.vencimento);
+  } else if (tipo === "financeiro_boleto_disponivel") {
+    add("Parcela", safeMetadata.numeroParcela);
+  } else if (tipo === "financeiro_status_alterado") {
+    add("Status anterior", safeMetadata.statusAnterior);
+    add("Novo status", safeMetadata.statusNovo);
+  } else if (tipo === "financeiro_vencimento_proximo") {
+    add("Parcela", safeMetadata.numeroParcela);
+    addDate("Vencimento", safeMetadata.vencimento);
+    add("Dias para vencimento", safeMetadata.diasParaVencimento);
+    addCurrency("Valor", safeMetadata.valor);
+  }
+
+  return details;
+}
+
+function buildClientEmailContent({tipo, titulo, mensagem, metadata}) {
+  const safeMetadata = metadata && typeof metadata === "object" ? metadata : {};
+  const subject = normalizeString(titulo) || EMAIL_SUBJECT_FALLBACKS[tipo] || "Notificacao da sua obra";
+  const baseMessage = normalizeString(mensagem) || subject;
+  const details = buildClientEmailDetailLines(tipo, safeMetadata);
+  const hasPortalHint = Boolean(normalizeString(safeMetadata.rotaDestino));
+
+  const htmlParts = [
+    "<p>Ola,</p>",
+    `<p>${escapeHtml(baseMessage)}</p>`,
+  ];
+
+  if (details.length > 0) {
+    htmlParts.push(
+      "<ul>",
+      ...details.map((detail) => `<li>${escapeHtml(detail)}</li>`),
+      "</ul>",
+    );
+  }
+
+  if (hasPortalHint) {
+    htmlParts.push("<p>Voce pode acessar mais detalhes pelo portal do cliente.</p>");
+  }
+
+  htmlParts.push("<p>Esta e uma notificacao automatica do sistema da Ledur Pre-Fabricados.</p>");
+
+  const textParts = [
+    "Ola,",
+    "",
+    baseMessage,
+  ];
+
+  if (details.length > 0) {
+    textParts.push("", ...details);
+  }
+
+  if (hasPortalHint) {
+    textParts.push("", "Voce pode acessar mais detalhes pelo portal do cliente.");
+  }
+
+  textParts.push("", "Esta e uma notificacao automatica do sistema da Ledur Pre-Fabricados.");
+
+  return {
+    subject,
+    html: htmlParts.join(""),
+    text: textParts.join("\n"),
+  };
+}
+
+function buildClientEmailDedupeKey({
+  obraId,
+  tipo,
+  clienteUid,
+  origemColecao,
+  origemId,
+  idempotencyKey,
+}) {
+  const stableIdempotencyKey = normalizeString(idempotencyKey);
+  if (stableIdempotencyKey) {
+    return `client_notification:${tipo}:${obraId}:${clienteUid}:${stableIdempotencyKey}`;
+  }
+
+  return [
+    "client_notification",
+    tipo,
+    obraId,
+    clienteUid,
+    normalizeString(origemColecao) || "unknown",
+    normalizeString(origemId) || "unknown",
+  ].join(":");
+}
+
+async function createClientEmailNotificationsFromEvent({
+  users,
+  obraId,
+  tipo,
+  titulo,
+  mensagem,
+  origemColecao,
+  origemId,
+  metadata,
+  idempotencyKey,
+}) {
+  const normalizedObraId = normalizeString(obraId);
+  const normalizedTipo = normalizeString(tipo);
+  const safeMetadata = metadata && typeof metadata === "object" ? metadata : {};
+  const safeUsers = Array.isArray(users) ? users : [];
+
+  logger.info("[ClientEmailNotification] inicio da criacao", {
+    obraId: normalizedObraId || null,
+    tipo: normalizedTipo || null,
+  });
+
+  if (!normalizedObraId || !normalizedTipo) {
+    logger.warn("[ClientEmailNotification] obraId ou tipo invalido", {
+      obraId: normalizedObraId || null,
+      tipo: normalizedTipo || null,
+    });
+    logger.info("[ClientEmailNotification] fim do processamento", {
+      obraId: normalizedObraId || null,
+      tipo: normalizedTipo || null,
+      totalUsuarios: safeUsers.length,
+    });
+    return;
+  }
+
+  if (!EMAIL_NOTIFICATION_TYPES.has(normalizedTipo)) {
+    logger.info("[ClientEmailNotification] tipo nao habilitado para e-mail", {
+      obraId: normalizedObraId,
+      tipo: normalizedTipo,
+    });
+    logger.info("[ClientEmailNotification] fim do processamento", {
+      obraId: normalizedObraId,
+      tipo: normalizedTipo,
+      totalUsuarios: safeUsers.length,
+    });
+    return;
+  }
+
+  logger.info("[ClientEmailNotification] total de usuarios", {
+    obraId: normalizedObraId,
+    tipo: normalizedTipo,
+    totalUsuarios: safeUsers.length,
+  });
+
+  if (!normalizeString(idempotencyKey)) {
+    logger.warn("[ClientEmailNotification] idempotencyKey ausente", {
+      obraId: normalizedObraId,
+      tipo: normalizedTipo,
+      origemColecao: origemColecao ?? null,
+      origemId: origemId ?? null,
+    });
+  }
+
+  try {
+    const content = buildClientEmailContent({
+      tipo: normalizedTipo,
+      titulo,
+      mensagem,
+      metadata: safeMetadata,
+    });
+
+    const writes = safeUsers.map(async (cliente) => {
+      const clienteUid = normalizeString(cliente?.uid);
+      const email = normalizeString(cliente?.email) || normalizeString(cliente?.emailLower);
+
+      if (!clienteUid) {
+        logger.warn("[ClientEmailNotification] cliente ignorado por falta de uid", {
+          obraId: normalizedObraId,
+          tipo: normalizedTipo,
+        });
+        return;
+      }
+
+      if (!email) {
+        logger.warn("[ClientEmailNotification] cliente ignorado por falta de e-mail", {
+          obraId: normalizedObraId,
+          tipo: normalizedTipo,
+          clienteUid,
+        });
+        return;
+      }
+
+      const dedupeKey = buildClientEmailDedupeKey({
+        obraId: normalizedObraId,
+        tipo: normalizedTipo,
+        clienteUid,
+        origemColecao,
+        origemId,
+        idempotencyKey,
+      });
+
+      if (!dedupeKey) {
+        logger.warn("[ClientEmailNotification] documento ignorado por falta de dedupeKey", {
+          obraId: normalizedObraId,
+          tipo: normalizedTipo,
+          clienteUid,
+        });
+        return;
+      }
+
+      const docRef = db.collection("emailNotifications").doc();
+
+      try {
+        await docRef.set({
+          to: [email],
+          subject: content.subject,
+          html: content.html,
+          text: content.text,
+          status: "pending",
+          tipo: normalizedTipo,
+          obraId: normalizedObraId,
+          clienteUid,
+          origemColecao: origemColecao ?? null,
+          origemId: origemId ?? null,
+          metadata: safeMetadata,
+          dedupeKey,
+          source: "client_notification_event",
+          createdAt: FieldValue.serverTimestamp(),
+          updatedAt: FieldValue.serverTimestamp(),
+        });
+
+        logger.info("[ClientEmailNotification] emailNotifications criado", {
+          obraId: normalizedObraId,
+          tipo: normalizedTipo,
+          clienteUid,
+          emailNotificationId: docRef.id,
+        });
+      } catch (error) {
+        logger.error("[ClientEmailNotification] erro ao criar documento", {
+          obraId: normalizedObraId,
+          tipo: normalizedTipo,
+          clienteUid,
+          message: error instanceof Error ? error.message : String(error),
+        });
+      }
+    });
+
+    await Promise.allSettled(writes);
+  } catch (error) {
+    logger.error("[ClientEmailNotification] erro ao criar documento", {
+      obraId: normalizedObraId,
+      tipo: normalizedTipo,
+      message: error instanceof Error ? error.message : String(error),
+    });
+  } finally {
+    logger.info("[ClientEmailNotification] fim do processamento", {
+      obraId: normalizedObraId,
+      tipo: normalizedTipo,
+      totalUsuarios: safeUsers.length,
+    });
+  }
+}
+
 async function dispatchNotificationFromEvent({
   obraId,
   tipo,
@@ -416,6 +759,33 @@ async function dispatchNotificationFromEvent({
     metadata: metadata ?? {},
     idempotencyKey,
   });
+
+  if (EMAIL_NOTIFICATION_TYPES.has(tipo)) {
+    try {
+      await createClientEmailNotificationsFromEvent({
+        users,
+        obraId: normalizedObraId,
+        tipo,
+        titulo,
+        mensagem,
+        origemColecao: origemColecao ?? null,
+        origemId: origemId ?? null,
+        metadata: metadata ?? {},
+        idempotencyKey,
+      });
+    } catch (error) {
+      logger.error("[ClientEmailNotification] erro ao criar documento", {
+        obraId: normalizedObraId,
+        tipo,
+        message: error instanceof Error ? error.message : String(error),
+      });
+    }
+  } else {
+    logger.info("[ClientEmailNotification] tipo nao habilitado para e-mail", {
+      obraId: normalizedObraId,
+      tipo,
+    });
+  }
 
   logger.info("[notifications] evento processado", {
     obraId: normalizedObraId,
