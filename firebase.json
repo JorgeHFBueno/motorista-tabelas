@@ -6,6 +6,12 @@
       "npm --prefix \"$RESOURCE_DIR\" run build"
     ]
   },
+  "firestore": {
+    "rules": "firestore.rules"
+  },
+  "storage": {
+    "rules": "storage.rules"
+  },
   "hosting": {
     "public": "dist",
     "ignore": [

@@ -1,5 +1,43 @@
+rules_version = '2';
+
 service cloud.firestore {
   match /databases/{db}/documents {
+    function hasEmail() {
+      return request.auth != null && request.auth.token.email is string;
+    }
+
+    function authorizationProfilePath() {
+      return /databases/$(db)/documents/00-autorizados/$(request.auth.token.email.lower());
+    }
+
+    function hasAuthorizedProfile() {
+      return hasEmail() &&
+        exists(authorizationProfilePath()) &&
+        (
+          get(authorizationProfilePath()).data.adm1 == true ||
+          get(authorizationProfilePath()).data.adm2 == true
+        );
+    }
+
+    function isOwnAuthorizationProfile(email) {
+      return hasEmail() && email == request.auth.token.email.lower();
+    }
+
+    match /00-autorizados/{email} {
+      allow read: if isOwnAuthorizationProfile(email) || hasAuthorizedProfile();
+      allow write: if false;
+    }
+
+    match /atividades/{atividadeId} {
+      allow read: if hasAuthorizedProfile();
+      allow write: if false;
+
+      match /checklist_saida/{itemId} {
+        allow read: if hasAuthorizedProfile();
+        allow write: if false;
+      }
+    }
+
     match /03-combustivel/{docId} {
       allow read: if request.auth != null;
       allow create: if request.auth != null;

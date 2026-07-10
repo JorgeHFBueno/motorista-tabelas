@@ -1,8 +1,9 @@
 import { Suspense, lazy, useEffect, useMemo, useState, type ReactNode, type SyntheticEvent } from 'react';
 import { Alert, Box, Button, Container, Paper, Stack, Tab, Tabs, TextField, Typography } from '@mui/material';
-import { useSearchParams } from 'react-router-dom';
+import PhotoCameraIcon from '@mui/icons-material/PhotoCamera';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { DataGrid, type GridColDef } from '@mui/x-data-grid';
-import useAtividade from '../hooks/useAtividade';
+import useAtividade, { type Atividade } from '../hooks/useAtividade';
 import useOnlineStatus from '../hooks/useOnlineStatus';
 import type { ChartKey, ChartPoint } from '../components/FrotaCharts';
 
@@ -99,17 +100,26 @@ function TabPanel({
   );
 }
 
-function toDateAny(raw: any): Date | null {
+function toDateAny(raw: unknown): Date | null {
   if (!raw) return null;
-  if (typeof raw.toDate === 'function') return raw.toDate();
-  if (raw.seconds != null) return new Date(raw.seconds * 1e3 + (raw.nanoseconds ?? 0) / 1e6);
-  if (raw._seconds != null) return new Date(raw._seconds * 1e3 + (raw._nanoseconds ?? 0) / 1e6);
+  if (typeof (raw as { toDate?: () => Date }).toDate === 'function') {
+    return (raw as { toDate: () => Date }).toDate();
+  }
+  if (typeof raw === 'object' && raw !== null && 'seconds' in raw) {
+    const timestamp = raw as { seconds?: number; nanoseconds?: number };
+    return new Date((timestamp.seconds ?? 0) * 1e3 + (timestamp.nanoseconds ?? 0) / 1e6);
+  }
+  if (typeof raw === 'object' && raw !== null && '_seconds' in raw) {
+    const timestamp = raw as { _seconds?: number; _nanoseconds?: number };
+    return new Date((timestamp._seconds ?? 0) * 1e3 + (timestamp._nanoseconds ?? 0) / 1e6);
+  }
 
-  const date = new Date(raw);
+  const date = new Date(String(raw));
   return Number.isNaN(date.getTime()) ? null : date;
 }
 
 export default function RegistrosPage() {
+  const navigate = useNavigate();
   const { isOnline } = useOnlineStatus();
   const [searchParams, setSearchParams] = useSearchParams();
   const [tab, setTab] = useState<TabKey>(() => getValidTab(searchParams.get('tab')));
@@ -124,7 +134,7 @@ export default function RegistrosPage() {
   const rowsAtividade = useMemo(
     () =>
       atividade.map((item) => {
-        const dataJS = toDateAny((item as any).data);
+        const dataJS = toDateAny(item.data);
         return { ...item, dataJS };
       }),
     [atividade],
@@ -144,7 +154,7 @@ export default function RegistrosPage() {
 
   const kmFormatter = useMemo(() => new Intl.NumberFormat('pt-BR'), []);
 
-  const colunasAtividade: GridColDef[] = useMemo(
+  const colunasAtividade: GridColDef<Atividade & { dataJS: Date | null }>[] = useMemo(
     () => [
       {
         field: 'dataJS',
@@ -173,8 +183,37 @@ export default function RegistrosPage() {
         flex: 1,
         renderCell: ({ value }) => (Number.isNaN(Number(value)) ? '—' : kmFormatter.format(Number(value))),
       },
+      {
+        field: 'checklistSaida',
+        headerName: 'Checklist',
+        minWidth: 150,
+        sortable: false,
+        filterable: false,
+        renderCell: (params) => {
+          const isSaida = String(params.row.tipo ?? '').trim().toLowerCase() === 'saida';
+          const hasChecklist =
+            params.row.checklistSaidaConcluido === true ||
+            Number(params.row.checklistSaidaTotalItens ?? 0) > 0 ||
+            Number(params.row.checklistSaidaItensComAvaria ?? 0) > 0;
+
+          if (!isSaida || !hasChecklist) {
+            return null;
+          }
+
+          return (
+            <Button
+              size="small"
+              variant="outlined"
+              startIcon={<PhotoCameraIcon fontSize="small" />}
+              onClick={() => navigate(`/registros/${encodeURIComponent(String(params.row.id))}/checklist`)}
+            >
+              Ver checklist
+            </Button>
+          );
+        },
+      },
     ],
-    [dateFmt, kmFormatter],
+    [dateFmt, kmFormatter, navigate],
   );
 
   useEffect(() => {

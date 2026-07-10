@@ -20,7 +20,8 @@ export default function ObrasSection() {
   const { addObra } = useObras({ loadOnMount: false, refreshOnAdd: false });
   const [dialogOpen, setDialogOpen] = useState(false);
   const [nome, setNome] = useState('');
-  const [descricao, setDescricao] = useState('');
+  const [local, setLocal] = useState('');
+  const [aka, setAka] = useState('');
   const [saving, setSaving] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
   const [snackbar, setSnackbar] = useState<{ message: string; severity: 'success' | 'error' } | null>(null);
@@ -45,22 +46,28 @@ export default function ObrasSection() {
   const handleCloseDialog = () => {
     setDialogOpen(false);
     setNome('');
-    setDescricao('');
+    setLocal('');
+    setAka('');
     setSaving(false);
     setFormError(null);
   };
 
   const handleSave = async () => {
     const nomeTrim = nome.trim();
-    const descricaoTrim = descricao.trim();
+    const localTrim = local.trim();
+    const akaTrim = aka.trim();
     if (!nomeTrim) {
       setFormError('Informe o nome da obra.');
+      return;
+    }
+    if (!localTrim) {
+      setFormError('Informe o local da obra.');
       return;
     }
 
     try {
       setSaving(true);
-      await addObra(nomeTrim, descricaoTrim);
+      await addObra({ nome: nomeTrim, local: localTrim, aka: akaTrim });
       setSnackbar({ message: 'Obra cadastrada com sucesso.', severity: 'success' });
       handleCloseDialog();
     } catch (err) {
@@ -108,11 +115,19 @@ export default function ObrasSection() {
               fullWidth
             />
             <TextField
-              label="Descrição (opcional)"
-              value={descricao}
-              onChange={(event) => setDescricao(event.target.value)}
+              label="Local"
+              value={local}
+              onChange={(event) => setLocal(event.target.value)}
+              required
+              placeholder="Local da obra"
               fullWidth
-              multiline
+            />
+            <TextField
+              label="Sinônimo"
+              value={aka}
+              onChange={(event) => setAka(event.target.value)}
+              placeholder="Nome alternativo da obra"
+              fullWidth
             />
           </Stack>
         </DialogContent>

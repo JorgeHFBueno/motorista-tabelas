@@ -8,6 +8,8 @@ export type CadastroRow = {
   id: string;
   numero?: unknown;
   nome: string;
+  local?: string;
+  aka?: string;
   descricao?: string;
   createdAt?: unknown;
 };
@@ -19,6 +21,7 @@ interface CadastroEditTableProps {
   onDelete: (row: CadastroRow) => void;
   dateFormatter: Intl.DateTimeFormat;
   showNumero?: boolean;
+  showObraDetails?: boolean;
 }
 
 const toDate = (raw: unknown): Date | null => {
@@ -37,6 +40,7 @@ export default function CadastroEditTable({
   onDelete,
   dateFormatter,
   showNumero = false,
+  showObraDetails = false,
 }: CadastroEditTableProps) {
   const columns = useMemo<GridColDef<CadastroRow>[]>(() => [
     ...(showNumero ? [{
@@ -53,13 +57,30 @@ export default function CadastroEditTable({
       minWidth: 220,
       flex: 1,
     },
-    {
-      field: 'descricao',
-      headerName: 'Descrição',
-      minWidth: 260,
-      flex: 1.4,
-      renderCell: (params) => params.value || '—',
-    },
+    ...(showObraDetails ? [
+      {
+        field: 'local',
+        headerName: 'Local',
+        minWidth: 220,
+        flex: 1.1,
+        renderCell: (params) => params.value || '-',
+      } satisfies GridColDef<CadastroRow>,
+      {
+        field: 'aka',
+        headerName: 'Sinônimo',
+        minWidth: 180,
+        flex: 0.9,
+        renderCell: (params) => params.value || '-',
+      } satisfies GridColDef<CadastroRow>,
+    ] : [
+      {
+        field: 'descricao',
+        headerName: 'Descrição',
+        minWidth: 260,
+        flex: 1.4,
+        renderCell: (params) => params.value || '—',
+      } satisfies GridColDef<CadastroRow>,
+    ]),
     {
       field: 'createdAt',
       headerName: 'Criado em',
@@ -91,7 +112,7 @@ export default function CadastroEditTable({
         </Stack>
       ),
     },
-  ], [dateFormatter, onDelete, onEdit, showNumero]);
+  ], [dateFormatter, onDelete, onEdit, showNumero, showObraDetails]);
 
   return (
     <DataGrid

@@ -3,7 +3,7 @@ import { addDoc, collection, getDocs, orderBy,
   query, serverTimestamp, type DocumentData,
   type QuerySnapshot,} from 'firebase/firestore';
 import { db } from '../firebase';
-import type { Obra } from '../types/Obra';
+import type { Obra, ObraFormData } from '../types/Obra';
 
 const COLLECTION_NAME = 'obras';
 
@@ -12,6 +12,25 @@ const mapSnapshot = (snapshot: QuerySnapshot<DocumentData>): Obra[] =>
     id: doc.id,
     ...(doc.data() as Omit<Obra, 'id'>),
   }));
+
+const normalizeText = (value: string) => value.trim();
+
+const normalizeDuplicateKey = (value: string) => normalizeText(value).replace(/\s+/g, ' ').toLowerCase();
+
+const assertUniqueAka = async (aka: string) => {
+  const akaKey = normalizeDuplicateKey(aka);
+  if (!akaKey) return;
+
+  const snapshot = await getDocs(query(collection(db, COLLECTION_NAME), orderBy('nome', 'asc')));
+  const duplicated = snapshot.docs.some((docSnap) => {
+    const data = docSnap.data() as { aka?: unknown };
+    return typeof data.aka === 'string' && normalizeDuplicateKey(data.aka) === akaKey;
+  });
+
+  if (duplicated) {
+    throw new Error('Este sinônimo já está vinculado a outra obra.');
+  }
+};
 
 interface UseObrasOptions {
   loadOnMount?: boolean;
@@ -52,16 +71,23 @@ export default function useObras(options: UseObrasOptions = {}) {
     void loadObras();
   }, [loadOnMount, loadObras]);
 
-  const addObra = useCallback(async (nome: string, descricao?: string) => {
-    const trimmedNome = nome.trim();
-    const trimmedDescricao = descricao?.trim() ?? '';
+  const addObra = useCallback(async ({ nome, local, aka }: ObraFormData) => {
+    const trimmedNome = normalizeText(nome);
+    const trimmedLocal = normalizeText(local);
+    const trimmedAka = normalizeText(aka);
     if (!trimmedNome) {
       throw new Error('Informe o nome da obra.');
     }
+    if (!trimmedLocal) {
+      throw new Error('Informe o local da obra.');
+    }
+
+    await assertUniqueAka(trimmedAka);
 
     await addDoc(collection(db, COLLECTION_NAME), {
       nome: trimmedNome,
-      descricao: trimmedDescricao,
+      local: trimmedLocal,
+      aka: trimmedAka,
       createdAt: serverTimestamp(),
     });
 

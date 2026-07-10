@@ -20,6 +20,7 @@ const CadastroVeiculoNovoPage = lazy(() => import('./pages/CadastroVeiculoNovoPa
 const CadastroUsuarioNovoPage = lazy(() => import('./pages/CadastroUsuarioNovoPage'));
 const CadastrosEditarPage = lazy(() => import('./pages/CadastrosEditarPage'));
 const RegistrosPage = lazy(() => import('./pages/RegistrosPage'));
+const ChecklistSaidaPage = lazy(() => import('./pages/ChecklistSaidaPage'));
 const FrotaVeiculosPage = lazy(() => import('./pages/FrotaVeiculosPage'));
 const FrotaVeiculoDetalhesPage = lazy(() => import('./pages/FrotaVeiculoDetalhesPage'));
 const HomeDashboard = lazy(() => import('./pages/HomeDashboard'));
@@ -61,6 +62,7 @@ export default function App() {
             <Route path="cadastros/veiculos/novo" element={<CadastroVeiculoNovoPage />} />
             <Route path="cadastros/editar/:tipo" element={<CadastrosEditarPage />} />
             <Route path="registros" element={<RegistrosPage />} />
+            <Route path="registros/:atividadeId/checklist" element={<ChecklistSaidaPage />} />
             <Route path="frota" element={<FrotaVeiculosPage />} />
             <Route path="frota/:placa" element={<FrotaVeiculoDetalhesPage />} />
             <Route path="bombas" element={<BombasPage />} />

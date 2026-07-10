@@ -1,0 +1,27 @@
+rules_version = '2';
+
+service firebase.storage {
+  match /b/{bucket}/o {
+    function hasEmail() {
+      return request.auth != null && request.auth.token.email is string;
+    }
+
+    function authorizationProfilePath() {
+      return /databases/(default)/documents/00-autorizados/$(request.auth.token.email.lower());
+    }
+
+    function hasAuthorizedProfile() {
+      return hasEmail() &&
+        firestore.exists(authorizationProfilePath()) &&
+        (
+          firestore.get(authorizationProfilePath()).data.adm1 == true ||
+          firestore.get(authorizationProfilePath()).data.adm2 == true
+        );
+    }
+
+    match /checklists/saidas/{atividadeId}/{fileName} {
+      allow read: if hasAuthorizedProfile();
+      allow write: if false;
+    }
+  }
+}

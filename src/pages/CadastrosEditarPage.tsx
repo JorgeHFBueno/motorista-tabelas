@@ -43,6 +43,12 @@ const CADASTRO_CONFIG: Record<CadastroTipo, { label: string; collectionName: str
   },
 };
 
+const normalizeText = (value: string) => value.trim();
+
+const normalizeDuplicateKey = (value: string) => normalizeText(value).replace(/\s+/g, ' ').toLowerCase();
+
+const toLowerText = (value: unknown) => (typeof value === 'string' ? value.toLowerCase() : '');
+
 export default function CadastrosEditarPage() {
   const { tipo } = useParams();
   const cadastroTipo = tipo as CadastroTipo;
@@ -97,10 +103,12 @@ function GenericCadastrosEditarPage({ cadastroTipo }: { cadastroTipo: Exclude<Ca
     const term = search.trim().toLowerCase();
     if (!term) return rows;
     return rows.filter((row) => {
-      const nomeMatch = row.nome?.toLowerCase().includes(term);
-      const descricaoMatch = row.descricao?.toLowerCase().includes(term);
+      const nomeMatch = toLowerText(row.nome).includes(term);
+      const descricaoMatch = cadastroTipo !== 'obras' && toLowerText(row.descricao).includes(term);
+      const localMatch = cadastroTipo === 'obras' && toLowerText(row.local).includes(term);
+      const akaMatch = cadastroTipo === 'obras' && toLowerText(row.aka).includes(term);
       const numeroMatch = cadastroTipo === 'fornecedores' && String(row.numero ?? '').includes(term);
-      return nomeMatch || descricaoMatch || numeroMatch;
+      return nomeMatch || descricaoMatch || localMatch || akaMatch || numeroMatch;
     });
   }, [cadastroTipo, rows, search]);
 
@@ -116,6 +124,36 @@ function GenericCadastrosEditarPage({ cadastroTipo }: { cadastroTipo: Exclude<Ca
           descricao: values.descricao,
           numero: values.numero,
           numeroAtual: editing.numero,
+        });
+      } else if (cadastroTipo === 'obras') {
+        const trimmedNome = normalizeText(values.nome);
+        const trimmedLocal = normalizeText(values.local);
+        const trimmedAka = normalizeText(values.aka);
+        const akaKey = normalizeDuplicateKey(trimmedAka);
+
+        if (!trimmedLocal) {
+          setEditError('Informe o local da obra.');
+          return;
+        }
+
+        if (akaKey) {
+          const duplicatedAka = rows.some((row) => (
+            row.id !== editing.id &&
+            typeof row.aka === 'string' &&
+            normalizeDuplicateKey(row.aka) === akaKey
+          ));
+
+          if (duplicatedAka) {
+            setEditError('Este sinônimo já está vinculado a outra obra.');
+            return;
+          }
+        }
+
+        await updateDoc(doc(db, config.collectionName, editing.id), {
+          nome: trimmedNome,
+          local: trimmedLocal,
+          aka: trimmedAka,
+          updatedAt: serverTimestamp(),
         });
       } else {
         await updateDoc(doc(db, config.collectionName, editing.id), {
@@ -188,7 +226,7 @@ function GenericCadastrosEditarPage({ cadastroTipo }: { cadastroTipo: Exclude<Ca
         <Paper elevation={1} sx={{ p: 3 }}>
           <Stack spacing={2}>
             <TextField
-              label="Filtrar por nome ou descrição"
+              label={cadastroTipo === 'obras' ? 'Filtrar por nome, local ou sinônimo' : 'Filtrar por nome ou descrição'}
               value={search}
               onChange={(event) => setSearch(event.target.value)}
               fullWidth
@@ -203,6 +241,7 @@ function GenericCadastrosEditarPage({ cadastroTipo }: { cadastroTipo: Exclude<Ca
               onDelete={(row) => setDeleting(row)}
               dateFormatter={dateFormatter}
               showNumero={cadastroTipo === 'fornecedores'}
+              showObraDetails={cadastroTipo === 'obras'}
             />
           </Stack>
         </Paper>
@@ -214,6 +253,8 @@ function GenericCadastrosEditarPage({ cadastroTipo }: { cadastroTipo: Exclude<Ca
         initialValues={{
           nome: editing?.nome ?? '',
           descricao: editing?.descricao ?? '',
+          local: editing?.local ?? '',
+          aka: editing?.aka ?? '',
           numero: normalizeFornecedorNumero(editing?.numero)?.toString() ?? '',
         }}
         onClose={() => {
@@ -223,6 +264,7 @@ function GenericCadastrosEditarPage({ cadastroTipo }: { cadastroTipo: Exclude<Ca
         onSave={handleSave}
         saving={saving}
         showNumero={cadastroTipo === 'fornecedores'}
+        showObraFields={cadastroTipo === 'obras'}
         submitError={editError}
       />
 

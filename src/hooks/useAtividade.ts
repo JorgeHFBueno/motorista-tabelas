@@ -2,15 +2,18 @@ import { useEffect, useState } from 'react';
 import { collection, getDocs } from 'firebase/firestore';
 import { db } from '../firebase';
 
-type Atividade = {
+export type Atividade = {
   id: string;
-  data?: any;
+  data?: unknown;
   destino?: string;
-  km?: number;
+  km?: number | string;
   motivo?: string;
   motorista?: string;
   placa?: string;
   tipo?: string;
+  checklistSaidaConcluido?: boolean;
+  checklistSaidaTotalItens?: number;
+  checklistSaidaItensComAvaria?: number;
 };
 
 export default function useAtividade() {
