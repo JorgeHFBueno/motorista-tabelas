@@ -62,8 +62,16 @@ type VeiculoForm = {
 type ManutencaoRow = {
     id: string;
     identificador?: string;
+    categoria?: string;
+    categoriaId?: string;
+    categoriaNomeSnapshot?: string;
     valor?: unknown;
     data?: unknown;
+};
+
+type CategoriaFiltroOption = {
+    key: string;
+    label: string;
 };
 
 const DEFAULT_FORM: VeiculoForm = {
@@ -75,6 +83,8 @@ const DEFAULT_FORM: VeiculoForm = {
 };
 
 const MANUTENCAO_CUTOFF = new Date('2026-01-01T00:00:00.000Z');
+const SEM_CATEGORIA_KEY = '__sem_categoria__';
+const SEM_CATEGORIA_LABEL = 'Sem categoria';
 
 const DEBUG = true;
 
@@ -91,19 +101,44 @@ const fornecedorFilterOptions = createFilterOptions<Fornecedor>({
     stringify: (option) => [getFornecedorOptionLabel(option), option.numero?.toString() ?? '', option.nome].join(' '),
 });
 
-function toDate(raw: unknown): Date | null {
+function normalizeManutencaoDate(raw: unknown): Date | null {
     if (!raw) return null;
-    if (raw instanceof Date) return raw;
+    if (raw instanceof Date) return Number.isNaN(raw.getTime()) ? null : raw;
     if (typeof (raw as { toDate?: () => Date }).toDate === 'function') {
-        return (raw as { toDate: () => Date }).toDate();
+        const date = (raw as { toDate: () => Date }).toDate();
+        return Number.isNaN(date.getTime()) ? null : date;
     }
     if (typeof raw === 'object' && raw !== null && 'seconds' in raw) {
         const seconds = (raw as { seconds?: number }).seconds ?? 0;
         const nanoseconds = (raw as { nanoseconds?: number }).nanoseconds ?? 0;
-        return new Date(seconds * 1000 + nanoseconds / 1e6);
+        const date = new Date(seconds * 1000 + nanoseconds / 1e6);
+        return Number.isNaN(date.getTime()) ? null : date;
     }
-    const parsed = new Date(raw as string);
+    if (typeof raw === 'number') {
+        const date = new Date(raw);
+        return Number.isNaN(date.getTime()) ? null : date;
+    }
+    const parsed = new Date(String(raw).trim());
     return Number.isNaN(parsed.getTime()) ? null : parsed;
+}
+
+function toDate(raw: unknown): Date | null {
+    return normalizeManutencaoDate(raw);
+}
+
+function parseDateInputAsLocalDate(value: string, endOfDay = false): Date | null {
+    const trimmed = value.trim();
+    if (!trimmed) return null;
+    const parts = trimmed.split('-').map(Number);
+    if (parts.length !== 3 || parts.some((part) => !Number.isInteger(part))) return null;
+
+    const [year, month, day] = parts;
+    const date = endOfDay
+        ? new Date(year, month - 1, day, 23, 59, 59, 999)
+        : new Date(year, month - 1, day, 0, 0, 0, 0);
+
+    if (date.getFullYear() !== year || date.getMonth() !== month - 1 || date.getDate() !== day) return null;
+    return date;
 }
 
 function asNumber(raw: unknown): number | null {
@@ -126,6 +161,20 @@ function parsePtBrNumber(value: unknown): number | null {
     return Number.isFinite(parsed) ? parsed : null;
 }
 
+function normalizeText(value: unknown): string {
+    return typeof value === 'string' ? value.trim() : '';
+}
+
+function getCategoriaKey(row: ManutencaoRow): string {
+    const categoriaId = normalizeText(row.categoriaId);
+    if (categoriaId) return `id:${categoriaId}`;
+
+    const categoriaNome = normalizeText(row.categoriaNomeSnapshot) || normalizeText(row.categoria);
+    if (categoriaNome) return `nome:${categoriaNome.toLocaleLowerCase('pt-BR')}`;
+
+    return SEM_CATEGORIA_KEY;
+}
+
 export default function FrotaVeiculosPage() {
     const navigate = useNavigate();
     const { currentUser } = useAuth();
@@ -139,16 +188,13 @@ export default function FrotaVeiculosPage() {
     const [manutencaoOpen, setManutencaoOpen] = useState(false);
     const [manutencaoSaving, setManutencaoSaving] = useState(false);
     const [manutencaoForm, setManutencaoForm] = useState<ManutencaoForm>(DEFAULT_MANUTENCAO_FORM);
-    const [showManutencoes2026, setShowManutencoes2026] = useState(true);
-    const [showManutencoesLegado, setShowManutencoesLegado] = useState(false);
+    const [selectedCategoriasGrafico, setSelectedCategoriasGrafico] = useState<CategoriaFiltroOption[]>([]);
+    const [dataInicialGrafico, setDataInicialGrafico] = useState('');
+    const [dataFinalGrafico, setDataFinalGrafico] = useState('');
     const [manutencoes2026Rows, setManutencoes2026Rows] = useState<ManutencaoRow[]>([]);
     const [manutencoes2026Loading, setManutencoes2026Loading] = useState(false);
     const [manutencoes2026Error, setManutencoes2026Error] = useState<string | null>(null);
     const [manutencoes2026Loaded, setManutencoes2026Loaded] = useState(false);
-    const [manutencoesLegadoRows, setManutencoesLegadoRows] = useState<ManutencaoRow[]>([]);
-    const [manutencoesLegadoLoading, setManutencoesLegadoLoading] = useState(false);
-    const [manutencoesLegadoError, setManutencoesLegadoError] = useState<string | null>(null);
-    const [manutencoesLegadoLoaded, setManutencoesLegadoLoaded] = useState(false);
     const [fornecedores, setFornecedores] = useState<Fornecedor[]>([]);
     const [categoriasManutencao, setCategoriasManutencao] = useState<CategoriaManutencao[]>([]);
     const [fornecedoresLoading, setFornecedoresLoading] = useState(false);
@@ -170,6 +216,13 @@ export default function FrotaVeiculosPage() {
             new Intl.DateTimeFormat('pt-BR', {
                 dateStyle: 'short',
                 timeStyle: 'short',
+            }),
+        [],
+    );
+    const dateOnlyFormatter = useMemo(
+        () =>
+            new Intl.DateTimeFormat('pt-BR', {
+                dateStyle: 'short',
             }),
         [],
     );
@@ -253,6 +306,9 @@ export default function FrotaVeiculosPage() {
                     return {
                         id: docSnap.id,
                         identificador: raw.identificador,
+                        categoria: raw.categoria,
+                        categoriaId: raw.categoriaId,
+                        categoriaNomeSnapshot: raw.categoriaNomeSnapshot,
                         valor: raw.valor,
                         data: raw.data,
                     };
@@ -269,7 +325,7 @@ export default function FrotaVeiculosPage() {
             }
         }
 
-        if (!showManutencoes2026 || manutencoes2026Loaded) return () => {
+        if (manutencoes2026Loaded) return () => {
             active = false;
         };
 
@@ -277,47 +333,7 @@ export default function FrotaVeiculosPage() {
         return () => {
             active = false;
         };
-    }, [showManutencoes2026, manutencoes2026Loaded]);
-
-    useEffect(() => {
-        let active = true;
-
-        async function loadManutencoesLegado() {
-            setManutencoesLegadoLoading(true);
-            setManutencoesLegadoError(null);
-            try {
-                const snapshot = await getDocs(collection(db, 'manutencoes-legado'));
-                if (!active) return;
-                const data = snapshot.docs.map((docSnap) => {
-                    const raw = docSnap.data() as Omit<ManutencaoRow, 'id'>;
-                    return {
-                        id: docSnap.id,
-                        identificador: raw.identificador,
-                        valor: raw.valor,
-                        data: raw.data,
-                    };
-                });
-                setManutencoesLegadoRows(data);
-                setManutencoesLegadoLoaded(true);
-            } catch (err) {
-                console.error('Erro ao carregar manutenções legado', err);
-                if (active) {
-                    setManutencoesLegadoError('Erro ao carregar manutenções legado.');
-                }
-            } finally {
-                if (active) setManutencoesLegadoLoading(false);
-            }
-        }
-
-        if (!showManutencoesLegado || manutencoesLegadoLoaded) return () => {
-            active = false;
-        };
-
-        loadManutencoesLegado();
-        return () => {
-            active = false;
-        };
-    }, [showManutencoesLegado, manutencoesLegadoLoaded]);
+    }, [manutencoes2026Loaded]);
 
     useEffect(() => {
         let active = true;
@@ -381,7 +397,9 @@ export default function FrotaVeiculosPage() {
             }
         }
 
-        if (!manutencaoOpen || categoriasLoaded) return () => {
+        const shouldLoadCategorias = manutencaoOpen || manutencoes2026Loaded;
+
+        if (!shouldLoadCategorias || categoriasLoaded) return () => {
             active = false;
         };
 
@@ -389,7 +407,11 @@ export default function FrotaVeiculosPage() {
         return () => {
             active = false;
         };
-    }, [manutencaoOpen, categoriasLoaded]);
+    }, [
+        manutencaoOpen,
+        categoriasLoaded,
+        manutencoes2026Loaded,
+    ]);
 
     const rows = useMemo(() => {
         const filtered = veiculos.filter((item) => {
@@ -427,14 +449,6 @@ export default function FrotaVeiculosPage() {
             return Boolean(data && data >= MANUTENCAO_CUTOFF);
         });
     }, [manutencoes2026Rows]);
-
-    const rowsManutencoesLegado = useMemo(() => {
-        return manutencoesLegadoRows.filter((row) => {
-            const data = toDate(row.data);
-            if (data && data >= MANUTENCAO_CUTOFF) return false;
-            return true;
-        });
-    }, [manutencoesLegadoRows]);
 
     const columns: GridColDef[] = useMemo(() => {
         const fieldLabel = tipo === 'PLACA' ? 'Placa' : 'Extra';
@@ -670,18 +684,125 @@ export default function FrotaVeiculosPage() {
         return veiculo.placa ?? veiculo.extra ?? '';
     };
 
-    const loadingManutencoes =
-        (showManutencoes2026 && manutencoes2026Loading) || (showManutencoesLegado && manutencoesLegadoLoading);
+    const loadingManutencoes = manutencoes2026Loading;
+
+    const categoriasById = useMemo(() => {
+        return new Map(categoriasManutencao.map((item) => [item.id, item.nome]));
+    }, [categoriasManutencao]);
+
+    const periodoGrafico = useMemo(() => {
+        const hasStart = Boolean(dataInicialGrafico.trim());
+        const hasEnd = Boolean(dataFinalGrafico.trim());
+        const start = parseDateInputAsLocalDate(dataInicialGrafico);
+        const end = parseDateInputAsLocalDate(dataFinalGrafico, true);
+
+        if ((hasStart && !start) || (hasEnd && !end)) {
+            return {
+                start,
+                end,
+                isCustom: hasStart || hasEnd,
+                error: 'Informe um período válido.',
+                label: '',
+            };
+        }
+
+        if (start && end && start.getTime() > end.getTime()) {
+            return {
+                start,
+                end,
+                isCustom: true,
+                error: 'Data inicial não pode ser maior que a data final.',
+                label: '',
+            };
+        }
+
+        const labelParts: string[] = [];
+        if (start) labelParts.push(`a partir de ${dateOnlyFormatter.format(start)}`);
+        if (end) labelParts.push(`até ${dateOnlyFormatter.format(end)}`);
+
+        return {
+            start,
+            end,
+            isCustom: hasStart || hasEnd,
+            error: null,
+            label: labelParts.join(' '),
+        };
+    }, [dataFinalGrafico, dataInicialGrafico, dateOnlyFormatter]);
+
+    const manutencoesNoPeriodoParaGrafico = useMemo<ManutencaoRow[]>(() => {
+        if (!periodoGrafico.isCustom || periodoGrafico.error) return rowsManutencoes2026;
+
+        return rowsManutencoes2026.filter((row) => {
+            const data = normalizeManutencaoDate(row.data);
+            if (!data) return false;
+            if (periodoGrafico.start && data.getTime() < periodoGrafico.start.getTime()) return false;
+            if (periodoGrafico.end && data.getTime() > periodoGrafico.end.getTime()) return false;
+            return true;
+        });
+    }, [periodoGrafico, rowsManutencoes2026]);
+
+    const categoriasGraficoOptions = useMemo<CategoriaFiltroOption[]>(() => {
+        const vehicleIds = new Set(rows.map((veiculo) => veiculo.id));
+        const optionsByKey = new Map<string, CategoriaFiltroOption>();
+
+        manutencoesNoPeriodoParaGrafico.forEach((row) => {
+            if (!row.identificador || !vehicleIds.has(row.identificador)) return;
+
+            const key = getCategoriaKey(row);
+            if (optionsByKey.has(key)) return;
+
+            const categoriaId = normalizeText(row.categoriaId);
+            const label =
+                normalizeText(row.categoriaNomeSnapshot) ||
+                (categoriaId ? normalizeText(categoriasById.get(categoriaId)) : '') ||
+                normalizeText(row.categoria) ||
+                SEM_CATEGORIA_LABEL;
+
+            optionsByKey.set(key, { key, label });
+        });
+
+        return Array.from(optionsByKey.values()).sort((a, b) => {
+            if (a.key === SEM_CATEGORIA_KEY) return 1;
+            if (b.key === SEM_CATEGORIA_KEY) return -1;
+            return a.label.localeCompare(b.label, 'pt-BR');
+        });
+    }, [categoriasById, manutencoesNoPeriodoParaGrafico, rows]);
+
+    useEffect(() => {
+        if (selectedCategoriasGrafico.length === 0) return;
+
+        const optionsByKey = new Map(categoriasGraficoOptions.map((option) => [option.key, option]));
+        const nextSelected = selectedCategoriasGrafico
+            .map((option) => optionsByKey.get(option.key))
+            .filter((option): option is CategoriaFiltroOption => Boolean(option));
+        const changed =
+            nextSelected.length !== selectedCategoriasGrafico.length ||
+            nextSelected.some((option, index) => option.label !== selectedCategoriasGrafico[index]?.label);
+
+        if (changed) {
+            setSelectedCategoriasGrafico(nextSelected);
+        }
+    }, [categoriasGraficoOptions, selectedCategoriasGrafico]);
+
+    const selectedCategoriaKeys = useMemo(() => {
+        return new Set(selectedCategoriasGrafico.map((option) => option.key));
+    }, [selectedCategoriasGrafico]);
+
+    const categoriaFiltroLabel = useMemo(() => {
+        if (selectedCategoriasGrafico.length === 0) return 'Todas as categorias';
+        if (selectedCategoriasGrafico.length <= 2) {
+            return selectedCategoriasGrafico.map((option) => option.label).join(', ');
+        }
+        return `${selectedCategoriasGrafico.length} categorias selecionadas`;
+    }, [selectedCategoriasGrafico]);
 
     const manutencoesChartData = useMemo<ChartPoint[]>(() => {
         const totals = new Map<string, number>();
 
-        const selectedRows: ManutencaoRow[] = [];
-        if (showManutencoes2026) selectedRows.push(...rowsManutencoes2026);
-        if (showManutencoesLegado) selectedRows.push(...rowsManutencoesLegado);
-
-        selectedRows.forEach((row) => {
+        manutencoesNoPeriodoParaGrafico.forEach((row) => {
             if (!row.identificador) return;
+            if (selectedCategoriaKeys.size > 0 && !selectedCategoriaKeys.has(getCategoriaKey(row))) return;
+
             const value = parsePtBrNumber(row.valor) ?? 0;
             totals.set(row.identificador, (totals.get(row.identificador) ?? 0) + value);
         });
@@ -694,24 +815,16 @@ export default function FrotaVeiculosPage() {
             })
             .filter((item) => item.value > 0)
             .sort((a, b) => b.value - a.value);
-    }, [rows, rowsManutencoes2026, rowsManutencoesLegado, showManutencoes2026, showManutencoesLegado]);
+    }, [manutencoesNoPeriodoParaGrafico, rows, selectedCategoriaKeys]);
 
     const hasValorField = useMemo(() => {
-        if (!showManutencoes2026 && !showManutencoesLegado) return true;
-        const selectedRows = [
-            ...(showManutencoes2026 ? rowsManutencoes2026 : []),
-            ...(showManutencoesLegado ? rowsManutencoesLegado : []),
-        ];
-        if (selectedRows.length === 0) return true;
-        return selectedRows.some((row) => row.valor !== undefined);
-    }, [rowsManutencoes2026, rowsManutencoesLegado, showManutencoes2026, showManutencoesLegado]);
+        if (rowsManutencoes2026.length === 0) return true;
+        return rowsManutencoes2026.some((row) => row.valor !== undefined);
+    }, [rowsManutencoes2026]);
 
-    const manutencoesLegenda = useMemo(() => {
-        if (showManutencoes2026 && showManutencoesLegado) return 'Manutenções - 2026 + Legado';
-        if (showManutencoes2026) return 'Manutenções - 2026';
-        if (showManutencoesLegado) return 'Manutenções - Legado';
-        return '';
-    }, [showManutencoes2026, showManutencoesLegado]);
+    const manutencoesChartTitle = periodoGrafico.label
+        ? `Gastos gerais por veículo (${periodoGrafico.label})`
+        : 'Gastos gerais por veículo';
 
     const motoristaAtual = (currentUser?.displayName || currentUser?.email || '').trim();
 
@@ -842,6 +955,8 @@ export default function FrotaVeiculosPage() {
                     {
                         id: docRef.id,
                         identificador: manutencaoForm.identificador,
+                        categoriaId: manutencaoForm.categoriaId,
+                        categoriaNomeSnapshot,
                         valor,
                         data,
                     },
@@ -937,45 +1052,104 @@ export default function FrotaVeiculosPage() {
             </Box>
 
             <Box mt={4}>
-                <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2} alignItems={{ xs: 'flex-start', sm: 'center' }}>
-                    <Typography variant="h6">Gastos gerais por veículo</Typography>
-                    {manutencoesLegenda && (
-                        <Typography variant="caption" color="text.secondary">
-                            {manutencoesLegenda}
-                        </Typography>
-                    )}
-                </Stack>
 
-                <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2} mt={1} alignItems="flex-start">
-                    <FormControlLabel
-                        control={
-                            <Checkbox
-                                checked={showManutencoes2026}
-                                onChange={(event) => setShowManutencoes2026(event.target.checked)}
-                            />
-                        }
-                        label={`Manutenções - 2026 (${rowsManutencoes2026.length})`}
-                    />
-                    <FormControlLabel
-                        control={
-                            <Checkbox
-                                checked={showManutencoesLegado}
-                                onChange={(event) => setShowManutencoesLegado(event.target.checked)}
-                            />
-                        }
-                        label={`Manutenções - Legado (${rowsManutencoesLegado.length})`}
-                    />
-                </Stack>
+                <Typography variant="h6">Gastos gerais por veículo</Typography>
+
+                <Box mt={1.5} display="flex" flexWrap="wrap" gap={1.5} alignItems="flex-start">
+                    <Stack
+                        direction={{ xs: 'column', sm: 'row' }}
+                        spacing={1}
+                        alignItems={{ xs: 'stretch', sm: 'flex-start' }}
+                        sx={{ minWidth: { xs: '100%', sm: 320 }, flex: 1 }}
+                    >
+                        <Autocomplete
+                            multiple
+                            disableCloseOnSelect
+                            limitTags={1}
+                            size="small"
+                            options={categoriasGraficoOptions}
+                            value={selectedCategoriasGrafico}
+                            disabled={categoriasGraficoOptions.length === 0}
+                            isOptionEqualToValue={(option, value) => option.key === value.key}
+                            getOptionLabel={(option) => option.label}
+                            onChange={(_event, value) => setSelectedCategoriasGrafico(value)}
+                            renderOption={(props, option, { selected }) => {
+                                const { key, ...optionProps } = props;
+                                return (
+                                    <li key={key} {...optionProps}>
+                                        <Checkbox checked={selected} size="small" sx={{ mr: 1 }} />
+                                        {option.label}
+                                    </li>
+                                );
+                            }}
+                            renderInput={(params) => (
+                                <TextField
+                                    {...params}
+                                    label="Categorias"
+                                    placeholder="Todas as categorias"
+                                    helperText={categoriaFiltroLabel}
+                                />
+                            )}
+                            sx={{ minWidth: { xs: '100%', sm: 280 }, maxWidth: { sm: 420 } }}
+                        />
+                        <Button
+                            variant="text"
+                            size="small"
+                            onClick={() => setSelectedCategoriasGrafico([])}
+                            disabled={selectedCategoriasGrafico.length === 0}
+                            sx={{ whiteSpace: 'nowrap' }}
+                        >
+                            Todas as categorias
+                        </Button>
+                    </Stack>
+                    <Stack
+                        direction={{ xs: 'column', sm: 'row' }}
+                        spacing={1}
+                        alignItems={{ xs: 'stretch', sm: 'flex-start' }}
+                        sx={{ minWidth: { xs: '100%', sm: 360 } }}
+                    >
+                        <TextField
+                            label="Data inicial"
+                            type="date"
+                            size="small"
+                            value={dataInicialGrafico}
+                            onChange={(event) => setDataInicialGrafico(event.target.value)}
+                            InputLabelProps={{ shrink: true }}
+                            sx={{ minWidth: { xs: '100%', sm: 160 } }}
+                        />
+                        <TextField
+                            label="Data final"
+                            type="date"
+                            size="small"
+                            value={dataFinalGrafico}
+                            onChange={(event) => setDataFinalGrafico(event.target.value)}
+                            InputLabelProps={{ shrink: true }}
+                            sx={{ minWidth: { xs: '100%', sm: 160 } }}
+                        />
+                        <Button
+                            variant="text"
+                            size="small"
+                            onClick={() => {
+                                setDataInicialGrafico('');
+                                setDataFinalGrafico('');
+                            }}
+                            disabled={!periodoGrafico.isCustom}
+                            sx={{ whiteSpace: 'nowrap' }}
+                        >
+                            Limpar período
+                        </Button>
+                    </Stack>
+                </Box>
 
                 <Box mt={2}>
-                    {showManutencoes2026 && manutencoes2026Error && (
+                    {manutencoes2026Error && (
                         <Alert severity="error" sx={{ mb: 2 }}>
                             {manutencoes2026Error}
                         </Alert>
                     )}
-                    {showManutencoesLegado && manutencoesLegadoError && (
-                        <Alert severity="error" sx={{ mb: 2 }}>
-                            {manutencoesLegadoError}
+                    {periodoGrafico.error && (
+                        <Alert severity="warning" sx={{ mb: 2 }}>
+                            {periodoGrafico.error}
                         </Alert>
                     )}
 
@@ -983,18 +1157,17 @@ export default function FrotaVeiculosPage() {
                         <Box display="flex" alignItems="center" justifyContent="center" py={4}>
                             <CircularProgress size={28} />
                         </Box>
-                    ) : !showManutencoes2026 && !showManutencoesLegado ? (
-                        <Alert severity="info">Selecione um filtro de manutenção.</Alert>
                     ) : !hasValorField ? (
                         <Alert severity="warning">
                             Campo de valor da manutenção não encontrado nos dados. Verifique o schema.
                         </Alert>
-                    ) : manutencoesChartData.length === 0 ? (
+                    ) : periodoGrafico.error ? null
+                    : manutencoesChartData.length === 0 ? (
                         <Alert severity="info">Sem dados para os filtros selecionados.</Alert>
                     ) : (
                         <FrotaCharts
                             data={manutencoesChartData}
-                            title="Gastos gerais por veículo"
+                            title={manutencoesChartTitle}
                             xAxisTitle="Veículo"
                             yAxisTitle="Total (R$)"
                             valueFormatter={(value) => currencyFormatter.format(value)}

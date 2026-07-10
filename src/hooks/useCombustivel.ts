@@ -4,6 +4,13 @@ import { saveCombustivel } from '../services/combustivelFirestore';
 import { useAuth } from '../contexts/AuthContext';
 import type { Registro } from '../types';
 
+function mapRegistro(raw: any): Registro {
+  return {
+    ...raw,
+    km: raw?.km ?? null,
+  } as Registro;
+}
+
 export default function useCombustivel() {
   const [data, setData] = useState<Registro[]>([]);
   const [loading, setLoading] = useState(false);
@@ -14,7 +21,7 @@ export default function useCombustivel() {
     setLoading(true);
     try {
       const result = await api.getAll();
-      setData(result as Registro[]);
+      setData(Array.isArray(result) ? result.map(mapRegistro) : []);
       setError(null);
     } catch (err: any) {
       setError(err.message || 'Erro ao carregar');
@@ -30,9 +37,9 @@ export default function useCombustivel() {
         throw new Error('Usuário não autenticado');
       }
       const res = await saveCombustivel({ ...values, email: currentUser.email });
-      setData((d) => [...d, res]);
+      setData((d) => [...d, mapRegistro(res)]);
       setError(null);
-      return res;
+      return mapRegistro(res);
     } catch (err: any) {
       setError(err.message || 'Erro ao salvar');
       throw err;
@@ -45,9 +52,10 @@ export default function useCombustivel() {
     setLoading(true);
     try {
       const res = await api.update(id, values);
-      setData(d => d.map(r => (r.id === id ? (res as Registro) : r)));
+      const mapped = mapRegistro(res);
+      setData(d => d.map(r => (r.id === id ? mapped : r)));
       setError(null);
-      return res;
+      return mapped;
     } catch (err: any) {
       setError(err.message || 'Erro ao atualizar');
       throw err;

@@ -1,5 +1,6 @@
 import { useState, useMemo, useEffect } from 'react';
-import { DataGrid, type GridColDef } from '@mui/x-data-grid';
+import { DataGrid, type GridColDef, useGridApiRef } from '@mui/x-data-grid';
+import { gridFilteredSortedRowIdsSelector } from '@mui/x-data-grid/hooks/features/filter';
 import dayjs from 'dayjs';
 import { Button, Stack, IconButton, Snackbar, Alert, Dialog, DialogTitle, DialogContent, DialogActions, TextField, MenuItem } from '@mui/material';
 import DeleteIcon from '@mui/icons-material/Delete';
@@ -24,8 +25,49 @@ interface CustoRow {
   statusKm: 'OK' | 'SEM_ODOMETRO' | 'DADOS_INSUFICIENTES';
 }
 
+const EXCEL_KNOWN_COLUMNS = [
+  { field: 'id', label: 'ID' },
+  { field: 'data', label: 'Data' },
+  { field: 'placa', label: 'Placa' },
+  { field: 'motorista', label: 'Motorista' },
+  { field: 'km', label: 'KM' },
+  { field: 'li', label: 'LI' },
+  { field: 'qa', label: 'QA' },
+  { field: 'lf', label: 'LF' },
+  { field: 'arla', label: 'Arla' },
+  { field: 'para_quem', label: 'Para quem' },
+  { field: 'local', label: 'Local' },
+  { field: 'motivo', label: 'Motivo' },
+  { field: 'observacao', label: 'Observacao' },
+  { field: 'tipo', label: 'Tipo' },
+  { field: 'galao', label: 'Galao' },
+  { field: 'hnf', label: 'HNF' },
+  { field: 'semKm', label: 'Sem KM' },
+  { field: 'tipoPlaca', label: 'KM flag' },
+] as const;
+
+const DECIMAL_TENTH_FIELDS = new Set(['li', 'qa', 'lf', 'arla']);
+const IGNORED_EXCEL_FIELDS = new Set(['dataJS', 'actions']);
+const DATE_FIELD_PATTERN = /(data|date|created|updated|criado|alterado|editado|timestamp)/i;
+const BR_THOUSANDS_NUMBER_PATTERN = /^[+-]?\d{1,3}(\.\d{3})+(,\d+)?$/;
+
+function parseKmNumber(value: unknown): number | null {
+  if (typeof value === 'number' && Number.isFinite(value)) return value;
+  if (typeof value !== 'string') return null;
+
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+
+  const normalized = BR_THOUSANDS_NUMBER_PATTERN.test(trimmed)
+    ? trimmed.replace(/\./g, '').replace(',', '.')
+    : trimmed.replace(',', '.');
+  const parsed = Number(normalized);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
 export default function TabelaCombustivel() {
   const { data: rows, loading, create, update, remove } = useCombustivel();
+  const principalGridApiRef = useGridApiRef();
   const navigate = useNavigate();
   const { currentUser, loading: authLoading, isAdmin } = useAuth();
   const { profile } = useAuthorizationProfile(currentUser, authLoading);
@@ -95,6 +137,73 @@ export default function TabelaCombustivel() {
     return { start, end };
   }
 
+  function formatExcelValue(field: string, value: any, row: any) {
+    if (value === undefined || value === null || value === '') return '';
+
+    const shouldFormatAsDate =
+      field === 'data' ||
+      DATE_FIELD_PATTERN.test(field) ||
+      value instanceof Date ||
+      typeof value?.toDate === 'function' ||
+      value?.seconds != null ||
+      value?._seconds != null;
+    const dateValue = shouldFormatAsDate ? (field === 'data' ? row.dataJS : toDateAny(value)) : null;
+    if (dateValue) return excelDateFmt.format(dateValue);
+
+    if (typeof value === 'boolean') return value ? 'Sim' : 'Nao';
+
+    if (DECIMAL_TENTH_FIELDS.has(field)) {
+      const numberValue = Number(value);
+      return Number.isNaN(numberValue) ? value : numberValue / 10;
+    }
+
+    if (typeof value === 'number') return value;
+    if (Array.isArray(value)) return value.map((item) => formatExcelValue(field, item, row)).join(', ');
+    if (typeof value === 'object') return JSON.stringify(value);
+
+    return value;
+  }
+
+  function getFilteredPrincipalRows() {
+    const api = principalGridApiRef.current;
+    if (!api) return rowsOk;
+
+    try {
+      const filteredSortedIds = gridFilteredSortedRowIdsSelector(principalGridApiRef);
+      return filteredSortedIds
+        .map((id) => api.getRow(id))
+        .filter(Boolean) as any[];
+    } catch {
+      return rowsOk;
+    }
+  }
+
+  function buildExcelColumns(exportRows: any[]) {
+    const knownFields = new Set(EXCEL_KNOWN_COLUMNS.map((column) => column.field));
+    const extraFields = Array.from(
+      exportRows.reduce((fields, row) => {
+        Object.keys(row).forEach((field) => {
+          if (!knownFields.has(field) && !IGNORED_EXCEL_FIELDS.has(field)) {
+            fields.add(field);
+          }
+        });
+        return fields;
+      }, new Set<string>()),
+    ).sort((a, b) => a.localeCompare(b));
+
+    return [
+      ...EXCEL_KNOWN_COLUMNS,
+      ...extraFields.map((field) => ({ field, label: field })),
+    ];
+  }
+
+  function formatKmValue(value: unknown) {
+    const numericValue = parseKmNumber(value);
+    if (numericValue !== null) return kmFormatter.format(numericValue);
+    if (typeof value === 'string' && value.trim()) return value.trim();
+    return '—';
+  }
+
   function exportExcel() {
     // validação simples
     if (fromMonth > toMonth) {
@@ -103,27 +212,21 @@ export default function TabelaCombustivel() {
     }
 
     const { start, end } = monthRange(fromMonth, toMonth);
+    const sourceRows: any[] = view === 'principal' ? getFilteredPrincipalRows() : rowsOk;
 
     // usa seus rows já normalizados (rowsOk)
-    const rowsFiltrados = rowsOk.filter(r =>
+    const rowsFiltrados = sourceRows.filter(r =>
       r.dataJS && r.dataJS >= start && r.dataJS <= end
     );
 
     // mapeia para objetos “planos” (Excel)
-    const dataForExcel = rowsFiltrados.map((r: any) => ({
-      Data: r.dataJS ? dateFmt.format(r.dataJS) : '',
-      'Montante Final': Number(r.lf ?? 0) / 10,
-      'Qnt. Abastecida': Number(r.qa ?? 0) / 10,
-      'Montante Inicial': Number(r.li ?? 0) / 10,
-      Arla: Number(r.arla ?? 0) / 10,
-      Frentista: r.motorista ?? '',
-      Operador: r.para_quem ?? '',
-      Placa: r.placa ?? '',
-      Destino: r.local ?? '',
-      Motivo: r.motivo ?? '',
-      Obs: r.observacao ?? '',
-      ID: r.id ?? ''
-    }));
+    const excelColumns = buildExcelColumns(rowsFiltrados);
+    const dataForExcel = rowsFiltrados.map((r: any) => (
+      excelColumns.reduce<Record<string, any>>((acc, column) => {
+        acc[column.label] = formatExcelValue(column.field, r[column.field], r);
+        return acc;
+      }, {})
+    ));
 
     // cria workbook e planilha
     const ws = XLSX.utils.json_to_sheet(dataForExcel);
@@ -139,6 +242,11 @@ export default function TabelaCombustivel() {
 
   const dateFmt = new Intl.DateTimeFormat('pt-BR', {
     day: '2-digit', month: '2-digit', year: '2-digit',
+    hour: '2-digit', minute: '2-digit'
+  });
+
+  const excelDateFmt = new Intl.DateTimeFormat('pt-BR', {
+    day: '2-digit', month: '2-digit', year: 'numeric',
     hour: '2-digit', minute: '2-digit'
   });
 
@@ -205,6 +313,21 @@ export default function TabelaCombustivel() {
     { field: 'motorista', headerName: 'Frentista', minWidth: 150, flex: 1.2 },
     { field: 'para_quem', headerName: 'Operador', minWidth: 150, flex: 1.2 },
     { field: 'placa', headerName: 'Placa', minWidth: 120, flex: 1 },
+    {
+      field: 'km',
+      headerName: 'KM',
+      minWidth: 100,
+      flex: 0.8,
+      renderCell: ({ value }) => formatKmValue(value),
+      sortComparator: (a, b) => {
+        const aNumber = parseKmNumber(a);
+        const bNumber = parseKmNumber(b);
+        if (aNumber !== null && bNumber !== null) return aNumber - bNumber;
+        if (aNumber !== null) return 1;
+        if (bNumber !== null) return -1;
+        return String(a ?? '').localeCompare(String(b ?? ''));
+      },
+    },
     { field: 'local', headerName: 'Destino', minWidth: 180, flex: 1.5 },
     { field: 'motivo', headerName: 'Motivo', minWidth: 200, flex: 1.5 },
     { field: 'observacao', headerName: 'Obs', minWidth: 220, flex: 2 },
@@ -444,6 +567,7 @@ export default function TabelaCombustivel() {
       {view === 'principal' && (
         <div style={{ height: 700, width: '100%' }}>
           <DataGrid
+            apiRef={principalGridApiRef}
             rows={rowsOk}
             columns={colunas}
             loading={loading}

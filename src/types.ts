@@ -13,7 +13,7 @@ export interface Registro {
   motivo?: string;
   observacao?: string;
   obra?: string;
-  km?: number | null;
+  km?: number | string | null;
   semKm?: string;
   tipoPlaca?: boolean;
 }
