@@ -24,7 +24,6 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import type { Registro } from '../types';
 import { useAuthorizationProfile } from '../hooks/useAuthorizationProfile';
-import { DESTINOS_OPTIONS } from '../constants/combustivel';
 import { listObrasNames } from '../services/obras.service';
 import { listVeiculosAtivos, type VeiculoOption } from '../services/veiculos.service';
 import { listMotoristasAtivos } from '../services/motoristas.service';
@@ -33,6 +32,7 @@ import { getInitialLiValue } from '../services/combustivel.service';
 import { saveCombustivelAndUpdateDieselPatio } from '../services/combustivelFirestore';
 import PersistentErrorAlert from '../components/ui/PersistentErrorAlert';
 import { toUserFriendlyLoadError } from '../utils/firestoreError';
+import LocalAutocomplete from '../components/LocalAutocomplete';
 
 type KmMode = 'km' | 'semOdometro' | 'galao';
 
@@ -404,13 +404,9 @@ export default function CombustivelNovoPage() {
             </Stack>
 
             <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
-              <Autocomplete
-                freeSolo
-                options={DESTINOS_OPTIONS}
+              <LocalAutocomplete
                 value={values.local ?? ''}
-                onInputChange={(_, value) => setValues((current) => ({ ...current, local: value }))}
-                renderInput={(params) => <TextField {...params} label="Local" fullWidth />}
-                fullWidth
+                onChange={(value) => setValues((current) => ({ ...current, local: value }))}
               />
 
               <Autocomplete

@@ -9,6 +9,7 @@ import {
   Stack,
   TextField,
 } from '@mui/material';
+import LocalAutocomplete from './LocalAutocomplete';
 
 export type CadastroEditFormValues = {
   nome: string;
@@ -113,15 +114,13 @@ export default function CadastroEditModal({
           />
           {showObraFields ? (
             <>
-              <TextField
-                label="Local"
+              <LocalAutocomplete
                 value={local}
-                onChange={(event) => setLocal(event.target.value)}
+                onChange={setLocal}
                 required
                 error={Boolean(formError) && !local.trim()}
                 helperText={Boolean(formError) && !local.trim() ? formError : undefined}
                 placeholder="Local da obra"
-                fullWidth
               />
               <TextField
                 label="Sinônimo"

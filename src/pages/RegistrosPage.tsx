@@ -1,5 +1,5 @@
 import { Suspense, lazy, useEffect, useMemo, useState, type ReactNode, type SyntheticEvent } from 'react';
-import { Alert, Box, Button, Container, Paper, Stack, Tab, Tabs, TextField, Typography } from '@mui/material';
+import { Alert, Box, Button, Container, MenuItem, Paper, Stack, Tab, Tabs, TextField, Typography } from '@mui/material';
 import PhotoCameraIcon from '@mui/icons-material/PhotoCamera';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { DataGrid, type GridColDef } from '@mui/x-data-grid';
@@ -10,6 +10,7 @@ import type { ChartKey, ChartPoint } from '../components/FrotaCharts';
 const FrotaCharts = lazy(() => import('../components/FrotaCharts'));
 
 type TabKey = 'geral' | 'graficos' | 'hibrido';
+type RegistroTipoFiltro = 'todos' | 'saida' | 'chegada';
 
 type MotoristaResumo = {
   id: string;
@@ -26,6 +27,11 @@ type ChartDateFilter = {
 
 const TAB_KEYS: TabKey[] = ['geral', 'graficos', 'hibrido'];
 const DEFAULT_TAB: TabKey = 'geral';
+const MOVIMENTACAO_OPTIONS: Array<{ value: RegistroTipoFiltro; label: string }> = [
+  { value: 'todos', label: 'Saídas/Chegadas' },
+  { value: 'saida', label: 'Saídas' },
+  { value: 'chegada', label: 'Chegadas' },
+];
 
 function a11yProps(tab: TabKey) {
   return {
@@ -118,6 +124,20 @@ function toDateAny(raw: unknown): Date | null {
   return Number.isNaN(date.getTime()) ? null : date;
 }
 
+function normalizarTipoRegistro(valor: unknown) {
+  return String(valor ?? '')
+    .trim()
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '');
+}
+
+function getEmptyRowsMessage(tipoFiltro: RegistroTipoFiltro) {
+  if (tipoFiltro === 'saida') return 'Nenhuma saída encontrada para os filtros selecionados.';
+  if (tipoFiltro === 'chegada') return 'Nenhuma chegada encontrada para os filtros selecionados.';
+  return 'Nenhum registro encontrado para os filtros selecionados.';
+}
+
 export default function RegistrosPage() {
   const navigate = useNavigate();
   const { isOnline } = useOnlineStatus();
@@ -127,6 +147,8 @@ export default function RegistrosPage() {
   const { data: atividade, loading: loadingAtividade } = useAtividade();
   const [filtroDataInicial, setFiltroDataInicial] = useState('');
   const [filtroDataFinal, setFiltroDataFinal] = useState('');
+  const [tipoMovimentacao, setTipoMovimentacao] = useState<RegistroTipoFiltro>('todos');
+  const [paginationModel, setPaginationModel] = useState({ page: 0, pageSize: 100 });
   const [graficoFiltroRascunho, setGraficoFiltroRascunho] = useState<ChartDateFilter>(() => getDefaultChartDateFilter());
   const [graficoFiltroAplicado, setGraficoFiltroAplicado] = useState<ChartDateFilter>(() => getDefaultChartDateFilter());
   const [graficoFiltroErro, setGraficoFiltroErro] = useState<string | null>(null);
@@ -139,6 +161,11 @@ export default function RegistrosPage() {
       }),
     [atividade],
   );
+
+  const rowsAtividadeFiltradas = useMemo(() => {
+    if (tipoMovimentacao === 'todos') return rowsAtividade;
+    return rowsAtividade.filter((row) => normalizarTipoRegistro(row.tipo) === tipoMovimentacao);
+  }, [rowsAtividade, tipoMovimentacao]);
 
   const dateFmt = useMemo(
     () =>
@@ -190,7 +217,7 @@ export default function RegistrosPage() {
         sortable: false,
         filterable: false,
         renderCell: (params) => {
-          const isSaida = String(params.row.tipo ?? '').trim().toLowerCase() === 'saida';
+          const isSaida = normalizarTipoRegistro(params.row.tipo) === 'saida';
           const hasChecklist =
             params.row.checklistSaidaConcluido === true ||
             Number(params.row.checklistSaidaTotalItens ?? 0) > 0 ||
@@ -249,7 +276,7 @@ export default function RegistrosPage() {
 
     const acc = new Map<string, MotoristaResumo>();
 
-    rowsAtividade.forEach((row) => {
+    rowsAtividadeFiltradas.forEach((row) => {
       const data = row.dataJS instanceof Date ? row.dataJS : null;
       const motorista = row.motorista || '—';
       const current = acc.get(motorista) ?? {
@@ -282,7 +309,7 @@ export default function RegistrosPage() {
     return Array.from(acc.values()).sort(
       (a, b) => b.registrosPeriodo - a.registrosPeriodo || b.totalRegistros - a.totalRegistros,
     );
-  }, [filtroDataFinal, filtroDataInicial, rowsAtividade]);
+  }, [filtroDataFinal, filtroDataInicial, rowsAtividadeFiltradas]);
 
   const colunasMotoristaResumo: GridColDef<MotoristaResumo>[] = useMemo(
     () => [
@@ -320,7 +347,7 @@ export default function RegistrosPage() {
       };
     }
 
-    const dadosFiltrados = rowsAtividade.filter(
+    const dadosFiltrados = rowsAtividadeFiltradas.filter(
       (row) =>
         row.dataJS &&
         (row.dataJS as Date) >= intervalo.inicio &&
@@ -350,7 +377,7 @@ export default function RegistrosPage() {
       km: toPoints(kmByPlaca),
       motorista: toPoints(countByMotorista),
     };
-  }, [graficoFiltroAplicado.dataFinal, graficoFiltroAplicado.dataInicial, rowsAtividade]);
+  }, [graficoFiltroAplicado.dataFinal, graficoFiltroAplicado.dataInicial, rowsAtividadeFiltradas]);
 
   const currentChartData = chartData[chartTab];
   const chartDateRangeLabel = `${graficoFiltroAplicado.dataInicial} a ${graficoFiltroAplicado.dataFinal}`;
@@ -398,21 +425,57 @@ export default function RegistrosPage() {
         <Tab label="Híbrido" value="hibrido" {...a11yProps('hibrido')} />
       </Tabs>
 
+      <Paper elevation={1} sx={{ p: 2, mt: 2 }}>
+        <Stack
+          direction={{ xs: 'column', sm: 'row' }}
+          spacing={2}
+          alignItems={{ xs: 'stretch', sm: 'flex-end' }}
+        >
+          <TextField
+            select
+            label="Tipo de registro"
+            size="small"
+            value={tipoMovimentacao}
+            onChange={(event) => {
+              setTipoMovimentacao(event.target.value as RegistroTipoFiltro);
+              setPaginationModel((current) => ({ ...current, page: 0 }));
+            }}
+            sx={{ minWidth: { xs: '100%', sm: 220 } }}
+          >
+            {MOVIMENTACAO_OPTIONS.map((option) => (
+              <MenuItem key={option.value} value={option.value}>
+                {option.label}
+              </MenuItem>
+            ))}
+          </TextField>
+          <Typography variant="body2" color="text.secondary">
+            {rowsAtividadeFiltradas.length} registro(s) exibido(s)
+          </Typography>
+        </Stack>
+      </Paper>
+
       <TabPanel value={tab} tabKey="geral">
-        <Box mt={2}>
+        <Stack spacing={2} mt={2}>
           <div style={{ height: 700, width: '100%' }}>
             <DataGrid
-              rows={rowsAtividade}
+              rows={rowsAtividadeFiltradas}
               columns={colunasAtividade}
               loading={loadingAtividade}
               getRowId={(row) => row.id}
               disableRowSelectionOnClick
               density="compact"
               getRowHeight={() => 'auto'}
+              paginationModel={paginationModel}
+              onPaginationModelChange={setPaginationModel}
+              pageSizeOptions={[25, 50, 100]}
+              localeText={{
+                noRowsLabel: getEmptyRowsMessage(tipoMovimentacao),
+                noResultsOverlayLabel: getEmptyRowsMessage(tipoMovimentacao),
+              }}
               initialState={{ sorting: { sortModel: [{ field: 'dataJS', sort: 'desc' }] } }}
             />
           </div>
-        </Box>
+        </Stack>
       </TabPanel>
 
       <TabPanel value={tab} tabKey="graficos">

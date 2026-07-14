@@ -19,12 +19,12 @@ import {
 import { type ChangeEvent, useEffect, useMemo, useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import type { Registro } from '../types';
-import { DESTINOS_OPTIONS } from '../constants/combustivel';
 import { listObrasNames } from '../services/obras.service';
 import { listVeiculosAtivos, type VeiculoOption } from '../services/veiculos.service';
 import { listMotoristasAtivos } from '../services/motoristas.service';
 import { listMotivosCombustivelAtivos } from '../services/motivos.service';
 import { getInitialLiValue } from '../services/combustivel.service';
+import LocalAutocomplete from './LocalAutocomplete';
 
 type KmMode = 'km' | 'semOdometro' | 'galao';
 
@@ -312,13 +312,9 @@ export default function CombustivelForm({ open, initialData, onClose, onSave }: 
             </Stack>
 
             <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
-              <Autocomplete
-                freeSolo
-                options={DESTINOS_OPTIONS}
+              <LocalAutocomplete
                 value={values.local ?? ''}
-                onInputChange={(_, value) => setValues((current) => ({ ...current, local: value }))}
-                renderInput={(params) => <TextField {...params} label="Local" fullWidth />}
-                fullWidth
+                onChange={(value) => setValues((current) => ({ ...current, local: value }))}
               />
 
               <Autocomplete

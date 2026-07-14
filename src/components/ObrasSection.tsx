@@ -15,6 +15,7 @@ import {
 } from '@mui/material';
 import { Link as RouterLink } from 'react-router-dom';
 import useObras from '../hooks/useObras';
+import LocalAutocomplete from './LocalAutocomplete';
 
 export default function ObrasSection() {
   const { addObra } = useObras({ loadOnMount: false, refreshOnAdd: false });
@@ -114,13 +115,13 @@ export default function ObrasSection() {
               helperText={formError}
               fullWidth
             />
-            <TextField
-              label="Local"
+            <LocalAutocomplete
               value={local}
-              onChange={(event) => setLocal(event.target.value)}
+              onChange={setLocal}
               required
+              error={Boolean(formError) && !local.trim()}
+              helperText={Boolean(formError) && !local.trim() ? formError : undefined}
               placeholder="Local da obra"
-              fullWidth
             />
             <TextField
               label="Sinônimo"
