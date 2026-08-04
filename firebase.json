@@ -20,7 +20,7 @@
     }
   ],
   "hosting": {
-  "public": "dist",
+    "public": "dist",
     "ignore": [
       "firebase.json",
       "**/.*",
@@ -74,7 +74,7 @@
       }
     }
   },
-    "storage": {
-      "rules": "storage.rules"
+  "storage": {
+    "rules": "storage.rules"
   }
 }
