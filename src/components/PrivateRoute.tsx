@@ -26,12 +26,16 @@ export default function PrivateRoute() {
     return <Navigate to="/login" replace />;
   }
 
-  if (authorizationLoading || profile === null) {
-        return <RouteGuardLoading />;
-  }
-
   if (!currentUser.email?.trim()) {
     return <Navigate to="/acesso-negado" replace state={{ reason: 'missing-email' }} />;
+  }
+
+  if (authorizationLoading) {
+    return <RouteGuardLoading />;
+  }
+
+  if (error || profile === null) {
+    return <Navigate to="/acesso-negado" replace state={{ reason: 'firestore-error' }} />;
   }
 
   const authorized = profile.adm1 || profile.adm2;

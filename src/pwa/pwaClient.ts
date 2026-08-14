@@ -14,6 +14,7 @@ let initialized = false;
 let status: PwaStatus = { offlineReady: false, needRefresh: false, updating: false };
 const listeners = new Set<PwaListener>();
 let updateTimeout: ReturnType<typeof setTimeout> | undefined;
+let devCleanupStarted = false;
 
 function notify() {
   listeners.forEach((listener) => listener(status));
@@ -60,9 +61,43 @@ export function clearPwaUpdateError() {
   setStatus({ ...status, updating: false, updateError: undefined });
 }
 
+async function cleanupDevServiceWorkers() {
+  if (devCleanupStarted || !('serviceWorker' in navigator)) return;
+  devCleanupStarted = true;
+
+  try {
+    const registrations = await navigator.serviceWorker.getRegistrations();
+    await Promise.all(
+      registrations
+        .filter((registration) => registration.scope.startsWith(window.location.origin))
+        .map((registration) => registration.unregister()),
+    );
+
+    if ('caches' in window) {
+      const cacheNames = await caches.keys();
+      await Promise.all(
+        cacheNames
+          .filter((cacheName) => (
+            cacheName.includes('workbox') ||
+            cacheName.includes('precache') ||
+            cacheName.includes('vite-pwa')
+          ))
+          .map((cacheName) => caches.delete(cacheName)),
+      );
+    }
+  } catch (error) {
+    console.warn('[pwa] falha ao limpar service worker/cache no dev', error);
+  }
+}
+
 export function initPwa() {
   if (initialized) return;
   initialized = true;
+
+  if (!import.meta.env.PROD) {
+    void cleanupDevServiceWorkers();
+    return;
+  }
 
   const updateSW = registerSW({
     onNeedRefresh() {

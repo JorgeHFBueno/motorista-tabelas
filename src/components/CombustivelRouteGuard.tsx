@@ -16,10 +16,14 @@ function CombustivelRouteGuardLoading() {
 export default function CombustivelRouteGuard() {
   const location = useLocation();
   const { currentUser, loading: authLoading } = useAuth();
-  const { loading: authorizationLoading, profile } = useAuthorizationProfile(currentUser, authLoading);
+  const { loading: authorizationLoading, profile, error } = useAuthorizationProfile(currentUser, authLoading);
 
-  if (authLoading || authorizationLoading || profile === null) {
+  if (authLoading || authorizationLoading) {
     return <CombustivelRouteGuardLoading />;
+  }
+
+  if (error || profile === null) {
+    return <Navigate to="/acesso-negado" replace state={{ reason: 'firestore-error' }} />;
   }
 
   const isAdm1 = profile.adm1 === true;
