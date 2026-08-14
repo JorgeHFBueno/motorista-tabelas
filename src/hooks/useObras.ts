@@ -88,6 +88,7 @@ export default function useObras(options: UseObrasOptions = {}) {
       nome: trimmedNome,
       local: trimmedLocal,
       aka: trimmedAka,
+      ativa: true,
       createdAt: serverTimestamp(),
     });
 

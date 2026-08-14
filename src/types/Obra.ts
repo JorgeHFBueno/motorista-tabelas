@@ -5,6 +5,7 @@ export interface Obra {
   nome: string;
   local?: string;
   aka?: string;
+  ativa: boolean;
   descricao?: string;
   createdAt?: Timestamp | null;
 }
