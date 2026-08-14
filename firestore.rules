@@ -65,6 +65,49 @@ service cloud.firestore {
         .hasOnly(fields);
     }
 
+    // =========================================================
+    // VALIDAÇÕES DO CHECKLIST VEICULAR V2
+    // =========================================================
+
+    function categoriasVeiculoV2Validas(categorias) {
+      return categorias is list
+        && categorias.size() <= 5
+        && categorias.hasOnly([
+          'frente',
+          'lateral_esquerda',
+          'lateral_direita',
+          'traseira',
+          'parte_mecanica'
+        ]);
+    }
+
+    function checklistVeiculoConfigValida() {
+      return request.resource.data.keys().hasOnly([
+          'categoriasRapidas', 'ativo', 'versao', 'atualizadoEm',
+          'atualizadoPor', 'catalogoVersao'
+        ])
+        && categoriasVeiculoV2Validas(request.resource.data.categoriasRapidas)
+        && request.resource.data.ativo is bool
+        && request.resource.data.versao is int
+        && request.resource.data.catalogoVersao == 'v2'
+        && request.resource.data.atualizadoEm == request.time
+        && request.resource.data.atualizadoPor == request.auth.uid;
+    }
+
+    function checklistVeiculoObrigatoriosValida() {
+      return request.resource.data.keys().hasOnly([
+          'itensObrigatorios', 'ativo', 'versao', 'atualizadoEm',
+          'atualizadoPor', 'catalogoVersao'
+        ])
+        && request.resource.data.itensObrigatorios is list
+        && request.resource.data.itensObrigatorios.size() <= 74
+        && request.resource.data.ativo is bool
+        && request.resource.data.versao is int
+        && request.resource.data.catalogoVersao == 'v2'
+        && request.resource.data.atualizadoEm == request.time
+        && request.resource.data.atualizadoPor == request.auth.uid;
+    }
+
 
     // =========================================================
     // 00-AUTORIZADOS
@@ -293,6 +336,33 @@ service cloud.firestore {
 
         allow update, delete: if false;
       }
+
+
+      // -------------------------------------------------------
+      // CHECKLIST DE CHEGADA V2
+      // -------------------------------------------------------
+
+      match /checklist_chegada/{itemId} {
+
+        allow read: if isAuthorized();
+
+        allow create: if
+          isAuthorized()
+          && request.resource.data.get('criadoPorUid', '') == request.auth.uid
+          && request.resource.data.get('itemId', '') == itemId
+          && request.resource.data.get('catalogoVersao', '') == 'v2'
+          && getAfter(
+            /databases/$(database)/documents/atividades/$(atividadeId)
+          ).data.get('motorista', '') == request.auth.uid
+          && getAfter(
+            /databases/$(database)/documents/atividades/$(atividadeId)
+          ).data.get('tipo', '') == 'chegada'
+          && getAfter(
+            /databases/$(database)/documents/atividades/$(atividadeId)
+          ).data.get('checklistCatalogoVersao', '') == 'v2';
+
+        allow update, delete: if false;
+      }
     }
 
 
@@ -396,15 +466,21 @@ service cloud.firestore {
 
       allow create, update: if
         isAdm2()
-        && configId in [
-          'checklist_saida',
-          'checklist_saida_obrigatorios',
-          'combustivel_verificacao'
-        ]
         && request.resource.data.get(
           'atualizadoPor',
           request.auth.uid
-        ) == request.auth.uid;
+        ) == request.auth.uid
+        && (
+          configId in [
+            'checklist_saida',
+            'checklist_saida_obrigatorios',
+            'combustivel_verificacao'
+          ]
+          || configId == 'checklist_veiculo'
+            && checklistVeiculoConfigValida()
+          || configId == 'checklist_veiculo_obrigatorios'
+            && checklistVeiculoObrigatoriosValida()
+        );
 
       allow delete: if false;
     }
