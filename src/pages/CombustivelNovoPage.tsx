@@ -7,7 +7,6 @@ import {
   FormControl,
   FormControlLabel,
   FormLabel,
-  MenuItem,
   Paper,
   Dialog,
   DialogActions,
@@ -24,7 +23,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import type { Registro } from '../types';
 import { useAuthorizationProfile } from '../hooks/useAuthorizationProfile';
-import { listObrasNames } from '../services/obras.service';
+import { listObrasAtivasParaSelecao, type ObraSelecaoOption } from '../services/obras.service';
 import { listVeiculosAtivos, type VeiculoOption } from '../services/veiculos.service';
 import { listMotoristasAtivos } from '../services/motoristas.service';
 import { listMotivosCombustivelAtivos } from '../services/motivos.service';
@@ -72,7 +71,7 @@ export default function CombustivelNovoPage() {
   const [snack, setSnack] = useState<string | null>(null);
   const [successOpen, setSuccessOpen] = useState(false);
 
-  const [obrasOptions, setObrasOptions] = useState<string[]>([]);
+  const [obrasOptions, setObrasOptions] = useState<ObraSelecaoOption[]>([]);
   const [veiculosOptions, setVeiculosOptions] = useState<VeiculoOption[]>([]);
   const [motoristasOptions, setMotoristasOptions] = useState<string[]>([]);
   const [motivosOptions, setMotivosOptions] = useState<string[]>([]);
@@ -120,7 +119,7 @@ export default function CombustivelNovoPage() {
   const loadObras = async () => {
     setObrasLoading(true);
     try {
-      const obras = await listObrasNames();
+      const obras = await listObrasAtivasParaSelecao();
       console.info('[combustivel/novo] obras carregadas', obras.length);
       setObrasOptions(obras);
       setObrasError(null);
@@ -219,6 +218,19 @@ export default function CombustivelNovoPage() {
       setLfEditedManually(true);
     }
     setValues((v) => ({ ...v, [field]: nextValue }));
+  };
+
+  const handleObraChange = (_: unknown, obra: ObraSelecaoOption | null) => {
+    setValues((current) => {
+      const next: Partial<Registro> = {
+        ...current,
+        obra: obra?.nome ?? '',
+      };
+      if (obra?.local) {
+        next.local = obra.local;
+      }
+      return next;
+    });
   };
 
   const handleTipoPlacaChange = (e: ChangeEvent<HTMLInputElement>) => {
@@ -394,13 +406,15 @@ export default function CombustivelNovoPage() {
                 fullWidth
               />
 
-              <TextField select label="Obra" value={values.obra ?? ''} onChange={handleChange('obra')} fullWidth>
-                {obrasOptions.map((obra) => (
-                  <MenuItem key={obra} value={obra}>
-                    {obra}
-                  </MenuItem>
-                ))}
-              </TextField>
+              <Autocomplete
+                options={obrasOptions}
+                getOptionLabel={(option) => option.nome}
+                value={obrasOptions.find((obra) => obra.nome === values.obra) ?? null}
+                onChange={handleObraChange}
+                loading={obrasLoading}
+                renderInput={(params) => <TextField {...params} label="Obra" fullWidth />}
+                fullWidth
+              />
             </Stack>
 
             <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
