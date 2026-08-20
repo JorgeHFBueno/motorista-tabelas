@@ -3,16 +3,23 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // =========================================================
-    // AUTENTICAÇÃO / PERFIS
-    // =========================================================
-
+    // Authentication and authorization profiles.
     function signedIn() {
       return request.auth != null;
     }
 
     function authEmail() {
-      return request.auth.token.get('email', '').lower();
+      return signedIn()
+        ? request.auth.token.get('email', '').lower()
+        : '';
+    }
+
+    function profileExists() {
+      return signedIn()
+        && authEmail() != ''
+        && exists(
+          /databases/$(database)/documents/00-autorizados/$(authEmail())
+        );
     }
 
     function profile() {
@@ -22,8 +29,7 @@ service cloud.firestore {
     }
 
     function isAuthorized() {
-      return signedIn()
-        && authEmail() != ''
+      return profileExists()
         && profile().get(
           'ativo',
           profile().get('active', true)
@@ -48,14 +54,17 @@ service cloud.firestore {
         );
     }
 
+    function isAdmin() {
+      return isAdm1() || isAdm2();
+    }
+
     function hasAdminClaim() {
       return isAuthorized()
         && request.auth.token.get('admin', false) == true;
     }
 
     function isSelfEmail(email) {
-      return signedIn()
-        && authEmail() == email;
+      return signedIn() && authEmail() == email;
     }
 
     function changedOnly(fields) {
@@ -65,95 +74,32 @@ service cloud.firestore {
         .hasOnly(fields);
     }
 
-    // =========================================================
-    // VALIDAÇÕES DO CHECKLIST VEICULAR V2
-    // =========================================================
-
-    function categoriasVeiculoV2Validas(categorias) {
-      return categorias is list
-        && categorias.size() <= 5
-        && categorias.hasOnly([
-          'frente',
-          'lateral_esquerda',
-          'lateral_direita',
-          'traseira',
-          'parte_mecanica'
-        ]);
-    }
-
-    function checklistVeiculoConfigValida() {
-      return request.resource.data.keys().hasOnly([
-          'categoriasRapidas', 'ativo', 'versao', 'atualizadoEm',
-          'atualizadoPor', 'catalogoVersao'
-        ])
-        && categoriasVeiculoV2Validas(request.resource.data.categoriasRapidas)
-        && request.resource.data.ativo is bool
-        && request.resource.data.versao is int
-        && request.resource.data.catalogoVersao == 'v2'
-        && request.resource.data.atualizadoEm == request.time
-        && request.resource.data.atualizadoPor == request.auth.uid;
-    }
-
-    function checklistVeiculoObrigatoriosValida() {
-      return request.resource.data.keys().hasOnly([
-          'itensObrigatorios', 'ativo', 'versao', 'atualizadoEm',
-          'atualizadoPor', 'catalogoVersao'
-        ])
-        && request.resource.data.itensObrigatorios is list
-        && request.resource.data.itensObrigatorios.size() <= 74
-        && request.resource.data.ativo is bool
-        && request.resource.data.versao is int
-        && request.resource.data.catalogoVersao == 'v2'
-        && request.resource.data.atualizadoEm == request.time
-        && request.resource.data.atualizadoPor == request.auth.uid;
+    function didNotChange(fields) {
+      return !request.resource.data
+        .diff(resource.data)
+        .affectedKeys()
+        .hasAny(fields);
     }
 
 
-    // =========================================================
-    // 00-AUTORIZADOS
-    // =========================================================
-
+    // Authorization profiles are maintained by the Admin SDK backend.
     match /00-autorizados/{email} {
-
-      // Usuário precisa conseguir carregar o próprio perfil.
-      // Adm2 pode consultar documento específico.
       allow get: if isSelfEmail(email) || isAdm2();
-
-      // Nenhum cliente precisa listar todos os autorizados.
-      // Functions/Admin SDK continuam funcionando.
-      allow list: if false;
-
-      // Perfis são alterados somente pelo backend/Admin SDK.
+      allow list: if isAdm1() || isAdm2();
       allow create, update, delete: if false;
 
-
-      // -------------------------------------------------------
-      // FCM TOKENS
-      // -------------------------------------------------------
-
       match /fcmTokens/{tokenId} {
-
-        allow get, list: if false;
+        allow read: if false;
 
         allow create, update: if
           isSelfEmail(email)
           && isAuthorized()
-          && request.resource.data.get('token', '') == tokenId
-          && request.resource.data.keys().hasOnly([
-            'token',
-            'plataforma',
-            'atualizadoEm'
-          ]);
+          && request.resource.data.get('token', tokenId) == tokenId;
 
-        // Function com Admin SDK remove tokens inválidos.
         allow delete: if false;
       }
     }
 
-
-    // =========================================================
-    // VERSIONAMENTO
-    // =========================================================
 
     match /Versionamento/app {
       allow read: if signedIn();
@@ -161,45 +107,35 @@ service cloud.firestore {
     }
 
 
-    // =========================================================
-    // PERFIL LEGADO/REACT
-    // users/{auth.uid}
-    // =========================================================
-
+    // Legacy React profile. Authorization fields are immutable.
     match /users/{uid} {
-
-      allow get: if signedIn()
-        && request.auth.uid == uid;
-
+      allow get: if signedIn() && request.auth.uid == uid;
       allow list: if false;
 
-      allow update: if signedIn()
+      allow update: if
+        signedIn()
         && request.auth.uid == uid
-        && changedOnly([
-          'displayName'
+        && didNotChange([
+          'role',
+          'perfil',
+          'adm1',
+          'adm2',
+          'admin',
+          'permissions'
         ]);
 
       allow create, delete: if false;
     }
 
 
-    // =========================================================
-    // VEÍCULOS
-    // =========================================================
-
     match /veiculos/{veiculoId} {
-
       allow read: if isAuthorized();
-
-      // Cadastro administrativo pelo React.
       allow create: if isAdm2();
 
-      // Adm2 pode editar o cadastro.
-      // Usuário normal pode apenas atualizar quilometragem.
+      // Operational users may only update shared mileage state.
       allow update: if
         isAdm2()
-        ||
-        (
+        || (
           isAuthorized()
           && changedOnly([
             'quilometragemUltima',
@@ -211,32 +147,17 @@ service cloud.firestore {
     }
 
 
-    // =========================================================
-    // 01-PLACAS - FLUXO APARENTEMENTE LEGADO
-    // =========================================================
-
     match /01-placas/{placaId} {
-      allow get, list: if isAdm2();
-      allow create: if isAdm2();
+      allow read, create: if isAdm2();
       allow update, delete: if false;
     }
 
 
-    // =========================================================
-    // OBRAS
-    // =========================================================
-
     match /obras/{obraId} {
-
       allow read: if isAuthorized();
-
       allow create, update, delete: if isAdm2();
     }
 
-
-    // =========================================================
-    // MOTORISTAS / MOTIVOS
-    // =========================================================
 
     match /motoristas/{motoristaId} {
       allow read: if isAuthorized();
@@ -249,82 +170,51 @@ service cloud.firestore {
     }
 
 
-    // =========================================================
-    // CATEGORIAS
-    // =========================================================
-
-    match /notas-categorias/{categoriaId} {
-
+    match /notas-categorias/{documentId} {
       allow read: if isAdm2();
-
       allow create, update, delete: if isAdm2();
     }
 
-
-    // =========================================================
-    // FORNECEDORES
-    // =========================================================
-
-    match /notas-fornecedores/{fornecedorId} {
-
+    match /notas-fornecedores/{documentId} {
       allow read: if isAdm2();
-
       allow create, update, delete: if isAdm2();
     }
 
-
-    // =========================================================
-    // ÍNDICE DE NÚMEROS DE FORNECEDORES
-    // =========================================================
-
-    match /notas-fornecedores-numeros/{numero} {
-
+    match /notas-fornecedores-numeros/{documentId} {
       allow read: if isAdm2();
-
       allow create, update, delete: if isAdm2();
     }
-
-
-    // =========================================================
-    // APP METADATA
-    // =========================================================
 
     match /app-metadata/notas-fornecedores-numero {
-
       allow read: if isAdm2();
-
       allow create, update: if isAdm2();
-
       allow delete: if false;
     }
 
 
-    // =========================================================
-    // ATIVIDADES
-    // =========================================================
-
     match /atividades/{atividadeId} {
-
-      // Atualmente React e Flutter fazem listagens amplas.
+      // Both clients perform broad administrative/operational listings.
       allow read: if isAuthorized();
 
+      // Extra fields are allowed; only identity and authorship are enforced.
       allow create: if
         isAuthorized()
         && request.resource.data.get(
-          'motoristaUid',
+          'criadoPorUid',
           request.auth.uid
-        ) == request.auth.uid;
+        ) == request.auth.uid
+        && (
+          isAdmin()
+          || request.resource.data.get(
+            'motoristaUid',
+            request.auth.uid
+          ) == request.auth.uid
+        );
 
-      // Histórico não deve ser alterado depois de criado.
+      // Activity history is immutable.
       allow update, delete: if false;
 
-
-      // -------------------------------------------------------
-      // CHECKLIST DE SAÍDA
-      // -------------------------------------------------------
-
       match /checklist_saida/{itemId} {
-
         allow read: if isAuthorized();
 
         allow create: if
@@ -337,81 +227,54 @@ service cloud.firestore {
         allow update, delete: if false;
       }
 
-
-      // -------------------------------------------------------
-      // CHECKLIST DE CHEGADA V2
-      // -------------------------------------------------------
-
       match /checklist_chegada/{itemId} {
-
         allow read: if isAuthorized();
 
+        // Catalog version and payload shape are application concerns.
         allow create: if
           isAuthorized()
-          && request.resource.data.get('criadoPorUid', '') == request.auth.uid
-          && request.resource.data.get('itemId', '') == itemId
-          && request.resource.data.get('catalogoVersao', '') == 'v2'
-          && getAfter(
-            /databases/$(database)/documents/atividades/$(atividadeId)
-          ).data.get('motorista', '') == request.auth.uid
-          && getAfter(
-            /databases/$(database)/documents/atividades/$(atividadeId)
-          ).data.get('tipo', '') == 'chegada'
-          && getAfter(
-            /databases/$(database)/documents/atividades/$(atividadeId)
-          ).data.get('checklistCatalogoVersao', '') == 'v2';
+          && request.resource.data.get(
+            'criadoPorUid',
+            request.auth.uid
+          ) == request.auth.uid;
 
         allow update, delete: if false;
       }
     }
 
 
-    // =========================================================
-    // COMBUSTÍVEL
-    // =========================================================
-
     match /03-combustivel/{registroId} {
-
-      // Necessário atualmente para queries/listagens dos apps.
+      // Current React and Flutter flows require broad reads.
       allow read: if isAuthorized();
 
+      // Legacy records may omit UID fields. If present, authorship cannot be
+      // forged. Admin profiles may register for another motoristaUid.
       allow create: if
         isAuthorized()
-
-        // React possui registros sem uid.
-        // Se uid for enviado, precisa ser o usuário autenticado.
+        && request.resource.data.get('uid', request.auth.uid) == request.auth.uid
         && request.resource.data.get(
-          'uid',
+          'criadoPorUid',
           request.auth.uid
         ) == request.auth.uid
+        && (
+          isAdmin()
+          || request.resource.data.get(
+            'motoristaUid',
+            request.auth.uid
+          ) == request.auth.uid
+        );
 
-        && request.resource.data.get(
-          'motoristaUid',
-          request.auth.uid
-        ) == request.auth.uid;
-
-      // Edição genérica direta somente com claim admin.
-      // A API HTTP com Admin SDK não depende destas Rules.
       allow update, delete: if hasAdminClaim();
     }
 
 
-    // =========================================================
-    // BOMBAS
-    // =========================================================
-
     match /bombas/{bombaId} {
-
       allow read: if isAuthorized();
 
-      // Adm2 pode realizar manutenção administrativa do documento.
-      //
-      // Usuário operacional só pode alterar os campos utilizados
-      // pelos fluxos de abastecimento.
+      // Operational users modify only the shared fuel state.
       allow update: if
         isAdm2()
-        ||
-        (
+        || (
           isAuthorized()
           && changedOnly([
             'montanteAtual',
@@ -425,222 +288,106 @@ service cloud.firestore {
     }
 
 
-    // =========================================================
-    // CHAMADOS
-    // =========================================================
-
     match /00-chamados/{chamadoId} {
-
-      // O Flutter atualmente faz consultas globais para detectar
-      // conflitos, inclusive de outro motorista.
+      // Flutter intentionally queries conflicts across drivers.
       allow read: if isAuthorized();
 
-      allow create: if isAuthorized();
+      allow create: if
+        isAuthorized()
+        && request.resource.data.get(
+          'criadoPorUid',
+          request.auth.uid
+        ) == request.auth.uid
+        && (
+          isAdmin()
+          || request.resource.data.get(
+            'motoristaUid',
+            request.auth.uid
+          ) == request.auth.uid
+        );
 
-      // Usuários podem movimentar somente os campos operacionais
-      // do chamado.
-      //
-      // motorista/tipo/data não podem ser alterados.
+      // New operational fields are allowed; identity/origin is immutable.
       allow update: if
         isAuthorized()
-        && changedOnly([
-          'mntntInfrmd',
-          'montanteInicial',
-          'dfrncl',
-          'status',
-          'atualizadoEm',
-          'updatedAt'
+        && didNotChange([
+          'motorista',
+          'motoristaUid',
+          'criadoPorUid',
+          'tipo',
+          'data'
         ]);
 
       allow delete: if false;
     }
 
 
-    // =========================================================
-    // CONFIGURAÇÕES GLOBAIS
-    // =========================================================
-
     match /configuracoes/{configId} {
-
       allow read: if isAuthorized();
-
-      allow create, update: if
-        isAdm2()
-        && request.resource.data.get(
-          'atualizadoPor',
-          request.auth.uid
-        ) == request.auth.uid
-        && (
-          configId in [
-            'checklist_saida',
-            'checklist_saida_obrigatorios',
-            'combustivel_verificacao'
-          ]
-          || configId == 'checklist_veiculo'
-            && checklistVeiculoConfigValida()
-          || configId == 'checklist_veiculo_obrigatorios'
-            && checklistVeiculoObrigatoriosValida()
-        );
-
+      allow create, update: if isAdm2();
       allow delete: if false;
     }
 
 
-    // =========================================================
-    // NOTIFICAÇÕES
-    // =========================================================
-
     match /notificacoes/{notificationId} {
-
-      // Adm2 pode consultar qualquer notificação.
-      //
-      // O motorista pode executar GET da própria notificação,
-      // necessário pelos fluxos transacionais.
       allow get: if
         isAdm2()
-        ||
-        (
+        || (
           isAuthorized()
-          && resource.data.get(
-            'motoristaUid',
-            ''
-          ) == request.auth.uid
+          && resource.data.get('motoristaUid', '') == request.auth.uid
         );
 
-      // Polling/listagem administrativa.
       allow list: if isAdm2();
-
 
       allow create: if
         isAuthorized()
-        && request.resource.data.get(
-          'motoristaUid',
-          ''
-        ) == request.auth.uid
-        && request.resource.data.get(
-          'destinatarioPerfil',
-          'adm2'
-        ) == 'adm2';
+        && request.resource.data.get('motoristaUid', '') == request.auth.uid;
 
-
-      // Preserva identidade/autoria da notificação.
       allow update: if
         (
           isAdm2()
-          ||
-          (
+          || (
             isAuthorized()
-            && resource.data.get(
-              'motoristaUid',
-              ''
-            ) == request.auth.uid
+            && resource.data.get('motoristaUid', '') == request.auth.uid
           )
         )
-
-        && request.resource.data.get(
+        && didNotChange([
           'motoristaUid',
-          ''
-        ) == resource.data.get(
-          'motoristaUid',
-          ''
-        )
-
-        && request.resource.data.get(
           'chamadoId',
-          ''
-        ) == resource.data.get(
-          'chamadoId',
-          ''
-        )
-
-        && request.resource.data.get(
           'tipo',
-          ''
-        ) == resource.data.get(
-          'tipo',
-          ''
-        )
-
-        && request.resource.data.get(
-          'destinatarioPerfil',
-          ''
-        ) == resource.data.get(
-          'destinatarioPerfil',
-          ''
-        );
+          'destinatarioPerfil'
+        ]);
 
       allow delete: if false;
 
-
-      // -------------------------------------------------------
-      // LEITURAS DE NOTIFICAÇÃO
-      // -------------------------------------------------------
-
       match /leituras/{uid} {
-
-        allow get: if
-          isAdm2()
-          && request.auth.uid == uid;
-
+        allow get: if isAdm2() && request.auth.uid == uid;
         allow list: if false;
-
-        allow create, update: if
-          isAdm2()
-          && request.auth.uid == uid;
-
+        allow create, update: if isAdm2() && request.auth.uid == uid;
         allow delete: if false;
       }
     }
 
 
-    // =========================================================
-    // MANUTENÇÕES
-    // =========================================================
-
     match /manutencoes/{manutencaoId} {
-
       allow read: if isAdm2() || hasAdminClaim();
-
-      // Cadastro normal da manutenção.
       allow create: if isAdm2();
-
-      // Editor genérico/destrutivo do React.
       allow update, delete: if hasAdminClaim();
     }
-
-
-    // =========================================================
-    // MANUTENÇÕES LEGADO
-    // =========================================================
 
     match /manutencoes-legado/{manutencaoId} {
-
       allow read: if isAdm2() || hasAdminClaim();
-
       allow create: if false;
-
       allow update, delete: if hasAdminClaim();
     }
 
 
-    // =========================================================
-    // DEV OBRAS / LOCAIS
-    // =========================================================
-
     match /dev_obras_locais/{documentId} {
-
-      allow read: if isAdm2();
-
-      allow create: if isAdm2();
-
+      allow read, create: if isAdm2();
       allow update, delete: if false;
     }
 
 
-    // =========================================================
-    // DEFAULT DENY
-    // =========================================================
-
+    // Default deny for every undeclared collection and subcollection.
     match /{document=**} {
       allow read, write: if false;
     }
