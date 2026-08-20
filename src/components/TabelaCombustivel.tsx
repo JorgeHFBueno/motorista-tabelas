@@ -1,5 +1,6 @@
 import { useState, useMemo, useEffect } from 'react';
 import { DataGrid, type GridColDef, useGridApiRef } from '@mui/x-data-grid';
+import { ptBR } from '@mui/x-data-grid/locales';
 import { gridFilteredSortedRowIdsSelector } from '@mui/x-data-grid/hooks/features/filter';
 import dayjs from 'dayjs';
 import { Button, Stack, IconButton, Snackbar, Alert, Dialog, DialogTitle, DialogContent, DialogActions, TextField, MenuItem } from '@mui/material';
@@ -31,25 +32,25 @@ const EXCEL_KNOWN_COLUMNS = [
   { field: 'placa', label: 'Placa' },
   { field: 'motorista', label: 'Motorista' },
   { field: 'km', label: 'KM' },
-  { field: 'li', label: 'LI' },
-  { field: 'qa', label: 'QA' },
-  { field: 'lf', label: 'LF' },
+  { field: 'li', label: 'Montante Inicial' },
+  { field: 'qa', label: 'Quantidade Abastecida' },
+  { field: 'lf', label: 'Montante Final' },
   { field: 'arla', label: 'Arla' },
   { field: 'para_quem', label: 'Para quem' },
   { field: 'local', label: 'Local' },
+  { field: 'obra', label: 'Obra' },
   { field: 'motivo', label: 'Motivo' },
   { field: 'observacao', label: 'Observacao' },
-  { field: 'tipo', label: 'Tipo' },
   { field: 'galao', label: 'Galao' },
-  { field: 'hnf', label: 'HNF' },
   { field: 'semKm', label: 'Sem KM' },
   { field: 'tipoPlaca', label: 'KM flag' },
 ] as const;
 
 const DECIMAL_TENTH_FIELDS = new Set(['li', 'qa', 'lf', 'arla']);
-const IGNORED_EXCEL_FIELDS = new Set(['dataJS', 'actions']);
+const IGNORED_EXCEL_FIELDS = new Set(['dataJS', 'actions', 'tipo', 'hnf']);
 const DATE_FIELD_PATTERN = /(data|date|created|updated|criado|alterado|editado|timestamp)/i;
 const BR_THOUSANDS_NUMBER_PATTERN = /^[+-]?\d{1,3}(\.\d{3})+(,\d+)?$/;
+const DATA_GRID_LOCALE_TEXT = ptBR.components.MuiDataGrid.defaultProps.localeText;
 
 function parseKmNumber(value: unknown): number | null {
   if (typeof value === 'number' && Number.isFinite(value)) return value;
@@ -164,6 +165,13 @@ export default function TabelaCombustivel() {
     return value;
   }
 
+  function getExcelFieldValue(field: string, row: Record<string, unknown>) {
+    if (field === 'obra') {
+      return typeof row.obra === 'string' ? row.obra.trim() : '';
+    }
+    return row[field];
+  }
+
   function getFilteredPrincipalRows() {
     const api = principalGridApiRef.current;
     if (!api) return rowsOk;
@@ -223,7 +231,7 @@ export default function TabelaCombustivel() {
     const excelColumns = buildExcelColumns(rowsFiltrados);
     const dataForExcel = rowsFiltrados.map((r: any) => (
       excelColumns.reduce<Record<string, any>>((acc, column) => {
-        acc[column.label] = formatExcelValue(column.field, r[column.field], r);
+        acc[column.label] = formatExcelValue(column.field, getExcelFieldValue(column.field, r), r);
         return acc;
       }, {})
     ));
@@ -570,6 +578,7 @@ export default function TabelaCombustivel() {
             apiRef={principalGridApiRef}
             rows={rowsOk}
             columns={colunas}
+            localeText={DATA_GRID_LOCALE_TEXT}
             loading={loading}
             getRowId={(row) => row.id}
             disableRowSelectionOnClick
@@ -596,6 +605,7 @@ export default function TabelaCombustivel() {
               { field: 'abastecimentos', headerName: 'Abastecimentos', minWidth: 150, flex: 0.7 },
               { field: 'litros', headerName: 'Litros', minWidth: 150, flex: 0.7 },
             ]}
+            localeText={DATA_GRID_LOCALE_TEXT}
             disableRowSelectionOnClick
             density="compact"
             getRowHeight={() => 'auto'}
@@ -624,6 +634,7 @@ export default function TabelaCombustivel() {
             <DataGrid
               rows={custoRows}
               columns={custoColumns}
+              localeText={DATA_GRID_LOCALE_TEXT}
               getRowId={(row) => row.id}
               disableRowSelectionOnClick
               density="compact"
@@ -663,6 +674,7 @@ export default function TabelaCombustivel() {
               value={fromMonth}
               onChange={(e) => setFromMonth(e.target.value)}
               InputLabelProps={{ shrink: true }}
+              slotProps={{ htmlInput: { lang: 'pt-BR' } }}
             />
             <TextField
               type="month"
@@ -670,6 +682,7 @@ export default function TabelaCombustivel() {
               value={toMonth}
               onChange={(e) => setToMonth(e.target.value)}
               InputLabelProps={{ shrink: true }}
+              slotProps={{ htmlInput: { lang: 'pt-BR' } }}
             />
           </Stack>
         </DialogContent>
