@@ -1,17 +1,29 @@
 # Modelo de bombas e entradas Web
 
-## Auditoria de unidades e legado
+## Unidade de volume canônica
 
-- `bombas.estoqueAtual` e `bombas.montanteAtual` continuam em décimos de litro (a interface converte com `unidadeBombaParaLitros`).
-- `03-combustivel.litrosComprados` é canônico em litros reais. Apenas `qa` de documentos legados é convertido de décimos durante a normalização.
-- `capacidadeLitros` não é usado em cálculo pela Web nem recebe conversão; permanece com a unidade e os valores existentes no Firestore. Este patch não presume nem altera sua unidade.
-- `folgaLitros` é preservado. Hoje é lido por `getAdm1MontanteReference` como margem junto de `montanteAtual` para a referência do fluxo adm1; não entra no cálculo de novas entradas.
-- `ultimoFrentista` e `ultimoAbastecimento` continuam preservados e são escritos pelo fluxo existente de abastecimento/saída.
+Todo volume operacional do novo domínio de Bombas persistido no Firestore usa **Int64 ×10**: 1 unidade armazenada representa 0,1 litro.
 
-## Conversões
+| Litros visuais | Unidade persistida |
+|---:|---:|
+| 0,1 L | 1 |
+| 1 L | 10 |
+| 1,5 L | 15 |
+| 10 L | 100 |
+| 5.000 L | 50000 |
 
-`litrosParaUnidadeBomba(litros)` converte litros reais para a unidade interna da bomba (`litros * 10`). `unidadeBombaParaLitros(valor)` faz a conversão inversa. O resumo operacional da bomba e os novos eventos não usam décimos para `litrosComprados`.
+Os campos canônicos são `estoqueAtual`, `montanteAtual`, `litrosComprados`, `estoqueAntes`, `estoqueAposMovimento` e `montanteSnapshot`. `bombas/diesel_patio.ultimaEntrada.litrosComprados` segue a mesma unidade. A UI trabalha em litros visuais e converte somente nas fronteiras pelos helpers `litrosParaUnidadeBomba` e `unidadeBombaParaLitros`.
 
-## Compatibilidade
+`precoLitro` é calculado usando a quantidade visual: `preco / unidadeBombaParaLitros(litrosComprados)`, nunca dividindo diretamente pelo inteiro persistido ×10.
 
-`normalizeFuelMovement` centraliza a leitura: novo schema usa `litrosComprados`, `responsavel`, `estoqueAposMovimento` e `montanteSnapshot`; registros antigos usam `qa`, `diesel`, `lf`, `precoTotal`, `precoPorLitro` e os campos de motorista. Nenhum registro antigo é migrado ou apagado.
+Uma entrada aumenta `estoqueAtual` e não altera `montanteAtual`; a soma é feita integralmente em unidades ×10.
+
+## Compatibilidade e auditoria
+
+`normalizeFuelMovement` conhece explicitamente o schema novo e retorna volumes na unidade persistida para a UI converter. Registros legados usam `qa`, `diesel` e `lf`, que já são ×10, e permanecem somente com compatibilidade de leitura. Documentos intermediários ambíguos não são detectados heurísticamente nem migrados.
+
+`capacidadeLitros` é lido apenas como dado de bomba e não participa dos cálculos da Web. Como há produção existente e sua unidade não foi comprovada, este patch não altera seu valor ou unidade; a normalização fica para etapa própria com migração planejada.
+
+`folgaLitros` mantém a semântica legada: é usado por `getAdm1MontanteReference` como margem junto de `montanteAtual` e não entra no cálculo de novas entradas. Não foi alterado.
+
+`ultimoFrentista` e `ultimoAbastecimento` continuam preservados pelo fluxo existente.

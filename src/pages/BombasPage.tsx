@@ -144,7 +144,7 @@ export default function BombasPage() {
     ? { ...selectedBomba.ultimaEntrada, data: selectedBomba.ultimaEntrada.data, tipo: 'entrada' as const }
     : legacyLatestPurchase;
   const total = latestPurchase?.preco;
-  const purchased = latestPurchase?.litrosComprados ?? null;
+  const purchased = unidadeBombaParaLitros(latestPurchase?.litrosComprados);
   const indicators = getPumpIndicators(selectedBomba ?? {});
   const parsedTotal = parsePtBrNumber(totalPrice);
   const parsedLiters = parsePtBrNumber(purchasedLiters);
@@ -438,7 +438,7 @@ function HistoryDialog({ open, onClose, movements, loading, dateLabel, litersLab
                 </Box>
                 <Box sx={{ textAlign: { sm: 'right' }, minWidth: 150 }}>
                   <Typography fontWeight={800} color={type === 'entrada' ? 'success.main' : 'text.primary'}>
-                    {type === 'entrada' ? '+' : type === 'saida' ? '−' : ''}{litersLabel(movement.litrosComprados ?? null)}
+                    {type === 'entrada' ? '+' : type === 'saida' ? '−' : ''}{litersLabel(unidadeBombaParaLitros(movement.litrosComprados))}
                   </Typography>
                   {typeof movement.preco === 'number' && <Typography variant="body2">{currency.format(movement.preco)}</Typography>}
                   {movement.lote && <Typography variant="caption" color="text.secondary">Lote {movement.lote}</Typography>}

@@ -15,6 +15,7 @@ import {
   applyDieselEntryToPump,
   buildDieselEntryRecord,
   litrosParaUnidadeBomba,
+  isStoredVolume,
   normalizeFuelMovement,
   type FuelMovement,
   type FuelMovementSource,
@@ -82,6 +83,7 @@ export async function registerDieselEntry(input: DieselEntryInput): Promise<void
   if (!input.batch.trim()) throw new Error('Informe o lote da compra.');
 
   const entryStoredUnits = litrosParaUnidadeBomba(input.purchasedLiters);
+  if (!Number.isInteger(entryStoredUnits)) throw new Error('A quantidade de litros não pôde ser convertida para a unidade da bomba.');
   const unitPrice = input.totalPrice / input.purchasedLiters;
   const bombaRef = doc(db, BOMBAS_COLLECTION, DIESEL_PATIO_ID);
   const movementRef = doc(collection(db, COMBUSTIVEL_COLLECTION));
@@ -103,10 +105,10 @@ export async function registerDieselEntry(input: DieselEntryInput): Promise<void
 
     const currentPumpAmount = bombaSnapshot.data().montanteAtual;
     const currentStock = bombaSnapshot.data().estoqueAtual;
-    if (typeof currentPumpAmount !== 'number' || !Number.isFinite(currentPumpAmount)) {
+    if (!isStoredVolume(currentPumpAmount)) {
       throw new Error('O montante atual da bomba é inválido.');
     }
-    if (typeof currentStock !== 'number' || !Number.isFinite(currentStock)) {
+    if (!isStoredVolume(currentStock)) {
       throw new Error('O estoque atual da bomba é inválido.');
     }
     const newPumpState = applyDieselEntryToPump(
@@ -126,7 +128,7 @@ export async function registerDieselEntry(input: DieselEntryInput): Promise<void
         estoqueAntes: currentStock,
         estoqueAposMovimento: newPumpState.estoqueAtual,
         montanteSnapshot: currentPumpAmount,
-        litrosComprados: input.purchasedLiters,
+        litrosComprados: entryStoredUnits,
         totalPrice: input.totalPrice,
         unitPrice,
         batch: input.batch,
@@ -138,7 +140,7 @@ export async function registerDieselEntry(input: DieselEntryInput): Promise<void
       ultimaEntrada: {
         movimentoId: movementRef.id,
         data: timestamp,
-        litrosComprados: input.purchasedLiters,
+        litrosComprados: entryStoredUnits,
         preco: Math.round(input.totalPrice * 100) / 100,
         precoLitro: Math.round(unitPrice * 10000) / 10000,
         lote: input.batch.trim(),

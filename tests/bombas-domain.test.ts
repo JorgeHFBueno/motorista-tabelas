@@ -23,12 +23,16 @@ test('interpreta valores pt-BR sem armazenar formatação', () => {
 
 test('converte litros para a unidade em décimos usada pelo Flutter', () => {
   assert.equal(litrosParaUnidadeBomba(5_000), 50_000);
+  assert.equal(litrosParaUnidadeBomba(1.5), 15);
   assert.equal(litrosParaUnidadeBomba(12.3), 123);
   assert.equal(unidadeBombaParaLitros(34_000), 3_400);
+  assert.equal(unidadeBombaParaLitros(50_000), 5_000);
+  assert.equal(unidadeBombaParaLitros(15), 1.5);
 });
 
 test('calcula preço por litro e protege divisão inválida', () => {
   assert.equal(calculateUnitPrice(20_000, 5_000), 4);
+  assert.equal(calculateUnitPrice(29_000, unidadeBombaParaLitros(50_000)!), 5.8);
   assert.equal(calculateUnitPrice(20_000, 0), null);
   assert.equal(calculateUnitPrice(Number.NaN, 5_000), null);
 });
@@ -73,7 +77,7 @@ test('mapeia o novo schema e conserva somente a compatibilidade necessária ao h
     estoqueAntes: 34_000,
     estoqueAposMovimento: 84_000,
     montanteSnapshot: 12_345,
-    litrosComprados: 5_000,
+    litrosComprados: 50_000,
     totalPrice: 20_000,
     unitPrice: 4,
     batch: ' LT-2026-08 ',
@@ -83,7 +87,7 @@ test('mapeia o novo schema e conserva somente a compatibilidade necessária ao h
     data: date,
     tipo: 'entrada',
     bombaId: 'diesel_patio',
-    litrosComprados: 5_000,
+    litrosComprados: 50_000,
     preco: 20_000,
     precoLitro: 4,
     lote: 'LT-2026-08',
@@ -103,7 +107,7 @@ test('normaliza uma entrada nova para o histórico e prioriza os campos canônic
     id: 'new-entry',
     data: new Date(2026, 8, 4),
     tipo: 'entrada',
-    litrosComprados: 5_000,
+    litrosComprados: 50_000,
     qa: 1,
     preco: 20_000,
     precoTotal: 2,
@@ -116,7 +120,7 @@ test('normaliza uma entrada nova para o histórico e prioriza os campos canônic
   });
 
   assert.equal(movement.tipo, 'entrada');
-  assert.equal(movement.litrosComprados, 5_000);
+  assert.equal(movement.litrosComprados, 50_000);
   assert.equal(movement.preco, 20_000);
   assert.equal(movement.precoLitro, 4);
   assert.deepEqual(movement.responsavel, { id: 'jorge@example.com', nome: 'JORGE H. F. BUENO' });
@@ -145,7 +149,7 @@ test('normaliza uma entrada legada sem removê-la do histórico', () => {
     },
     {
       tipo: 'entrada',
-      litrosComprados: 5_000,
+      litrosComprados: 50_000,
       preco: 20_000,
       precoLitro: 4,
       responsavel: { id: '', nome: 'JORGE H. F. BUENO' },

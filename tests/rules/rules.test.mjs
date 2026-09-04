@@ -156,19 +156,25 @@ test('[firestore] adm2 can register fuel for another driver with own authorship'
 test('[firestore] normal user cannot register administrative diesel entry', async () => assertFails(setDoc(doc(dbAs('user'), '03-combustivel', 'fuel-stock-entry-user'), { motorista: 'uid-user', motivo: 'Abastecimento de Diesel', qa: 5000, diesel: 9000 })));
 test('[firestore] adm2 registers administrative diesel entry', async () => assertSucceeds(setDoc(doc(dbAs('adm2'), '03-combustivel', 'fuel-stock-entry-adm2'), { motorista: 'uid-adm2', motivo: 'Abastecimento de Diesel', qa: 5000, diesel: 9000, precoTotal: 2000, precoPorLitro: 4, lote: 'LT-2026-08' })));
 test('[firestore] adm2 registers the new diesel entry schema', async () => assertSucceeds(setDoc(doc(dbAs('adm2'), '03-combustivel', 'fuel-stock-entry-v2-adm2'), {
-  data: new Date('2026-09-04T12:00:00Z'), tipo: 'entrada', bombaId: 'diesel_patio', litrosComprados: 5000,
+  data: new Date('2026-09-04T12:00:00Z'), tipo: 'entrada', bombaId: 'diesel_patio', litrosComprados: 50000,
+  preco: 20000, precoLitro: 4, lote: 'LT-2026-09',
+  responsavel: { id: 'adm2@example.com', nome: 'Adm2' }, estoqueAntes: 34000,
+  estoqueAposMovimento: 84000, montanteSnapshot: 491264,
+})));
+test('[firestore] new diesel entry volume fields must be integers', async () => assertFails(setDoc(doc(dbAs('adm2'), '03-combustivel', 'fuel-stock-entry-v2-decimal'), {
+  data: new Date('2026-09-04T12:00:00Z'), tipo: 'entrada', bombaId: 'diesel_patio', litrosComprados: 50000.5,
   preco: 20000, precoLitro: 4, lote: 'LT-2026-09',
   responsavel: { id: 'adm2@example.com', nome: 'Adm2' }, estoqueAntes: 34000,
   estoqueAposMovimento: 84000, montanteSnapshot: 491264,
 })));
 test('[firestore] normal user cannot register the new diesel entry schema', async () => assertFails(setDoc(doc(dbAs('user'), '03-combustivel', 'fuel-stock-entry-v2-user'), {
-  data: new Date('2026-09-04T12:00:00Z'), tipo: 'entrada', bombaId: 'diesel_patio', litrosComprados: 5000,
+  data: new Date('2026-09-04T12:00:00Z'), tipo: 'entrada', bombaId: 'diesel_patio', litrosComprados: 50000,
   preco: 20000, precoLitro: 4, lote: 'LT-2026-09',
   responsavel: { id: 'user@example.com', nome: 'User' }, estoqueAntes: 34000,
   estoqueAposMovimento: 84000, montanteSnapshot: 491264,
 })));
 test('[firestore] new diesel entry cannot forge its Firestore responsible profile', async () => assertFails(setDoc(doc(dbAs('adm2'), '03-combustivel', 'fuel-stock-entry-v2-forged'), {
-  data: new Date('2026-09-04T12:00:00Z'), tipo: 'entrada', bombaId: 'diesel_patio', litrosComprados: 5000,
+  data: new Date('2026-09-04T12:00:00Z'), tipo: 'entrada', bombaId: 'diesel_patio', litrosComprados: 50000,
   preco: 20000, precoLitro: 4, lote: 'LT-2026-09',
   responsavel: { id: 'user@example.com', nome: 'User' }, estoqueAntes: 34000,
   estoqueAposMovimento: 84000, montanteSnapshot: 491264,

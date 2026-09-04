@@ -100,7 +100,7 @@ service cloud.firestore {
         && request.resource.data.data is timestamp
         && request.resource.data.bombaId is string
         && request.resource.data.bombaId != ''
-        && request.resource.data.litrosComprados is number
+        && request.resource.data.litrosComprados is int
         && request.resource.data.litrosComprados > 0
         && request.resource.data.preco is number
         && request.resource.data.preco > 0
@@ -108,9 +108,9 @@ service cloud.firestore {
         && request.resource.data.precoLitro > 0
         && request.resource.data.lote is string
         && request.resource.data.lote != ''
-        && request.resource.data.estoqueAntes is number
-        && request.resource.data.estoqueAposMovimento is number
-        && request.resource.data.montanteSnapshot is number
+        && request.resource.data.estoqueAntes is int
+        && request.resource.data.estoqueAposMovimento is int
+        && request.resource.data.montanteSnapshot is int
         && request.resource.data.responsavel is map
         && request.resource.data.responsavel.id is string
         && request.resource.data.responsavel.id == authEmail()

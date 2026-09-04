@@ -60,7 +60,7 @@ function exactWebEntry(timestamp, overrides = {}) {
     data: timestamp,
     tipo: 'entrada',
     bombaId: 'diesel_patio',
-    litrosComprados: 5_000,
+    litrosComprados: 50_000,
     preco: 20_000,
     precoLitro: 4,
     lote: 'LT-2026-09',
@@ -98,7 +98,7 @@ test('[firestore] exact Web diesel-entry transaction is accepted and atomic', as
     const db = context.firestore();
     const movement = (await getDoc(doc(db, '03-combustivel', '04_09_26 - 0930-45 uid-adm2-web'))).data();
     assert.equal(movement.tipo, 'entrada');
-    assert.equal(movement.litrosComprados, 5_000);
+    assert.equal(movement.litrosComprados, 50_000);
   });
 });
 

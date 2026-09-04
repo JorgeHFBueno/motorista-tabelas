@@ -79,15 +79,19 @@ export function parsePtBrNumber(value: string): number {
   return Number.isFinite(parsed) ? parsed : Number.NaN;
 }
 
-/** Converts real liters to the legacy pump storage unit (tenths of a liter). */
+/** Converts visual liters to the canonical persisted pump unit (tenths of a liter). */
 export function litrosParaUnidadeBomba(liters: number): number {
   if (!Number.isFinite(liters)) return Number.NaN;
   return Math.round(liters * 10);
 }
 
-/** Converts the pump's internal storage unit (tenths) to visual liters. */
+/** Converts the canonical persisted pump unit (tenths) to visual liters. */
 export function unidadeBombaParaLitros(value: unknown): number | null {
   return typeof value === 'number' && Number.isFinite(value) ? value / 10 : null;
+}
+
+export function isStoredVolume(value: unknown): value is number {
+  return typeof value === 'number' && Number.isInteger(value) && Number.isFinite(value);
 }
 
 export function calculateUnitPrice(totalPrice: number, liters: number): number | null {
@@ -98,7 +102,7 @@ export function calculateUnitPrice(totalPrice: number, liters: number): number |
 }
 
 export function calculateStockAfterEntry(currentStoredTenths: number, entryStoredTenths: number): number {
-  if (!Number.isFinite(currentStoredTenths) || !Number.isFinite(entryStoredTenths) || entryStoredTenths <= 0) {
+  if (!isStoredVolume(currentStoredTenths) || !isStoredVolume(entryStoredTenths) || entryStoredTenths <= 0) {
     return Number.NaN;
   }
   return Math.trunc(currentStoredTenths) + Math.trunc(entryStoredTenths);
@@ -109,7 +113,7 @@ export function applyDieselEntryToPump(
   entryStoredTenths: number,
 ): StoredPumpState {
   const newStock = calculateStockAfterEntry(current.estoqueAtual, entryStoredTenths);
-  if (!Number.isFinite(current.montanteAtual) || !Number.isFinite(newStock)) {
+  if (!isStoredVolume(current.montanteAtual) || !Number.isFinite(newStock)) {
     return { montanteAtual: Number.NaN, estoqueAtual: Number.NaN };
   }
   return {
@@ -139,6 +143,9 @@ export function formatFlutterFuelDocumentId(date: Date, uid: string): string {
 }
 
 export function buildDieselEntryRecord(input: DieselEntryRecordInput) {
+  if (![input.litrosComprados, input.estoqueAntes, input.estoqueAposMovimento, input.montanteSnapshot].every(isStoredVolume)) {
+    throw new Error('Volumes da entrada devem ser inteiros na unidade da bomba.');
+  }
   return {
     data: input.date,
     tipo: 'entrada' as const,
@@ -177,10 +184,10 @@ export function normalizeFuelMovement(source: FuelMovementSource): FuelMovement 
     data: source.data,
     tipo: isEntry ? 'entrada' : isAdjustment ? 'ajuste' : 'saida',
     motivo: source.motivo,
-    // Canonical entries store real liters. Only legacy QA is in tenths.
+    // Both canonical and legacy volume fields are returned in persisted units.
     litrosComprados: isCanonicalEntry
       ? finiteNumber(source.litrosComprados, undefined)
-      : unidadeBombaParaLitros(source.qa),
+      : finiteNumber(source.qa, undefined),
     estoqueAntes: finiteNumber(source.estoqueAntes, undefined),
     estoqueAposMovimento: finiteNumber(source.estoqueAposMovimento, source.diesel),
     montanteSnapshot: finiteNumber(source.montanteSnapshot, source.lf),
