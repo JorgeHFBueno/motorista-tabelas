@@ -81,6 +81,37 @@ service cloud.firestore {
         .hasAny(fields);
     }
 
+    function validNewDieselEntry() {
+      return isAdm2()
+        && request.resource.data.keys().hasAll([
+          'data',
+          'diesel',
+          'lf',
+          'id_motorista',
+          'id_motorista_snap',
+          'litrosComprados',
+          'preco',
+          'precoLitro',
+          'lote',
+          'tipo'
+        ])
+        && request.resource.data.data is timestamp
+        && request.resource.data.diesel is number
+        && request.resource.data.lf is number
+        && request.resource.data.id_motorista == authEmail()
+        && request.resource.data.id_motorista_snap
+          == profile().get('nome', '')
+        && request.resource.data.id_motorista_snap != ''
+        && request.resource.data.litrosComprados is number
+        && request.resource.data.litrosComprados > 0
+        && request.resource.data.preco is number
+        && request.resource.data.preco > 0
+        && request.resource.data.precoLitro is number
+        && request.resource.data.precoLitro > 0
+        && request.resource.data.lote is string
+        && request.resource.data.lote != '';
+    }
+
 
     // Authorization profiles are maintained by the Admin SDK backend.
     match /00-autorizados/{email} {
@@ -251,6 +282,14 @@ service cloud.firestore {
       // forged. Admin profiles may register for another motoristaUid.
       allow create: if
         isAuthorized()
+        && (
+          request.resource.data.get('tipo', '') != 'entrada'
+          || validNewDieselEntry()
+        )
+        && (
+          request.resource.data.get('motivo', '') != 'Abastecimento de Diesel'
+          || isAdm2()
+        )
         && request.resource.data.get('uid', request.auth.uid) == request.auth.uid
         && request.resource.data.get(
           'criadoPorUid',

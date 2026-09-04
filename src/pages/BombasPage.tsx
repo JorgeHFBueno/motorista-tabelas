@@ -1,404 +1,447 @@
-import { useEffect, useMemo, useState } from 'react';
 import {
-    Alert,
-    type AlertColor,
-    Box,
-    Container,
-    LinearProgress,
-    Paper,
-    Snackbar,
-    Stack,
-    Typography,
+  Alert,
+  Box,
+  Button,
+  Chip,
+  CircularProgress,
+  Container,
+  Dialog,
+  DialogActions,
+  DialogContent,
+  DialogTitle,
+  Divider,
+  LinearProgress,
+  MenuItem,
+  Paper,
+  Select,
+  Snackbar,
+  Stack,
+  TextField,
+  Typography,
 } from '@mui/material';
 import {
-    DataGrid,
-    GridActionsCellItem,
-    type GridColDef,
-    type GridEventListener,
-    GridRowEditStopReasons,
-    type GridRowId,
-    GridRowModes,
-    type GridRowModesModel,
-} from '@mui/x-data-grid';
+  AddRounded,
+  CalendarMonthOutlined,
+  HistoryRounded,
+  Inventory2Outlined,
+  LocalGasStationRounded,
+  PaymentsOutlined,
+  ReceiptLongOutlined,
+  ScaleOutlined,
+} from '@mui/icons-material';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { Timestamp } from 'firebase/firestore';
 import type { Bomba } from '../types/Bomba';
-import { listBombas, updateBombaAndMaybeLog } from '../services/bombasService';
+import {
+  listBombas,
+  listFuelMovements,
+  registerDieselEntry,
+  type FuelMovement,
+} from '../services/bombasService';
 import { useAuth } from '../contexts/AuthContext';
+import { useAuthorizationProfile } from '../hooks/useAuthorizationProfile';
+import {
+  DIESEL_PATIO_ID,
+  calculateUnitPrice,
+  getPumpIndicators,
+  parsePtBrNumber,
+  storedTenthsToLiters,
+  suggestBatch,
+} from '../utils/bombasDomain';
 
-function toDateAny(value: unknown): Date | null {
-    if (!value) return null;
-    if (value instanceof Date) return value;
-    const maybeTimestamp = value as Timestamp;
-    if (typeof maybeTimestamp?.toDate === 'function') {
-        return maybeTimestamp.toDate();
-    }
-    if (typeof (value as { seconds?: number; nanoseconds?: number }).seconds === 'number') {
-        const { seconds, nanoseconds = 0 } = value as { seconds: number; nanoseconds?: number };
-        return new Date(seconds * 1000 + nanoseconds / 1e6);
-    }
-    const parsed = new Date(value as string);
-    return isNaN(parsed.getTime()) ? null : parsed;
+type Feedback = { message: string; severity: 'success' | 'error' };
+
+const todayInput = () => {
+  const now = new Date();
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+};
+
+function toDate(value: unknown): Date | null {
+  if (value instanceof Date) return Number.isNaN(value.getTime()) ? null : value;
+  if (value && typeof (value as Timestamp).toDate === 'function') return (value as Timestamp).toDate();
+  if (value && typeof (value as { seconds?: unknown }).seconds === 'number') {
+    return new Date((value as { seconds: number }).seconds * 1000);
+  }
+  return null;
+}
+
+function bombaName(bomba: Bomba): string {
+  return bomba.nomeBomba?.trim() || bomba.nome?.trim() || bomba.descricao?.trim() ||
+    (bomba.id === DIESEL_PATIO_ID ? 'Bomba diesel — pátio' : bomba.id);
 }
 
 export default function BombasPage() {
-    const [bombas, setBombas] = useState<Bomba[]>([]);
-    const [loading, setLoading] = useState(true);
-    const [error, setError] = useState<string | null>(null);
-    const [rowModesModel, setRowModesModel] = useState<GridRowModesModel>({});
-    const [snackbar, setSnackbar] = useState<{ message: string; severity: AlertColor } | null>(
-        null,
-    );
-    const { currentUser } = useAuth();
+  const { currentUser, loading: authLoading } = useAuth();
+  const { profile, loading: authorizationLoading } = useAuthorizationProfile(currentUser, authLoading);
+  const canRegister = profile?.adm2 === true;
+  const [bombas, setBombas] = useState<Bomba[]>([]);
+  const [selectedId, setSelectedId] = useState('');
+  const [movements, setMovements] = useState<FuelMovement[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [historyLoading, setHistoryLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [entryOpen, setEntryOpen] = useState(false);
+  const [historyOpen, setHistoryOpen] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [feedback, setFeedback] = useState<Feedback | null>(null);
+  const [formError, setFormError] = useState<string | null>(null);
+  const [totalPrice, setTotalPrice] = useState('');
+  const [purchasedLiters, setPurchasedLiters] = useState('');
+  const [purchaseDate, setPurchaseDate] = useState(todayInput());
+  const [batch, setBatch] = useState(suggestBatch(todayInput()));
 
-    const dateFormatter = useMemo(
-        () =>
-            new Intl.DateTimeFormat('pt-BR', {
-                day: '2-digit',
-                month: '2-digit',
-                year: 'numeric',
-                hour: '2-digit',
-                minute: '2-digit',
-            }),
-        [],
-    );
+  const selectedBomba = bombas.find((bomba) => bomba.id === selectedId) ?? null;
 
-    const numberFormatter = useMemo(
-        () =>
-            new Intl.NumberFormat('pt-BR', {
-                maximumFractionDigits: 0,
-            }),
-        [],
-    );
+  const loadMovements = useCallback(async (bombaId: string) => {
+    setHistoryLoading(true);
+    try {
+      const data = await listFuelMovements(bombaId);
+      setMovements(data);
+    } catch {
+      setMovements([]);
+      setFeedback({ message: 'Não foi possível carregar o histórico da bomba.', severity: 'error' });
+    } finally {
+      setHistoryLoading(false);
+    }
+  }, []);
 
-    useEffect(() => {
-        let active = true;
-        setLoading(true);
-        setError(null);
-        listBombas()
-            .then((data) => {
-                if (active) {
-                    setBombas(
-                        data.map((bomba) => ({
-                            ...bomba,
-                            ultimoAbastecimento: toDateAny(bomba.ultimoAbastecimento),
-                        })),
-                    );
-                }
-            })
-            .catch((err) => {
-                console.error('Erro ao carregar bombas:', err);
-                if (active) {
-                    setError('Não foi possível carregar as bombas. Tente novamente mais tarde.');
-                }
-            })
-            .finally(() => {
-                if (active) {
-                    setLoading(false);
-                }
-            });
+  const loadPage = useCallback(async (preferredId?: string) => {
+    setLoading(true);
+    setError(null);
+    try {
+      const data = await listBombas();
+      const sorted = [...data].sort((a, b) => bombaName(a).localeCompare(bombaName(b), 'pt-BR'));
+      setBombas(sorted);
+      const nextId = preferredId && sorted.some((item) => item.id === preferredId)
+        ? preferredId
+        : sorted.find((item) => item.id === DIESEL_PATIO_ID)?.id ?? sorted[0]?.id ?? '';
+      setSelectedId(nextId);
+      if (nextId) await loadMovements(nextId);
+      else setMovements([]);
+    } catch {
+      setError('Não foi possível carregar as bombas. Verifique sua conexão e tente novamente.');
+    } finally {
+      setLoading(false);
+    }
+  }, [loadMovements]);
 
-        return () => {
-            active = false;
-        };
-    }, []);
+  useEffect(() => { void loadPage(); }, [loadPage]);
 
-    const handleRowEditStop: GridEventListener<'rowEditStop'> = (params, event) => {
-        if (params.reason === GridRowEditStopReasons.rowFocusOut) {
-            event.defaultMuiPrevented = true;
-        }
-    };
+  const handlePumpChange = (bombaId: string) => {
+    setSelectedId(bombaId);
+    setMovements([]);
+    void loadMovements(bombaId);
+  };
 
-    const handleEditClick = (id: GridRowId) => () => {
-        setRowModesModel((prev) => ({ ...prev, [id]: { mode: GridRowModes.Edit } }));
-    };
+  const latestPurchase = useMemo(
+    () => movements.find((movement) => movement.tipo === 'entrada') ?? null,
+    [movements],
+  );
+  const total = latestPurchase?.preco;
+  const purchased = storedTenthsToLiters(latestPurchase?.litrosComprados);
+  const indicators = getPumpIndicators(selectedBomba ?? {});
+  const parsedTotal = parsePtBrNumber(totalPrice);
+  const parsedLiters = parsePtBrNumber(purchasedLiters);
+  const calculatedUnitPrice = calculateUnitPrice(parsedTotal, parsedLiters);
 
-    const handleSaveClick = (id: GridRowId) => () => {
-        setRowModesModel((prev) => ({ ...prev, [id]: { mode: GridRowModes.View } }));
-    };
+  const currency = useMemo(() => new Intl.NumberFormat('pt-BR', {
+    style: 'currency', currency: 'BRL', minimumFractionDigits: 2,
+  }), []);
+  const liters = useMemo(() => new Intl.NumberFormat('pt-BR', {
+    minimumFractionDigits: 0, maximumFractionDigits: 1,
+  }), []);
+  const unitPrice = (value: number | null | undefined) =>
+    typeof value === 'number' && Number.isFinite(value) ? `${currency.format(value)}/L` : '—';
+  const litersLabel = (value: number | null) => value === null ? '—' : `${liters.format(value)} L`;
+  const dateLabel = (value: unknown, includeTime = false) => {
+    const date = toDate(value);
+    if (!date) return '—';
+    return new Intl.DateTimeFormat('pt-BR', includeTime
+      ? { dateStyle: 'short', timeStyle: 'short' }
+      : { day: '2-digit', month: '2-digit', year: 'numeric' }).format(date);
+  };
 
-    const handleCancelClick = (id: GridRowId) => () => {
-        setRowModesModel((prev) => ({
-            ...prev,
-            [id]: { mode: GridRowModes.View, ignoreModifications: true },
-        }));
-    };
+  const openEntry = () => {
+    const initialDate = todayInput();
+    setTotalPrice('');
+    setPurchasedLiters('');
+    setPurchaseDate(initialDate);
+    setBatch(suggestBatch(initialDate));
+    setFormError(null);
+    setEntryOpen(true);
+  };
 
-    const handleCloseSnackbar = () => setSnackbar(null);
+  const handleSave = async () => {
+    if (saving) return;
+    if (!canRegister) return setFormError('Entrada de diesel permitida somente para usuários adm2.');
+    if (!selectedBomba || selectedBomba.id !== DIESEL_PATIO_ID) {
+      return setFormError('O fluxo Flutter permite entrada somente na bomba diesel_patio.');
+    }
+    const totalValue = parsePtBrNumber(totalPrice);
+    const litersValue = parsePtBrNumber(purchasedLiters);
+    if (!(totalValue > 0) || !Number.isFinite(totalValue)) return setFormError('Informe um preço total maior que zero.');
+    if (!(litersValue > 0) || !Number.isFinite(litersValue)) return setFormError('Informe litros comprados maior que zero.');
+    if (!purchaseDate) return setFormError('Informe a data da compra.');
+    if (!batch.trim()) return setFormError('Informe o lote da compra.');
+    if (!currentUser?.uid || !currentUser.email) return setFormError('Usuário autenticado não identificado.');
 
-    const parseNumberField = (value: unknown, label: string) => {
-        if (typeof value === 'undefined' || value === '' || value === null) {
-            return undefined;
-        }
-        const parsed = typeof value === 'number' ? value : Number(value);
-        if (Number.isNaN(parsed)) {
-            throw new Error(`Valor inválido para ${label}.`);
-        }
-        return parsed;
-    };
+    const [year, month, day] = purchaseDate.split('-').map(Number);
+    const now = new Date();
+    const selectedDate = new Date(year, month - 1, day, now.getHours(), now.getMinutes(), now.getSeconds());
+    setSaving(true);
+    setFormError(null);
+    try {
+      await registerDieselEntry({
+        bombaId: selectedBomba.id,
+        totalPrice: totalValue,
+        purchasedLiters: litersValue,
+        purchaseDate: selectedDate,
+        batch,
+        authUid: currentUser.uid,
+        userEmail: currentUser.email,
+      });
+      setEntryOpen(false);
+      setFeedback({ message: 'Entrada de diesel registrada e estoque atualizado.', severity: 'success' });
+      await loadPage(selectedBomba.id);
+    } catch (caught) {
+      setFormError(caught instanceof Error ? caught.message : 'Não foi possível registrar a entrada.');
+    } finally {
+      setSaving(false);
+    }
+  };
 
-    const parseDateField = (value: unknown, label: string) => {
-        if (typeof value === 'undefined' || value === '' || value === null) {
-            return undefined;
-        }
-        if (value instanceof Date) {
-            return value;
-        }
-        const parsed = new Date(value as string);
-        if (Number.isNaN(parsed.getTime())) {
-            throw new Error(`Data inválida para ${label}.`);
-        }
-        return parsed;
-    };
+  const cards = [
+    { label: 'Preço total', value: typeof total === 'number' ? currency.format(total) : '—', icon: <PaymentsOutlined /> },
+    { label: 'Litros comprados', value: litersLabel(purchased), icon: <ScaleOutlined /> },
+    { label: 'Data da compra', value: dateLabel(latestPurchase?.data), icon: <CalendarMonthOutlined /> },
+    { label: 'Preço por litro', value: unitPrice(latestPurchase?.precoLitro), icon: <ReceiptLongOutlined /> },
+    { label: 'Montante atual', value: litersLabel(indicators.montanteLiters), helper: 'Leitura física da bomba', icon: <Inventory2Outlined /> },
+    { label: 'Litros atual', value: litersLabel(indicators.stockLiters), helper: 'Estoque disponível', icon: <LocalGasStationRounded /> },
+    { label: 'Lote', value: latestPurchase?.lote || 'Não informado', icon: <Inventory2Outlined /> },
+  ];
 
-    const processRowUpdate = async (newRow: Bomba) => {
-        const updatePayload: Partial<Omit<Bomba, 'id'>> = {};
-        if (typeof newRow.nomeBomba !== 'undefined') {
-            updatePayload.nomeBomba = newRow.nomeBomba ?? '';
-        }
-        if (typeof newRow.ativo !== 'undefined') {
-            updatePayload.ativo = newRow.ativo;
-        }
+  return (
+    <Container maxWidth="xl" sx={{ py: { xs: 2, md: 4 } }}>
+      <Stack spacing={3}>
+        <Stack direction={{ xs: 'column', sm: 'row' }} justifyContent="space-between" gap={2} alignItems={{ sm: 'center' }}>
+          <Box>
+            <Typography variant="h4">Bombas</Typography>
+            <Typography color="text.secondary">Controle e acompanhamento das bombas de combustível</Typography>
+          </Box>
+          <Button
+            variant="contained"
+            startIcon={<AddRounded />}
+            onClick={openEntry}
+            disabled={!canRegister || selectedId !== DIESEL_PATIO_ID || loading}
+          >
+            Nova entrada de diesel
+          </Button>
+        </Stack>
 
-        const capacidadeLitros = parseNumberField(newRow.capacidadeLitros, 'Capacidade (L)');
-        if (typeof capacidadeLitros !== 'undefined') {
-            updatePayload.capacidadeLitros = capacidadeLitros;
-        }
+        {(loading || authorizationLoading) && <LinearProgress />}
+        {error && <Alert severity="error" action={<Button onClick={() => void loadPage()}>Tentar novamente</Button>}>{error}</Alert>}
+        {!loading && !error && bombas.length === 0 && <Alert severity="info">Nenhuma bomba cadastrada.</Alert>}
 
-        const estoqueAtual = parseNumberField(newRow.estoqueAtual, 'Estoque atual');
-        if (typeof estoqueAtual !== 'undefined') {
-            updatePayload.estoqueAtual = estoqueAtual;
-        }
+        {selectedBomba && (
+          <>
+            <Box sx={{
+              display: 'grid',
+              gridTemplateColumns: {
+                xs: 'minmax(0, 1fr)',
+                sm: 'repeat(2, minmax(0, 1fr))',
+                md: 'repeat(3, minmax(0, 1fr))',
+                lg: 'minmax(230px, 1.15fr) repeat(4, minmax(0, 1fr))',
+              },
+              gridAutoRows: { lg: 'minmax(164px, 1fr)' },
+              gap: 2,
+            }}>
+              <Paper sx={{
+                p: { xs: 3, md: 4 },
+                minHeight: { xs: 220, lg: 'auto' },
+                gridColumn: { xs: 'auto', sm: '1 / -1', lg: '1' },
+                gridRow: { lg: 'span 2' },
+                color: 'primary.contrastText',
+                background: 'linear-gradient(145deg, #12293b, #2f6b98)',
+              }}>
+                <Stack height="100%" minHeight="inherit" justifyContent="center" alignItems="center" spacing={3}>
+                  <LocalGasStationRounded sx={{ fontSize: { xs: 64, lg: 76 }, opacity: 0.95 }} />
+                  <Box sx={{ width: '100%', maxWidth: 280 }}>
+                    <Select
+                      value={selectedId}
+                      onChange={(event) => handlePumpChange(event.target.value)}
+                      variant="standard"
+                      disableUnderline
+                      fullWidth
+                      inputProps={{ 'aria-label': 'Selecionar bomba' }}
+                      renderValue={() => bombaName(selectedBomba)}
+                      sx={{
+                        color: 'inherit',
+                        fontSize: '1.25rem',
+                        fontWeight: 700,
+                        '& .MuiSelect-select': { py: 0.75, pr: '40px !important' },
+                        '& .MuiSelect-icon': { color: 'inherit' },
+                        '& .MuiSelect-select:focus': { bgcolor: 'transparent' },
+                      }}
+                    >
+                      {bombas.map((bomba) => <MenuItem key={bomba.id} value={bomba.id}>{bombaName(bomba)}</MenuItem>)}
+                    </Select>
+                  </Box>
+                </Stack>
+              </Paper>
 
-        const montanteAtual = parseNumberField(newRow.montanteAtual, 'Montante atual');
-        if (typeof montanteAtual !== 'undefined') {
-            updatePayload.montanteAtual = montanteAtual;
-        }
+              {cards.map((card) => <MetricCard key={card.label} {...card} />)}
 
-        const folgaLitros = parseNumberField(newRow.folgaLitros, 'Folga (L)');
-        if (typeof folgaLitros !== 'undefined') {
-            updatePayload.folgaLitros = folgaLitros;
-        }
+              <Paper
+                component="button"
+                type="button"
+                onClick={() => setHistoryOpen(true)}
+                variant="outlined"
+                sx={{
+                  p: 2.5,
+                  minHeight: 164,
+                  display: 'flex',
+                  alignItems: 'center',
+                  textAlign: 'left',
+                  font: 'inherit',
+                  cursor: 'pointer',
+                  width: '100%',
+                  color: 'text.primary',
+                  bgcolor: 'background.paper',
+                  '&:hover': { borderColor: 'secondary.main', bgcolor: 'rgba(47,107,152,.04)' },
+                  '&:focus-visible': { outline: '3px solid', outlineColor: 'secondary.main', outlineOffset: 2 },
+                }}
+              >
+                <Stack width="100%" justifyContent="center" spacing={1}>
+                  <Stack direction="row" justifyContent="space-between" alignItems="center">
+                    <Box color="secondary.main" sx={{ display: 'flex' }}><HistoryRounded /></Box>
+                    {historyLoading && <CircularProgress size={22} />}
+                  </Stack>
+                  <Box>
+                    <Typography variant="caption" color="text.secondary">Histórico</Typography>
+                    <Typography variant="body1" fontWeight={700}>Ver movimentações e abastecimentos</Typography>
+                  </Box>
+                </Stack>
+              </Paper>
+            </Box>
+            {!canRegister && !authorizationLoading && <Alert severity="info">A consulta está disponível, mas novas entradas exigem perfil adm2.</Alert>}
+            {selectedId !== DIESEL_PATIO_ID && <Alert severity="info">Esta bomba pode ser consultada. O Flutter só define entrada de estoque para diesel_patio.</Alert>}
+          </>
+        )}
+      </Stack>
 
-        const ultimoAbastecimento = parseDateField(
-            newRow.ultimoAbastecimento,
-            'Último abastecimento',
-        );
-        if (typeof ultimoAbastecimento !== 'undefined') {
-            updatePayload.ultimoAbastecimento = ultimoAbastecimento;
-        }
-
-        if (typeof newRow.ultimoFrentista !== 'undefined') {
-            updatePayload.ultimoFrentista = newRow.ultimoFrentista ?? '';
-        }
-
-        const motorista =
-            currentUser?.displayName || currentUser?.email || 'SYSTEM';
-
-        const updated = await updateBombaAndMaybeLog(newRow.id, updatePayload, motorista);
-        setBombas((prev) => prev.map((row) => (row.id === updated.id ? updated : row)));
-        setSnackbar({ message: 'Bomba atualizada com sucesso.', severity: 'success' });
-        return updated;
-    };
-
-    const handleProcessRowUpdateError = (err: unknown) => {
-        const message = err instanceof Error ? err.message : 'Erro ao salvar alterações.';
-        setSnackbar({ message, severity: 'error' });
-    };
-
-    const columns: GridColDef<Bomba>[] = useMemo(
-        () => [
-            {
-                field: 'nomeBomba',
-                headerName: 'Bomba',
-                minWidth: 160,
-                flex: 1.2,
-                editable: true,
-                renderCell: ({ value }) => (
-                    <Typography variant="subtitle2" fontWeight={600}>
-                        {value || '—'}
-                    </Typography>
-                ),
-            },
-            {
-                field: 'ativo',
-                headerName: 'Status',
-                minWidth: 120,
-                flex: 0.8,
-                editable: true,
-                type: 'boolean',
-                renderCell: ({ value }) => {
-                    if (value === true) return 'Ativa';
-                    if (value === false) return 'Inativa';
-                    return '—';
-                },
-            },
-            {
-                field: 'capacidadeLitros',
-                headerName: 'Capacidade (L)',
-                minWidth: 140,
-                flex: 1,
-                editable: true,
-                type: 'number',
-                renderCell: ({ value }) =>
-                    Number.isFinite(Number(value)) ? numberFormatter.format(Number(value)) : '—',
-            },
-            {
-                field: 'estoqueAtual',
-                headerName: 'Estoque atual',
-                minWidth: 140,
-                flex: 1,
-                editable: true,
-                type: 'number',
-                renderCell: ({ value }) =>
-                    Number.isFinite(Number(value)) ? numberFormatter.format(Number(value)) : '—',
-            },
-            {
-                field: 'montanteAtual',
-                headerName: 'Montante atual',
-                minWidth: 140,
-                flex: 1,
-                editable: true,
-                type: 'number',
-                renderCell: ({ value }) =>
-                    Number.isFinite(Number(value)) ? numberFormatter.format(Number(value)) : '—',
-            },
-            {
-                field: 'folgaLitros',
-                headerName: 'Folga (L)',
-                minWidth: 120,
-                flex: 1,
-                editable: true,
-                type: 'number',
-                renderCell: ({ value }) =>
-                    Number.isFinite(Number(value)) ? numberFormatter.format(Number(value)) : '—',
-            },
-            {
-                field: 'ultimoAbastecimento',
-                headerName: 'Último abastecimento',
-                minWidth: 180,
-                flex: 1.2,
-                editable: true,
-                type: 'dateTime',
-                renderCell: ({ value }) => {
-                    const date = toDateAny(value);
-                    return date ? dateFormatter.format(date) : '—';
-                },
-                sortComparator: (a, b) => {
-                    const ta = toDateAny(a)?.getTime() ?? 0;
-                    const tb = toDateAny(b)?.getTime() ?? 0;
-                    return ta - tb;
-                },
-            },
-            {
-                field: 'ultimoFrentista',
-                headerName: 'Último frentista',
-                minWidth: 160,
-                flex: 1.1,
-                editable: true,
-                renderCell: ({ value }) => value || '—',
-            },
-            {
-                field: 'actions',
-                type: 'actions',
-                headerName: 'Ações',
-                width: 120,
-                getActions: ({ id }) => {
-                    const isInEditMode = rowModesModel[id]?.mode === GridRowModes.Edit;
-                    if (isInEditMode) {
-                        return [
-                            <GridActionsCellItem
-                                key="save"
-                                icon={<span>Salvar</span>}
-                                label="Salvar"
-                                onClick={handleSaveClick(id)}
-                                showInMenu
-                            />,
-                            <GridActionsCellItem
-                                key="cancel"
-                                icon={<span>Cancelar</span>}
-                                label="Cancelar"
-                                onClick={handleCancelClick(id)}
-                                showInMenu
-                            />,
-                        ];
-                    }
-                    return [
-                        <GridActionsCellItem
-                            key="edit"
-                            icon={<span>Editar</span>}
-                            label="Editar"
-                            onClick={handleEditClick(id)}
-                            showInMenu
-                        />,
-                    ];
-                },
-            },
-        ],
-        [dateFormatter, handleCancelClick, handleEditClick, handleSaveClick, numberFormatter, rowModesModel],
-    );
-
-    return (
-        <Container maxWidth="xl" sx={{ py: 3 }}>
-            <Stack spacing={3}>
-                <Box>
-                    <Typography variant="h4" gutterBottom>
-                        Bombas v2
-                    </Typography>
-                    <Typography variant="body1" color="text.secondary">
-                        Visualize as bombas cadastradas no sistema.
-                    </Typography>
-                </Box>
-
-                <Paper elevation={1} sx={{ p: 3 }}>
-                    {loading && <LinearProgress sx={{ mb: 2 }} />}
-                    {error && (
-                        <Alert severity="warning" sx={{ mb: 2 }}>
-                            {error}
-                        </Alert>
-                    )}
-                    {!loading && !error && bombas.length === 0 && (
-                        <Alert severity="info" sx={{ mb: 2 }}>
-                            Nenhuma bomba cadastrada.
-                        </Alert>
-                    )}
-                    <DataGrid
-                        autoHeight
-                        rows={bombas}
-                        columns={columns}
-                        disableRowSelectionOnClick
-                        loading={loading}
-                        editMode="row"
-                        rowModesModel={rowModesModel}
-                        onRowModesModelChange={setRowModesModel}
-                        onRowEditStop={handleRowEditStop}
-                        processRowUpdate={processRowUpdate}
-                        onProcessRowUpdateError={handleProcessRowUpdateError}
-                        pageSizeOptions={[10, 25, 50]}
-                        initialState={{
-                            pagination: {
-                                paginationModel: { pageSize: 10 },
-                            },
-                        }}
-                        sx={{
-                            '& .MuiDataGrid-cell:focus': {
-                                outline: 'none',
-                            },
-                        }}
-                    />
-                </Paper>
+      <Dialog open={entryOpen} onClose={saving ? undefined : () => setEntryOpen(false)} fullWidth maxWidth="sm">
+        <DialogTitle>Nova entrada de diesel</DialogTitle>
+        <DialogContent>
+          <Stack spacing={2} sx={{ pt: 1 }}>
+            {formError && <Alert severity="error">{formError}</Alert>}
+            <TextField label="Bomba" value={selectedBomba ? bombaName(selectedBomba) : ''} disabled fullWidth />
+            <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
+              <TextField label="Preço total" value={totalPrice} onChange={(event) => setTotalPrice(event.target.value)} placeholder="R$ 20.000,00" required fullWidth inputMode="decimal" />
+              <TextField label="Litros comprados" value={purchasedLiters} onChange={(event) => setPurchasedLiters(event.target.value)} placeholder="5.000" required fullWidth inputMode="decimal" />
             </Stack>
-            <Snackbar
-                open={!!snackbar}
-                autoHideDuration={4000}
-                onClose={handleCloseSnackbar}
-                anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
-            >
-                {snackbar ? (
-                    <Alert onClose={handleCloseSnackbar} severity={snackbar.severity} sx={{ width: '100%' }}>
-                        {snackbar.message}
-                    </Alert>
-                ) : undefined}
-            </Snackbar>
-        </Container>
-    );
+            <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
+              <TextField
+                label="Data da compra"
+                type="date"
+                value={purchaseDate}
+                onChange={(event) => { setPurchaseDate(event.target.value); setBatch(suggestBatch(event.target.value)); }}
+                required fullWidth slotProps={{ inputLabel: { shrink: true } }}
+              />
+              <TextField label="Preço por litro" value={unitPrice(calculatedUnitPrice)} disabled fullWidth />
+            </Stack>
+            <TextField label="Lote" value={batch} onChange={(event) => setBatch(event.target.value)} required fullWidth />
+            <TextField
+              label="Responsável"
+              value={profile?.nome || profile?.id || ''}
+              disabled
+              fullWidth
+              helperText="Obtido do cadastro Firestore do usuário autenticado."
+            />
+            <TextField
+              label="Leitura atual da bomba (L)"
+              value={litersLabel(indicators.montanteLiters)}
+              disabled fullWidth
+              helperText="A entrada de estoque não altera o totalizador físico da bomba."
+            />
+          </Stack>
+        </DialogContent>
+        <DialogActions sx={{ px: 3, pb: 3 }}>
+          <Button onClick={() => setEntryOpen(false)} disabled={saving}>Cancelar</Button>
+          <Button variant="contained" onClick={() => void handleSave()} disabled={saving} startIcon={saving ? <CircularProgress size={18} color="inherit" /> : <AddRounded />}>
+            {saving ? 'Salvando...' : 'Registrar entrada'}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      <HistoryDialog open={historyOpen} onClose={() => setHistoryOpen(false)} movements={movements} loading={historyLoading} dateLabel={dateLabel} litersLabel={litersLabel} currency={currency} />
+      <Snackbar open={!!feedback} autoHideDuration={5000} onClose={() => setFeedback(null)} anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}>
+        {feedback ? <Alert severity={feedback.severity} onClose={() => setFeedback(null)}>{feedback.message}</Alert> : undefined}
+      </Snackbar>
+    </Container>
+  );
+}
+
+function MetricCard({ label, value, helper, icon }: { label: string; value: string; helper?: string; icon: React.ReactNode }) {
+  return (
+    <Paper variant="outlined" sx={{ p: 2.5, minHeight: 164, display: 'flex', alignItems: 'center' }}>
+      <Stack width="100%" justifyContent="center" spacing={1}>
+        <Box color="secondary.main" sx={{ display: 'flex', alignSelf: 'flex-end' }}>{icon}</Box>
+        <Box>
+          <Typography variant="caption" color="text.secondary">{label}</Typography>
+          <Typography variant="h5" color="secondary.main" fontWeight={700} sx={{ overflowWrap: 'anywhere' }}>{value}</Typography>
+          {helper && <Typography variant="caption" color="text.secondary">{helper}</Typography>}
+        </Box>
+      </Stack>
+    </Paper>
+  );
+}
+
+function HistoryDialog({ open, onClose, movements, loading, dateLabel, litersLabel, currency }: {
+  open: boolean;
+  onClose: () => void;
+  movements: FuelMovement[];
+  loading: boolean;
+  dateLabel: (value: unknown, includeTime?: boolean) => string;
+  litersLabel: (value: number | null) => string;
+  currency: Intl.NumberFormat;
+}) {
+  return (
+    <Dialog open={open} onClose={onClose} fullWidth maxWidth="md">
+      <DialogTitle>Histórico da bomba</DialogTitle>
+      <DialogContent>
+        {loading && <LinearProgress />}
+        {!loading && movements.length === 0 && <Alert severity="info">Esta bomba ainda não possui histórico compatível.</Alert>}
+        <Stack divider={<Divider flexItem />}>
+          {movements.map((movement) => {
+            const type = movement.tipo;
+            const label = type === 'entrada' ? 'Entrada de diesel' : type === 'ajuste' ? 'Ajuste' : 'Abastecimento / saída';
+            return (
+              <Stack key={movement.id} direction={{ xs: 'column', sm: 'row' }} justifyContent="space-between" gap={2} sx={{ py: 2 }}>
+                <Box>
+                  <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap">
+                    <Chip size="small" color={type === 'entrada' ? 'success' : type === 'ajuste' ? 'warning' : 'default'} label={label} />
+                    <Typography variant="subtitle2">{dateLabel(movement.data, true)}</Typography>
+                  </Stack>
+                  <Typography variant="body2" color="text.secondary" sx={{ mt: 0.75 }}>
+                    {movement.motivo || 'Movimentação de combustível'}
+                    {movement.placa ? ` • Veículo: ${movement.placa}` : ''}
+                    {movement.obra ? ` • Obra: ${movement.obra}` : ''}
+                  </Typography>
+                  {movement.responsavel && <Typography variant="caption" color="text.secondary">Responsável: {movement.responsavel}</Typography>}
+                </Box>
+                <Box sx={{ textAlign: { sm: 'right' }, minWidth: 150 }}>
+                  <Typography fontWeight={800} color={type === 'entrada' ? 'success.main' : 'text.primary'}>
+                    {type === 'entrada' ? '+' : type === 'saida' ? '−' : ''}{litersLabel(storedTenthsToLiters(movement.litrosComprados))}
+                  </Typography>
+                  {typeof movement.preco === 'number' && <Typography variant="body2">{currency.format(movement.preco)}</Typography>}
+                  {movement.lote && <Typography variant="caption" color="text.secondary">Lote {movement.lote}</Typography>}
+                </Box>
+              </Stack>
+            );
+          })}
+        </Stack>
+      </DialogContent>
+      <DialogActions><Button onClick={onClose}>Fechar</Button></DialogActions>
+    </Dialog>
+  );
 }

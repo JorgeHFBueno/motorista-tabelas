@@ -38,7 +38,7 @@ export function useAuthorizationProfile(currentUser: User | null, authLoading: b
       const normalizedEmail = currentUser.email?.trim().toLowerCase();
       if (!normalizedEmail) {
         if (isMounted) {
-          setState({ loading: false, profile: { exists: false, adm1: false, adm2: false }, error: false, checkedEmail: null });
+          setState({ loading: false, profile: { exists: false, adm1: false, adm2: false, id: null, nome: null }, error: false, checkedEmail: null });
         }
         return;
       }

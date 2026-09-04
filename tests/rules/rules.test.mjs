@@ -153,6 +153,26 @@ test('[firestore] fuel uid must match when present', async () => assertFails(set
 test('[firestore] normal fuel motoristaUid must be self when present', async () => assertFails(setDoc(doc(dbAs('user'), '03-combustivel', 'fuel-bad-driver'), { motoristaUid: 'uid-other', criadoPorUid: 'uid-user', lf: 20 })));
 test('[firestore] adm1 can register fuel for another driver with own authorship', async () => assertSucceeds(setDoc(doc(dbAs('adm1'), '03-combustivel', 'fuel-adm1-other'), { uid: 'uid-adm1', criadoPorUid: 'uid-adm1', motoristaUid: 'uid-user', futureField: true })));
 test('[firestore] adm2 can register fuel for another driver with own authorship', async () => assertSucceeds(setDoc(doc(dbAs('adm2'), '03-combustivel', 'fuel-adm2-other'), { uid: 'uid-adm2', criadoPorUid: 'uid-adm2', motoristaUid: 'uid-user' })));
+test('[firestore] normal user cannot register administrative diesel entry', async () => assertFails(setDoc(doc(dbAs('user'), '03-combustivel', 'fuel-stock-entry-user'), { motorista: 'uid-user', motivo: 'Abastecimento de Diesel', qa: 5000, diesel: 9000 })));
+test('[firestore] adm2 registers administrative diesel entry', async () => assertSucceeds(setDoc(doc(dbAs('adm2'), '03-combustivel', 'fuel-stock-entry-adm2'), { motorista: 'uid-adm2', motivo: 'Abastecimento de Diesel', qa: 5000, diesel: 9000, precoTotal: 2000, precoPorLitro: 4, lote: 'LT-2026-08' })));
+test('[firestore] adm2 registers the new diesel entry schema', async () => assertSucceeds(setDoc(doc(dbAs('adm2'), '03-combustivel', 'fuel-stock-entry-v2-adm2'), {
+  data: new Date('2026-09-04T12:00:00Z'), tipo: 'entrada', diesel: 84000, lf: 491264,
+  id_motorista: 'adm2@example.com', id_motorista_snap: 'Adm2', litrosComprados: 50000,
+  preco: 20000, precoLitro: 4, lote: 'LT-2026-09',
+  motorista: 'uid-adm2', qa: 50000,
+})));
+test('[firestore] normal user cannot register the new diesel entry schema', async () => assertFails(setDoc(doc(dbAs('user'), '03-combustivel', 'fuel-stock-entry-v2-user'), {
+  data: new Date('2026-09-04T12:00:00Z'), tipo: 'entrada', diesel: 84000, lf: 491264,
+  id_motorista: 'user@example.com', id_motorista_snap: 'User', litrosComprados: 50000,
+  preco: 20000, precoLitro: 4, lote: 'LT-2026-09',
+  motorista: 'uid-user', qa: 50000,
+})));
+test('[firestore] new diesel entry cannot forge its Firestore responsible profile', async () => assertFails(setDoc(doc(dbAs('adm2'), '03-combustivel', 'fuel-stock-entry-v2-forged'), {
+  data: new Date('2026-09-04T12:00:00Z'), tipo: 'entrada', diesel: 84000, lf: 491264,
+  id_motorista: 'user@example.com', id_motorista_snap: 'User', litrosComprados: 50000,
+  preco: 20000, precoLitro: 4, lote: 'LT-2026-09',
+  motorista: 'uid-adm2', qa: 50000,
+})));
 test('[firestore] fuel forged creator is denied', async () => assertFails(setDoc(doc(dbAs('adm2'), '03-combustivel', 'fuel-forged-author'), { criadoPorUid: 'uid-user', motoristaUid: 'uid-user' })));
 test('[firestore] normal fuel update is denied', async () => assertFails(updateDoc(doc(dbAs('user'), '03-combustivel', 'fuel-existing'), { lf: 30 })));
 test('[firestore] normal fuel delete is denied', async () => assertFails(deleteDoc(doc(dbAs('user'), '03-combustivel', 'fuel-existing'))));
