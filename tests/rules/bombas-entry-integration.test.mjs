@@ -58,17 +58,16 @@ after(async () => env?.cleanup());
 function exactWebEntry(timestamp, overrides = {}) {
   return {
     data: timestamp,
-    diesel: 84_000,
-    lf: 123_500,
-    id_motorista: adm2.email,
-    id_motorista_snap: 'Operador ADM2',
-    litrosComprados: 50_000,
+    tipo: 'entrada',
+    bombaId: 'diesel_patio',
+    litrosComprados: 5_000,
     preco: 20_000,
     precoLitro: 4,
     lote: 'LT-2026-09',
-    tipo: 'entrada',
-    motorista: adm2.uid,
-    qa: 50_000,
+    responsavel: { id: adm2.email, nome: 'Operador ADM2' },
+    estoqueAntes: 34_000,
+    estoqueAposMovimento: 84_000,
+    montanteSnapshot: 123_500,
     ...overrides,
   };
 }
@@ -99,7 +98,7 @@ test('[firestore] exact Web diesel-entry transaction is accepted and atomic', as
     const db = context.firestore();
     const movement = (await getDoc(doc(db, '03-combustivel', '04_09_26 - 0930-45 uid-adm2-web'))).data();
     assert.equal(movement.tipo, 'entrada');
-    assert.equal(movement.litrosComprados, 50_000);
+    assert.equal(movement.litrosComprados, 5_000);
   });
 });
 
@@ -109,8 +108,7 @@ test('[firestore] regular user cannot submit the exact Web entry schema', async 
   await assertFails(setDoc(
     doc(db, '03-combustivel', 'regular-entry'),
     exactWebEntry(timestamp, {
-      id_motorista: regular.email,
-      id_motorista_snap: 'Operador comum',
+      responsavel: { id: regular.email, nome: 'Operador comum' },
       motorista: regular.uid,
     }),
   ));
@@ -125,7 +123,7 @@ test('[firestore] malformed price and forged responsible name are denied', async
   ));
   await assertFails(setDoc(
     doc(db, '03-combustivel', 'forged-name'),
-    exactWebEntry(timestamp, { id_motorista_snap: 'Outra pessoa' }),
+    exactWebEntry(timestamp, { responsavel: { id: adm2.email, nome: 'Outra pessoa' } }),
   ));
 });
 

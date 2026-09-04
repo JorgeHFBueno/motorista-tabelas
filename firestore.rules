@@ -85,23 +85,21 @@ service cloud.firestore {
       return isAdm2()
         && request.resource.data.keys().hasAll([
           'data',
-          'diesel',
-          'lf',
-          'id_motorista',
-          'id_motorista_snap',
+          'bombaId',
           'litrosComprados',
           'preco',
           'precoLitro',
           'lote',
+          'responsavel',
+          'estoqueAntes',
+          'estoqueAposMovimento',
+          'montanteSnapshot',
           'tipo'
         ])
+        && request.resource.data.tipo == 'entrada'
         && request.resource.data.data is timestamp
-        && request.resource.data.diesel is number
-        && request.resource.data.lf is number
-        && request.resource.data.id_motorista == authEmail()
-        && request.resource.data.id_motorista_snap
-          == profile().get('nome', '')
-        && request.resource.data.id_motorista_snap != ''
+        && request.resource.data.bombaId is string
+        && request.resource.data.bombaId != ''
         && request.resource.data.litrosComprados is number
         && request.resource.data.litrosComprados > 0
         && request.resource.data.preco is number
@@ -109,7 +107,16 @@ service cloud.firestore {
         && request.resource.data.precoLitro is number
         && request.resource.data.precoLitro > 0
         && request.resource.data.lote is string
-        && request.resource.data.lote != '';
+        && request.resource.data.lote != ''
+        && request.resource.data.estoqueAntes is number
+        && request.resource.data.estoqueAposMovimento is number
+        && request.resource.data.montanteSnapshot is number
+        && request.resource.data.responsavel is map
+        && request.resource.data.responsavel.id is string
+        && request.resource.data.responsavel.id == authEmail()
+        && request.resource.data.responsavel.nome is string
+        && request.resource.data.responsavel.nome == profile().get('nome', '')
+        && request.resource.data.responsavel.nome != '';
     }
 
 

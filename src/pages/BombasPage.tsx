@@ -35,6 +35,7 @@ import type { Bomba } from '../types/Bomba';
 import {
   listBombas,
   listFuelMovements,
+  getLatestLegacyDieselEntry,
   registerDieselEntry,
   type FuelMovement,
 } from '../services/bombasService';
@@ -45,7 +46,7 @@ import {
   calculateUnitPrice,
   getPumpIndicators,
   parsePtBrNumber,
-  storedTenthsToLiters,
+  unidadeBombaParaLitros,
   suggestBatch,
 } from '../utils/bombasDomain';
 
@@ -77,6 +78,7 @@ export default function BombasPage() {
   const [bombas, setBombas] = useState<Bomba[]>([]);
   const [selectedId, setSelectedId] = useState('');
   const [movements, setMovements] = useState<FuelMovement[]>([]);
+  const [legacyLatestPurchase, setLegacyLatestPurchase] = useState<FuelMovement | null>(null);
   const [loading, setLoading] = useState(true);
   const [historyLoading, setHistoryLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -116,8 +118,11 @@ export default function BombasPage() {
         ? preferredId
         : sorted.find((item) => item.id === DIESEL_PATIO_ID)?.id ?? sorted[0]?.id ?? '';
       setSelectedId(nextId);
-      if (nextId) await loadMovements(nextId);
-      else setMovements([]);
+      if (nextId) {
+        const nextPump = sorted.find((item) => item.id === nextId);
+        setLegacyLatestPurchase(nextPump?.ultimaEntrada ? null : await getLatestLegacyDieselEntry(nextId));
+        await loadMovements(nextId);
+      } else { setMovements([]); setLegacyLatestPurchase(null); }
     } catch {
       setError('Não foi possível carregar as bombas. Verifique sua conexão e tente novamente.');
     } finally {
@@ -127,18 +132,19 @@ export default function BombasPage() {
 
   useEffect(() => { void loadPage(); }, [loadPage]);
 
-  const handlePumpChange = (bombaId: string) => {
+  const handlePumpChange = async (bombaId: string) => {
     setSelectedId(bombaId);
     setMovements([]);
+    const bomba = bombas.find((item) => item.id === bombaId);
+    setLegacyLatestPurchase(bomba?.ultimaEntrada ? null : await getLatestLegacyDieselEntry(bombaId));
     void loadMovements(bombaId);
   };
 
-  const latestPurchase = useMemo(
-    () => movements.find((movement) => movement.tipo === 'entrada') ?? null,
-    [movements],
-  );
+  const latestPurchase = selectedBomba?.ultimaEntrada
+    ? { ...selectedBomba.ultimaEntrada, data: selectedBomba.ultimaEntrada.data, tipo: 'entrada' as const }
+    : legacyLatestPurchase;
   const total = latestPurchase?.preco;
-  const purchased = storedTenthsToLiters(latestPurchase?.litrosComprados);
+  const purchased = latestPurchase?.litrosComprados ?? null;
   const indicators = getPumpIndicators(selectedBomba ?? {});
   const parsedTotal = parsePtBrNumber(totalPrice);
   const parsedLiters = parsePtBrNumber(purchasedLiters);
@@ -427,11 +433,12 @@ function HistoryDialog({ open, onClose, movements, loading, dateLabel, litersLab
                     {movement.placa ? ` • Veículo: ${movement.placa}` : ''}
                     {movement.obra ? ` • Obra: ${movement.obra}` : ''}
                   </Typography>
-                  {movement.responsavel && <Typography variant="caption" color="text.secondary">Responsável: {movement.responsavel}</Typography>}
+                  {movement.responsavel?.nome && <Typography variant="caption" color="text.secondary">Responsável: {movement.responsavel.nome}</Typography>}
+                  {type === 'entrada' && typeof movement.estoqueAntes === 'number' && <Typography variant="caption" color="text.secondary" display="block">Estoque: {litersLabel(unidadeBombaParaLitros(movement.estoqueAntes))} → {litersLabel(unidadeBombaParaLitros(movement.estoqueAposMovimento))}</Typography>}
                 </Box>
                 <Box sx={{ textAlign: { sm: 'right' }, minWidth: 150 }}>
                   <Typography fontWeight={800} color={type === 'entrada' ? 'success.main' : 'text.primary'}>
-                    {type === 'entrada' ? '+' : type === 'saida' ? '−' : ''}{litersLabel(storedTenthsToLiters(movement.litrosComprados))}
+                    {type === 'entrada' ? '+' : type === 'saida' ? '−' : ''}{litersLabel(movement.litrosComprados ?? null)}
                   </Typography>
                   {typeof movement.preco === 'number' && <Typography variant="body2">{currency.format(movement.preco)}</Typography>}
                   {movement.lote && <Typography variant="caption" color="text.secondary">Lote {movement.lote}</Typography>}

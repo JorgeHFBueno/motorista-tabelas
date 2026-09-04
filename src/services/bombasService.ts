@@ -14,8 +14,7 @@ import {
   DIESEL_PATIO_ID,
   applyDieselEntryToPump,
   buildDieselEntryRecord,
-  formatFlutterFuelDocumentId,
-  litersToStoredTenths,
+  litrosParaUnidadeBomba,
   normalizeFuelMovement,
   type FuelMovement,
   type FuelMovementSource,
@@ -61,6 +60,11 @@ export async function listFuelMovements(bombaId: string): Promise<FuelMovement[]
     );
 }
 
+export async function getLatestLegacyDieselEntry(bombaId: string): Promise<FuelMovement | null> {
+  const movements = await listFuelMovements(bombaId);
+  return movements.find((movement) => movement.tipo === 'entrada') ?? null;
+}
+
 export async function registerDieselEntry(input: DieselEntryInput): Promise<void> {
   if (input.bombaId !== DIESEL_PATIO_ID) {
     throw new Error('O Flutter permite entrada de diesel somente em bombas/diesel_patio.');
@@ -77,11 +81,10 @@ export async function registerDieselEntry(input: DieselEntryInput): Promise<void
   if (Number.isNaN(input.purchaseDate.getTime())) throw new Error('Informe uma data válida.');
   if (!input.batch.trim()) throw new Error('Informe o lote da compra.');
 
-  const entryStoredTenths = litersToStoredTenths(input.purchasedLiters);
+  const entryStoredUnits = litrosParaUnidadeBomba(input.purchasedLiters);
   const unitPrice = input.totalPrice / input.purchasedLiters;
-  const documentId = formatFlutterFuelDocumentId(input.purchaseDate, input.authUid);
   const bombaRef = doc(db, BOMBAS_COLLECTION, DIESEL_PATIO_ID);
-  const movementRef = doc(db, COMBUSTIVEL_COLLECTION, documentId);
+  const movementRef = doc(collection(db, COMBUSTIVEL_COLLECTION));
   const motoristaRef = doc(db, '00-autorizados', motoristaDocumentId);
   const timestamp = Timestamp.fromDate(input.purchaseDate);
 
@@ -108,7 +111,7 @@ export async function registerDieselEntry(input: DieselEntryInput): Promise<void
     }
     const newPumpState = applyDieselEntryToPump(
       { montanteAtual: currentPumpAmount, estoqueAtual: currentStock },
-      entryStoredTenths,
+      entryStoredUnits,
     );
     if (!Number.isFinite(newPumpState.estoqueAtual)) {
       throw new Error('Não foi possível calcular o novo estoque.');
@@ -117,12 +120,13 @@ export async function registerDieselEntry(input: DieselEntryInput): Promise<void
     transaction.set(movementRef, {
       ...buildDieselEntryRecord({
         date: input.purchaseDate,
-        motoristaDocumentId,
-        motoristaName,
-        authUid: input.authUid,
-        pumpStoredTenths: newPumpState.montanteAtual,
-        entryStoredTenths,
-        newStock: newPumpState.estoqueAtual,
+        bombaId: DIESEL_PATIO_ID,
+        responsavelId: motoristaDocumentId,
+        responsavelNome: motoristaName,
+        estoqueAntes: currentStock,
+        estoqueAposMovimento: newPumpState.estoqueAtual,
+        montanteSnapshot: currentPumpAmount,
+        litrosComprados: input.purchasedLiters,
         totalPrice: input.totalPrice,
         unitPrice,
         batch: input.batch,
@@ -131,10 +135,19 @@ export async function registerDieselEntry(input: DieselEntryInput): Promise<void
     });
     transaction.update(bombaRef, {
       estoqueAtual: newPumpState.estoqueAtual,
-      ultimoFrentista: motoristaDocumentId,
-      ultimoAbastecimento: timestamp,
+      ultimaEntrada: {
+        movimentoId: movementRef.id,
+        data: timestamp,
+        litrosComprados: input.purchasedLiters,
+        preco: Math.round(input.totalPrice * 100) / 100,
+        precoLitro: Math.round(unitPrice * 10000) / 10000,
+        lote: input.batch.trim(),
+        responsavel: { id: motoristaDocumentId, nome: motoristaName.trim() },
+      },
+      ultimaMovimentacao: { movimentoId: movementRef.id, tipo: 'entrada', data: timestamp },
+      atualizadoEm: Timestamp.now(),
     });
   });
 }
 
-export default { listBombas, listFuelMovements, registerDieselEntry };
+export default { listBombas, listFuelMovements, getLatestLegacyDieselEntry, registerDieselEntry };
