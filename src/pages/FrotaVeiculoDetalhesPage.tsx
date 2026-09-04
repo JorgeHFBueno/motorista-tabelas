@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
     Alert,
     Box,
@@ -30,7 +30,7 @@ import {
     where,
 } from 'firebase/firestore';
 import { useNavigate, useParams } from 'react-router-dom';
-import FrotaCharts, { type ChartPoint } from '../components/FrotaCharts';
+import type { ChartPoint } from '../components/FrotaCharts';
 import ManutencaoDialog from '../components/ManutencaoDialog';
 import ManutencaoDetailPanel from '../components/ManutencaoDetailPanel';
 import ManutencoesList, {
@@ -52,6 +52,8 @@ import {
 import { useAuth } from '../contexts/AuthContext';
 import { db } from '../firebase';
 import { normalizeFornecedorNumero } from '../services/fornecedores.service';
+
+const FrotaCharts = lazy(() => import('../components/FrotaCharts'));
 type Veiculo = {
     id: string;
     ativo?: boolean;
@@ -278,6 +280,7 @@ export default function FrotaVeiculoDetalhesPage() {
     const [categoriasManutencao, setCategoriasManutencao] = useState<CategoriaManutencao[]>([]);
     const [manutencaoOpen, setManutencaoOpen] = useState(false);
     const [manutencaoSaving, setManutencaoSaving] = useState(false);
+    const [showExpensesChart, setShowExpensesChart] = useState(false);
     const [manutencaoForm, setManutencaoForm] = useState<ManutencaoForm>(DEFAULT_MANUTENCAO_FORM);
     const cacheRef = useRef(new Map<string, Record<string, unknown>>());
 
@@ -1129,6 +1132,14 @@ export default function FrotaVeiculoDetalhesPage() {
                     <Button variant="outlined" onClick={() => navigate('/frota')}>
                         Voltar para Frota
                     </Button>
+                    {veiculo && (
+                        <Button
+                            variant="outlined"
+                            onClick={() => navigate(`/frota/analytics?veiculo=${encodeURIComponent(veiculo.id)}`)}
+                        >
+                            Ver no Analytics
+                        </Button>
+                    )}
                     <Button variant="contained" onClick={handleSave} disabled={saving}>
                         {saving ? 'Salvando...' : 'Salvar'}
                     </Button>
@@ -1237,22 +1248,27 @@ export default function FrotaVeiculoDetalhesPage() {
             </Box>           
 
             <Box mt={3}>
-                <Typography variant="h6" gutterBottom>
-                    Despesas por natureza
-                </Typography>
+                <Stack direction="row" spacing={2} alignItems="center" justifyContent="space-between">
+                    <Typography variant="h6">Despesas por natureza</Typography>
+                    <Button variant="text" onClick={() => setShowExpensesChart(value => !value)}>
+                        {showExpensesChart ? 'Ocultar gráfico' : 'Exibir gráfico'}
+                    </Button>
+                </Stack>
 
-                {despesasPorNatureza.length === 0 ? (
+                {showExpensesChart && (despesasPorNatureza.length === 0 ? (
                     <Typography variant="body2">Sem dados para exibir.</Typography>
                 ) : (
-                    <FrotaCharts
-                        data={despesasPorNatureza}
-                        title="Despesas por natureza"
-                        xAxisTitle="Natureza"
-                        yAxisTitle="Total"
-                        xAxisTickAngle={-30}
-                        valueFormatter={(value) => currencyFormatter.format(value)}
-                    />
-                )}
+                    <Suspense fallback={<CircularProgress size={28} />}>
+                        <FrotaCharts
+                            data={despesasPorNatureza}
+                            title="Despesas por natureza"
+                            xAxisTitle="Natureza"
+                            yAxisTitle="Total"
+                            xAxisTickAngle={-30}
+                            valueFormatter={(value) => currencyFormatter.format(value)}
+                        />
+                    </Suspense>
+                ))}
             </Box>
 
             <ManutencaoDialog

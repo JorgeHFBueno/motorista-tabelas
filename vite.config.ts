@@ -17,6 +17,7 @@ export default defineConfig({
       ],
       workbox: {
         globPatterns: ['**/*.{js,css,html,ico,png,svg,jpg,jpeg,webp,woff,woff2}'],
+        globIgnores: ['**/react-plotly-*.js'],
         navigateFallback: '/index.html',
         maximumFileSizeToCacheInBytes: 10 * 1024 * 1024,
         skipWaiting: true,

@@ -10,6 +10,7 @@
     "deploy": "npm run build && firebase deploy --only hosting",
     "deploy:channel": "npm run build && firebase hosting:channel:deploy staging",
     "lint": "eslint .",
+    "test:analytics": "esbuild tests/frota-analytics.test.ts --bundle --platform=node --format=esm --outfile=.tmp-frota-analytics.test.mjs && node --test .tmp-frota-analytics.test.mjs",
     "test:rules": "firebase emulators:exec --only firestore,storage --project demo-firebase-rules \"node --test tests/rules/*.test.mjs\"",
     "test:rules:firestore": "firebase emulators:exec --only firestore --project demo-firebase-rules \"node --test --test-name-pattern=^\\[firestore\\] tests/rules/*.test.mjs\"",
     "set-admin": "node scripts/setAdmin.cjs",

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import {
     Alert,
     Autocomplete,
@@ -27,7 +27,7 @@ import {
 import { DataGrid, type GridColDef } from '@mui/x-data-grid';
 import { Timestamp, addDoc, collection, doc, getDocs, orderBy, query, serverTimestamp, updateDoc } from 'firebase/firestore';
 import { useNavigate } from 'react-router-dom';
-import FrotaCharts, { type ChartPoint } from '../components/FrotaCharts';
+import type { ChartPoint } from '../components/FrotaCharts';
 import {
     ABASTECIMENTO_EXTERNO,
     type CategoriaManutencao,
@@ -87,6 +87,7 @@ const SEM_CATEGORIA_KEY = '__sem_categoria__';
 const SEM_CATEGORIA_LABEL = 'Sem categoria';
 
 const DEBUG = true;
+const FrotaCharts = lazy(() => import('../components/FrotaCharts'));
 
 function getFornecedorOptionLabel(fornecedor: Fornecedor | null): string {
     if (!fornecedor) return '';
@@ -195,6 +196,7 @@ export default function FrotaVeiculosPage() {
     const [manutencoes2026Loading, setManutencoes2026Loading] = useState(false);
     const [manutencoes2026Error, setManutencoes2026Error] = useState<string | null>(null);
     const [manutencoes2026Loaded, setManutencoes2026Loaded] = useState(false);
+    const [showGastosChart, setShowGastosChart] = useState(false);
     const [fornecedores, setFornecedores] = useState<Fornecedor[]>([]);
     const [categoriasManutencao, setCategoriasManutencao] = useState<CategoriaManutencao[]>([]);
     const [fornecedoresLoading, setFornecedoresLoading] = useState(false);
@@ -325,7 +327,7 @@ export default function FrotaVeiculosPage() {
             }
         }
 
-        if (manutencoes2026Loaded) return () => {
+        if (!showGastosChart || manutencoes2026Loaded) return () => {
             active = false;
         };
 
@@ -333,7 +335,7 @@ export default function FrotaVeiculosPage() {
         return () => {
             active = false;
         };
-    }, [manutencoes2026Loaded]);
+    }, [manutencoes2026Loaded, showGastosChart]);
 
     useEffect(() => {
         let active = true;
@@ -397,7 +399,7 @@ export default function FrotaVeiculosPage() {
             }
         }
 
-        const shouldLoadCategorias = manutencaoOpen || manutencoes2026Loaded;
+        const shouldLoadCategorias = manutencaoOpen || (showGastosChart && manutencoes2026Loaded);
 
         if (!shouldLoadCategorias || categoriasLoaded) return () => {
             active = false;
@@ -411,6 +413,7 @@ export default function FrotaVeiculosPage() {
         manutencaoOpen,
         categoriasLoaded,
         manutencoes2026Loaded,
+        showGastosChart,
     ]);
 
     const rows = useMemo(() => {
@@ -990,6 +993,9 @@ export default function FrotaVeiculosPage() {
             >
                 <Typography variant="h4">Frota</Typography>
                 <Stack direction="row" spacing={2}>
+                    <Button variant="outlined" onClick={() => navigate('/frota/analytics')}>
+                        Analytics
+                    </Button>
                     <Button variant="outlined" onClick={() => navigate('/registros')}>
                         Ir para Registros
                     </Button>
@@ -1053,9 +1059,14 @@ export default function FrotaVeiculosPage() {
 
             <Box mt={4}>
 
-                <Typography variant="h6">Gastos gerais por veículo</Typography>
+                <Stack direction="row" spacing={2} alignItems="center" justifyContent="space-between">
+                    <Typography variant="h6">Gastos gerais por veículo</Typography>
+                    <Button variant="text" onClick={() => setShowGastosChart(value => !value)}>
+                        {showGastosChart ? 'Ocultar gráfico' : 'Exibir gráfico'}
+                    </Button>
+                </Stack>
 
-                <Box mt={1.5} display="flex" flexWrap="wrap" gap={1.5} alignItems="flex-start">
+                {showGastosChart && <><Box mt={1.5} display="flex" flexWrap="wrap" gap={1.5} alignItems="flex-start">
                     <Stack
                         direction={{ xs: 'column', sm: 'row' }}
                         spacing={1}
@@ -1165,16 +1176,19 @@ export default function FrotaVeiculosPage() {
                     : manutencoesChartData.length === 0 ? (
                         <Alert severity="info">Sem dados para os filtros selecionados.</Alert>
                     ) : (
-                        <FrotaCharts
-                            data={manutencoesChartData}
-                            title={manutencoesChartTitle}
-                            xAxisTitle="Veículo"
-                            yAxisTitle="Total (R$)"
-                            valueFormatter={(value) => currencyFormatter.format(value)}
-                            xAxisTickAngle={-45}
-                        />
+                        <Suspense fallback={<CircularProgress size={28} />}>
+                            <FrotaCharts
+                                data={manutencoesChartData}
+                                title={manutencoesChartTitle}
+                                xAxisTitle="Veículo"
+                                yAxisTitle="Total (R$)"
+                                valueFormatter={(value) => currencyFormatter.format(value)}
+                                xAxisTickAngle={-45}
+                            />
+                        </Suspense>
                     )}
                 </Box>
+                </>}
             </Box>
 
             <Dialog open={Boolean(editing)} onClose={closeEditor} maxWidth="sm" fullWidth>

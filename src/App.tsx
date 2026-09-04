@@ -23,6 +23,7 @@ const RegistrosPage = lazy(() => import('./pages/RegistrosPage'));
 const ChecklistSaidaPage = lazy(() => import('./pages/ChecklistSaidaPage'));
 const FrotaVeiculosPage = lazy(() => import('./pages/FrotaVeiculosPage'));
 const FrotaVeiculoDetalhesPage = lazy(() => import('./pages/FrotaVeiculoDetalhesPage'));
+const FrotaAnalyticsPage = lazy(() => import('./pages/FrotaAnalyticsPage'));
 const HomeDashboard = lazy(() => import('./pages/HomeDashboard'));
 const BombasPage = lazy(() => import('./pages/BombasPage'));
 const AccessDeniedPage = lazy(() => import('./pages/AccessDeniedPage'));
@@ -64,6 +65,7 @@ export default function App() {
             <Route path="registros" element={<RegistrosPage />} />
             <Route path="registros/:atividadeId/checklist" element={<ChecklistSaidaPage />} />
             <Route path="frota" element={<FrotaVeiculosPage />} />
+            <Route path="frota/analytics" element={<FrotaAnalyticsPage />} />
             <Route path="frota/:placa" element={<FrotaVeiculoDetalhesPage />} />
             <Route path="bombas" element={<BombasPage />} />
             <Route path="portfolio" element={<PortifolioPage />} />
