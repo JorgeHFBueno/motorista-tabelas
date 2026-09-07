@@ -1,29 +1,53 @@
 # Modelo de bombas e entradas Web
 
-## Unidade de volume canônica
+## CONTRATO DE UNIDADES
 
-Todo volume operacional do novo domínio de Bombas persistido no Firestore usa **Int64 ×10**: 1 unidade armazenada representa 0,1 litro.
+| Grandeza | Escala | Exemplo real | Persistido |
+|---|---:|---:|---:|
+| Litros | ×10 | 87,3 L | 873 |
+| Estoque | ×10 | 5.000 L | 50000 |
+| Montante | ×10 | 49.253,9 L | 492539 |
+| Preço total | ×100 | R$ 29.000,00 | 2900000 |
+| Preço/litro snapshot | ×100 | R$ 5,80/L | 580 |
+| Custo de abastecimento | ×100 | R$ 506,34 | 50634 |
 
-| Litros visuais | Unidade persistida |
-|---:|---:|
-| 0,1 L | 1 |
-| 1 L | 10 |
-| 1,5 L | 15 |
-| 10 L | 100 |
-| 5.000 L | 50000 |
+Todo volume operacional do novo domínio de Bombas persistido no Firestore usa
+Int64 ×10. Os campos são `estoqueAtual`, `montanteAtual`, `litrosComprados`,
+`estoqueAntes`, `estoqueAposMovimento` e `montanteSnapshot`; a entrada em
+`bombas/diesel_patio.ultimaEntrada.litrosComprados` segue a mesma unidade.
 
-Os campos canônicos são `estoqueAtual`, `montanteAtual`, `litrosComprados`, `estoqueAntes`, `estoqueAposMovimento` e `montanteSnapshot`. `bombas/diesel_patio.ultimaEntrada.litrosComprados` segue a mesma unidade. A UI trabalha em litros visuais e converte somente nas fronteiras pelos helpers `litrosParaUnidadeBomba` e `unidadeBombaParaLitros`.
+Entradas novas em `03-combustivel` e `bombas/diesel_patio.ultimaEntrada` usam
+`schemaVersion: 2`. Dinheiro novo é Int64 ×100: `preco` é total em centavos e
+`precoLitro` é snapshot em centavos por litro.
 
-`precoLitro` é calculado usando a quantidade visual: `preco / unidadeBombaParaLitros(litrosComprados)`, nunca dividindo diretamente pelo inteiro persistido ×10.
+`precoLitro` é apenas informação de exibição, arredondada para centavos. A fonte
+de verdade financeira é `preco` total junto com `litrosComprados` totais. O
+custo oficial é:
 
-Uma entrada aumenta `estoqueAtual` e não altera `montanteAtual`; a soma é feita integralmente em unidades ×10.
+```text
+valorAbastecimentoCentavos = round(
+  quantidadeAbastecidaX10 * precoCompraCentavos / litrosCompradosX10
+)
+```
+
+Os fatores ×10 do volume se cancelam e o resultado já fica em centavos. Não se
+deve calcular pelo `precoLitro` quando preço total e litros totais estiverem
+disponíveis.
+
+O formulário recebe reais e litros visuais; as conversões monetárias ficam
+centralizadas em `reaisParaCentavos` e `centavosParaReais`. O snapshot por litro
+é calculado com a quantidade visual e convertido para centavos.
 
 ## Compatibilidade e auditoria
 
-`normalizeFuelMovement` conhece explicitamente o schema novo e retorna volumes na unidade persistida para a UI converter. Registros legados usam `qa`, `diesel` e `lf`, que já são ×10, e permanecem somente com compatibilidade de leitura. Documentos intermediários ambíguos não são detectados heurísticamente nem migrados.
+`normalizeFuelMovement` conhece explicitamente o schema v2 e converte dinheiro
+v2 de centavos para reais somente na leitura da UI. Documentos sem a nova
+versão preservam a semântica monetária histórica, por exemplo `preco: 29000` e
+`precoLitro: 5.8`. Registros legados usam `qa`, `diesel` e `lf`, que já são ×10.
 
-`capacidadeLitros` é lido apenas como dado de bomba e não participa dos cálculos da Web. Como há produção existente e sua unidade não foi comprovada, este patch não altera seu valor ou unidade; a normalização fica para etapa própria com migração planejada.
+Não há heurística por magnitude e não há migração automática. Documentos
+antigos não são alterados.
 
-`folgaLitros` mantém a semântica legada: é usado por `getAdm1MontanteReference` como margem junto de `montanteAtual` e não entra no cálculo de novas entradas. Não foi alterado.
-
-`ultimoFrentista` e `ultimoAbastecimento` continuam preservados pelo fluxo existente.
+`capacidadeLitros` é lido apenas como dado de bomba e não participa dos
+cálculos. `folgaLitros` mantém a semântica legada e não entra no cálculo de
+novas entradas. `ultimoFrentista` e `ultimoAbastecimento` continuam preservados.

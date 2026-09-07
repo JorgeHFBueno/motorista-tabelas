@@ -1,4 +1,5 @@
 import type { Timestamp } from 'firebase/firestore';
+import type { StoredMoneyCents, StoredVolumeX10 } from '../utils/bombasDomain';
 
 export interface BombaResponsavel {
   id: string;
@@ -6,11 +7,16 @@ export interface BombaResponsavel {
 }
 
 export interface BombaUltimaEntrada {
+  /** Present only for the new monetary contract; absent means legacy data. */
+  schemaVersion?: number;
   movimentoId: string;
   data: Timestamp | Date;
-  litrosComprados: number;
-  preco: number;
-  precoLitro: number;
+  /** Persisted volume in liters ×10. */
+  litrosComprados: StoredVolumeX10;
+  /** Persisted money in cents (reais ×100). */
+  preco: StoredMoneyCents;
+  /** Informational persisted snapshot in cents per liter. */
+  precoLitro: StoredMoneyCents;
   lote: string;
   responsavel: BombaResponsavel;
 }

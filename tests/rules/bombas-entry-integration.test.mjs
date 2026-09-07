@@ -58,11 +58,12 @@ after(async () => env?.cleanup());
 function exactWebEntry(timestamp, overrides = {}) {
   return {
     data: timestamp,
+    schemaVersion: 2,
     tipo: 'entrada',
     bombaId: 'diesel_patio',
     litrosComprados: 50_000,
-    preco: 20_000,
-    precoLitro: 4,
+    preco: 2_000_000,
+    precoLitro: 400,
     lote: 'LT-2026-09',
     responsavel: { id: adm2.email, nome: 'Operador ADM2' },
     estoqueAntes: 34_000,

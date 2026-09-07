@@ -48,6 +48,7 @@ import {
   parsePtBrNumber,
   unidadeBombaParaLitros,
   suggestBatch,
+  normalizeFuelMovement,
 } from '../utils/bombasDomain';
 
 type Feedback = { message: string; severity: 'success' | 'error' };
@@ -141,7 +142,7 @@ export default function BombasPage() {
   };
 
   const latestPurchase = selectedBomba?.ultimaEntrada
-    ? { ...selectedBomba.ultimaEntrada, data: selectedBomba.ultimaEntrada.data, tipo: 'entrada' as const }
+    ? normalizeFuelMovement({ id: selectedBomba.ultimaEntrada.movimentoId, ...selectedBomba.ultimaEntrada, tipo: 'entrada' })
     : legacyLatestPurchase;
   const total = latestPurchase?.preco;
   const purchased = unidadeBombaParaLitros(latestPurchase?.litrosComprados);

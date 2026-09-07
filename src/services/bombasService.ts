@@ -13,6 +13,7 @@ import type { Bomba } from '../types/Bomba';
 import {
   DIESEL_PATIO_ID,
   applyDieselEntryToPump,
+  buildDieselLatestEntrySnapshot,
   buildDieselEntryRecord,
   litrosParaUnidadeBomba,
   isStoredVolume,
@@ -137,15 +138,16 @@ export async function registerDieselEntry(input: DieselEntryInput): Promise<void
     });
     transaction.update(bombaRef, {
       estoqueAtual: newPumpState.estoqueAtual,
-      ultimaEntrada: {
+      ultimaEntrada: buildDieselLatestEntrySnapshot({
         movimentoId: movementRef.id,
         data: timestamp,
         litrosComprados: entryStoredUnits,
-        preco: Math.round(input.totalPrice * 100) / 100,
-        precoLitro: Math.round(unitPrice * 10000) / 10000,
-        lote: input.batch.trim(),
-        responsavel: { id: motoristaDocumentId, nome: motoristaName.trim() },
-      },
+        totalPrice: input.totalPrice,
+        unitPrice,
+        batch: input.batch,
+        responsavelId: motoristaDocumentId,
+        responsavelNome: motoristaName,
+      }),
       ultimaMovimentacao: { movimentoId: movementRef.id, tipo: 'entrada', data: timestamp },
       atualizadoEm: Timestamp.now(),
     });

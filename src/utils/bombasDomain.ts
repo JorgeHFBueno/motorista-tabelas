@@ -1,5 +1,11 @@
 export const DIESEL_PATIO_ID = 'diesel_patio';
 export const ENTRADA_DIESEL_MOTIVO = 'Abastecimento de Diesel';
+export const BOMBAS_SCHEMA_VERSION = 2;
+
+/** Firestore integer containing liters multiplied by 10. */
+export type StoredVolumeX10 = number;
+/** Firestore integer containing Brazilian reais multiplied by 100. */
+export type StoredMoneyCents = number;
 
 export interface DieselEntryRecordInput {
   date: Date;
@@ -9,7 +15,7 @@ export interface DieselEntryRecordInput {
   estoqueAntes: number;
   estoqueAposMovimento: number;
   montanteSnapshot: number;
-  litrosComprados: number;
+  litrosComprados: StoredVolumeX10;
   totalPrice: number;
   unitPrice: number;
   batch: string;
@@ -20,12 +26,15 @@ export interface FuelMovementSource {
   data: unknown;
   tipo?: string;
   motivo?: string;
+  schemaVersion?: number;
   litrosComprados?: number;
   qa?: number;
   diesel?: number;
   lf?: number;
+  /** Display-normalized reais; persisted v2 sources are cents. */
   preco?: number;
   precoTotal?: number;
+  /** Display-normalized reais/L; persisted v2 sources are cents/L. */
   precoLitro?: number;
   precoPorLitro?: number;
   lote?: string;
@@ -44,6 +53,7 @@ export interface FuelMovementSource {
 export interface FuelMovement {
   id: string;
   data: unknown;
+  schemaVersion?: number;
   tipo: 'entrada' | 'saida' | 'ajuste';
   motivo?: string;
   litrosComprados?: number;
@@ -92,6 +102,34 @@ export function unidadeBombaParaLitros(value: unknown): number | null {
 
 export function isStoredVolume(value: unknown): value is number {
   return typeof value === 'number' && Number.isInteger(value) && Number.isFinite(value);
+}
+
+export function reaisParaCentavos(valueEmReais: number): StoredMoneyCents {
+  if (!Number.isFinite(valueEmReais)) throw new Error('Valor monetário inválido.');
+  const cents = Math.round(valueEmReais * 100);
+  if (!Number.isSafeInteger(cents)) throw new Error('Valor monetário excede o limite seguro.');
+  return cents;
+}
+
+export function centavosParaReais(valueEmCentavos: number): number {
+  if (!Number.isSafeInteger(valueEmCentavos)) throw new Error('Centavos inválidos.');
+  return valueEmCentavos / 100;
+}
+
+export function calcularCustoAbastecimentoCentavos(
+  quantidadeAbastecidaX10: number,
+  precoCompraCentavos: number,
+  litrosCompradosX10: number,
+): StoredMoneyCents {
+  if (![quantidadeAbastecidaX10, precoCompraCentavos, litrosCompradosX10].every(Number.isSafeInteger)) {
+    throw new Error('Valores do custo devem ser inteiros seguros.');
+  }
+  if (quantidadeAbastecidaX10 < 0 || precoCompraCentavos < 0 || litrosCompradosX10 <= 0) {
+    throw new Error('Valores do custo são incoerentes.');
+  }
+  const product = quantidadeAbastecidaX10 * precoCompraCentavos;
+  if (!Number.isSafeInteger(product)) throw new Error('Multiplicação do custo excede o limite seguro.');
+  return Math.round(product / litrosCompradosX10);
 }
 
 export function calculateUnitPrice(totalPrice: number, liters: number): number | null {
@@ -146,13 +184,17 @@ export function buildDieselEntryRecord(input: DieselEntryRecordInput) {
   if (![input.litrosComprados, input.estoqueAntes, input.estoqueAposMovimento, input.montanteSnapshot].every(isStoredVolume)) {
     throw new Error('Volumes da entrada devem ser inteiros na unidade da bomba.');
   }
+  const preco = reaisParaCentavos(input.totalPrice);
+  const precoLitro = reaisParaCentavos(input.unitPrice);
+  if (preco <= 0 || precoLitro <= 0) throw new Error('Valores monetários devem ser maiores que zero.');
   return {
+    schemaVersion: BOMBAS_SCHEMA_VERSION,
     data: input.date,
     tipo: 'entrada' as const,
     bombaId: input.bombaId,
     litrosComprados: input.litrosComprados,
-    preco: Math.round(input.totalPrice * 100) / 100,
-    precoLitro: Math.round(input.unitPrice * 10000) / 10000,
+    preco,
+    precoLitro,
     lote: input.batch.trim(),
     responsavel: {
       id: input.responsavelId.trim(),
@@ -161,6 +203,28 @@ export function buildDieselEntryRecord(input: DieselEntryRecordInput) {
     estoqueAntes: input.estoqueAntes,
     estoqueAposMovimento: input.estoqueAposMovimento,
     montanteSnapshot: input.montanteSnapshot,
+  };
+}
+
+export function buildDieselLatestEntrySnapshot(input: {
+  movimentoId: string;
+  data: unknown;
+  litrosComprados: StoredVolumeX10;
+  totalPrice: number;
+  unitPrice: number;
+  batch: string;
+  responsavelId: string;
+  responsavelNome: string;
+}) {
+  return {
+    schemaVersion: BOMBAS_SCHEMA_VERSION,
+    movimentoId: input.movimentoId,
+    data: input.data,
+    litrosComprados: input.litrosComprados,
+    preco: reaisParaCentavos(input.totalPrice),
+    precoLitro: reaisParaCentavos(input.unitPrice),
+    lote: input.batch.trim(),
+    responsavel: { id: input.responsavelId.trim(), nome: input.responsavelNome.trim() },
   };
 }
 
@@ -182,6 +246,7 @@ export function normalizeFuelMovement(source: FuelMovementSource): FuelMovement 
   return {
     id: source.id,
     data: source.data,
+    schemaVersion: source.schemaVersion,
     tipo: isEntry ? 'entrada' : isAdjustment ? 'ajuste' : 'saida',
     motivo: source.motivo,
     // Both canonical and legacy volume fields are returned in persisted units.
@@ -191,8 +256,13 @@ export function normalizeFuelMovement(source: FuelMovementSource): FuelMovement 
     estoqueAntes: finiteNumber(source.estoqueAntes, undefined),
     estoqueAposMovimento: finiteNumber(source.estoqueAposMovimento, source.diesel),
     montanteSnapshot: finiteNumber(source.montanteSnapshot, source.lf),
-    preco: finiteNumber(source.preco, source.precoTotal),
-    precoLitro: finiteNumber(source.precoLitro, source.precoPorLitro),
+    // New versioned records are stored as cents; historical records retain reais.
+    preco: source.schemaVersion === BOMBAS_SCHEMA_VERSION
+      ? (typeof source.preco === 'number' && Number.isFinite(source.preco) ? centavosParaReais(source.preco) : undefined)
+      : finiteNumber(source.preco, source.precoTotal),
+    precoLitro: source.schemaVersion === BOMBAS_SCHEMA_VERSION
+      ? (typeof source.precoLitro === 'number' && Number.isFinite(source.precoLitro) ? centavosParaReais(source.precoLitro) : undefined)
+      : finiteNumber(source.precoLitro, source.precoPorLitro),
     lote: source.lote,
     placa: source.placa,
     responsavel: source.responsavel
