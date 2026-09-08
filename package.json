@@ -12,6 +12,7 @@
     "lint": "eslint .",
     "test:bombas": "esbuild tests/bombas-domain.test.ts --bundle --platform=node --format=esm --outfile=.tmp-bombas-domain.test.mjs && node --test .tmp-bombas-domain.test.mjs",
     "test:analytics": "esbuild tests/frota-analytics.test.ts --bundle --platform=node --format=esm --outfile=.tmp-frota-analytics.test.mjs && node --test .tmp-frota-analytics.test.mjs",
+    "test:combustivel": "esbuild tests/combustivel-normalizer.test.ts --bundle --platform=node --format=esm --outfile=.tmp-combustivel-normalizer.test.mjs && node --test .tmp-combustivel-normalizer.test.mjs",
     "test:rules": "firebase emulators:exec --only firestore,storage --project demo-firebase-rules \"node --test tests/rules/*.test.mjs\"",
     "test:rules:firestore": "firebase emulators:exec --only firestore --project demo-firebase-rules \"node --test --test-name-pattern=^\\[firestore\\] tests/rules/*.test.mjs\"",
     "set-admin": "node scripts/setAdmin.cjs",

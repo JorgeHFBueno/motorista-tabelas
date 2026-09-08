@@ -44,10 +44,14 @@ const EXCEL_KNOWN_COLUMNS = [
   { field: 'galao', label: 'Galao' },
   { field: 'semKm', label: 'Sem KM' },
   { field: 'tipoPlaca', label: 'KM flag' },
+  { field: 'valorAbastecimento', label: 'Valor abastecimento' },
+  { field: 'horimetro', label: 'Horímetro' },
+  { field: 'modalidadeAbastecimento', label: 'Modalidade' },
 ] as const;
 
 const DECIMAL_TENTH_FIELDS = new Set(['li', 'qa', 'lf', 'arla']);
-const IGNORED_EXCEL_FIELDS = new Set(['dataJS', 'actions', 'tipo', 'hnf']);
+const CENTAVO_FIELDS = new Set(['valorAbastecimento']);
+const IGNORED_EXCEL_FIELDS = new Set(['dataJS', 'actions', 'tipo', 'hnf', 'itemFrota', 'obra', 'frentista', 'paraQuem', 'autorLancamento', 'origemPreco']);
 const DATE_FIELD_PATTERN = /(data|date|created|updated|criado|alterado|editado|timestamp)/i;
 const BR_THOUSANDS_NUMBER_PATTERN = /^[+-]?\d{1,3}(\.\d{3})+(,\d+)?$/;
 const DATA_GRID_LOCALE_TEXT = ptBR.components.MuiDataGrid.defaultProps.localeText;
@@ -158,6 +162,11 @@ export default function TabelaCombustivel() {
       return Number.isNaN(numberValue) ? value : numberValue / 10;
     }
 
+    if (CENTAVO_FIELDS.has(field)) {
+      const numberValue = Number(value);
+      return Number.isNaN(numberValue) ? value : numberValue / 100;
+    }
+
     if (typeof value === 'number') return value;
     if (Array.isArray(value)) return value.map((item) => formatExcelValue(field, item, row)).join(', ');
     if (typeof value === 'object') return JSON.stringify(value);
@@ -169,6 +178,13 @@ export default function TabelaCombustivel() {
     if (field === 'obra') {
       return typeof row.obra === 'string' ? row.obra.trim() : '';
     }
+    if (field === 'placa') return row.identificadorSnapshot ?? row.placa;
+    if (field === 'motorista') return row.frentista ?? row.motorista;
+    if (field === 'para_quem') return row.paraQuem ?? row.para_quem;
+    if (field === 'local') return row.local ?? ((row.obra as Record<string, unknown> | undefined)?.localSnapshot);
+    if (field === 'qa') return row.quantidadeAbastecida ?? row.qa;
+    if (field === 'li') return row.montanteAntes ?? row.li;
+    if (field === 'lf') return row.montanteAposMovimento ?? row.lf;
     return row[field];
   }
 
@@ -357,7 +373,7 @@ export default function TabelaCombustivel() {
   const agregadosPorNome = useMemo(() => {
     const map: Record<string, { nome: string; abastecimentos: number; litros: number }> = {};
 
-    for (const r of rowsOk) {
+    for (const r of rowsOk.filter((item) => item.isFuelOutput !== false)) {
       const nome = (r as any).motorista || '—';
       const litros = Number((r as any).qa) / 10;
       if (!map[nome]) map[nome] = { nome, abastecimentos: 1, litros };
@@ -431,7 +447,7 @@ export default function TabelaCombustivel() {
     if (!month) return [];
     const grouped: Record<string, Registro[]> = {};
 
-    for (const r of registros) {
+    for (const r of registros.filter((item) => item.isFuelOutput !== false && item.itemFrotaTipo !== 'maquina')) {
       const placa = (r.placa ?? '').trim() || '—';
       if (!grouped[placa]) grouped[placa] = [];
       grouped[placa].push(r);

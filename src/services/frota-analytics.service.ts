@@ -5,7 +5,7 @@ export const PILOT_PERIOD = { start: PILOT_START, end: PILOT_END };
 
 export type AnalyticsPeriod = { start?: Date; end?: Date };
 export type ActivityAnalyticsRecord = { id: string; tipo?: unknown; data?: unknown; veiculoId?: unknown; placa?: unknown; obraId?: unknown };
-export type FuelAnalyticsRecord = { id: string; data?: unknown; placa?: unknown; km?: unknown; semKm?: unknown; tipoPlaca?: unknown; motivo?: unknown; qa?: unknown };
+export type FuelAnalyticsRecord = { id: string; data?: unknown; placa?: unknown; km?: unknown; semKm?: unknown; tipoPlaca?: unknown; motivo?: unknown; qa?: unknown; quantidadeAbastecida?: unknown; isFuelOutput?: boolean; schema?: string; itemFrotaUid?: unknown; itemFrotaTipo?: unknown; identificadorSnapshot?: unknown };
 export type MaintenanceAnalyticsRecord = { id: string; data?: unknown; identificador?: unknown; valor?: unknown };
 export type VehicleAnalyticsIdentity = { id: string; placa?: string; identificador?: string; extra?: string };
 
@@ -57,6 +57,14 @@ export function vehicleMatches(activity: ActivityAnalyticsRecord, vehicle: Vehic
   return Boolean(candidate && [vehicle.placa, vehicle.identificador, vehicle.extra, vehicle.id].some((value) => normalize(value) === candidate));
 }
 
+function fuelMatchesVehicle(item: FuelAnalyticsRecord, vehicle: VehicleAnalyticsIdentity): boolean {
+  if (item.isFuelOutput === false) return false;
+  if (item.itemFrotaUid === vehicle.id) return true;
+  const normalize = (value: unknown) => typeof value === 'string' ? value.toUpperCase().replace(/[^A-Z0-9]/g, '') : '';
+  const candidate = normalize(item.identificadorSnapshot ?? item.placa);
+  return Boolean(candidate && [vehicle.placa, vehicle.identificador, vehicle.extra].some((value) => normalize(value) === candidate));
+}
+
 export function countTrips(activities: ActivityAnalyticsRecord[], period?: AnalyticsPeriod, vehicle?: VehicleAnalyticsIdentity, obraId?: string): number {
   return activities.filter((item) => item.tipo === 'saida' && inPeriod(item.data, period) && (!vehicle || vehicleMatches(item, vehicle)) && (!obraId || item.obraId === obraId)).length;
 }
@@ -64,6 +72,7 @@ export function countTrips(activities: ActivityAnalyticsRecord[], period?: Analy
 export function obrasVisited(): { value: null; quality: 'UNAVAILABLE' } { return { value: null, quality: 'UNAVAILABLE' }; }
 
 function validOdometer(item: FuelAnalyticsRecord): { date: Date; km: number } | null {
+  if (item.isFuelOutput === false || item.itemFrotaTipo === 'maquina') return null;
   if (item.semKm === 'Sem Odômetro' || item.tipoPlaca === false) return null;
   const motivo = typeof item.motivo === 'string' ? item.motivo.toLowerCase() : '';
   if (motivo.includes('galão') || motivo.includes('galao') || motivo.includes('bomba') || motivo.includes('ajuste') || motivo.includes('estoque')) return null;
@@ -73,8 +82,7 @@ function validOdometer(item: FuelAnalyticsRecord): { date: Date; km: number } | 
 }
 
 export function estimatedKm(fuel: FuelAnalyticsRecord[], period?: AnalyticsPeriod, vehicle?: VehicleAnalyticsIdentity): { value: number | null; quality: DataQuality } {
-  const labels = vehicle ? [vehicle.placa, vehicle.identificador, vehicle.extra].filter(Boolean) : null;
-  const readings = fuel.filter((item) => (!labels || labels.includes(item.placa as string)) && inPeriod(item.data, period)).map(validOdometer).filter((item): item is { date: Date; km: number } => item !== null).sort((a, b) => a.date.getTime() - b.date.getTime());
+  const readings = fuel.filter((item) => (!vehicle || fuelMatchesVehicle(item, vehicle)) && inPeriod(item.data, period)).map(validOdometer).filter((item): item is { date: Date; km: number } => item !== null).sort((a, b) => a.date.getTime() - b.date.getTime());
   if (readings.length < 2) return { value: null, quality: 'UNAVAILABLE' };
   for (let i = 1; i < readings.length; i += 1) if (readings[i].km < readings[i - 1].km) return { value: null, quality: 'UNAVAILABLE' };
   return { value: readings[readings.length - 1].km - readings[0].km, quality: 'PARTIAL' };

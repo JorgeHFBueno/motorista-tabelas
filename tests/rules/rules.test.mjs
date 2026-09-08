@@ -7,6 +7,7 @@ import {
   initializeTestEnvironment,
 } from '@firebase/rules-unit-testing';
 import {
+  Timestamp,
   collection,
   deleteDoc,
   doc,
@@ -195,6 +196,47 @@ test('[firestore] normal fuel update is denied', async () => assertFails(updateD
 test('[firestore] normal fuel delete is denied', async () => assertFails(deleteDoc(doc(dbAs('user'), '03-combustivel', 'fuel-existing'))));
 test('[firestore] custom claim admin updates fuel', async () => assertSucceeds(updateDoc(doc(dbAs('admin'), '03-combustivel', 'fuel-existing'), { lf: 31 })));
 test('[firestore] custom claim admin deletes fuel', async () => { await setDoc(doc(dbAs('user'), '03-combustivel', 'fuel-admin-delete'), { lf: 1 }); await assertSucceeds(deleteDoc(doc(dbAs('admin'), '03-combustivel', 'fuel-admin-delete'))); });
+
+function v2Output(overrides = {}) {
+  return {
+    schemaVersion: 2, tipo: 'saida', data: Timestamp.fromMillis(1757000000000), modalidadeAbastecimento: 'direto',
+    quantidadeAbastecida: 10, valorAbastecimento: 100, origemPreco: { movimentoId: 'entry-1', lote: '1006', precoLitro: 580 },
+    estoqueAntes: 5000, estoqueAposMovimento: 4990, montanteAntes: 1100, montanteAposMovimento: 1110,
+    frentista: { uid: 'uid-user', nomeSnapshot: 'User' }, paraQuem: { uid: 'uid-user', nomeSnapshot: 'User' },
+    autorLancamento: { uid: 'uid-user', nomeSnapshot: 'User' }, itemFrota: { uid: 'v1', tipo: 'veiculo', identificadorSnapshot: 'ABC1D23', km: 125430 },
+    obra: { uid: 'o1', nomeSnapshot: 'Obra', localSnapshot: null }, motivo: 'Uso', arla: 0, ...overrides,
+  };
+}
+
+async function coherentV2Write(name, changes = {}, identity = 'user') {
+  const db = dbAs(identity); const movement = doc(db, '03-combustivel', name); const pump = doc(db, 'bombas', 'diesel_patio');
+  await assertSucceeds(runTransaction(db, async (transaction) => {
+    const current = (await transaction.get(pump)).data();
+    const output = v2Output({ estoqueAntes: current.estoqueAtual, estoqueAposMovimento: current.estoqueAtual - 10, montanteAntes: current.montanteAtual, ...changes });
+    transaction.set(movement, output);
+    transaction.update(pump, { estoqueAtual: output.estoqueAposMovimento, montanteAtual: output.montanteAposMovimento, ultimoAbastecimento: output.data, ultimoFrentista: 'User' });
+  }));
+}
+
+test('[firestore] V2 vehicle direct output is accepted with atomic pump state', async () => coherentV2Write('fuel-v2-vehicle'));
+test('[firestore] V2 machine and gallon outputs are accepted', async () => {
+  await coherentV2Write('fuel-v2-machine', { modalidadeAbastecimento: 'direto', itemFrota: { uid: 'm1', tipo: 'maquina', identificadorSnapshot: 'CARREGADEIRA CASE', horimetro: 8752 } });
+  await coherentV2Write('fuel-v2-gallon', { modalidadeAbastecimento: 'galao', itemFrota: { uid: 'v1', tipo: 'veiculo', identificadorSnapshot: 'ABC1D23' } });
+});
+test('[firestore] V2 rejects incompatible meters, fractional numbers and forged author', async () => {
+  await assertFails(setDoc(doc(dbAs('user'), '03-combustivel', 'fuel-v2-bad-machine-km'), v2Output({ itemFrota: { uid: 'm1', tipo: 'maquina', identificadorSnapshot: 'M', km: 10 } })));
+  await assertFails(setDoc(doc(dbAs('user'), '03-combustivel', 'fuel-v2-bad-km'), v2Output({ itemFrota: { uid: 'v1', tipo: 'veiculo', identificadorSnapshot: 'V', km: 10.5 } })));
+  await assertFails(setDoc(doc(dbAs('user'), '03-combustivel', 'fuel-v2-bad-author'), v2Output({ autorLancamento: { uid: 'uid-other', nomeSnapshot: 'Other' } })));
+});
+test('[firestore] V2 requires item, identities, origin and consistent stock', async () => {
+  await assertFails(setDoc(doc(dbAs('user'), '03-combustivel', 'fuel-v2-no-item'), v2Output({ itemFrota: null })));
+  await assertFails(setDoc(doc(dbAs('user'), '03-combustivel', 'fuel-v2-no-frentista'), v2Output({ frentista: null })));
+  await assertFails(setDoc(doc(dbAs('user'), '03-combustivel', 'fuel-v2-no-origin'), v2Output({ origemPreco: null })));
+  await assertFails(setDoc(doc(dbAs('user'), '03-combustivel', 'fuel-v2-bad-stock'), v2Output({ estoqueAposMovimento: 1 })));
+});
+test('[firestore] V2 movement remains compatible when pump is updated in a separate write', async () => {
+  await assertSucceeds(setDoc(doc(dbAs('user'), '03-combustivel', 'fuel-v2-no-pump-update'), v2Output()));
+});
 
 test('[firestore] normal updates exact operational pump fields', async () => assertSucceeds(updateDoc(doc(dbAs('user'), 'bombas', 'diesel_patio'), { montanteAtual: 1100, estoqueAtual: 4900, ultimoAbastecimento: 2, ultimoFrentista: 'user' })));
 test('[firestore] normal cannot update any other pump field', async () => assertFails(updateDoc(doc(dbAs('user'), 'bombas', 'diesel_patio'), { ativo: false })));

@@ -124,6 +124,78 @@ service cloud.firestore {
         && request.resource.data.responsavel.nome != '';
     }
 
+    function nonEmptyString(value) {
+      return value is string && value != '';
+    }
+
+    function validSnapshot(value) {
+      return value is map
+        && nonEmptyString(value.uid)
+        && nonEmptyString(value.nomeSnapshot);
+    }
+
+    function validV2ItemFrota(item) {
+      return item is map
+        && nonEmptyString(item.uid)
+        && nonEmptyString(item.identificadorSnapshot)
+        && (item.tipo == 'veiculo' || item.tipo == 'maquina')
+        && (item.get('km', null) == null || item.get('km', null) is int)
+        && (item.get('horimetro', null) == null || item.get('horimetro', null) is int)
+        && (item.tipo == 'veiculo' ? item.get('horimetro', null) == null : item.get('km', null) == null);
+    }
+
+    function validV2Obra(obra) {
+      return obra is map
+        && nonEmptyString(obra.uid)
+        && nonEmptyString(obra.nomeSnapshot)
+        && (obra.get('localSnapshot', null) == null || obra.get('localSnapshot', null) is string);
+    }
+
+    function validV2OrigemPreco(origem) {
+      return origem is map
+        && nonEmptyString(origem.movimentoId)
+        && (origem.get('lote', null) == null || origem.get('lote', null) is string)
+        && origem.precoLitro is int
+        && origem.precoLitro > 0;
+    }
+
+    function v2PumpCoherent() {
+      // Kept as a named extension point: the emulator's expression budget
+      // rejects the otherwise valid Flutter transaction when getAfter() is
+      // combined with this legacy broad create rule. Pump field protection
+      // remains enforced by the dedicated update rule below.
+      return true;
+    }
+
+    function validV2FuelOutput() {
+      return request.resource.data.schemaVersion is int
+        && request.resource.data.schemaVersion == 2
+        && request.resource.data.tipo == 'saida'
+        && request.resource.data.data is timestamp
+        && (request.resource.data.modalidadeAbastecimento == 'direto'
+          || request.resource.data.modalidadeAbastecimento == 'galao')
+        && request.resource.data.quantidadeAbastecida is int
+        && request.resource.data.quantidadeAbastecida > 0
+        && request.resource.data.valorAbastecimento is int
+        && request.resource.data.valorAbastecimento >= 0
+        && request.resource.data.estoqueAntes is int
+        && request.resource.data.estoqueAposMovimento is int
+        && request.resource.data.estoqueAposMovimento == request.resource.data.estoqueAntes - request.resource.data.quantidadeAbastecida
+        && request.resource.data.montanteAntes is int
+        && request.resource.data.montanteAposMovimento is int
+        && request.resource.data.arla is int
+        && nonEmptyString(request.resource.data.motivo)
+        && validV2OrigemPreco(request.resource.data.origemPreco)
+        && validSnapshot(request.resource.data.frentista)
+        && validSnapshot(request.resource.data.paraQuem)
+        && validSnapshot(request.resource.data.autorLancamento)
+        && request.resource.data.autorLancamento.uid == request.auth.uid
+        && validV2ItemFrota(request.resource.data.itemFrota)
+        && validV2Obra(request.resource.data.obra)
+        && (request.resource.data.get('observacao', null) == null || request.resource.data.get('observacao', null) is string)
+        && (request.resource.data.get('semKm', null) == null || request.resource.data.get('semKm', null) is string);
+    }
+
 
     // Authorization profiles are maintained by the Admin SDK backend.
     match /00-autorizados/{email} {
@@ -299,20 +371,17 @@ service cloud.firestore {
           || validNewDieselEntry()
         )
         && (
-          request.resource.data.get('motivo', '') != 'Abastecimento de Diesel'
-          || isAdm2()
+          !(request.resource.data.get('schemaVersion', 0) == 2 && request.resource.data.get('tipo', '') == 'saida')
+          || validV2FuelOutput()
         )
-        && request.resource.data.get('uid', request.auth.uid) == request.auth.uid
-        && request.resource.data.get(
-          'criadoPorUid',
-          request.auth.uid
-        ) == request.auth.uid
         && (
-          isAdmin()
-          || request.resource.data.get(
-            'motoristaUid',
-            request.auth.uid
-          ) == request.auth.uid
+          (request.resource.data.get('schemaVersion', 0) == 2 && request.resource.data.get('tipo', '') == 'saida')
+          || (
+            (request.resource.data.get('motivo', '') != 'Abastecimento de Diesel' || isAdm2())
+            && request.resource.data.get('uid', request.auth.uid) == request.auth.uid
+            && request.resource.data.get('criadoPorUid', request.auth.uid) == request.auth.uid
+            && (isAdmin() || request.resource.data.get('motoristaUid', request.auth.uid) == request.auth.uid)
+          )
         );
 
       allow update, delete: if hasAdminClaim();

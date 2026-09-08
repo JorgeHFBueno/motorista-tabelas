@@ -52,6 +52,7 @@ import {
 import { useAuth } from '../contexts/AuthContext';
 import { db } from '../firebase';
 import { normalizeFornecedorNumero } from '../services/fornecedores.service';
+import { normalizarMovimentoCombustivel } from '../services/combustivel-normalizer';
 
 const FrotaCharts = lazy(() => import('../components/FrotaCharts'));
 type Veiculo = {
@@ -98,6 +99,12 @@ type Combustivel = {
     arla?: number;
     motivo?: string;
     valor?: number;
+    itemFrotaUid?: string;
+    itemFrotaTipo?: string | null;
+    identificadorSnapshot?: string;
+    isFuelOutput?: boolean;
+    quantidadeAbastecida?: number;
+    obra?: string;
 };
 
 type LinhaEvento = {
@@ -784,21 +791,15 @@ export default function FrotaVeiculoDetalhesPage() {
 
             try {
                 console.debug('[FrotaVeiculosDetalhes] loadCombustivel query:', { placa });
-                const baseQuery = query(collection(db, '03-combustivel'), where('placa', '==', placa));
-                let snapshot;
-
-                try {
-                    snapshot = await getDocs(query(baseQuery, orderBy('data', 'desc')));
-                } catch (err) {
-                    console.warn('Falha ao ordenar por data, carregando sem orderBy.', err);
-                    snapshot = await getDocs(baseQuery);
-                }
+                const snapshot = await getDocs(collection(db, '03-combustivel'));
 
                 if (!active) return;
 
                 const data: LinhaEvento[] = snapshot.docs.map(
                     (docSnap): LinhaEvento => {
-                        const registro = docSnap.data() as Combustivel;
+                        const registro = normalizarMovimentoCombustivel(docSnap.data(), docSnap.id) as Combustivel;
+                        const matches = registro.itemFrotaUid === veiculo?.id || registro.identificadorSnapshot === placa || (registro.itemFrotaUid === undefined && (docSnap.data().placa === placa));
+                        if (!matches || registro.isFuelOutput === false) return null as unknown as LinhaEvento;
                         const categoria = registro.motivo ? registro.motivo : 'ABASTECIMENTO';
                         return {
                             id: `ab_${docSnap.id}`,
@@ -807,14 +808,14 @@ export default function FrotaVeiculoDetalhesPage() {
                             origem: 'abastecimento',
                             tipo: 'ABASTECIMENTO',
                             data: toDate(registro.data),
-                            qntAbastecida: registro.qa ?? null,
+                            qntAbastecida: registro.quantidadeAbastecida ?? registro.qa ?? null,
                             arla: registro.arla ?? null,
                             categoria,
                             valor: registro.valor ?? null,
-                            obra: null,
+                            obra: registro.obra ?? null,
                         };
                     },
-                );
+                ).filter(Boolean);
                 console.debug('[FrotaVeiculosDetalhes] abastecimentos carregados:', data.length);
                 setCombustivelRows(data);
             } catch (err) {

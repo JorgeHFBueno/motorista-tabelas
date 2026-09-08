@@ -16,4 +16,22 @@ export interface Registro {
   km?: number | string | null;
   semKm?: string;
   tipoPlaca?: boolean;
+  schema?: 'entrada-v2' | 'saida-v2' | 'legado';
+  isFuelOutput?: boolean;
+  schemaVersion?: number;
+  quantidadeAbastecida?: number;
+  valorAbastecimento?: number;
+  montanteAntes?: number;
+  montanteAposMovimento?: number;
+  estoqueAntes?: number;
+  estoqueAposMovimento?: number;
+  modalidadeAbastecimento?: 'direto' | 'galao';
+  itemFrotaUid?: string;
+  itemFrotaTipo?: 'veiculo' | 'maquina' | null;
+  identificadorSnapshot?: string;
+  horimetro?: number;
+  frentista?: string;
+  paraQuem?: string;
+  autorLancamento?: string;
+  obraUid?: string;
 }

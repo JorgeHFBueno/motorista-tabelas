@@ -3,10 +3,11 @@ import * as api from '../services/combustivelApi';
 import { saveCombustivel } from '../services/combustivelFirestore';
 import { useAuth } from '../contexts/AuthContext';
 import type { Registro } from '../types';
+import { normalizarMovimentoCombustivel } from '../services/combustivel-normalizer';
 
 function mapRegistro(raw: any): Registro {
   return {
-    ...raw,
+    ...normalizarMovimentoCombustivel(raw ?? {}, raw?.id ?? ''),
     km: raw?.km ?? null,
   } as Registro;
 }
