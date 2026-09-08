@@ -171,6 +171,10 @@ service cloud.firestore {
       return request.resource.data.schemaVersion is int
         && request.resource.data.schemaVersion == 2
         && request.resource.data.tipo == 'saida'
+        && !request.resource.data.keys().hasAny([
+          'qa', 'li', 'lf', 'diesel', 'bombaId', 'motorista', 'para_quem',
+          'placa', 'tipoPlaca', 'local', 'km'
+        ])
         && request.resource.data.data is timestamp
         && (request.resource.data.modalidadeAbastecimento == 'direto'
           || request.resource.data.modalidadeAbastecimento == 'galao')
