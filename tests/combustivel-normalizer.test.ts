@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { horasFromX10, litrosFromX10, normalizarMovimentoCombustivel, reaisFromCentavos } from '../src/services/combustivel-normalizer.ts';
+import { formatarHorimetroX10, formatarKm, formatarLitrosX10, formatarMoedaCentavos } from '../src/utils/formatters.ts';
 
 const base = {
   schemaVersion: 2, tipo: 'saida', data: new Date(), quantidadeAbastecida: 873,
@@ -16,6 +17,7 @@ test('normaliza saída V2 de veículo com aliases compatíveis', () => {
   assert.equal(result.schema, 'saida-v2'); assert.equal(result.isFuelOutput, true);
   assert.equal(result.qa, 873); assert.equal(result.li, 492539); assert.equal(result.lf, 493412);
   assert.equal(result.placa, 'ABC1D23'); assert.equal(result.km, 125430); assert.equal(result.horimetro, undefined);
+  assert.equal(result.extra, null);
   assert.equal(result.motorista, 'Frentista'); assert.equal(result.para_quem, 'Operador');
 });
 
@@ -23,6 +25,24 @@ test('normaliza máquina e galão sem transformar horímetro em KM', () => {
   const result = normalizarMovimentoCombustivel({ ...base, modalidadeAbastecimento: 'galao', itemFrota: { uid: 'm1', tipo: 'maquina', identificadorSnapshot: 'CARREGADEIRA CASE', horimetro: 8752 } });
   assert.equal(result.modalidadeAbastecimento, 'galao'); assert.equal(result.itemFrotaTipo, 'maquina');
   assert.equal(result.identificadorSnapshot, 'CARREGADEIRA CASE'); assert.equal(result.horimetro, 8752); assert.equal(result.km, null);
+  assert.equal(result.placa, null); assert.equal(result.extra, 'CARREGADEIRA CASE');
+});
+
+test('formata unidades internas para a apresentação pt-BR', () => {
+  assert.equal(formatarLitrosX10(873), '87,3 L');
+  assert.equal(formatarLitrosX10(492539), '49.253,9 L');
+  assert.equal(formatarKm(125430), '125.430');
+  assert.equal(formatarHorimetroX10(8752), '875,2 h');
+  assert.equal(formatarMoedaCentavos(50634), 'R$ 506,34');
+});
+
+test('calcula os três campos do abastecimento em unidade interna', () => {
+  const montanteAntes = 492539;
+  const quantidadeAbastecida = 873;
+  assert.equal(montanteAntes + quantidadeAbastecida, 493412);
+  assert.equal(formatarLitrosX10(montanteAntes), '49.253,9 L');
+  assert.equal(formatarLitrosX10(quantidadeAbastecida), '87,3 L');
+  assert.equal(formatarLitrosX10(montanteAntes + quantidadeAbastecida), '49.341,2 L');
 });
 
 test('preserva entrada V2 e legado sem inferência por magnitude', () => {

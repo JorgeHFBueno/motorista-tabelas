@@ -14,6 +14,7 @@ import { useAuthorizationProfile } from '../hooks/useAuthorizationProfile';
 import { useAdm1MontanteGate } from '../hooks/useAdm1MontanteGate';
 import * as XLSX from 'xlsx';
 import useOnlineStatus from '../hooks/useOnlineStatus';
+import { formatarHorimetroX10, formatarKm, formatarLitrosX10 } from '../utils/formatters';
 
 type View = 'principal' | 'porNome' | 'custo';
 
@@ -30,6 +31,7 @@ const EXCEL_KNOWN_COLUMNS = [
   { field: 'id', label: 'ID' },
   { field: 'data', label: 'Data' },
   { field: 'placa', label: 'Placa' },
+  { field: 'extra', label: 'Extra' },
   { field: 'motorista', label: 'Motorista' },
   { field: 'km', label: 'KM' },
   { field: 'li', label: 'Montante Inicial' },
@@ -299,7 +301,7 @@ export default function TabelaCombustivel() {
       renderCell: (params) => {
         const value = params?.value;
         if (value === null || value === undefined || isNaN(Number(value))) return '—';
-        return brNumberFormatter.format(Number(value) / 10);
+        return formatarLitrosX10(value);
       },
     },
     {
@@ -310,7 +312,7 @@ export default function TabelaCombustivel() {
       renderCell: (params) => {
         const value = params?.value;
         if (value === null || value === undefined || isNaN(Number(value))) return '—';
-        return brNumberFormatter.format(Number(value) / 10);
+        return formatarLitrosX10(value);
       },
     },
     {
@@ -321,7 +323,7 @@ export default function TabelaCombustivel() {
       renderCell: (params) => {
         const value = params?.value;
         if (value === null || value === undefined || isNaN(Number(value))) return '—';
-        return brNumberFormatter.format(Number(value) / 10);
+        return formatarLitrosX10(value);
       },
     },
     {
@@ -332,13 +334,14 @@ export default function TabelaCombustivel() {
       renderCell: (params) => {
         const value = params?.value;
         if (value === null || value === undefined || isNaN(Number(value))) return '—';
-        return brNumberFormatter.format(Number(value) / 10);
+        return formatarLitrosX10(value);
       },
     },
     { field: 'motorista', headerName: 'Frentista', minWidth: 150, flex: 1.2 },
     { field: 'para_quem', headerName: 'Operador', minWidth: 150, flex: 1.2 },
     { field: 'autorLancamento', headerName: 'Autor lançamento', minWidth: 160, flex: 1.2 },
     { field: 'placa', headerName: 'Placa', minWidth: 120, flex: 1 },
+    { field: 'extra', headerName: 'Extra', minWidth: 170, flex: 1.2 },
     { field: 'itemFrotaTipo', headerName: 'Tipo frota', minWidth: 110, flex: .8, valueGetter: (_v, row) => row.itemFrotaTipo === 'veiculo' ? 'Veículo' : row.itemFrotaTipo === 'maquina' ? 'Máquina' : '' },
     { field: 'modalidadeAbastecimento', headerName: 'Modalidade', minWidth: 110, flex: .8, valueGetter: (_v, row) => row.modalidadeAbastecimento === 'galao' ? 'Galão' : row.modalidadeAbastecimento === 'direto' ? 'Direto' : '' },
     {
@@ -346,7 +349,7 @@ export default function TabelaCombustivel() {
       headerName: 'KM',
       minWidth: 100,
       flex: 0.8,
-      renderCell: ({ value }) => formatKmValue(value),
+      renderCell: ({ value, row }) => row.itemFrotaTipo === 'maquina' ? '—' : formatarKm(value),
       sortComparator: (a, b) => {
         const aNumber = parseKmNumber(a);
         const bNumber = parseKmNumber(b);
@@ -356,7 +359,7 @@ export default function TabelaCombustivel() {
         return String(a ?? '').localeCompare(String(b ?? ''));
       },
     },
-    { field: 'horimetro', headerName: 'Horímetro', minWidth: 110, flex: .8, renderCell: ({ value, row }) => row.itemFrotaTipo === 'maquina' && Number.isFinite(Number(value)) ? brNumberFormatter.format(Number(value) / 10) : '—' },
+    { field: 'horimetro', headerName: 'Horímetro', minWidth: 110, flex: .8, renderCell: ({ value, row }) => row.itemFrotaTipo === 'maquina' ? formatarHorimetroX10(value) : '—' },
     { field: 'local', headerName: 'Destino', minWidth: 180, flex: 1.5 },
     { field: 'motivo', headerName: 'Motivo', minWidth: 200, flex: 1.5 },
     { field: 'observacao', headerName: 'Obs', minWidth: 220, flex: 2 },

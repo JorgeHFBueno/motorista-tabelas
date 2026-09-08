@@ -9,6 +9,7 @@ export interface Registro {
   motorista?: string;
   para_quem?: string;
   placa?: string;
+  extra?: string | null;
   local?: string;
   motivo?: string;
   observacao?: string;
