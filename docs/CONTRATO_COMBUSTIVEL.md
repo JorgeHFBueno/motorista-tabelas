@@ -1,5 +1,11 @@
 # Contrato compartilhado de combustível
 
+## W-F3 — produtores e leitor Web
+
+`/combustivel/novo` é o produtor oficial de saídas `schemaVersion: 2`, `tipo: "saida"`, com o mesmo contrato estrutural produzido pelo Flutter. Usa ID automático, transaction e a origem de preço relida em `bombas/diesel_patio.ultimaEntrada`.
+
+`/combustivel` é temporariamente um leitor multi-schema: normaliza entradas V2, saídas V2 e documentos legados para a tabela e exportação Excel. Nenhum documento antigo é convertido, removido ou regravado nesta etapa.
+
 ## W-F2.1 — saída V2 e coexistência
 
 A Web lê `03-combustivel` através de `normalizarMovimentoCombustivel()`, distinguindo explicitamente `schemaVersion: 2, tipo: entrada`, `schemaVersion: 2, tipo: saida` e documentos legados. `schemaVersion` não é obrigatório globalmente.

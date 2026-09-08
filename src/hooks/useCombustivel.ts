@@ -6,10 +6,7 @@ import type { Registro } from '../types';
 import { normalizarMovimentoCombustivel } from '../services/combustivel-normalizer';
 
 function mapRegistro(raw: any): Registro {
-  return {
-    ...normalizarMovimentoCombustivel(raw ?? {}, raw?.id ?? ''),
-    km: raw?.km ?? null,
-  } as Registro;
+  return normalizarMovimentoCombustivel(raw ?? {}, raw?.id ?? '') as Registro;
 }
 
 export default function useCombustivel() {

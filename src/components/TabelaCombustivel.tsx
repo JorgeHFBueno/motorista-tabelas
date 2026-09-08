@@ -275,6 +275,7 @@ export default function TabelaCombustivel() {
   });
 
   const colunas: GridColDef[] = [
+    { field: 'tipo', headerName: 'Tipo', minWidth: 90, flex: .6, valueGetter: (_v, row) => row.schema === 'entrada-v2' ? 'Entrada' : row.isFuelOutput ? 'Saída' : 'Legado' },
     {
       field: 'dataJS',
       headerName: 'Data',
@@ -336,7 +337,10 @@ export default function TabelaCombustivel() {
     },
     { field: 'motorista', headerName: 'Frentista', minWidth: 150, flex: 1.2 },
     { field: 'para_quem', headerName: 'Operador', minWidth: 150, flex: 1.2 },
+    { field: 'autorLancamento', headerName: 'Autor lançamento', minWidth: 160, flex: 1.2 },
     { field: 'placa', headerName: 'Placa', minWidth: 120, flex: 1 },
+    { field: 'itemFrotaTipo', headerName: 'Tipo frota', minWidth: 110, flex: .8, valueGetter: (_v, row) => row.itemFrotaTipo === 'veiculo' ? 'Veículo' : row.itemFrotaTipo === 'maquina' ? 'Máquina' : '' },
+    { field: 'modalidadeAbastecimento', headerName: 'Modalidade', minWidth: 110, flex: .8, valueGetter: (_v, row) => row.modalidadeAbastecimento === 'galao' ? 'Galão' : row.modalidadeAbastecimento === 'direto' ? 'Direto' : '' },
     {
       field: 'km',
       headerName: 'KM',
@@ -352,6 +356,7 @@ export default function TabelaCombustivel() {
         return String(a ?? '').localeCompare(String(b ?? ''));
       },
     },
+    { field: 'horimetro', headerName: 'Horímetro', minWidth: 110, flex: .8, renderCell: ({ value, row }) => row.itemFrotaTipo === 'maquina' && Number.isFinite(Number(value)) ? brNumberFormatter.format(Number(value) / 10) : '—' },
     { field: 'local', headerName: 'Destino', minWidth: 180, flex: 1.5 },
     { field: 'motivo', headerName: 'Motivo', minWidth: 200, flex: 1.5 },
     { field: 'observacao', headerName: 'Obs', minWidth: 220, flex: 2 },
