@@ -31,3 +31,11 @@ export function parseLitrosPtBr(value: string): number | null {
   const stored = Math.round(liters * 10);
   return Number.isInteger(stored) ? stored : null;
 }
+
+/** Parses the digit representation already expressed in pump units (liters × 10). */
+export function parseDigitosX10(value: string): number | null {
+  const digits = value.replace(/\D/g, '');
+  if (!digits) return null;
+  const parsed = Number(digits);
+  return Number.isSafeInteger(parsed) ? parsed : null;
+}

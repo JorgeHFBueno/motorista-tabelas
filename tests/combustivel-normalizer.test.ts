@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { horasFromX10, litrosFromX10, normalizarMovimentoCombustivel, reaisFromCentavos } from '../src/services/combustivel-normalizer.ts';
-import { formatarHorimetroX10, formatarKm, formatarLitrosX10, formatarMoedaCentavos } from '../src/utils/formatters.ts';
+import { formatarHorimetroX10, formatarKm, formatarLitrosX10, formatarMoedaCentavos, parseDigitosX10 } from '../src/utils/formatters.ts';
 
 const base = {
   schemaVersion: 2, tipo: 'saida', data: new Date(), quantidadeAbastecida: 873,
@@ -11,6 +11,20 @@ const base = {
   frentista: { uid: 'f', nomeSnapshot: 'Frentista' }, paraQuem: { uid: 'p', nomeSnapshot: 'Operador' },
   autorLancamento: { uid: 'a', nomeSnapshot: 'Autor' }, obra: { uid: 'o', nomeSnapshot: 'Obra', localSnapshot: null },
 };
+
+test('aceita somente dígitos na representação de entrada ×10', () => {
+  assert.equal(parseDigitosX10('5'), 5);
+  assert.equal(formatarLitrosX10(parseDigitosX10('5')), '0,5 L');
+  assert.equal(parseDigitosX10('50'), 50);
+  assert.equal(formatarLitrosX10(parseDigitosX10('50')), '5,0 L');
+  assert.equal(parseDigitosX10('873'), 873);
+  assert.equal(formatarLitrosX10(parseDigitosX10('873')), '87,3 L');
+  assert.equal(parseDigitosX10('492539'), 492539);
+  assert.equal(formatarLitrosX10(parseDigitosX10('492539')), '49.253,9 L');
+  assert.equal(parseDigitosX10('12,3'), 123);
+  assert.equal(parseDigitosX10('12.3'), 123);
+  assert.equal(parseDigitosX10('abc123'), 123);
+});
 
 test('normaliza saída V2 de veículo com aliases compatíveis', () => {
   const result = normalizarMovimentoCombustivel({ ...base, itemFrota: { uid: 'v1', tipo: 'veiculo', identificadorSnapshot: 'ABC1D23', km: 125430 } }, 's1');

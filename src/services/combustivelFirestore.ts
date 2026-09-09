@@ -7,7 +7,7 @@ export interface FuelSnapshot { uid: string; nomeSnapshot: string }
 export interface FuelItemSnapshot { uid: string; tipo: 'veiculo' | 'maquina'; identificadorSnapshot: string; km?: number; horimetro?: number }
 export interface FuelObraSnapshot { uid: string; nomeSnapshot: string; localSnapshot?: string }
 export interface SaveV2FuelInput {
-  data: Date | string | Timestamp; quantidadeAbastecida: number; montanteAposMovimento: number;
+  data: Date | string | Timestamp; quantidadeAbastecida: number; montanteAntes: number; montanteAposMovimento: number;
   frentista: FuelSnapshot; paraQuem: FuelSnapshot; autorLancamento: FuelSnapshot; itemFrota: FuelItemSnapshot;
   obra: FuelObraSnapshot; motivo: string; arla: number; modalidadeAbastecimento: 'direto' | 'galao'; observacao?: string;
 }
@@ -30,6 +30,8 @@ export function calculateFuelCostCents(quantityX10: number, priceCents: number, 
 export async function saveCombustivelAndUpdateDieselPatio(input: SaveV2FuelInput): Promise<Registro> {
   const data = Timestamp.fromDate(dateValue(input.data));
   const quantity = integer(input.quantidadeAbastecida, 'Quantidade');
+  const informedInitialAmount = integer(input.montanteAntes, 'Montante inicial');
+  const informedFinalAmount = integer(input.montanteAposMovimento, 'Montante final');
   const arla = integer(input.arla, 'ARLA');
   if (quantity <= 0) throw new Error('Quantidade deve ser maior que zero.');
   if (!input.motivo.trim()) throw new Error('Informe o motivo.');
@@ -44,11 +46,10 @@ export async function saveCombustivelAndUpdateDieselPatio(input: SaveV2FuelInput
     const pumpSnapshot = await transaction.get(pumpRef); const itemSnapshot = await transaction.get(itemRef);
     if (!pumpSnapshot.exists()) throw new Error('Documento bombas/diesel_patio não encontrado.');
     if (!itemSnapshot.exists()) throw new Error('Item de frota não encontrado.');
-    const pump = pumpSnapshot.data() as Record<string, unknown>; const estoqueAntes = integer(pump.estoqueAtual, 'Estoque atual'); const montanteAntes = integer(pump.montanteAtual, 'Montante atual'); const folga = integer(pump.folgaLitros, 'Folga de litros');
-    const finalAmount = montanteAntes + quantity;
+    const pump = pumpSnapshot.data() as Record<string, unknown>; const estoqueAntes = integer(pump.estoqueAtual, 'Estoque atual'); integer(pump.montanteAtual, 'Montante atual'); const folga = integer(pump.folgaLitros, 'Folga de litros');
     const entrada = pump.ultimaEntrada as Record<string, unknown> | undefined;
     if (!entrada || entrada.schemaVersion !== 2) throw new Error('Preço V2 da última entrada não encontrado.');
-    if (Math.abs(finalAmount - montanteAntes) > folga) throw new Error('Quantidade fora da folga permitida.');
+    if (Math.abs(quantity) > folga) throw new Error('Quantidade fora da folga permitida.');
     const valor = calculateFuelCostCents(quantity, integer(entrada.preco, 'Preço da entrada'), integer(entrada.litrosComprados, 'Litros da entrada'));
     const itemData = itemSnapshot.data() as Record<string, unknown>; const hasReading = input.itemFrota.tipo === 'veiculo' ? input.itemFrota.km !== undefined : input.itemFrota.horimetro !== undefined;
     if (hasReading) {
@@ -56,9 +57,9 @@ export async function saveCombustivelAndUpdateDieselPatio(input: SaveV2FuelInput
       if (typeof current !== 'number' || current < (typeof previous === 'number' ? previous : 0)) throw new Error('A leitura do item de frota não pode regredir.');
       transaction.update(itemRef, input.itemFrota.tipo === 'veiculo' ? { quilometragemUltima: current, dataUltimaAtualizacao: new Date() } : { horimetro: current, dataUltimaAtualizacao: new Date() });
     }
-    const payload: Record<string, unknown> = { schemaVersion: 2, tipo: 'saida', data, modalidadeAbastecimento: input.modalidadeAbastecimento, quantidadeAbastecida: quantity, valorAbastecimento: valor, origemPreco: { movimentoId: String(entrada.movimentoId), lote: entrada.lote ?? null, precoLitro: integer(entrada.precoLitro, 'Preço por litro') }, estoqueAntes, estoqueAposMovimento: estoqueAntes - quantity, montanteAntes, montanteAposMovimento: finalAmount, frentista: input.frentista, paraQuem: input.paraQuem, autorLancamento: input.autorLancamento, itemFrota: input.itemFrota, obra: input.obra, motivo: input.motivo.trim(), arla };
+    const payload: Record<string, unknown> = { schemaVersion: 2, tipo: 'saida', data, modalidadeAbastecimento: input.modalidadeAbastecimento, quantidadeAbastecida: quantity, valorAbastecimento: valor, origemPreco: { movimentoId: String(entrada.movimentoId), lote: entrada.lote ?? null, precoLitro: integer(entrada.precoLitro, 'Preço por litro') }, estoqueAntes, estoqueAposMovimento: estoqueAntes - quantity, montanteAntes: informedInitialAmount, montanteAposMovimento: informedFinalAmount, frentista: input.frentista, paraQuem: input.paraQuem, autorLancamento: input.autorLancamento, itemFrota: input.itemFrota, obra: input.obra, motivo: input.motivo.trim(), arla };
     if (input.observacao?.trim()) payload.observacao = input.observacao.trim();
-    transaction.set(movementRef, payload); transaction.update(pumpRef, { estoqueAtual: estoqueAntes - quantity, montanteAtual: finalAmount, ultimoAbastecimento: data, ultimoFrentista: input.frentista.nomeSnapshot });
+    transaction.set(movementRef, payload); transaction.update(pumpRef, { estoqueAtual: estoqueAntes - quantity, montanteAtual: informedFinalAmount, ultimoAbastecimento: data, ultimoFrentista: input.frentista.nomeSnapshot });
   });
   return { id: movementRef.id, schemaVersion: 2, tipo: 'saida', ...input, data } as unknown as Registro;
 }
