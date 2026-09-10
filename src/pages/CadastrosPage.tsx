@@ -95,6 +95,9 @@ export default function CadastrosPage() {
                 <Button variant="outlined" component={RouterLink} to="/cadastros/editar/usuarios">
                   Editar
                 </Button>
+                <Button variant="outlined" component={RouterLink} to="/cadastros/usuarios/conciliacao">
+                  Conciliação
+                </Button>
               </Stack>
             </Stack>
           </Paper>

@@ -22,7 +22,7 @@ export default function CombustivelRouteGuard() {
     return <CombustivelRouteGuardLoading />;
   }
 
-  if (error || profile === null) {
+  if (error || profile === null || !profile.ativo) {
     return <Navigate to="/acesso-negado" replace state={{ reason: 'firestore-error' }} />;
   }
 

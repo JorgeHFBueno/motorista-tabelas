@@ -12,6 +12,8 @@ import { adminAuthMiddleware, AdminRequest } from './adminAuth.js';
 
 const adminApp = express();
 const authorizedCollection = db.collection('00-autorizados');
+const motoristsCollection = db.collection('motoristas');
+const employeesCollection = db.collection('funcionarios');
 
 // TODO: restrict origin once hosting domain is finalized.
 adminApp.use(cors({ origin: true }));
@@ -30,6 +32,18 @@ type AuthorizedUserData = {
   updatedAt?: unknown;
 };
 
+type EmployeeProfiles = { adm1: boolean; adm2: boolean; user: boolean; motorista: boolean };
+
+function canonicalEmployee(nome: string, email: string, ativo: boolean, profiles: EmployeeProfiles, ordem?: number) {
+  return {
+    nome: nome.trim(),
+    email: email.trim().toLowerCase(),
+    ativo,
+    perfis: profiles,
+    ...(profiles.motorista ? { motorista: { ordem: typeof ordem === 'number' ? ordem : 0 } } : {}),
+  };
+}
+
 function normalizeEmail(rawEmail: unknown) {
   return typeof rawEmail === 'string' ? rawEmail.trim().toLowerCase() : '';
 }
@@ -46,7 +60,7 @@ function inferProfile(data?: AuthorizedUserData | null): PerfilUsuario {
   return 'Motorista';
 }
 
-function formatAdminUser(
+async function formatAdminUser(
   user: UserRecord,
   authorizationDoc?: DocumentSnapshot<DocumentData> | null,
 ) {
@@ -54,6 +68,10 @@ function formatAdminUser(
     ? (authorizationDoc.data() as AuthorizedUserData)
     : null;
 
+  const employeeDoc = await employeesCollection.doc(user.uid).get();
+  const employeeData = employeeDoc.exists ? employeeDoc.data() : null;
+  const canonicalProfiles = employeeData?.perfis;
+  const canonicalProfile = canonicalProfiles?.adm2 === true ? 'Adm2' : canonicalProfiles?.adm1 === true ? 'Adm1' : 'Motorista';
   return {
     uid: user.uid,
     email: user.email,
@@ -63,12 +81,13 @@ function formatAdminUser(
     lastLoginAt: user.metadata.lastSignInTime,
     disabled: user.disabled,
     authorization: {
-      exists: Boolean(authorizationDoc?.exists),
-      nome: authorizationData?.nome ?? null,
-      adm1: authorizationData?.adm1 === true,
-      adm2: authorizationData?.adm2 === true,
-      profile: inferProfile(authorizationData),
+      exists: Boolean(authorizationDoc?.exists || employeeDoc.exists),
+      nome: employeeData?.nome ?? authorizationData?.nome ?? null,
+      adm1: canonicalProfiles ? canonicalProfiles.adm1 === true : authorizationData?.adm1 === true,
+      adm2: canonicalProfiles ? canonicalProfiles.adm2 === true : authorizationData?.adm2 === true,
+      profile: employeeDoc.exists ? canonicalProfile : inferProfile(authorizationData),
     },
+    funcionario: employeeData,
   };
 }
 
@@ -90,10 +109,10 @@ adminApp.get('/api/admin/users', async (_req, res) => {
       authorizationSnapshots.map((snapshot) => [snapshot.id, snapshot]),
     );
 
-    const users = list.users.map((user) => formatAdminUser(
+    const users = await Promise.all(list.users.map((user) => formatAdminUser(
       user,
       user.email ? authorizationByEmail.get(normalizeEmail(user.email)) ?? null : null,
-    ));
+    )));
 
     res.json({ users });
   } catch (err) {
@@ -222,18 +241,37 @@ adminApp.post('/api/admin/users/register', async (req: AdminRequest, res) => {
   }
 
   let createdUid: string | null = null;
+  let reusedExistingAuth = false;
 
   try {
-    const userRecord = await adminAuth.createUser({
-      email: normalizedEmail,
-      password: passwordValue,
-      displayName: authorization.payload.nome,
-    });
+    let userRecord: UserRecord;
+    try {
+      userRecord = await adminAuth.createUser({
+        email: normalizedEmail,
+        password: passwordValue,
+        displayName: authorization.payload.nome,
+      });
+      createdUid = userRecord.uid;
+    } catch (createError: any) {
+      if (createError?.code !== 'auth/email-already-exists') throw createError;
+      // Existing Auth accounts are provisioned by UID; the supplied password is never changed.
+      userRecord = await adminAuth.getUserByEmail(normalizedEmail);
+      reusedExistingAuth = true;
+    }
 
-    createdUid = userRecord.uid;
-
-    await authorizedCollection.doc(normalizedEmail).set({
-      ...authorization.payload,
+    const existingEmployee = await employeesCollection.doc(userRecord.uid).get();
+    if (existingEmployee.exists) {
+      res.status(409).json({ error: 'employee_already_exists' });
+      return;
+    }
+    if (reusedExistingAuth) await adminAuth.updateUser(userRecord.uid, { displayName: authorization.payload.nome });
+    await employeesCollection.doc(userRecord.uid).set({
+      ...canonicalEmployee(authorization.payload.nome, normalizedEmail, true, {
+        adm1: authorization.payload.adm1 === true,
+        adm2: authorization.payload.adm2 === true,
+        user: false,
+        motorista: perfil === 'Motorista',
+      }),
       createdAt: FieldValue.serverTimestamp(),
       updatedAt: FieldValue.serverTimestamp(),
     });
@@ -244,8 +282,7 @@ adminApp.post('/api/admin/users/register', async (req: AdminRequest, res) => {
         email: userRecord.email,
         displayName: userRecord.displayName,
       },
-      authorizationDocumentId: normalizedEmail,
-      authorizationPayload: authorization.payload,
+      funcionarioDocumentId: userRecord.uid,
     });
   } catch (err: any) {
     if (createdUid) {
@@ -278,58 +315,108 @@ adminApp.patch('/api/admin/users/:uid', async (req: AdminRequest, res) => {
   try {
     const userRecord = await adminAuth.getUser(uid);
     const normalizedEmail = normalizeEmail(userRecord.email);
-
-    if (!normalizedEmail) {
-      res.status(400).json({ error: 'missing_email' });
-      return;
-    }
-
-    const authorizationRef = authorizedCollection.doc(normalizedEmail);
-    const existingAuthorizationDoc = await authorizationRef.get();
-    const existingAuthorizationData = existingAuthorizationDoc.exists
-      ? (existingAuthorizationDoc.data() as AuthorizedUserData)
-      : null;
-
-    const resolvedName = resolveAuthorizationName(userRecord, existingAuthorizationData);
-    const authorization = buildAuthorizationPayload(resolvedName, perfil);
-
-    if ('error' in authorization) {
-      res.status(400).json({ error: authorization.error });
-      return;
-    }
-
-    await adminAuth.updateUser(uid, { disabled });
-
-    try {
-      await authorizationRef.set({
-        ...authorization.payload,
-        adm1: perfil === 'Adm2' ? FieldValue.delete() : authorization.payload.adm1,
-        adm2: perfil === 'Adm2' ? true : FieldValue.delete(),
-        createdAt: existingAuthorizationDoc.exists
-          ? existingAuthorizationDoc.get('createdAt') ?? FieldValue.serverTimestamp()
-          : FieldValue.serverTimestamp(),
-        updatedAt: FieldValue.serverTimestamp(),
-      }, { merge: true });
-    } catch (firestoreError) {
-      try {
-        await adminAuth.updateUser(uid, { disabled: userRecord.disabled });
-      } catch (rollbackError) {
-        console.error('Failed to rollback auth update after authorization write error', rollbackError);
-      }
-
-      throw firestoreError;
-    }
+    if (!normalizedEmail) { res.status(400).json({ error: 'missing_email' }); return; }
+    const employeeRef = employeesCollection.doc(uid);
+    const existingEmployeeDoc = await employeeRef.get();
+    const existingEmployee = existingEmployeeDoc.exists ? existingEmployeeDoc.data() : null;
+    const currentName = typeof existingEmployee?.nome === 'string' && existingEmployee.nome.trim()
+      ? existingEmployee.nome.trim() : resolveAuthorizationName(userRecord, null);
+    const profiles = {
+      adm1: perfil === 'Adm1', adm2: perfil === 'Adm2', user: false, motorista: perfil === 'Motorista',
+    };
+    await adminAuth.updateUser(uid, { disabled, displayName: currentName });
+    await employeeRef.set({
+      ...canonicalEmployee(currentName, normalizedEmail, !disabled, profiles, existingEmployee?.motorista?.ordem),
+      createdAt: existingEmployee?.createdAt ?? FieldValue.serverTimestamp(),
+      updatedAt: FieldValue.serverTimestamp(),
+    });
 
     const updatedUser = await adminAuth.getUser(uid);
-    const updatedAuthorizationDoc = await authorizationRef.get();
-
     res.json({
-      user: formatAdminUser(updatedUser, updatedAuthorizationDoc),
+      user: await formatAdminUser(updatedUser, null),
     });
   } catch (err: any) {
     console.error('Failed to update user', err);
     const status = err?.code === 'auth/user-not-found' ? 404 : 400;
     res.status(status).json({ error: err?.code ?? err?.message ?? 'update_user_failed' });
+  }
+});
+
+function normalizeName(value: unknown) {
+  return typeof value === 'string'
+    ? value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim().replace(/\s+/g, ' ')
+    : '';
+}
+
+function employeeStatus(auth: UserRecord | null, authorized: DocumentSnapshot<DocumentData> | null, motorista: DocumentSnapshot<DocumentData> | null, employee: DocumentSnapshot<DocumentData> | null) {
+  if (employee?.exists) return 'JA_CONCILIADO';
+  if (!auth) return 'SEM_AUTH';
+  if (!authorized) return 'PENDENTE';
+  if (motorista) return 'PRONTO';
+  return 'PENDENTE';
+}
+
+// Read-only inventory for manual reconciliation. It never writes legacy collections or Auth.
+adminApp.get('/api/admin/conciliation', async (_req, res) => {
+  try {
+    const authUsers = (await adminAuth.listUsers(1000)).users;
+    const authorizedRefs = authUsers.map((user) => normalizeEmail(user.email) ? authorizedCollection.doc(normalizeEmail(user.email)) : null);
+    const authorizedSnapshots = await Promise.all(authorizedRefs.map((ref) => ref ? ref.get() : Promise.resolve(null)));
+    const motoristSnapshots = await motoristsCollection.get();
+    const employeeSnapshots = await db.getAll(...authUsers.map((user) => employeesCollection.doc(user.uid)));
+    const rows: Array<Record<string, any>> = authUsers.map((user, index) => {
+      const authorized = authorizedSnapshots[index];
+      const authName = user.displayName ?? authorized?.data()?.nome ?? user.email ?? user.uid;
+      const suggestions = motoristSnapshots.docs.filter((motorist) => normalizeName(motorist.data().nome) === normalizeName(authName));
+      const motorista = suggestions.length === 1 ? suggestions[0] : null;
+      const employee = employeeSnapshots[index];
+      return {
+        auth: { uid: user.uid, email: user.email ?? '', nome: authName, disabled: user.disabled },
+        autorizado: authorized?.exists ? { id: authorized.id, ...authorized.data() } : null,
+        motorista: motorista ? { id: motorista.id, ...motorista.data() } : null,
+        sugestoesMotorista: suggestions.map((item) => ({ id: item.id, ...item.data() })),
+        funcionario: employee.exists ? employee.data() : null,
+        status: employee.exists ? 'JA_CONCILIADO' : suggestions.length > 1 ? 'CONFLITO' : employeeStatus(user, authorized?.exists ? authorized : null, motorista, employee),
+      };
+    });
+    const matchedMotorists = new Set(rows.flatMap((row) => (row.sugestoesMotorista as Array<{ id: string }>).map((item) => item.id)));
+    for (const motorist of motoristSnapshots.docs) {
+      if (!matchedMotorists.has(motorist.id)) rows.push({ auth: null, autorizado: null, motorista: { id: motorist.id, ...motorist.data() }, sugestoesMotorista: [], funcionario: null, status: 'SEM_AUTH' });
+    }
+    res.json({ rows });
+  } catch (err) {
+    console.error('Failed to list reconciliation candidates', err);
+    res.status(500).json({ error: 'conciliation_list_failed' });
+  }
+});
+
+adminApp.post('/api/admin/conciliation/:uid', async (req: AdminRequest, res) => {
+  const { uid } = req.params;
+  const { motoristaId, nome, ativo, perfis, allowExisting } = req.body ?? {};
+  if (!uid || typeof nome !== 'string' || !nome.trim() || typeof ativo !== 'boolean' || !perfis || typeof perfis !== 'object') { res.status(400).json({ error: 'invalid_employee' }); return; }
+  try {
+    const authUser = await adminAuth.getUser(uid);
+    const email = normalizeEmail(authUser.email);
+    if (!email) { res.status(400).json({ error: 'missing_email' }); return; }
+    const employeeRef = employeesCollection.doc(uid);
+    const existing = await employeeRef.get();
+    if (existing.exists && allowExisting !== true) { res.status(409).json({ error: 'employee_already_exists' }); return; }
+    let motoristaData: DocumentData | null = null;
+    if (motoristaId) {
+      const motorista = await motoristsCollection.doc(motoristaId).get();
+      if (!motorista.exists) { res.status(400).json({ error: 'motorist_not_found' }); return; }
+      motoristaData = motorista.data() ?? null;
+    }
+    const safeProfiles = { adm1: perfis.adm1 === true, adm2: perfis.adm2 === true, user: perfis.user === true, motorista: Boolean(motoristaData) };
+    await employeeRef.set({
+      ...canonicalEmployee(nome, email, ativo, safeProfiles, motoristaData?.ordem),
+      createdAt: existing.get('createdAt') ?? FieldValue.serverTimestamp(),
+      updatedAt: FieldValue.serverTimestamp(),
+    });
+    res.json({ uid, funcionario: (await employeeRef.get()).data() });
+  } catch (err: any) {
+    console.error('Failed to reconcile employee', err);
+    res.status(err?.code === 'auth/user-not-found' ? 404 : 400).json({ error: err?.code ?? 'conciliation_failed' });
   }
 });
 

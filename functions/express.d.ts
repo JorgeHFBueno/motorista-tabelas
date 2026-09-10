@@ -6,6 +6,7 @@ declare module "express-serve-static-core" {
     user?: DecodedIdToken & { admin?: boolean; isAdmin?: boolean };
     authorization?: {
       exists: boolean;
+      ativo: boolean;
       adm1: boolean;
       adm2: boolean;
     };

@@ -38,7 +38,7 @@ export function useAuthorizationProfile(currentUser: User | null, authLoading: b
       const normalizedEmail = currentUser.email?.trim().toLowerCase();
       if (!normalizedEmail) {
         if (isMounted) {
-          setState({ loading: false, profile: { exists: false, adm1: false, adm2: false, id: null, nome: null }, error: false, checkedEmail: null });
+          setState({ loading: false, profile: { exists: false, source: null, ativo: false, adm1: false, adm2: false, user: false, motorista: false, id: null, nome: null }, error: false, checkedEmail: null });
         }
         return;
       }
@@ -48,7 +48,7 @@ export function useAuthorizationProfile(currentUser: User | null, authLoading: b
       }
 
       try {
-        const profile = await getAuthorizationProfile(normalizedEmail);
+        const profile = await getAuthorizationProfile(currentUser.uid, normalizedEmail);
         if (import.meta.env.DEV) {
           console.info('[authz] perfil detectado', { email: normalizedEmail, adm1: profile.adm1, adm2: profile.adm2, exists: profile.exists });
         }

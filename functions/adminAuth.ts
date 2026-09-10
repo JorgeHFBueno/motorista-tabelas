@@ -4,11 +4,13 @@ import { adminAuth, db } from './firebaseAdmin.js';
 
 type AuthorizationProfile = {
   exists: boolean;
+  ativo: boolean;
   adm1: boolean;
   adm2: boolean;
 };
 
 const authorizedCollection = db.collection('00-autorizados');
+const employeesCollection = db.collection('funcionarios');
 
 function normalizeEmail(rawEmail: unknown) {
   return typeof rawEmail === 'string' ? rawEmail.trim().toLowerCase() : '';
@@ -38,22 +40,21 @@ export async function adminAuthMiddleware(
 
   try {
     const decoded = await adminAuth.verifyIdToken(idToken);
+    const employeeDoc = await employeesCollection.doc(decoded.uid).get();
+    const employeeData = employeeDoc.exists ? employeeDoc.data() : null;
     const normalizedEmail = normalizeEmail(decoded.email);
-
-    if (!normalizedEmail) {
-      res.status(401).json({ error: 'requester_missing_email' });
-      return;
-    }
-
-    const authorizationDoc = await authorizedCollection.doc(normalizedEmail).get();
-    const authorizationData = authorizationDoc.exists ? authorizationDoc.data() : null;
+    const authorizationDoc = employeeDoc.exists || !normalizedEmail
+      ? null
+      : await authorizedCollection.doc(normalizedEmail).get();
+    const authorizationData = employeeData ?? (authorizationDoc?.exists ? authorizationDoc.data() : null);
     const authorization = {
-      exists: authorizationDoc.exists,
-      adm1: authorizationData?.adm1 === true,
-      adm2: authorizationData?.adm2 === true,
+      exists: employeeDoc.exists || Boolean(authorizationDoc?.exists),
+      ativo: employeeDoc.exists ? employeeData?.ativo === true : authorizationData?.ativo !== false && authorizationData?.active !== false,
+      adm1: employeeDoc.exists ? employeeData?.perfis?.adm1 === true : authorizationData?.adm1 === true,
+      adm2: employeeDoc.exists ? employeeData?.perfis?.adm2 === true : authorizationData?.adm2 === true,
     };
 
-    if (!authorization.adm2) {
+    if (!authorization.ativo || !authorization.adm2) {
       res.status(403).json({ error: 'forbidden' });
       return;
     }

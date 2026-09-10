@@ -38,6 +38,10 @@ export default function PrivateRoute() {
     return <Navigate to="/acesso-negado" replace state={{ reason: 'firestore-error' }} />;
   }
 
+  if (!profile.ativo) {
+    return <Navigate to="/acesso-negado" replace state={{ reason: 'inactive' }} />;
+  }
+
   const authorized = profile.adm1 || profile.adm2;
 
   if (!authorized) {

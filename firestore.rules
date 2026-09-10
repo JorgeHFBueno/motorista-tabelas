@@ -14,7 +14,20 @@ service cloud.firestore {
         : '';
     }
 
-    function profileExists() {
+    function employeeExists() {
+      return signedIn()
+        && exists(
+          /databases/$(database)/documents/funcionarios/$(request.auth.uid)
+        );
+    }
+
+    function employee() {
+      return get(
+        /databases/$(database)/documents/funcionarios/$(request.auth.uid)
+      ).data;
+    }
+
+    function legacyProfileExists() {
       return signedIn()
         && authEmail() != ''
         && exists(
@@ -22,36 +35,46 @@ service cloud.firestore {
         );
     }
 
-    function profile() {
+    function legacyProfile() {
       return get(
         /databases/$(database)/documents/00-autorizados/$(authEmail())
       ).data;
     }
 
+    function profileExists() {
+      return employeeExists() || legacyProfileExists();
+    }
+
     function isAuthorized() {
-      return profileExists()
-        && profile().get(
-          'ativo',
-          profile().get('active', true)
-        ) == true;
+      return employeeExists()
+        ? employee().get('ativo', false) == true
+        : legacyProfileExists()
+          && legacyProfile().get(
+            'ativo',
+            legacyProfile().get('active', true)
+          ) == true;
     }
 
     function isAdm1() {
-      return isAuthorized()
-        && (
-          profile().get('adm1', false) == true
-          || profile().get('role', '') == 'adm1'
-          || profile().get('perfil', '') == 'adm1'
-        );
+      return employeeExists()
+        ? employee().get('ativo', false) == true
+          && employee().get('perfis', {}).get('adm1', false) == true
+        : legacyProfileExists()
+          && legacyProfile().get('ativo', legacyProfile().get('active', true)) == true
+          && (legacyProfile().get('adm1', false) == true
+            || legacyProfile().get('role', '') == 'adm1'
+            || legacyProfile().get('perfil', '') == 'adm1');
     }
 
     function isAdm2() {
-      return isAuthorized()
-        && (
-          profile().get('adm2', false) == true
-          || profile().get('role', '') == 'adm2'
-          || profile().get('perfil', '') == 'adm2'
-        );
+      return employeeExists()
+        ? employee().get('ativo', false) == true
+          && employee().get('perfis', {}).get('adm2', false) == true
+        : legacyProfileExists()
+          && legacyProfile().get('ativo', legacyProfile().get('active', true)) == true
+          && (legacyProfile().get('adm2', false) == true
+            || legacyProfile().get('role', '') == 'adm2'
+            || legacyProfile().get('perfil', '') == 'adm2');
     }
 
     function isAdmin() {
@@ -82,7 +105,20 @@ service cloud.firestore {
     }
 
     function validNewDieselEntry() {
-      return isAdm2()
+      let employeeRef = /databases/$(database)/documents/funcionarios/$(request.auth.uid);
+      let legacyRef = /databases/$(database)/documents/00-autorizados/$(authEmail());
+      let hasEmployee = exists(employeeRef);
+      let authProfile = hasEmployee ? get(employeeRef).data : get(legacyRef).data;
+      let active = hasEmployee
+        ? authProfile.get('ativo', false) == true
+        : authProfile.get('ativo', authProfile.get('active', true)) == true;
+      let admin = hasEmployee
+        ? authProfile.get('perfis', {}).get('adm2', false) == true
+        : authProfile.get('adm2', false) == true
+          || authProfile.get('role', '') == 'adm2'
+          || authProfile.get('perfil', '') == 'adm2';
+      return active
+        && admin
         && request.resource.data.keys().hasAll([
           'data',
           'bombaId',
@@ -120,7 +156,7 @@ service cloud.firestore {
         && request.resource.data.responsavel.id is string
         && request.resource.data.responsavel.id == authEmail()
         && request.resource.data.responsavel.nome is string
-        && request.resource.data.responsavel.nome == profile().get('nome', '')
+        && request.resource.data.responsavel.nome == authProfile.get('nome', '')
         && request.resource.data.responsavel.nome != '';
     }
 
@@ -246,6 +282,21 @@ service cloud.firestore {
       allow create, delete: if false;
     }
 
+    // Canonical employee identity. Administrative writes are performed by Admin SDK;
+    // the client may read only its own document (admins may review all documents).
+    match /funcionarios/{uid} {
+      allow get: if signedIn() && (request.auth.uid == uid || isAdm2());
+      allow list: if isAdm2();
+      allow create, delete: if false;
+      allow update: if isAdm2()
+        && request.resource.data.keys().hasAll(['nome', 'email', 'ativo', 'perfis', 'createdAt', 'updatedAt'])
+        && request.resource.data.perfis is map
+        && request.resource.data.perfis.get('adm1', false) is bool
+        && request.resource.data.perfis.get('adm2', false) is bool
+        && request.resource.data.perfis.get('user', false) is bool
+        && request.resource.data.perfis.get('motorista', false) is bool;
+    }
+
 
     match /veiculos/{veiculoId} {
       allow read: if isAuthorized();
@@ -263,12 +314,6 @@ service cloud.firestore {
         );
 
       allow delete: if false;
-    }
-
-
-    match /01-placas/{placaId} {
-      allow read, create: if isAdm2();
-      allow update, delete: if false;
     }
 
 

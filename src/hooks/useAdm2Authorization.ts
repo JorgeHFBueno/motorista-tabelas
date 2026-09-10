@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import type { User } from 'firebase/auth';
-import { hasAdm2Permission } from '../services/adm2Authorization';
+import { getAuthorizationProfile } from '../services/authorizationProfile';
 
 interface Adm2AuthorizationState {
     loading: boolean;
@@ -49,7 +49,8 @@ export function useAdm2Authorization(currentUser: User | null, authLoading: bool
             }
 
             try {
-                const authorized = await hasAdm2Permission(normalizedEmail);
+                const profile = await getAuthorizationProfile(currentUser.uid, normalizedEmail);
+                const authorized = profile.ativo && profile.adm2;
 
                 if (isMounted) {
                     setState({ loading: false, authorized, error: false, checkedEmail: normalizedEmail });

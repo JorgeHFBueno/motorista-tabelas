@@ -87,9 +87,9 @@ export default function AdminUserEditModal({
         <Stack spacing={2} mt={1}>
           {submitError && <Alert severity="error">{submitError}</Alert>}
 
-          {!user?.authorization.exists && (
+          {!user?.funcionario && (
             <Alert severity="info">
-              Este usuario ainda nao possui documento em <strong>00-autorizados</strong>. O documento sera criado ao salvar.
+              Este usuario ainda nao possui documento em <strong>funcionarios/{'{uid}'}</strong>. O documento sera criado ao salvar.
             </Alert>
           )}
 

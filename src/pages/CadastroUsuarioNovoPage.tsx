@@ -133,7 +133,7 @@ export default function CadastroUsuarioNovoPage() {
                 Cadastro de usuarios
               </Typography>
               <Typography variant="body1" color="text.secondary">
-                Cadastre usuarios internos para acesso ao sistema e salve a autorizacao em <strong>00-autorizados</strong>.
+                Cadastre usuarios internos no Firebase Authentication e em <strong>funcionarios/{'{uid}'}</strong>.
               </Typography>
             </Box>
             <Stack direction="row" spacing={1} alignItems="center">
@@ -194,7 +194,7 @@ export default function CadastroUsuarioNovoPage() {
                 label="Celular"
               />
               <Alert severity="info">
-                Document ID final: <strong>{normalizedEmail || '-'}</strong>
+              O e-mail e atributo; o document ID sera o UID real do Firebase Authentication.
               </Alert>
             </Stack>
 

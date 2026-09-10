@@ -18,6 +18,7 @@ const SignupPage = lazy(() => import('./pages/SignupPage'));
 const CadastrosPage = lazy(() => import('./pages/CadastrosPage'));
 const CadastroVeiculoNovoPage = lazy(() => import('./pages/CadastroVeiculoNovoPage'));
 const CadastroUsuarioNovoPage = lazy(() => import('./pages/CadastroUsuarioNovoPage'));
+const CadastroUsuariosConciliacaoPage = lazy(() => import('./pages/CadastroUsuariosConciliacaoPage'));
 const CadastrosEditarPage = lazy(() => import('./pages/CadastrosEditarPage'));
 const RegistrosPage = lazy(() => import('./pages/RegistrosPage'));
 const ChecklistSaidaPage = lazy(() => import('./pages/ChecklistSaidaPage'));
@@ -60,6 +61,7 @@ export default function App() {
             </Route>
             <Route path="cadastros" element={<CadastrosPage />} />
             <Route path="cadastros/usuarios/novo" element={<CadastroUsuarioNovoPage />} />
+            <Route path="cadastros/usuarios/conciliacao" element={<CadastroUsuariosConciliacaoPage />} />
             <Route path="cadastros/veiculos/novo" element={<CadastroVeiculoNovoPage />} />
             <Route path="cadastros/editar/:tipo" element={<CadastrosEditarPage />} />
             <Route path="registros" element={<RegistrosPage />} />

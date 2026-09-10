@@ -1,5 +1,6 @@
 import { getAuth } from 'firebase/auth';
 import { app } from '../firebase';
+import type { Funcionario } from './funcionarios';
 
 export type AdminUser = {
   uid: string;
@@ -16,6 +17,7 @@ export type AdminUser = {
     adm2: boolean;
     profile: 'Motorista' | 'Adm1' | 'Adm2';
   };
+  funcionario?: Funcionario | null;
 };
 
 export type CreateAdminUserInput = {

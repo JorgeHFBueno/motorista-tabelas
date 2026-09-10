@@ -35,6 +35,12 @@ const identities = {
   admin: { uid: 'uid-admin', email: 'admin@example.com', admin: true },
   inactive: { uid: 'uid-inactive', email: 'inactive@example.com' },
   missing: { uid: 'uid-missing', email: 'missing@example.com' },
+  canonicalAdm1: { uid: 'uid-canonical-adm1', email: 'canonical-adm1@example.com' },
+  canonicalAdm2: { uid: 'uid-canonical-adm2', email: 'canonical-adm2@example.com' },
+  canonicalUser: { uid: 'uid-canonical-user', email: 'canonical-user@example.com' },
+  canonicalInactive: { uid: 'uid-canonical-inactive', email: 'canonical-inactive@example.com' },
+  canonicalPrecedence: { uid: 'uid-canonical-precedence', email: 'canonical-precedence@example.com' },
+  canonicalInactivePrecedence: { uid: 'uid-canonical-inactive-precedence', email: 'canonical-inactive-precedence@example.com' },
 };
 
 function dbAs(name, tokenOverrides = {}) {
@@ -59,6 +65,22 @@ async function seed() {
     ];
     for (const [id, data] of profiles) await setDoc(doc(db, '00-autorizados', id), data);
     await setDoc(doc(db, 'users', 'uid-user'), { displayName: 'User', role: 'motorista' });
+    await setDoc(doc(db, 'funcionarios', 'uid-user'), {
+      nome: 'User', email: 'user@example.com', ativo: true,
+      perfis: { adm1: false, adm2: false, user: false, motorista: true }, motorista: { ordem: 1 },
+      createdAt: Timestamp.fromMillis(1), updatedAt: Timestamp.fromMillis(1),
+    });
+    const canonicalEmployee = (uid, email, ativo, perfis) => setDoc(doc(db, 'funcionarios', uid), {
+      nome: uid, email, ativo, perfis, createdAt: Timestamp.fromMillis(1), updatedAt: Timestamp.fromMillis(1),
+    });
+    await canonicalEmployee('uid-canonical-adm1', 'canonical-adm1@example.com', true, { adm1: true, adm2: false, user: false, motorista: false });
+    await canonicalEmployee('uid-canonical-adm2', 'canonical-adm2@example.com', true, { adm1: false, adm2: true, user: false, motorista: false });
+    await canonicalEmployee('uid-canonical-user', 'canonical-user@example.com', true, { adm1: false, adm2: false, user: true, motorista: false });
+    await canonicalEmployee('uid-canonical-inactive', 'canonical-inactive@example.com', false, { adm1: false, adm2: true, user: false, motorista: false });
+    await canonicalEmployee('uid-canonical-precedence', 'canonical-precedence@example.com', true, { adm1: false, adm2: false, user: true, motorista: false });
+    await canonicalEmployee('uid-canonical-inactive-precedence', 'canonical-inactive-precedence@example.com', false, { adm1: false, adm2: true, user: false, motorista: false });
+    await setDoc(doc(db, '00-autorizados', 'canonical-precedence@example.com'), { nome: 'Legacy elevation', ativo: true, adm2: true });
+    await setDoc(doc(db, '00-autorizados', 'canonical-inactive-precedence@example.com'), { nome: 'Legacy active', ativo: true, adm2: true });
     await setDoc(doc(db, 'veiculos', 'v1'), { placa: 'ABC1D23', categoria: 'truck', quilometragemUltima: 100, dataUltimaAtualizacao: 1 });
     await setDoc(doc(db, 'bombas', 'diesel_patio'), { nomeBomba: 'Pátio', montanteAtual: 1000, estoqueAtual: 5000, ultimoAbastecimento: 1, ultimoFrentista: 'old', ativo: true });
     await setDoc(doc(db, 'atividades', 'historic'), { tipo: 'saida', motorista: 'uid-user' });
@@ -98,6 +120,12 @@ test('[firestore] unauthenticated is denied operational data', async () => {
 });
 test('[firestore] authenticated profile missing is denied', async () => assertFails(getDoc(doc(dbAs('missing'), 'veiculos', 'v1'))));
 test('[firestore] inactive profile is denied', async () => assertFails(getDoc(doc(dbAs('inactive'), 'veiculos', 'v1'))));
+test('[firestore] canonical active adm1 is authorized', async () => assertSucceeds(getDoc(doc(dbAs('canonicalAdm1'), 'veiculos', 'v1'))));
+test('[firestore] canonical active adm2 is authorized', async () => assertSucceeds(getDoc(doc(dbAs('canonicalAdm2'), 'veiculos', 'v1'))));
+test('[firestore] canonical active user without admin permission is operationally authorized', async () => assertSucceeds(getDoc(doc(dbAs('canonicalUser'), 'veiculos', 'v1'))));
+test('[firestore] canonical inactive employee is denied', async () => assertFails(getDoc(doc(dbAs('canonicalInactive'), 'veiculos', 'v1'))));
+test('[firestore] canonical employee denies legacy privilege elevation', async () => assertFails(setDoc(doc(dbAs('canonicalPrecedence'), 'configuracoes', 'canonical-precedence'), { enabled: true })));
+test('[firestore] canonical inactive employee denies legacy authorization', async () => assertFails(getDoc(doc(dbAs('canonicalInactivePrecedence'), 'veiculos', 'v1'))));
 test('[firestore] normal authorized reads vehicle', async () => assertSucceeds(getDoc(doc(dbAs('user'), 'veiculos', 'v1'))));
 test('[firestore] adm1 remains an authorized operational user', async () => assertSucceeds(getDoc(doc(dbAs('adm1'), 'veiculos', 'v1'))));
 test('[firestore] uppercase Auth email resolves lowercase profile ID', async () => assertSucceeds(getDoc(doc(dbAs('user', { email: 'User@Example.COM' }), 'veiculos', 'v1'))));
@@ -113,6 +141,17 @@ test('[firestore] user cannot register FCM token under another profile', async (
 test('[firestore] uppercase profile path is not treated as normalized self path', async () => assertFails(setDoc(doc(dbAs('user', { email: 'User@Example.COM' }), '00-autorizados', 'User@Example.COM', 'fcmTokens', 'token-case'), { token: 'token-case', plataforma: 'android', atualizadoEm: 1 })));
 test('[firestore] user can update non-privileged legacy profile data', async () => assertSucceeds(updateDoc(doc(dbAs('user'), 'users', 'uid-user'), { displayName: 'Updated User' })));
 test('[firestore] user cannot elevate legacy profile privileges', async () => assertFails(updateDoc(doc(dbAs('user'), 'users', 'uid-user'), { role: 'adm2' })));
+test('[firestore] employee identity is readable by its owner', async () => assertSucceeds(getDoc(doc(dbAs('user'), 'funcionarios', 'uid-user'))));
+test('[firestore] employee identity is not writable by its owner', async () => assertFails(updateDoc(doc(dbAs('user'), 'funcionarios', 'uid-user'), { 'perfis.adm2': true })));
+test('[firestore] employee identity is readable and editable by adm2', async () => {
+  await assertSucceeds(getDoc(doc(dbAs('adm2'), 'funcionarios', 'uid-user')));
+  await assertSucceeds(updateDoc(doc(dbAs('adm2'), 'funcionarios', 'uid-user'), { nome: 'User updated by adm2' }));
+});
+test('[firestore] employee identity cannot be created by client', async () => assertFails(setDoc(doc(dbAs('adm2'), 'funcionarios', 'uid-new'), {
+  nome: 'New', email: 'new@example.com', ativo: true,
+  perfis: { adm1: false, adm2: false, user: false, motorista: false },
+  createdAt: Timestamp.fromMillis(1), updatedAt: Timestamp.fromMillis(1),
+})));
 
 test('[firestore] normal user updates only vehicle mileage', async () => assertSucceeds(updateDoc(doc(dbAs('user'), 'veiculos', 'v1'), { quilometragemUltima: 101, dataUltimaAtualizacao: 2 })));
 test('[firestore] normal user cannot alter vehicle plate', async () => assertFails(updateDoc(doc(dbAs('user'), 'veiculos', 'v1'), { placa: 'BAD0000' })));
