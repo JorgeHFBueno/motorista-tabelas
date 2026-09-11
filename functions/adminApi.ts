@@ -9,6 +9,11 @@ import {
 
 import { adminAuth, db } from './firebaseAdmin.js';
 import { adminAuthMiddleware, AdminRequest } from './adminAuth.js';
+import {
+  buildFuncionario,
+  classifyConciliation,
+  normalizeName,
+} from './conciliation.js';
 
 const adminApp = express();
 const authorizedCollection = db.collection('00-autorizados');
@@ -342,20 +347,6 @@ adminApp.patch('/api/admin/users/:uid', async (req: AdminRequest, res) => {
   }
 });
 
-function normalizeName(value: unknown) {
-  return typeof value === 'string'
-    ? value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim().replace(/\s+/g, ' ')
-    : '';
-}
-
-function employeeStatus(auth: UserRecord | null, authorized: DocumentSnapshot<DocumentData> | null, motorista: DocumentSnapshot<DocumentData> | null, employee: DocumentSnapshot<DocumentData> | null) {
-  if (employee?.exists) return 'JA_CONCILIADO';
-  if (!auth) return 'SEM_AUTH';
-  if (!authorized) return 'PENDENTE';
-  if (motorista) return 'PRONTO';
-  return 'PENDENTE';
-}
-
 // Read-only inventory for manual reconciliation. It never writes legacy collections or Auth.
 adminApp.get('/api/admin/conciliation', async (_req, res) => {
   try {
@@ -376,7 +367,13 @@ adminApp.get('/api/admin/conciliation', async (_req, res) => {
         motorista: motorista ? { id: motorista.id, ...motorista.data() } : null,
         sugestoesMotorista: suggestions.map((item) => ({ id: item.id, ...item.data() })),
         funcionario: employee.exists ? employee.data() : null,
-        status: employee.exists ? 'JA_CONCILIADO' : suggestions.length > 1 ? 'CONFLITO' : employeeStatus(user, authorized?.exists ? authorized : null, motorista, employee),
+        status: classifyConciliation({
+          auth: true,
+          authorized: Boolean(authorized?.exists),
+          motorist: Boolean(motorista),
+          motoristCandidates: suggestions.length,
+          employee: employee.exists,
+        }),
       };
     });
     const matchedMotorists = new Set(rows.flatMap((row) => (row.sugestoesMotorista as Array<{ id: string }>).map((item) => item.id)));
@@ -407,9 +404,18 @@ adminApp.post('/api/admin/conciliation/:uid', async (req: AdminRequest, res) => 
       if (!motorista.exists) { res.status(400).json({ error: 'motorist_not_found' }); return; }
       motoristaData = motorista.data() ?? null;
     }
-    const safeProfiles = { adm1: perfis.adm1 === true, adm2: perfis.adm2 === true, user: perfis.user === true, motorista: Boolean(motoristaData) };
+    const safeProfiles = { adm1: perfis.adm1 === true, adm2: perfis.adm2 === true, user: false, motorista: Boolean(motoristaData) };
+    const funcionario = buildFuncionario({
+      nome,
+      email,
+      authDisabled: authUser.disabled,
+      autorizado: { adm1: perfis.adm1 === true, adm2: perfis.adm2 === true },
+      motorista: motoristaData,
+      requestedAtivo: ativo,
+    });
     await employeeRef.set({
-      ...canonicalEmployee(nome, email, ativo, safeProfiles, motoristaData?.ordem),
+      ...funcionario,
+      perfis: { ...safeProfiles, motorista: funcionario.perfis.motorista },
       createdAt: existing.get('createdAt') ?? FieldValue.serverTimestamp(),
       updatedAt: FieldValue.serverTimestamp(),
     });
