@@ -28,6 +28,7 @@ const FrotaAnalyticsPage = lazy(() => import('./pages/FrotaAnalyticsPage'));
 const HomeDashboard = lazy(() => import('./pages/HomeDashboard'));
 const BombasPage = lazy(() => import('./pages/BombasPage'));
 const AccessDeniedPage = lazy(() => import('./pages/AccessDeniedPage'));
+const CronogramaObrasPage = lazy(() => import('./features/cronograma-obras/CronogramaObrasPage'));
 
 function LoadingFallback({ label }: { label?: string }) {
   return (
@@ -71,6 +72,7 @@ export default function App() {
             <Route path="frota/:placa" element={<FrotaVeiculoDetalhesPage />} />
             <Route path="bombas" element={<BombasPage />} />
             <Route path="portfolio" element={<PortifolioPage />} />
+            <Route path="engenharia/cronograma" element={<CronogramaObrasPage />} />
           </Route>
         </Routes>
       </Suspense>

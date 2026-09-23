@@ -50,6 +50,9 @@ export default function Header() {
                       <Nav.Link as={Link} to="/portfolio">
                         Portifólio
                       </Nav.Link>
+                      <Nav.Link as={Link} to="/engenharia/cronograma">
+                        Cronograma de Obras
+                      </Nav.Link>
                     </>
                   )}
                 </>
