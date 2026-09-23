@@ -1,9 +1,10 @@
 /** Stable, restrained colours shared by palette, Gantt, workload and master view. */
 const PALETTE = [
-  { background: '#2f6b98', text: '#ffffff' }, { background: '#587a5e', text: '#ffffff' },
-  { background: '#856a9b', text: '#ffffff' }, { background: '#a26949', text: '#ffffff' },
-  { background: '#347d7a', text: '#ffffff' }, { background: '#596fa5', text: '#ffffff' },
-  { background: '#8a6b54', text: '#ffffff' }, { background: '#607d8b', text: '#ffffff' },
+  { background: '#376f55', text: '#ffffff' }, { background: '#245f61', text: '#ffffff' },
+  { background: '#654084', text: '#ffffff' }, { background: '#743f78', text: '#ffffff' },
+  { background: '#4d548b', text: '#ffffff' }, { background: '#a0522d', text: '#ffffff' },
+  { background: '#70483a', text: '#ffffff' }, { background: '#46515b', text: '#ffffff' },
+  { background: '#3b6f4e', text: '#ffffff' }, { background: '#6a5136', text: '#ffffff' },
 ] as const;
 
 export function normalizeMestreKey(value: string): string {

@@ -19,5 +19,6 @@ export function yearDays(year: number): CivilDate[] { return eachDay(`${year}-01
 export function dailyHeader(year: number) { return yearDays(year).map((date) => ({ date, label: date.slice(8), month: MONTHS[Number(date.slice(5, 7)) - 1], isWeekStart: weekStart(date) === date })); }
 export function weeklyHeader(year: number): CivilDate[] { const first = weekStart(`${year}-01-01`); const last = `${year}-12-31`; const result: CivilDate[] = []; for (let date = first; date <= last; date = addDays(date, 7)) result.push(date); return result; }
 export function monthlyHeader(year: number) { return MONTHS.map((label, index) => ({ label, start: `${year}-${String(index + 1).padStart(2, '0')}-01` })); }
-export function todayCivil(): CivilDate { return new Date().toISOString().slice(0, 10); }
+/** Calendar date in the browser's local timezone, kept in the YYYY-MM-DD civil contract. */
+export function todayCivil(): CivilDate { const now = new Date(); return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`; }
 export function dateLabel(date: CivilDate | null | undefined): string { return date ? `${date.slice(8)}/${date.slice(5, 7)}/${date.slice(0, 4)}` : '—'; }
