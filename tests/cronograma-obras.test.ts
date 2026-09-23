@@ -1,57 +1,16 @@
-import test from 'node:test';
-import assert from 'node:assert/strict';
-import { CRONOGRAMA_2026_RAW } from '../src/features/cronograma-obras/data/cronograma2026.raw';
-import { assessDataQuality, buildWorkloads, consolidateAllocation, CRONOGRAMA_2026, filterObras, normalizeObra, todayPosition } from '../src/features/cronograma-obras/domain/cronograma';
-
-test('transforma as 35 linhas reais em 48 semanas sem inventar datas', () => {
-  assert.equal(CRONOGRAMA_2026.length, 35);
-  const fontoura = CRONOGRAMA_2026.find((obra) => obra.local === 'FONTOURA XAVIER 98m');
-  assert.ok(fontoura);
-  assert.equal(fontoura.allocations.length, 12);
-  assert.deepEqual(fontoura.allocations.find((item) => item.weekIndex === 5), { weekIndex: 5, monthIndex: 1, weekOfMonth: 2, days: 3 });
-  assert.ok(CRONOGRAMA_2026.every((obra) => obra.allocations.every((item) => item.weekIndex >= 0 && item.weekIndex < 48)));
-});
-
-test('consolida semanas contínuas respeitando a fronteira dos meses', () => {
-  const obra = CRONOGRAMA_2026.find((item) => item.local === 'FONTOURA XAVIER 96m');
-  assert.ok(obra);
-  assert.deepEqual(consolidateAllocation(obra).slice(0, 2), ['JAN · Sem 2–4', 'FEV · Sem 1–2']);
-  assert.ok(consolidateAllocation(obra).includes('JUL · Sem 1–3'));
-});
-
-test('calcula carga semanal, disponibilidade e conflitos por mestre', () => {
-  const workloads = buildWorkloads(CRONOGRAMA_2026);
-  const dilamar = workloads.find((item) => item.mestre === 'DILAMAR');
-  assert.ok(dilamar);
-  assert.ok(dilamar.occupiedWeeks > 0);
-  assert.equal(dilamar.freeWeeks, 48 - dilamar.occupiedWeeks);
-  assert.ok(dilamar.conflictWeeks > 0);
-  assert.ok(dilamar.weekly.some((week) => week.conflict && week.obras.length > 1));
-});
-
-test('filtros combinam busca, empresa, mestre, status e período', () => {
-  const results = filterObras(CRONOGRAMA_2026, { search: 'passa sete', status: 'EM ANDAMENTO', empresa: 'ARTEBASE', mestre: 'EVERALDO', period: '12-23' });
-  assert.equal(results.length, 1);
-  assert.equal(results[0].contrato, '059/2025');
-  assert.equal(filterObras(CRONOGRAMA_2026, { search: '043/2026', status: '', empresa: '', mestre: '', period: 'year' })[0].local, 'SANTO AUGUSTO');
-});
-
-test('qualidade preserva erros, ausências, percentuais acima de 100 e aliases', () => {
-  const santoAugusto = CRONOGRAMA_2026_RAW.find((obra) => obra.local === 'SANTO AUGUSTO');
-  const corpoEAlma = CRONOGRAMA_2026_RAW.find((obra) => obra.local === 'CORPO E ALMA');
-  const carlosGomes = CRONOGRAMA_2026_RAW.find((obra) => obra.local === 'CARLOS GOMES');
-  const sobradinho = CRONOGRAMA_2026_RAW.find((obra) => obra.local === 'SOBRADINHO I');
-  assert.ok(santoAugusto && corpoEAlma && carlosGomes && sobradinho);
-  assert.ok(assessDataQuality(santoAugusto).some((issue) => issue.code === 'INVALID_PROGRESS'));
-  assert.ok(assessDataQuality(corpoEAlma).some((issue) => issue.code === 'PROGRESS_OVER_100'));
-  assert.ok(assessDataQuality(carlosGomes).some((issue) => issue.code === 'MISSING_PREV'));
-  assert.ok(assessDataQuality(sobradinho).some((issue) => issue.code === 'POSSIBLE_MASTER_ALIAS'));
-  assert.equal(normalizeObra(santoAugusto).progressRaw, '#DIV/0!');
-  assert.equal(normalizeObra(santoAugusto).progressPercent, null);
-});
-
-test('marcador de hoje só aparece no ano do cronograma', () => {
-  assert.equal(todayPosition(new Date(2025, 8, 22)), null);
-  const september = todayPosition(new Date(2026, 8, 22));
-  assert.ok(september !== null && september >= 32 && september < 36);
-});
+import test from 'node:test'; import assert from 'node:assert/strict';
+import { addObraLocal, updateObraLocal } from '../src/features/cronograma-obras/application/localPlanner';
+import { buildWorkloads, calculateIndicators, filterObras } from '../src/features/cronograma-obras/domain/cronograma';
+import { calculatedEnd, daysInMonth, daysInWeek, isValidCivilDate, tryCalculatedEnd, weeklyAllocation } from '../src/features/cronograma-obras/domain/temporal';
+import { FixtureCronogramaDataSource } from '../src/features/cronograma-obras/data/fixtures/fixtureCronogramaDataSource';
+const source = new FixtureCronogramaDataSource(); const obras = source.listarItensCronograma();
+test('calcula fim inclusivo e duração de um dia', () => { assert.equal(calculatedEnd('2026-10-05', 14), '2026-10-18'); assert.equal(calculatedEnd('2026-10-05', 1), '2026-10-05'); });
+test('data manual incompleta ou inválida permanece em estado seguro', () => { assert.equal(isValidCivilDate('2026-02-29'), false); assert.equal(isValidCivilDate('2026-10-'), false); assert.equal(tryCalculatedEnd('', 14), null); assert.equal(tryCalculatedEnd('2026-10-', 14), null); assert.equal(tryCalculatedEnd('2026-10-05', 14), '2026-10-18'); });
+test('agrega ocupação semanal completa e parcial', () => { assert.equal(daysInWeek('2026-10-05', 7, '2026-10-05'), 7); assert.equal(daysInWeek('2026-10-05', 3, '2026-10-05'), 3); });
+test('barra semanal parcial preserva quantidade e posição real dos dias', () => { assert.deepEqual(weeklyAllocation('2026-09-30', 14, '2026-09-28'), { offset: 2, days: 5 }); assert.deepEqual(weeklyAllocation('2026-10-05', 3, '2026-10-05'), { offset: 0, days: 3 }); assert.deepEqual(weeklyAllocation('2026-10-11', 1, '2026-10-05'), { offset: 6, days: 1 }); });
+test('agrega mês, cruza meses e ano', () => { assert.equal(daysInMonth('2026-10-18', 14, '2026-10-01'), 14); assert.equal(daysInMonth('2026-12-28', 10, '2027-01-01'), 6); assert.equal(calculatedEnd('2026-12-28', 10), '2027-01-06'); });
+test('detecta conflito por mestre e períodos adjacentes não conflitam', () => { const workloads = buildWorkloads(obras); assert.ok(workloads.find((item) => item.mestre === 'EVERALDO')!.conflictDays > 0); const adjacent = obras.map((obra) => ({ ...obra, mestresPlanejados: obra.mestresPlanejados.map((item) => ({ ...item })) })); adjacent[5].mestresPlanejados[0].inicio = '2026-02-18'; assert.equal(buildWorkloads(adjacent).find((item) => item.mestre === 'EVERALDO')!.conflictDays, 0); });
+test('mestreInicial sem planejamento não ocupa mestre, não cria conflito nem workload', () => { const semPlanejamento = { ...source.listarObrasDisponiveis()[8], mestreInicial: 'DINE', inicioPlanejado: '2026-10-05', tempoPlanejado: 14, mestresPlanejados: [] }; const only = addObraLocal([], semPlanejamento); assert.equal(buildWorkloads(only).length, 0); assert.equal(calculateIndicators(only).allocated, 0); assert.equal(calculateIndicators(only).conflicts, 0); assert.equal(calculateIndicators(only).unassigned, 1); });
+test('dois mestres em uma obra são considerados', () => { assert.equal(obras[0].mestresPlanejados.length, 2); assert.ok(buildWorkloads(obras).some((item) => item.mestre === 'DILAMAR')); });
+test('adiciona, edita e remove mestre no estado local', () => { const added = addObraLocal(obras, { ...source.listarObrasDisponiveis()[8], inicioPlanejado: '2026-10-05', tempoPlanejado: 14, mestresPlanejados: [] }); assert.equal(added.length, 7); const edited = updateObraLocal(added, { ...added[6], mestreInicial: 'DINE', mestresPlanejados: [{ localId: 'x', nome: 'DINE', inicio: '2026-10-05', tempoPlanejado: 14 }] }); assert.equal(edited[6].mestresPlanejados.length, 1); assert.equal(updateObraLocal(edited, { ...edited[6], mestresPlanejados: [] })[6].mestresPlanejados.length, 0); });
+test('filtros seguem encontrando planejamento e ignoram mestreInicial no filtro de mestre', () => { const onlyInitial = { ...source.listarObrasDisponiveis()[8], mestreInicial: 'NOVO', inicioPlanejado: '2026-10-05', tempoPlanejado: 14, mestresPlanejados: [] }; const planned = { ...onlyInitial, id: 'planejada', mestresPlanejados: [{ localId: 'novo', nome: 'NOVO', inicio: '2026-10-05', tempoPlanejado: 14 }] }; const filters = { search: '', status: '', empresa: '', mestre: 'NOVO', period: 'year' }; assert.deepEqual(filterObras([onlyInitial, planned], filters).map((obra) => obra.id), ['planejada']); });

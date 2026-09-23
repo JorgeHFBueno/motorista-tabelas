@@ -2,60 +2,15 @@ import WarningAmberRounded from '@mui/icons-material/WarningAmberRounded';
 import { memo } from 'react';
 import { TimelineHeader } from './TimelineHeader';
 import { StatusBadge } from './StatusBadge';
-import { TOTAL_WEEKS, type MestreWorkload, type ObraCronograma } from '../domain/models';
-
-interface Props {
-  view: 'obras' | 'mestres';
-  obras: ObraCronograma[];
-  workloads: MestreWorkload[];
-  selectedId: string | null;
-  today: number | null;
-  onSelect: (obra: ObraCronograma) => void;
+import type { MestreWorkload, ObraCronograma, ZoomCronograma } from '../domain/models';
+import { addDays, daysInMonth, monthlyHeader, weeklyAllocation, weeklyHeader, yearDays } from '../domain/temporal';
+interface Props { view: 'obras' | 'mestres'; zoom: ZoomCronograma; obras: ObraCronograma[]; workloads: MestreWorkload[]; selectedId: string | null; onSelect: (obra: ObraCronograma) => void; }
+function colorIndex(name: string | null): number { return [...(name ?? '')].reduce((value, char) => value + char.charCodeAt(0), 0) % 8; }
+function ObraCells({ obra, zoom }: { obra: ObraCronograma; zoom: ZoomCronograma }) {
+  const end = addDays(obra.inicioPlanejado, Math.max(obra.tempoPlanejado, 1) - 1);
+  if (zoom === 'day') return <div className="co-day-cells">{yearDays(2026).map((date) => <div key={date} className={`co-day-cell ${date >= obra.inicioPlanejado && date <= end ? `is-active co-color-${colorIndex(obra.mestreInicial)}` : ''}`} />)}</div>;
+  if (zoom === 'month') return <div className="co-month-cells">{monthlyHeader(2026).map((month) => { const days = daysInMonth(obra.inicioPlanejado, obra.tempoPlanejado, month.start); return <div className="co-month-cell" key={month.start}>{days ? <span className={`co-allocation co-color-${colorIndex(obra.mestreInicial)}`}>{days}</span> : null}</div>; })}</div>;
+  return <div className="co-week-cells">{weeklyHeader(2026).map((week) => { const allocation = weeklyAllocation(obra.inicioPlanejado, obra.tempoPlanejado, week); return <div className="co-week-cell" key={week} title={allocation.days ? `${obra.nomeObra} · ${allocation.days} dia${allocation.days === 1 ? '' : 's'}` : undefined}>{allocation.days ? <span className={`co-allocation co-color-${colorIndex(obra.mestreInicial)}`} style={{ left: `${allocation.offset / 7 * 100}%`, width: `${allocation.days / 7 * 100}%` }}>{allocation.days < 7 ? allocation.days : ''}</span> : null}</div>; })}</div>;
 }
-
-function colorIndex(name: string | null): number {
-  if (!name) return 0;
-  return [...name].reduce((value, char) => value + char.charCodeAt(0), 0) % 8;
-}
-
-function TodayLine({ position }: { position: number | null }) {
-  if (position === null) return null;
-  return <div className="co-today-track"><div className="co-today-line" style={{ left: `${(position / TOTAL_WEEKS) * 100}%` }}><span>Hoje</span></div></div>;
-}
-
-function ObraCells({ obra }: { obra: ObraCronograma }) {
-  const byWeek = new Map(obra.allocations.map((item) => [item.weekIndex, item]));
-  return <div className="co-week-cells">{Array.from({ length: TOTAL_WEEKS }, (_, index) => {
-    const item = byWeek.get(index);
-    const before = byWeek.has(index - 1);
-    const after = byWeek.has(index + 1);
-    return <div className="co-week-cell" key={index} title={item ? `${obra.local} · ${item.days} dia${item.days === 1 ? '' : 's'}` : undefined}>{item && <span className={`co-allocation co-color-${colorIndex(obra.mestre)} ${before ? 'is-connected-left' : ''} ${after ? 'is-connected-right' : ''}`} style={{ width: `${Math.max(18, item.days / 7 * 100)}%` }}>{item.days < 7 ? item.days : ''}</span>}</div>;
-  })}</div>;
-}
-
-function MasterCells({ workload }: { workload: MestreWorkload }) {
-  return <div className="co-week-cells">{workload.weekly.map((week) => <div className={`co-week-cell co-resource-cell ${week.conflict ? 'is-conflict' : ''}`} key={week.weekIndex} title={week.obras.length ? `${week.obras.map((obra) => obra.local).join(' + ')} · ${week.days} dias programados` : 'Livre'}>{week.obras.map((obra, position) => <span key={obra.id} className={`co-resource-block co-color-${colorIndex(obra.local)}`} style={{ '--stack': position, '--count': week.obras.length } as React.CSSProperties} />)}{week.conflict && <WarningAmberRounded className="co-conflict-icon" />}</div>)}</div>;
-}
-
-export const GanttGrid = memo(function GanttGrid({ view, obras, workloads, selectedId, today, onSelect }: Props) {
-  const rows = view === 'obras' ? obras.length : workloads.length;
-  return (
-    <section className={`co-gantt co-gantt--${view}`} aria-label={view === 'obras' ? 'Cronograma anual por obra' : 'Carga anual por mestre'}>
-      <div className="co-gantt-scroll">
-        <div className="co-gantt-grid" style={{ '--row-count': rows } as React.CSSProperties}>
-          <div className="co-left-header">{view === 'obras' ? <><span>Obra</span><span>Mestre</span><span>Status</span><span>Contrato</span><span>Emp.</span><span>Prev.</span><span>Dias</span><span>Progresso</span></> : <><span>Mestre</span><span>Obras</span><span>Carga</span><span>Livres</span><span>Conflitos</span></>}</div>
-          <TimelineHeader />
-          {view === 'obras' ? obras.map((obra) => <button type="button" className={`co-grid-row ${selectedId === obra.id ? 'is-selected' : ''}`} key={obra.id} onClick={() => onSelect(obra)}>
-            <div className="co-left-row"><span className="co-work-name" title={obra.local}>{obra.local}{obra.issues.length > 0 && <span className="co-quality-dot" title={`${obra.issues.length} alerta(s) de qualidade`}>{obra.issues.length}</span>}</span><span>{obra.mestre ?? <em>Sem mestre</em>}</span><span><StatusBadge status={obra.status} /></span><span>{obra.contrato ?? '—'}</span><span>{obra.empresa}</span><span>{obra.previsaoDias ?? '—'}</span><span>{obra.diasRealizados ?? '—'}</span><span className={obra.progressPercent !== null && obra.progressPercent > 100 ? 'co-invalid-value' : ''}>{obra.progressRaw ?? '—'}</span></div>
-            <ObraCells obra={obra} />
-          </button>) : workloads.map((workload) => <div className="co-grid-row co-grid-row--resource" key={workload.mestre}>
-            <div className="co-left-row"><span className="co-master-name"><i className={`co-master-swatch co-color-${colorIndex(workload.mestre)}`} />{workload.mestre}</span><span>{workload.obras.length}</span><span>{workload.loadPercent}%</span><span>{workload.freeWeeks} sem.</span><span className={workload.conflictWeeks ? 'co-invalid-value' : ''}>{workload.conflictWeeks}</span></div>
-            <MasterCells workload={workload} />
-          </div>)}
-          <TodayLine position={today} />
-        </div>
-      </div>
-      {!rows && <div className="co-empty">Nenhum resultado para os filtros selecionados.</div>}
-    </section>
-  );
-});
+function MasterCells({ workload, zoom }: { workload: MestreWorkload; zoom: ZoomCronograma }) { const cells = zoom === 'day' ? workload.daily.map((item) => ({ days: item.obras.length, conflict: item.conflict, obras: item.obras })) : zoom === 'week' ? workload.weekly : monthlyHeader(2026).map((month) => { const items = workload.daily.filter((item) => item.date.slice(0, 7) === month.start.slice(0, 7)); return { days: items.filter((item) => item.obras.length).length, conflict: items.some((item) => item.conflict), obras: [...new Map(items.flatMap((item) => item.obras).map((obra) => [obra.id, obra])).values()] }; }); return <div className={zoom === 'day' ? 'co-day-cells' : zoom === 'month' ? 'co-month-cells' : 'co-week-cells'}>{cells.map((cell, index) => <div className={`${zoom === 'day' ? 'co-day-cell' : zoom === 'month' ? 'co-month-cell' : 'co-week-cell'} co-resource-cell ${cell.conflict ? 'is-conflict' : ''}`} key={index} title={cell.obras.length ? cell.obras.map((obra) => obra.nomeObra).join(' + ') : 'Livre'}>{cell.days > 0 && <span className="co-resource-block co-color-1" />}{cell.conflict && <WarningAmberRounded className="co-conflict-icon" />}</div>)}</div>; }
+export const GanttGrid = memo(function GanttGrid({ view, zoom, obras, workloads, selectedId, onSelect }: Props) { const rows = view === 'obras' ? obras.length : workloads.length; return <section className={`co-gantt co-gantt--${view}`} aria-label="Cronograma anual"><div className="co-gantt-scroll"><div className={`co-gantt-grid co-gantt-grid--${zoom}`} style={{ '--row-count': rows } as React.CSSProperties}><div className="co-left-header">{view === 'obras' ? <><span>Obra</span><span>Mestre inicial</span><span>Status</span><span>Emp.</span><span>Início</span><span>Dias</span></> : <><span>Mestre</span><span>Obras</span><span>Dias</span><span>Livres</span><span>Conflitos</span></>}</div><TimelineHeader zoom={zoom} />{view === 'obras' ? obras.map((obra) => <button type="button" className={`co-grid-row ${selectedId === obra.id ? 'is-selected' : ''}`} key={obra.id} onClick={() => onSelect(obra)}><div className="co-left-row"><span className="co-work-name" title={obra.nomeObra}>{obra.nomeObra}</span><span>{obra.mestreInicial ?? <em>Sem mestre</em>}</span><span><StatusBadge status={obra.status} /></span><span>{obra.empresa}</span><span>{obra.inicioPlanejado}</span><span>{obra.tempoPlanejado}</span></div><ObraCells obra={obra} zoom={zoom} /></button>) : workloads.map((workload) => <div className="co-grid-row co-grid-row--resource" key={workload.mestre}><div className="co-left-row"><span className="co-master-name"><i className={`co-master-swatch co-color-${colorIndex(workload.mestre)}`} />{workload.mestre}</span><span>{workload.obras.length}</span><span>{workload.diasProgramados}</span><span>{workload.freeDays} dias</span><span className={workload.conflictDays ? 'co-invalid-value' : ''}>{workload.conflictDays}</span></div><MasterCells workload={workload} zoom={zoom} /></div>)}</div></div>{!rows && <div className="co-empty">Nenhum resultado para os filtros selecionados.</div>}</section>; });
