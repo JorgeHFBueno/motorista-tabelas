@@ -225,6 +225,17 @@
 .co-cell-space .co-allocation { height: 14px; max-width: 100%; position: static; }
 .co-master-strips { min-width: 0; pointer-events: none; position: relative; }
 .co-master-strip { background: var(--co-master-color); height: calc(100% / var(--co-master-count)); min-width: 2px; position: absolute; top: calc((var(--co-master-index) * 100%) / var(--co-master-count)); }
+.co-week-cell .co-temporal-segment { min-width: 3px; }
+.co-week-cell .co-master-strip { min-width: 4px; }
+.co-month-cell--summary { padding: 4px; }
+.co-month-summary { display: grid; gap: 3px; grid-template-rows: 5px 1fr 7px; height: 100%; min-height: inherit; text-align: center; width: 100%; }
+.co-month-state { display: flex; overflow: hidden; }
+.co-month-state i { display: block; min-width: 2px; }
+.co-month-state .is-planned { background: #d7eafa; }.co-month-state .is-mastered { background: #8fc7a2; }.co-month-state .is-overdue { background: #f8d9d5; }.co-month-state .is-attention { background: #fff0c9; }
+.co-month-summary > strong { align-self: center; color: #315369; font-size: .78rem; font-variant-numeric: tabular-nums; }
+.co-month-masters { align-items: center; display: flex; gap: 2px; justify-content: center; min-width: 0; overflow: hidden; }
+.co-month-masters i { background: var(--co-master-color); border-radius: 2px; display: block; height: 6px; min-width: 7px; }
+.co-month-masters small { color: #526a79; font-size: .52rem; font-weight: 800; }
 .co-day-cell, .co-week-cell, .co-month-cell { position: relative; }
 .is-dragging-master .co-day-cell.is-planned, .is-dragging-master .co-week-cell:has(.co-work-allocation), .is-dragging-master .co-month-cell:has(.co-work-allocation) { cursor: copy; }
 .co-day-cell.is-drop-target, .co-week-cell.is-drop-target, .co-month-cell.is-drop-target { background: #e7f2ed; box-shadow: inset 0 0 0 1px #8ab59b; }
