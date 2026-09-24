@@ -10,6 +10,19 @@ export interface BucketTimelineAggregate { days: number; plannedDays: number; st
 export interface WeeklySegment { startDayIndex: number; dayCount: number; type: ObraTemporalSegmentType; }
 export interface WeeklyMasterSegment { mestre: MestrePlanejado; startDayIndex: number; dayCount: number; }
 
+export function layoutOverlapLanes<T extends { offset: number; days: number }>(segments: readonly T[]): Array<{ index: number; count: number }> {
+  const overlaps = (a: T, b: T) => a.offset < b.offset + b.days && a.offset + a.days > b.offset;
+  return segments.map((_, target) => {
+    const component = new Set([target]);
+    let changed = true;
+    while (changed) { changed = false; segments.forEach((segment, index) => { if (!component.has(index) && [...component].some((member) => overlaps(segment, segments[member]))) { component.add(index); changed = true; } }); }
+    const laneEnds: number[] = [];
+    const assignments = new Map<number, number>();
+    [...component].sort((a, b) => segments[a].offset - segments[b].offset).forEach((index) => { const segment = segments[index]; let lane = laneEnds.findIndex((end) => end <= segment.offset); if (lane < 0) lane = laneEnds.length; laneEnds[lane] = segment.offset + segment.days; assignments.set(index, lane); });
+    return { index: assignments.get(target) ?? 0, count: laneEnds.length || 1 };
+  });
+}
+
 /** Canonical visual source: each bucket is derived from the same daily state used by the Days view. */
 export function getDailyTimeline(obra: ObraCronograma & { hoje?: CivilDate }, start: CivilDate, days: number, hoje?: CivilDate, liveAlerts = true): DailyTimelineItem[] {
   return eachDay(start, days).map((date) => { const state = getTemporalStateForDate(obra, date, hoje ?? obra.hoje); return { date, state: visibleTemporalState(state, liveAlerts), masters: getMastersForDate(obra.mestresPlanejados, date) }; });

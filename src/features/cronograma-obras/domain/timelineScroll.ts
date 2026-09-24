@@ -5,13 +5,16 @@ export function calculateCenteredScrollLeft(todayX: number, viewportWidth: numbe
   return Math.max(0, Math.min(todayX - viewportWidth / 2, Math.max(0, scrollWidth - viewportWidth)));
 }
 
+export function calculateTimelineCenteredScrollLeft(targetX: number, usefulViewportWidth: number, scrollWidth: number, clientWidth: number): number {
+  return Math.max(0, Math.min(targetX - usefulViewportWidth / 2, Math.max(0, scrollWidth - clientWidth)));
+}
+
 export function timelineDateRatio(zoom: ZoomCronograma, date: CivilDate, year = 2026): number | null {
   if (!date.startsWith(`${year}-`)) return null;
   if (zoom === 'week') {
-    const first = weeklyHeader(year)[0];
-    const totalDays = weeklyHeader(year).length * 7;
-    const offset = Math.round((Date.parse(`${date}T00:00:00Z`) - Date.parse(`${first}T00:00:00Z`)) / 86400000);
-    return Math.max(0, Math.min(1, (offset + .5) / totalDays));
+    const weeks = weeklyHeader(year);
+    const index = weeks.findIndex((start, position) => date >= start && (position === weeks.length - 1 || date < weeks[position + 1]));
+    return index < 0 ? null : (index + .5) / weeks.length;
   }
   const days = yearDays(year);
   const index = days.indexOf(date);
@@ -23,7 +26,8 @@ export function scrollTimelineToToday(container: HTMLElement, zoom: ZoomCronogra
   const ratio = timelineDateRatio(zoom, today, year);
   const timeline = container.querySelector<HTMLElement>('.co-timeline-header');
   if (ratio === null || !timeline) return false;
-  const todayX = timeline.offsetLeft + timeline.offsetWidth * ratio;
-  container.scrollLeft = calculateCenteredScrollLeft(todayX, container.clientWidth, container.scrollWidth);
+  const usefulViewportWidth = Math.max(0, container.clientWidth - timeline.offsetLeft);
+  const todayX = timeline.offsetWidth * ratio;
+  container.scrollLeft = calculateTimelineCenteredScrollLeft(todayX, usefulViewportWidth, container.scrollWidth, container.clientWidth);
   return true;
 }
