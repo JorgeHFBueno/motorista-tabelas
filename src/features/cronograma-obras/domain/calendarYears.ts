@@ -1,5 +1,5 @@
 import type { ObraCronograma } from './models';
-import { calculatedEnd, yearDays } from './temporal';
+import { calculatedEnd, countIntersection, yearDays } from './temporal';
 
 function intervalYears(start: string, days: number): number[] {
   const first = Number(start.slice(0, 4));
@@ -20,4 +20,9 @@ export function planningYears(obras: readonly ObraCronograma[], currentYear: num
 
 export function yearBucket(year: number) {
   return { start: `${year}-01-01`, days: yearDays(year).length };
+}
+
+export function plannedDaysInYear(obra: Pick<ObraCronograma, 'inicioPlanejado' | 'tempoPlanejado'>, year: number): number {
+  const bucket = yearBucket(year);
+  return countIntersection(obra.inicioPlanejado, obra.tempoPlanejado, bucket.start, bucket.days);
 }

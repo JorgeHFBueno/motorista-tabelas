@@ -10,7 +10,7 @@ import { getMestreColor, normalizeMestreKey } from '../domain/mestres';
 import { masterNameContent, mastersTooltip } from '../domain/calendarDisplay';
 import { getBucketTimelineAggregate, getWeeklyTimeline, layoutOverlapLanes } from '../domain/timelineAggregation';
 import { scrollTimelineToToday } from '../domain/timelineScroll';
-import { yearBucket } from '../domain/calendarYears';
+import { plannedDaysInYear, yearBucket } from '../domain/calendarYears';
 
 interface Props { view: 'obras' | 'mestres'; zoom: ZoomCronograma; years: number[]; obras: ObraCronograma[]; workloads: MestreWorkload[]; selectedId: string | null; draggingMaster: string | null; display: CalendarDisplayOptions; centerRequest: number; onSelect: (obra: ObraCronograma) => void; onDropMaster: (obra: ObraCronograma, nome: string, target: string) => void; }
 
@@ -48,8 +48,10 @@ function MonthSummary({ obra, start, days, display }: { obra: ObraCronograma; st
 
 function YearSummary({ obra, year, display }: { obra: ObraCronograma; year: number; display: CalendarDisplayOptions }) {
   const bucket = yearBucket(year);
+  const plannedDays = plannedDaysInYear(obra, year);
   return <div className="co-year-summary">
     <TemporalLayer obra={obra} start={bucket.start} days={bucket.days} liveAlerts={display.liveAlerts} />
+    {plannedDays > 0 && <strong className="co-year-planned-days" title={`${plannedDays} dias planejados em ${year}`}>{plannedDays}</strong>}
     <MasterStrips obra={obra} bucketStart={bucket.start} bucketDays={bucket.days} showNames={false} zoom="year" bucketWidth={0} />
   </div>;
 }
@@ -94,7 +96,7 @@ function MasterCells({ workload, zoom, years }: { workload: MestreWorkload; zoom
 
 export const GanttGrid = memo(function GanttGrid({ view, zoom, years, obras, workloads, selectedId, draggingMaster, display, centerRequest, onSelect, onDropMaster }: Props) {
   const scrollRef = useRef<HTMLDivElement>(null);
-  useLayoutEffect(() => { const container = scrollRef.current; if (!container || zoom === 'year') return; const frame = requestAnimationFrame(() => scrollTimelineToToday(container, zoom, todayCivil())); return () => cancelAnimationFrame(frame); }, [centerRequest, zoom]);
+  useLayoutEffect(() => { const container = scrollRef.current; if (!container || zoom === 'year') return; const frame = requestAnimationFrame(() => scrollTimelineToToday(container, { mode: zoom, today: todayCivil(), pastContextDays: 15 })); return () => cancelAnimationFrame(frame); }, [centerRequest, zoom]);
   const rows = view === 'obras' ? obras.length : workloads.length;
   const left = view === 'obras' ? <><span>Obra</span><span>Mestre inicial</span><span>Status</span><span>Emp.</span><span>Início</span><span>Dias</span></> : <><span>Mestre</span><span>Obras</span><span>Dias</span><span>Livres</span><span>Conflitos</span></>;
   const gridStyle = { '--row-count': rows, '--co-year-count': years.length } as React.CSSProperties;
