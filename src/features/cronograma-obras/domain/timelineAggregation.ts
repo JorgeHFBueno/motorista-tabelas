@@ -6,6 +6,8 @@ export interface DailyTimelineItem { date: CivilDate; state: ObraTemporalSegment
 export interface TimelineSegment { type: ObraTemporalSegmentType; offset: number; days: number; }
 export interface MasterTimelineSegment { mestre: MestrePlanejado; offset: number; days: number; }
 export interface BucketTimelineAggregate { days: number; plannedDays: number; states: TimelineSegment[]; masters: MasterTimelineSegment[]; }
+export interface WeeklySegment { startDayIndex: number; dayCount: number; type: ObraTemporalSegmentType; }
+export interface WeeklyMasterSegment { mestre: MestrePlanejado; startDayIndex: number; dayCount: number; }
 
 /** Canonical visual source: each bucket is derived from the same daily state used by the Days view. */
 export function getDailyTimeline(obra: ObraCronograma & { hoje?: CivilDate }, start: CivilDate, days: number, hoje?: CivilDate): DailyTimelineItem[] {
@@ -26,4 +28,10 @@ export function getMasterSegmentsInBucket(masters: readonly MestrePlanejado[], s
 export function getBucketTimelineAggregate(obra: ObraCronograma & { hoje?: CivilDate }, start: CivilDate, days: number, hoje?: CivilDate): BucketTimelineAggregate {
   const daily = getDailyTimeline(obra, start, days, hoje);
   return { days, plannedDays: countIntersection(obra.inicioPlanejado, obra.tempoPlanejado, start, days), states: aggregateConsecutiveStates(daily), masters: getMasterSegmentsInBucket(obra.mestresPlanejados, start, days) };
+}
+
+/** A weekly cell owns a fixed internal seven-day coordinate system. */
+export function getWeeklyTimeline(obra: ObraCronograma & { hoje?: CivilDate }, weekStart: CivilDate, hoje?: CivilDate): { plannedDays: number; states: WeeklySegment[]; masters: WeeklyMasterSegment[] } {
+  const aggregate = getBucketTimelineAggregate(obra, weekStart, 7, hoje);
+  return { plannedDays: aggregate.plannedDays, states: aggregate.states.map((segment) => ({ type: segment.type, startDayIndex: segment.offset, dayCount: segment.days })), masters: aggregate.masters.map((segment) => ({ mestre: segment.mestre, startDayIndex: segment.offset, dayCount: segment.days })) };
 }

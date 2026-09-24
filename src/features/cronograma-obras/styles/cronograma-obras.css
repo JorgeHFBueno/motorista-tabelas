@@ -225,8 +225,11 @@
 .co-cell-space .co-allocation { height: 14px; max-width: 100%; position: static; }
 .co-master-strips { min-width: 0; pointer-events: none; position: relative; }
 .co-master-strip { background: var(--co-master-color); height: calc(100% / var(--co-master-count)); min-width: 2px; position: absolute; top: calc((var(--co-master-index) * 100%) / var(--co-master-count)); }
-.co-week-cell .co-temporal-segment { min-width: 3px; }
-.co-week-cell .co-master-strip { min-width: 4px; }
+.co-week-lanes { display: grid; flex: 1 1 100%; grid-template-rows: 15fr 35fr 50fr; height: 100%; min-height: inherit; overflow: hidden; position: relative; width: 100%; }
+.co-week-temporal, .co-week-masters { min-width: 0; pointer-events: none; position: relative; width: 100%; }
+.co-week-temporal i { bottom: 0; min-width: 3px; position: absolute; top: 0; }.co-week-temporal .is-planned { background: #d7eafa; }.co-week-temporal .is-mastered { background: #8fc7a2; }.co-week-temporal .is-overdue { background: #f8d9d5; }.co-week-temporal .is-attention { background: #fff0c9; }
+.co-week-space { align-items: center; display: flex; justify-content: center; }.co-week-space b { color: #526a79; font-size: .58rem; font-variant-numeric: tabular-nums; }
+.co-week-masters i { background: var(--co-master-color); bottom: 0; min-width: 4px; position: absolute; top: calc((var(--co-week-master-index) * 100%) / var(--co-week-master-count)); height: calc(100% / var(--co-week-master-count)); }
 .co-month-cell--summary { padding: 4px; }
 .co-month-summary { display: grid; gap: 3px; grid-template-rows: 5px 1fr 7px; height: 100%; min-height: inherit; text-align: center; width: 100%; }
 .co-month-state { display: flex; overflow: hidden; }
