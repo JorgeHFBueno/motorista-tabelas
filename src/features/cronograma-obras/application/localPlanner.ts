@@ -1,7 +1,6 @@
 import type { MestrePlanejado, ObraCronograma } from '../domain/models';
 import { normalizeMestreKey } from '../domain/mestres';
 /** Operações locais substituíveis por uma fonte de leitura/escrita futura, sem modelar Firestore. */
-export function addObraLocal(obras: ObraCronograma[], obra: ObraCronograma): ObraCronograma[] { return [...obras, obra]; }
 export function updateObraLocal(obras: ObraCronograma[], obra: ObraCronograma): ObraCronograma[] { return obras.map((item) => item.id === obra.id ? obra : item); }
 /** Exact duplicates are ignored; conflicts remain allowed and are derived by workload. */
 export function addMestrePlanejadoLocal(obras: ObraCronograma[], obraId: string, mestre: MestrePlanejado): ObraCronograma[] {

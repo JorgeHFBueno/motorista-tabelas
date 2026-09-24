@@ -18,6 +18,7 @@
 .co-zoom--compact { --co-week-width: 30px; --co-month-width: 120px; --co-timeline-width: 1440px; }
 .co-zoom--month { --co-week-width: 22px; --co-month-width: 88px; --co-timeline-width: 1056px; }
 .co-zoom--day { --co-day-width: 24px; --co-timeline-width: 8760px; }
+.co-zoom--year { --co-timeline-width: calc(100% - var(--co-left-width)); --co-month-width: calc(var(--co-timeline-width) / 12); }
 .co-header-actions { align-items: center; display: flex; gap: 10px; }
 .co-button--primary { background: #2f6b98; border-color: #285d85; color: #fff; }
 .co-button--primary:hover { background: #245b83; }
@@ -62,6 +63,15 @@
 .co-button--secondary { background: #eef4f7; border-color: #d4e1e8; color: #214f70; }
 .co-button--ghost { background: #fff; color: #667581; }
 .co-button:hover { background: #e4edf2; }
+.co-toggles { position: relative; }
+.co-toggles-trigger.is-active { background: #dfeaf0; border-color: #aac4d3; }
+.co-toggles-popover { background: #fff; border: 1px solid #ccd9e1; border-radius: 7px; box-shadow: 0 10px 28px rgb(19 43 58 / .18); display: grid; gap: 5px; min-width: 245px; padding: 12px; position: absolute; right: 0; top: calc(100% + 7px); z-index: 30; }
+.co-toggles-popover > strong { color: #294659; font-size: .75rem; margin: 0 2px 4px; }
+.co-toggle-row { align-items: center; background: transparent; border: 0; border-radius: 5px; color: #405563; cursor: pointer; display: flex; font: inherit; justify-content: space-between; padding: 7px 2px; width: 100%; }
+.co-toggle-row:hover { background: #f4f7f9; }
+.co-toggle-row > span { font-size: .72rem; font-weight: 700; }
+.co-toggle-row > i { background: #dfe6ea; border-radius: 999px; color: #647581; font-size: .53rem; font-style: normal; font-weight: 850; min-width: 38px; padding: 4px 6px; text-align: center; }
+.co-toggle-row > i.is-on { background: #dcece4; color: #246248; }
 
 .co-indicators { align-items: stretch; background: #fff; border: 1px solid var(--co-line); border-radius: 8px; display: flex; margin: 0 auto 18px; max-width: 1880px; overflow: hidden; }
 .co-indicators > div:not(.co-zoom) { align-items: center; border-right: 1px solid var(--co-line-soft); display: flex; gap: 12px; min-height: 48px; padding: 7px 17px; }
@@ -84,6 +94,7 @@
 .co-gantt-scroll::-webkit-scrollbar-track { background: #eef2f4; }
 .co-gantt-scroll::-webkit-scrollbar-thumb { background: #aab9c3; border: 2px solid #eef2f4; border-radius: 8px; }
 .co-gantt-grid { min-width: calc(var(--co-left-width) + var(--co-timeline-width)); position: relative; }
+.co-gantt-grid--year { min-width: 980px; }
 
 .co-left-header,
 .co-timeline-header { background: #edf2f5; border-bottom: 1px solid #c9d6de; height: 58px; position: sticky; top: 0; z-index: 8; }
@@ -92,6 +103,8 @@
 .co-timeline-header { left: var(--co-left-width); margin-left: var(--co-left-width); margin-top: -58px; width: var(--co-timeline-width); }
 .co-months { display: grid; grid-template-columns: repeat(12, var(--co-month-width)); height: 30px; }
 .co-months--single { height: 58px; }
+.co-months--year { grid-template-columns: repeat(12, minmax(0, 1fr)); }
+.co-months--year > div.is-current-month { background: #e4edf3; box-shadow: inset 0 -3px #2f6b98; color: #173f5b; }
 .co-months--days { grid-template-columns: repeat(365, var(--co-day-width)); }
 .co-months > div { align-items: center; border-right: 1px solid #bdcbd4; color: #29495e; display: flex; font-size: .65rem; font-weight: 850; justify-content: center; letter-spacing: .07em; }
 .co-weeks { display: grid; grid-template-columns: repeat(53, var(--co-week-width)); height: 28px; }
@@ -115,6 +128,10 @@
 
 .co-week-cells { display: grid; grid-template-columns: repeat(53, var(--co-week-width)); min-height: inherit; position: relative; }
 .co-month-cells { display: grid; grid-template-columns: repeat(12, var(--co-month-width)); min-height: inherit; }
+.co-year-cells { display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); min-height: inherit; }
+.co-year-cell { border-right: 1px solid #d2dde3; min-width: 0; overflow: hidden; position: relative; }
+.co-year-cell.is-current-month { background: rgb(47 107 152 / .035); }
+.co-year-summary { display: grid; grid-template-rows: 35% 65%; height: 100%; min-height: inherit; overflow: hidden; }
 .co-month-cell { align-items: center; border-right: 1px solid #d2dde3; display: flex; justify-content: center; min-width: 0; padding: 0 2px; position: relative; }
 .co-month-cell .co-allocation { min-width: 22px; padding: 0 7px; width: auto; }
 .co-day-cells { display: grid; grid-template-columns: repeat(365, var(--co-day-width)); min-height: inherit; }
@@ -202,7 +219,7 @@
 .co-source-note { color: #89959c; font-size: .6rem; line-height: 1.45; margin: 18px 0 0; }
 .co-sr-only { clip: rect(0 0 0 0); clip-path: inset(50%); height: 1px; overflow: hidden; position: absolute; white-space: nowrap; width: 1px; }
 
-/* P2.1: painel de filtros compacto e barras semanais posicionais. */
+/* MK2: painel de filtros compacto e barras semanais posicionais. */
 .co-filters-panel { display: flex; justify-content: flex-end; margin: -8px auto 10px; max-width: 1880px; }
 .co-filters-panel .co-filters { box-shadow: 0 5px 16px rgb(19 43 58 / .10); margin: 0; max-width: min(100%, 920px); }
 .co-filter-toggle.is-active { background: #dfeaf0; border-color: #aac4d3; }
@@ -213,6 +230,7 @@
 .co-master-palette-scroll { display: flex; flex: 1; gap: 6px; min-width: 0; overflow-x: auto; scrollbar-width: thin; }
 .co-master-chip { align-items: center; background: var(--co-master-color); border: 0; border-radius: 4px; color: var(--co-master-text); cursor: grab; display: inline-flex; flex: 0 0 auto; font-size: .66rem; font-weight: 800; gap: 5px; letter-spacing: .035em; padding: 7px 9px; }
 .co-master-chip:hover { filter: brightness(.94); }.co-master-chip:active { cursor: grabbing; }.co-master-chip.is-dragging { box-shadow: 0 5px 12px rgb(24 43 57 / .22); cursor: grabbing; opacity: .48; transform: translateY(-1px); }
+.co-master-palette.is-readonly .co-master-chip { cursor: default; }
 .co-master-chip svg { font-size: .9rem; }.co-master-drag-preview { box-shadow: 0 8px 20px rgb(24 43 57 / .28); left: -9999px; opacity: 1 !important; position: fixed; top: -9999px; transform: scale(1.04); }
 .co-master-palette > small { color: #7b8992; font-size: .62rem; white-space: nowrap; }
 .co-week-cell .co-allocation { left: 0; margin: 0; max-width: 100%; min-width: 0; position: absolute; }
@@ -224,20 +242,21 @@
 .co-cell-space { align-items: center; display: flex; justify-content: center; min-width: 0; overflow: hidden; }
 .co-cell-space .co-allocation { height: 14px; max-width: 100%; position: static; }
 .co-master-strips { min-width: 0; pointer-events: none; position: relative; }
-.co-master-strip { background: var(--co-master-color); height: calc(100% / var(--co-master-count)); min-width: 2px; position: absolute; top: calc((var(--co-master-index) * 100%) / var(--co-master-count)); }
+.co-master-strip { background: var(--co-master-color); container-type: inline-size; height: calc(100% / var(--co-master-count)); min-width: 2px; overflow: hidden; position: absolute; top: calc((var(--co-master-index) * 100%) / var(--co-master-count)); }
+.co-master-strip > span, .co-week-masters i > span, .co-month-masters i > span { color: #fff; display: none; font-size: .5rem; font-style: normal; font-weight: 800; line-height: 1.2; overflow: hidden; padding: 1px 3px; text-overflow: ellipsis; text-shadow: 0 1px 1px rgb(0 0 0 / .28); white-space: nowrap; }
 .co-week-lanes { display: grid; flex: 1 1 100%; grid-template-rows: 15fr 35fr 50fr; height: 100%; min-height: inherit; overflow: hidden; position: relative; width: 100%; }
 .co-week-temporal, .co-week-masters { min-width: 0; pointer-events: none; position: relative; width: 100%; }
 .co-week-temporal i { bottom: 0; min-width: 3px; position: absolute; top: 0; }.co-week-temporal .is-planned { background: #d7eafa; }.co-week-temporal .is-mastered { background: #8fc7a2; }.co-week-temporal .is-overdue { background: #f8d9d5; }.co-week-temporal .is-attention { background: #fff0c9; }
 .co-week-space { align-items: center; display: flex; justify-content: center; }.co-week-space b { color: #526a79; font-size: .58rem; font-variant-numeric: tabular-nums; }
-.co-week-masters i { background: var(--co-master-color); bottom: 0; min-width: 4px; position: absolute; top: calc((var(--co-week-master-index) * 100%) / var(--co-week-master-count)); height: calc(100% / var(--co-week-master-count)); }
+.co-week-masters i { background: var(--co-master-color); bottom: 0; container-type: inline-size; min-width: 4px; overflow: hidden; position: absolute; top: calc((var(--co-week-master-index) * 100%) / var(--co-week-master-count)); height: calc(100% / var(--co-week-master-count)); }
 .co-month-cell--summary { padding: 4px; }
 .co-month-summary { display: grid; gap: 3px; grid-template-rows: 5px 1fr 7px; height: 100%; min-height: inherit; text-align: center; width: 100%; }
-.co-month-state { display: flex; overflow: hidden; }
-.co-month-state i { display: block; min-width: 2px; }
+.co-month-state { overflow: hidden; position: relative; }
+.co-month-state i { bottom: 0; display: block; min-width: 2px; position: absolute; top: 0; }
 .co-month-state .is-planned { background: #d7eafa; }.co-month-state .is-mastered { background: #8fc7a2; }.co-month-state .is-overdue { background: #f8d9d5; }.co-month-state .is-attention { background: #fff0c9; }
 .co-month-summary > strong { align-self: center; color: #315369; font-size: .78rem; font-variant-numeric: tabular-nums; }
 .co-month-masters { align-items: center; display: flex; gap: 2px; justify-content: center; min-width: 0; overflow: hidden; }
-.co-month-masters i { background: var(--co-master-color); border-radius: 2px; display: block; height: 6px; min-width: 7px; }
+.co-month-masters i { background: var(--co-master-color); border-radius: 2px; container-type: inline-size; display: block; height: 8px; max-width: 100%; min-width: 7px; overflow: hidden; }
 .co-month-masters small { color: #526a79; font-size: .52rem; font-weight: 800; }
 .co-day-cell, .co-week-cell, .co-month-cell { position: relative; }
 .is-dragging-master .co-day-cell.is-planned, .is-dragging-master .co-week-cell:has(.co-work-allocation), .is-dragging-master .co-month-cell:has(.co-work-allocation) { cursor: copy; }
@@ -260,6 +279,10 @@
   .co-indicators { flex-wrap: wrap; }
   .co-indicators > div:not(.co-zoom) { flex: 1; }
   .co-zoom { border-top: 1px solid var(--co-line-soft); flex-basis: 100%; justify-content: flex-end; }
+}
+
+@container (min-width: 48px) {
+  .co-master-strip > span, .co-week-masters i > span, .co-month-masters i > span { display: block; }
 }
 
 @media (max-width: 720px) {

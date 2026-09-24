@@ -1,6 +1,6 @@
 export const MONTHS = ['JAN', 'FEV', 'MAR', 'ABR', 'MAI', 'JUN', 'JUL', 'AGO', 'SET', 'OUT', 'NOV', 'DEZ'] as const;
 export type CronogramaStatus = 'EM ANDAMENTO' | 'AGUARDANDO RECURSO' | 'FINALIZADA' | 'FINALIZADO';
-export type ZoomCronograma = 'day' | 'week' | 'month';
+export type ZoomCronograma = 'day' | 'week' | 'month' | 'year';
 /** Datas do domínio são sempre civis, no formato YYYY-MM-DD. */
 export type CivilDate = string;
 /** Formato de importação da planilha legado; não é exposto à UI. */

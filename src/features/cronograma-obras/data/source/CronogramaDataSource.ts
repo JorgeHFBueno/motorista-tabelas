@@ -1,2 +1,2 @@
-import type { ObraCatalogo, ObraCronograma } from '../../domain/models';
-export interface CronogramaDataSource { listarObrasDisponiveis(): ObraCatalogo[]; listarItensCronograma(): ObraCronograma[]; }
+import type { ObraCronograma } from '../../domain/models';
+export interface CronogramaDataSource { listarItensCronograma(): ObraCronograma[]; }
