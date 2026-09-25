@@ -1,5 +1,5 @@
 import type { CivilDate, ZoomCronograma } from './models';
-import { yearDays, weeklyHeader } from './temporal';
+import { addDays, weekStart, yearDays, weeklyHeader } from './temporal';
 
 export function calculateCenteredScrollLeft(todayX: number, viewportWidth: number, scrollWidth: number): number {
   return Math.max(0, Math.min(todayX - viewportWidth / 2, Math.max(0, scrollWidth - viewportWidth)));
@@ -11,9 +11,32 @@ export function calculateTimelineCenteredScrollLeft(targetX: number, usefulViewp
 
 export function calculateTimelineContextScrollLeft(zoom: ZoomCronograma, todayX: number, timelineWidth: number, usefulViewportWidth: number, scrollWidth: number, clientWidth: number, year = 2026, pastContextDays = 15): number {
   if (zoom === 'month') return calculateTimelineCenteredScrollLeft(todayX, usefulViewportWidth, scrollWidth, clientWidth);
-  const timelineDays = zoom === 'week' ? weeklyHeader(year).length * 7 : yearDays(year).length;
+  if (zoom === 'week') return clampTimelineScrollLeft(todayX, scrollWidth, clientWidth);
+  const timelineDays = yearDays(year).length;
   const contextWidth = timelineWidth / timelineDays * pastContextDays;
-  return Math.max(0, Math.min(todayX - contextWidth, Math.max(0, scrollWidth - clientWidth)));
+  return clampTimelineScrollLeft(todayX - contextWidth, scrollWidth, clientWidth);
+}
+
+export function clampTimelineScrollLeft(scrollLeft: number, scrollWidth: number, clientWidth: number): number {
+  return Math.max(0, Math.min(scrollLeft, Math.max(0, scrollWidth - clientWidth)));
+}
+
+export function weeklyContextStart(today: CivilDate, pastContextDays = 15): CivilDate {
+  return addDays(today, -pastContextDays);
+}
+
+export function weeklyContextWeekStart(today: CivilDate, pastContextDays = 15): CivilDate {
+  return weekStart(weeklyContextStart(today, pastContextDays));
+}
+
+export function weeklyContextWeekIndex(today: CivilDate, year = 2026, pastContextDays = 15): number | null {
+  const index = weeklyHeader(year).indexOf(weeklyContextWeekStart(today, pastContextDays));
+  return index < 0 ? null : index;
+}
+
+export function weeklyContextScrollLeft(today: CivilDate, timelineWidth: number, scrollWidth: number, clientWidth: number, year = 2026, pastContextDays = 15): number | null {
+  const contextWeekIndex = weeklyContextWeekIndex(today, year, pastContextDays);
+  return contextWeekIndex === null ? null : clampTimelineScrollLeft(timelineWidth * contextWeekIndex / weeklyHeader(year).length, scrollWidth, clientWidth);
 }
 
 export function timelineDateRatio(zoom: ZoomCronograma, date: CivilDate, year = 2026): number | null {
@@ -30,9 +53,16 @@ export function timelineDateRatio(zoom: ZoomCronograma, date: CivilDate, year = 
 
 export function scrollTimelineToToday(container: HTMLElement, { mode, today, year = 2026, pastContextDays = 15 }: { mode: ZoomCronograma; today: CivilDate; year?: number; pastContextDays?: number }): boolean {
   if (mode === 'year') return false;
-  const ratio = timelineDateRatio(mode, today, year);
   const timeline = container.querySelector<HTMLElement>('.co-timeline-header');
-  if (ratio === null || !timeline) return false;
+  if (!timeline) return false;
+  if (mode === 'week') {
+    const contextScrollLeft = weeklyContextScrollLeft(today, timeline.offsetWidth, container.scrollWidth, container.clientWidth, year, pastContextDays);
+    if (contextScrollLeft === null) return false;
+    container.scrollLeft = contextScrollLeft;
+    return true;
+  }
+  const ratio = timelineDateRatio(mode, today, year);
+  if (ratio === null) return false;
   const usefulViewportWidth = Math.max(0, container.clientWidth - timeline.offsetLeft);
   const todayX = timeline.offsetWidth * ratio;
   container.scrollLeft = calculateTimelineContextScrollLeft(mode, todayX, timeline.offsetWidth, usefulViewportWidth, container.scrollWidth, container.clientWidth, year, pastContextDays);

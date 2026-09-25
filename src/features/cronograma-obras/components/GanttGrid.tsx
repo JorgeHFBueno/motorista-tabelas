@@ -1,5 +1,5 @@
 import WarningAmberRounded from '@mui/icons-material/WarningAmberRounded';
-import { type DragEvent, memo, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { type DragEvent, memo, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import type { CalendarDisplayOptions } from './CalendarToggles';
 import { TimelineHeader } from './TimelineHeader';
 import { StatusBadge } from './StatusBadge';
@@ -11,6 +11,7 @@ import { masterNameContent, mastersTooltip } from '../domain/calendarDisplay';
 import { getBucketTimelineAggregate, getWeeklyTimeline, layoutOverlapLanes } from '../domain/timelineAggregation';
 import { scrollTimelineToToday } from '../domain/timelineScroll';
 import { plannedDaysInYear, yearBucket } from '../domain/calendarYears';
+import { clampObraColumnWidth, OBRA_COLUMN_WIDTH, obraGridColumns, obraGridWidth } from '../domain/obraGridColumns';
 
 interface Props { view: 'obras' | 'mestres'; zoom: ZoomCronograma; years: number[]; obras: ObraCronograma[]; workloads: MestreWorkload[]; selectedId: string | null; draggingMaster: string | null; display: CalendarDisplayOptions; centerRequest: number; onSelect: (obra: ObraCronograma) => void; onDropMaster: (obra: ObraCronograma, nome: string, target: string) => void; }
 
@@ -96,9 +97,20 @@ function MasterCells({ workload, zoom, years }: { workload: MestreWorkload; zoom
 
 export const GanttGrid = memo(function GanttGrid({ view, zoom, years, obras, workloads, selectedId, draggingMaster, display, centerRequest, onSelect, onDropMaster }: Props) {
   const scrollRef = useRef<HTMLDivElement>(null);
+  const resizeCleanupRef = useRef<(() => void) | null>(null);
+  const [obraColumnWidth, setObraColumnWidth] = useState(OBRA_COLUMN_WIDTH.default);
+  useEffect(() => () => resizeCleanupRef.current?.(), []);
   useLayoutEffect(() => { const container = scrollRef.current; if (!container || zoom === 'year') return; const frame = requestAnimationFrame(() => scrollTimelineToToday(container, { mode: zoom, today: todayCivil(), pastContextDays: 15 })); return () => cancelAnimationFrame(frame); }, [centerRequest, zoom]);
+  const startObraResize = (event: React.PointerEvent<HTMLButtonElement>) => {
+    event.preventDefault(); event.stopPropagation(); resizeCleanupRef.current?.();
+    const pointerId = event.pointerId; const handle = event.currentTarget; const startX = event.clientX; const startWidth = obraColumnWidth;
+    const move = (moveEvent: PointerEvent) => { if (moveEvent.pointerId === pointerId) setObraColumnWidth(clampObraColumnWidth(startWidth + moveEvent.clientX - startX)); };
+    const cleanup = () => { document.removeEventListener('pointermove', move); document.removeEventListener('pointerup', end); document.removeEventListener('pointercancel', end); document.body.classList.remove('co-is-resizing'); if (handle.hasPointerCapture(pointerId)) handle.releasePointerCapture(pointerId); resizeCleanupRef.current = null; };
+    const end = (endEvent: PointerEvent) => { if (endEvent.pointerId === pointerId) cleanup(); };
+    handle.setPointerCapture(pointerId); document.body.classList.add('co-is-resizing'); document.addEventListener('pointermove', move); document.addEventListener('pointerup', end); document.addEventListener('pointercancel', end); resizeCleanupRef.current = cleanup;
+  };
   const rows = view === 'obras' ? obras.length : workloads.length;
-  const left = view === 'obras' ? <><span>Obra</span><span>Mestre inicial</span><span>Status</span><span>Emp.</span><span>Início</span><span>Dias</span></> : <><span>Mestre</span><span>Obras</span><span>Dias</span><span>Livres</span><span>Conflitos</span></>;
-  const gridStyle = { '--row-count': rows, '--co-year-count': years.length } as React.CSSProperties;
+  const left = view === 'obras' ? <><span>Obra<button type="button" className="co-obra-resize-handle" aria-label="Redimensionar coluna Obra" onPointerDown={startObraResize} /></span><span>Mestre inicial</span><span>Status</span><span>Emp.</span><span>Início</span><span>Dias</span></> : <><span>Mestre</span><span>Obras</span><span>Dias</span><span>Livres</span><span>Conflitos</span></>;
+  const gridStyle = { '--row-count': rows, '--co-year-count': years.length, ...(view === 'obras' ? { '--co-left-columns': obraGridColumns(obraColumnWidth), '--co-left-width': `${obraGridWidth(obraColumnWidth)}px` } : {}) } as React.CSSProperties;
   return <section className={`co-gantt co-gantt--${view} ${draggingMaster ? 'is-dragging-master' : ''}`} aria-label="Cronograma anual"><div className="co-gantt-scroll" ref={scrollRef}><div className={`co-gantt-grid co-gantt-grid--${zoom}`} style={gridStyle}><div className="co-left-header">{left}</div><TimelineHeader zoom={zoom} years={years} />{view === 'obras' ? obras.map((obra) => <button type="button" className={`co-grid-row ${selectedId === obra.id ? 'is-selected' : ''}`} key={obra.id} onClick={() => onSelect(obra)}><div className="co-left-row"><span className="co-work-name" title={obra.nomeObra}>{obra.nomeObra}</span><span>{obra.mestreInicial ?? <em>Sem mestre</em>}</span><span><StatusBadge status={obra.status} /></span><span>{obra.empresa}</span><span>{obra.inicioPlanejado}</span><span>{obra.tempoPlanejado}</span></div><ObraCells obra={obra} zoom={zoom} years={years} draggingMaster={draggingMaster} display={display} onDrop={(target) => onDropMaster(obra, draggingMaster!, target)} /></button>) : workloads.map((workload) => <div className="co-grid-row co-grid-row--resource" key={workload.mestre}><div className="co-left-row"><span className="co-master-name"><i className="co-master-swatch" style={colorStyle(normalizeMestreKey(workload.mestre))} />{workload.mestre}</span><span>{workload.obras.length}</span><span>{workload.diasProgramados}</span><span>{workload.freeDays} dias</span><span className={workload.conflictDays ? 'co-invalid-value' : ''}>{workload.conflictDays}</span></div><MasterCells workload={workload} zoom={zoom} years={years} /></div>)}</div></div>{!rows && <div className="co-empty">Nenhum resultado para os filtros selecionados.</div>}</section>;
 });
