@@ -18,6 +18,16 @@ export function daysInMonth(inicio: CivilDate, tempo: number, month: CivilDate):
 export function yearDays(year: number): CivilDate[] { return eachDay(`${year}-01-01`, (year % 4 === 0 && (year % 100 !== 0 || year % 400 === 0)) ? 366 : 365); }
 export function dailyHeader(year: number) { return yearDays(year).map((date) => ({ date, label: date.slice(8), month: MONTHS[Number(date.slice(5, 7)) - 1], isWeekStart: weekStart(date) === date })); }
 export function weeklyHeader(year: number): CivilDate[] { const first = weekStart(`${year}-01-01`); const last = `${year}-12-31`; const result: CivilDate[] = []; for (let date = first; date <= last; date = addDays(date, 7)) result.push(date); return result; }
+/** A weekly bucket belongs to the month containing its Monday (the bucket start). */
+export function weeklyMonthGroups(year: number): Array<{ label: string; start: CivilDate; weeks: number }> {
+  return weeklyHeader(year).reduce<Array<{ label: string; start: CivilDate; weeks: number }>>((groups, start) => {
+    const label = MONTHS[Number(start.slice(5, 7)) - 1];
+    const current = groups.at(-1);
+    if (current?.label === label) current.weeks += 1;
+    else groups.push({ label, start, weeks: 1 });
+    return groups;
+  }, []);
+}
 export function monthlyHeader(year: number) { return MONTHS.map((label, index) => ({ label, start: `${year}-${String(index + 1).padStart(2, '0')}-01` })); }
 /** Calendar date in the browser's local timezone, kept in the YYYY-MM-DD civil contract. */
 export function todayCivil(): CivilDate { const now = new Date(); return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`; }

@@ -6,16 +6,15 @@ import { CalendarToggles, type CalendarDisplayOptions } from './components/Calen
 import { FiltersBar } from './components/FiltersBar';
 import { GanttGrid } from './components/GanttGrid';
 import { MasterPalette } from './components/MasterPalette';
-import { MasterPlanningDialog } from './components/MasterPlanningDialog';
 import { ObraDrawer } from './components/ObraDrawer';
 import { WorkloadPanel } from './components/WorkloadPanel';
 import { FixtureCronogramaDataSource } from './data/fixtures/fixtureCronogramaDataSource';
 import { allMasters, buildWorkloads, calculateIndicators, filterObras } from './domain/cronograma';
-import { getDropPlanningStart } from './domain/dropPlanning';
+import { getDirectMasterDropInterval } from './domain/dropPlanning';
 import { DEFAULT_CALENDAR_DISPLAY } from './domain/calendarDisplay';
 import { planningYears } from './domain/calendarYears';
 import { normalizeMestreKey } from './domain/mestres';
-import type { CivilDate, CronogramaFilters, ObraCronograma, ZoomCronograma } from './domain/models';
+import type { CronogramaFilters, ObraCronograma, ZoomCronograma } from './domain/models';
 import { todayCivil } from './domain/temporal';
 import './styles/cronograma-obras.css';
 
@@ -32,7 +31,6 @@ export default function CronogramaObrasPage() {
   const [obras, setObras] = useState<ObraCronograma[]>(() => source.listarItensCronograma());
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [draggingMaster, setDraggingMaster] = useState<string | null>(null);
-  const [pending, setPending] = useState<{ obra: ObraCronograma; mestre: string; inicio: CivilDate } | null>(null);
   const masters = useMemo(() => allMasters(obras, source.listarMestres()), [obras]);
   const filtered = useMemo(() => filterObras(obras, filters), [obras, filters]);
   const workloads = useMemo(() => buildWorkloads(filtered), [filtered]);
@@ -45,8 +43,8 @@ export default function CronogramaObrasPage() {
   const save = (next: ObraCronograma) => setObras((current) => updateObraLocal(current, next));
   const dropMaster = (obra: ObraCronograma, mestre: string, target: string) => {
     if (zoom === 'year') return;
-    const inicio = getDropPlanningStart({ obra, zoom, targetDateOrPeriod: target });
-    if (inicio) setPending({ obra, mestre, inicio });
+    const interval = getDirectMasterDropInterval({ obra, targetDate: target as CivilDate, hoje: todayCivil() });
+    if (interval) setObras((current) => addMestrePlanejadoLocal(current, obra.id, { localId: crypto.randomUUID(), mestreKey: normalizeMestreKey(mestre), nome: mestre, ...interval }));
     setDraggingMaster(null);
   };
 
@@ -55,9 +53,8 @@ export default function CronogramaObrasPage() {
     {filtersOpen && <aside className="co-filters-panel"><FiltersBar filters={filters} statuses={[...new Set(obras.map((obra) => obra.status))]} companies={[...new Set(obras.map((obra) => obra.empresa))]} masters={masters} onChange={setFilters} onToday={goToday} /></aside>}
     <section className="co-indicators"><div><span>Em andamento</span><strong>{indicators.running}</strong></div><div><span>Aguardando recurso</span><strong>{indicators.waiting}</strong></div><div><span>Mestres alocados</span><strong>{indicators.allocated}</strong></div><div><span>Obras sem mestre planejado</span><strong>{indicators.unassigned}</strong></div><div className={indicators.conflicts ? 'has-alert' : ''}><span>Conflitos de alocação</span><strong>{indicators.conflicts}</strong></div><div className="co-zoom"><span>Zoom</span>{([['day', 'Dias'], ['week', 'Semanas'], ['month', 'Meses'], ['year', 'Ano']] as const).map(([value, label]) => <button type="button" key={value} className={zoom === value ? 'is-active' : ''} onClick={() => setZoom(value)}>{label}</button>)}</div></section>
     <MasterPalette masters={masters} draggingMaster={draggingMaster} disabled={zoom === 'year'} onDragStart={setDraggingMaster} onDragEnd={() => setDraggingMaster(null)} />
-    <GanttGrid view={view} zoom={zoom} years={years} obras={filtered} workloads={workloads} selectedId={selectedId} draggingMaster={draggingMaster} display={display} centerRequest={centerRequest} onSelect={(obra) => setSelectedId(obra.id)} onDropMaster={dropMaster} />
+    <GanttGrid view={view} zoom={zoom} years={years} obras={filtered} workloads={workloads} selectedId={selectedId} draggingMaster={draggingMaster} display={display} centerRequest={centerRequest} onSelect={(obra) => setSelectedId(obra.id)} onDropMaster={dropMaster} onResizeMaster={(obraId, mestre) => setObras((current) => current.map((obra) => obra.id === obraId ? { ...obra, mestresPlanejados: obra.mestresPlanejados.map((item) => item.localId === mestre.localId ? mestre : item) } : obra))} />
     {view === 'mestres' && <WorkloadPanel workloads={workloads} />}
     <ObraDrawer obra={selected} masters={masters} onClose={() => setSelectedId(null)} onSave={save} />
-    {pending && <MasterPlanningDialog obra={pending.obra} mestre={pending.mestre} inicio={pending.inicio} onClose={() => setPending(null)} onConfirm={(dias) => { setObras((current) => addMestrePlanejadoLocal(current, pending.obra.id, { localId: crypto.randomUUID(), mestreKey: normalizeMestreKey(pending.mestre), nome: pending.mestre, inicio: pending.inicio, tempoPlanejado: dias })); setPending(null); }} />}
   </main>;
 }
