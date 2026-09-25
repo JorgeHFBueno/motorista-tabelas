@@ -14,9 +14,23 @@ export function normalizeMestreKey(value: string): string {
 /** uid should be supplied by a future catalog; normalized name keeps local fixtures stable. */
 export function getMestreKey(mestre: { uid?: string | null; nome: string }): string { return mestre.uid || normalizeMestreKey(mestre.nome); }
 
-export function getMestreColor(mestreKey: string) {
-  const hash = [...normalizeMestreKey(mestreKey)].reduce((value, char) => ((value * 31) + char.charCodeAt(0)) >>> 0, 7);
-  return PALETTE[hash % PALETTE.length];
+export type MestreColor = { background: string; text: string };
+let activeKeys: string[] = [];
+export function setActiveMestreColorKeys(keys: readonly string[]) { activeKeys = [...new Set(keys.map(normalizeMestreKey))].sort((a, b) => a.localeCompare(b, 'pt-BR')); }
+
+/**
+ * Deterministic, injective registry for the current master set. Sorting by the
+ * stable key means every surface resolves the same colour without randomness.
+ */
+export function getMestreColor(mestreKey: string, currentKeys: readonly string[] = activeKeys): MestreColor {
+  const key = normalizeMestreKey(mestreKey);
+  const keys = [...new Set([...currentKeys.map(normalizeMestreKey), key])].sort((a, b) => a.localeCompare(b, 'pt-BR'));
+  const index = keys.indexOf(key);
+  if (index < PALETTE.length) return PALETTE[index];
+  // Hues intentionally avoid the semantic blue/yellow/red range used by obras.
+  const hue = (index * 137.508 + 112) % 360;
+  return { background: `hsl(${hue.toFixed(1)} 42% 34%)`, text: '#ffffff' };
 }
+export function mestreColorRegistry(keys: readonly string[]) { const normalized = [...new Set(keys.map(normalizeMestreKey))].sort((a, b) => a.localeCompare(b, 'pt-BR')); return new Map(normalized.map((key) => [key, getMestreColor(key, normalized)])); }
 
 export { PALETTE as MESTRE_COLORS };

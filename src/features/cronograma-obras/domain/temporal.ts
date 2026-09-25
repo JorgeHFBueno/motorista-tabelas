@@ -31,4 +31,7 @@ export function weeklyMonthGroups(year: number): Array<{ label: string; start: C
 export function monthlyHeader(year: number) { return MONTHS.map((label, index) => ({ label, start: `${year}-${String(index + 1).padStart(2, '0')}-01` })); }
 /** Calendar date in the browser's local timezone, kept in the YYYY-MM-DD civil contract. */
 export function todayCivil(): CivilDate { const now = new Date(); return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`; }
-export function dateLabel(date: CivilDate | null | undefined): string { return date ? `${date.slice(8)}/${date.slice(5, 7)}/${date.slice(0, 4)}` : '—'; }
+/** Display-only formatter. Civil dates remain ISO strings throughout the domain. */
+export function formatDateShort(date: CivilDate | null | undefined): string { return date ? `${date.slice(8)}/${date.slice(5, 7)}/${date.slice(2, 4)}` : '—'; }
+/** Kept for existing callers; all UI date labels now use the compact format. */
+export const dateLabel = formatDateShort;
