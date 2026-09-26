@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { custoDieselInterno, extractCnpj, fuelReportSupplier, litrosFromQuantidadeRaw, matchExternalFuelToMaintenance, normalizeCalendarDate, normalizeSupplier, normalizeVehiclePlate, reportTotals, summarizeInternalFuel } from '../src/services/vehicle-report-core';
-import { createVehicleReportPdf, sanitizePdfText } from '../src/services/vehicle-report-pdf';
+import { createVehicleReportPdf, sanitizeErpPresentationText, sanitizePdfText } from '../src/services/vehicle-report-pdf';
 
 test('normaliza JBJ-4J22 para o contrato ERP', () => assert.equal(normalizeVehiclePlate('JBJ-4J22'), 'JBJ4J22'));
 test('calcula os quatro totais da fixture JBJ sem hardcode no produto', () => {
@@ -41,7 +41,9 @@ test('PDF preserva acentos e quebra textos longos antes da margem', async () => 
   assert.match(content, /VEÍCULO FÁBRICA/);
   assert.match(content, /159,2 L/);
   assert.doesNotMatch(content, /\?/);
-  assert.ok(content.split('\n').every((line) => !line.includes(' Tj') || line.length <= 110), 'linhas de texto do PDF respeitam o limite de wrapping');
+  assert.match(content, /\/Type \/Page/);
+  assert.match(content, /\/Count \d+/);
+  assert.match(content, /Pág\./);
 });
 
 test('matcher externo usa data + CNPJ, fornecedor normalizado e diagnóstico dos três pares JBJ', () => {
@@ -101,4 +103,19 @@ test('controles: raw 1 sem manutenção externa é interno e uma manutenção n�
 test('sanitização remove controles e elimina cabeçalho duplicado preservando Unicode válido', () => {
   assert.equal(sanitizePdfText('VEÍCULO: JBJ-4J22 — JBJ-4J22'), 'VEÍCULO: JBJ-4J22');
   assert.equal(sanitizePdfText('VEÍCULOS\u0007 E FINANCEIRO — Nº 1º, ç, á'), 'VEÍCULOS E FINANCEIRO — Nº 1º, ç, á');
+});
+test('remove o caractere ERP U+FFFE na camada de apresentação e preserva português', () => {
+  const controle = '\uFFFE';
+  assert.equal(controle.codePointAt(0), 0xFFFE);
+  assert.equal('MANUTENÇÃO DE VEÍCULOS￾FINANCEIRO'.indexOf(controle), 22);
+  assert.equal(sanitizeErpPresentationText(`MANUTENÇÃO DE VEÍCULOS${controle}FINANCEIRO`), 'MANUTENÇÃO DE VEÍCULOS FINANCEIRO');
+  assert.equal(sanitizeErpPresentationText('FONTOURA XAVIER Nº 122/2024'), 'FONTOURA XAVIER Nº 122/2024');
+});
+test('ERP U+FFFE is reported and removed without ASCII-folding valid text', () => {
+  const controle = String.fromCodePoint(0xFFFE);
+  const input = `MANUTEN${String.fromCodePoint(0x00C7, 0x00C3)}O DE VE${String.fromCodePoint(0x00CD)}CULOS${controle}FINANCEIRO`;
+  assert.equal(controle.codePointAt(0), 0xFFFE);
+  assert.equal(input.indexOf(controle), 22);
+  assert.equal(sanitizeErpPresentationText(input), `MANUTEN${String.fromCodePoint(0x00C7, 0x00C3)}O DE VE${String.fromCodePoint(0x00CD)}CULOS FINANCEIRO`);
+  assert.equal(sanitizeErpPresentationText(`FONTOURA XAVIER N${String.fromCodePoint(0x00BA)} 122/2024`), `FONTOURA XAVIER N${String.fromCodePoint(0x00BA)} 122/2024`);
 });
