@@ -1,77 +1,13 @@
-import { useEffect, useState } from 'react';
-import type { User } from 'firebase/auth';
-import { getAuthorizationProfile } from '../services/authorizationProfile';
+import { useAuthorizationProfile } from './useAuthorizationProfile';
+import { isAdm2Authorized } from '../services/webAuthorization';
 
-interface Adm2AuthorizationState {
-    loading: boolean;
-    authorized: boolean | null;
-    error: boolean;
-    checkedEmail: string | null;
-}
-
-export function useAdm2Authorization(currentUser: User | null, authLoading: boolean): Adm2AuthorizationState {
-    const [state, setState] = useState<Adm2AuthorizationState>({
-        loading: true,
-        authorized: null,
-        error: false,
-        checkedEmail: null,
-    });
-
-    useEffect(() => {
-        let isMounted = true;
-
-        async function validateAdm2() {
-            if (authLoading) {
-                if (isMounted) {
-                    setState({ loading: true, authorized: null, error: false, checkedEmail: null });
-                }
-                return;
-            }
-
-            if (!currentUser) {
-                if (isMounted) {
-                    setState({ loading: false, authorized: null, error: false, checkedEmail: null });
-                }
-                return;
-            }
-
-            const normalizedEmail = currentUser.email?.trim().toLowerCase();
-
-            if (!normalizedEmail) {
-                if (isMounted) {
-                    setState({ loading: false, authorized: false, error: false, checkedEmail: null });
-                }
-                return;
-            }
-
-            if (isMounted) {
-                setState({ loading: true, authorized: null, error: false, checkedEmail: normalizedEmail });
-            }
-
-            try {
-                const profile = await getAuthorizationProfile(currentUser.uid, normalizedEmail);
-                const authorized = profile.ativo && profile.adm2;
-
-                if (isMounted) {
-                    setState({ loading: false, authorized, error: false, checkedEmail: normalizedEmail });
-                }
-            } catch (error) {
-                if (import.meta.env.DEV) {
-                    console.error('Erro ao validar permissão adm2 no Firestore.', error);
-                }
-
-                if (isMounted) {
-                    setState({ loading: false, authorized: false, error: true, checkedEmail: normalizedEmail });
-                }
-            }
-        }
-
-        void validateAdm2();
-
-        return () => {
-            isMounted = false;
-        };
-    }, [authLoading, currentUser]);
-
-    return state;
+export function useAdm2Authorization() {
+  const { loading, profile, error, errorDetail, checkedUid } = useAuthorizationProfile();
+  return {
+    loading,
+    authorized: loading ? null : isAdm2Authorized(profile),
+    error,
+    errorDetail,
+    checkedUid,
+  } as const;
 }

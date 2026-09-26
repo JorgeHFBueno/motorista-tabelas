@@ -53,6 +53,8 @@ import { useAuth } from '../contexts/AuthContext';
 import { db } from '../firebase';
 import { normalizeFornecedorNumero } from '../services/fornecedores.service';
 import { normalizarMovimentoCombustivel } from '../services/combustivel-normalizer';
+import { buildVehicleReport } from '../services/vehicle-report.service';
+import { createVehicleReportPdf } from '../services/vehicle-report-pdf';
 
 const FrotaCharts = lazy(() => import('../components/FrotaCharts'));
 type Veiculo = {
@@ -257,6 +259,7 @@ export default function FrotaVeiculoDetalhesPage() {
     const { isAdmin, currentUser } = useAuth();
 
     const [veiculo, setVeiculo] = useState<Veiculo | null>(null);
+    const [generatingReport, setGeneratingReport] = useState(false);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
 
@@ -1097,6 +1100,30 @@ export default function FrotaVeiculoDetalhesPage() {
             .sort((a, b) => b.value - a.value);
     }, [rowsByType]);
 
+    const handleGenerateReport = async () => {
+        if (!veiculo || generatingReport) return;
+        const vehiclePlate = veiculo.placa ?? placa ?? '';
+        if (!vehiclePlate) {
+            setSnackbar({ open: true, severity: 'error', message: 'A placa do veículo não está disponível.' });
+            return;
+        }
+        const dataInicial = '2025-01-01';
+        const dataFinal = new Date().toISOString().slice(0, 10);
+        try {
+            setGeneratingReport(true);
+            const report = await buildVehicleReport({ placa: vehiclePlate, vehicleId: veiculo.id, vehicleName: tituloVeiculo, dataInicial, dataFinal });
+            const file = createVehicleReportPdf(report);
+            const link = document.createElement('a');
+            link.href = URL.createObjectURL(file);
+            link.download = `Relatorio-Custos-${vehiclePlate.replace(/[^A-Za-z0-9-]/g, '')}-${dataInicial}-${dataFinal}.pdf`;
+            link.click();
+            URL.revokeObjectURL(link.href);
+        } catch (err) {
+            console.error('Erro ao gerar relatório veicular', err);
+            setSnackbar({ open: true, severity: 'error', message: 'Relatório não gerado: uma fonte Firestore, ERP ou PDF falhou.' });
+        } finally { setGeneratingReport(false); }
+    };
+
     if (loading) {
         return (
             <Container sx={{ py: 4 }}>
@@ -1134,12 +1161,10 @@ export default function FrotaVeiculoDetalhesPage() {
                         Voltar para Frota
                     </Button>
                     {veiculo && (
-                        <Button
-                            variant="outlined"
-                            onClick={() => navigate(`/frota/analytics?veiculo=${encodeURIComponent(veiculo.id)}`)}
-                        >
-                            Ver no Analytics
-                        </Button>
+                        <>
+                            <Button variant="outlined" onClick={() => navigate(`/frota/analytics?veiculo=${encodeURIComponent(veiculo.id)}`)}>Ver no Analytics</Button>
+                            <Button variant="contained" onClick={handleGenerateReport} disabled={generatingReport}>{generatingReport ? 'Gerando Relatório...' : 'Gerar Relatório'}</Button>
+                        </>
                     )}
                     <Button variant="contained" onClick={handleSave} disabled={saving}>
                         {saving ? 'Salvando...' : 'Salvar'}

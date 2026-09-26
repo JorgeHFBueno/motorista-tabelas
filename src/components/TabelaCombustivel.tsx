@@ -76,8 +76,8 @@ export default function TabelaCombustivel() {
   const { data: rows, loading, create, update, remove } = useCombustivel();
   const principalGridApiRef = useGridApiRef();
   const navigate = useNavigate();
-  const { currentUser, loading: authLoading, isAdmin } = useAuth();
-  const { profile } = useAuthorizationProfile(currentUser, authLoading);
+  const { isAdmin } = useAuth();
+  const { profile } = useAuthorizationProfile();
   const isAdm1 = profile?.adm1 === true;
   const { requestAccess, dialog } = useAdm1MontanteGate(isAdm1);
   const { isOnline } = useOnlineStatus();

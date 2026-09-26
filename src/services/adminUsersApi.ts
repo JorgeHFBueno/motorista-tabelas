@@ -90,8 +90,10 @@ function mapAdminApiError(code: string, fallback: string) {
       return 'Sua sessao expirou ou o token de autenticacao e invalido. Faca login novamente.';
     case 'requester_missing_email':
       return 'Seu usuario autenticado nao possui email valido para validar permissao.';
+    case 'authorization_unavailable':
+      return 'Não foi possível verificar sua autorização agora. Tente novamente.';
     case 'forbidden':
-      return 'Seu usuario nao possui permissao adm2 em 00-autorizados para administrar usuarios.';
+      return 'Seu usuário não possui permissão adm2 ativa em Funcionários para administrar usuários.';
     default:
       return fallback;
   }
@@ -140,6 +142,8 @@ function mapUpdateError(errorCode: string) {
       return 'Sua sessao expirou ou o token de autenticacao e invalido. Faca login novamente.';
     case 'requester_missing_email':
       return 'Seu usuario autenticado nao possui email valido para validar permissao.';
+    case 'authorization_unavailable':
+      return 'Não foi possível verificar sua autorização agora. Tente novamente.';
     case 'missing_email':
       return 'O usuario precisa ter um email para sincronizar a autorizacao.';
     case 'invalid_disabled':
@@ -181,6 +185,8 @@ function mapRegisterError(errorCode: string) {
       return 'Sua sessao expirou ou o token de autenticacao e invalido. Faca login novamente.';
     case 'requester_missing_email':
       return 'Seu usuario autenticado nao possui email valido para validar permissao.';
+    case 'authorization_unavailable':
+      return 'Não foi possível verificar sua autorização agora. Tente novamente.';
     case 'missing_nome':
       return 'Informe o nome.';
     case 'missing_email':

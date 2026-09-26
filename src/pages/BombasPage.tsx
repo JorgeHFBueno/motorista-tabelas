@@ -48,7 +48,9 @@ import {
   parsePtBrNumber,
   unidadeBombaParaLitros,
   suggestBatch,
-  normalizeFuelMovement,
+  normalizeBombaLatestEntry,
+  filterFuelMovements,
+  type MovementFilter,
 } from '../utils/bombasDomain';
 
 type Feedback = { message: string; severity: 'success' | 'error' };
@@ -73,8 +75,8 @@ function bombaName(bomba: Bomba): string {
 }
 
 export default function BombasPage() {
-  const { currentUser, loading: authLoading } = useAuth();
-  const { profile, loading: authorizationLoading } = useAuthorizationProfile(currentUser, authLoading);
+  const { currentUser } = useAuth();
+  const { profile, loading: authorizationLoading } = useAuthorizationProfile();
   const canRegister = profile?.adm2 === true;
   const [bombas, setBombas] = useState<Bomba[]>([]);
   const [selectedId, setSelectedId] = useState('');
@@ -142,7 +144,7 @@ export default function BombasPage() {
   };
 
   const latestPurchase = selectedBomba?.ultimaEntrada
-    ? normalizeFuelMovement({ id: selectedBomba.ultimaEntrada.movimentoId, ...selectedBomba.ultimaEntrada, tipo: 'entrada' })
+    ? normalizeBombaLatestEntry({ id: selectedBomba.ultimaEntrada.movimentoId, ...selectedBomba.ultimaEntrada, tipo: 'entrada' })
     : legacyLatestPurchase;
   const total = latestPurchase?.preco;
   const purchased = unidadeBombaParaLitros(latestPurchase?.litrosComprados);
@@ -190,7 +192,7 @@ export default function BombasPage() {
     if (!(litersValue > 0) || !Number.isFinite(litersValue)) return setFormError('Informe litros comprados maior que zero.');
     if (!purchaseDate) return setFormError('Informe a data da compra.');
     if (!batch.trim()) return setFormError('Informe o lote da compra.');
-    if (!currentUser?.uid || !currentUser.email) return setFormError('Usuário autenticado não identificado.');
+    if (!currentUser?.uid) return setFormError('Usuário autenticado não identificado.');
 
     const [year, month, day] = purchaseDate.split('-').map(Number);
     const now = new Date();
@@ -205,7 +207,6 @@ export default function BombasPage() {
         purchaseDate: selectedDate,
         batch,
         authUid: currentUser.uid,
-        userEmail: currentUser.email,
       });
       setEntryOpen(false);
       setFeedback({ message: 'Entrada de diesel registrada e estoque atualizado.', severity: 'success' });
@@ -412,14 +413,24 @@ function HistoryDialog({ open, onClose, movements, loading, dateLabel, litersLab
   litersLabel: (value: number | null) => string;
   currency: Intl.NumberFormat;
 }) {
+  const [filter, setFilter] = useState<MovementFilter>('todos');
+  const visibleMovements = filterFuelMovements(movements, filter);
+
   return (
     <Dialog open={open} onClose={onClose} fullWidth maxWidth="md">
       <DialogTitle>Histórico da bomba</DialogTitle>
       <DialogContent>
         {loading && <LinearProgress />}
-        {!loading && movements.length === 0 && <Alert severity="info">Esta bomba ainda não possui histórico compatível.</Alert>}
+        {!loading && visibleMovements.length === 0 && <Alert severity="info">Esta bomba ainda não possui histórico compatível.</Alert>}
+        <Stack direction="row" spacing={1} sx={{ py: 1 }}>
+          {([['todos', 'Todos'], ['entrada', 'Entradas'], ['saida', 'Saídas']] as const).map(([value, label]) => (
+            <Button key={value} size="small" variant={filter === value ? 'contained' : 'outlined'} onClick={() => setFilter(value)}>
+              {label}
+            </Button>
+          ))}
+        </Stack>
         <Stack divider={<Divider flexItem />}>
-          {movements.map((movement) => {
+          {visibleMovements.map((movement) => {
             const type = movement.tipo;
             const label = type === 'entrada' ? 'Entrada de diesel' : type === 'ajuste' ? 'Ajuste' : 'Abastecimento / saída';
             return (

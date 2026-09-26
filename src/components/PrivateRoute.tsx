@@ -3,6 +3,7 @@ import { CircularProgress, Stack, Typography } from '@mui/material';
 import { useAuth } from '../contexts/AuthContext';
 import { useAuthorizationProfile } from '../hooks/useAuthorizationProfile';
 import { isAdm1RouteRestricted } from '../services/adm1RouteAuthorization';
+import { isAdm1Only, isWebAdminAuthorized } from '../services/webAuthorization';
 
 function RouteGuardLoading() {
   return (
@@ -16,7 +17,7 @@ function RouteGuardLoading() {
 export default function PrivateRoute() {
   const location = useLocation();
   const { currentUser, loading: authLoading } = useAuth();
-  const { loading: authorizationLoading, profile, error } = useAuthorizationProfile(currentUser, authLoading);
+  const { loading: authorizationLoading, profile, error } = useAuthorizationProfile();
 
   if (authLoading) {
     return <RouteGuardLoading />;
@@ -26,35 +27,33 @@ export default function PrivateRoute() {
     return <Navigate to="/login" replace />;
   }
 
-  if (!currentUser.email?.trim()) {
-    return <Navigate to="/acesso-negado" replace state={{ reason: 'missing-email' }} />;
-  }
-
   if (authorizationLoading) {
     return <RouteGuardLoading />;
   }
 
-  if (error || profile === null) {
+  if (error) {
     return <Navigate to="/acesso-negado" replace state={{ reason: 'firestore-error' }} />;
   }
 
-  if (!profile.ativo) {
+  if (profile === null || !profile.exists) {
+    return <Navigate to="/acesso-negado" replace state={{ reason: 'missing-funcionario' }} />;
+  }
+
+  if (profile.ativo !== true) {
     return <Navigate to="/acesso-negado" replace state={{ reason: 'inactive' }} />;
   }
 
-  const authorized = profile.adm1 || profile.adm2;
-
-  if (!authorized) {
+  if (!isWebAdminAuthorized(profile)) {
     return (
       <Navigate
         to="/acesso-negado"
         replace
-        state={{ reason: error ? 'firestore-error' : 'missing-admin' }}
+        state={{ reason: 'missing-admin' }}
         />
     );
   }
 
-  const shouldRestrictByAdm1 = isAdm1RouteRestricted(location.pathname, profile.adm1 === true);
+  const shouldRestrictByAdm1 = isAdm1RouteRestricted(location.pathname, isAdm1Only(profile));
 
   if (shouldRestrictByAdm1) {
     if (import.meta.env.DEV) {

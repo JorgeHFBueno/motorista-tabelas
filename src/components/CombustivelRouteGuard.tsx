@@ -15,16 +15,19 @@ function CombustivelRouteGuardLoading() {
 
 export default function CombustivelRouteGuard() {
   const location = useLocation();
-  const { currentUser, loading: authLoading } = useAuth();
-  const { loading: authorizationLoading, profile, error } = useAuthorizationProfile(currentUser, authLoading);
+  const { loading: authLoading } = useAuth();
+  const { loading: authorizationLoading, profile, error } = useAuthorizationProfile();
 
   if (authLoading || authorizationLoading) {
     return <CombustivelRouteGuardLoading />;
   }
 
-  if (error || profile === null || !profile.ativo) {
+  if (error) {
     return <Navigate to="/acesso-negado" replace state={{ reason: 'firestore-error' }} />;
   }
+
+  if (profile === null || !profile.exists) return <Navigate to="/acesso-negado" replace state={{ reason: 'missing-funcionario' }} />;
+  if (!profile.ativo) return <Navigate to="/acesso-negado" replace state={{ reason: 'inactive' }} />;
 
   const isAdm1 = profile.adm1 === true;
   const shouldRedirect = isCombustivelAdm1Restricted(location.pathname, isAdm1);

@@ -16,7 +16,7 @@ function snapshot(uid: string, nome: string) { return { uid: uid.trim(), nomeSna
 
 export default function CombustivelNovoPage() {
   const navigate = useNavigate(); const { currentUser, loading: authLoading } = useAuth();
-  const { profile, loading: profileLoading } = useAuthorizationProfile(currentUser, authLoading);
+  const { profile, loading: profileLoading } = useAuthorizationProfile();
   const [vehicles, setVehicles] = useState<VeiculoOption[]>([]); const [obras, setObras] = useState<ObraSelecaoOption[]>([]); const [people, setPeople] = useState<MotoristaOption[]>([]); const [motivos, setMotivos] = useState<string[]>([]);
   const [vehicle, setVehicle] = useState<VeiculoOption | null>(null); const [obra, setObra] = useState<ObraSelecaoOption | null>(null); const [receiver, setReceiver] = useState<MotoristaOption | null>(null); const [operator, setOperator] = useState<MotoristaOption | null>(null);
   const [mode, setMode] = useState<'direto' | 'galao'>('direto'); const [date, setDate] = useState(new Date().toISOString().slice(0, 16)); const [qa, setQa] = useState<number | null>(null); const [montanteInicial, setMontanteInicial] = useState<number | null>(null); const [finalAmount, setFinalAmount] = useState<number | null>(null); const [focusedMeter, setFocusedMeter] = useState<'li' | 'qa' | 'lf' | null>(null); const [km, setKm] = useState(''); const [horimetro, setHorimetro] = useState(''); const [motivo, setMotivo] = useState(''); const [observacao, setObservacao] = useState(''); const [arla, setArla] = useState('0'); const [error, setError] = useState(''); const [saving, setSaving] = useState(false);

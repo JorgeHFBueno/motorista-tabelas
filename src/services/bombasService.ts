@@ -34,7 +34,6 @@ export interface DieselEntryInput {
   purchaseDate: Date;
   batch: string;
   authUid: string;
-  userEmail: string;
 }
 
 export async function listBombas(): Promise<Bomba[]> {
@@ -71,9 +70,8 @@ export async function registerDieselEntry(input: DieselEntryInput): Promise<void
   if (input.bombaId !== DIESEL_PATIO_ID) {
     throw new Error('O Flutter permite entrada de diesel somente em bombas/diesel_patio.');
   }
-  if (!input.authUid.trim()) throw new Error('Usuário autenticado não identificado.');
-  const motoristaDocumentId = input.userEmail.trim().toLowerCase();
-  if (!motoristaDocumentId) throw new Error('Perfil Firestore do responsável não identificado.');
+  if (!input.authUid) throw new Error('Usuário autenticado não identificado.');
+  const funcionarioDocumentId = input.authUid;
   if (!(input.totalPrice > 0) || !Number.isFinite(input.totalPrice)) {
     throw new Error('Informe um preço total válido.');
   }
@@ -88,20 +86,20 @@ export async function registerDieselEntry(input: DieselEntryInput): Promise<void
   const unitPrice = input.totalPrice / input.purchasedLiters;
   const bombaRef = doc(db, BOMBAS_COLLECTION, DIESEL_PATIO_ID);
   const movementRef = doc(collection(db, COMBUSTIVEL_COLLECTION));
-  const motoristaRef = doc(db, '00-autorizados', motoristaDocumentId);
+  const funcionarioRef = doc(db, 'funcionarios', funcionarioDocumentId);
   const timestamp = Timestamp.fromDate(input.purchaseDate);
 
   await runTransaction(db, async (transaction) => {
     const bombaSnapshot = await transaction.get(bombaRef);
     const movementSnapshot = await transaction.get(movementRef);
-    const motoristaSnapshot = await transaction.get(motoristaRef);
+    const funcionarioSnapshot = await transaction.get(funcionarioRef);
     if (!bombaSnapshot.exists()) throw new Error('Documento bombas/diesel_patio não encontrado.');
     if (movementSnapshot.exists()) throw new Error('Já existe uma entrada registrada neste mesmo segundo.');
-    if (!motoristaSnapshot.exists()) throw new Error('Cadastro Firestore do responsável não encontrado.');
+    if (!funcionarioSnapshot.exists()) throw new Error('Cadastro em Funcionários do responsável não encontrado.');
 
-    const motoristaName = motoristaSnapshot.data().nome;
-    if (typeof motoristaName !== 'string' || !motoristaName.trim()) {
-      throw new Error('O cadastro Firestore do responsável não possui nome.');
+    const funcionarioName = funcionarioSnapshot.data().nome;
+    if (typeof funcionarioName !== 'string' || !funcionarioName.trim()) {
+      throw new Error('O cadastro em Funcionários do responsável não possui nome.');
     }
 
     const currentPumpAmount = bombaSnapshot.data().montanteAtual;
@@ -124,8 +122,8 @@ export async function registerDieselEntry(input: DieselEntryInput): Promise<void
       ...buildDieselEntryRecord({
         date: input.purchaseDate,
         bombaId: DIESEL_PATIO_ID,
-        responsavelId: motoristaDocumentId,
-        responsavelNome: motoristaName,
+        responsavelId: funcionarioDocumentId,
+        responsavelNome: funcionarioName,
         estoqueAntes: currentStock,
         estoqueAposMovimento: newPumpState.estoqueAtual,
         montanteSnapshot: currentPumpAmount,
@@ -145,8 +143,8 @@ export async function registerDieselEntry(input: DieselEntryInput): Promise<void
         totalPrice: input.totalPrice,
         unitPrice,
         batch: input.batch,
-        responsavelId: motoristaDocumentId,
-        responsavelNome: motoristaName,
+        responsavelId: funcionarioDocumentId,
+        responsavelNome: funcionarioName,
       }),
       ultimaMovimentacao: { movimentoId: movementRef.id, tipo: 'entrada', data: timestamp },
       atualizadoEm: Timestamp.now(),

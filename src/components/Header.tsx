@@ -9,8 +9,8 @@ import { useAuthorizationProfile } from '../hooks/useAuthorizationProfile';
 import { useAdm1MontanteGate } from '../hooks/useAdm1MontanteGate';
 
 export default function Header() {
-  const { currentUser, signOut, loading: authLoading } = useAuth();
-  const { loading: authorizationLoading, profile } = useAuthorizationProfile(currentUser, authLoading);
+  const { currentUser, signOut } = useAuth();
+  const { loading: authorizationLoading, profile } = useAuthorizationProfile();
   const isAdm1 = profile?.adm1 === true;
   const [perfilOpen, setPerfilOpen] = useState(false);
   const navigate = useNavigate();

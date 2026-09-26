@@ -1,28 +1,23 @@
 import { Request, Response, NextFunction } from 'express';
 import type { DecodedIdToken } from 'firebase-admin/auth';
 import { adminAuth, db } from './firebaseAdmin.js';
+import {
+  createAdminAuthorizationReader,
+  type AdminAuthorization,
+} from './adminAuthorization.js';
 
-type AuthorizationProfile = {
-  exists: boolean;
-  ativo: boolean;
-  adm1: boolean;
-  adm2: boolean;
-};
-
-const authorizedCollection = db.collection('00-autorizados');
 const employeesCollection = db.collection('funcionarios');
-
-function normalizeEmail(rawEmail: unknown) {
-  return typeof rawEmail === 'string' ? rawEmail.trim().toLowerCase() : '';
-}
+const readAdminAuthorization = createAdminAuthorizationReader(async (uid) => {
+  const snapshot = await employeesCollection.doc(uid).get();
+  return snapshot.exists ? snapshot.data() : undefined;
+});
 
 export interface AdminRequest extends Request {
-  // Attach decoded token after verification so handlers can inspect identity and permissions.
   user?: DecodedIdToken & { isAdmin?: boolean; admin?: boolean };
-  authorization?: AuthorizationProfile;
+  authorization?: AdminAuthorization;
 }
 
-// Middleware that verifies the Firebase ID token and enforces adm2 authorization in Firestore.
+// Firebase Auth proves identity; funcionarios/{auth.uid} grants adm2 access.
 export async function adminAuthMiddleware(
   req: AdminRequest,
   res: Response,
@@ -36,24 +31,17 @@ export async function adminAuthMiddleware(
     return;
   }
 
-  const idToken = match[1];
+  let decoded: DecodedIdToken;
+  try {
+    decoded = await adminAuth.verifyIdToken(match[1]);
+  } catch (err: any) {
+    console.error('verifyIdToken error', err);
+    res.status(401).json({ error: err?.code === 'auth/id-token-expired' ? 'expired_token' : 'invalid_token' });
+    return;
+  }
 
   try {
-    const decoded = await adminAuth.verifyIdToken(idToken);
-    const employeeDoc = await employeesCollection.doc(decoded.uid).get();
-    const employeeData = employeeDoc.exists ? employeeDoc.data() : null;
-    const normalizedEmail = normalizeEmail(decoded.email);
-    const authorizationDoc = employeeDoc.exists || !normalizedEmail
-      ? null
-      : await authorizedCollection.doc(normalizedEmail).get();
-    const authorizationData = employeeData ?? (authorizationDoc?.exists ? authorizationDoc.data() : null);
-    const authorization = {
-      exists: employeeDoc.exists || Boolean(authorizationDoc?.exists),
-      ativo: employeeDoc.exists ? employeeData?.ativo === true : authorizationData?.ativo !== false && authorizationData?.active !== false,
-      adm1: employeeDoc.exists ? employeeData?.perfis?.adm1 === true : authorizationData?.adm1 === true,
-      adm2: employeeDoc.exists ? employeeData?.perfis?.adm2 === true : authorizationData?.adm2 === true,
-    };
-
+    const authorization = await readAdminAuthorization(decoded.uid);
     if (!authorization.ativo || !authorization.adm2) {
       res.status(403).json({ error: 'forbidden' });
       return;
@@ -65,8 +53,8 @@ export async function adminAuthMiddleware(
     };
     req.authorization = authorization;
     next();
-  } catch (err: any) {
-    console.error('verifyIdToken error', err);
-    res.status(401).json({ error: err?.code === 'auth/id-token-expired' ? 'expired_token' : 'invalid_token' });
+  } catch (err) {
+    console.error('funcionario authorization read error', err);
+    res.status(503).json({ error: 'authorization_unavailable' });
   }
 }

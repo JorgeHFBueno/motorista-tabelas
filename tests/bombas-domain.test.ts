@@ -12,6 +12,8 @@ import {
   getPumpIndicators,
   litrosParaUnidadeBomba,
   normalizeFuelMovement,
+  normalizeBombaLatestEntry,
+  filterFuelMovements,
   parsePtBrNumber,
   reaisParaCentavos,
   unidadeBombaParaLitros,
@@ -79,6 +81,37 @@ test('card VI usa montanteAtual e card VII usa estoqueAtual como conceitos disti
     getPumpIndicators({ montanteAtual: 123_500, estoqueAtual: 34_000 }),
     { montanteLiters: 12_350, stockLiters: 3_400 },
   );
+});
+
+test('normaliza snapshot v2 de ultimaEntrada sem exigir estoqueAposMovimento', () => {
+  const movement = normalizeBombaLatestEntry({
+    id: 'snapshot-entry', data: new Date(), schemaVersion: 2, tipo: 'entrada',
+    litrosComprados: 50_000, preco: 2_900_000, precoLitro: 580, lote: '1006',
+  });
+  assert.equal(movement.litrosComprados, 50_000);
+  assert.equal(movement.quantidadeMovimentada, 50_000);
+  assert.equal(unidadeBombaParaLitros(movement.litrosComprados), 5_000);
+  assert.equal(movement.preco, 29_000);
+  assert.equal(movement.precoLitro, 5.8);
+});
+
+test('preserva quantidade de entrada zero e converte quantidade de saída', () => {
+  const entrada = normalizeBombaLatestEntry({ id: 'zero', data: new Date(), schemaVersion: 2, tipo: 'entrada', litrosComprados: 0, preco: 0, precoLitro: 0, lote: '0' });
+  const saida = normalizeFuelMovement({ id: 'saida', data: new Date(), schemaVersion: 2, tipo: 'saida', quantidadeAbastecida: 873 });
+  assert.equal(entrada.quantidadeMovimentada, 0);
+  assert.equal(unidadeBombaParaLitros(entrada.quantidadeMovimentada), 0);
+  assert.equal(saida.quantidadeMovimentada, 873);
+  assert.equal(unidadeBombaParaLitros(saida.quantidadeMovimentada), 87.3);
+});
+
+test('filtra movimentos normalizados localmente', () => {
+  const movements = [
+    normalizeFuelMovement({ id: 'e', data: new Date(), tipo: 'entrada', litrosComprados: 50_000, estoqueAposMovimento: 50_000 }),
+    normalizeFuelMovement({ id: 's', data: new Date(), tipo: 'saida', quantidadeAbastecida: 873 }),
+  ];
+  assert.deepEqual(filterFuelMovements(movements, 'todos').map((item) => item.id), ['e', 's']);
+  assert.deepEqual(filterFuelMovements(movements, 'entrada').map((item) => item.id), ['e']);
+  assert.deepEqual(filterFuelMovements(movements, 'saida').map((item) => item.id), ['s']);
 });
 
 test('entrada de 1.000 L aumenta só o estoque e preserva o montante', () => {

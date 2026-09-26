@@ -28,6 +28,7 @@ export interface FuelMovementSource {
   motivo?: string;
   schemaVersion?: number;
   litrosComprados?: number;
+  quantidadeAbastecida?: number;
   qa?: number;
   diesel?: number;
   lf?: number;
@@ -57,6 +58,8 @@ export interface FuelMovement {
   tipo: 'entrada' | 'saida' | 'ajuste';
   motivo?: string;
   litrosComprados?: number;
+  quantidadeAbastecida?: number;
+  quantidadeMovimentada?: number;
   estoqueAntes?: number;
   estoqueAposMovimento?: number;
   montanteSnapshot?: number;
@@ -252,7 +255,12 @@ export function normalizeFuelMovement(source: FuelMovementSource): FuelMovement 
     // Both canonical and legacy volume fields are returned in persisted units.
     litrosComprados: isCanonicalEntry
       ? finiteNumber(source.litrosComprados, undefined)
-      : finiteNumber(source.qa, undefined),
+      : isEntry
+        ? finiteNumber(source.qa, undefined)
+        : finiteNumber(source.quantidadeAbastecida, source.qa),
+    quantidadeMovimentada: isEntry
+      ? (isCanonicalEntry ? finiteNumber(source.litrosComprados, undefined) : finiteNumber(source.qa, undefined))
+      : finiteNumber(source.quantidadeAbastecida, source.qa),
     estoqueAntes: finiteNumber(source.estoqueAntes, undefined),
     estoqueAposMovimento: finiteNumber(source.estoqueAposMovimento, source.diesel),
     montanteSnapshot: finiteNumber(source.montanteSnapshot, source.lf),
@@ -273,4 +281,35 @@ export function normalizeFuelMovement(source: FuelMovementSource): FuelMovement 
     obra: source.obra,
     bombaId: source.bombaId,
   };
+}
+
+/** Normalizes the intentionally abbreviated bombas/{id}.ultimaEntrada snapshot. */
+export function normalizeBombaLatestEntry(source: FuelMovementSource): FuelMovement {
+  const litrosComprados = finiteNumber(source.litrosComprados, source.qa);
+  return {
+    id: source.id,
+    data: source.data,
+    schemaVersion: source.schemaVersion,
+    tipo: 'entrada',
+    litrosComprados,
+    quantidadeMovimentada: litrosComprados,
+    preco: source.schemaVersion === BOMBAS_SCHEMA_VERSION
+      ? (typeof source.preco === 'number' && Number.isFinite(source.preco) ? centavosParaReais(source.preco) : undefined)
+      : finiteNumber(source.preco, source.precoTotal),
+    precoLitro: source.schemaVersion === BOMBAS_SCHEMA_VERSION
+      ? (typeof source.precoLitro === 'number' && Number.isFinite(source.precoLitro) ? centavosParaReais(source.precoLitro) : undefined)
+      : finiteNumber(source.precoLitro, source.precoPorLitro),
+    lote: source.lote,
+    responsavel: source.responsavel
+      ? { id: source.responsavel.id?.trim() || '', nome: source.responsavel.nome?.trim() || '' }
+      : undefined,
+    bombaId: source.bombaId,
+  };
+}
+
+export type MovementFilter = 'todos' | 'entrada' | 'saida';
+
+export function filterFuelMovements(movements: FuelMovement[], filter: MovementFilter): FuelMovement[] {
+  if (filter === 'todos') return movements;
+  return movements.filter((movement) => movement.tipo === filter);
 }

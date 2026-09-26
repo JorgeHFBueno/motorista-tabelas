@@ -6,7 +6,6 @@ import LocalGasStationIcon from '@mui/icons-material/LocalGasStation';
 import WorkspacesIcon from '@mui/icons-material/Workspaces';
 import { useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useAuth } from '../contexts/AuthContext';
 import { useAuthorizationProfile } from '../hooks/useAuthorizationProfile';
 import { useAdm1MontanteGate } from '../hooks/useAdm1MontanteGate';
 
@@ -55,8 +54,7 @@ const actions = [
 
 export default function HomeDashboard() {
   const navigate = useNavigate();
-  const { currentUser, loading: authLoading } = useAuth();
-  const { loading: authorizationLoading, profile } = useAuthorizationProfile(currentUser, authLoading);
+  const { loading: authorizationLoading, profile } = useAuthorizationProfile();
   const isAdm1 = profile?.adm1 === true;
   const isAdm2 = profile?.adm2 === true;
   const { requestAccess, dialog } = useAdm1MontanteGate(isAdm1);

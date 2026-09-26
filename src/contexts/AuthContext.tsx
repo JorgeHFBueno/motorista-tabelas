@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useState } from 'react';
+import { createContext, useContext, useEffect, useMemo, useState } from 'react';
 import { app } from '../firebase';
 import {
   getAuth,
@@ -8,11 +8,20 @@ import {
   signOut as firebaseSignOut,
   type User,
 } from 'firebase/auth';
+import { getAuthorizationProfile, type AuthorizationProfile } from '../services/authorizationProfile';
+import {
+  pendingAuthorization,
+  resolveAuthorizationSession,
+  type AuthorizationSessionState,
+} from '../services/authorizationSession';
+import { isAdm2Authorized } from '../services/webAuthorization';
 
 interface AuthContextType {
   currentUser: User | null;
-  customClaims: Record<string, any> | null;
   loading: boolean;
+  authorizationLoading: boolean;
+  authorizationProfile: AuthorizationProfile | null;
+  authorizationError: Error | null;
   isAdmin: boolean;
   signIn: (email: string, password: string) => Promise<void>;
   signUp: (email: string, password: string) => Promise<void>;
@@ -21,8 +30,10 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType>({
   currentUser: null,
-  customClaims: null,
   loading: true,
+  authorizationLoading: true,
+  authorizationProfile: null,
+  authorizationError: null,
   isAdmin: false,
   signIn: async () => {},
   signUp: async () => {},
@@ -33,12 +44,14 @@ export const useAuth = () => useContext(AuthContext);
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
-  const [customClaims, setCustomClaims] = useState<Record<string, any> | null>(null);
   const [loading, setLoading] = useState(true);
+  const [authorizationState, setAuthorizationState] = useState<AuthorizationSessionState>(
+    pendingAuthorization(null),
+  );
   const auth = getAuth(app);
 
   useEffect(() => {
-    const unsub = onAuthStateChanged(auth, user => {
+    const unsub = onAuthStateChanged(auth, (user) => {
       setCurrentUser(user);
       setLoading(false);
     });
@@ -46,33 +59,62 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [auth]);
 
   useEffect(() => {
-    if (!currentUser) {
-      setCustomClaims(null);
+    const uid = currentUser?.uid ?? null;
+    if (loading) {
+      setAuthorizationState(pendingAuthorization(uid));
       return;
     }
-    currentUser
-      .getIdTokenResult()
-      .then(res => setCustomClaims(res.claims))
-      .catch(() => setCustomClaims(null));
-  }, [currentUser]);
+    if (uid === null) {
+      setAuthorizationState({ uid: null, loading: false, profile: null, error: null });
+      return;
+    }
 
-  const signIn = async (email: string, password: string) => {
-    await signInWithEmailAndPassword(auth, email, password);
-  };
+    let cancelled = false;
+    setAuthorizationState(pendingAuthorization(uid));
+    void getAuthorizationProfile(uid)
+      .then((profile) => {
+        if (!cancelled) setAuthorizationState({ uid, loading: false, profile, error: null });
+      })
+      .catch((error: unknown) => {
+        if (!cancelled) {
+          setAuthorizationState({
+            uid,
+            loading: false,
+            profile: null,
+            error: error instanceof Error ? error : new Error('authorization_profile_read_failed'),
+          });
+        }
+      });
 
-  const signUp = async (email: string, password: string) => {
-    await createUserWithEmailAndPassword(auth, email, password);
-  };
+    return () => {
+      cancelled = true;
+    };
+  }, [currentUser?.uid, loading]);
 
-  const signOut = async () => {
-    await firebaseSignOut(auth);
-  };
-
-  const isAdmin = !!customClaims?.admin;
-
-  return (
-    <AuthContext.Provider value={{ currentUser, customClaims, loading, isAdmin, signIn, signUp, signOut }}>
-      {children}
-    </AuthContext.Provider>
+  const resolvedAuthorization = resolveAuthorizationSession(
+    currentUser?.uid ?? null,
+    loading,
+    authorizationState,
   );
+
+  const value = useMemo<AuthContextType>(() => ({
+    currentUser,
+    loading,
+    authorizationLoading: resolvedAuthorization.loading,
+    authorizationProfile: resolvedAuthorization.profile,
+    authorizationError: resolvedAuthorization.error,
+    isAdmin: isAdm2Authorized(resolvedAuthorization.profile),
+    signIn: async (email, password) => {
+      await signInWithEmailAndPassword(auth, email, password);
+    },
+    signUp: async (email, password) => {
+      await createUserWithEmailAndPassword(auth, email, password);
+    },
+    signOut: async () => {
+      setAuthorizationState({ uid: null, loading: false, profile: null, error: null });
+      await firebaseSignOut(auth);
+    },
+  }), [auth, currentUser, loading, resolvedAuthorization]);
+
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }

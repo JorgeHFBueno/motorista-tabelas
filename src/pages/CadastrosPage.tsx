@@ -98,6 +98,9 @@ export default function CadastrosPage() {
                 <Button variant="outlined" component={RouterLink} to="/cadastros/usuarios/conciliacao">
                   Conciliação
                 </Button>
+                <Button variant="outlined" component={RouterLink} to="/cadastros/usuarios/kiosk">
+                  Credenciais Kiosk
+                </Button>
               </Stack>
             </Stack>
           </Paper>

@@ -2,7 +2,6 @@ import express from 'express';
 import cors from 'cors';
 import type { UserRecord } from 'firebase-admin/auth';
 import {
-  type DocumentSnapshot,
   type DocumentData,
   FieldValue,
 } from 'firebase-admin/firestore';
@@ -16,6 +15,7 @@ import {
 } from './conciliation.js';
 
 const adminApp = express();
+// Historical input used only by the explicit reconciliation inventory below.
 const authorizedCollection = db.collection('00-autorizados');
 const motoristsCollection = db.collection('motoristas');
 const employeesCollection = db.collection('funcionarios');
@@ -24,18 +24,8 @@ const employeesCollection = db.collection('funcionarios');
 adminApp.use(cors({ origin: true }));
 adminApp.use(express.json());
 
-// Protect all admin routes with the middleware that checks a valid ID token plus adm2 in 00-autorizados.
+// Protect all admin routes with Firebase Auth plus funcionarios/{uid}.perfis.adm2.
 adminApp.use('/api/admin', adminAuthMiddleware);
-
-type PerfilUsuario = 'Motorista' | 'Adm1' | 'Adm2';
-
-type AuthorizedUserData = {
-  nome?: string;
-  adm1?: boolean;
-  adm2?: boolean;
-  createdAt?: unknown;
-  updatedAt?: unknown;
-};
 
 type EmployeeProfiles = { adm1: boolean; adm2: boolean; user: boolean; motorista: boolean };
 
@@ -53,26 +43,7 @@ function normalizeEmail(rawEmail: unknown) {
   return typeof rawEmail === 'string' ? rawEmail.trim().toLowerCase() : '';
 }
 
-function inferProfile(data?: AuthorizedUserData | null): PerfilUsuario {
-  if (data?.adm2 === true) {
-    return 'Adm2';
-  }
-
-  if (data?.adm1 === true) {
-    return 'Adm1';
-  }
-
-  return 'Motorista';
-}
-
-async function formatAdminUser(
-  user: UserRecord,
-  authorizationDoc?: DocumentSnapshot<DocumentData> | null,
-) {
-  const authorizationData = authorizationDoc?.exists
-    ? (authorizationDoc.data() as AuthorizedUserData)
-    : null;
-
+async function formatAdminUser(user: UserRecord) {
   const employeeDoc = await employeesCollection.doc(user.uid).get();
   const employeeData = employeeDoc.exists ? employeeDoc.data() : null;
   const canonicalProfiles = employeeData?.perfis;
@@ -86,11 +57,11 @@ async function formatAdminUser(
     lastLoginAt: user.metadata.lastSignInTime,
     disabled: user.disabled,
     authorization: {
-      exists: Boolean(authorizationDoc?.exists || employeeDoc.exists),
-      nome: employeeData?.nome ?? authorizationData?.nome ?? null,
-      adm1: canonicalProfiles ? canonicalProfiles.adm1 === true : authorizationData?.adm1 === true,
-      adm2: canonicalProfiles ? canonicalProfiles.adm2 === true : authorizationData?.adm2 === true,
-      profile: employeeDoc.exists ? canonicalProfile : inferProfile(authorizationData),
+      exists: employeeDoc.exists,
+      nome: employeeData?.nome ?? null,
+      adm1: canonicalProfiles?.adm1 === true,
+      adm2: canonicalProfiles?.adm2 === true,
+      profile: canonicalProfile,
     },
     funcionario: employeeData,
   };
@@ -101,23 +72,7 @@ adminApp.get('/api/admin/users', async (_req, res) => {
   try {
     const list = await adminAuth.listUsers(1000);
 
-    const authorizationRefs = list.users
-      .map((user) => normalizeEmail(user.email))
-      .filter(Boolean)
-      .map((email) => authorizedCollection.doc(email));
-
-    const authorizationSnapshots = authorizationRefs.length > 0
-      ? await db.getAll(...authorizationRefs)
-      : [];
-
-    const authorizationByEmail = new Map(
-      authorizationSnapshots.map((snapshot) => [snapshot.id, snapshot]),
-    );
-
-    const users = await Promise.all(list.users.map((user) => formatAdminUser(
-      user,
-      user.email ? authorizationByEmail.get(normalizeEmail(user.email)) ?? null : null,
-    )));
+    const users = await Promise.all(list.users.map((user) => formatAdminUser(user)));
 
     res.json({ users });
   } catch (err) {
@@ -198,7 +153,6 @@ function buildAuthorizationPayload(nome: unknown, perfil: unknown) {
 
 function resolveAuthorizationName(
   userRecord: UserRecord,
-  authorizationData?: AuthorizedUserData | null,
 ) {
   const authDisplayName = typeof userRecord.displayName === 'string'
     ? userRecord.displayName.trim()
@@ -206,14 +160,6 @@ function resolveAuthorizationName(
 
   if (authDisplayName) {
     return authDisplayName;
-  }
-
-  const authorizationName = typeof authorizationData?.nome === 'string'
-    ? authorizationData.nome.trim()
-    : '';
-
-  if (authorizationName) {
-    return authorizationName;
   }
 
   const normalizedEmail = normalizeEmail(userRecord.email);
@@ -325,7 +271,7 @@ adminApp.patch('/api/admin/users/:uid', async (req: AdminRequest, res) => {
     const existingEmployeeDoc = await employeeRef.get();
     const existingEmployee = existingEmployeeDoc.exists ? existingEmployeeDoc.data() : null;
     const currentName = typeof existingEmployee?.nome === 'string' && existingEmployee.nome.trim()
-      ? existingEmployee.nome.trim() : resolveAuthorizationName(userRecord, null);
+      ? existingEmployee.nome.trim() : resolveAuthorizationName(userRecord);
     const profiles = {
       adm1: perfil === 'Adm1', adm2: perfil === 'Adm2', user: false, motorista: perfil === 'Motorista',
     };
@@ -338,7 +284,7 @@ adminApp.patch('/api/admin/users/:uid', async (req: AdminRequest, res) => {
 
     const updatedUser = await adminAuth.getUser(uid);
     res.json({
-      user: await formatAdminUser(updatedUser, null),
+      user: await formatAdminUser(updatedUser),
     });
   } catch (err: any) {
     console.error('Failed to update user', err);

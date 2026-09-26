@@ -2,10 +2,11 @@ import { Box, Button, Paper, Stack, Typography } from '@mui/material';
 import { useLocation, useNavigate } from 'react-router-dom';
 
 const reasonMessages: Record<string, string> = {
-  'missing-admin': 'Seu usuário não possui autorização administrativa (adm1/adm2) para acessar esta área.',
-  'missing-email': 'Seu usuário autenticado não possui e-mail associado e não pode ser validado.',
+  'missing-admin': 'Seu usuário não possui um perfil administrativo ativo em Funcionários para acessar esta área.',
+  'missing-funcionario': 'Seu usuário não possui cadastro em Funcionários.',
+  inactive: 'Seu cadastro em Funcionários está inativo.',
   'firestore-error':
-    'Não foi possível confirmar sua autorização administrativa agora. Tente novamente em instantes.',
+    'Não foi possível verificar sua autorização agora. Tente novamente.',
 };
 
 export default function AccessDeniedPage() {
@@ -22,8 +23,7 @@ export default function AccessDeniedPage() {
           <Typography variant="h5" fontWeight={700}>Acesso negado</Typography>
           <Typography variant="body1">{message}</Typography>
           <Typography variant="body2" color="text.secondary">
-            Para acessar a aplicação, peça para um administrador confirmar no Firestore
-            o campo <strong>adm1</strong> ou <strong>adm2</strong> definido como <strong>true</strong>.
+            A autorização é verificada em <strong>Funcionários</strong>, usando o UID exato da sua conta Firebase.
           </Typography>
           <Stack direction="row" spacing={1} justifyContent="flex-end">
             <Button variant="outlined" onClick={() => navigate('/login', { replace: true })}>Ir para login</Button>
