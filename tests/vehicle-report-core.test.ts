@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { custoDieselInterno, extractCnpj, fuelReportSupplier, litrosFromQuantidadeRaw, matchExternalFuelToMaintenance, normalizeCalendarDate, normalizeSupplier, normalizeVehiclePlate, reportTotals, summarizeInternalFuel } from '../src/services/vehicle-report-core';
-import { createVehicleReportPdf, sanitizeErpPresentationText, sanitizePdfText } from '../src/services/vehicle-report-pdf';
+import { createVehicleReportPdf, formatReportDate, formatVehicleReportHeader, sanitizeErpPresentationText, sanitizePdfText } from '../src/services/vehicle-report-pdf';
 
 test('normaliza JBJ-4J22 para o contrato ERP', () => assert.equal(normalizeVehiclePlate('JBJ-4J22'), 'JBJ4J22'));
 test('calcula os quatro totais da fixture JBJ sem hardcode no produto', () => {
@@ -118,4 +118,13 @@ test('ERP U+FFFE is reported and removed without ASCII-folding valid text', () =
   assert.equal(input.indexOf(controle), 22);
   assert.equal(sanitizeErpPresentationText(input), `MANUTEN${String.fromCodePoint(0x00C7, 0x00C3)}O DE VE${String.fromCodePoint(0x00CD)}CULOS FINANCEIRO`);
   assert.equal(sanitizeErpPresentationText(`FONTOURA XAVIER N${String.fromCodePoint(0x00BA)} 122/2024`), `FONTOURA XAVIER N${String.fromCodePoint(0x00BA)} 122/2024`);
+  assert.equal(sanitizeErpPresentationText('COMPRA DE MERCADORIAS/PEÇAS - VEÍCULOS'), 'COMPRA DE MERCADORIAS/PEÇAS - VEÍCULOS');
+});
+test('cabeçalho do veículo não repete a placa quando a descrição é igual', () => {
+  assert.equal(formatVehicleReportHeader('JBJ-4J22', 'JBJ-4J22'), 'Veículo: JBJ-4J22');
+  assert.equal(formatVehicleReportHeader('JBJ-4J22', 'CAMINHÃO MUNCK'), 'Veículo: JBJ-4J22 — CAMINHÃO MUNCK');
+});
+test('data Q47 é compactada sem aplicar conversão de timezone', () => {
+  assert.equal(formatReportDate('2025-04-08T00:00:00'), '08/04/2025');
+  assert.equal(formatReportDate('2025-04-08T23:59:59-03:00'), '08/04/2025');
 });

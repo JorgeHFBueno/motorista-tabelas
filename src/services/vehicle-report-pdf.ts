@@ -14,6 +14,24 @@ export function sanitizePdfText(value: unknown) {
   return text.replace(/^(VEÍCULO:\s*)(.+?)\s+—\s+\2$/u, '$1$2');
 }
 
+function normalizeVehicleIdentity(value: unknown) {
+  return sanitizeErpPresentationText(value).normalize('NFKC').toLocaleUpperCase('pt-BR').replace(/[\s-]+/gu, '');
+}
+
+export function formatVehicleReportHeader(placa: unknown, descricao: unknown) {
+  const plate = sanitizeErpPresentationText(placa);
+  const name = sanitizeErpPresentationText(descricao);
+  return normalizeVehicleIdentity(plate) === normalizeVehicleIdentity(name) || !name
+    ? `Veículo: ${plate}`
+    : `Veículo: ${plate} — ${name}`;
+}
+
+export function formatReportDate(value: unknown) {
+  const text = sanitizeErpPresentationText(value);
+  const match = /^(\d{4})-(\d{2})-(\d{2})(?:T|$)/u.exec(text);
+  return match ? `${match[3]}/${match[2]}/${match[1]}` : text;
+}
+
 function encodePdfText(value: string) {
   let encoded = '';
   for (const char of sanitizePdfText(value)) {
@@ -63,7 +81,7 @@ function createDrawing() {
 export function createVehicleReportPdf(report: PdfReport) {
   const q46 = report.erp.query46 as any; const q47 = report.erp.query47 as any; const drawing = createDrawing(); const right = (indexes: number[]) => new Set(indexes);
   drawing.title('RELATÓRIO DE CUSTOS DO VEÍCULO');
-  drawing.text(PAGE.left, drawing.y, `Veículo: ${report.veiculo.placa} — ${report.veiculo.nome}`, 9, true); drawing.y -= 13;
+  drawing.text(PAGE.left, drawing.y, formatVehicleReportHeader(report.veiculo.placa, report.veiculo.nome), 9, true); drawing.y -= 13;
   drawing.text(PAGE.left, drawing.y, `Período: ${report.periodo.dataInicial} a ${report.periodo.dataFinal}   Gerado em: ${new Date().toLocaleString('pt-BR')}`, 8); drawing.y -= 18;
   drawing.section('RESUMO EXECUTIVO');
   drawing.table(['Cenário', 'Total'], [['Firebase', money(report.totais.firebase)], ['Firebase + ERP Q46', money(report.totais.firebaseQ46)], ['Firebase + ERP Q47', money(report.totais.firebaseQ47)], ['Firebase + Q46 + Q47*', money(report.totais.firebaseQ46Q47)]], [350, 173], right([1]), new Set([3]));
@@ -73,7 +91,7 @@ export function createVehicleReportPdf(report: PdfReport) {
   drawing.table(['Data', 'Litros', 'Valor', 'KM', 'Obra', 'Responsável'], report.firebase.combustivel.itens.map((item: any) => [item.data, `${liters(item.litros)} L`, money(item.valor), item.km ?? '—', item.obra, item.motorista]), [62, 58, 73, 48, 145, 137], right([1, 2, 3]));
   drawing.section('MANUTENÇÕES'); drawing.table(['Data', 'Descrição', 'Fornecedor', 'Valor'], report.firebase.manutencoes.itens.map((item: any) => [item.data, item.descricao, item.fornecedor, money(item.valor)]), [64, 190, 170, 99], right([3]));
   drawing.section('ERP Q46 — CAIXA'); const q46Rows = q46.mensal.map((item: any) => [item.mes, item.qtd_lancamentos, money(item.receita), money(item.despesa), money(item.valor_resultado)]); q46Rows.push(['Total Q46', q46.qtd_lancamentos, money(q46.receita), money(q46.despesa), money(q46.valor_resultado)]); drawing.table(['Mês', 'Lançamentos', 'Receitas', 'Despesas', 'Resultado'], q46Rows, [75, 92, 112, 112, 132], right([1, 2, 3, 4]), new Set([q46Rows.length - 1]));
-  drawing.section('ERP Q47 — COMPETÊNCIA / NOTAS'); drawing.table(['Data', 'Nota', 'Fornecedor', 'Natureza / conta', 'Tipo', 'Valor'], q47.detalhes.map((item: any) => [item.data, item.nota, item.fornecedor, `${item.natureza} / ${item.conta}`, item.tipo, money(item.valor_rateio)]), [57, 43, 125, 150, 65, 83], right([5]));
+  drawing.section('ERP Q47 — COMPETÊNCIA / NOTAS'); drawing.table(['Data', 'Nota', 'Fornecedor', 'Natureza / conta', 'Tipo', 'Valor'], q47.detalhes.map((item: any) => [formatReportDate(item.data), item.nota, item.fornecedor, `${item.natureza} / ${item.conta}`, item.tipo, money(item.valor_rateio)]), [57, 43, 125, 150, 65, 83], right([5]));
   drawing.section('COMPARATIVO ERP'); drawing.table(['Métrica', 'Q46', 'Q47'], [['Despesas', money(q46.despesa), money(q47.despesa)], ['Receitas', money(q46.receita), money(q47.receita)], ['Resultado', money(q46.valor_resultado), money(q47.valor_resultado)], ['Lançamentos / notas', q46.qtd_lancamentos, q47.notas]], [260, 131, 132], right([1, 2]));
   drawing.section('METODOLOGIA / PARÂMETROS'); drawing.table(['Parâmetro', 'Valor'], [['Veículo', report.veiculo.placa], ['Período', `${report.periodo.dataInicial} a ${report.periodo.dataFinal}`], ['Diesel interno', 'R$ 5,90/L'], ['Documentos combustível encontrados', report.firebase.combustivel.registrosEncontrados], ['Internos / externos excluídos', `${report.firebase.combustivel.registros} / ${report.firebase.combustivel.externos}`], ['ERP Q46 / Q47', 'Caixa / Competência / notas'], ['Placa enviada ao ERP', report.veiculo.placa.replace(/[-\s]/g, '').toUpperCase()]], [250, 273]);
   drawing.text(PAGE.left, drawing.y, 'Q46 e Q47 representam visões contábeis distintas. A soma pode conter dupla contagem.', 7);
