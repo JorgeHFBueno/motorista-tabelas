@@ -16,7 +16,9 @@ export function getMestreKey(mestre: { uid?: string | null; nome: string }): str
 
 export type MestreColor = { background: string; text: string };
 let activeKeys: string[] = [];
+let persistedColors = new Map<string, MestreColor>();
 export function setActiveMestreColorKeys(keys: readonly string[]) { activeKeys = [...new Set(keys.map(normalizeMestreKey))].sort((a, b) => a.localeCompare(b, 'pt-BR')); }
+export function setPersistedMestreColors(mestres: ReadonlyArray<{ nome: string; cor: MestreColor }>) { persistedColors = new Map(mestres.map((mestre) => [normalizeMestreKey(mestre.nome), mestre.cor])); setActiveMestreColorKeys(mestres.map((mestre) => mestre.nome)); }
 
 /**
  * Deterministic, injective registry for the current master set. Sorting by the
@@ -24,6 +26,8 @@ export function setActiveMestreColorKeys(keys: readonly string[]) { activeKeys =
  */
 export function getMestreColor(mestreKey: string, currentKeys: readonly string[] = activeKeys): MestreColor {
   const key = normalizeMestreKey(mestreKey);
+  const persisted = persistedColors.get(key);
+  if (persisted) return persisted;
   const keys = [...new Set([...currentKeys.map(normalizeMestreKey), key])].sort((a, b) => a.localeCompare(b, 'pt-BR'));
   const index = keys.indexOf(key);
   if (index < PALETTE.length) return PALETTE[index];
