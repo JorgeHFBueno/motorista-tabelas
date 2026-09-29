@@ -68,3 +68,13 @@ export function scrollTimelineToToday(container: HTMLElement, { mode, today, yea
   container.scrollLeft = calculateTimelineContextScrollLeft(mode, todayX, timeline.offsetWidth, usefulViewportWidth, container.scrollWidth, container.clientWidth, year, pastContextDays);
   return true;
 }
+
+export function scrollTimelineToDate(container: HTMLElement, { mode, date, year = 2026 }: { mode: ZoomCronograma; date: CivilDate; year?: number }): boolean {
+  if (mode === 'year') return false;
+  const timeline = container.querySelector<HTMLElement>('.co-timeline-header');
+  const ratio = timeline ? timelineDateRatio(mode, date, year) : null;
+  if (ratio === null || !timeline) return false;
+  const usefulViewportWidth = Math.max(0, container.clientWidth - timeline.offsetLeft);
+  container.scrollLeft = calculateTimelineCenteredScrollLeft(timeline.offsetWidth * ratio, usefulViewportWidth, container.scrollWidth, container.clientWidth);
+  return true;
+}

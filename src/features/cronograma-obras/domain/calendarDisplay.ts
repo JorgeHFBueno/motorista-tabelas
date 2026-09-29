@@ -2,7 +2,7 @@ import type { MestrePlanejado, ZoomCronograma } from './models';
 import type { ObraTemporalSegmentType } from './obraTemporal';
 
 export interface CalendarDisplayOptions { liveAlerts: boolean; masterNames: boolean; }
-export const DEFAULT_CALENDAR_DISPLAY: CalendarDisplayOptions = { liveAlerts: true, masterNames: true };
+export const DEFAULT_CALENDAR_DISPLAY: CalendarDisplayOptions = { liveAlerts: false, masterNames: true };
 
 export function visibleTemporalState(state: ObraTemporalSegmentType | null, liveAlerts: boolean): ObraTemporalSegmentType | null {
   return liveAlerts ? state : null;

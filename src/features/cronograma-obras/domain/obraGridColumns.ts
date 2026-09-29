@@ -1,6 +1,6 @@
 export const OBRA_COLUMN_WIDTH = { default: 220, min: 140, max: 360 } as const;
 
-const OTHER_OBRA_COLUMN_WIDTHS = [168, 112, 122, 76, 112, 70] as const;
+const OTHER_OBRA_COLUMN_WIDTHS = [122, 76, 112, 70] as const;
 const CORE_OBRA_COLUMN_WIDTHS = OTHER_OBRA_COLUMN_WIDTHS.slice(0, 3);
 
 export function clampObraColumnWidth(width: number): number {
