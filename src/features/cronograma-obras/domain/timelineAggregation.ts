@@ -9,6 +9,21 @@ export interface MasterTimelineSegment { mestre: MestrePlanejado; offset: number
 export interface BucketTimelineAggregate { days: number; plannedDays: number; states: TimelineSegment[]; masters: MasterTimelineSegment[]; }
 export interface WeeklySegment { startDayIndex: number; dayCount: number; type: ObraTemporalSegmentType; }
 export interface WeeklyMasterSegment { mestre: MestrePlanejado; startDayIndex: number; dayCount: number; }
+export interface MasterAllocationLane { index: number; count: number; }
+
+/** Packs complete allocations once, so each clipped calendar cell keeps the same vertical lane. */
+export function layoutMasterAllocationLanes(masters: readonly MestrePlanejado[]): ReadonlyMap<MestrePlanejado, MasterAllocationLane> {
+  const laneEnds: CivilDate[] = [];
+  const assignments = new Map<MestrePlanejado, number>();
+  [...masters].sort((a, b) => a.inicio.localeCompare(b.inicio) || calculatedEnd(a.inicio, a.tempoPlanejado).localeCompare(calculatedEnd(b.inicio, b.tempoPlanejado)) || a.localId.localeCompare(b.localId)).forEach((mestre) => {
+    const lane = laneEnds.findIndex((end) => end < mestre.inicio);
+    const index = lane < 0 ? laneEnds.length : lane;
+    laneEnds[index] = calculatedEnd(mestre.inicio, mestre.tempoPlanejado);
+    assignments.set(mestre, index);
+  });
+  const count = Math.max(1, laneEnds.length);
+  return new Map([...assignments].map(([mestre, index]) => [mestre, { index, count }]));
+}
 
 export function layoutOverlapLanes<T extends { offset: number; days: number }>(segments: readonly T[]): Array<{ index: number; count: number }> {
   const overlaps = (a: T, b: T) => a.offset < b.offset + b.days && a.offset + a.days > b.offset;
