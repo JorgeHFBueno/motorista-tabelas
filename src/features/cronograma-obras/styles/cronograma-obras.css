@@ -8,8 +8,8 @@
   --co-week-width: 44px;
   --co-month-width: 176px;
   --co-timeline-width: 2332px;
-  --co-left-width: 622px;
-  --co-left-columns: 220px 122px 76px 112px 70px;
+  --co-left-width: clamp(660px, 43vw, 880px);
+  --co-left-columns: minmax(220px, 2.4fr) minmax(110px, 1.2fr) minmax(82px, .75fr) minmax(65px, .55fr) minmax(88px, .70fr) minmax(48px, .35fr) 22px;
   background: #f4f7f9;
   color: var(--co-ink);
   min-height: calc(100vh - 60px);
@@ -140,7 +140,10 @@
 .co-grid-row--child .co-work-name::before { color: #8da1ad; content: '↳'; left: 12px; position: absolute; }
 .co-grid-row--contract { background: #eaf2f6; min-height: 36px; }
 .co-grid-row--contract:hover { background: #dfebf1; }
-.co-grid-row--contract .co-left-row > span { border-right: 0; color: #24475d; font-size: .7rem; font-weight: 850; gap: 7px; grid-column: 1 / -1; letter-spacing: .02em; }
+.co-grid-row--contract .co-left-row > span { color: #24475d; font-size: .7rem; font-weight: 850; gap: 7px; letter-spacing: .02em; }
+.co-grid-row--contract .co-left-row > .co-contract-name { grid-column: auto; }
+.co-grid-row--contract .co-left-row > .co-contract-masters { align-content: center; flex-wrap: wrap; gap: 3px; white-space: normal; }
+.co-grid-row--contract .co-left-row > .co-row-toggle-spacer { border-right: 0; padding: 0; }
 .co-grid-row--contract svg { font-size: 1rem; transition: transform .16s ease; }
 .co-grid-row--contract svg.is-collapsed { transform: rotate(-90deg); }
 .co-grid-row--contract b { align-items: center; background: #cfdee7; border-radius: 99px; color: #35586d; display: inline-flex; font-size: .59rem; justify-content: center; margin-left: 2px; min-width: 19px; padding: 3px 5px; }
