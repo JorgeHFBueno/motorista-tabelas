@@ -14,3 +14,13 @@ export function groupObrasByContract(obras: readonly ObraCronograma[]): Contract
   });
   return [...groups.values()];
 }
+
+/**
+ * The collapsed contract timeline is derived from every hydrated child obra,
+ * never from the rows currently mounted by the UI.
+ */
+export function contractAllocationSummary(obras: readonly ObraCronograma[]): ObraCronograma | null {
+  const first = obras[0];
+  if (!first) return null;
+  return { ...first, id: `contract-summary-${obras.map((obra) => obra.id).join('-')}`, mestresPlanejados: obras.flatMap((obra) => obra.mestresPlanejados) };
+}
