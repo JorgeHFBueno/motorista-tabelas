@@ -1,0 +1,65 @@
+%PDF-1.4
+1 0 obj
+<< /Type /Catalog /Pages 2 0 R >>
+endobj
+2 0 obj
+<< /Type /Pages /Count 1 /Kids [3 0 R] >>
+endobj
+3 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 5 0 R >> >> /Contents 4 0 R >>
+endobj
+4 0 obj
+<< /Length 1623 >>
+stream
+BT /F1 8 Tf 40 800 Td 10 TL (RELATORIO DE CUSTOS DO VEICULO) Tj T*
+(Placa: JBJ-4J22) Tj T*
+(Periodo: 2025-01-01 a 2026-09-25) Tj T*
+(Gerado em: 25/09/2026, 17:04:09) Tj T*
+() Tj T*
+(1. RESUMO EXECUTIVO) Tj T*
+(Firebase: R$?104.167,30) Tj T*
+(Firebase + ERP Q46: R$?149.042,79) Tj T*
+(Firebase + ERP Q47: R$?114.983,29) Tj T*
+(Firebase + ERP Q46 + ERP Q47: R$?159.858,78 EXPERIMENTAL - POSSIVEL DUPLA CONTAGEM ERP) Tj T*
+(Diesel: R$?94.398,82 | 0 L | 0 abastecimentos) Tj T*
+(Manutencoes: R$?9.768,48 | 0 registros) Tj T*
+() Tj T*
+(2. COMBUSTIVEL) Tj T*
+() Tj T*
+(3. MANUTENCOES) Tj T*
+() Tj T*
+(4. ERP - QUERY 46 - CAIXA) Tj T*
+(Movimentos financeiros atribuidos ao subcentro do veiculo.) Tj T*
+(Lancamentos: 98 | Receitas: R$?1,58 | Despesas: R$?44.875,49 | Resultado: -R$?44.873,91) Tj T*
+() Tj T*
+(5. ERP - QUERY 47 - COMPETENCIA / NOTAS) Tj T*
+(Notas atribuidas ao subcentro por regime de competencia.) Tj T*
+(Notas: 30 | Receitas: R$?12.018,78 | Despesas: R$?10.815,99 | Resultado: R$?1.202,79) Tj T*
+(Placa nota preenchida: 0 | vazia: 32 | divergente: 0 | transferencias: 0) Tj T*
+() Tj T*
+(6. COMPARATIVO ERP) Tj T*
+(Despesas: Q46 R$?44.875,49 | Q47 R$?10.815,99) Tj T*
+(Receitas: Q46 R$?1,58 | Q47 R$?12.018,78) Tj T*
+(Resultado: Q46 -R$?44.873,91 | Q47 R$?1.202,79) Tj T*
+(Lancamentos/notas: Q46 98 | Q47 30) Tj T*
+() Tj T*
+(7. OBSERVACOES E METODOLOGIA) Tj T*
+(Firestore e ERP sao fontes independentes. Q46 representa caixa; Q47 representa competencia/notas. Notas pagas podem aparecer nas duas visoes; a soma Q46 + Q47 pode conter dupla contagem.) Tj T*
+(Queries: 46 e 47 | Placa enviada a API: JBJ4J22) Tj T* ET
+endstream
+endobj
+5 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>
+endobj
+xref
+0 6
+0000000000 65535 f 
+0000000009 00000 n 
+0000000058 00000 n 
+0000000115 00000 n 
+0000000241 00000 n 
+0000001916 00000 n 
+trailer << /Size 6 /Root 1 0 R >>
+startxref
+1986
+%%EOF

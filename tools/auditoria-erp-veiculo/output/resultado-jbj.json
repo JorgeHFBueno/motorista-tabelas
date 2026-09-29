@@ -1,0 +1,766 @@
+{
+  "status": "SUCESSO",
+  "request": {
+    "DataInicial": "2025-01-01",
+    "DataFinal": "2026-09-25",
+    "Placa": "JBJ4J22"
+  },
+  "metadata": {
+    "modo": "READ-ONLY",
+    "credenciaisExpostas": false,
+    "firebaseConsultado": false,
+    "firebaseEscrito": false,
+    "deployExecutado": false,
+    "aplicacaoWebAlterada": false,
+    "firebaseRulesAlteradas": false
+  },
+  "erp": {
+    "baseUrl": "https://s15.elevor.cloud/LedurPreFabricados/ERP360",
+    "autenticacaoFuncional": true,
+    "query46": {
+      "queryId": 46,
+      "httpStatus": 200,
+      "contentType": "application/json; charset=utf-8",
+      "rowCount": 66,
+      "firstRecordFields": [
+        "ano",
+        "cod_empresa",
+        "cod_subcentro",
+        "conta",
+        "conta_descricao",
+        "despesa",
+        "empresa",
+        "mes",
+        "natureza",
+        "qtd_lancamentos",
+        "receita",
+        "subcentro",
+        "valor_resultado"
+      ]
+    },
+    "query47": {
+      "queryId": 47,
+      "httpStatus": 200,
+      "contentType": "application/json; charset=utf-8",
+      "rowCount": 32,
+      "firstRecordFields": [
+        "ano",
+        "cliente_fornecedor",
+        "cod_cliente_fornecedor",
+        "cod_empresa",
+        "cod_natureza",
+        "cod_nota",
+        "cod_subcentro",
+        "conta",
+        "conta_descricao",
+        "data_emissao",
+        "empresa",
+        "mes",
+        "natureza",
+        "numero_nota",
+        "placa_nota",
+        "subcentro",
+        "tipo_movimento",
+        "transferencia",
+        "valor_nota",
+        "valor_rateio",
+        "valor_resultado"
+      ]
+    }
+  },
+  "auditoria": {
+    "query46": {
+      "geral": {
+        "linhas": 66,
+        "qtd_lancamentos": 98,
+        "receita": 1.58,
+        "despesa": 44875.490000000005,
+        "valor_resultado": -44873.91000000001
+      },
+      "anual": {
+        "2025": {
+          "linhas": 34,
+          "qtd_lancamentos": 47,
+          "receita": 1.58,
+          "despesa": 25882.330000000005,
+          "valor_resultado": -25880.750000000007
+        },
+        "2026": {
+          "linhas": 32,
+          "qtd_lancamentos": 51,
+          "receita": 0,
+          "despesa": 18993.16,
+          "valor_resultado": -18993.16
+        }
+      },
+      "agrupamentos": {
+        "mes": [
+          {
+            "mes": "2025",
+            "linhas": 34,
+            "qtd_lancamentos": 47,
+            "receita": 1.58,
+            "despesa": 25882.330000000005,
+            "valor_resultado": -25880.750000000007
+          },
+          {
+            "mes": "2026",
+            "linhas": 32,
+            "qtd_lancamentos": 51,
+            "receita": 0,
+            "despesa": 18993.16,
+            "valor_resultado": -18993.16
+          }
+        ],
+        "conta": [
+          {
+            "conta": "3.2.3.02.04",
+            "conta_descricao": "PNEUS",
+            "linhas": 15,
+            "qtd_lancamentos": 26,
+            "receita": 0,
+            "despesa": 8859.81,
+            "valor_resultado": -8859.81
+          },
+          {
+            "conta": "3.2.3.02.07",
+            "conta_descricao": "PECAS MANUTENCAO VEICULOS",
+            "linhas": 20,
+            "qtd_lancamentos": 29,
+            "receita": 0,
+            "despesa": 16852.52,
+            "valor_resultado": -16852.52
+          },
+          {
+            "conta": "3.2.3.02.10",
+            "conta_descricao": "MANUTENCAO DE VEICULOS",
+            "linhas": 13,
+            "qtd_lancamentos": 20,
+            "receita": 0,
+            "despesa": 5845.42,
+            "valor_resultado": -5845.42
+          },
+          {
+            "conta": "3.2.3.02.09",
+            "conta_descricao": "SERVIÇO DE RASTREAMENTO  -  FROTA",
+            "linhas": 1,
+            "qtd_lancamentos": 2,
+            "receita": 0,
+            "despesa": 320,
+            "valor_resultado": -320
+          },
+          {
+            "conta": "3.2.3.02.12",
+            "conta_descricao": "MULTAS DE TRÂNSITO/FROTA",
+            "linhas": 3,
+            "qtd_lancamentos": 5,
+            "receita": 0,
+            "despesa": 1041.2,
+            "valor_resultado": -1041.2
+          },
+          {
+            "conta": "3.4.1.01.01",
+            "conta_descricao": "DESCONTOS OBTIDOS",
+            "linhas": 1,
+            "qtd_lancamentos": 1,
+            "receita": 1.58,
+            "despesa": 0,
+            "valor_resultado": 1.58
+          },
+          {
+            "conta": "3.2.3.02.01",
+            "conta_descricao": "COMBUSTIVEIS E LUBRIFICANTES",
+            "linhas": 8,
+            "qtd_lancamentos": 10,
+            "receita": 0,
+            "despesa": 6894.49,
+            "valor_resultado": -6894.49
+          },
+          {
+            "conta": "1.1.1.09.02",
+            "conta_descricao": "COMPRA DE MERCADORIAS",
+            "linhas": 1,
+            "qtd_lancamentos": 1,
+            "receita": 0,
+            "despesa": 24.9,
+            "valor_resultado": -24.9
+          },
+          {
+            "conta": "3.2.3.02.06",
+            "conta_descricao": "LICENCIAMENTO DE VEICULOS",
+            "linhas": 2,
+            "qtd_lancamentos": 2,
+            "receita": 0,
+            "despesa": 289.27,
+            "valor_resultado": -289.27
+          },
+          {
+            "conta": "3.2.3.02.03",
+            "conta_descricao": "IPVA",
+            "linhas": 1,
+            "qtd_lancamentos": 1,
+            "receita": 0,
+            "despesa": 4607.88,
+            "valor_resultado": -4607.88
+          },
+          {
+            "conta": "3.2.1.02.15",
+            "conta_descricao": "CONSERVACAO DE MAQ. E EQUIP.",
+            "linhas": 1,
+            "qtd_lancamentos": 1,
+            "receita": 0,
+            "despesa": 140,
+            "valor_resultado": -140
+          }
+        ],
+        "empresa": [
+          {
+            "empresa": "MARCIA ANDREIA ORTIZ LEDUR",
+            "linhas": 2,
+            "qtd_lancamentos": 2,
+            "receita": 0,
+            "despesa": 1356,
+            "valor_resultado": -1356
+          },
+          {
+            "empresa": "LEDUR ENGENHARIA E CONSTRUCOES LTDA",
+            "linhas": 29,
+            "qtd_lancamentos": 42,
+            "receita": 1.58,
+            "despesa": 20227.41,
+            "valor_resultado": -20225.83
+          },
+          {
+            "empresa": "ARTEBASE CONSTRUTORA LTDA - EPP",
+            "linhas": 35,
+            "qtd_lancamentos": 54,
+            "receita": 0,
+            "despesa": 23292.079999999998,
+            "valor_resultado": -23292.079999999998
+          }
+        ],
+        "subcentro": [
+          {
+            "cod_subcentro": 21,
+            "subcentro": "JBJ-4J22",
+            "linhas": 66,
+            "qtd_lancamentos": 98,
+            "receita": 1.58,
+            "despesa": 44875.490000000005,
+            "valor_resultado": -44873.91000000001
+          }
+        ]
+      }
+    },
+    "query47": {
+      "geral": {
+        "linhas": 32,
+        "notas_distintas": 30,
+        "fornecedores_distintos": 21,
+        "receita": 12018.779999999999,
+        "despesa": 10815.99,
+        "valor_rateio": 22834.769999999997,
+        "valor_resultado": 1202.7899999999995
+      },
+      "anual": {
+        "2025": {
+          "linhas": 20,
+          "notas": 18,
+          "receita": 3847.95,
+          "despesa": 7536.9400000000005,
+          "valor_rateio": 11384.890000000001,
+          "valor_resultado": -3688.9900000000002
+        },
+        "2026": {
+          "linhas": 12,
+          "notas": 12,
+          "receita": 8170.83,
+          "despesa": 3279.05,
+          "valor_rateio": 11449.88,
+          "valor_resultado": 4891.780000000001
+        }
+      },
+      "identificacaoPlaca": {
+        "compativel": 0,
+        "vazia": 32,
+        "divergente": 0
+      },
+      "classificacaoMovimento": {
+        "natureza": [
+          "22.BAIXA DE ESTOQUE POR USO/CONSUMO - INDÚSTRIA",
+          "46.COMPRA DE MERCADORIAS/PEÇAS - VEÍCULOS - FINANCEIRO",
+          "49.COMBUSTIVEIS E LUBRIFICANTES - FINANCEIRO",
+          "58.MANUTENÇÃO DE VEÍCULOS- FINANCEIRO",
+          "60.PNEUS - FINANCEIRO",
+          "64. SAÍDA PEÇAS E COMPONENTES - VEÍCULOS",
+          "65. SAÍDA PNEUS - VEÍCULOS"
+        ],
+        "tipo_movimento": [
+          "DESPESA",
+          "RECEITA"
+        ]
+      },
+      "transferencias": {
+        "quantidade": 0,
+        "receita": 0,
+        "despesa": 0,
+        "valor_rateio": 0,
+        "valor_resultado": 0
+      },
+      "agrupamentos": {
+        "mes": [
+          {
+            "mes": "2025",
+            "linhas": 20,
+            "receita": 3847.95,
+            "despesa": 7536.9400000000005,
+            "valor_rateio": 11384.890000000001,
+            "valor_resultado": -3688.9900000000002
+          },
+          {
+            "mes": "2026",
+            "linhas": 12,
+            "receita": 8170.83,
+            "despesa": 3279.05,
+            "valor_rateio": 11449.88,
+            "valor_resultado": 4891.780000000001
+          }
+        ],
+        "conta": [
+          {
+            "conta": "3.2.3.01.10",
+            "conta_descricao": "MATERIAL DE CONSUMO - IND",
+            "linhas": 9,
+            "receita": 7364.34,
+            "despesa": 0,
+            "valor_rateio": 7364.34,
+            "valor_resultado": 7364.34
+          },
+          {
+            "conta": "3.2.3.02.07",
+            "conta_descricao": "PECAS MANUTENCAO VEICULOS",
+            "linhas": 11,
+            "receita": 1254.45,
+            "despesa": 2621.2799999999997,
+            "valor_rateio": 3875.7299999999996,
+            "valor_resultado": -1366.83
+          },
+          {
+            "conta": "3.2.3.02.10",
+            "conta_descricao": "MANUTENCAO DE VEICULOS",
+            "linhas": 8,
+            "receita": 0,
+            "despesa": 2202,
+            "valor_rateio": 2202,
+            "valor_resultado": -2202
+          },
+          {
+            "conta": "3.2.3.02.04",
+            "conta_descricao": "PNEUS",
+            "linhas": 2,
+            "receita": 3399.99,
+            "despesa": 3618.34,
+            "valor_rateio": 7018.33,
+            "valor_resultado": -218.35000000000036
+          },
+          {
+            "conta": "3.2.3.02.01",
+            "conta_descricao": "COMBUSTIVEIS E LUBRIFICANTES",
+            "linhas": 2,
+            "receita": 0,
+            "despesa": 2374.37,
+            "valor_rateio": 2374.37,
+            "valor_resultado": -2374.37
+          }
+        ],
+        "fornecedor": [
+          {
+            "cliente_fornecedor": "CRISTIANO DOMINGUES BUENO",
+            "linhas": 5,
+            "receita": 2359.4199999999996,
+            "despesa": 0,
+            "valor_rateio": 2359.4199999999996,
+            "valor_resultado": 2359.4199999999996
+          },
+          {
+            "cliente_fornecedor": "STAMM COM DE PNEUS LTDA",
+            "linhas": 3,
+            "receita": 0,
+            "despesa": 380,
+            "valor_rateio": 380,
+            "valor_resultado": -380
+          },
+          {
+            "cliente_fornecedor": "TKA GUINDASTES",
+            "linhas": 1,
+            "receita": 0,
+            "despesa": 615,
+            "valor_rateio": 615,
+            "valor_resultado": -615
+          },
+          {
+            "cliente_fornecedor": "ALCEU RODRIGUES DOS SANTOS",
+            "linhas": 2,
+            "receita": 46.29,
+            "despesa": 0,
+            "valor_rateio": 46.29,
+            "valor_resultado": 46.29
+          },
+          {
+            "cliente_fornecedor": "WELINTON FERNANDO RODRIGUES",
+            "linhas": 4,
+            "receita": 7769.08,
+            "despesa": 0,
+            "valor_rateio": 7769.08,
+            "valor_resultado": 7769.08
+          },
+          {
+            "cliente_fornecedor": "LOIDEMAR TONIETTO TAIS",
+            "linhas": 1,
+            "receita": 1365.87,
+            "despesa": 0,
+            "valor_rateio": 1365.87,
+            "valor_resultado": 1365.87
+          },
+          {
+            "cliente_fornecedor": "FRED M. HIDRAULICOS",
+            "linhas": 1,
+            "receita": 0,
+            "despesa": 520,
+            "valor_rateio": 520,
+            "valor_resultado": -520
+          },
+          {
+            "cliente_fornecedor": "DIESEL POWER AUTOELETRICA",
+            "linhas": 2,
+            "receita": 0,
+            "despesa": 317,
+            "valor_rateio": 317,
+            "valor_resultado": -317
+          },
+          {
+            "cliente_fornecedor": "PNEUSTORE.COM.BR",
+            "linhas": 1,
+            "receita": 0,
+            "despesa": 3618.34,
+            "valor_rateio": 3618.34,
+            "valor_resultado": -3618.34
+          },
+          {
+            "cliente_fornecedor": "APOMEDIL S/A VEICULOS",
+            "linhas": 1,
+            "receita": 0,
+            "despesa": 338.6,
+            "valor_rateio": 338.6,
+            "valor_resultado": -338.6
+          },
+          {
+            "cliente_fornecedor": "GUSTAVO DALCIN",
+            "linhas": 1,
+            "receita": 0,
+            "despesa": 600,
+            "valor_rateio": 600,
+            "valor_resultado": -600
+          },
+          {
+            "cliente_fornecedor": "VACCARO PECAS PARA CAMINHOES E CARRETAS",
+            "linhas": 1,
+            "receita": 0,
+            "despesa": 488,
+            "valor_rateio": 488,
+            "valor_resultado": -488
+          },
+          {
+            "cliente_fornecedor": "BENONI DE SOUZA SIMON & CIA LTDA",
+            "linhas": 1,
+            "receita": 0,
+            "despesa": 410,
+            "valor_rateio": 410,
+            "valor_resultado": -410
+          },
+          {
+            "cliente_fornecedor": "54.718.187 CARLOS MURILLO DE OLIVEIRA RIBEIRO",
+            "linhas": 1,
+            "receita": 0,
+            "despesa": 250,
+            "valor_rateio": 250,
+            "valor_resultado": -250
+          },
+          {
+            "cliente_fornecedor": "COML INCERTI LTDA",
+            "linhas": 1,
+            "receita": 0,
+            "despesa": 859.8,
+            "valor_rateio": 859.8,
+            "valor_resultado": -859.8
+          },
+          {
+            "cliente_fornecedor": "MAICON AMARAL DA ROSA",
+            "linhas": 1,
+            "receita": 478.12,
+            "despesa": 0,
+            "valor_rateio": 478.12,
+            "valor_resultado": 478.12
+          },
+          {
+            "cliente_fornecedor": "LUCAS REMAN FACTORY",
+            "linhas": 1,
+            "receita": 0,
+            "despesa": 320,
+            "valor_rateio": 320,
+            "valor_resultado": -320
+          },
+          {
+            "cliente_fornecedor": "61.020.176 SILVANO WAGNER DA COSTA",
+            "linhas": 1,
+            "receita": 0,
+            "despesa": 105,
+            "valor_rateio": 105,
+            "valor_resultado": -105
+          },
+          {
+            "cliente_fornecedor": "ROSANA MARIA MACHADO LOPES",
+            "linhas": 1,
+            "receita": 0,
+            "despesa": 250,
+            "valor_rateio": 250,
+            "valor_resultado": -250
+          },
+          {
+            "cliente_fornecedor": "COML DE ELETRO VEICULOS GASPARETTO LTDA",
+            "linhas": 1,
+            "receita": 0,
+            "despesa": 229.68,
+            "valor_rateio": 229.68,
+            "valor_resultado": -229.68
+          },
+          {
+            "cliente_fornecedor": "COML BUFFON COMB E TRANSPS LTDA",
+            "linhas": 1,
+            "receita": 0,
+            "despesa": 1514.57,
+            "valor_rateio": 1514.57,
+            "valor_resultado": -1514.57
+          }
+        ],
+        "empresa": [
+          {
+            "empresa": "MARCIA ANDREIA ORTIZ LEDUR",
+            "linhas": 13,
+            "receita": 12018.779999999999,
+            "despesa": 0,
+            "valor_rateio": 12018.779999999999,
+            "valor_resultado": 12018.779999999999
+          },
+          {
+            "empresa": "LEDUR ENGENHARIA E CONSTRUCOES LTDA",
+            "linhas": 6,
+            "receita": 0,
+            "despesa": 6172.91,
+            "valor_rateio": 6172.91,
+            "valor_resultado": -6172.91
+          },
+          {
+            "empresa": "ARTEBASE CONSTRUTORA LTDA - EPP",
+            "linhas": 13,
+            "receita": 0,
+            "despesa": 4643.08,
+            "valor_rateio": 4643.08,
+            "valor_resultado": -4643.08
+          }
+        ],
+        "subcentro": [
+          {
+            "cod_subcentro": 21,
+            "subcentro": "JBJ-4J22",
+            "linhas": 32,
+            "receita": 12018.779999999999,
+            "despesa": 10815.99,
+            "valor_rateio": 22834.769999999997,
+            "valor_resultado": 1202.7899999999995
+          }
+        ]
+      }
+    }
+  },
+  "identificacao": {
+    "query46": {
+      "cod_subcentro": [
+        "21"
+      ],
+      "subcentro": [
+        "JBJ-4J22"
+      ]
+    },
+    "query47": {
+      "cod_subcentro": [
+        "21"
+      ],
+      "subcentro": [
+        "JBJ-4J22"
+      ],
+      "placa_nota": []
+    }
+  },
+  "baseline": {
+    "firebase": 104167.3,
+    "erp": {
+      "2025": 25882.33,
+      "2026": 18594.16,
+      "total": 44476.49
+    },
+    "lancamentos": {
+      "2025": 45,
+      "2026": 48,
+      "total": 93
+    }
+  },
+  "comparacaoBaseline": {
+    "query46": {
+      "2025": {
+        "consulta": 25882.330000000005,
+        "baseline": 25882.33,
+        "diferenca": 3.637978807091713e-12,
+        "diferencaPercentual": 1.4055839667803142e-14
+      },
+      "2026": {
+        "consulta": 18993.16,
+        "baseline": 18594.16,
+        "diferenca": 399,
+        "diferencaPercentual": 2.145835036377013
+      },
+      "total": {
+        "consulta": 44875.490000000005,
+        "baseline": 44476.49,
+        "diferenca": 399.0000000000073,
+        "diferencaPercentual": 0.8971031661896145
+      }
+    },
+    "query47": {
+      "2025": {
+        "consulta": 7536.9400000000005,
+        "baseline": 25882.33,
+        "diferenca": -18345.39,
+        "diferencaPercentual": -70.87997873452659
+      },
+      "2026": {
+        "consulta": 3279.05,
+        "baseline": 18594.16,
+        "diferenca": -15315.11,
+        "diferencaPercentual": -82.36516196483197
+      },
+      "total": {
+        "consulta": 10815.990000000002,
+        "baseline": 44476.49,
+        "diferenca": -33660.5,
+        "diferencaPercentual": -75.68155670557637
+      }
+    }
+  },
+  "totais": {
+    "firebase": 104167.3,
+    "firebaseMaisQ46": 149042.79,
+    "firebaseMaisQ47": 114983.29000000001,
+    "firebaseMaisQ46MaisQ47": 159858.78,
+    "avisoTotal4": "EXPERIMENTAL — POSSÍVEL DUPLA CONTAGEM ERP"
+  },
+  "q46VsQ47": {
+    "geral": {
+      "q46": {
+        "linhas": 66,
+        "qtd_lancamentos": 98,
+        "receita": 1.58,
+        "despesa": 44875.490000000005,
+        "valor_resultado": -44873.91000000001
+      },
+      "q47": {
+        "linhas": 32,
+        "notas_distintas": 30,
+        "fornecedores_distintos": 21,
+        "receita": 12018.779999999999,
+        "despesa": 10815.99,
+        "valor_rateio": 22834.769999999997,
+        "valor_resultado": 1202.7899999999995
+      }
+    },
+    "anual": {
+      "q46": {
+        "2025": {
+          "linhas": 34,
+          "qtd_lancamentos": 47,
+          "receita": 1.58,
+          "despesa": 25882.330000000005,
+          "valor_resultado": -25880.750000000007
+        },
+        "2026": {
+          "linhas": 32,
+          "qtd_lancamentos": 51,
+          "receita": 0,
+          "despesa": 18993.16,
+          "valor_resultado": -18993.16
+        }
+      },
+      "q47": {
+        "2025": {
+          "linhas": 20,
+          "notas": 18,
+          "receita": 3847.95,
+          "despesa": 7536.9400000000005,
+          "valor_rateio": 11384.890000000001,
+          "valor_resultado": -3688.9900000000002
+        },
+        "2026": {
+          "linhas": 12,
+          "notas": 12,
+          "receita": 8170.83,
+          "despesa": 3279.05,
+          "valor_rateio": 11449.88,
+          "valor_resultado": 4891.780000000001
+        }
+      }
+    },
+    "mensal": {
+      "q46": [
+        {
+          "mes": "2025",
+          "linhas": 34,
+          "qtd_lancamentos": 47,
+          "receita": 1.58,
+          "despesa": 25882.330000000005,
+          "valor_resultado": -25880.750000000007
+        },
+        {
+          "mes": "2026",
+          "linhas": 32,
+          "qtd_lancamentos": 51,
+          "receita": 0,
+          "despesa": 18993.16,
+          "valor_resultado": -18993.16
+        }
+      ],
+      "q47": [
+        {
+          "mes": "2025",
+          "linhas": 20,
+          "receita": 3847.95,
+          "despesa": 7536.9400000000005,
+          "valor_rateio": 11384.890000000001,
+          "valor_resultado": -3688.9900000000002
+        },
+        {
+          "mes": "2026",
+          "linhas": 12,
+          "receita": 8170.83,
+          "despesa": 3279.05,
+          "valor_rateio": 11449.88,
+          "valor_resultado": 4891.780000000001
+        }
+      ]
+    }
+  },
+  "seguranca": {
+    "envRastreado": false,
+    "envProtegido": false,
+    "segredoPersistidoNoProjeto": false
+  }
+}

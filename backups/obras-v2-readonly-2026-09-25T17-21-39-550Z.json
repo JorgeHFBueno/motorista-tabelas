@@ -1,0 +1,406 @@
+{
+  "exportedAt": "2026-09-25T17:21:39.549Z",
+  "collection": "obras-v2",
+  "documents": [
+    {
+      "id": "0PGQHZLrtFRaZOQvY9z7",
+      "codObra": 53,
+      "siglaObra": "PM SOBRADINHO",
+      "nomeObra": "PONTE 4,50x22,00M",
+      "dataInicial": "2025-01-20T00:00:00",
+      "dataFinal": "2026-01-20T00:00:00",
+      "status": "FINALIZADA",
+      "local": "Sobradinho - RS"
+    },
+    {
+      "id": "0WRMAv0kMQP5VWeUIokB",
+      "codObra": 51,
+      "siglaObra": "GB",
+      "nomeObra": "GALERIAS CONSTRUBRÁS",
+      "dataInicial": "2025-03-15T00:00:00",
+      "dataFinal": "2025-06-11T00:00:00",
+      "status": "CONTRATADA",
+      "local": ""
+    },
+    {
+      "id": "1wMFuKvgEx2I2LIgU1da",
+      "codObra": 42,
+      "siglaObra": "DENIS",
+      "nomeObra": "3D TERRAPLENAGEM E LOCAÇÕES LTDA",
+      "dataInicial": "2025-01-24T00:00:00",
+      "dataFinal": "2025-05-23T00:00:00",
+      "status": "FINALIZADA",
+      "local": "TERMINADO"
+    },
+    {
+      "id": "2L9OIRQ8W0gZ5guQmAmI",
+      "codObra": 72,
+      "siglaObra": "PM PASSA SETE",
+      "nomeObra": "PONTE 5,00X10,00 (DONA ROSA)",
+      "dataInicial": "2025-08-26T00:00:00",
+      "dataFinal": "2026-02-21T00:00:00",
+      "status": "FINALIZADA",
+      "local": "Passa Sete - RS"
+    },
+    {
+      "id": "BKlfx4hbuusd0LVb5flC",
+      "codObra": 100,
+      "siglaObra": "RECICLE",
+      "nomeObra": "BLOCO 1",
+      "dataInicial": "2026-05-22T00:00:00",
+      "dataFinal": "2026-11-20T00:00:00",
+      "status": "CONTRATADA",
+      "local": "Palmeira das Missões - RS"
+    },
+    {
+      "id": "CCFqJl9DI4IstY07Gahs",
+      "codObra": 116,
+      "siglaObra": "PM CARLOS GOMES",
+      "nomeObra": "PONTE 6,00X6,00M (RIO ACIMA)",
+      "dataInicial": "2026-08-18T00:00:00",
+      "dataFinal": "2027-04-01T00:00:00",
+      "status": "CONTRATADA",
+      "local": "Carlos Gomes - RS"
+    },
+    {
+      "id": "FqctsYkukSgwr54Agr5h",
+      "codObra": 88,
+      "siglaObra": "PM ARROIO DO TIGRE",
+      "nomeObra": "PONTE 4,50X45,00M",
+      "dataInicial": "2026-03-18T00:00:00",
+      "dataFinal": "2027-01-01T00:00:00",
+      "status": "CONTRATADA",
+      "local": "Arroio do Tigre - RS"
+    },
+    {
+      "id": "Fzyiaq3e6ByjGhwN7PSI",
+      "codObra": 49,
+      "siglaObra": "BETO",
+      "nomeObra": "BETO | SPANEVELLO",
+      "dataInicial": "2024-12-24T00:00:00",
+      "dataFinal": "2025-08-24T00:00:00",
+      "status": "FINALIZADA",
+      "local": "TERMINADO"
+    },
+    {
+      "id": "GhFXggCkSTnvuU1nVxp7",
+      "codObra": 31,
+      "siglaObra": "PM S  VENDELINO II",
+      "nomeObra": "PONTE 8,00X20,00M",
+      "dataInicial": "2024-10-29T00:00:00",
+      "dataFinal": "2025-01-31T00:00:00",
+      "status": "FINALIZADA",
+      "local": "São Vendelino - RS"
+    },
+    {
+      "id": "JNgRzyMmMHJrafKAKp5q",
+      "codObra": 69,
+      "siglaObra": "PM SOBRADINHO",
+      "nomeObra": "RINCÃO DO SEGREDO PONTE 4,50X13,00 M",
+      "dataInicial": "2025-04-24T00:00:00",
+      "dataFinal": "2026-04-24T00:00:00",
+      "status": "FINALIZADA",
+      "local": "Sobradinho - RS"
+    },
+    {
+      "id": "O4hkkxZX3LbeZyluMsrt",
+      "codObra": 89,
+      "siglaObra": "LEDUR",
+      "nomeObra": "FABRICA",
+      "dataInicial": "2026-03-31T00:00:00",
+      "dataFinal": "2026-04-20T00:00:00",
+      "status": "CONTRATADA",
+      "local": "Palmeira das Missões - RS"
+    },
+    {
+      "id": "PyutpoAfxU9dMfDHjoKI",
+      "codObra": 73,
+      "siglaObra": "PM PASSA SETE",
+      "nomeObra": "PONTE 5,00X10,00 (DONA IVONE)",
+      "dataInicial": "2025-08-26T00:00:00",
+      "dataFinal": "2026-02-21T00:00:00",
+      "status": "FINALIZADA",
+      "local": "Passa Sete - RS"
+    },
+    {
+      "id": "QeFjha2zFbGVjhP69NOg",
+      "codObra": 102,
+      "siglaObra": "PGL DISTRIBUIDORA",
+      "nomeObra": "VIGAS I 40X80 PROTENDIDAS",
+      "dataInicial": "2026-05-22T00:00:00",
+      "dataFinal": "2026-06-22T00:00:00",
+      "status": "CONTRATADA",
+      "local": ""
+    },
+    {
+      "id": "Reu9ln2lRecu93lF7jqp",
+      "codObra": 84,
+      "siglaObra": "PM TUNAS",
+      "nomeObra": "PONTE 18,00X6,00",
+      "dataInicial": "2025-08-29T00:00:00",
+      "dataFinal": "2026-02-25T00:00:00",
+      "status": "FINALIZADA",
+      "local": "Tunas - RS"
+    },
+    {
+      "id": "S9LxzJCbUtjvs5pxMCaL",
+      "codObra": 50,
+      "siglaObra": "PM SINIMBU",
+      "nomeObra": "PONTE 6,50X40,00M",
+      "dataInicial": "2025-03-19T00:00:00",
+      "dataFinal": "2026-03-19T00:00:00",
+      "status": "CONTRATADA",
+      "local": "Sinimbu - RS"
+    },
+    {
+      "id": "S9T6iTqjW5lUb0TIgGuZ",
+      "codObra": 112,
+      "siglaObra": "PM LAGOA BS",
+      "nomeObra": "PONTE 5,00X10,00M",
+      "dataInicial": "2026-07-13T00:00:00",
+      "dataFinal": "2027-01-01T00:00:00",
+      "status": "CONTRATADA",
+      "local": ""
+    },
+    {
+      "id": "SjZk5CuwQ9ksfDZFQ9GJ",
+      "codObra": 55,
+      "siglaObra": "PM BARROS CASSAL",
+      "nomeObra": "PONTE 4,40x28,00",
+      "dataInicial": "2024-10-24T00:00:00",
+      "dataFinal": "2025-10-24T00:00:00",
+      "status": "FINALIZADA",
+      "local": "TERMINADO"
+    },
+    {
+      "id": "Y4qskRj1XhTJ25KXRCsK",
+      "codObra": 74,
+      "siglaObra": "PM PASSA SETE",
+      "nomeObra": "PONTE 5,00X8,00 (PONTE PUNTEL)",
+      "dataInicial": "2025-08-26T00:00:00",
+      "dataFinal": "2026-02-21T00:00:00",
+      "status": "FINALIZADA",
+      "local": "Passa Sete - RS"
+    },
+    {
+      "id": "YYahKjs8dKaQ3envsFOk",
+      "codObra": 114,
+      "siglaObra": "PM PAIM FILHO",
+      "nomeObra": "PONTE 6,00X7,30M",
+      "dataInicial": "2026-08-12T00:00:00",
+      "dataFinal": "2026-11-13T00:00:00",
+      "status": "CONTRATADA",
+      "local": "Paim Filho - RS"
+    },
+    {
+      "id": "Ys23ozLzjiWVaKemOdtf",
+      "codObra": 94,
+      "siglaObra": "PET FAMILY",
+      "nomeObra": "VIGAS 40X80",
+      "dataInicial": "2026-04-22T00:00:00",
+      "dataFinal": "2026-05-22T00:00:00",
+      "status": "CONTRATADA",
+      "local": ""
+    },
+    {
+      "id": "aHiM5CDqT1xRxuSqzoqE",
+      "codObra": 106,
+      "siglaObra": "PM PASSA SETE",
+      "nomeObra": "PONTE 5,00X21,00 (TEXA)",
+      "dataInicial": "2026-01-06T00:00:00",
+      "dataFinal": "2027-01-29T00:00:00",
+      "status": "CONTRATADA",
+      "local": "Passa Sete - RS"
+    },
+    {
+      "id": "ayOwNsME73NDiIyOTufP",
+      "codObra": 104,
+      "siglaObra": "CONSTRUBRAS",
+      "nomeObra": "GALERIA 2,50X2,50M",
+      "dataInicial": "2026-05-26T00:00:00",
+      "dataFinal": "2026-12-17T00:00:00",
+      "status": "CONTRATADA",
+      "local": ""
+    },
+    {
+      "id": "fCuhL6fNnN76CZI7mjTn",
+      "codObra": 66,
+      "siglaObra": "PM PONTE PRETA",
+      "nomeObra": "PONTE 5,00X45,00",
+      "dataInicial": "2025-02-18T00:00:00",
+      "dataFinal": "2025-10-18T00:00:00",
+      "status": "FINALIZADA",
+      "local": "Ponte Preta - RS"
+    },
+    {
+      "id": "g0SCWEojXLB5Md2Rs954",
+      "codObra": 36,
+      "siglaObra": "GL 300X300",
+      "nomeObra": "GALERIA 3,00X3,00 m",
+      "dataInicial": "2024-11-28T00:00:00",
+      "dataFinal": "2025-01-15T00:00:00",
+      "status": "CONTRATADA",
+      "local": ""
+    },
+    {
+      "id": "gTeodrzrRZP5Ze0NOzIV",
+      "codObra": 117,
+      "siglaObra": "PM IBARAMA",
+      "nomeObra": "PONTE 5,00X25,00M (LAJ. GRINGA)",
+      "dataInicial": "2026-08-28T00:00:00",
+      "dataFinal": "2027-02-04T00:00:00",
+      "status": "CONTRATADA",
+      "local": ""
+    },
+    {
+      "id": "gWAhk4YfL0ZjyLwCoPLi",
+      "codObra": 86,
+      "siglaObra": "FREE_SHOP",
+      "nomeObra": "28,00X26,00",
+      "dataInicial": "2026-03-13T00:00:00",
+      "dataFinal": "2026-07-13T00:00:00",
+      "status": "CONTRATADA",
+      "local": "Porto Mauá - RS"
+    },
+    {
+      "id": "jl2pQ0QBdg3rBuEREqvA",
+      "codObra": 56,
+      "siglaObra": "PM ARROIO DO TIGRE",
+      "nomeObra": "PONTE 6,00X120,00",
+      "dataInicial": "2025-02-13T00:00:00",
+      "dataFinal": "2026-02-13T00:00:00",
+      "status": "CONTRATADA",
+      "local": "Arroio do Tigre - RS"
+    },
+    {
+      "id": "jvraCG6719DMBgTHQiB1",
+      "codObra": 77,
+      "siglaObra": "SMS",
+      "nomeObra": "PAVILHÃO 15,00X20,00",
+      "dataInicial": "2025-11-03T00:00:00",
+      "dataFinal": "2026-03-17T00:00:00",
+      "status": "FINALIZADA",
+      "local": "Palmeira das Missões - RS"
+    },
+    {
+      "id": "lcO6WeywsQoqui8ApYmF",
+      "codObra": 113,
+      "siglaObra": "PM IBARAMA",
+      "nomeObra": "PONTE 5,00X30,00M (CABRITOS)",
+      "dataInicial": "2026-08-12T00:00:00",
+      "dataFinal": "2027-03-19T00:00:00",
+      "status": "CONTRATADA",
+      "local": "Ibarama - RS"
+    },
+    {
+      "id": "ndy42Vu8YFhUTyL1mmw8",
+      "codObra": 44,
+      "siglaObra": "PM LAGOA BONITA",
+      "nomeObra": "PONTE 6,00 X 10,00 M",
+      "dataInicial": "2024-10-31T00:00:00",
+      "dataFinal": "2025-10-31T00:00:00",
+      "status": "FINALIZADA",
+      "local": "Lagoa Bonita do Sul - RS"
+    },
+    {
+      "id": "oekfLegnB7NKNWujXt4L",
+      "codObra": 80,
+      "siglaObra": "PM RESTINGA SECA",
+      "nomeObra": "PONTE 6,00X32,00M",
+      "dataInicial": "2025-03-19T00:00:00",
+      "dataFinal": "2026-02-06T00:00:00",
+      "status": "FINALIZADA",
+      "local": "TERMINADO"
+    },
+    {
+      "id": "qESfzPpFYC2K7E5UPPfP",
+      "codObra": 68,
+      "siglaObra": "SINIMBU",
+      "nomeObra": "PONTE 6,00 X 10,00 M",
+      "dataInicial": "2025-06-10T00:00:00",
+      "dataFinal": "2025-12-05T00:00:00",
+      "status": "FINALIZADA",
+      "local": "Sinimbu - RS"
+    },
+    {
+      "id": "rgYEsj6Zu1HStmtVBs4g",
+      "codObra": 76,
+      "siglaObra": "FRAN MENEGAZZO",
+      "nomeObra": "PAVILHÃO 22,00X74,75",
+      "dataInicial": "2025-08-14T00:00:00",
+      "dataFinal": "2026-05-14T00:00:00",
+      "status": "FINALIZADA",
+      "local": "TERMINADO"
+    },
+    {
+      "id": "rgd4SyRTrMCwErMvNIwT",
+      "codObra": 82,
+      "siglaObra": "SUPREMA",
+      "nomeObra": "SUPREMA VIDROS E ALUMINIO",
+      "dataInicial": "2026-02-10T00:00:00",
+      "dataFinal": "2026-05-11T00:00:00",
+      "status": "CONTRATADA",
+      "local": ""
+    },
+    {
+      "id": "taZFxCSUGRMqL92e5vTE",
+      "codObra": 65,
+      "siglaObra": "RBF",
+      "nomeObra": "DEPOSITO RBF",
+      "dataInicial": "2025-06-17T00:00:00",
+      "dataFinal": "2025-10-22T00:00:00",
+      "status": "FINALIZADA",
+      "local": "TERMINADO"
+    },
+    {
+      "id": "urzQa4u0SgZvBQk6uPvN",
+      "codObra": 108,
+      "siglaObra": "PM PASSA SETE",
+      "nomeObra": "PONTE 5,00X21,00 (DARI)",
+      "dataInicial": "2026-01-06T00:00:00",
+      "dataFinal": "2027-01-28T00:00:00",
+      "status": "CONTRATADA",
+      "local": "Passa Sete - RS"
+    },
+    {
+      "id": "v47kJAqO27oxhJpyJGGN",
+      "codObra": 67,
+      "siglaObra": "NILTO",
+      "nomeObra": "GALERIA 2,00X2,00 M",
+      "dataInicial": "2025-08-18T00:00:00",
+      "dataFinal": "2025-09-08T00:00:00",
+      "status": "CONTRATADA",
+      "local": ""
+    },
+    {
+      "id": "xL6HpYbgn6p7wfez3QuP",
+      "codObra": 83,
+      "siglaObra": "PM ARROIO DO TIGRE",
+      "nomeObra": "PONTE 5,00X60,00M",
+      "dataInicial": "2025-09-05T00:00:00",
+      "dataFinal": "2026-04-10T00:00:00",
+      "status": "FINALIZADA",
+      "local": "Arroio do Tigre - RS"
+    },
+    {
+      "id": "xxY5C55HKm8sa8GprVhv",
+      "codObra": 93,
+      "siglaObra": "SICREDI",
+      "nomeObra": "SICREDI - CCL",
+      "dataInicial": "2026-04-17T00:00:00",
+      "dataFinal": "2026-08-17T00:00:00",
+      "status": "CONTRATADA",
+      "local": ""
+    },
+    {
+      "id": "zeYd49Xi61eRQeJI4IOl",
+      "codObra": 79,
+      "siglaObra": "PM FONTOURA XAVIER",
+      "nomeObra": "PONTE 5,00X96,00M",
+      "dataInicial": "2024-08-22T00:00:00",
+      "dataFinal": "2026-05-29T00:00:00",
+      "status": "CONTRATADA",
+      "local": "Fontoura Xavier - RS"
+    }
+  ]
+}

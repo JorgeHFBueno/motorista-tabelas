@@ -1,0 +1,50 @@
+﻿[
+    {
+        "File":  "functions\\kiosk\\kioskSecurity.ts",
+        "Original":  "219D5AA4F927F834E67B615A3E9CC305BCCE3962A64FB6E2E4B763529C8A46E2",
+        "Backup":  "219D5AA4F927F834E67B615A3E9CC305BCCE3962A64FB6E2E4B763529C8A46E2",
+        "Match":  true
+    },
+    {
+        "File":  "functions\\kiosk\\kioskAdmin.ts",
+        "Original":  "6B36633704D3BA7E2B2DF9B391BC94723E3D80E2A0FEFD10ACCE55E0652331D5",
+        "Backup":  "6B36633704D3BA7E2B2DF9B391BC94723E3D80E2A0FEFD10ACCE55E0652331D5",
+        "Match":  true
+    },
+    {
+        "File":  "functions\\index.ts",
+        "Original":  "7CD9BCF0E5E7255CB428A93111A5BB2629C37C77F6F1524636C200ACC6C835CE",
+        "Backup":  "7CD9BCF0E5E7255CB428A93111A5BB2629C37C77F6F1524636C200ACC6C835CE",
+        "Match":  true
+    },
+    {
+        "File":  "src\\services\\kioskCredentials.ts",
+        "Original":  "6AAEAD5D12F836D569B97DEADDE78CBB161D766BEA9A4204DB7C8AFBCBAC210A",
+        "Backup":  "6AAEAD5D12F836D569B97DEADDE78CBB161D766BEA9A4204DB7C8AFBCBAC210A",
+        "Match":  true
+    },
+    {
+        "File":  "src\\pages\\KioskCredentialsPage.tsx",
+        "Original":  "112E9DE429E09648D72CEE46684818626522EEAD9926253F0B22986C8621C317",
+        "Backup":  "112E9DE429E09648D72CEE46684818626522EEAD9926253F0B22986C8621C317",
+        "Match":  true
+    },
+    {
+        "File":  "tests\\kiosk-credentials.test.ts",
+        "Original":  "D892B468D4821C6D106AC23C594E6E890654C6E8577EB934858894224BCA20FE",
+        "Backup":  "D892B468D4821C6D106AC23C594E6E890654C6E8577EB934858894224BCA20FE",
+        "Match":  true
+    },
+    {
+        "File":  "functions\\package.json",
+        "Original":  "2174CC1706B86793D5A52A8120405203B35C20011FDA15501D5823C4F67588FC",
+        "Backup":  "2174CC1706B86793D5A52A8120405203B35C20011FDA15501D5823C4F67588FC",
+        "Match":  true
+    },
+    {
+        "File":  "package.json",
+        "Original":  "1B0C450533734E0D3313F2A0973E72648093433A40616ABE93E563E293B3E339",
+        "Backup":  "1B0C450533734E0D3313F2A0973E72648093433A40616ABE93E563E293B3E339",
+        "Match":  true
+    }
+]

@@ -1,0 +1,73 @@
+{
+  "status": "BLOQUEADO",
+  "code": "ERP_API_CONTRACT_MISSING",
+  "request": {
+    "DataInicial": "2025-01-01",
+    "DataFinal": "2026-09-25",
+    "Placa": "JBJ4J22"
+  },
+  "metadata": {
+    "placaAplicacao": "JBJ-4J22",
+    "placaNormalizada": "JBJ4J22",
+    "queriesSolicitadas": [46, 47],
+    "modo": "READ-ONLY",
+    "apiExecutada": false,
+    "motivo": "O repositório não contém contrato verificável da API ERP.",
+    "contratoAusente": [
+      "URL base do ERP",
+      "endpoint de consulta de query",
+      "método HTTP",
+      "mecanismo de autenticação (sem expor o segredo)",
+      "estrutura da resposta para as queries 46 e 47"
+    ],
+    "credenciaisExpostas": false,
+    "firebaseConsultado": false,
+    "firebaseEscrito": false,
+    "deployExecutado": false,
+    "aplicacaoWebAlterada": false,
+    "firebaseRulesAlteradas": false
+  },
+  "respostaNormalizada": {
+    "query46": null,
+    "query47": null
+  },
+  "totais": {
+    "query46": null,
+    "query47": null
+  },
+  "totaisAnuais": {
+    "query46": null,
+    "query47": null
+  },
+  "totaisMensais": {
+    "query46": null,
+    "query47": null
+  },
+  "baseline": {
+    "firebase": {
+      "diesel": 94398.82,
+      "manutencoes": 9768.48,
+      "total": 104167.3
+    },
+    "erp": {
+      "2025": 25882.33,
+      "2026": 18594.16,
+      "total": 44476.49,
+      "lancamentos": { "2025": 45, "2026": 48, "total": 93 }
+    }
+  },
+  "comparacaoBaseline": {
+    "query46": null,
+    "query47": null
+  },
+  "totaisExperimentais": {
+    "firebase": 104167.3,
+    "firebaseMaisQuery46": null,
+    "firebaseMaisQuery47": null,
+    "firebaseMaisQuery46MaisQuery47": null,
+    "aviso": "EXPERIMENTAL — POSSÍVEL DUPLA CONTAGEM ERP"
+  },
+  "anomalias": [
+    "ERP_API_CONTRACT_MISSING: execução das queries 46 e 47 não foi iniciada para não inventar endpoint, método ou autenticação."
+  ]
+}
