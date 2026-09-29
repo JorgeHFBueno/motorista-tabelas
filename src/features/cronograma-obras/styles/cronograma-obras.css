@@ -168,10 +168,11 @@
 .co-month-cell .co-allocation { min-width: 22px; padding: 0 7px; width: auto; }
 .co-day-cells { display: grid; grid-template-columns: repeat(365, var(--co-day-width)); min-height: inherit; }
 .co-day-cell { border-right: 1px solid #dfe8ec; min-width: 0; }
-.co-day-cell:nth-child(7n+5) { border-left: 2px solid #b7c8d1; }
+.co-day-cell.is-week-start::before, .co-day-cell.is-month-start::before, .co-week-cell.is-month-start::before { bottom: 0; content: ''; left: 0; pointer-events: none; position: absolute; top: 0; z-index: 2; }
+.co-day-cell.is-week-start::before { background: #b7c8d1; width: 2px; }
+.co-day-cell.is-month-start::before, .co-week-cell.is-month-start::before { background: #8ca6b6; width: 3px; }
 .co-day-cell.is-planned { cursor: default; }
 .co-week-cell { align-items: center; border-right: 1px solid #c6d4dc; display: flex; min-width: 0; overflow: hidden; position: relative; }
-.co-week-cell:nth-child(4n) { border-right: 2px solid #aebfca; }
 .co-allocation { align-items: center; border-radius: 3px; color: #fff; display: flex; font-size: .53rem; font-weight: 850; height: 20px; justify-content: center; margin-left: 0; min-width: 8px; }
 .co-allocation.is-connected-left { border-bottom-left-radius: 0; border-top-left-radius: 0; }
 .co-allocation.is-connected-right { border-bottom-right-radius: 0; border-top-right-radius: 0; width: 100% !important; }

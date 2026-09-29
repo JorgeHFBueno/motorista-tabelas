@@ -16,15 +16,18 @@ export function daysInWeek(inicio: CivilDate, tempo: number, week: CivilDate): n
 export function weeklyAllocation(inicio: CivilDate, tempo: number, week: CivilDate): { days: number; offset: number } { const start = weekStart(week); const occupied = eachDay(inicio, tempo).filter((day) => day >= start && day <= addDays(start, 6)); return { days: occupied.length, offset: occupied.length ? eachDay(start, 7).indexOf(occupied[0]) : 0 }; }
 export function daysInMonth(inicio: CivilDate, tempo: number, month: CivilDate): number { const start = `${month.slice(0, 7)}-01`; return countIntersection(inicio, tempo, start, monthDays(start)); }
 export function yearDays(year: number): CivilDate[] { return eachDay(`${year}-01-01`, (year % 4 === 0 && (year % 100 !== 0 || year % 400 === 0)) ? 366 : 365); }
-export function dailyHeader(year: number) { return yearDays(year).map((date) => ({ date, label: date.slice(8), month: MONTHS[Number(date.slice(5, 7)) - 1], isWeekStart: weekStart(date) === date })); }
+export function dailyHeader(year: number) { return yearDays(year).map((date) => ({ date, label: date.slice(8), month: MONTHS[Number(date.slice(5, 7)) - 1], isWeekStart: weekStart(date) === date, isMonthStart: date.slice(8) === '01' })); }
 export function weeklyHeader(year: number): CivilDate[] { const first = weekStart(`${year}-01-01`); const last = `${year}-12-31`; const result: CivilDate[] = []; for (let date = first; date <= last; date = addDays(date, 7)) result.push(date); return result; }
+export function weeklyTimelineCells(year: number) {
+  return weeklyHeader(year).map((date, index, weeks) => ({ date, isMonthStart: index === 0 || date.slice(0, 7) !== weeks[index - 1].slice(0, 7), isYearStart: index === 0 || date.slice(0, 4) !== weeks[index - 1].slice(0, 4) }));
+}
 /** A weekly bucket belongs to the month containing its Monday (the bucket start). */
 export function weeklyMonthGroups(year: number): Array<{ label: string; start: CivilDate; weeks: number }> {
-  return weeklyHeader(year).reduce<Array<{ label: string; start: CivilDate; weeks: number }>>((groups, start) => {
-    const label = MONTHS[Number(start.slice(5, 7)) - 1];
+  return weeklyTimelineCells(year).reduce<Array<{ label: string; start: CivilDate; weeks: number }>>((groups, cell) => {
+    const label = MONTHS[Number(cell.date.slice(5, 7)) - 1];
     const current = groups.at(-1);
-    if (current?.label === label) current.weeks += 1;
-    else groups.push({ label, start, weeks: 1 });
+    if (!cell.isMonthStart && current?.label === label) current.weeks += 1;
+    else groups.push({ label, start: cell.date, weeks: 1 });
     return groups;
   }, []);
 }
