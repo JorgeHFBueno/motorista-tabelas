@@ -121,8 +121,11 @@
 .co-weeks { display: grid; grid-template-columns: repeat(53, var(--co-week-width)); height: 28px; }
 .co-master-add { background: #eef4f7; border: 1px dashed #9fb3c0; color: #214f70; font-size: 1.1rem; justify-content: center; min-width: 30px; }
 .co-master-modal { align-items: center; background: rgb(20 43 58 / .3); display: flex; inset: 0; justify-content: center; position: fixed; z-index: 50; }
-.co-master-modal form { background: #fff; border: 1px solid var(--co-line); border-radius: 8px; box-shadow: 0 12px 32px rgb(19 43 58 / .24); display: grid; gap: 12px; min-width: 300px; padding: 18px; }
+.co-master-modal > section, .co-master-modal form { background: var(--co-surface); border: 1px solid var(--co-line); border-radius: 8px; box-shadow: 0 12px 32px rgb(19 43 58 / .24); display: grid; gap: 12px; max-height: min(80vh, 720px); min-width: 300px; overflow: auto; padding: 18px; width: min(560px, calc(100vw - 32px)); }
 .co-master-modal h2 { font-size: 1rem; margin: 0; }.co-master-modal label { display: grid; font-size: .72rem; font-weight: 750; gap: 5px; }.co-master-modal input { border: 1px solid #ccd8df; border-radius: 5px; height: 34px; padding: 0 8px; }.co-master-modal form > div { display: flex; gap: 8px; justify-content: flex-end; }.co-master-modal p { color: #b24c43; font-size: .72rem; margin: 0; }
+.co-master-modal > section > div { display: flex; flex-wrap: wrap; gap: 8px; justify-content: flex-end; }
+.co-master-modal > section details { border-top: 1px solid var(--co-line-soft); max-height: 35vh; overflow: auto; padding-top: 10px; }
+.co-master-modal > section summary { color: var(--co-accent); cursor: pointer; font-size: .75rem; font-weight: 750; }
 .co-days { display: grid; grid-template-columns: repeat(365, var(--co-day-width)); height: 28px; }
 .co-days > div { align-items: center; border-right: 1px solid #dbe4e9; border-top: 1px solid #cbd8df; color: #71818b; display: flex; font-size: .52rem; justify-content: center; }
 .co-days > .is-week-start { border-left: 2px solid #aebfca; }
