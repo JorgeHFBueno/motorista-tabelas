@@ -56,7 +56,7 @@ export function getMasterSegmentsInBucket(masters: readonly MestrePlanejado[], s
 
 export function getBucketTimelineAggregate(obra: ObraCronograma & { hoje?: CivilDate }, start: CivilDate, days: number, hoje?: CivilDate, liveAlerts = true): BucketTimelineAggregate {
   const daily = getDailyTimeline(obra, start, days, hoje, liveAlerts);
-  return { days, plannedDays: countIntersection(obra.inicioPlanejado, obra.tempoPlanejado, start, days), states: aggregateConsecutiveStates(daily), masters: getMasterSegmentsInBucket(obra.mestresPlanejados, start, days) };
+  return { days, plannedDays: obra.allocationAllowed === false ? 0 : countIntersection(obra.inicioPlanejado, obra.tempoPlanejado, start, days), states: aggregateConsecutiveStates(daily), masters: getMasterSegmentsInBucket(obra.mestresPlanejados, start, days) };
 }
 
 /** A weekly cell owns a fixed internal seven-day coordinate system. */

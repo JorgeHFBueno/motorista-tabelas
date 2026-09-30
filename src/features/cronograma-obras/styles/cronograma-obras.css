@@ -119,7 +119,8 @@
 .co-months--days { grid-template-columns: repeat(365, var(--co-day-width)); }
 .co-months > div { align-items: center; border-right: 2px solid #b3c3cd; color: #29495e; display: flex; font-size: .65rem; font-weight: 850; justify-content: center; letter-spacing: .07em; }
 .co-weeks { display: grid; grid-template-columns: repeat(53, var(--co-week-width)); height: 28px; }
-.co-master-add { background: #eef4f7; border: 1px dashed #9fb3c0; color: #214f70; font-size: 1.1rem; justify-content: center; min-width: 30px; }
+.co-master-add { background: #d8eaf5; border: 1px solid #39749a; box-shadow: inset 0 0 0 1px rgb(255 255 255 / .55); color: #123e5b; font-size: 1.1rem; font-weight: 850; justify-content: center; min-width: 30px; }
+.co-master-add:hover, .co-master-add:focus-visible { background: #bcdcf0; border-color: #174f76; box-shadow: 0 0 0 3px rgb(47 107 152 / .22); color: #0d3651; outline: 0; }
 .co-master-modal { align-items: center; background: rgb(20 43 58 / .3); display: flex; inset: 0; justify-content: center; position: fixed; z-index: 50; }
 .co-master-modal > section, .co-master-modal form { background: var(--co-surface); border: 1px solid var(--co-line); border-radius: 8px; box-shadow: 0 12px 32px rgb(19 43 58 / .24); display: grid; gap: 12px; max-height: min(80vh, 720px); min-width: 300px; overflow: auto; padding: 18px; width: min(560px, calc(100vw - 32px)); }
 .co-master-modal h2 { font-size: 1rem; margin: 0; }.co-master-modal label { display: grid; font-size: .72rem; font-weight: 750; gap: 5px; }.co-master-modal input { border: 1px solid #ccd8df; border-radius: 5px; height: 34px; padding: 0 8px; }.co-master-modal form > div { display: flex; gap: 8px; justify-content: flex-end; }.co-master-modal p { color: #b24c43; font-size: .72rem; margin: 0; }
@@ -150,6 +151,15 @@
 .co-grid-row--contract svg { font-size: 1rem; transition: transform .16s ease; }
 .co-grid-row--contract svg.is-collapsed { transform: rotate(-90deg); }
 .co-grid-row--contract b { align-items: center; background: #cfdee7; border-radius: 99px; color: #35586d; display: inline-flex; font-size: .59rem; justify-content: center; margin-left: 2px; min-width: 19px; padding: 3px 5px; }
+.co-contract-controls { align-items: center; display: inline-flex; flex: 0 0 20px; flex-direction: column; gap: 0; justify-content: center; margin: -5px 0; min-height: 36px; }
+.co-contract-controls > svg { flex: 0 0 16px; }
+.co-contract-details { align-items: center; background: #d8e8f0; border: 1px solid #789aae; border-radius: 4px; color: #163f5c; cursor: pointer; display: inline-flex; flex: 0 0 16px; height: 16px; justify-content: center; padding: 0; width: 18px; }
+.co-contract-details:hover, .co-contract-details:focus-visible { background: #b9d6e5; color: #092f48; outline: 2px solid #2f6b98; outline-offset: 1px; }
+.co-contract-details svg { font-size: 1rem; }
+.co-contract-group:has(.co-work-name[title="Analisar Contrato"]) .co-contract-name::after { background: #fff0c9; border: 1px solid #e5bd65; border-radius: 99px; color: #76521f; content: 'Analisar Contrato'; flex: 0 1 auto; font-size: .55rem; font-weight: 850; letter-spacing: 0; overflow: hidden; padding: 2px 5px; text-overflow: ellipsis; white-space: nowrap; }
+.co-grid-row--child:has(.co-work-name[title="Analisar Contrato"]) .co-work-name { background: #fff4d8; border: 1px solid #efd49c; border-radius: 4px; color: #76521f; font-weight: 850; padding-right: 7px; }
+.co-grid-row--child:has(.co-work-name[title="Analisar Contrato"]) .co-work-name::after { color: #a56d1d; content: '⚠'; font-size: .75rem; margin-left: 5px; }
+.co-contract-raw { background: #132532; border-radius: 6px; color: #d9edf6; font-size: .7rem; line-height: 1.45; margin: 12px 0 0; overflow: auto; padding: 12px; white-space: pre-wrap; word-break: break-word; }
 .co-contract-calendar { border-left: 1px solid #b9c9d2; min-height: inherit; }
 .co-start-date { background: transparent; border: 0; color: #245f89; cursor: pointer; font: inherit; padding: 5px 8px; text-align: left; text-decoration: underline dotted; }
 .co-start-date:hover { color: #163f5c; text-decoration-style: solid; }

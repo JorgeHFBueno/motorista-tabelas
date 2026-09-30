@@ -9,6 +9,7 @@ export function isObraOverdue(obra: Pick<ObraCronograma, 'inicioPlanejado' | 'te
 export function getMastersForDate(mestres: readonly MestrePlanejado[] | undefined, dia: CivilDate): MestrePlanejado[] { return (mestres ?? []).filter((mestre) => dia >= mestre.inicio && dia <= calculatedEnd(mestre.inicio, mestre.tempoPlanejado)); }
 /** Precedence: master > original deadline > elapsed extension > future attention > empty. */
 export function getTemporalStateForDate(obra: ObraCronograma, dia: CivilDate, hoje = todayCivil()): ObraTemporalSegmentType | null {
+  if (obra.allocationAllowed === false) return null;
   if (getMastersForDate(obra.mestresPlanejados, dia).length) return 'mastered';
   const fim = getObraEndDate(obra);
   if (dia >= obra.inicioPlanejado && dia <= fim) return 'planned';
