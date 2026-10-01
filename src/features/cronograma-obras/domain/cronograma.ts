@@ -6,7 +6,8 @@ export function filterObras(obras: ObraCronograma[], filters: CronogramaFilters)
   return obras.filter((obra) => {
     const text = [obra.codObra, obra.siglaObra, obra.nomeObra, obra.local, obra.empresa, obra.mestreInicial, ...obra.mestresPlanejados.map((mestre) => mestre.nome), obra.descricao].filter(Boolean).join(' ').toLocaleLowerCase('pt-BR');
     const [periodStart, periodTempo] = filters.period === 'year' ? ['2026-01-01', 365] : [filters.period.split('/')[0], Number(filters.period.split('/')[1])];
-    return (!term || text.includes(term)) && (!filters.status || obra.status === filters.status) && (!filters.empresa || obra.empresa === filters.empresa) && (!filters.mestre || obra.mestresPlanejados.some((mestre) => mestre.nome === filters.mestre)) && intersectsRange(obra.inicioPlanejado, obra.tempoPlanejado, periodStart, periodTempo as number);
+    const intersectsPeriod = !obra.inicioPlanejado || !obra.tempoPlanejado ? false : intersectsRange(obra.inicioPlanejado, obra.tempoPlanejado, periodStart, periodTempo as number);
+    return (!term || text.includes(term)) && (!filters.status || obra.status === filters.status) && (!filters.empresa || obra.empresa === filters.empresa) && (!filters.mestre || obra.mestresPlanejados.some((mestre) => mestre.nome === filters.mestre)) && intersectsPeriod;
   });
 }
 
@@ -30,4 +31,4 @@ export function buildWorkloads(obras: ObraCronograma[], year = 2026): MestreWork
 }
 
 export function calculateIndicators(obras: ObraCronograma[]): CronogramaIndicators { const workloads = buildWorkloads(obras); return { running: obras.filter((obra) => obra.status === 'EM ANDAMENTO').length, waiting: obras.filter((obra) => obra.status === 'AGUARDANDO RECURSO').length, allocated: workloads.length, unassigned: obras.filter((obra) => obra.mestresPlanejados.length === 0).length, conflicts: workloads.reduce((sum, item) => sum + item.conflictDays, 0) }; }
-export function plannedDays(obra: ObraCronograma) { return eachDay(obra.inicioPlanejado, obra.tempoPlanejado); }
+export function plannedDays(obra: ObraCronograma) { return obra.inicioPlanejado && obra.tempoPlanejado ? eachDay(obra.inicioPlanejado, obra.tempoPlanejado) : []; }

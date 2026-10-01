@@ -1,8 +1,8 @@
 import type { ContratoCronograma, ObraCronograma } from '../../domain/models';
 import { inclusiveCivilDays, isValidCivilDate } from '../../domain/temporal';
 
-/** Extra subitem fields are preserved by the Monday sync and read-only here. */
-type RawSubitem = { id?: unknown; nome?: unknown; inicio?: unknown; fim?: unknown };
+/** LOTEs are identities only: their planning period always belongs to the contract. */
+type RawSubitem = { id?: unknown; nome?: unknown; status?: unknown };
 type RawContrato = { nome?: unknown; empresa?: unknown; status?: unknown; numeroContrato?: unknown; ano?: unknown; inicio?: unknown; fim?: unknown; subitems?: unknown };
 export type RawDocument = { id: string; exists: boolean; data?: unknown };
 export type CronogramaLoadResult = { contratos: ContratoCronograma[]; obras: ObraCronograma[]; diagnostics: string[] };
@@ -13,7 +13,7 @@ export const hasObraV2Id = (value: unknown) => value !== null && value !== undef
 
 function contractPlanningRow(document: RawDocument, nome: string, raw: RawContrato, inicio: string | null, fim: string | null): ObraCronograma {
   const dias = inclusiveCivilDays(inicio, fim);
-  return { id: `contrato:${document.id}`, targetType: 'contrato', contratoId: document.id, contratoNome: nome, sourceRow: 0, codObra: document.id, siglaObra: 'CONTRATO', nomeObra: 'Analisar Contrato', local: 'Analisar Contrato', status: text(raw.status, 'Sem status'), empresa: text(raw.empresa, 'Não informado'), mestreInicial: null, descricao: null, inicioPlanejado: inicio ?? '2026-01-01', tempoPlanejado: dias ?? 1, allocationAllowed: dias !== null, mestresPlanejados: [] };
+  return { id: `contrato:${document.id}`, targetType: 'contrato', contratoId: document.id, contratoNome: nome, sourceRow: 0, codObra: document.id, siglaObra: 'CONTRATO', nomeObra: 'Analisar Contrato', local: 'Analisar Contrato', status: text(raw.status, 'Sem status'), empresa: text(raw.empresa, 'Não informado'), mestreInicial: null, descricao: null, inicioPlanejado: dias === null ? null : inicio, tempoPlanejado: dias, allocationAllowed: dias !== null, mestresPlanejados: [] };
 }
 
 export function adaptRawContract(document: RawDocument, diagnostics: string[]): ContratoCronograma | null {
@@ -29,8 +29,8 @@ export function adaptRawContract(document: RawDocument, diagnostics: string[]): 
   const obras: ObraCronograma[] = subitems.flatMap((subitem) => {
     const id = text(subitem?.id); const nomeLote = text(subitem?.nome);
     if (!id || !nomeLote) { diagnostics.push(`Contrato ${document.id} contém subitem sem id ou nome; ignorado.`); return []; }
-    const inicioLote = validDate(subitem.inicio); const fimLote = validDate(subitem.fim); const diasLote = inclusiveCivilDays(inicioLote, fimLote);
-    return [{ id, targetType: 'obra', contratoId: document.id, contratoNome: nome, sourceRow: 0, codObra: id, siglaObra: 'LOTE', nomeObra: nomeLote, local: nomeLote, status: text(raw.status, 'Sem status'), empresa: text(raw.empresa, 'Não informado'), mestreInicial: null, descricao: null, inicioPlanejado: inicioLote ?? '2026-01-01', tempoPlanejado: diasLote ?? 1, allocationAllowed: diasLote !== null, mestresPlanejados: [] } satisfies ObraCronograma];
+    const dias = inclusiveCivilDays(inicio, fim);
+    return [{ id, targetType: 'obra', contratoId: document.id, contratoNome: nome, sourceRow: 0, codObra: id, siglaObra: 'LOTE', nomeObra: nomeLote, local: nomeLote, status: text(subitem.status, 'Sem status'), empresa: text(raw.empresa, 'Não informado'), mestreInicial: null, descricao: null, inicioPlanejado: dias === null ? null : inicio, tempoPlanejado: dias, allocationAllowed: dias !== null, mestresPlanejados: [] } satisfies ObraCronograma];
   });
   if (!obras.length) obras.push(contractPlanningRow(document, nome, raw, inicio, fim));
   return { id: document.id, nome, empresa: text(raw.empresa, 'Não informado'), status: text(raw.status, 'Sem status'), numeroContrato: optionalText(raw.numeroContrato), ano: typeof raw.ano === 'number' ? raw.ano : null, inicio, fim, obraV2Id: typeof data.obraV2Id === 'string' ? data.obraV2Id : null, rawDocument: document.data, obras };
@@ -38,7 +38,7 @@ export function adaptRawContract(document: RawDocument, diagnostics: string[]): 
 
 export function contractPlanningRowFor(contrato: ContratoCronograma): ObraCronograma {
   const dias = inclusiveCivilDays(contrato.inicio, contrato.fim);
-  return { id: `contrato:${contrato.id}`, targetType: 'contrato', contratoId: contrato.id, contratoNome: contrato.nome, sourceRow: 0, codObra: contrato.id, siglaObra: 'CONTRATO', nomeObra: 'Analisar Contrato', local: 'Analisar Contrato', status: contrato.status, empresa: contrato.empresa, mestreInicial: null, descricao: null, inicioPlanejado: contrato.inicio ?? '2026-01-01', tempoPlanejado: dias ?? 1, allocationAllowed: dias !== null, mestresPlanejados: [] };
+  return { id: `contrato:${contrato.id}`, targetType: 'contrato', contratoId: contrato.id, contratoNome: contrato.nome, sourceRow: 0, codObra: contrato.id, siglaObra: 'CONTRATO', nomeObra: 'Analisar Contrato', local: 'Analisar Contrato', status: contrato.status, empresa: contrato.empresa, mestreInicial: null, descricao: null, inicioPlanejado: dias === null ? null : contrato.inicio, tempoPlanejado: dias, allocationAllowed: dias !== null, mestresPlanejados: [] };
 }
 
 /** This is the exact condition that creates the synthetic review row. */

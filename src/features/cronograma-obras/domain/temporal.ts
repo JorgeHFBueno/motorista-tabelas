@@ -3,6 +3,12 @@ const parse = (value: CivilDate) => new Date(`${value}T00:00:00Z`);
 const format = (value: Date): CivilDate => value.toISOString().slice(0, 10);
 export function isValidCivilDate(value: string): value is CivilDate { if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false; const date = parse(value); return Number.isFinite(date.getTime()) && format(date) === value; }
 export function addDays(inicio: CivilDate, days: number): CivilDate { const date = parse(inicio); date.setUTCDate(date.getUTCDate() + days); return format(date); }
+export function inclusiveCivilDays(inicio: string | null | undefined, fim: string | null | undefined): number | null {
+  if (!inicio || !fim || !isValidCivilDate(inicio) || !isValidCivilDate(fim)) return null;
+  const day = (value: CivilDate) => Date.UTC(Number(value.slice(0, 4)), Number(value.slice(5, 7)) - 1, Number(value.slice(8, 10))) / 86_400_000;
+  const result = day(fim) - day(inicio) + 1;
+  return result > 0 ? result : null;
+}
 /** Convenção MK2: dias corridos inclusivos; duração 1 ocupa somente a data inicial. */
 export function calculatedEnd(inicio: CivilDate, tempoPlanejado: number): CivilDate { return addDays(inicio, Math.max(tempoPlanejado, 1) - 1); }
 /** Mantém a UI estável enquanto uma data ainda está sendo digitada. */

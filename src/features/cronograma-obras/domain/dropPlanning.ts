@@ -5,7 +5,7 @@ import { getObraEndDate, isFinalizedStatus, isObraOverdue } from './obraTemporal
 export interface DropPlanningInterval { inicio: CivilDate; tempoPlanejado: number; }
 
 export function getMasterPlanningEnd(inicio: CivilDate, tempoPlanejado: number): CivilDate { return calculatedEnd(inicio, tempoPlanejado); }
-export function getPlanningOverrunDays(obra: Pick<ObraCronograma, 'inicioPlanejado' | 'tempoPlanejado'>, inicio: CivilDate, dias: number): number { const fim = getMasterPlanningEnd(inicio, dias); const previsto = getObraEndDate(obra); return fim > previsto ? Math.round((Date.parse(`${fim}T00:00:00Z`) - Date.parse(`${previsto}T00:00:00Z`)) / 86400000) : 0; }
+export function getPlanningOverrunDays(obra: Pick<ObraCronograma, 'inicioPlanejado' | 'tempoPlanejado'>, inicio: CivilDate, dias: number): number { const fim = getMasterPlanningEnd(inicio, dias); const previsto = getObraEndDate(obra); return previsto && fim > previsto ? Math.round((Date.parse(`${fim}T00:00:00Z`) - Date.parse(`${previsto}T00:00:00Z`)) / 86400000) : 0; }
 export function isValidMasterDropStart(obra: ObraCronograma, inicio: CivilDate, hoje?: CivilDate): boolean { return !isFinalizedStatus(obra.status) && (isObraOverdue(obra, hoje) || inicio <= getObraEndDate(obra)); }
 /** Resolves one unambiguous start date from a visual bucket; it never creates a duration. */
 export function getDropPlanningStart({ obra, zoom, targetDateOrPeriod, hoje }: { obra: ObraCronograma; zoom: ZoomCronograma; targetDateOrPeriod: CivilDate; hoje?: CivilDate }): CivilDate | null {

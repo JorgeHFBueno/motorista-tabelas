@@ -16,6 +16,19 @@ export function groupObrasByContract(obras: readonly ObraCronograma[]): Contract
 }
 
 /**
+ * Reuses an unchanged contract group (and, crucially, its obras array) after a
+ * single allocation update.  This lets collapsed summaries and memoized rows
+ * stay outside the reconciliation path for unrelated contracts.
+ */
+export function reconcileContractGroups(previous: readonly ContractGroup[], obras: readonly ObraCronograma[]): ContractGroup[] {
+  const previousById = new Map(previous.map((group) => [group.id, group]));
+  return groupObrasByContract(obras).map((next) => {
+    const prior = previousById.get(next.id);
+    return prior && prior.name === next.name && prior.obras.length === next.obras.length && prior.obras.every((obra, index) => obra === next.obras[index]) ? prior : next;
+  });
+}
+
+/**
  * The collapsed contract timeline is derived from every hydrated child obra,
  * never from the rows currently mounted by the UI.
  */

@@ -4,6 +4,8 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { CalendarToggles, type CalendarDisplayOptions } from './components/CalendarToggles';
 import { FiltersBar } from './components/FiltersBar';
 import { GanttGrid } from './components/GanttGrid';
+import { ContractTextTable } from './components/ContractTextTable';
+import { ContractDetailsDrawer } from './components/ContractDetailsDrawer';
 import { MasterPalette } from './components/MasterPalette';
 import { ObraDrawer } from './components/ObraDrawer';
 import { MasterDetailsDrawer } from './components/MasterDetailsDrawer';
@@ -19,6 +21,7 @@ import { normalizeMestreKey, setPersistedMestreColors } from './domain/mestres';
 import type { CivilDate, ContratoCronograma, CronogramaFilters, ObraCronograma, ZoomCronograma } from './domain/models';
 import { contractPlanningRowFor } from './data/source/rawCronogramaAdapter';
 import { todayCivil } from './domain/temporal';
+import { separarObrasPorSituacao, statusLoteConhecido } from './domain/contractStatus';
 import { synchronizeMonday, type MondaySyncResult } from '../../services/mondaySync';
 import { useAdm2Authorization } from '../../hooks/useAdm2Authorization';
 import { useAuth } from '../../contexts/AuthContext';
@@ -28,8 +31,13 @@ const source = new RawFirestoreCronogramaDataSource();
 const mestresSource = new FirestoreMestresDataSource();
 const alocacoesSource = new CronogramaFirestoreRepository();
 const INITIAL_FILTERS: CronogramaFilters = { search: '', status: '', empresa: '', mestre: '', period: 'year' };
+let lastHydratedObras: ObraCronograma[] = [];
 
-function hydrateFirestoreAlocacoes(contratos: readonly ContratoCronograma[], mestres: readonly MestreFirestore[], alocacoes: readonly AlocacaoFirestore[]): ObraCronograma[] {
+function sameMasters(left: readonly ObraCronograma['mestresPlanejados'][number][], right: readonly ObraCronograma['mestresPlanejados'][number][]) {
+  return left.length === right.length && left.every((item, index) => item.localId === right[index].localId && item.mestreId === right[index].mestreId && item.mestreKey === right[index].mestreKey && item.nome === right[index].nome && item.inicio === right[index].inicio && item.tempoPlanejado === right[index].tempoPlanejado);
+}
+
+function hydrateFirestoreAlocacoes(contratos: readonly ContratoCronograma[], mestres: readonly MestreFirestore[], alocacoes: readonly AlocacaoFirestore[], previous: readonly ObraCronograma[] = lastHydratedObras): ObraCronograma[] {
   const mestreById = new Map(mestres.map((mestre) => [mestre.id, mestre]));
   const eligible = new Set(contratos.map((contrato) => contrato.id));
   const visible = alocacoes.filter((alocacao) => eligible.has(alocacao.contratoId));
@@ -37,14 +45,39 @@ function hydrateFirestoreAlocacoes(contratos: readonly ContratoCronograma[], mes
   const obras = contratos.flatMap((contrato) => contrato.obras.some((obra) => obra.targetType === 'contrato') || !directContracts.has(contrato.id) ? contrato.obras : [...contrato.obras, contractPlanningRowFor(contrato)]);
   const byTarget = new Map<string, AlocacaoFirestore[]>();
   visible.forEach((alocacao) => { const target = alocacao.obraId ?? `contrato:${alocacao.contratoId}`; byTarget.set(target, [...(byTarget.get(target) ?? []), alocacao]); });
-  return obras.map((obra) => ({ ...obra, mestresPlanejados: (byTarget.get(obra.id) ?? []).flatMap((alocacao) => {
+  const previousById = new Map(previous.map((obra) => [obra.id, obra]));
+  const hydrated = obras.map((obra) => {
+    const mestresPlanejados = (byTarget.get(obra.id) ?? []).flatMap((alocacao) => {
     const mestre = mestreById.get(alocacao.mestreId);
     return mestre ? [{ localId: alocacao.id, mestreId: alocacao.mestreId, mestreKey: normalizeMestreKey(mestre.nome), nome: mestre.nome, inicio: alocacao.inicio, tempoPlanejado: alocacao.tempoPlanejado }] : [];
-  }) }));
+    });
+    const prior = previousById.get(obra.id);
+    return prior && sameMasters(prior.mestresPlanejados, mestresPlanejados) ? prior : { ...obra, mestresPlanejados };
+  });
+  lastHydratedObras = hydrated;
+  return hydrated;
 }
 
-function withResizeDrafts(obras: readonly ObraCronograma[], drafts: ReadonlyMap<string, Pick<ObraCronograma['mestresPlanejados'][number], 'inicio' | 'tempoPlanejado'>>): ObraCronograma[] {
-  return obras.map((obra) => ({ ...obra, mestresPlanejados: obra.mestresPlanejados.map((mestre) => drafts.has(mestre.localId) ? { ...mestre, ...drafts.get(mestre.localId)! } : mestre) }));
+function withResizeDrafts(obras: readonly ObraCronograma[], drafts: Map<string, Pick<ObraCronograma['mestresPlanejados'][number], 'inicio' | 'tempoPlanejado'>>): ObraCronograma[] {
+  return obras.map((obra) => {
+    let changed = false;
+    const mestresPlanejados = obra.mestresPlanejados.map((mestre) => {
+      const draft = drafts.get(mestre.localId);
+      if (!draft) return mestre;
+      if (draft.inicio === mestre.inicio && draft.tempoPlanejado === mestre.tempoPlanejado) { drafts.delete(mestre.localId); return mestre; }
+      changed = true;
+      return { ...mestre, ...draft };
+    });
+    return changed ? { ...obra, mestresPlanejados } : obra;
+  });
+}
+
+function withOptimisticAlocacao(obras: readonly ObraCronograma[], alocacao: AlocacaoFirestore, mestre: MestreFirestore): ObraCronograma[] {
+  const targetId = alocacao.obraId ?? `contrato:${alocacao.contratoId}`;
+  return obras.map((obra) => {
+    if (obra.id !== targetId || obra.mestresPlanejados.some((item) => item.localId === alocacao.id)) return obra;
+    return { ...obra, mestresPlanejados: [...obra.mestresPlanejados, { localId: alocacao.id, mestreId: alocacao.mestreId, mestreKey: normalizeMestreKey(mestre.nome), nome: mestre.nome, inicio: alocacao.inicio, tempoPlanejado: alocacao.tempoPlanejado }] };
+  });
 }
 
 export default function CronogramaObrasPage() {
@@ -58,7 +91,12 @@ export default function CronogramaObrasPage() {
   const [centerRequest, setCenterRequest] = useState(1);
   const [focusDate, setFocusDate] = useState<string | null>(null);
   const [obras, setObras] = useState<ObraCronograma[]>([]);
+  const [contratos, setContratos] = useState<ContratoCronograma[]>([]);
+  const [contractDetails, setContractDetails] = useState<ContratoCronograma | null>(null);
   const confirmedObras = useRef<ObraCronograma[]>([]);
+  const contratosRef = useRef<ContratoCronograma[]>([]);
+  const mestresRef = useRef<MestreFirestore[]>([]);
+  const alocacoesRef = useRef<AlocacaoFirestore[]>([]);
   const resizeDrafts = useRef(new Map<string, { inicio: string; tempoPlanejado: number }>());
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -72,12 +110,25 @@ export default function CronogramaObrasPage() {
   const [syncing, setSyncing] = useState(false);
   const [syncError, setSyncError] = useState<string | null>(null);
   const [addingMaster, setMasterDialog] = useState(false); const [newMasterName, setNewMasterName] = useState(''); const [newMasterError, setNewMasterError] = useState<string | null>(null); const [savingMaster, setSavingMaster] = useState(false);
-  useEffect(() => { let alive = true; let unsubscribe = () => undefined; Promise.all([source.carregar(), mestresSource.carregar()]).then(([cronograma, catalogo]) => { if (!alive) return; setMestres(catalogo.mestres); setPersistedMestreColors(catalogo.mestres); setError([...cronograma.diagnostics, ...catalogo.diagnostics].join(' ') || null); unsubscribe = alocacoesSource.subscribeAlocacoes((alocacoes) => { if (!alive) return; confirmedObras.current = hydrateFirestoreAlocacoes(cronograma.contratos, catalogo.mestres, alocacoes); setObras(withResizeDrafts(confirmedObras.current, resizeDrafts.current)); }, (cause) => { if (alive) setWriteError(`Falha ao acompanhar alocações no Firestore: ${cause.message}`); }); }).catch((cause: unknown) => { if (alive) setError(`Falha ao ler contratos ou mestres homologados: ${cause instanceof Error ? cause.message : String(cause)}`); }).finally(() => { if (alive) setLoading(false); }); return () => { alive = false; unsubscribe(); }; }, []);
+  useEffect(() => { let alive = true; let unsubscribe = () => undefined; Promise.all([source.carregar(), mestresSource.carregar()]).then(([cronograma, catalogo]) => { if (!alive) return; contratosRef.current = cronograma.contratos; mestresRef.current = catalogo.mestres; setContratos(cronograma.contratos); setMestres(catalogo.mestres); setPersistedMestreColors(catalogo.mestres); setError([...cronograma.diagnostics, ...catalogo.diagnostics].join(' ') || null); unsubscribe = alocacoesSource.subscribeAlocacoes((alocacoes) => { if (!alive) return; alocacoesRef.current = alocacoes; confirmedObras.current = hydrateFirestoreAlocacoes(contratosRef.current, mestresRef.current, alocacoes); setObras(withResizeDrafts(confirmedObras.current, resizeDrafts.current)); }, (cause) => { if (alive) setWriteError(`Falha ao acompanhar alocações no Firestore: ${cause.message}`); }); }).catch((cause: unknown) => { if (alive) setError(`Falha ao ler contratos ou mestres homologados: ${cause instanceof Error ? cause.message : String(cause)}`); }).finally(() => { if (alive) setLoading(false); }); return () => { alive = false; unsubscribe(); }; }, []);
+  const contractMap = useMemo(() => new Map(contratos.map((contrato) => [contrato.id, contrato])), [contratos]);
   const masters = useMemo(() => allMasters(obras, mestres.map((mestre) => mestre.nome)), [obras, mestres]);
   const filtered = useMemo(() => filterObras(obras, filters), [obras, filters]);
+  // The administrative index must not hide a contract merely because it has no
+  // valid period yet (the synthetic "Analisar Contrato" row is still useful).
+  const obrasDasSecoes = useMemo(() => filters.search || filters.status || filters.empresa || filters.mestre || filters.period !== 'year' ? filtered : obras, [filtered, filters, obras]);
+  const obrasPorSituacao = useMemo(() => separarObrasPorSituacao(obrasDasSecoes), [obrasDasSecoes]);
+  const contratosPorSituacao = useMemo(() => ({ iniciada: new Set(obrasPorSituacao.iniciada.map((obra) => obra.contratoId)).size, 'nao-iniciada': new Set(obrasPorSituacao['nao-iniciada'].map((obra) => obra.contratoId)).size, finalizada: new Set(obrasPorSituacao.finalizada.map((obra) => obra.contratoId)).size }), [obrasPorSituacao]);
+  const statusDesconhecidos = useMemo(() => [...new Set(obrasDasSecoes.filter((obra) => obra.targetType === 'obra' && !statusLoteConhecido(obra.status)).map((obra) => obra.status))], [obrasDasSecoes]);
   const workloads = useMemo(() => buildWorkloads(filtered), [filtered]);
   const indicators = useMemo(() => calculateIndicators(filtered), [filtered]);
-  const years = useMemo(() => planningYears(obras, Number(todayCivil().slice(0, 4))), [obras]);
+  const timelineYears = useRef<number[]>([]);
+  const years = useMemo(() => {
+    const next = planningYears(obras, Number(todayCivil().slice(0, 4)));
+    if (timelineYears.current.length === next.length && timelineYears.current.every((year, index) => year === next[index])) return timelineYears.current;
+    timelineYears.current = next;
+    return next;
+  }, [obras]);
   const selected = obras.find((obra) => obra.id === (mastersPanelId ?? selectedId)) ?? null;
 
   const setZoom = (next: ZoomCronograma) => { setZoomState(next); setCenterRequest((request) => request + 1); };
@@ -110,6 +161,22 @@ export default function CronogramaObrasPage() {
   };
   const save = (next: ObraCronograma) => { void persistObra(next); };
   const dropMaster = (obra: ObraCronograma, mestre: string, target: string) => {
+    if (zoom !== 'year') {
+      const interval = getDirectMasterDropInterval({ obra, targetDate: target as CivilDate, hoje: todayCivil() });
+      const mestreRegistro = mestres.find((item) => item.nome === mestre);
+      if (!obra.allocationAllowed) { setWriteError('Este contrato não possui raw.inicio válido para criar uma alocação temporal.'); setDraggingMaster(null); return; }
+      if (!interval || !mestreRegistro || !obra.contratoId) { setWriteError('Não foi possível determinar o mestre, contrato ou período da alocação.'); setDraggingMaster(null); return; }
+      try {
+        const reference = alocacoesSource.createAlocacaoReference();
+        const optimistic: AlocacaoFirestore = { id: reference.id, ...(obra.targetType === 'obra' ? { obraId: obra.id } : {}), contratoId: obra.contratoId, mestreId: mestreRegistro.id, inicio: interval.inicio, tempoPlanejado: interval.tempoPlanejado, criadoPorFuncionarioId: criadorAtual() };
+        confirmedObras.current = withOptimisticAlocacao(confirmedObras.current, optimistic, mestreRegistro);
+        lastHydratedObras = confirmedObras.current;
+        setObras(withResizeDrafts(confirmedObras.current, resizeDrafts.current));
+        setDraggingMaster(null);
+        void alocacoesSource.createAlocacao(optimistic, reference).catch((cause: unknown) => { confirmedObras.current = confirmedObras.current.map((item) => item.mestresPlanejados.some((master) => master.localId === optimistic.id) ? { ...item, mestresPlanejados: item.mestresPlanejados.filter((master) => master.localId !== optimistic.id) } : item); lastHydratedObras = confirmedObras.current; setObras(withResizeDrafts(confirmedObras.current, resizeDrafts.current)); setWriteError(`A alocação não foi salva: ${cause instanceof Error ? cause.message : String(cause)}`); });
+        return;
+      } catch (cause) { setWriteError(cause instanceof Error ? cause.message : String(cause)); setDraggingMaster(null); return; }
+    }
     if (zoom === 'year') return;
     const interval = getDirectMasterDropInterval({ obra, targetDate: target as CivilDate, hoje: todayCivil() });
     if (!obra.allocationAllowed) { setWriteError('Este contrato não possui raw.inicio válido para criar uma alocação temporal.'); } else if (interval) { const mestreId = mestreIdFor(mestre); if (!mestreId || !obra.contratoId) setWriteError('Não foi possível determinar o mestre ou contrato da alocação.'); else { try { void alocacoesSource.createAlocacao({ ...(obra.targetType === 'obra' ? { obraId: obra.id } : {}), contratoId: obra.contratoId, mestreId, inicio: interval.inicio, tempoPlanejado: interval.tempoPlanejado, criadoPorFuncionarioId: criadorAtual() }).catch((cause: unknown) => setWriteError(`A alocação não foi salva: ${cause instanceof Error ? cause.message : String(cause)}`)); } catch (cause) { setWriteError(cause instanceof Error ? cause.message : String(cause)); } } }
@@ -120,14 +187,25 @@ export default function CronogramaObrasPage() {
     setObras(withResizeDrafts(confirmedObras.current, resizeDrafts.current));
   };
   const cancelResizeMaster = (id: string) => { resizeDrafts.current.delete(id); setObras(withResizeDrafts(confirmedObras.current, resizeDrafts.current)); };
-  const resizeMaster = async (obraId: string, next: { localId: string; inicio: string; tempoPlanejado: number }) => {
+  const resizeMaster = (obraId: string, next: { localId: string; inicio: string; tempoPlanejado: number }) => {
+    {
+      const confirmed = confirmedObras.current.find((obra) => obra.id === obraId)?.mestresPlanejados.find((item) => item.localId === next.localId);
+      if (!confirmed) return;
+      const patch: { inicio?: string; tempoPlanejado?: number } = {};
+      if (next.inicio !== confirmed.inicio) patch.inicio = next.inicio;
+      if (next.tempoPlanejado !== confirmed.tempoPlanejado) patch.tempoPlanejado = next.tempoPlanejado;
+      if (!Object.keys(patch).length) { cancelResizeMaster(next.localId); return; }
+      setWriteError(null);
+      void alocacoesSource.updateAlocacao(next.localId, patch).catch((cause: unknown) => { cancelResizeMaster(next.localId); setWriteError(`O redimensionamento não foi salvo: ${cause instanceof Error ? cause.message : String(cause)}`); });
+      return;
+    }
     const previous = confirmedObras.current.find((obra) => obra.id === obraId)?.mestresPlanejados.find((item) => item.localId === next.localId);
     if (!previous) return;
     const patch: { inicio?: string; tempoPlanejado?: number } = {};
     if (next.inicio !== previous.inicio) patch.inicio = next.inicio;
     if (next.tempoPlanejado !== previous.tempoPlanejado) patch.tempoPlanejado = next.tempoPlanejado;
     if (!Object.keys(patch).length) return cancelResizeMaster(next.localId);
-    try { await alocacoesSource.updateAlocacao(next.localId, patch); resizeDrafts.current.delete(next.localId); } catch (cause) { cancelResizeMaster(next.localId); setWriteError(`O redimensionamento não foi salvo: ${cause instanceof Error ? cause.message : String(cause)}`); }
+    void alocacoesSource.updateAlocacao(next.localId, patch).then(() => resizeDrafts.current.delete(next.localId)).catch((cause: unknown) => { cancelResizeMaster(next.localId); setWriteError(`O redimensionamento não foi salvo: ${cause instanceof Error ? cause.message : String(cause)}`); });
   };
   const createMaster = async () => { setNewMasterError(null); const cor = nextMestreColor(mestres.map((mestre) => mestre.cor.background)); try { setSavingMaster(true); const created = await mestresSource.criar(newMasterName, cor, mestres); setMestres((current) => [...current, created].sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'))); setPersistedMestreColors([...mestres, created]); setMasterDialog(false); setNewMasterName(''); } catch (cause) { setNewMasterError(cause instanceof Error ? cause.message : 'Não foi possível criar o mestre.'); } finally { setSavingMaster(false); } };
   const runSync = async (mode: 'dry-run' | 'apply') => { try { setSyncing(true); setSyncError(null); const result = await synchronizeMonday(mode); setSyncResult(result); if (mode === 'apply') { const cronograma = await source.carregar(); void cronograma; } } catch (cause) { setSyncError(cause instanceof Error ? cause.message : 'Falha na sincronização.'); } finally { setSyncing(false); } };
@@ -143,9 +221,15 @@ export default function CronogramaObrasPage() {
     <MasterPalette masters={masters} draggingMaster={draggingMaster} disabled={zoom === 'year'} onDragStart={setDraggingMaster} onDragEnd={() => setDraggingMaster(null)} onAdd={() => { setNewMasterError(null); setMasterDialog(true); }} />
     {addingMaster && <div className="co-master-modal" role="dialog" aria-modal="true" aria-label="Adicionar mestre"><form onSubmit={(event) => { event.preventDefault(); void createMaster(); }}><h2>Adicionar mestre</h2><label>Nome<input autoFocus value={newMasterName} onChange={(event) => setNewMasterName(event.target.value)} /></label>{newMasterError && <p role="alert">{newMasterError}</p>}<div><button type="button" onClick={() => setMasterDialog(false)}>Cancelar</button><button className="co-button co-button--primary" disabled={savingMaster} type="submit">Salvar</button></div></form></div>}
     {writeError && <p className="co-empty" role="alert">{writeError}</p>}
-    <GanttGrid view={view} zoom={zoom} years={years} obras={filtered} workloads={workloads} selectedId={selectedId} draggingMaster={draggingMaster} display={display} centerRequest={centerRequest} focusDate={focusDate} onFocusDate={setFocusDate} onSelect={(obra) => { setMasterPanel(null); setMastersPanelId(null); setSelectedId(obra.id); }} onSelectMasters={(obra) => { setMasterPanel(null); setSelectedId(null); setMastersPanelId(obra.id); }} onSelectMaster={({ obraId, mestreKey }) => { setSelectedId(null); setMastersPanelId(null); setMasterPanel({ obraId, key: mestreKey }); }} onDropMaster={dropMaster} onResizeMasterPreview={resizeMasterPreview} onResizeMasterCommit={resizeMaster} onResizeMasterCancel={cancelResizeMaster} />
+    {view === 'obras' ? <div className="co-contract-sections">
+      <section><header className="co-section-heading"><h2>Obra iniciada ({contratosPorSituacao.iniciada})</h2></header><GanttGrid view="obras" zoom={zoom} years={years} obras={obrasPorSituacao.iniciada} contratos={contractMap} workloads={workloads} selectedId={selectedId} draggingMaster={draggingMaster} display={display} centerRequest={centerRequest} focusDate={focusDate} onFocusDate={setFocusDate} onSelect={(obra) => { setMasterPanel(null); setMastersPanelId(null); setSelectedId(obra.id); }} onSelectMasters={(obra) => { setMasterPanel(null); setSelectedId(null); setMastersPanelId(obra.id); }} onSelectMaster={({ obraId, mestreKey }) => { setSelectedId(null); setMastersPanelId(null); setMasterPanel({ obraId, key: mestreKey }); }} onOpenContract={setContractDetails} onDropMaster={dropMaster} onResizeMasterPreview={resizeMasterPreview} onResizeMasterCommit={resizeMaster} onResizeMasterCancel={cancelResizeMaster} /></section>
+      <section><header className="co-section-heading"><h2>Obra não iniciada ({contratosPorSituacao['nao-iniciada']})</h2></header><ContractTextTable obras={obrasPorSituacao['nao-iniciada']} contratos={contractMap} onOpenContract={setContractDetails} onSelect={(obra) => { setMasterPanel(null); setMastersPanelId(null); setSelectedId(obra.id); }} onSelectMasters={(obra) => { setMasterPanel(null); setSelectedId(null); setMastersPanelId(obra.id); }} /></section>
+      <section><header className="co-section-heading"><h2>Obra finalizada ({contratosPorSituacao.finalizada})</h2></header><ContractTextTable obras={obrasPorSituacao.finalizada} contratos={contractMap} onOpenContract={setContractDetails} onSelect={(obra) => { setMasterPanel(null); setMastersPanelId(null); setSelectedId(obra.id); }} onSelectMasters={(obra) => { setMasterPanel(null); setSelectedId(null); setMastersPanelId(obra.id); }} /></section>
+      {statusDesconhecidos.length > 0 && <p className="co-empty" role="status">Status não mapeado, exibido em Obra não iniciada: {statusDesconhecidos.join(', ')}.</p>}
+    </div> : <GanttGrid view={view} zoom={zoom} years={years} obras={filtered} contratos={contractMap} workloads={workloads} selectedId={selectedId} draggingMaster={draggingMaster} display={display} centerRequest={centerRequest} focusDate={focusDate} onFocusDate={setFocusDate} onSelect={(obra) => { setMasterPanel(null); setMastersPanelId(null); setSelectedId(obra.id); }} onSelectMasters={(obra) => { setMasterPanel(null); setSelectedId(null); setMastersPanelId(obra.id); }} onSelectMaster={({ obraId, mestreKey }) => { setSelectedId(null); setMastersPanelId(null); setMasterPanel({ obraId, key: mestreKey }); }} onOpenContract={setContractDetails} onDropMaster={dropMaster} onResizeMasterPreview={resizeMasterPreview} onResizeMasterCommit={resizeMaster} onResizeMasterCancel={cancelResizeMaster} />}
     {view === 'mestres' && <WorkloadPanel workloads={workloads} />}
     <ObraDrawer obra={selected} masters={masters} mastersOnly={Boolean(mastersPanelId)} onClose={() => { setSelectedId(null); setMastersPanelId(null); }} onSave={save} />
     <MasterDetailsDrawer obra={obras.find((obra) => obra.id === masterPanel?.obraId) ?? null} obras={obras} masterKey={masterPanel?.key ?? null} allKeys={masters.map(normalizeMestreKey)} onClose={() => setMasterPanel(null)} />
+    <ContractDetailsDrawer contrato={contractDetails} onClose={() => setContractDetails(null)} />
   </main>;
 }

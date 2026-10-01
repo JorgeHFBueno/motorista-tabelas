@@ -10,7 +10,7 @@ function intervalYears(start: string, days: number): number[] {
 export function planningYears(obras: readonly ObraCronograma[], currentYear: number): number[] {
   const relevant = new Set<number>([currentYear]);
   obras.forEach((obra) => {
-    intervalYears(obra.inicioPlanejado, obra.tempoPlanejado).forEach((year) => relevant.add(year));
+    if (obra.inicioPlanejado && obra.tempoPlanejado) intervalYears(obra.inicioPlanejado, obra.tempoPlanejado).forEach((year) => relevant.add(year));
     obra.mestresPlanejados.forEach((mestre) => intervalYears(mestre.inicio, mestre.tempoPlanejado).forEach((year) => relevant.add(year)));
   });
   const ordered = [...relevant].sort((a, b) => a - b);
@@ -24,5 +24,5 @@ export function yearBucket(year: number) {
 
 export function plannedDaysInYear(obra: Pick<ObraCronograma, 'inicioPlanejado' | 'tempoPlanejado'>, year: number): number {
   const bucket = yearBucket(year);
-  return countIntersection(obra.inicioPlanejado, obra.tempoPlanejado, bucket.start, bucket.days);
+  return obra.inicioPlanejado && obra.tempoPlanejado ? countIntersection(obra.inicioPlanejado, obra.tempoPlanejado, bucket.start, bucket.days) : 0;
 }
