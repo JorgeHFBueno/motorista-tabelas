@@ -7,6 +7,14 @@ const INICIADAS = new Set(['Em andamento', 'Parada']);
 const FINALIZADAS = new Set(['Finalizado']);
 const NAO_INICIADAS = new Set(['Não iniciada', 'Revisar escopo']);
 
+function normalizedStatus(status: string): string { return status.normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim().toLocaleLowerCase('pt-BR'); }
+
+/** Contract-only finalization rule for the synthetic row without operational LOTEs. */
+export function statusContratoFinalizado(status: string): boolean {
+  const value = normalizedStatus(status);
+  return value === 'finalizado' || value === 'finalizada' || value === 'obra finalizado' || value === 'obra finalizada';
+}
+
 export function classificarLotePorStatus(status: string): SituacaoLote {
   if (INICIADAS.has(status)) return 'iniciada';
   if (FINALIZADAS.has(status)) return 'finalizada';
@@ -19,9 +27,9 @@ export function statusLoteConhecido(status: string): boolean {
   return INICIADAS.has(status) || FINALIZADAS.has(status) || NAO_INICIADAS.has(status);
 }
 
-/** A synthetic review row has no operational LOTE and is always not started. */
+/** Real LOTEs use their own status; a synthetic row uses contract status only for finalizada vs não iniciada. */
 export function classificarObraPorSituacao(obra: ObraCronograma): SituacaoLote {
-  return obra.targetType === 'contrato' ? 'nao-iniciada' : classificarLotePorStatus(obra.status);
+  return obra.targetType === 'contrato' ? (statusContratoFinalizado(obra.status) ? 'finalizada' : 'nao-iniciada') : classificarLotePorStatus(obra.status);
 }
 
 export function separarObrasPorSituacao(obras: readonly ObraCronograma[]): Record<SituacaoLote, ObraCronograma[]> {

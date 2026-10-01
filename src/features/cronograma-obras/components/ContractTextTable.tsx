@@ -1,20 +1,44 @@
 import KeyboardArrowDownRounded from '@mui/icons-material/KeyboardArrowDownRounded';
 import MoreVertRounded from '@mui/icons-material/MoreVertRounded';
+import WarningAmberRounded from '@mui/icons-material/WarningAmberRounded';
 import { memo, useMemo, useState } from 'react';
 import type { ContratoCronograma, ObraCronograma } from '../domain/models';
-import { todayCivil } from '../domain/temporal';
+import { formatDateShort, todayCivil } from '../domain/temporal';
 import { startedMasterPeriods } from '../domain/masterPlanningDetails';
 import { getMestreColor, normalizeMestreKey } from '../domain/mestres';
 import { StatusBadge } from './StatusBadge';
 import { groupObrasByContract } from '../domain/contractGroups';
+import { requiresContractReview } from '../data/source/rawCronogramaAdapter';
 
 const colorStyle = (key: string): React.CSSProperties => ({ '--co-master-color': getMestreColor(key).background } as React.CSSProperties);
+const missing = '—';
 
-export const ContractTextTable = memo(function ContractTextTable({ obras, contratos, onOpenContract, onSelect, onSelectMasters }: { obras: readonly ObraCronograma[]; contratos: ReadonlyMap<string, ContratoCronograma>; onOpenContract: (contrato: ContratoCronograma) => void; onSelect: (obra: ObraCronograma) => void; onSelectMasters: (obra: ObraCronograma) => void }) {
+export function displayRawValue(value: unknown): string {
+  if (value === null || value === undefined) return missing;
+  if (typeof value === 'string') return value.trim() || missing;
+  if (typeof value === 'number' || typeof value === 'boolean' || typeof value === 'bigint') return String(value);
+  try {
+    const serialized = JSON.stringify(value);
+    return serialized && serialized !== '{}' ? serialized : missing;
+  } catch {
+    return String(value) || missing;
+  }
+}
+
+type Props = { obras: readonly ObraCronograma[]; contratos: ReadonlyMap<string, ContratoCronograma>; onOpenContract: (contrato: ContratoCronograma) => void; onSelect: (obra: ObraCronograma) => void; onSelectMasters: (obra: ObraCronograma) => void; sectionTitle: string; sectionCount: number; sectionExpanded: boolean; onToggleSection: () => void; variant?: 'finished' | 'not-started' };
+
+export const ContractTextTable = memo(function ContractTextTable({ obras, contratos, onOpenContract, onSelect, onSelectMasters, sectionTitle, sectionCount, sectionExpanded, onToggleSection, variant = 'finished' }: Props) {
   const groups = useMemo(() => groupObrasByContract(obras), [obras]);
   const [expandedContracts, setExpandedContracts] = useState<Set<string>>(() => new Set());
-  return <section className="co-text-table" aria-label="Lista textual de contratos"><div className="co-text-head"><span>Obra</span><span>Mestres</span><span>Status</span></div>{groups.map((group) => {
-    const contrato = contratos.get(group.id); const expanded = expandedContracts.has(group.id); const masters = [...new Map(group.obras.flatMap((obra) => obra.mestresPlanejados).map((mestre) => [mestre.nome, mestre])).values()]; const obrasLabel = `${group.obras.length} ${group.obras.length === 1 ? 'obra' : 'obras'}`;
-    return <div className="co-text-contract" key={group.id}><div className="co-text-row co-text-row--contract" role="button" tabIndex={0} aria-expanded={expanded} onClick={() => setExpandedContracts((current) => { const next = new Set(current); if (next.has(group.id)) next.delete(group.id); else next.add(group.id); return next; })} onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); event.currentTarget.click(); } }}><span className="co-contract-name"><KeyboardArrowDownRounded className={expanded ? '' : 'is-collapsed'} /><button type="button" className="co-contract-details" aria-label={`Ver detalhes de ${group.name}`} onClick={(event) => { event.stopPropagation(); if (contrato) onOpenContract(contrato); }}><MoreVertRounded /></button>{group.name}</span><span className="co-masters-cell">{masters.length ? masters.map((mestre) => <i className="co-master-name-chip" key={mestre.nome} style={colorStyle(mestre.mestreKey ?? normalizeMestreKey(mestre.nome))}>{mestre.nome}</i>) : <em>Sem mestre</em>}</span><span className="co-contract-work-count">{obrasLabel}</span></div>{expanded && group.obras.map((obra) => { const active = startedMasterPeriods(obra, todayCivil()); return <button type="button" className="co-text-row co-text-row--child" key={obra.id} onClick={() => onSelect(obra)}><span className="co-work-name" title={obra.nomeObra}>{obra.nomeObra}</span><span className="co-masters-cell" onClick={(event) => { event.stopPropagation(); onSelectMasters(obra); }}>{active.length ? active.map((mestre) => <i className="co-master-name-chip" key={mestre.key} style={colorStyle(mestre.key)}>{mestre.nome}</i>) : <em>Sem mestre</em>}</span><span><StatusBadge status={obra.status} /></span></button>; })}</div>;
-  })}{!groups.length && <div className="co-empty">Nenhum contrato nesta situação.</div>}</section>;
+  const notStarted = variant === 'not-started';
+  const toggle = (id: string) => setExpandedContracts((current) => { const next = new Set(current); if (next.has(id)) next.delete(id); else next.add(id); return next; });
+  return <section className={`co-text-table ${notStarted ? 'co-text-table--not-started' : ''}`} aria-label={sectionTitle}><div className="co-text-head"><button type="button" className="co-text-section-toggle" aria-expanded={sectionExpanded} aria-label={`${sectionExpanded ? 'Recolher' : 'Expandir'} ${sectionTitle}`} title={`${sectionExpanded ? 'Recolher' : 'Expandir'} ${sectionTitle}`} onClick={onToggleSection}><KeyboardArrowDownRounded className={sectionExpanded ? '' : 'is-collapsed'} />{sectionTitle} ({sectionCount})</button>{notStarted ? <><span>Contrato</span><span>Status</span><span>Emp.</span><span>Recurso</span><span>Ordem Ini</span><span>Ini</span><span>Fim</span></> : <><span>Mestres</span><span>Status</span></>}</div>{sectionExpanded && groups.map((group) => {
+    const contrato = contratos.get(group.id); const expanded = expandedContracts.has(group.id); const needsReview = requiresContractReview(contrato); const obrasLabel = `${group.obras.length} ${group.obras.length === 1 ? 'obra' : 'obras'}`; const parent = contrato ?? group.obras[0]; const masters = [...new Map(group.obras.flatMap((obra) => obra.mestresPlanejados).map((mestre) => [mestre.nome, mestre])).values()];
+    const recurso = displayRawValue(contrato?.confirmacaoRecurso); const ordemInicio = displayRawValue(contrato?.ordemInicio); const inicio = formatDateShort(contrato?.inicio ?? null); const fim = formatDateShort(contrato?.fim ?? null);
+    return <div className={`co-text-contract ${needsReview ? 'co-text-contract--review' : ''}`} key={group.id}><div className="co-text-row co-text-row--contract" role="button" tabIndex={0} aria-expanded={expanded} onClick={() => toggle(group.id)} onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); event.currentTarget.click(); } }}><span className="co-contract-name"><KeyboardArrowDownRounded className={expanded ? '' : 'is-collapsed'} /><button type="button" className="co-contract-details" aria-label={`Ver detalhes de ${group.name}`} onClick={(event) => { event.stopPropagation(); if (contrato) onOpenContract(contrato); }}><MoreVertRounded /></button>{group.name}{needsReview && <span className="co-contract-review-badge" title="Contrato sem LOTEs/subitems. Revisar no Monday." aria-label="Contrato sem LOTEs/subitems. Revisar no Monday."><WarningAmberRounded fontSize="inherit" />Analisar Contrato</span>}</span>{notStarted ? <><span>{displayRawValue(contrato?.numeroContrato)}</span><span>{obrasLabel}</span><span>{parent?.empresa || missing}</span><span>{recurso}</span><span>{ordemInicio}</span><span>{inicio}</span><span>{fim}</span></> : <><span className="co-masters-cell">{masters.length ? masters.map((mestre) => <i className="co-master-name-chip" key={mestre.nome} style={colorStyle(mestre.mestreKey ?? normalizeMestreKey(mestre.nome))}>{mestre.nome}</i>) : <em>Sem mestre</em>}</span><span className="co-contract-work-count">{obrasLabel}</span></>}</div>{expanded && group.obras.map((obra) => {
+      const parentContract = contratos.get(obra.contratoId ?? group.id); const obraRecurso = displayRawValue(parentContract?.confirmacaoRecurso); const obraOrdemInicio = displayRawValue(parentContract?.ordemInicio); const obraInicio = formatDateShort(parentContract?.inicio ?? null); const obraFim = formatDateShort(parentContract?.fim ?? null); const active = startedMasterPeriods(obra, todayCivil());
+      const isReviewRow = obra.targetType === 'contrato';
+      return notStarted ? <button type="button" className={`co-text-row co-text-row--child ${isReviewRow ? 'co-text-row--review' : ''}`} key={obra.id} onClick={() => onSelect(obra)}><span className="co-work-name" title={obra.nomeObra}>{obra.nomeObra}{isReviewRow && <WarningAmberRounded className="co-review-icon" fontSize="inherit" titleAccess="Contrato sem LOTEs/subitems. Revisar no Monday." />}</span><span>{displayRawValue(parentContract?.numeroContrato)}</span><span><StatusBadge status={obra.status} /></span><span>{obra.empresa || missing}</span><span>{obraRecurso}</span><span>{obraOrdemInicio}</span><span>{obraInicio}</span><span>{obraFim}</span></button> : <button type="button" className="co-text-row co-text-row--child" key={obra.id} onClick={() => onSelect(obra)}><span className="co-work-name" title={obra.nomeObra}>{obra.nomeObra}</span><span className="co-masters-cell" onClick={(event) => { event.stopPropagation(); onSelectMasters(obra); }}>{active.length ? active.map((mestre) => <i className="co-master-name-chip" key={mestre.key} style={colorStyle(mestre.key)}>{mestre.nome}</i>) : <em>Sem mestre</em>}</span><span><StatusBadge status={obra.status} /></span></button>;
+    })}</div>;
+  })}{sectionExpanded && !groups.length && <div className="co-empty">Nenhum contrato nesta situação.</div>}</section>;
 });
