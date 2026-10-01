@@ -12,7 +12,7 @@ const MONDAY_URL = 'https://api.monday.com/v2';
 const MAX_BATCH_WRITES = 450;
 
 type MondaySubitem = { id: string; nome: string | null; status: string | null };
-type MondayItem = { id: string; nome: string | null; status: string | null; numeroContrato: string | null; ano: number | null; empresa: string | null; inicio: string | null; fim: string | null; updatedAt: string | null; subitems: MondaySubitem[] };
+type MondayItem = { id: string; nome: string | null; status: string | null; ordemInicio: string | null; confirmacaoRecurso: string | null; numeroContrato: string | null; ano: number | null; empresa: string | null; inicio: string | null; fim: string | null; updatedAt: string | null; subitems: MondaySubitem[] };
 type AnyRecord = Record<string, any>;
 
 const text = (value: unknown): string | null => typeof value === 'string' && value.trim() ? value.trim() : null;
@@ -28,6 +28,7 @@ export function normalizeMondayItem(item: any): MondayItem {
   const year = text(columnText(columns, 'text_mkntryg9'));
   return {
     id: String(item.id), nome: text(item.name), status: formulaDisplayValue(columns, 'f_rmula_mknbt1hr'),
+    ordemInicio: columnText(columns, 'dropdown_mknrvr7q'), confirmacaoRecurso: columnText(columns, 'dropdown_mknqe4hf'),
     numeroContrato: columnText(columns, 'texto_mknarg02'), ano: year && /^\d{4}$/.test(year) ? Number(year) : null,
     empresa: columnText(columns, 'empresa_mknb1cwy'), inicio: isoDate(columnText(columns, 'data_mknaqn4f')),
     fim: isoDate(columnText(columns, 'fim_mknaarxc')), updatedAt: text(item.updated_at),
@@ -44,7 +45,7 @@ async function queryMonday(token: string, query: string, variables: AnyRecord) {
   return payload.data;
 }
 
-const selection = `cursor items { id name updated_at column_values(ids: ["f_rmula_mknbt1hr", "texto_mknarg02", "text_mkntryg9", "empresa_mknb1cwy", "data_mknaqn4f", "fim_mknaarxc"]) { id type text ... on FormulaValue { display_value } } subitems { id name column_values(ids: ["color_mknqcdnw"]) { id text } } }`;
+const selection = `cursor items { id name updated_at column_values(ids: ["f_rmula_mknbt1hr", "texto_mknarg02", "text_mkntryg9", "empresa_mknb1cwy", "data_mknaqn4f", "fim_mknaarxc", "dropdown_mknrvr7q", "dropdown_mknqe4hf"]) { id type text ... on FormulaValue { display_value } } subitems { id name column_values(ids: ["color_mknqcdnw"]) { id text } } }`;
 export async function readMondayBoard(token: string): Promise<MondayItem[]> {
   const first = await queryMonday(token, `query ($boardId: ID!) { boards(ids: [$boardId]) { items_page(limit: 100) { ${selection} } } }`, { boardId: BOARD_ID });
   let page = first.boards?.[0]?.items_page;
@@ -54,7 +55,7 @@ export async function readMondayBoard(token: string): Promise<MondayItem[]> {
   return items.map(normalizeMondayItem);
 }
 
-function project(current: AnyRecord | null, item: MondayItem) {
+function project(current: AnyRecord | null, item: MondayItem, obraV2Status: unknown) {
   const raw = current?.raw && typeof current.raw === 'object' ? current.raw : {};
   const previous = Array.isArray(raw.subitems) ? raw.subitems : [];
   const byId = new Map(previous.map((subitem: AnyRecord) => [String(subitem?.id), subitem]));
@@ -69,25 +70,30 @@ function project(current: AnyRecord | null, item: MondayItem) {
     if (existing) subitems[previous.indexOf(existing)] = next; else subitems.push(next);
   }
   for (const subitem of previous) if (!mondayIds.has(String(subitem?.id))) details.push({ type: 'SUBITEM_AUSENTE_NO_MONDAY', subitemId: String(subitem?.id) });
-  const nextRaw = { ...raw, id: item.id, nome: item.nome, status: item.status, numeroContrato: item.numeroContrato, ano: item.ano, empresa: item.empresa, inicio: item.inicio, fim: item.fim, subitems };
+  const nextRaw = { ...raw, id: item.id, nome: item.nome, status: item.status, ordemInicio: item.ordemInicio, confirmacaoRecurso: item.confirmacaoRecurso, numeroContrato: item.numeroContrato, ano: item.ano, empresa: item.empresa, inicio: item.inicio, fim: item.fim, subitems };
   const metadata = { ...(current?.sincronizacao ?? {}), itemId: item.id, boardId: BOARD_ID, apiVersion: API_VERSION, mondayUpdatedAt: item.updatedAt };
   // capturadoEm is a server timestamp and must not create write churn by itself.
   const currentMetadata = current?.sincronizacao ? { itemId: current.sincronizacao.itemId, boardId: current.sincronizacao.boardId, apiVersion: current.sincronizacao.apiVersion, mondayUpdatedAt: current.sincronizacao.mondayUpdatedAt } : null;
   const expectedMetadata = { itemId: metadata.itemId, boardId: metadata.boardId, apiVersion: metadata.apiVersion, mondayUpdatedAt: metadata.mondayUpdatedAt };
   const changed = !current || !same(raw, nextRaw) || !same(currentMetadata, expectedMetadata);
-  return { changed, details, patch: { raw: nextRaw, sincronizacao: metadata }, isFinalized: item.status === 'Obra Finalizada' && typeof current?.obraV2Id === 'string' ? current.obraV2Id : null };
+  const obraV2Id = typeof current?.obraV2Id === 'string' && current.obraV2Id.trim() ? current.obraV2Id : null;
+  return { changed, details, patch: { raw: nextRaw, sincronizacao: metadata }, isFinalized: item.status === 'Obra Finalizada' && obraV2Id && obraV2Status !== 'FINALIZADA' ? obraV2Id : null };
 }
 
-export function createPlan(mondayItems: MondayItem[], firestoreDocuments: Array<{ id: string; data: AnyRecord }>) {
+export function createPlan(mondayItems: MondayItem[], firestoreDocuments: Array<{ id: string; data: AnyRecord }>, obraV2Statuses = new Map<string, unknown>()) {
   const firebase = new Map(firestoreDocuments.map((document) => [document.id, document.data])); const monday = new Map(mondayItems.map((item) => [item.id, item]));
-  const summary: any = { itemsMonday: mondayItems.length, itemsFirebase: firestoreDocuments.length, itemsCriar: 0, itemsAtualizar: 0, itemsSemAlteracao: 0, itemsAusentesMonday: 0, subitemsAdicionar: 0, subitemsAtualizar: 0, subitemsAusentesMonday: 0, fimAtualizar: 0, statusAtualizar: 0, formulaStatusVazia: 0, obrasFinalizar: 0, erros: [] as string[] };
+  const summary: any = { itemsMonday: mondayItems.length, itemsFirebase: firestoreDocuments.length, itemsCriar: 0, itemsAtualizar: 0, itemsSemAlteracao: 0, itemsAusentesMonday: 0, subitemsAdicionar: 0, subitemsAtualizar: 0, subitemsAusentesMonday: 0, fimAtualizar: 0, statusAtualizar: 0, formulaStatusVazia: 0, ordemInicioAtualizar: 0, confirmacaoRecursoAtualizar: 0, obrasFinalizadasMonday: 0, obrasComObraV2Id: 0, obrasJaFinalizadas: 0, obrasFinalizar: 0, erros: [] as string[] };
   const operations: any[] = []; const details: any[] = [];
-  for (const item of mondayItems) { const current = firebase.get(item.id) ?? null; const result = project(current, item); if (!current) summary.itemsCriar++; else if (result.changed) summary.itemsAtualizar++; else summary.itemsSemAlteracao++;
+  for (const item of mondayItems) { const current = firebase.get(item.id) ?? null; const obraV2Id = typeof current?.obraV2Id === 'string' && current.obraV2Id.trim() ? current.obraV2Id : null; const obraV2Status = obraV2Id ? obraV2Statuses.get(obraV2Id) : undefined; const result = project(current, item, obraV2Status); if (!current) summary.itemsCriar++; else if (result.changed) summary.itemsAtualizar++; else summary.itemsSemAlteracao++;
     for (const detail of result.details) { if (detail.type === 'SUBITEM_ADD') summary.subitemsAdicionar++; if (detail.type === 'SUBITEM_UPDATE') summary.subitemsAtualizar++; if (detail.type === 'SUBITEM_AUSENTE_NO_MONDAY') summary.subitemsAusentesMonday++; }
     const changes = [...result.details];
     if (current?.raw?.status !== item.status) changes.push({ type: 'STATUS_FORMULA_ATUALIZAR', before: current?.raw?.status ?? null, after: item.status });
     if (item.status === null) changes.push({ type: 'STATUS_FORMULA_VAZIA' });
-    if (current?.raw?.fim !== item.fim) summary.fimAtualizar++; if (current?.raw?.status !== item.status) summary.statusAtualizar++; if (item.status === null) summary.formulaStatusVazia++; if (result.isFinalized) summary.obrasFinalizar++;
+    if (current?.raw?.ordemInicio !== item.ordemInicio) { changes.push({ type: 'ORDEM_INICIO_ATUALIZAR', before: current?.raw?.ordemInicio ?? null, after: item.ordemInicio }); summary.ordemInicioAtualizar++; }
+    if (current?.raw?.confirmacaoRecurso !== item.confirmacaoRecurso) { changes.push({ type: 'CONFIRMACAO_RECURSO_ATUALIZAR', before: current?.raw?.confirmacaoRecurso ?? null, after: item.confirmacaoRecurso }); summary.confirmacaoRecursoAtualizar++; }
+    if (current?.raw?.fim !== item.fim) summary.fimAtualizar++; if (current?.raw?.status !== item.status) summary.statusAtualizar++; if (item.status === null) summary.formulaStatusVazia++;
+    if (item.status === 'Obra Finalizada') { summary.obrasFinalizadasMonday++; if (obraV2Id) { summary.obrasComObraV2Id++; if (obraV2Status === 'FINALIZADA') summary.obrasJaFinalizadas++; } }
+    if (result.isFinalized) summary.obrasFinalizar++;
     if (result.changed || result.isFinalized) operations.push({ id: item.id, create: !current, ...result }); if (result.changed || changes.length) details.push({ itemId: item.id, nome: item.nome, changes, before: current?.raw?.fim ?? null, after: item.fim });
   }
   for (const document of firestoreDocuments) if (!monday.has(document.id)) { summary.itemsAusentesMonday++; details.push({ itemId: document.id, type: 'ITEM_AUSENTE_NO_MONDAY' }); }
@@ -110,7 +116,11 @@ export async function applyPlan(plan: ReturnType<typeof createPlan>, firestore: 
 
 async function execute(mode: 'dry-run' | 'apply', uid: string, token: string) {
   const started = Date.now(); const [mondayItems, snapshot] = await Promise.all([readMondayBoard(token), db.collection('monday-obras').get()]);
-  const plan = createPlan(mondayItems, snapshot.docs.map((document) => ({ id: document.id, data: document.data() })));
+  const documents = snapshot.docs.map((document) => ({ id: document.id, data: document.data() }));
+  const obraV2Ids = [...new Set(documents.map((document) => document.data?.obraV2Id).filter((id): id is string => typeof id === 'string' && Boolean(id.trim())))];
+  const obraV2Documents = obraV2Ids.length ? await db.getAll(...obraV2Ids.map((id) => db.collection('obras-v2').doc(id))) : [];
+  const obraV2Statuses = new Map(obraV2Documents.map((document) => [document.id, document.get('status')]));
+  const plan = createPlan(mondayItems, documents, obraV2Statuses);
   if (plan.summary.erros.length) throw new Error(plan.summary.erros.join(','));
   const firestoreWrites = mode === 'apply' ? await applyPlan(plan) : 0;
   console.info('MONDAY_SYNC', { uid, boardId: BOARD_ID, mode, durationMs: Date.now() - started, ...plan.summary });

@@ -3,8 +3,8 @@ import test from 'node:test';
 import { applyPlan, createMondaySyncApp, createPlan, normalizeMondayItem } from '../lib/mondaySync.js';
 import http from 'node:http';
 
-const monday = (overrides = {}) => ({ id: 'parent-1', nome: 'Contrato', status: 'Em andamento', numeroContrato: '001', ano: 2026, empresa: 'LEDUR', inicio: '2026-01-01', fim: '2026-02-01', updatedAt: '2026-01-01T00:00:00Z', subitems: [], ...overrides });
-const document = (overrides = {}) => ({ id: 'parent-1', data: { raw: { id: 'parent-1', nome: 'Contrato', status: 'Em andamento', numeroContrato: '001', ano: 2026, empresa: 'LEDUR', inicio: '2026-01-01', fim: '2026-02-01', subitems: [] }, sincronizacao: { itemId: 'parent-1', boardId: '8515762377', apiVersion: '2026-07', mondayUpdatedAt: '2026-01-01T00:00:00Z', capturadoEm: 'kept' }, obraV2Id: 'internal-v2', internal: { kept: true }, ...overrides } });
+const monday = (overrides = {}) => ({ id: 'parent-1', nome: 'Contrato', status: 'Em andamento', ordemInicio: null, confirmacaoRecurso: null, numeroContrato: '001', ano: 2026, empresa: 'LEDUR', inicio: '2026-01-01', fim: '2026-02-01', updatedAt: '2026-01-01T00:00:00Z', subitems: [], ...overrides });
+const document = (overrides = {}) => ({ id: 'parent-1', data: { raw: { id: 'parent-1', nome: 'Contrato', status: 'Em andamento', ordemInicio: null, confirmacaoRecurso: null, numeroContrato: '001', ano: 2026, empresa: 'LEDUR', inicio: '2026-01-01', fim: '2026-02-01', subitems: [] }, sincronizacao: { itemId: 'parent-1', boardId: '8515762377', apiVersion: '2026-07', mondayUpdatedAt: '2026-01-01T00:00:00Z', capturadoEm: 'kept' }, obraV2Id: 'internal-v2', internal: { kept: true }, ...overrides } });
 const mondayApiItem = (columns) => ({ id: 'parent-1', name: 'Contrato', updated_at: '2026-01-01T00:00:00Z', column_values: columns, subitems: [] });
 const formula = (display_value, extras = {}) => ({ id: 'f_rmula_mknbt1hr', type: 'formula', text: '', value: null, display_value, ...extras });
 const status1 = (text) => ({ id: 'color_mm7da26y', type: 'status', text });
@@ -24,10 +24,25 @@ test('subitem status remains sourced from color_mknqcdnw text', () => {
   assert.equal(item.subitems[0].status, 'Revisar escopo');
 });
 
-test('only a formula value of Obra Finalizada plans FINALIZADA in obras-v2', () => {
+test('dropdown text is normalized into the two raw fields without persisting Monday JSON', () => {
+  const item = normalizeMondayItem(mondayApiItem([{ id: 'dropdown_mknrvr7q', text: 'Ok', value: '{"ids":[1]}' }, { id: 'dropdown_mknqe4hf', text: '', value: '{"ids":[2]}' }, formula('Contrato em andamento')]));
+  assert.equal(item.ordemInicio, 'Ok'); assert.equal(item.confirmacaoRecurso, null);
+  const plan = createPlan([item], [document()]); assert.equal(plan.operations[0].patch.raw.ordemInicio, 'Ok'); assert.equal(plan.operations[0].patch.raw.confirmacaoRecurso, null);
+  assert.doesNotMatch(JSON.stringify(plan.operations[0].patch.raw), /ids/);
+});
+
+test('parent formula status and subitem status stay independent in a dry-run with zero writes', () => {
+  const item = normalizeMondayItem({ ...mondayApiItem([formula('Obra em Andamento')]), subitems: [{ id: 'sub-1', name: 'LOTE 1', column_values: [{ id: 'color_mknqcdnw', text: 'Revisar escopo' }] }] });
+  const plan = createPlan([item], [document({ raw: { ...document().data.raw, subitems: [{ id: 'sub-1', nome: 'LOTE 1', status: 'Não iniciada' }] } })]);
+  assert.equal(plan.operations[0].patch.raw.status, 'Obra em Andamento'); assert.equal(plan.operations[0].patch.raw.subitems[0].status, 'Revisar escopo');
+  const fake = fakeFirestore(); assert.equal(fake.calls.set.length + fake.calls.update.length + fake.calls.commit, 0);
+});
+
+test('only a formula value of Obra Finalizada plans FINALIZADA in obras-v2 when it is not already finalizada', () => {
   const formulaFinalized = normalizeMondayItem(mondayApiItem([formula('Obra Finalizada')]));
   const status1Only = normalizeMondayItem(mondayApiItem([formula(''), status1('Obra Finalizada')]));
-  assert.equal(createPlan([formulaFinalized], [document()]).summary.obrasFinalizar, 1);
+  assert.equal(createPlan([formulaFinalized], [document()], new Map([['internal-v2', 'CONTRATADA']])).summary.obrasFinalizar, 1);
+  assert.equal(createPlan([formulaFinalized], [document()], new Map([['internal-v2', 'FINALIZADA']])).summary.obrasFinalizar, 0);
   assert.equal(createPlan([status1Only], [document()]).summary.obrasFinalizar, 0);
 });
 
@@ -82,10 +97,15 @@ test('obraV2Id and unknown document fields are never part of the Monday patch', 
   assert.equal('obraV2Id' in plan.operations[0].patch, false); assert.equal('internal' in plan.operations[0].patch, false);
 });
 
-test('Obra Finalizada emits only FINALIZADA update and never reopens a work', async () => {
-  const finalize = createPlan([monday({ status: 'Obra Finalizada' })], [document()]); const fake = fakeFirestore(); await applyPlan(finalize, fake);
+test('finalization writes only when needed, ignores absent obraV2Id, and never reopens a work', async () => {
+  const finalizedRaw = { ...document().data.raw, status: 'Obra Finalizada' };
+  const finalize = createPlan([monday({ status: 'Obra Finalizada' })], [document({ raw: finalizedRaw })], new Map([['internal-v2', 'CONTRATADA']])); const fake = fakeFirestore(); await applyPlan(finalize, fake);
   assert.deepEqual(fake.calls.update[0][0], { name: 'obras-v2', id: 'internal-v2' }); assert.deepEqual(fake.calls.update[0][1], { status: 'FINALIZADA' });
-  const reopened = createPlan([monday({ status: 'Em andamento' })], [document({ raw: { ...document().data.raw, status: 'Obra Finalizada' } })]); const second = fakeFirestore(); await applyPlan(reopened, second);
+  const alreadyFinalized = createPlan([monday({ status: 'Obra Finalizada' })], [document({ raw: finalizedRaw })], new Map([['internal-v2', 'FINALIZADA']])); const alreadyFinalizedFirestore = fakeFirestore(); await applyPlan(alreadyFinalized, alreadyFinalizedFirestore);
+  assert.equal(alreadyFinalized.summary.obrasFinalizar, 0); assert.equal(alreadyFinalizedFirestore.calls.update.length, 0);
+  const withoutObraV2Id = createPlan([monday({ status: 'Obra Finalizada' })], [document({ raw: finalizedRaw, obraV2Id: null })], new Map()); const withoutObraV2Firestore = fakeFirestore(); await applyPlan(withoutObraV2Id, withoutObraV2Firestore);
+  assert.equal(withoutObraV2Firestore.calls.update.length, 0);
+  const reopened = createPlan([monday({ status: 'Em andamento' })], [document({ raw: finalizedRaw })], new Map([['internal-v2', 'FINALIZADA']])); const second = fakeFirestore(); await applyPlan(reopened, second);
   assert.equal(second.calls.update.length, 0);
 });
 
