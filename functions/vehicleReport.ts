@@ -16,7 +16,9 @@ function rows(payload: unknown) {
   }
   throw new HttpsError('internal', 'ERP_RESPONSE_CONTRACT_UNEXPECTED');
 }
-async function queryErp(queryId: 46 | 47, body: Record<string, string>, token: string) {
+export const VEHICLE_ERP_QUERY_ALLOWLIST = [47] as const;
+
+async function queryErp(queryId: typeof VEHICLE_ERP_QUERY_ALLOWLIST[number], body: Record<string, string>, token: string) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), 20_000);
   try {
@@ -53,7 +55,6 @@ export const getVehicleErpCosts = onCall({ region: 'southamerica-east1', secrets
   const token = erpToken.value();
   if (!token?.trim()) throw new HttpsError('failed-precondition', 'ERP_API_TOKEN_MISSING');
   const parameters = { DataInicial: dataInicial, DataFinal: dataFinal, Placa: placa };
-  const query46 = await queryErp(46, parameters, token);
   const query47 = await queryErp(47, parameters, token);
-  return { request: parameters, query46, query47 };
+  return { request: parameters, query47 };
 });

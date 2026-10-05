@@ -8,6 +8,8 @@ import {
     Container,
     Divider,
     FormControlLabel,
+    Menu,
+    MenuItem,
     Snackbar,
     Stack,
     TextField,
@@ -55,6 +57,7 @@ import { normalizeFornecedorNumero } from '../services/fornecedores.service';
 import { normalizarMovimentoCombustivel } from '../services/combustivel-normalizer';
 import { buildVehicleReport } from '../services/vehicle-report.service';
 import { createVehicleReportPdf } from '../services/vehicle-report-pdf';
+import { resolveVehicleReportPeriod, type VehicleReportPeriod } from '../services/vehicle-report-core';
 
 const FrotaCharts = lazy(() => import('../components/FrotaCharts'));
 type Veiculo = {
@@ -260,6 +263,7 @@ export default function FrotaVeiculoDetalhesPage() {
 
     const [veiculo, setVeiculo] = useState<Veiculo | null>(null);
     const [generatingReport, setGeneratingReport] = useState(false);
+    const [reportMenuAnchor, setReportMenuAnchor] = useState<HTMLElement | null>(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
 
@@ -1100,15 +1104,15 @@ export default function FrotaVeiculoDetalhesPage() {
             .sort((a, b) => b.value - a.value);
     }, [rowsByType]);
 
-    const handleGenerateReport = async () => {
+    const handleGenerateReport = async (option: VehicleReportPeriod) => {
         if (!veiculo || generatingReport) return;
+        setReportMenuAnchor(null);
         const vehiclePlate = veiculo.placa ?? placa ?? '';
         if (!vehiclePlate) {
             setSnackbar({ open: true, severity: 'error', message: 'A placa do veículo não está disponível.' });
             return;
         }
-        const dataInicial = '2025-01-01';
-        const dataFinal = new Date().toISOString().slice(0, 10);
+        const { dataInicial, dataFinal } = resolveVehicleReportPeriod(option);
         try {
             setGeneratingReport(true);
             const report = await buildVehicleReport({ placa: vehiclePlate, vehicleId: veiculo.id, vehicleName: tituloVeiculo, dataInicial, dataFinal });
@@ -1163,7 +1167,15 @@ export default function FrotaVeiculoDetalhesPage() {
                     {veiculo && (
                         <>
                             <Button variant="outlined" onClick={() => navigate(`/frota/analytics?veiculo=${encodeURIComponent(veiculo.id)}`)}>Ver no Analytics</Button>
-                            <Button variant="contained" onClick={handleGenerateReport} disabled={generatingReport}>{generatingReport ? 'Gerando Relatório...' : 'Gerar Relatório'}</Button>
+                            <Button variant="contained" onClick={(event) => setReportMenuAnchor(event.currentTarget)} disabled={generatingReport}>{generatingReport ? 'Gerando Relatório...' : 'Gerar Relatório'}</Button>
+                            <Menu anchorEl={reportMenuAnchor} open={Boolean(reportMenuAnchor)} onClose={() => setReportMenuAnchor(null)}>
+                                <MenuItem disabled>Gerar relatório</MenuItem>
+                                <Stack direction="row" spacing={0.5} sx={{ px: 1, pb: 1 }}>
+                                    <Button size="small" onClick={() => handleGenerateReport('25')}>25</Button>
+                                    <Button size="small" onClick={() => handleGenerateReport('26')}>26</Button>
+                                    <Button size="small" onClick={() => handleGenerateReport('all')}>Todo</Button>
+                                </Stack>
+                            </Menu>
                         </>
                     )}
                     <Button variant="contained" onClick={handleSave} disabled={saving}>

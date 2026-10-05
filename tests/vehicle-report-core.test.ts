@@ -1,11 +1,27 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { custoDieselInterno, extractCnpj, fuelReportSupplier, litrosFromQuantidadeRaw, matchExternalFuelToMaintenance, normalizeCalendarDate, normalizeSupplier, normalizeVehiclePlate, reportTotals, summarizeInternalFuel } from '../src/services/vehicle-report-core';
+import { custoDieselInterno, extractCnpj, filterVehicleReportPeriod, fuelReportSupplier, litrosFromQuantidadeRaw, matchExternalFuelToMaintenance, normalizeCalendarDate, normalizeSupplier, normalizeVehiclePlate, reportTotals, resolveVehicleReportPeriod, summarizeInternalFuel } from '../src/services/vehicle-report-core';
 import { createVehicleReportPdf, formatReportDate, formatVehicleReportHeader, sanitizeErpPresentationText, sanitizePdfText } from '../src/services/vehicle-report-pdf';
 
 test('normaliza JBJ-4J22 para o contrato ERP', () => assert.equal(normalizeVehiclePlate('JBJ-4J22'), 'JBJ4J22'));
-test('calcula os quatro totais da fixture JBJ sem hardcode no produto', () => {
-  assert.deepEqual(reportTotals(104167.30, 44875.49, 10815.99), { firebase: 104167.30, firebaseQ46: 149042.79, firebaseQ47: 114983.29, firebaseQ46Q47: 159858.78 });
+test('calcula o total consolidado Firebase + ERP Q47 da fixture JBJ', () => {
+  assert.deepEqual(reportTotals(104167.30, 10815.99), { firebase: 104167.30, erpQ47: 10815.99, consolidado: 114983.29 });
+});
+
+test('resolve os períodos 25, 26 e Todo com relógio congelado', () => {
+  const today = new Date(2026, 9, 1);
+  assert.deepEqual(resolveVehicleReportPeriod('25', today), { dataInicial: '2025-01-01', dataFinal: '2025-12-31', label: '2025' });
+  assert.deepEqual(resolveVehicleReportPeriod('26', today), { dataInicial: '2026-01-01', dataFinal: '2026-10-01', label: '2026' });
+  assert.deepEqual(resolveVehicleReportPeriod('all', today), { dataInicial: '2025-01-01', dataFinal: '2026-10-01', label: '2025–atual' });
+});
+
+test('filtra combustível, manutenções e Q47 pelo período selecionado', () => {
+  const fixture = [{ id: '2025', data: '2025-06-01' }, { id: '2026', data: '2026-06-01' }];
+  const ids = (period: ReturnType<typeof resolveVehicleReportPeriod>) => filterVehicleReportPeriod(fixture, period.dataInicial, period.dataFinal, (item) => item.data).map((item) => item.id);
+  const today = new Date(2026, 9, 1);
+  assert.deepEqual(ids(resolveVehicleReportPeriod('25', today)), ['2025']);
+  assert.deepEqual(ids(resolveVehicleReportPeriod('26', today)), ['2026']);
+  assert.deepEqual(ids(resolveVehicleReportPeriod('all', today)), ['2025', '2026']);
 });
 
 test('normaliza quantidade armazenada em décimos de litro', () => {
@@ -32,7 +48,7 @@ test('regressão JBJ: cruza externos com manutenção, preserva quantidade 1 int
 });
 
 test('PDF preserva acentos e quebra textos longos antes da margem', async () => {
-  const report: any = { veiculo: { placa: 'JBJ-4J22', nome: 'VEÍCULO FÁBRICA' }, periodo: { dataInicial: '2025-01-01', dataFinal: '2026-09-25' }, firebase: { combustivel: { registrosEncontrados: 98, externos: 3, registros: 95, litros: 15999.8, valor: 94398.82, itens: [{ data: '2026-01-01', litros: 159.2, valor: 939.28, km: 1, obra: 'Obra São João', motorista: 'João', id: 'fuel' }] }, manutencoes: { registros: 1, valor: 1, itens: [{ data: '2026-01-02', descricao: 'MANUTENÇÕES', fornecedor: `Fornecedor ${'muito longo '.repeat(20)}`, valor: 1, id: 'maintenance' }] } }, totais: reportTotals(104167.30, 44875.49, 10815.99), erp: { query46: { qtd_lancamentos: 1, receita: 0, despesa: 44875.49, valor_resultado: -44875.49, mensal: [] }, query47: { notas: 1, receita: 0, despesa: 10815.99, valor_resultado: -10815.99, placa_nota: { preenchidas: 1, vazias: 0, divergentes: 0 }, transferencias: { linhas: 0 }, detalhes: [] } } };
+  const report: any = { veiculo: { placa: 'JBJ-4J22', nome: 'VEÍCULO FÁBRICA' }, periodo: { dataInicial: '2025-01-01', dataFinal: '2026-09-25' }, firebase: { combustivel: { registrosEncontrados: 98, externos: 3, registros: 95, litros: 15999.8, valor: 94398.82, itens: [{ data: '2026-01-01', litros: 159.2, valor: 939.28, km: 1, obra: 'Obra São João', motorista: 'João', id: 'fuel' }] }, manutencoes: { registros: 1, valor: 1, itens: [{ data: '2026-01-02', descricao: 'MANUTENÇÕES', fornecedor: `Fornecedor ${'muito longo '.repeat(20)}`, valor: 1, id: 'maintenance' }] } }, totais: reportTotals(104167.30, 10815.99), erp: { query47: { notas: 1, receita: 0, despesa: 10815.99, valor_resultado: -10815.99, placa_nota: { preenchidas: 1, vazias: 0, divergentes: 0 }, transferencias: { linhas: 0 }, detalhes: [] } } };
   const bytes = new Uint8Array(await createVehicleReportPdf(report).arrayBuffer());
   const content = new TextDecoder('windows-1252').decode(bytes);
   assert.match(content, /RELATÓRIO DE CUSTOS DO VEÍCULO/);
@@ -44,6 +60,8 @@ test('PDF preserva acentos e quebra textos longos antes da margem', async () => 
   assert.match(content, /\/Type \/Page/);
   assert.match(content, /\/Count \d+/);
   assert.match(content, /Pág\./);
+  assert.match(content, /Total consolidado/);
+  assert.doesNotMatch(content, /Q46|CAIXA|COMPARATIVO ERP/);
 });
 
 test('matcher externo usa data + CNPJ, fornecedor normalizado e diagnóstico dos três pares JBJ', () => {

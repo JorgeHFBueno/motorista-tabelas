@@ -3,6 +3,8 @@ export const PRECO_DIESEL_RELATORIO = 5.90;
 
 export type FuelReportCandidate = { id: string; data: string; quantidadeRaw: number; fornecedor?: string; cnpj?: string };
 export type MaintenanceReportCandidate = { id?: string; data: string; categoria?: string; fornecedor?: string; cnpj?: string };
+export type VehicleReportPeriod = '25' | '26' | 'all';
+export type ResolvedVehicleReportPeriod = { dataInicial: string; dataFinal: string; label: string };
 
 const cents = (value: number) => Math.round(value * 100) / 100;
 const normalizedText = (value: unknown) => String(value ?? '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim().replace(/\s+/g, ' ').toUpperCase();
@@ -33,6 +35,22 @@ export function normalizeCalendarDate(value: unknown) {
   return Number.isNaN(candidate.getTime())
     ? ''
     : `${candidate.getFullYear()}-${String(candidate.getMonth() + 1).padStart(2, '0')}-${String(candidate.getDate()).padStart(2, '0')}`;
+}
+
+/** The report intentionally starts in 2025; "all" is not the full historic database. */
+export function resolveVehicleReportPeriod(option: VehicleReportPeriod, today = new Date()): ResolvedVehicleReportPeriod {
+  const current = normalizeCalendarDate(today);
+  if (!current) throw new Error('REPORT_PERIOD_TODAY_INVALID');
+  if (option === '25') return { dataInicial: '2025-01-01', dataFinal: '2025-12-31', label: '2025' };
+  if (option === '26') return { dataInicial: '2026-01-01', dataFinal: current < '2026-12-31' ? current : '2026-12-31', label: '2026' };
+  return { dataInicial: '2025-01-01', dataFinal: current, label: '2025–atual' };
+}
+
+export function filterVehicleReportPeriod<T>(records: T[], dataInicial: string, dataFinal: string, getDate: (record: T) => unknown): T[] {
+  return records.filter((record) => {
+    const value = normalizeCalendarDate(getDate(record));
+    return value >= dataInicial && value <= dataFinal;
+  });
 }
 
 export function normalizeVehiclePlate(plate: string) { return plate.toUpperCase().replace(/[-\s]/g, ''); }
@@ -107,4 +125,4 @@ export function summarizeInternalFuel(fuel: FuelReportCandidate[], maintenances:
   return { encontrados: fuel.length, externos: externos.length, internos: internos.length, quantidadeRawInterna, litros, valor: custoDieselInterno(litros), itens: internos, diagnostics };
 }
 
-export function reportTotals(firebase: number, q46Despesa: number, q47Despesa: number) { return { firebase: cents(firebase), firebaseQ46: cents(firebase + q46Despesa), firebaseQ47: cents(firebase + q47Despesa), firebaseQ46Q47: cents(firebase + q46Despesa + q47Despesa) }; }
+export function reportTotals(firebase: number, q47Despesa: number) { return { firebase: cents(firebase), erpQ47: cents(q47Despesa), consolidado: cents(firebase + q47Despesa) }; }
