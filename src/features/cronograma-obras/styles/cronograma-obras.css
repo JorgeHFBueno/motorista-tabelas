@@ -442,5 +442,7 @@
 
 .co-contract-review-badge { align-items: center; background: #fff0c9; border: 1px solid #e5bd65; border-radius: 99px; color: #76521f; display: inline-flex; font-size: .55rem; font-weight: 850; gap: 2px; margin-left: 3px; padding: 2px 5px; }
 .co-contract-review-badge svg { font-size: .75rem; }
+.co-contract-analysis-request { background: rgb(255 255 255 / .48); border: 1px solid #aebfc9; border-radius: 4px; color: #36576a; cursor: pointer; font: inherit; font-size: .58rem; font-weight: 800; margin-left: 4px; padding: 3px 6px; white-space: nowrap; }
+.co-contract-analysis-request:hover, .co-contract-analysis-request:focus-visible { background: #fff; border-color: #6e93a9; color: #24475d; }
 .co-text-row--review .co-work-name { background: #fff4d8; border: 1px solid #efd49c; border-radius: 4px; color: #76521f; font-weight: 850; padding-right: 7px; }
 .co-review-icon { color: #a56d1d; font-size: .8rem !important; margin-left: 3px; vertical-align: middle; }
