@@ -1,6 +1,23 @@
-import type { ObraCronograma } from './models';
+import type { ContratoCronograma, ObraCronograma } from './models';
 
 export interface ContractGroup { id: string; name: string; obras: ObraCronograma[]; }
+export type WorkTypeGroupKind = 'publica' | 'privada' | 'sem-classificacao';
+export interface WorkTypeGroup { kind: WorkTypeGroupKind; label: string; groups: ContractGroup[]; }
+
+/** Presentation-only grouping that retains every contract and its source order. */
+export function groupContractGroupsByWorkType(groups: readonly ContractGroup[], contratos: ReadonlyMap<string, ContratoCronograma>): WorkTypeGroup[] {
+  const buckets: Record<WorkTypeGroupKind, ContractGroup[]> = { publica: [], privada: [], 'sem-classificacao': [] };
+  groups.forEach((group) => {
+    const tipoObra = contratos.get(group.id)?.tipoObra;
+    const kind: WorkTypeGroupKind = tipoObra === 'Pública' ? 'publica' : tipoObra === 'Privada' ? 'privada' : 'sem-classificacao';
+    buckets[kind].push(group);
+  });
+  return [
+    { kind: 'publica', label: 'OBRAS PÚBLICAS', groups: buckets.publica },
+    { kind: 'privada', label: 'OBRAS PRIVADAS', groups: buckets.privada },
+    { kind: 'sem-classificacao', label: 'SEM CLASSIFICAÇÃO', groups: buckets['sem-classificacao'] },
+  ].filter((group) => group.groups.length);
+}
 
 /** Keeps the source order, including a stable group for works without a contract. */
 export function groupObrasByContract(obras: readonly ObraCronograma[]): ContractGroup[] {
