@@ -3,11 +3,12 @@ import test from 'node:test';
 import { applyPlan, createMondaySyncApp, createPlan, normalizeMondayItem } from '../lib/mondaySync.js';
 import http from 'node:http';
 
-const monday = (overrides = {}) => ({ id: 'parent-1', nome: 'Contrato', status: 'Em andamento', ordemInicio: null, confirmacaoRecurso: null, numeroContrato: '001', ano: 2026, empresa: 'LEDUR', inicio: '2026-01-01', fim: '2026-02-01', updatedAt: '2026-01-01T00:00:00Z', subitems: [], ...overrides });
-const document = (overrides = {}) => ({ id: 'parent-1', data: { raw: { id: 'parent-1', nome: 'Contrato', status: 'Em andamento', ordemInicio: null, confirmacaoRecurso: null, numeroContrato: '001', ano: 2026, empresa: 'LEDUR', inicio: '2026-01-01', fim: '2026-02-01', subitems: [] }, sincronizacao: { itemId: 'parent-1', boardId: '8515762377', apiVersion: '2026-07', mondayUpdatedAt: '2026-01-01T00:00:00Z', capturadoEm: 'kept' }, obraV2Id: 'internal-v2', internal: { kept: true }, ...overrides } });
+const monday = (overrides = {}) => ({ id: 'parent-1', nome: 'Contrato', status: 'Em andamento', ordemInicio: null, confirmacaoRecurso: null, tipoObra: null, numeroContrato: '001', ano: 2026, empresa: 'LEDUR', inicio: '2026-01-01', fim: '2026-02-01', updatedAt: '2026-01-01T00:00:00Z', subitems: [], ...overrides });
+const document = (overrides = {}) => ({ id: 'parent-1', data: { raw: { id: 'parent-1', nome: 'Contrato', status: 'Em andamento', ordemInicio: null, confirmacaoRecurso: null, tipoObra: null, numeroContrato: '001', ano: 2026, empresa: 'LEDUR', inicio: '2026-01-01', fim: '2026-02-01', subitems: [] }, sincronizacao: { itemId: 'parent-1', boardId: '8515762377', apiVersion: '2026-07', mondayUpdatedAt: '2026-01-01T00:00:00Z', capturadoEm: 'kept' }, obraV2Id: 'internal-v2', internal: { kept: true }, ...overrides } });
 const mondayApiItem = (columns) => ({ id: 'parent-1', name: 'Contrato', updated_at: '2026-01-01T00:00:00Z', column_values: columns, subitems: [] });
 const formula = (display_value, extras = {}) => ({ id: 'f_rmula_mknbt1hr', type: 'formula', text: '', value: null, display_value, ...extras });
 const status1 = (text) => ({ id: 'color_mm7da26y', type: 'status', text });
+const tipoObra = (text) => ({ id: 'dropdown_mkvc6z6r', type: 'dropdown', text });
 
 test('parent status uses FormulaValue.display_value, even when formula text and value are empty', () => {
   const item = normalizeMondayItem(mondayApiItem([formula('Obra em Andamento')]));
@@ -29,6 +30,28 @@ test('dropdown text is normalized into the two raw fields without persisting Mon
   assert.equal(item.ordemInicio, 'Ok'); assert.equal(item.confirmacaoRecurso, null);
   const plan = createPlan([item], [document()]); assert.equal(plan.operations[0].patch.raw.ordemInicio, 'Ok'); assert.equal(plan.operations[0].patch.raw.confirmacaoRecurso, null);
   assert.doesNotMatch(JSON.stringify(plan.operations[0].patch.raw), /ids/);
+});
+
+test('Tipo de Obra preserves the dropdown text exactly, including Publica, Privada and other real values', () => {
+  for (const value of ['Publica', 'Privada', 'Pública especial']) {
+    const item = normalizeMondayItem(mondayApiItem([formula('Contrato em andamento'), tipoObra(value)]));
+    assert.equal(item.tipoObra, value);
+    const plan = createPlan([item], [document({ raw: { ...document().data.raw, tipoObra: null } })]);
+    assert.equal(plan.operations[0].patch.raw.tipoObra, value);
+    assert.ok(plan.operations[0].changedReasons.includes('TIPO_OBRA_ATUALIZAR'));
+  }
+});
+
+test('empty Tipo de Obra becomes null, equal values avoid an update, and a missing field is projected', () => {
+  const empty = normalizeMondayItem(mondayApiItem([formula('Contrato em andamento'), tipoObra('')]));
+  assert.equal(empty.tipoObra, null);
+  assert.equal(createPlan([empty], [document({ raw: { ...document().data.raw, tipoObra: 'Privada' } })]).operations[0].patch.raw.tipoObra, null);
+  const privateItem = normalizeMondayItem(mondayApiItem([formula('Contrato em andamento'), tipoObra('Privada')]));
+  const equal = createPlan([privateItem], [document({ raw: { ...document().data.raw, tipoObra: 'Privada' } })]);
+  assert.equal(equal.summary.tipoObraAtualizar, 0);
+  const missing = createPlan([privateItem], [document()]);
+  assert.equal(missing.operations[0].patch.raw.tipoObra, 'Privada');
+  assert.equal(missing.operations[0].patch.raw.status, 'Contrato em andamento');
 });
 
 test('parent formula status and subitem status stay independent in a dry-run with zero writes', () => {

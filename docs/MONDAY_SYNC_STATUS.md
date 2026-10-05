@@ -23,6 +23,7 @@ exibido pelo Monday (vazio resulta em `null`):
 
 - `raw.ordemInicio` <- `dropdown_mknrvr7q.text` (`Ordem de Início`);
 - `raw.confirmacaoRecurso` <- `dropdown_mknqe4hf.text` (`Confir. Recurso`).
+- `raw.tipoObra` <- `dropdown_mkvc6z6r.text` (`Tipo de Obra`, tipo `dropdown`).
 
 IDs internos e JSON bruto dos dropdowns não são persistidos.
 
