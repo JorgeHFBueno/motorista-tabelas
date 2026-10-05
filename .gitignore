@@ -28,3 +28,8 @@ dist-ssr
 functions/lib
 visual-identity-export/
 docs/patch-notes/
+
+# Local test/build output and safety backups
+.tmp-*
+.firebase/*.cache
+backups/
