@@ -153,6 +153,36 @@ test('[firestore] employee identity cannot be created by client', async () => as
   createdAt: Timestamp.fromMillis(1), updatedAt: Timestamp.fromMillis(1),
 })));
 
+const cronogramaAlocacao = (criadoPorFuncionarioId = 'uid-user') => ({
+  obraId: '13053086105', contratoId: '12806288209', mestreId: 'dine',
+  inicio: '2026-09-01', tempoPlanejado: 7, criadoPorFuncionarioId,
+  criadoEm: Timestamp.fromMillis(1), atualizadoEm: Timestamp.fromMillis(1),
+});
+
+test('[firestore] cronograma denies unauthenticated and missing-profile clients', async () => {
+  await assertFails(getDoc(doc(env.unauthenticatedContext().firestore(), 'monday-cronograma', 'allocation')));
+  await assertFails(getDoc(doc(dbAs('missing'), 'monday-cronograma', 'allocation')));
+});
+test('[firestore] cronograma authorized user reads and creates own allocation', async () => {
+  const db = dbAs('user'); const reference = doc(db, 'monday-cronograma', 'allocation-own');
+  await assertSucceeds(setDoc(reference, cronogramaAlocacao()));
+  await assertSucceeds(getDoc(reference));
+});
+test('[firestore] cronograma rejects forged creator and immutable authorship changes', async () => {
+  const db = dbAs('user'); const forged = doc(db, 'monday-cronograma', 'allocation-forged');
+  await assertFails(setDoc(forged, cronogramaAlocacao('uid-other')));
+  const owned = doc(db, 'monday-cronograma', 'allocation-immutable');
+  await assertSucceeds(setDoc(owned, cronogramaAlocacao()));
+  await assertFails(updateDoc(owned, { criadoPorFuncionarioId: 'uid-other' }));
+  await assertFails(updateDoc(owned, { criadoEm: Timestamp.fromMillis(2) }));
+});
+test('[firestore] cronograma authorized update and delete preserve the valid schema', async () => {
+  const db = dbAs('user'); const reference = doc(db, 'monday-cronograma', 'allocation-crud');
+  await assertSucceeds(setDoc(reference, cronogramaAlocacao()));
+  await assertSucceeds(updateDoc(reference, { inicio: '2026-09-08', tempoPlanejado: 14, atualizadoEm: Timestamp.fromMillis(2) }));
+  await assertSucceeds(deleteDoc(reference));
+});
+
 test('[firestore] normal user updates only vehicle mileage', async () => assertSucceeds(updateDoc(doc(dbAs('user'), 'veiculos', 'v1'), { quilometragemUltima: 101, dataUltimaAtualizacao: 2 })));
 test('[firestore] normal user cannot alter vehicle plate', async () => assertFails(updateDoc(doc(dbAs('user'), 'veiculos', 'v1'), { placa: 'BAD0000' })));
 test('[firestore] normal user cannot alter vehicle category', async () => assertFails(updateDoc(doc(dbAs('user'), 'veiculos', 'v1'), { categoria: 'car' })));

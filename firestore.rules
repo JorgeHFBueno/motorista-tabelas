@@ -297,6 +297,45 @@ service cloud.firestore {
         && request.resource.data.perfis.get('motorista', false) is bool;
     }
 
+    // Shared CronoObra allocations. Employee document IDs are Firebase Auth UIDs.
+    function validCronogramaAlocacao(data) {
+      return data.keys().hasAll([
+          'obraId',
+          'contratoId',
+          'mestreId',
+          'inicio',
+          'tempoPlanejado',
+          'criadoPorFuncionarioId',
+          'criadoEm',
+          'atualizadoEm'
+        ])
+        && data.obraId is string
+        && data.obraId != ''
+        && data.contratoId is string
+        && data.contratoId != ''
+        && data.mestreId is string
+        && data.mestreId != ''
+        && data.inicio is string
+        && data.inicio.matches('^\\d{4}-\\d{2}-\\d{2}$')
+        && data.tempoPlanejado is int
+        && data.tempoPlanejado > 0
+        && data.criadoPorFuncionarioId is string
+        && data.criadoPorFuncionarioId != ''
+        && data.criadoEm is timestamp
+        && data.atualizadoEm is timestamp;
+    }
+
+    match /monday-cronograma/{alocacaoId} {
+      allow read: if isAuthorized();
+      allow create: if isAuthorized()
+        && validCronogramaAlocacao(request.resource.data)
+        && request.resource.data.criadoPorFuncionarioId == request.auth.uid;
+      allow update: if isAuthorized()
+        && validCronogramaAlocacao(request.resource.data)
+        && didNotChange(['criadoPorFuncionarioId', 'criadoEm']);
+      allow delete: if isAuthorized();
+    }
+
 
     match /veiculos/{veiculoId} {
       allow read: if isAuthorized();
