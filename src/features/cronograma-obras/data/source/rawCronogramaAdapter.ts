@@ -32,6 +32,8 @@ export function adaptRawContract(document: RawDocument, diagnostics: string[]): 
     const dias = inclusiveCivilDays(inicio, fim);
     return [{ id, targetType: 'obra', contratoId: document.id, contratoNome: nome, sourceRow: 0, codObra: id, siglaObra: 'LOTE', nomeObra: nomeLote, local: nomeLote, status: text(subitem.status, 'Sem status'), empresa: text(raw.empresa, 'Não informado'), mestreInicial: null, descricao: null, inicioPlanejado: dias === null ? null : inicio, tempoPlanejado: dias, allocationAllowed: dias !== null, mestresPlanejados: [] } satisfies ObraCronograma];
   });
+  // Only entries produced from raw.subitems are real Monday subitems.
+  obras.forEach((obra) => { obra.mondaySubitemId = obra.id; });
   if (!obras.length) obras.push(contractPlanningRow(document, nome, raw, inicio, fim));
   return { id: document.id, nome, empresa: text(raw.empresa, 'Não informado'), status: text(raw.status, 'Sem status'), numeroContrato: optionalText(raw.numeroContrato), ano: typeof raw.ano === 'number' ? raw.ano : null, inicio, fim, confirmacaoRecurso: raw.confirmacaoRecurso, ordemInicio: raw.ordemInicio, obraV2Id: typeof data.obraV2Id === 'string' ? data.obraV2Id : null, rawDocument: document.data, obras };
 }

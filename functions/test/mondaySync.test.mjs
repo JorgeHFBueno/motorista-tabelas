@@ -54,9 +54,10 @@ test('formula-empty dry-run is counted, changes raw.status to null, and makes ze
 });
 
 function fakeFirestore() {
-  const calls = { set: [], update: [], commit: 0, delete: 0 };
+  const calls = { set: [], update: [], commit: 0, delete: 0, transactions: 0 }; const documents = new Map();
   const batch = { set: (...args) => calls.set.push(args), update: (...args) => calls.update.push(args), delete: (...args) => calls.delete.push(args), commit: async () => { calls.commit++; } };
-  return { calls, batch: () => batch, collection: (name) => ({ doc: (id) => ({ name, id }) }) };
+  const doc = (name, id) => ({ name, id, update: async (patch) => calls.update.push([{ name, id }, patch]) });
+  return { calls, batch: () => batch, collection: (name) => ({ doc: (id) => doc(name, id) }), runTransaction: async (worker) => { calls.transactions++; return worker({ get: async (ref) => ({ exists: documents.has(`${ref.name}/${ref.id}`), data: () => documents.get(`${ref.name}/${ref.id}`) }), update: (ref, patch) => { calls.update.push([ref, patch]); documents.set(`${ref.name}/${ref.id}`, { ...(documents.get(`${ref.name}/${ref.id}`) ?? {}), ...patch }); }, set: (ref, patch) => { calls.set.push([ref, patch]); documents.set(`${ref.name}/${ref.id}`, patch); } }); } };
 }
 
 test('plan keeps an equal parent unchanged and dry-run has no Firestore operations', () => {
@@ -67,7 +68,7 @@ test('plan keeps an equal parent unchanged and dry-run has no Firestore operatio
 test('new parent is planned without obraV2Id and is created atomically only on apply', async () => {
   const plan = createPlan([monday({ id: 'new-parent' })], []); const fake = fakeFirestore();
   assert.equal(plan.summary.itemsCriar, 1); assert.equal(plan.operations[0].patch.raw.id, 'new-parent'); assert.equal('obraV2Id' in plan.operations[0].patch, false);
-  await applyPlan(plan, fake); assert.equal(fake.calls.set.length, 1); assert.equal(fake.calls.set[0][0].name, 'monday-obras'); assert.equal(fake.calls.update.length, 0); assert.equal(fake.calls.commit, 1);
+  await applyPlan(plan, fake); assert.equal(fake.calls.set.length, 1); assert.equal(fake.calls.set[0][0].name, 'monday-obras'); assert.equal(fake.calls.update.length, 0); assert.equal(fake.calls.transactions, 1);
 });
 
 test('Firebase-only parent is reported and never deleted', () => {
@@ -100,7 +101,7 @@ test('obraV2Id and unknown document fields are never part of the Monday patch', 
 test('finalization writes only when needed, ignores absent obraV2Id, and never reopens a work', async () => {
   const finalizedRaw = { ...document().data.raw, status: 'Obra Finalizada' };
   const finalize = createPlan([monday({ status: 'Obra Finalizada' })], [document({ raw: finalizedRaw })], new Map([['internal-v2', 'CONTRATADA']])); const fake = fakeFirestore(); await applyPlan(finalize, fake);
-  assert.deepEqual(fake.calls.update[0][0], { name: 'obras-v2', id: 'internal-v2' }); assert.deepEqual(fake.calls.update[0][1], { status: 'FINALIZADA' });
+  assert.equal(fake.calls.update[0][0].name, 'obras-v2'); assert.equal(fake.calls.update[0][0].id, 'internal-v2'); assert.deepEqual(fake.calls.update[0][1], { status: 'FINALIZADA' });
   const alreadyFinalized = createPlan([monday({ status: 'Obra Finalizada' })], [document({ raw: finalizedRaw })], new Map([['internal-v2', 'FINALIZADA']])); const alreadyFinalizedFirestore = fakeFirestore(); await applyPlan(alreadyFinalized, alreadyFinalizedFirestore);
   assert.equal(alreadyFinalized.summary.obrasFinalizar, 0); assert.equal(alreadyFinalizedFirestore.calls.update.length, 0);
   const withoutObraV2Id = createPlan([monday({ status: 'Obra Finalizada' })], [document({ raw: finalizedRaw, obraV2Id: null })], new Map()); const withoutObraV2Firestore = fakeFirestore(); await applyPlan(withoutObraV2Id, withoutObraV2Firestore);
@@ -115,8 +116,9 @@ test('apply is one batch, does not commit an empty plan, and blocks preflight er
 });
 
 test('the public sync surface keeps authorization, server secret, dry-run and token isolation contracts', async () => {
-  const source = await import('node:fs/promises').then(({ readFile }) => readFile(new URL('../mondaySync.ts', import.meta.url), 'utf8'));
-  assert.match(source, /app\.use\(options\.authMiddleware \?\? adminAuthMiddleware\)/); assert.match(source, /defineSecret\('MONDAY_API_TOKEN'\)/); assert.match(source, /req\.body\?\.mode/); assert.match(source, /app\.post\(\['\/', '\/api\/monday-sync'\]/);
+  const [{ readFile }, source] = await Promise.all([import('node:fs/promises'), import('node:fs/promises').then(({ readFile }) => readFile(new URL('../mondaySync.ts', import.meta.url), 'utf8'))]);
+  const client = await readFile(new URL('../mondayClient.ts', import.meta.url), 'utf8');
+  assert.match(source, /app\.use\(options\.authMiddleware \?\? adminAuthMiddleware\)/); assert.match(client, /defineSecret\('MONDAY_API_TOKEN'\)/); assert.match(source, /req\.body\?\.mode/); assert.match(source, /app\.post\(\['\/', '\/api\/monday-sync'\]/);
   assert.doesNotMatch(source, /req\.body\?\.token|MONDAY_API_TOKEN.*res\./); assert.match(source, /mode === 'apply' \? await applyPlan\(plan\) : 0/);
   assert.match(source, /f_rmula_mknbt1hr/); assert.match(source, /\.\.\. on FormulaValue \{ display_value \}/); assert.doesNotMatch(source, /status: columnText\(columns, 'color_mm7da26y'\)/);
 });

@@ -1,14 +1,13 @@
 import express from 'express';
 import cors from 'cors';
-import { defineSecret } from 'firebase-functions/params';
-import { FieldValue } from 'firebase-admin/firestore';
 import { db } from './firebaseAdmin.js';
 import { adminAuthMiddleware, type AdminRequest } from './adminAuth.js';
+import { mondayApiToken, MONDAY_API_VERSION, queryMonday } from './mondayClient.js';
+import { buildMondayManagedPatch, normalizeMondayParent, projectMondayParentToFirestore } from './mondayProjector.js';
 
-export const mondayApiToken = defineSecret('MONDAY_API_TOKEN');
+export { mondayApiToken, MONDAY_API_VERSION, queryMonday, type MondayQueryMeta } from './mondayClient.js';
+
 const BOARD_ID = '8515762377';
-const API_VERSION = '2026-07';
-const MONDAY_URL = 'https://api.monday.com/v2';
 const MAX_BATCH_WRITES = 450;
 
 type MondaySubitem = { id: string; nome: string | null; status: string | null };
@@ -24,6 +23,8 @@ const formulaDisplayValue = (columns: any[], id: string) => text(columns.find((c
 const same = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b);
 
 export function normalizeMondayItem(item: any): MondayItem {
+  return normalizeMondayParent(item);
+  /* legacy normalization retained below only as unreachable source context during MK6B extraction
   const columns = Array.isArray(item?.column_values) ? item.column_values : [];
   const year = text(columnText(columns, 'text_mkntryg9'));
   return {
@@ -36,13 +37,7 @@ export function normalizeMondayItem(item: any): MondayItem {
       id: String(subitem.id), nome: text(subitem.name), status: columnText(Array.isArray(subitem.column_values) ? subitem.column_values : [], 'color_mknqcdnw'),
     })),
   };
-}
-
-async function queryMonday(token: string, query: string, variables: AnyRecord) {
-  const response = await fetch(MONDAY_URL, { method: 'POST', headers: { Authorization: token, 'Content-Type': 'application/json' }, body: JSON.stringify({ query, variables }) });
-  const payload = await response.json().catch(() => ({})) as AnyRecord;
-  if (!response.ok || payload.errors?.length) throw new Error(`MONDAY_API: ${payload.errors?.map((error: any) => error.message).join('; ') || payload.error_message || response.status}`);
-  return payload.data;
+  */
 }
 
 const selection = `cursor items { id name updated_at column_values(ids: ["f_rmula_mknbt1hr", "texto_mknarg02", "text_mkntryg9", "empresa_mknb1cwy", "data_mknaqn4f", "fim_mknaarxc", "dropdown_mknrvr7q", "dropdown_mknqe4hf"]) { id type text ... on FormulaValue { display_value } } subitems { id name column_values(ids: ["color_mknqcdnw"]) { id text } } }`;
@@ -56,28 +51,9 @@ export async function readMondayBoard(token: string): Promise<MondayItem[]> {
 }
 
 function project(current: AnyRecord | null, item: MondayItem, obraV2Status: unknown) {
-  const raw = current?.raw && typeof current.raw === 'object' ? current.raw : {};
-  const previous = Array.isArray(raw.subitems) ? raw.subitems : [];
-  const byId = new Map(previous.map((subitem: AnyRecord) => [String(subitem?.id), subitem]));
-  const mondayIds = new Set(item.subitems.map((subitem) => subitem.id));
-  const details: any[] = [];
-  const subitems = [...previous];
-  for (const subitem of item.subitems) {
-    const existing = byId.get(subitem.id);
-    const next = existing ? { ...existing, id: subitem.id, nome: subitem.nome, status: subitem.status } : { id: subitem.id, nome: subitem.nome, status: subitem.status };
-    if (!existing) details.push({ type: 'SUBITEM_ADD', subitemId: subitem.id, after: next });
-    else if (!same(existing, next)) details.push({ type: 'SUBITEM_UPDATE', subitemId: subitem.id, before: existing, after: next });
-    if (existing) subitems[previous.indexOf(existing)] = next; else subitems.push(next);
-  }
-  for (const subitem of previous) if (!mondayIds.has(String(subitem?.id))) details.push({ type: 'SUBITEM_AUSENTE_NO_MONDAY', subitemId: String(subitem?.id) });
-  const nextRaw = { ...raw, id: item.id, nome: item.nome, status: item.status, ordemInicio: item.ordemInicio, confirmacaoRecurso: item.confirmacaoRecurso, numeroContrato: item.numeroContrato, ano: item.ano, empresa: item.empresa, inicio: item.inicio, fim: item.fim, subitems };
-  const metadata = { ...(current?.sincronizacao ?? {}), itemId: item.id, boardId: BOARD_ID, apiVersion: API_VERSION, mondayUpdatedAt: item.updatedAt };
-  // capturadoEm is a server timestamp and must not create write churn by itself.
-  const currentMetadata = current?.sincronizacao ? { itemId: current.sincronizacao.itemId, boardId: current.sincronizacao.boardId, apiVersion: current.sincronizacao.apiVersion, mondayUpdatedAt: current.sincronizacao.mondayUpdatedAt } : null;
-  const expectedMetadata = { itemId: metadata.itemId, boardId: metadata.boardId, apiVersion: metadata.apiVersion, mondayUpdatedAt: metadata.mondayUpdatedAt };
-  const changed = !current || !same(raw, nextRaw) || !same(currentMetadata, expectedMetadata);
+  const projection = buildMondayManagedPatch(current, item);
   const obraV2Id = typeof current?.obraV2Id === 'string' && current.obraV2Id.trim() ? current.obraV2Id : null;
-  return { changed, details, patch: { raw: nextRaw, sincronizacao: metadata }, isFinalized: item.status === 'Obra Finalizada' && obraV2Id && obraV2Status !== 'FINALIZADA' ? obraV2Id : null };
+  return { ...projection, details: projection.details, isFinalized: item.status === 'Obra Finalizada' && obraV2Id && obraV2Status !== 'FINALIZADA' ? obraV2Id : null };
 }
 
 export function createPlan(mondayItems: MondayItem[], firestoreDocuments: Array<{ id: string; data: AnyRecord }>, obraV2Statuses = new Map<string, unknown>()) {
@@ -94,7 +70,7 @@ export function createPlan(mondayItems: MondayItem[], firestoreDocuments: Array<
     if (current?.raw?.fim !== item.fim) summary.fimAtualizar++; if (current?.raw?.status !== item.status) summary.statusAtualizar++; if (item.status === null) summary.formulaStatusVazia++;
     if (item.status === 'Obra Finalizada') { summary.obrasFinalizadasMonday++; if (obraV2Id) { summary.obrasComObraV2Id++; if (obraV2Status === 'FINALIZADA') summary.obrasJaFinalizadas++; } }
     if (result.isFinalized) summary.obrasFinalizar++;
-    if (result.changed || result.isFinalized) operations.push({ id: item.id, create: !current, ...result }); if (result.changed || changes.length) details.push({ itemId: item.id, nome: item.nome, changes, before: current?.raw?.fim ?? null, after: item.fim });
+    if (result.changed || result.isFinalized) operations.push({ id: item.id, create: !current, parent: item, ...result }); if (result.changed || changes.length) details.push({ itemId: item.id, nome: item.nome, changes, before: current?.raw?.fim ?? null, after: item.fim });
   }
   for (const document of firestoreDocuments) if (!monday.has(document.id)) { summary.itemsAusentesMonday++; details.push({ itemId: document.id, type: 'ITEM_AUSENTE_NO_MONDAY' }); }
   if (operations.length > MAX_BATCH_WRITES) summary.erros.push(`BATCH_LIMIT_EXCEEDED:${operations.length}`);
@@ -104,13 +80,11 @@ export function createPlan(mondayItems: MondayItem[], firestoreDocuments: Array<
 export async function applyPlan(plan: ReturnType<typeof createPlan>, firestore: any = db) {
   if (plan.summary.erros.length) throw new Error(plan.summary.erros.join(','));
   if (!plan.operations.length) return 0;
-  const batch = firestore.batch(); let writes = 0;
+  let writes = 0;
   for (const operation of plan.operations) {
-    const ref = firestore.collection('monday-obras').doc(operation.id);
-    batch.set(ref, { ...operation.patch, sincronizacao: { ...operation.patch.sincronizacao, capturadoEm: FieldValue.serverTimestamp() } }, { merge: true }); writes++;
-    if (operation.isFinalized) { batch.update(firestore.collection('obras-v2').doc(operation.isFinalized), { status: 'FINALIZADA' }); writes++; }
+    if (operation.changed) { const result = await projectMondayParentToFirestore(firestore, operation.parent); if (result.result === 'UPDATED') writes++; }
+    if (operation.isFinalized) { await firestore.collection('obras-v2').doc(operation.isFinalized).update({ status: 'FINALIZADA' }); writes++; }
   }
-  await batch.commit();
   return writes;
 }
 

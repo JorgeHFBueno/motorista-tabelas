@@ -1,5 +1,13 @@
 # React + TypeScript + Vite
 
+## Sincronização oficial do Monday
+
+`/api/monday-sync` é uma Function v2 restrita a usuários ativos com `funcionarios/{uid}.perfis.adm2 === true`. Ela consulta o board `8515762377` exclusivamente no servidor e requer o Secret `MONDAY_API_TOKEN`; o token nunca é enviado ao frontend, Firestore ou logs. `dry-run` não escreve nada; `apply` relê Monday e Firestore, recalcula o plano e usa um único batch seguro.
+
+São controlados `raw.id`, `nome`, `status`, `numeroContrato`, `ano`, `empresa`, `inicio`, `fim` e `raw.subitems` por ID (`id`, `nome`, `status`). Campos internos, inclusive `obraV2Id` e propriedades extras dos subitens, são preservados. Somente `raw.status === "Obra Finalizada"` pode definir `obras-v2/{obraV2Id}.status` como `FINALIZADA`; não há reabertura.
+
+Antes do deploy: `firebase functions:secrets:set MONDAY_API_TOKEN`. Publique a Function `mondaySync` e Hosting, faça primeiro um dry-run pelo botão **Sincronizar Monday** e revise o resultado antes de APPLY.
+
 This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
 
 Currently, two official plugins are available:

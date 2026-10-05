@@ -23,6 +23,11 @@
 .co-zoom--day { --co-day-width: 24px; --co-timeline-width: 8760px; }
 .co-zoom--year { --co-timeline-width: calc(100% - var(--co-left-width)); }
 .co-header-actions { align-items: center; display: flex; gap: 10px; }
+.co-dev-menu { position: relative; }
+.co-dev-popover { background: #fff; border: 1px solid var(--co-line); border-radius: 7px; box-shadow: 0 8px 22px rgb(19 43 58 / .16); display: grid; gap: 2px; min-width: 230px; padding: 6px; position: absolute; right: 0; top: calc(100% + 6px); z-index: 20; }
+.co-dev-popover button { background: transparent; border: 0; border-radius: 5px; color: #294659; cursor: pointer; font: inherit; font-size: .73rem; padding: 8px 10px; text-align: left; white-space: nowrap; }
+.co-dev-popover button:hover { background: #f1f6f8; }
+.co-dev-popover button:disabled { cursor: wait; opacity: .58; }
 .co-button--primary { background: #2f6b98; border-color: #285d85; color: #fff; }
 .co-button--primary:hover { background: #245b83; }
 
@@ -211,6 +216,12 @@
 .co-allocation.is-connected-right { border-bottom-right-radius: 0; border-top-right-radius: 0; width: 100% !important; }
 
 .co-status { border: 1px solid; border-radius: 999px; display: inline-block; font-size: .5rem; font-weight: 850; letter-spacing: .025em; max-width: 108px; overflow: hidden; padding: 3px 6px; text-overflow: ellipsis; white-space: nowrap; }
+.co-status-select { cursor: pointer; font: inherit; max-width: 142px; padding-right: 3px; }
+.co-status-select:disabled { cursor: wait; opacity: .68; }
+.co-monday-status-control { display: inline-flex; flex-direction: column; gap: 3px; max-width: 180px; }
+.co-start-button { height: 28px; min-width: 68px; padding: 0 9px; }
+.co-status-error { color: #a12c3a; font-size: .58rem; white-space: normal; }
+.co-status-feedback { color: #27644e; font-size: .58rem; white-space: normal; }
 .co-status--em-andamento { background: #e7f2ed; border-color: #bedbce; color: #27644e; }
 .co-status--aguardando-recurso { background: #f7f0df; border-color: #ead8a9; color: #806024; }
 .co-status--finalizada { background: #edf1f4; border-color: #d3dce2; color: #5a6b75; }
