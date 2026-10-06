@@ -77,6 +77,26 @@ const INITIAL_FILTERS: CronogramaFilters = {
   mestre: "",
   period: "year",
 };
+type CronogramaViewTransition =
+  | "obras"
+  | "mestres"
+  | "contratos"
+  | "lista"
+  | "dias"
+  | "semanas"
+  | null;
+
+const VIEW_TRANSITION_MESSAGES: Record<
+  Exclude<CronogramaViewTransition, null>,
+  string
+> = {
+  obras: "Carregando visão de Obras…",
+  mestres: "Carregando visão de Mestres…",
+  contratos: "Organizando por contratos…",
+  lista: "Preparando lista corrida…",
+  dias: "Preparando calendário diário…",
+  semanas: "Preparando calendário semanal…",
+};
 let lastHydratedObras: ObraCronograma[] = [];
 
 function sameMasters(
@@ -222,6 +242,8 @@ export default function CronogramaObrasPage() {
     finished: true,
   });
   const [zoom, setZoomState] = useState<ZoomCronograma>("week");
+  const [viewTransition, setViewTransition] =
+    useState<CronogramaViewTransition>(null);
   const [filters, setFilters] = useState(INITIAL_FILTERS);
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [devOpen, setDevOpen] = useState(false);
@@ -244,6 +266,7 @@ export default function CronogramaObrasPage() {
   const resizeDrafts = useRef(
     new Map<string, { inicio: string; tempoPlanejado: number }>(),
   );
+  const viewTransitionRef = useRef<CronogramaViewTransition>(null);
   const [loading, setLoading] = useState(true);
   const [realtimeState, setRealtimeState] = useState<
     "connecting" | "live" | "offline" | "error"
@@ -452,9 +475,42 @@ export default function CronogramaObrasPage() {
   const selected =
     obras.find((obra) => obra.id === (mastersPanelId ?? selectedId)) ?? null;
 
-  const setZoom = (next: ZoomCronograma) => {
-    setZoomState(next);
-    setCenterRequest((request) => request + 1);
+  const isViewTransitioning = viewTransition !== null;
+  const runViewTransition = (
+    kind: Exclude<CronogramaViewTransition, null>,
+    apply: () => void,
+  ) => {
+    if (viewTransitionRef.current) return;
+    viewTransitionRef.current = kind;
+    setViewTransition(kind);
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        apply();
+        requestAnimationFrame(() => {
+          requestAnimationFrame(() => {
+            viewTransitionRef.current = null;
+            setViewTransition(null);
+          });
+        });
+      });
+    });
+  };
+  const changeZoom = (next: ZoomCronograma) => {
+    if (next === zoom) return;
+    runViewTransition(next === "day" ? "dias" : "semanas", () => {
+      setZoomState(next);
+      setCenterRequest((request) => request + 1);
+    });
+  };
+  const changeView = (next: "obras" | "mestres") => {
+    if (next === view) return;
+    runViewTransition(next, () => setView(next));
+  };
+  const changeWorkViewMode = (next: "contracts" | "flat") => {
+    if (next === workViewMode) return;
+    runViewTransition(next === "contracts" ? "contratos" : "lista", () =>
+      setWorkViewMode(next),
+    );
   };
   const goToday = () => {
     setFilters((current) =>
@@ -864,25 +920,27 @@ export default function CronogramaObrasPage() {
             <button
               type="button"
               className={`co-header-segmented-option ${workViewMode === "contracts" ? "is-active" : ""}`}
-              onClick={() => setWorkViewMode("contracts")}
+              disabled={isViewTransitioning}
+              onClick={() => changeWorkViewMode("contracts")}
             >
               Contratos
             </button>
             <button
               type="button"
               className={`co-header-segmented-option ${workViewMode === "flat" ? "is-active" : ""}`}
-              onClick={() => setWorkViewMode("flat")}
+              disabled={isViewTransitioning}
+              onClick={() => changeWorkViewMode("flat")}
             >
               Lista corrida
             </button>
           </div>
           <div className="co-view-switch co-header-segmented-control" aria-label="Domínio do cronograma">
-            <button type="button" className={`co-header-segmented-option ${view === "obras" ? "is-active" : ""}`} onClick={() => setView("obras")}>Obras</button>
-            <button type="button" className={`co-header-segmented-option ${view === "mestres" ? "is-active" : ""}`} onClick={() => setView("mestres")}>Mestres</button>
+            <button type="button" disabled={isViewTransitioning} className={`co-header-segmented-option ${view === "obras" ? "is-active" : ""}`} onClick={() => changeView("obras")}>Obras</button>
+            <button type="button" disabled={isViewTransitioning} className={`co-header-segmented-option ${view === "mestres" ? "is-active" : ""}`} onClick={() => changeView("mestres")}>Mestres</button>
           </div>
           <div className="co-view-switch co-zoom-switch co-header-segmented-control" aria-label="Escala do cronograma">
             {([ ["day", "Dias"], ["week", "Semanas"] ] as const).map(([value, label]) => (
-              <button type="button" key={value} className={`co-header-segmented-option ${zoom === value ? "is-active" : ""}`} onClick={() => setZoom(value)}>{label}</button>
+              <button type="button" key={value} disabled={isViewTransitioning} className={`co-header-segmented-option ${zoom === value ? "is-active" : ""}`} onClick={() => changeZoom(value)}>{label}</button>
             ))}
           </div>
       </div>
@@ -1280,6 +1338,10 @@ export default function CronogramaObrasPage() {
           <strong>{indicators.conflicts}</strong>
         </div>
       </section>}
+      <div
+        className="co-schedule-content"
+        aria-busy={isViewTransitioning}
+      >
       <MasterPalette
         masters={masters}
         draggingMaster={draggingMaster}
@@ -1477,6 +1539,20 @@ export default function CronogramaObrasPage() {
         />
       )}
       {view === "mestres" && <WorkloadPanel workloads={workloads} />}
+      {viewTransition && (
+        <div
+          className="co-view-transition-overlay"
+          role="status"
+          aria-live="polite"
+          aria-busy="true"
+        >
+          <div className="co-view-transition-content">
+            <span className="co-view-transition-spinner" aria-hidden="true" />
+            <p>{VIEW_TRANSITION_MESSAGES[viewTransition]}</p>
+          </div>
+        </div>
+      )}
+      </div>
       <ObraDrawer
         obra={selected}
         masters={masters}

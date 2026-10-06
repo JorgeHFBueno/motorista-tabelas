@@ -28,6 +28,7 @@ dist-ssr
 functions/lib
 visual-identity-export/
 docs/patch-notes/
+docs/PROMPT.md
 
 # Local test/build output and safety backups
 .tmp-*
