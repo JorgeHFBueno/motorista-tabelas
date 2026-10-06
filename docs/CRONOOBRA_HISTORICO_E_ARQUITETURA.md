@@ -12,6 +12,34 @@ Documento canônico de manutenção, onboarding, auditoria e troubleshooting. A 
 
 ## MK6D — Performance das visualizações
 
+## MK6D.6 — Resize, Mestres e Linha de Base
+
+### Resolvido
+
+- resize DIAS em 1 dia;
+- resize SEMANAS em 1 dia;
+- DnD semanal preservado;
+- labels por faixa restaurados;
+- coluna MESTRES lista todos os mestres com períodos reais;
+- mestres futuros também aparecem na visão normal;
+- mestre inicial isolado não conta;
+- modo reduzido `>` preservado;
+- texto “Alerta Vivo” renomeado para “Linha de Base”.
+
+### Pendente conhecido
+
+`Linha de Base OFF` ainda não expande verticalmente as faixas para 100%.
+
+Diagnóstico de runtime:
+
+- `row-timeline`: ~36px
+- `cell-lanes`: ~36px
+- `master-strips`: 18px
+- `master-strip`: 18px
+
+A limitação real ainda está em `.co-master-strips`. A tentativa anterior não é
+registrada como sucesso; essa pendência será retomada posteriormente.
+
 ### MK6D.1 — Overlay de transição
 
 As trocas exibem feedback antes da renderizacao pesada, bloqueiam controles e usam dois `requestAnimationFrame` antes e depois de aplicar o estado. A UX foi preservada.

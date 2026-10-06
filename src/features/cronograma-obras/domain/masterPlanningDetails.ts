@@ -5,11 +5,17 @@ import { getMestreKey } from './mestres';
 export type MasterPeriods = { key: string; nome: string; periods: MestrePlanejado[] };
 export type MasterSelection = { obraId: string; mestreKey: string; periods: MestrePlanejado[] };
 const periodStart = (item: MestrePlanejado) => item.inicio;
-export function masterPeriodsForObra(obra: ObraCronograma): MasterPeriods[] {
+const hasRealPeriod = (item: MestrePlanejado) => Boolean(item.nome.trim()) && /^\d{4}-\d{2}-\d{2}$/.test(item.inicio) && item.tempoPlanejado > 0;
+function groupRealMasterPeriods(periods: readonly MestrePlanejado[]): MasterPeriods[] {
   const groups = new Map<string, MasterPeriods>();
-  obra.mestresPlanejados.forEach((item) => { const key = item.mestreKey ?? getMestreKey(item); const group = groups.get(key) ?? { key, nome: item.nome, periods: [] }; group.periods.push(item); groups.set(key, group); });
+  periods.filter(hasRealPeriod).forEach((item) => { const key = item.mestreKey ?? getMestreKey(item); const group = groups.get(key) ?? { key, nome: item.nome, periods: [] }; group.periods.push(item); groups.set(key, group); });
   return [...groups.values()].map((group) => ({ ...group, periods: [...group.periods].sort((a, b) => periodStart(a).localeCompare(periodStart(b))) })).sort((a, b) => a.periods[0].inicio.localeCompare(b.periods[0].inicio) || a.nome.localeCompare(b.nome, 'pt-BR'));
 }
+export function masterPeriodsForObra(obra: ObraCronograma): MasterPeriods[] { return groupRealMasterPeriods(obra.mestresPlanejados); }
+/** Masters shown in the regular column: every real allocation, ordered by first allocation. */
+export const mastersWithRealPeriods = masterPeriodsForObra;
+/** Same semantic contract as the work row, aggregated and ordered across a contract. */
+export function aggregateMastersWithRealPeriods(obras: readonly ObraCronograma[]): MasterPeriods[] { return groupRealMasterPeriods(obras.flatMap((obra) => mastersWithRealPeriods(obra).flatMap((group) => group.periods))); }
 export function masterSelectionForPeriod(obra: ObraCronograma, mestre: MestrePlanejado): MasterSelection {
   const mestreKey = mestre.mestreKey ?? getMestreKey(mestre);
   return { obraId: obra.id, mestreKey, periods: masterPeriodsForObra(obra).find((group) => group.key === mestreKey)?.periods ?? [] };

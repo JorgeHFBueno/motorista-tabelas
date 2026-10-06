@@ -48,6 +48,7 @@ import {
   scrollTimelineToDate,
   scrollTimelineToToday,
 } from "../domain/timelineScroll";
+import { clientXToCalendarDay, clientXToTimelineBucket } from "../domain/timelineGeometry";
 import { plannedDaysInYear, yearBucket } from "../domain/calendarYears";
 import {
   clampObraColumnWidth,
@@ -56,9 +57,10 @@ import {
 } from "../domain/obraGridColumns";
 import {
   masterSelectionForPeriod,
+  aggregateMastersWithRealPeriods,
+  mastersWithRealPeriods,
   type MasterSelection,
   recentStartedMaster,
-  startedMasterPeriods,
 } from "../domain/masterPlanningDetails";
 import {
   buildFlatWorkGroupsByWorkType,
@@ -158,6 +160,7 @@ function MasterStrips({
   bucketStart,
   bucketDays,
   showNames,
+  liveAlerts,
   zoom,
   bucketWidth,
   masterLanes,
@@ -168,6 +171,7 @@ function MasterStrips({
   bucketStart: string;
   bucketDays: number;
   showNames: boolean;
+  liveAlerts: boolean;
   zoom: ZoomCronograma;
   bucketWidth: number;
   masterLanes?: ReadonlyMap<MestrePlanejado, MasterAllocationLane>;
@@ -189,7 +193,7 @@ function MasterStrips({
   const lanes = layoutOverlapLanes(aggregate.masters);
   return (
     <span
-      className={`co-master-strips co-master-strips--${zoom}`}
+      className={`co-master-strips co-master-strips--${zoom} ${liveAlerts ? "co-master-strips--alert-on" : "co-master-strips--alert-off"}`}
       aria-label={tooltip}
     >
       {aggregate.masters.map((segment, index) => {
@@ -221,8 +225,12 @@ function MasterStrips({
                 ),
                 left: `${(segment.offset / bucketDays) * 100}%`,
                 width: `${(segment.days / bucketDays) * 100}%`,
-                "--co-master-index": lane.index,
-                "--co-master-count": lane.count,
+                ...(liveAlerts
+                  ? {
+                      "--co-master-index": lane.index,
+                      "--co-master-count": lane.count,
+                    }
+                  : {}),
               } as React.CSSProperties
             }
           >
@@ -303,6 +311,7 @@ function MonthSummary({
         bucketStart={start}
         bucketDays={days}
         showNames={display.masterNames}
+        liveAlerts={display.liveAlerts}
         zoom="month"
         bucketWidth={BUCKET_WIDTH.month}
         masterLanes={masterLanes}
@@ -329,7 +338,9 @@ function YearSummary({
   const bucket = yearBucket(year);
   const plannedDays = plannedDaysInYear(obra, year);
   return (
-    <div className="co-year-summary">
+    <div
+      className={`co-year-summary ${display.liveAlerts ? "co-year-summary--alert-on" : "co-year-summary--alert-off"}`}
+    >
       <TemporalLayer obra={obra} start={bucket.start} days={bucket.days} />
       {plannedDays > 0 && (
         <strong
@@ -344,6 +355,7 @@ function YearSummary({
         bucketStart={bucket.start}
         bucketDays={bucket.days}
         showNames={false}
+        liveAlerts={display.liveAlerts}
         zoom="year"
         bucketWidth={0}
         masterLanes={masterLanes}
@@ -464,8 +476,7 @@ const ObraCells = memo(function ObraCells({
     : undefined;
   const dayTarget = (event: DragEvent) => {
     const bounds = event.currentTarget.getBoundingClientRect();
-    const index = Math.floor((event.clientX - bounds.left) / BUCKET_WIDTH.day);
-    return days[index]?.date ?? null;
+    return clientXToCalendarDay({ clientX: event.clientX, start: days[0].date, days: days.length, left: bounds.left, width: bounds.width });
   };
   const dayEvents = {
     onDragOver: (event: DragEvent) => {
@@ -489,8 +500,7 @@ const ObraCells = memo(function ObraCells({
   };
   const weekTarget = (event: DragEvent) => {
     const bounds = event.currentTarget.getBoundingClientRect();
-    const index = Math.floor((event.clientX - bounds.left) / BUCKET_WIDTH.week);
-    return weeks[index]?.date ?? null;
+    return clientXToTimelineBucket({ clientX: event.clientX, start: weeks[0].date, days: weeks.length * 7, unitDays: 7, left: bounds.left, width: bounds.width });
   };
   const weekEvents = {
     onDragOver: (event: DragEvent) => {
@@ -537,6 +547,7 @@ const ObraCells = memo(function ObraCells({
             bucketStart={start}
             bucketDays={days}
             showNames={display.masterNames}
+            liveAlerts={display.liveAlerts}
             zoom="day"
             bucketWidth={BUCKET_WIDTH.day}
             masterLanes={masterLanes}
@@ -562,6 +573,7 @@ const ObraCells = memo(function ObraCells({
             bucketStart={days[0].date}
             bucketDays={days.length}
             showNames={display.masterNames}
+            liveAlerts={display.liveAlerts}
             zoom="day"
             bucketWidth={BUCKET_WIDTH.day * days.length}
             masterLanes={masterLanes}
@@ -627,7 +639,7 @@ const ObraCells = memo(function ObraCells({
       <div className={`co-week-lanes ${display.liveAlerts ? "co-cell-lanes--alert-on" : "co-cell-lanes--alert-off"}`}>
         <TemporalLayer obra={obra} start={weeks[0].date} days={weeks.length * 7} />
         <span className="co-cell-space" />
-        <MasterStrips obra={obra} bucketStart={weeks[0].date} bucketDays={weeks.length * 7} showNames={display.masterNames} zoom="week" bucketWidth={BUCKET_WIDTH.week * weeks.length} masterLanes={masterLanes} onResize={resize} onSelectMaster={onSelectMaster} />
+        <MasterStrips obra={obra} bucketStart={weeks[0].date} bucketDays={weeks.length * 7} showNames={display.masterNames} liveAlerts={display.liveAlerts} zoom="week" bucketWidth={BUCKET_WIDTH.week * weeks.length} masterLanes={masterLanes} onResize={resize} onSelectMaster={onSelectMaster} />
       </div>
     </div>
   );
@@ -850,6 +862,54 @@ export const GanttGrid = memo(function GanttGrid({
     () => new Set(initialExpandedContractIds),
   );
   useEffect(() => () => resizeCleanupRef.current?.(), []);
+  useEffect(() => {
+    if (!import.meta.env.DEV) return;
+    type StripDebugWindow = Window & {
+      __CRONO_STRIP_DEBUG__?: (index?: number) => void;
+    };
+    const debugWindow = window as StripDebugWindow;
+    debugWindow.__CRONO_STRIP_DEBUG__ = (index = 0) => {
+      const strip = document.querySelectorAll<HTMLElement>(".co-master-strip")[index];
+      if (!strip) {
+        console.warn("Nenhuma faixa de mestre encontrada.");
+        return;
+      }
+      const elements: Array<[string, HTMLElement | null]> = [
+        ["row-timeline", strip.closest<HTMLElement>(".co-row-timeline, .co-year-summary, .co-month-summary")],
+        ["cell-lanes", strip.closest<HTMLElement>(".co-cell-lanes, .co-day-lanes, .co-week-lanes")],
+        ["master-strips", strip.closest<HTMLElement>(".co-master-strips")],
+        ["master-strip", strip],
+      ];
+      console.table(elements.filter(([, element]) => element).map(([element, node]) => {
+        const target = node!;
+        const css = getComputedStyle(target);
+        return {
+          element,
+          className: target.className,
+          styleAttribute: target.getAttribute("style"),
+          height: target.getBoundingClientRect().height,
+          rectHeight: target.getBoundingClientRect().height,
+          position: css.position,
+          top: css.top,
+          bottom: css.bottom,
+          cssHeight: css.height,
+          blockSize: css.blockSize,
+          insetBlock: css.insetBlock,
+          minHeight: css.minHeight,
+          maxHeight: css.maxHeight,
+          paddingTop: css.paddingTop,
+          paddingBottom: css.paddingBottom,
+          marginTop: css.marginTop,
+          marginBottom: css.marginBottom,
+          alignItems: css.alignItems,
+          alignSelf: css.alignSelf,
+          overflow: css.overflow,
+          transform: css.transform,
+        };
+      }));
+    };
+    return () => { delete debugWindow.__CRONO_STRIP_DEBUG__; };
+  }, []);
   useLayoutEffect(() => {
     const container = scrollRef.current;
     if (!container || zoom === "year") return;
@@ -903,27 +963,6 @@ export const GanttGrid = memo(function GanttGrid({
     document.addEventListener("pointercancel", end);
     resizeCleanupRef.current = cleanup;
   };
-  const dateAtPointer = (clientX: number, clientY: number): string | null => {
-    const cell = document
-      .elementsFromPoint(clientX, clientY)
-      .find(
-        (element): element is HTMLElement =>
-          element instanceof HTMLElement &&
-          Boolean(element.dataset.coBucketStart),
-      );
-    if (!cell) return null;
-    const start = cell.dataset.coBucketStart;
-    const days = Number(cell.dataset.coBucketDays);
-    const rect = cell.getBoundingClientRect();
-    if (!start || !days || !rect.width) return null;
-    return addDays(
-      start,
-      Math.min(
-        days - 1,
-        Math.max(0, Math.floor(((clientX - rect.left) / rect.width) * days)),
-      ),
-    );
-  };
   const startMasterResize = (
     obra: ObraCronograma,
     mestre: MestrePlanejado,
@@ -935,13 +974,33 @@ export const GanttGrid = memo(function GanttGrid({
     resizeCleanupRef.current?.();
     const pointerId = event.pointerId;
     const handle = event.currentTarget;
+    const timeline = handle.closest(
+      zoom === "day"
+        ? ".co-day-timeline"
+        : zoom === "week"
+          ? ".co-week-timeline"
+          : ".co-month-cell",
+    );
+    const calendarYear = Number(todayCivil().slice(0, 4));
+    const timelineUnits = zoom === "day" ? dailyHeader(calendarYear) : zoom === "week" ? weeklyTimelineCells(calendarYear) : [];
+    const visualUnitDays = zoom === "week" ? 7 : 1;
+    const rect = timeline?.getBoundingClientRect();
+    const geometry = zoom === "month"
+      ? timeline instanceof HTMLElement && rect && timeline.dataset.coBucketStart && Number(timeline.dataset.coBucketDays)
+        ? { start: timeline.dataset.coBucketStart, days: Number(timeline.dataset.coBucketDays), left: rect.left, width: rect.width }
+        : null
+      : rect && timelineUnits.length
+        ? { start: timelineUnits[0].date, days: timelineUnits.length * visualUnitDays, left: rect.left, width: rect.width }
+        : null;
     let draft = mestre;
     let latestMove: PointerEvent | null = null;
     let frame = 0;
     const previewLatestMove = () => {
       frame = 0;
       if (!latestMove) return;
-      const date = dateAtPointer(latestMove.clientX, latestMove.clientY);
+      const date = geometry
+        ? clientXToCalendarDay({ ...geometry, clientX: latestMove.clientX })
+        : null;
       if (date) {
         draft = resizeMasterPlanning(obra, mestre, edge, date);
         onResizeMasterPreview(draft);
@@ -1107,7 +1166,7 @@ export const GanttGrid = memo(function GanttGrid({
       : {}),
   } as React.CSSProperties;
   const obraRow = (obra: ObraCronograma, flat = false) => {
-    const active = startedMasterPeriods(obra, todayCivil());
+    const active = mastersWithRealPeriods(obra);
     const recent = recentStartedMaster(obra, todayCivil());
     const visible = detailsVisible ? active : recent ? [recent] : [];
     const contrato = contratos.get(obra.contratoId ?? "");
@@ -1212,8 +1271,8 @@ export const GanttGrid = memo(function GanttGrid({
     </div>,
     ...workType.groups.map((group) => {
       const collapsed = collapsedContracts.has(group.id);
-      const masters = uniqueMasters(
-        group.obras.flatMap((obra) => obra.mestresPlanejados),
+      const masters = aggregateMastersWithRealPeriods(group.obras).map(
+        (group) => group.periods[0],
       );
       const contrato = contratos.get(group.id);
       const contractDays = inclusiveCivilDays(contrato?.inicio, contrato?.fim);

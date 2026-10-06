@@ -253,6 +253,8 @@
 .co-year-summary { height: 100%; min-height: inherit; overflow: hidden; position: relative; }
 .co-year-summary > .co-temporal-layer { height: 35%; left: 0; position: absolute; right: 0; top: 0; }
 .co-year-summary > .co-master-strips { bottom: 0; height: 65%; left: 0; position: absolute; right: 0; }
+.co-year-summary--alert-off > .co-temporal-layer, .co-year-summary--alert-off > .co-year-planned-days { opacity: 0; visibility: hidden; }
+.co-year-summary--alert-off > .co-master-strips { height: auto; inset-block: 0; }
 .co-year-planned-days { align-items: center; color: #315369; display: flex; font-size: .68rem; font-variant-numeric: tabular-nums; inset: 15px 0 auto; justify-content: center; line-height: 18px; pointer-events: none; position: absolute; text-shadow: 0 1px 2px #fff, 0 -1px 2px #fff; z-index: 2; }
 .co-month-cell { align-items: center; border-right: 1px solid #d2dde3; display: flex; justify-content: center; min-width: 0; padding: 0 2px; position: relative; }
 .co-month-cell .co-allocation { min-width: 22px; padding: 0 7px; width: auto; }
@@ -391,15 +393,18 @@
 .co-cell-space .co-allocation { height: 14px; max-width: 100%; position: static; }
 .co-master-strips { min-width: 0; pointer-events: auto; position: relative; }
 .co-cell-lanes--alert-off > .co-temporal-layer, .co-cell-lanes--alert-off > .co-cell-space, .co-day-lanes.co-cell-lanes--alert-off > .co-temporal-layer, .co-day-lanes.co-cell-lanes--alert-off > .co-cell-space, .co-week-lanes.co-cell-lanes--alert-off > .co-temporal-layer, .co-week-lanes.co-cell-lanes--alert-off > .co-cell-space { opacity: 0; visibility: hidden; }
-.co-cell-lanes--alert-off > .co-master-strips, .co-day-lanes.co-cell-lanes--alert-off > .co-master-strips, .co-week-lanes.co-cell-lanes--alert-off > .co-master-strips { bottom: 0; height: auto; left: 0; position: absolute; right: 0; top: 0; }
-.co-master-strip { background: var(--co-master-color); container-type: inline-size; height: calc(100% / var(--co-master-count)); min-width: 2px; overflow: hidden; position: absolute; top: calc((var(--co-master-index) * 100%) / var(--co-master-count)); }
+.co-cell-lanes--alert-off { grid-template-rows: minmax(0, 1fr); }
+.co-master-strips--alert-off { height: auto; inset-block: 0; left: 0; position: absolute; right: 0; }
+.co-master-strip { background: var(--co-master-color); container-type: inline-size; min-width: 2px; overflow: hidden; position: absolute; }
+.co-master-strips--alert-on .co-master-strip { height: calc(100% / var(--co-master-count)); top: calc((var(--co-master-index) * 100%) / var(--co-master-count)); }
 .co-master-resize-handle { background: transparent; border: 0; bottom: 0; cursor: ew-resize; opacity: 0; padding: 0; position: absolute; top: 0; width: min(7px, 35%); z-index: 4; }
 .co-master-resize-handle::after { background: rgb(255 255 255 / .8); bottom: 2px; content: ''; opacity: 0; position: absolute; top: 2px; width: 1px; }
 .co-master-resize-handle.is-start { left: 0; }.co-master-resize-handle.is-start::after { left: 2px; }.co-master-resize-handle.is-end { right: 0; }.co-master-resize-handle.is-end::after { right: 2px; }
 .co-master-strip:hover .co-master-resize-handle, .co-master-strip:focus-within .co-master-resize-handle, .co-week-masters i:hover .co-master-resize-handle, .co-week-masters i:focus-within .co-master-resize-handle { opacity: 1; }
 .co-master-strip:hover .co-master-resize-handle::after, .co-master-strip:focus-within .co-master-resize-handle::after, .co-week-masters i:hover .co-master-resize-handle::after, .co-week-masters i:focus-within .co-master-resize-handle::after { opacity: .9; }
 .is-resizing-master .co-master-strip, .is-resizing-master .co-week-masters i { box-shadow: inset 0 0 0 1px rgb(255 255 255 / .85); }
-.co-master-strip > span, .co-week-masters i > span { color: #fff; display: block; font-size: .5rem; font-style: normal; font-weight: 800; line-height: 1.2; overflow: hidden; padding: 1px 2px; text-overflow: clip; text-shadow: 0 1px 1px rgb(0 0 0 / .28); white-space: nowrap; }
+.co-master-strip > span, .co-week-masters i > span { align-items: center; color: #fff; display: flex; font-size: .5rem; font-style: normal; font-weight: 800; height: 100%; line-height: 1.2; overflow: hidden; padding: 1px 2px; text-overflow: ellipsis; text-shadow: 0 1px 1px rgb(0 0 0 / .28); white-space: nowrap; }
+.co-master-strips--alert-off .co-master-strip { height: auto; inset-block: 0; }
 .co-week-lanes { display: grid; flex: 1 1 100%; grid-template-rows: 15fr 35fr 50fr; height: 100%; min-height: inherit; overflow: hidden; position: relative; width: 100%; }
 .co-week-temporal { grid-row: 1; }
 .co-week-space { grid-row: 2; }
