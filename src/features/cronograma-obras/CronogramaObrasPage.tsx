@@ -1,6 +1,6 @@
 import EngineeringRounded from "@mui/icons-material/EngineeringRounded";
 import FilterListRounded from "@mui/icons-material/FilterListRounded";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { Profiler, useEffect, useMemo, useRef, useState } from "react";
 import {
   CalendarToggles,
   type CalendarDisplayOptions,
@@ -65,6 +65,16 @@ import {
 } from "../../services/mondayWebhookProvisionService";
 import { useAdm2Authorization } from "../../hooks/useAdm2Authorization";
 import { useAuth } from "../../contexts/AuthContext";
+import {
+  beginCronogramaPerf,
+  collectCronogramaDom,
+  countCronogramaRender,
+  finishCronogramaPerf,
+  markCronogramaPerf,
+  measureCronogramaCompute,
+  recordCronogramaProfiler,
+  type CronogramaPerfMode,
+} from "./debug/cronogramaPerf";
 import "./styles/cronograma-obras.css";
 
 const source = new RawFirestoreCronogramaDataSource();
@@ -97,6 +107,32 @@ const VIEW_TRANSITION_MESSAGES: Record<
   dias: "Preparando calendário diário…",
   semanas: "Preparando calendário semanal…",
 };
+function CronogramaProfiler({
+  id,
+  children,
+}: {
+  id: string;
+  children: React.ReactNode;
+}) {
+  if (!import.meta.env.DEV) return children;
+  return (
+    <Profiler
+      id={id}
+      onRender={(profilerId, phase, actualDuration, baseDuration, startTime, commitTime) =>
+        recordCronogramaProfiler(
+          profilerId,
+          phase,
+          actualDuration,
+          baseDuration,
+          startTime,
+          commitTime,
+        )
+      }
+    >
+      {children}
+    </Profiler>
+  );
+}
 let lastHydratedObras: ObraCronograma[] = [];
 
 function sameMasters(
@@ -231,6 +267,7 @@ function withOptimisticAlocacao(
 }
 
 export default function CronogramaObrasPage() {
+  countCronogramaRender("CronogramaObrasPage");
   const { authorized: canSyncMonday } = useAdm2Authorization();
   const { currentUser, authorizationLoading, authorizationProfile } = useAuth();
   const [view, setView] = useState<"obras" | "mestres">("obras");
@@ -267,6 +304,8 @@ export default function CronogramaObrasPage() {
     new Map<string, { inicio: string; tempoPlanejado: number }>(),
   );
   const viewTransitionRef = useRef<CronogramaViewTransition>(null);
+  const transitionAppliedRef = useRef(false);
+  const scheduleContentRef = useRef<HTMLDivElement>(null);
   const [loading, setLoading] = useState(true);
   const [realtimeState, setRealtimeState] = useState<
     "connecting" | "live" | "offline" | "error"
@@ -429,7 +468,7 @@ export default function CronogramaObrasPage() {
     [filtered, filters, obras],
   );
   const obrasPorSituacao = useMemo(
-    () => separarObrasPorSituacao(obrasDasSecoes),
+    () => measureCronogramaCompute("separarObrasPorSituacao", () => separarObrasPorSituacao(obrasDasSecoes)),
     [obrasDasSecoes],
   );
   const contratosPorSituacao = useMemo(
@@ -459,11 +498,11 @@ export default function CronogramaObrasPage() {
     ],
     [obrasDasSecoes],
   );
-  const workloads = useMemo(() => buildWorkloads(filtered), [filtered]);
+  const workloads = useMemo(() => measureCronogramaCompute("buildWorkloads", () => buildWorkloads(filtered)), [filtered]);
   const indicators = useMemo(() => calculateIndicators(filtered), [filtered]);
   const timelineYears = useRef<number[]>([]);
   const years = useMemo(() => {
-    const next = planningYears(obras, Number(todayCivil().slice(0, 4)));
+    const next = measureCronogramaCompute("planningYears", () => planningYears(obras, Number(todayCivil().slice(0, 4))));
     if (
       timelineYears.current.length === next.length &&
       timelineYears.current.every((year, index) => year === next[index])
@@ -476,20 +515,34 @@ export default function CronogramaObrasPage() {
     obras.find((obra) => obra.id === (mastersPanelId ?? selectedId)) ?? null;
 
   const isViewTransitioning = viewTransition !== null;
+  useEffect(() => {
+    if (transitionAppliedRef.current) markCronogramaPerf("reactCommit");
+  }, [view, workViewMode, zoom]);
   const runViewTransition = (
     kind: Exclude<CronogramaViewTransition, null>,
+    from: CronogramaPerfMode,
     apply: () => void,
   ) => {
     if (viewTransitionRef.current) return;
+    beginCronogramaPerf(from, kind);
     viewTransitionRef.current = kind;
     setViewTransition(kind);
+    markCronogramaPerf("overlayRequested");
     requestAnimationFrame(() => {
+      markCronogramaPerf("overlayFrame1");
       requestAnimationFrame(() => {
+        markCronogramaPerf("overlayFrame2");
+        transitionAppliedRef.current = true;
         apply();
+        markCronogramaPerf("stateApplied");
         requestAnimationFrame(() => {
           requestAnimationFrame(() => {
+            markCronogramaPerf("nextPaint");
+            collectCronogramaDom(scheduleContentRef.current);
             viewTransitionRef.current = null;
+            transitionAppliedRef.current = false;
             setViewTransition(null);
+            finishCronogramaPerf();
           });
         });
       });
@@ -497,18 +550,18 @@ export default function CronogramaObrasPage() {
   };
   const changeZoom = (next: ZoomCronograma) => {
     if (next === zoom) return;
-    runViewTransition(next === "day" ? "dias" : "semanas", () => {
+    runViewTransition(next === "day" ? "dias" : "semanas", zoom === "day" ? "dias" : "semanas", () => {
       setZoomState(next);
       setCenterRequest((request) => request + 1);
     });
   };
   const changeView = (next: "obras" | "mestres") => {
     if (next === view) return;
-    runViewTransition(next, () => setView(next));
+    runViewTransition(next, view, () => setView(next));
   };
   const changeWorkViewMode = (next: "contracts" | "flat") => {
     if (next === workViewMode) return;
-    runViewTransition(next === "contracts" ? "contratos" : "lista", () =>
+    runViewTransition(next === "contracts" ? "contratos" : "lista", workViewMode === "contracts" ? "contratos" : "lista", () =>
       setWorkViewMode(next),
     );
   };
@@ -1341,6 +1394,7 @@ export default function CronogramaObrasPage() {
       <div
         className="co-schedule-content"
         aria-busy={isViewTransitioning}
+        ref={scheduleContentRef}
       >
       <MasterPalette
         masters={masters}
@@ -1402,7 +1456,7 @@ export default function CronogramaObrasPage() {
             <header className="co-section-heading">
               <h2>Obra iniciada ({contratosPorSituacao.iniciada})</h2>
             </header>
-          <GanttGrid
+          <CronogramaProfiler id="GanttGrid"><GanttGrid
             view="obras"
             viewMode={workViewMode}
               zoom={zoom}
@@ -1436,10 +1490,10 @@ export default function CronogramaObrasPage() {
               onResizeMasterPreview={resizeMasterPreview}
               onResizeMasterCommit={resizeMaster}
               onResizeMasterCancel={cancelResizeMaster}
-            />
+            /></CronogramaProfiler>
           </section>
           <section>
-          <ContractTextTable
+          <CronogramaProfiler id="ContractTextTable"><ContractTextTable
             viewMode={workViewMode}
             variant="not-started"
               sectionTitle="Obra não iniciada"
@@ -1465,10 +1519,10 @@ export default function CronogramaObrasPage() {
                 setMastersPanelId(null);
               }}
               onStatusConfirmed={applyConfirmedMondayStatus}
-            />
+            /></CronogramaProfiler>
           </section>
           <section>
-          <ContractTextTable
+          <CronogramaProfiler id="ContractTextTable"><ContractTextTable
             viewMode={workViewMode}
             sectionTitle="Obra finalizada"
               sectionCount={contratosPorSituacao.finalizada}
@@ -1493,7 +1547,7 @@ export default function CronogramaObrasPage() {
                 setMastersPanelId(obra.id);
               }}
               onStatusConfirmed={applyConfirmedMondayStatus}
-            />
+            /></CronogramaProfiler>
           </section>
           {statusDesconhecidos.length > 0 && (
             <p className="co-empty" role="status">
@@ -1503,7 +1557,7 @@ export default function CronogramaObrasPage() {
           )}
         </div>
       ) : (
-        <GanttGrid
+        <CronogramaProfiler id="GanttGrid"><GanttGrid
           view={view}
           zoom={zoom}
           years={years}
@@ -1536,7 +1590,7 @@ export default function CronogramaObrasPage() {
           onResizeMasterPreview={resizeMasterPreview}
           onResizeMasterCommit={resizeMaster}
           onResizeMasterCancel={cancelResizeMaster}
-        />
+        /></CronogramaProfiler>
       )}
       {view === "mestres" && <WorkloadPanel workloads={workloads} />}
       {viewTransition && (

@@ -10,6 +10,30 @@ Documento canônico de manutenção, onboarding, auditoria e troubleshooting. A 
 - O botão manual continua existindo como reconciliação/fallback; não é o mecanismo primário do fluxo automático.
 - O scheduler está implementado no código, com cadência de 30 minutos. A publicação efetiva não é confirmada por este repositório.
 
+## MK6D — Performance das visualizações
+
+### MK6D.1 — Overlay de transição
+
+As trocas exibem feedback antes da renderizacao pesada, bloqueiam controles e usam dois `requestAnimationFrame` antes e depois de aplicar o estado. A UX foi preservada.
+
+### MK6D.2 — Instrumentação
+
+Em desenvolvimento, o CronoObra usa React Profiler, contadores de renderizacao e DOM, medicoes de calculos e `PerformanceObserver` para long tasks. A API diagnostica DEV nao registra documentos ou dados pessoais e mantem no maximo 20 entradas:
+
+- `window.__CRONO_PERF_LAST__`
+- `window.__CRONO_PERF_HISTORY__`
+- `window.__CRONO_PERF_PRINT__()`
+
+### MK6D.3 — Grid diário
+
+Antes, cada timeline criava 365 celulas e milhares de elementos: Semanas -> Dias levava cerca de 5879 ms, com Gantt em cerca de 5546 ms. Agora, o corpo tem uma timeline por linha, grade visual CSS e drop geometrico pelo eixo X; `dayCellsBody = 0`. A transicao medida ficou em aproximadamente 400-570 ms.
+
+### MK6D.4 — Grid semanal
+
+Antes, o corpo criava 53 celulas por timeline (318 no exemplo) e Dias -> Semanas levava cerca de 1756 ms. Agora, o corpo usa uma timeline com grade semanal CSS; `weekCellsBody = 0` e os 53 labels permanecem somente no header. A transicao medida ficou em aproximadamente 430-520 ms.
+
+Arquitetura final: em DIAS, o header retem os labels necessarios e o body usa timeline unica + grade CSS + alocacoes/interacoes. Em SEMANAS, o header retem 53 labels e o body usa a mesma composicao. DnD, resize, alocacoes e scroll foram preservados; os visuais DIAS e SEMANAS foram validados manualmente.
+
 ## 1. Arquitetura atual
 
 ## MK6C.5 — Firestore Realtime UI

@@ -40,7 +40,6 @@ import { getMestreColor, normalizeMestreKey } from "../domain/mestres";
 import { masterNameContent, mastersTooltip } from "../domain/calendarDisplay";
 import {
   getBucketTimelineAggregate,
-  getWeeklyTimeline,
   layoutMasterAllocationLanes,
   layoutOverlapLanes,
   type MasterAllocationLane,
@@ -69,6 +68,10 @@ import {
   reconcileContractGroups,
   type ContractGroup,
 } from "../domain/contractGroups";
+import {
+  countCronogramaRender,
+  measureCronogramaCompute,
+} from "../debug/cronogramaPerf";
 
 interface Props {
   view: "obras" | "mestres";
@@ -101,6 +104,9 @@ const BUCKET_WIDTH: Record<Exclude<ZoomCronograma, "year">, number> = {
   week: 44,
   month: 88,
 };
+const DAY_GRID_LINE = "#dfe8ec";
+const WEEK_GRID_LINE = "#b7c8d1";
+const MONTH_GRID_LINE = "#8ca6b6";
 const colorStyle = (key: string): React.CSSProperties =>
   ({
     "--co-master-color": getMestreColor(key).background,
@@ -347,121 +353,48 @@ function YearSummary({
   );
 }
 
-function WeeklyLanes({
-  obra,
-  week,
-  display,
-  masterLanes,
-  onResize,
-  onSelectMaster,
-}: {
-  obra: ObraCronograma;
-  week: string;
-  display: CalendarDisplayOptions;
-  masterLanes?: ReadonlyMap<MestrePlanejado, MasterAllocationLane>;
-  onResize?: (
-    mestre: MestrePlanejado,
-    edge: MasterResizeEdge,
-    event: React.PointerEvent<HTMLButtonElement>,
-  ) => void;
-  onSelectMaster: (selection: MasterSelection) => void;
-}) {
-  const timeline = useMemo(() => getWeeklyTimeline(obra, week), [obra, week]);
-  const masters = uniqueMasters(
-    timeline.masters.map((segment) => segment.mestre),
-  );
-  const tooltip = mastersTooltip(masters);
-  const weeklySegments = timeline.masters.map((item) => ({
-    ...item,
-    offset: item.startDayIndex,
-    days: item.dayCount,
-  }));
-  const lanes = layoutOverlapLanes(weeklySegments);
-  return (
-    <div
-      className={`co-week-lanes ${display.liveAlerts ? "co-week-lanes--alert-on" : "co-week-lanes--alert-off"}`}
-    >
-      <span className="co-week-temporal" aria-label="Camada temporal da obra">
-        {timeline.states.map((segment) => (
-          <i
-            key={`${segment.type}-${segment.startDayIndex}`}
-            className={`is-${segment.type}`}
-            style={{
-              left: `${(segment.startDayIndex / 7) * 100}%`,
-              width: `${(segment.dayCount / 7) * 100}%`,
-            }}
-          />
-        ))}
-      </span>
-      <span className="co-week-space">
-        {timeline.plannedDays > 0 && timeline.plannedDays < 7 ? (
-          <b>{timeline.plannedDays}</b>
-        ) : null}
-      </span>
-      <span className="co-week-masters" aria-label={tooltip}>
-        {timeline.masters.map((segment, index) => {
-          const label = masterNameContent(
-            segment.mestre.nome,
-            display.masterNames,
-            (BUCKET_WIDTH.week * segment.dayCount) / 7,
-            masters.length,
-            "week",
-          );
-          const comparable = weeklySegments[index];
-          const lane = masterLanes?.get(segment.mestre) ?? lanes[index];
-          return (
-            <i
-              key={`${segment.mestre.localId}-${segment.startDayIndex}-${index}`}
-              className="co-master-strip"
-              role="button"
-              tabIndex={0}
-              onClick={(event) => {
-                event.stopPropagation();
-                onSelectMaster(masterSelectionForPeriod(obra, segment.mestre));
-              }}
-              title={`${segment.mestre.nome}\n${segment.mestre.inicio} → ${addDays(segment.mestre.inicio, segment.mestre.tempoPlanejado - 1)}\n${segment.mestre.tempoPlanejado} dias`}
-              style={
-                {
-                  ...colorStyle(
-                    segment.mestre.mestreKey ??
-                      normalizeMestreKey(segment.mestre.nome),
-                  ),
-                  left: `${(comparable.offset / 7) * 100}%`,
-                  width: `${(comparable.days / 7) * 100}%`,
-                  "--co-week-master-index": lane.index,
-                  "--co-week-master-count": lane.count,
-                } as React.CSSProperties
-              }
-            >
-              {onResize && (
-                <>
-                  <button
-                    type="button"
-                    className="co-master-resize-handle is-start"
-                    aria-label={`Ajustar início de ${segment.mestre.nome}`}
-                    onPointerDown={(event) =>
-                      onResize(segment.mestre, "start", event)
-                    }
-                    onClick={(event) => event.stopPropagation()}
-                  />
-                  <button
-                    type="button"
-                    className="co-master-resize-handle is-end"
-                    aria-label={`Ajustar fim de ${segment.mestre.nome}`}
-                    onPointerDown={(event) =>
-                      onResize(segment.mestre, "end", event)
-                    }
-                    onClick={(event) => event.stopPropagation()}
-                  />
-                </>
-              )}
-              {label && <span>{label}</span>}
-            </i>
-          );
-        })}
-      </span>
-    </div>
-  );
+/**
+ * The daily body grid is paint-only.  Keeping its separators in a background
+ * avoids creating 365 drop zones (and their nested lanes) for every row.
+ */
+function dailyGridStyle(
+  days: ReturnType<typeof dailyHeader>,
+  dropIndex: number | null,
+): React.CSSProperties {
+  const boundary = (index: number, color: string, width: number) =>
+    `linear-gradient(to right, ${color}, ${color}) ${index * BUCKET_WIDTH.day}px 0 / ${width}px 100% no-repeat`;
+  return {
+    "--co-day-grid": [
+      `repeating-linear-gradient(to right, transparent 0, transparent calc(var(--co-day-width) - 1px), ${DAY_GRID_LINE} calc(var(--co-day-width) - 1px), ${DAY_GRID_LINE} var(--co-day-width))`,
+      ...days
+        .map((day, index) => (day.isWeekStart ? boundary(index, WEEK_GRID_LINE, 2) : null))
+        .filter(Boolean),
+      ...days
+        .map((day, index) => (day.isMonthStart ? boundary(index, MONTH_GRID_LINE, 3) : null))
+        .filter(Boolean),
+    ].join(", "),
+    ...(dropIndex === null
+      ? {}
+      : { "--co-day-drop-left": `${dropIndex * BUCKET_WIDTH.day}px` }),
+  } as React.CSSProperties;
+}
+
+/** Weekly equivalent of the paint-only daily grid. */
+function weeklyGridStyle(
+  weeks: ReturnType<typeof weeklyTimelineCells>,
+  dropIndex: number | null,
+): React.CSSProperties {
+  const boundary = (index: number, color: string, width: number) =>
+    `linear-gradient(to right, ${color}, ${color}) ${index * BUCKET_WIDTH.week}px 0 / ${width}px 100% no-repeat`;
+  return {
+    "--co-week-grid": [
+      `repeating-linear-gradient(to right, transparent 0, transparent calc(var(--co-week-width) - 1px), ${DAY_GRID_LINE} calc(var(--co-week-width) - 1px), ${DAY_GRID_LINE} var(--co-week-width))`,
+      ...weeks
+        .map((week, index) => (week.isMonthStart ? boundary(index, MONTH_GRID_LINE, 3) : null))
+        .filter(Boolean),
+    ].join(", "),
+    ...(dropIndex === null ? {} : { "--co-week-drop-left": `${dropIndex * BUCKET_WIDTH.week}px` }),
+  } as React.CSSProperties;
 }
 
 const ObraCells = memo(function ObraCells({
@@ -492,6 +425,8 @@ const ObraCells = memo(function ObraCells({
 }) {
   const [over, setOver] = useState<string | null>(null);
   const calendarYear = Number(todayCivil().slice(0, 4));
+  const days = dailyHeader(calendarYear);
+  const weeks = weeklyTimelineCells(calendarYear);
   const validTarget = (target: string) =>
     zoom !== "year" &&
     Boolean(
@@ -527,6 +462,56 @@ const ObraCells = memo(function ObraCells({
         event: React.PointerEvent<HTMLButtonElement>,
       ) => onResizeMaster(obra, mestre, edge, event)
     : undefined;
+  const dayTarget = (event: DragEvent) => {
+    const bounds = event.currentTarget.getBoundingClientRect();
+    const index = Math.floor((event.clientX - bounds.left) / BUCKET_WIDTH.day);
+    return days[index]?.date ?? null;
+  };
+  const dayEvents = {
+    onDragOver: (event: DragEvent) => {
+      const target = dayTarget(event);
+      if (target && draggingMaster && validTarget(target)) {
+        event.preventDefault();
+        event.dataTransfer.dropEffect = "copy";
+        setOver(target);
+      }
+    },
+    onDragLeave: (event: DragEvent) => {
+      if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setOver(null);
+    },
+    onDrop: (event: DragEvent) => {
+      event.preventDefault();
+      event.stopPropagation();
+      const target = dayTarget(event);
+      setOver(null);
+      if (target && draggingMaster && validTarget(target)) onDropMaster(obra, target);
+    },
+  };
+  const weekTarget = (event: DragEvent) => {
+    const bounds = event.currentTarget.getBoundingClientRect();
+    const index = Math.floor((event.clientX - bounds.left) / BUCKET_WIDTH.week);
+    return weeks[index]?.date ?? null;
+  };
+  const weekEvents = {
+    onDragOver: (event: DragEvent) => {
+      const target = weekTarget(event);
+      if (target && draggingMaster && validTarget(target)) {
+        event.preventDefault();
+        event.dataTransfer.dropEffect = "copy";
+        setOver(target);
+      }
+    },
+    onDragLeave: (event: DragEvent) => {
+      if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setOver(null);
+    },
+    onDrop: (event: DragEvent) => {
+      event.preventDefault();
+      event.stopPropagation();
+      const target = weekTarget(event);
+      setOver(null);
+      if (target && draggingMaster && validTarget(target)) onDropMaster(obra, target);
+    },
+  };
   const cell = (
     start: string,
     days: number,
@@ -564,15 +549,26 @@ const ObraCells = memo(function ObraCells({
   };
   if (zoom === "day")
     return (
-      <div className="co-day-cells">
-        {dailyHeader(calendarYear).map((day) =>
-          cell(
-            day.date,
-            1,
-            "co-day-cell",
-            `${day.isWeekStart ? "is-week-start " : ""}${day.isMonthStart ? "is-month-start" : ""}`,
-          ),
-        )}
+      <div
+        className={`co-day-timeline co-calendar-cell ${over ? "is-drop-target" : ""}`}
+        style={dailyGridStyle(days, over ? days.findIndex((day) => day.date === over) : null)}
+        {...dayEvents}
+      >
+        <div className={`co-day-lanes ${display.liveAlerts ? "co-cell-lanes--alert-on" : "co-cell-lanes--alert-off"}`}>
+          <TemporalLayer obra={obra} start={days[0].date} days={days.length} />
+          <span className="co-cell-space" />
+          <MasterStrips
+            obra={obra}
+            bucketStart={days[0].date}
+            bucketDays={days.length}
+            showNames={display.masterNames}
+            zoom="day"
+            bucketWidth={BUCKET_WIDTH.day * days.length}
+            masterLanes={masterLanes}
+            onResize={resize}
+            onSelectMaster={onSelectMaster}
+          />
+        </div>
       </div>
     );
   if (zoom === "month")
@@ -623,28 +619,16 @@ const ObraCells = memo(function ObraCells({
       </div>
     );
   return (
-    <div className="co-week-cells">
-      {weeklyTimelineCells(calendarYear).map((week) => {
-        const valid = validTarget(week.date);
-        return (
-          <div
-            key={week.date}
-            data-co-bucket-start={week.date}
-            data-co-bucket-days="7"
-            className={`co-week-cell ${week.isMonthStart ? "is-month-start " : ""}co-calendar-cell ${valid ? "is-planned" : "is-invalid-drop"} ${over === week.date ? "is-drop-target" : ""}`}
-            {...(valid ? events(week.date) : {})}
-          >
-            <WeeklyLanes
-              obra={obra}
-              week={week.date}
-              display={display}
-              masterLanes={masterLanes}
-              onResize={resize}
-              onSelectMaster={onSelectMaster}
-            />
-          </div>
-        );
-      })}
+    <div
+      className={`co-week-timeline co-calendar-cell ${over ? "is-drop-target" : ""}`}
+      style={weeklyGridStyle(weeks, over ? weeks.findIndex((week) => week.date === over) : null)}
+      {...weekEvents}
+    >
+      <div className={`co-week-lanes ${display.liveAlerts ? "co-cell-lanes--alert-on" : "co-cell-lanes--alert-off"}`}>
+        <TemporalLayer obra={obra} start={weeks[0].date} days={weeks.length * 7} />
+        <span className="co-cell-space" />
+        <MasterStrips obra={obra} bucketStart={weeks[0].date} bucketDays={weeks.length * 7} showNames={display.masterNames} zoom="week" bucketWidth={BUCKET_WIDTH.week * weeks.length} masterLanes={masterLanes} onResize={resize} onSelectMaster={onSelectMaster} />
+      </div>
     </div>
   );
 });
@@ -758,7 +742,52 @@ function MasterCells({
         ? "co-week-cell"
         : zoom === "year"
           ? "co-year-cell"
-          : "co-month-cell";
+        : "co-month-cell";
+  if (zoom === "day") {
+    const days = dailyHeader(calendarYear);
+    return (
+      <div className="co-day-resource-timeline" style={dailyGridStyle(days, null)}>
+        {cells.map(
+          (cell, index) =>
+            (cell.days > 0 || cell.conflict) && (
+              <span
+                key={index}
+                className={`co-day-resource-marker ${cell.conflict ? "is-conflict" : ""}`}
+                style={{ left: `${index * BUCKET_WIDTH.day}px`, width: `${BUCKET_WIDTH.day}px` }}
+              >
+                {cell.days > 0 && (
+                  <i
+                    className="co-resource-block"
+                    style={colorStyle(normalizeMestreKey(workload.mestre))}
+                  />
+                )}
+                {cell.conflict && <WarningAmberRounded className="co-conflict-icon" />}
+              </span>
+            ),
+        )}
+      </div>
+    );
+  }
+  if (zoom === "week") {
+    const weeks = weeklyTimelineCells(calendarYear);
+    return (
+      <div className="co-week-resource-timeline" style={weeklyGridStyle(weeks, null)}>
+        {cells.map(
+          (cell, index) =>
+            (cell.days > 0 || cell.conflict) && (
+              <span
+                key={index}
+                className={`co-week-resource-marker ${cell.conflict ? "is-conflict" : ""}`}
+                style={{ left: `${index * BUCKET_WIDTH.week}px`, width: `${BUCKET_WIDTH.week}px` }}
+              >
+                {cell.days > 0 && <i className="co-resource-block" style={colorStyle(normalizeMestreKey(workload.mestre))} />}
+                {cell.conflict && <WarningAmberRounded className="co-conflict-icon" />}
+              </span>
+            ),
+        )}
+      </div>
+    );
+  }
   return (
     <div className={className}>
       {cells.map((cell, index) => (
@@ -805,6 +834,7 @@ export const GanttGrid = memo(function GanttGrid({
   onFocusDate,
   initialExpandedContractIds = [],
 }: Props) {
+  countCronogramaRender("GanttGrid");
   const scrollRef = useRef<HTMLDivElement>(null);
   const resizeCleanupRef = useRef<(() => void) | null>(null);
   const groupsRef = useRef<ContractGroup[]>(groupObrasByContract(obras));
@@ -961,19 +991,25 @@ export const GanttGrid = memo(function GanttGrid({
     },
   );
   const groups = useMemo(() => {
-    groupsRef.current = reconcileContractGroups(groupsRef.current, obras);
+    groupsRef.current = measureCronogramaCompute("reconcileContractGroups", () =>
+      reconcileContractGroups(groupsRef.current, obras),
+    );
     return groupsRef.current;
   }, [obras]);
   const workTypeGroups = useMemo(
     () =>
-      view === "obras" ? groupContractGroupsByWorkType(groups, contratos) : [],
+      measureCronogramaCompute("groupContractGroupsByWorkType", () =>
+        view === "obras" ? groupContractGroupsByWorkType(groups, contratos) : [],
+      ),
     [view, groups, contratos],
   );
   const flatWorkTypeGroups = useMemo(
     () =>
-      view === "obras" && viewMode === "flat"
-        ? buildFlatWorkGroupsByWorkType(obras, contratos)
-        : [],
+      measureCronogramaCompute("buildFlatWorkGroupsByWorkType", () =>
+        view === "obras" && viewMode === "flat"
+          ? buildFlatWorkGroupsByWorkType(obras, contratos)
+          : [],
+      ),
     [view, viewMode, obras, contratos],
   );
   const rows =

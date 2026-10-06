@@ -15,6 +15,10 @@ import {
   groupObrasByContract,
 } from "../domain/contractGroups";
 import { requiresContractReview } from "../data/source/rawCronogramaAdapter";
+import {
+  countCronogramaRender,
+  measureCronogramaCompute,
+} from "../debug/cronogramaPerf";
 
 const colorStyle = (key: string): React.CSSProperties =>
   ({
@@ -70,21 +74,27 @@ export const ContractTextTable = memo(function ContractTextTable({
   onToggleSection,
   variant = "finished",
 }: Props) {
-  const groups = useMemo(() => groupObrasByContract(obras), [obras]);
+  countCronogramaRender("ContractTextTable");
+  const groups = useMemo(
+    () => measureCronogramaCompute("tableGroupObrasByContract", () => groupObrasByContract(obras)),
+    [obras],
+  );
   const [expandedContracts, setExpandedContracts] = useState<Set<string>>(
     () => new Set(),
   );
   const notStarted = variant === "not-started";
   const flat = viewMode === "flat";
   const workTypeGroups = useMemo(
-    () => groupContractGroupsByWorkType(groups, contratos),
+    () => measureCronogramaCompute("tableGroupContractGroupsByWorkType", () => groupContractGroupsByWorkType(groups, contratos)),
     [groups, contratos],
   );
   const flatWorkTypeGroups = useMemo(
     () =>
-      viewMode === "flat"
-        ? buildFlatWorkGroupsByWorkType(obras, contratos)
-        : [],
+      measureCronogramaCompute("tableBuildFlatWorkGroupsByWorkType", () =>
+        viewMode === "flat"
+          ? buildFlatWorkGroupsByWorkType(obras, contratos)
+          : [],
+      ),
     [viewMode, obras, contratos],
   );
   const toggle = (id: string) =>
