@@ -23,8 +23,8 @@ test('the sync result contract exposes finalization counters so already-finalize
   assert.match(service, /obrasFinalizadasMonday/); assert.match(service, /obrasComObraV2Id/); assert.match(service, /obrasJaFinalizadas/); assert.match(page, /Obras a finalizar: \{syncResult\.obrasFinalizar\}/);
 });
 
-test('apply requires confirmation, cannot proceed from a dry-run error, and reloads cronograma on success', () => {
-  assert.match(page, /syncResult\?\.mode === 'dry-run' && !syncResult\.erros\.length/); assert.match(page, /window\.confirm\('Aplicar a sincronização recalculada pelo servidor\?'/); assert.match(page, /runSync\('apply'\)/); assert.match(page, /const cronograma = await source\.carregar\(\)/);
+test('apply requires confirmation, cannot proceed from a dry-run error, and lets the realtime listener converge on success', () => {
+  assert.match(page, /syncResult\?\.mode === 'dry-run' && !syncResult\.erros\.length/); assert.match(page, /window\.confirm\('Aplicar a sincronização recalculada pelo servidor\?'/); assert.match(page, /runSync\('apply'\)/); assert.match(page, /source\.subscribe/); assert.doesNotMatch(page, /const cronograma = await source\.carregar\(\)/);
 });
 
 test('backend errors are rendered safely and the browser client never contains a Monday token', () => {

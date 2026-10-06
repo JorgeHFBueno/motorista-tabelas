@@ -12,6 +12,25 @@ Documento canônico de manutenção, onboarding, auditoria e troubleshooting. A 
 
 ## 1. Arquitetura atual
 
+## MK6C.5 — Firestore Realtime UI
+
+```text
+Monday → webhook → projetor → monday-obras → onSnapshot → estado obras → classificação → UI
+```
+
+O CronoObra assina `monday-obras` enquanto a página está montada. O primeiro
+snapshot substitui a leitura inicial; depois, `docChanges()` atualiza somente o
+contrato-pai alterado e suas linhas de LOTE derivadas. O cleanup chama
+`unsubscribe()` no unmount. Não há polling e o listener nunca executa
+`mondaySync`, mutations Monday ou writes no Firestore.
+
+O indicador do cabeçalho mostra `Conectando…`, `Ao vivo`, `Offline` ou
+`Atualização indisponível`. Filtros, expansão de contratos, zoom, abas, drawers
+e alocações persistidas permanecem independentes dos dados recebidos. Assim,
+uma alteração externa no Monday aparece automaticamente na página aberta.
+
+`mondaySync` continua exclusivamente como fallback administrativo e auditoria.
+
 ### Fontes e identidade
 
 O item pai do Monday representa o contrato e cada subitem representa um LOTE. Em `monday-obras`, o documento é identificado pelo `parentItemId`; `raw.subitems[].id` é o `mondaySubitemId` usado pelo CronoObra. `obraV2Id` vincula o contrato local a `obras-v2`.
@@ -355,4 +374,3 @@ Node.js 20 está no `functions/package.json`. O alerta operacional registrado é
 - [x] Botões e versão visual conferidos em `CronogramaObrasPage.tsx`.
 - [x] Suíte Functions executada: build OK, 91 testes pass, 0 falhas.
 - [x] Não houve deploy, alteração de Functions/frontend/Rules, mutation real no Monday ou alteração de secrets.
-
