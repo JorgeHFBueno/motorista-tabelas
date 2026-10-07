@@ -1,5 +1,6 @@
 import EngineeringRounded from "@mui/icons-material/EngineeringRounded";
 import FilterListRounded from "@mui/icons-material/FilterListRounded";
+import ViewListRounded from "@mui/icons-material/ViewListRounded";
 import { Profiler, useEffect, useMemo, useRef, useState } from "react";
 import {
   CalendarToggles,
@@ -36,6 +37,12 @@ import { getDirectMasterDropInterval } from "./domain/dropPlanning";
 import { DEFAULT_CALENDAR_DISPLAY } from "./domain/calendarDisplay";
 import { planningYears } from "./domain/calendarYears";
 import { normalizeMestreKey, setPersistedMestreColors } from "./domain/mestres";
+import {
+  DEFAULT_WORK_SECTION_VIEWS,
+  loadWorkSectionViews,
+  persistWorkSectionViews,
+  type WorkSectionViews,
+} from "./domain/sectionViews";
 import type {
   CivilDate,
   ContratoCronograma,
@@ -271,9 +278,13 @@ export default function CronogramaObrasPage() {
   const { authorized: canSyncMonday } = useAdm2Authorization();
   const { currentUser, authorizationLoading, authorizationProfile } = useAuth();
   const [view, setView] = useState<"obras" | "mestres">("obras");
-  const [workViewMode, setWorkViewMode] = useState<"contracts" | "flat">(
-    "contracts",
+  const [sectionViews, setSectionViews] = useState<WorkSectionViews>(
+    DEFAULT_WORK_SECTION_VIEWS,
   );
+  const [sectionViewsOpen, setSectionViewsOpen] = useState(false);
+  const sectionViewsRef = useRef<HTMLDivElement>(null);
+  const [sectionViewsUid, setSectionViewsUid] = useState<string | null>(null);
+  const [sectionTransitionLabel, setSectionTransitionLabel] = useState<string | null>(null);
   const [textSectionsExpanded, setTextSectionsExpanded] = useState({
     notStarted: true,
     finished: true,
@@ -339,6 +350,40 @@ export default function CronogramaObrasPage() {
   const [newMasterName, setNewMasterName] = useState("");
   const [newMasterError, setNewMasterError] = useState<string | null>(null);
   const [savingMaster, setSavingMaster] = useState(false);
+  useEffect(() => {
+    if (!currentUser?.uid || typeof window === "undefined") {
+      setSectionViewsUid(null);
+      setSectionViews(DEFAULT_WORK_SECTION_VIEWS);
+      return;
+    }
+    setSectionViews(loadWorkSectionViews(currentUser.uid, window.localStorage));
+    setSectionViewsUid(currentUser.uid);
+  }, [currentUser?.uid]);
+  useEffect(() => {
+    if (
+      !currentUser?.uid ||
+      sectionViewsUid !== currentUser.uid ||
+      typeof window === "undefined"
+    )
+      return;
+    persistWorkSectionViews(currentUser.uid, sectionViews, window.localStorage);
+  }, [currentUser?.uid, sectionViews, sectionViewsUid]);
+  useEffect(() => {
+    if (!sectionViewsOpen) return;
+    const closeOnOutsidePointer = (event: PointerEvent) => {
+      if (!sectionViewsRef.current?.contains(event.target as Node))
+        setSectionViewsOpen(false);
+    };
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setSectionViewsOpen(false);
+    };
+    window.addEventListener("pointerdown", closeOnOutsidePointer);
+    window.addEventListener("keydown", closeOnEscape);
+    return () => {
+      window.removeEventListener("pointerdown", closeOnOutsidePointer);
+      window.removeEventListener("keydown", closeOnEscape);
+    };
+  }, [sectionViewsOpen]);
   useEffect(() => {
     let alive = true;
     let receivedInitialSnapshot = false;
@@ -517,7 +562,7 @@ export default function CronogramaObrasPage() {
   const isViewTransitioning = viewTransition !== null;
   useEffect(() => {
     if (transitionAppliedRef.current) markCronogramaPerf("reactCommit");
-  }, [view, workViewMode, zoom]);
+  }, [view, sectionViews, zoom]);
   const runViewTransition = (
     kind: Exclude<CronogramaViewTransition, null>,
     from: CronogramaPerfMode,
@@ -541,6 +586,7 @@ export default function CronogramaObrasPage() {
             collectCronogramaDom(scheduleContentRef.current);
             viewTransitionRef.current = null;
             transitionAppliedRef.current = false;
+            setSectionTransitionLabel(null);
             setViewTransition(null);
             finishCronogramaPerf();
           });
@@ -559,10 +605,21 @@ export default function CronogramaObrasPage() {
     if (next === view) return;
     runViewTransition(next, view, () => setView(next));
   };
-  const changeWorkViewMode = (next: "contracts" | "flat") => {
-    if (next === workViewMode) return;
-    runViewTransition(next === "contracts" ? "contratos" : "lista", workViewMode === "contracts" ? "contratos" : "lista", () =>
-      setWorkViewMode(next),
+  const changeSectionView = (
+    section: keyof WorkSectionViews,
+    next: WorkSectionViews[keyof WorkSectionViews],
+  ) => {
+    if (isViewTransitioning || next === sectionViews[section]) return;
+    const labels = {
+      started: "Obra iniciada",
+      notStarted: "Obra não iniciada",
+      finished: "Obra finalizada",
+    } as const;
+    const from = sectionViews[section] === "contracts" ? "contratos" : "lista";
+    const to = next === "contracts" ? "contratos" : "lista";
+    setSectionTransitionLabel(`Atualizando ${labels[section]}…`);
+    runViewTransition(to, from, () =>
+      setSectionViews((current) => ({ ...current, [section]: next })),
     );
   };
   const goToday = () => {
@@ -966,26 +1023,51 @@ export default function CronogramaObrasPage() {
     <main className={`co-page co-zoom--${zoom}`}>
       <header className="co-page-header">
       <div className="co-work-view-control co-controls" aria-label="Controles de visualização">
-          <div
-            className="co-view-switch co-work-view-switch co-header-segmented-control"
-            aria-label="Visualização das obras"
-          >
+          <div className="co-section-views" ref={sectionViewsRef}>
             <button
               type="button"
-              className={`co-header-segmented-option ${workViewMode === "contracts" ? "is-active" : ""}`}
-              disabled={isViewTransitioning}
-              onClick={() => changeWorkViewMode("contracts")}
+              className={`co-section-views-trigger ${sectionViewsOpen ? "is-active" : ""}`}
+              aria-expanded={sectionViewsOpen}
+              aria-haspopup="dialog"
+              onClick={() => setSectionViewsOpen((open) => !open)}
             >
-              Contratos
+              <ViewListRounded fontSize="small" />
+              Visualização
             </button>
-            <button
-              type="button"
-              className={`co-header-segmented-option ${workViewMode === "flat" ? "is-active" : ""}`}
-              disabled={isViewTransitioning}
-              onClick={() => changeWorkViewMode("flat")}
-            >
-              Lista corrida
-            </button>
+            {sectionViewsOpen && (
+              <div className="co-section-views-popover" role="dialog" aria-label="Visualização das tabelas">
+                <strong>Visualização das tabelas</strong>
+                {([
+                  ["started", "Obra iniciada"],
+                  ["notStarted", "Obra não iniciada"],
+                  ["finished", "Obra finalizada"],
+                ] as const).map(([section, label]) => (
+                  <div className="co-section-views-row" key={section}>
+                    <span>{label}</span>
+                    <div className="co-view-switch" aria-label={`Visualização: ${label}`}>
+                      <button
+                        type="button"
+                        aria-pressed={sectionViews[section] === "contracts"}
+                        className={sectionViews[section] === "contracts" ? "is-active" : ""}
+                        disabled={isViewTransitioning}
+                        onClick={() => changeSectionView(section, "contracts")}
+                      >
+                        Contratos
+                      </button>
+                      <button
+                        type="button"
+                        aria-pressed={sectionViews[section] === "flat"}
+                        className={sectionViews[section] === "flat" ? "is-active" : ""}
+                        disabled={isViewTransitioning}
+                        onClick={() => changeSectionView(section, "flat")}
+                      >
+                        Lista corrida
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
           <div className="co-view-switch co-header-segmented-control" aria-label="Domínio do cronograma">
             <button type="button" disabled={isViewTransitioning} className={`co-header-segmented-option ${view === "obras" ? "is-active" : ""}`} onClick={() => changeView("obras")}>Obras</button>
@@ -1458,7 +1540,7 @@ export default function CronogramaObrasPage() {
             </header>
           <CronogramaProfiler id="GanttGrid"><GanttGrid
             view="obras"
-            viewMode={workViewMode}
+            viewMode={sectionViews.started}
               zoom={zoom}
               years={years}
               obras={obrasPorSituacao.iniciada}
@@ -1494,7 +1576,7 @@ export default function CronogramaObrasPage() {
           </section>
           <section>
           <CronogramaProfiler id="ContractTextTable"><ContractTextTable
-            viewMode={workViewMode}
+            viewMode={sectionViews.notStarted}
             variant="not-started"
               sectionTitle="Obra não iniciada"
               sectionCount={contratosPorSituacao["nao-iniciada"]}
@@ -1523,7 +1605,7 @@ export default function CronogramaObrasPage() {
           </section>
           <section>
           <CronogramaProfiler id="ContractTextTable"><ContractTextTable
-            viewMode={workViewMode}
+            viewMode={sectionViews.finished}
             sectionTitle="Obra finalizada"
               sectionCount={contratosPorSituacao.finalizada}
               sectionExpanded={textSectionsExpanded.finished}
@@ -1602,7 +1684,7 @@ export default function CronogramaObrasPage() {
         >
           <div className="co-view-transition-content">
             <span className="co-view-transition-spinner" aria-hidden="true" />
-            <p>{VIEW_TRANSITION_MESSAGES[viewTransition]}</p>
+            <p>{sectionTransitionLabel ?? VIEW_TRANSITION_MESSAGES[viewTransition]}</p>
           </div>
         </div>
       )}

@@ -1104,10 +1104,10 @@ export const GanttGrid = memo(function GanttGrid({
       );
     });
   const obraPanel = obraPanelLayout(obraColumnWidth, viewMode, detailsVisible);
-  const flatContractColumnsVisible = obraPanel.columns.includes("contrato");
   const left =
     view === "obras" ? (
       <>
+        <span>Nome contrato</span>
         <span>
           Obra
           <button
@@ -1117,8 +1117,7 @@ export const GanttGrid = memo(function GanttGrid({
             onPointerDown={startObraResize}
           />
         </span>
-        {flatContractColumnsVisible && <span>Contrato</span>}
-        {obraPanel.columns.includes("nomeContrato") && <span>Nome contrato</span>}
+        <span>Contrato</span>
         <span>Mestres</span>
         <span>Status</span>
         {detailsVisible && (
@@ -1188,19 +1187,15 @@ export const GanttGrid = memo(function GanttGrid({
         }}
       >
         <div className="co-row-info co-left-row">
+          <span className="co-contract-name-flat" title={contrato?.nome ?? "—"}>
+            {contrato?.nome ?? "—"}
+          </span>
           <span className="co-work-name" title={obra.nomeObra}>
             {obra.nomeObra}
           </span>
-          {flat === true && flatContractColumnsVisible && (
-            <span className="co-contract-number">
-              {contrato?.numeroContrato ?? "—"}
-            </span>
-          )}
-          {flat === true && obraPanel.columns.includes("nomeContrato") && (
-            <span className="co-contract-name-flat" title={contrato?.nome ?? "—"}>
-              {contrato?.nome ?? "—"}
-            </span>
-          )}
+          <span className="co-contract-number">
+            {contrato?.numeroContrato ?? "—"}
+          </span>
           <span
             className="co-masters-cell"
             onClick={(event) => {
@@ -1319,6 +1314,10 @@ export const GanttGrid = memo(function GanttGrid({
                 </span>
                 {group.name}
                 <b>{group.obras.length}</b>
+              </span>
+              <span>{`${group.obras.length} ${group.obras.length === 1 ? "obra" : "obras"}`}</span>
+              <span className="co-contract-number">
+                {contrato?.numeroContrato ?? "—"}
               </span>
               <span
                 className="co-masters-cell co-contract-masters"

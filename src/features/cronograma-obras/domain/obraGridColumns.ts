@@ -1,17 +1,26 @@
 export const OBRA_COLUMN_WIDTH = { default: 220, min: 140, max: 360 } as const;
 
-const EXPANDED_LEFT_WIDTH = "clamp(660px, 43vw, 880px)";
-const COMPACT_LEFT_WIDTH = "clamp(420px, 30vw, 540px)";
+export type ObraPanelColumn = "nomeContrato" | "obra" | "contrato" | "mestres" | "status" | "empresa" | "inicio" | "dias" | "toggle";
+type ColumnDefinition = { id: ObraPanelColumn; width: number | "obra" };
 
-export type ObraPanelColumn = "obra" | "contrato" | "nomeContrato" | "mestres" | "status" | "empresa" | "inicio" | "dias" | "toggle";
+// This is the single source of truth for both column geometry and panel width.
+// The timeline therefore starts exactly after DIAS in every row and the header.
+export const OBRA_EXPANDED_COLUMNS: readonly ColumnDefinition[] = [
+  { id: "nomeContrato", width: 230 },
+  { id: "obra", width: "obra" },
+  { id: "contrato", width: 95 },
+  { id: "mestres", width: 130 },
+  { id: "status", width: 105 },
+  { id: "empresa", width: 70 },
+  { id: "inicio", width: 92 },
+  { id: "dias", width: 55 },
+  { id: "toggle", width: 22 },
+] as const;
+const COMPACT_COLUMNS: readonly ColumnDefinition[] = [
+  ...OBRA_EXPANDED_COLUMNS.slice(0, 5),
+  { id: "toggle", width: 22 },
+] as const;
 export type ObraPanelLayout = { columns: readonly ObraPanelColumn[]; gridTemplateColumns: string; width: string };
-
-// This is the canonical geometry used by the header and every obra row.
-// The extra flat columns only exist while the informative panel is expanded.
-const expandedColumns = (obraMinimum: number, flat: boolean) =>
-  `minmax(${obraMinimum}px, 2.15fr)${flat ? " minmax(82px, .7fr) minmax(130px, 1.25fr)" : ""} minmax(110px, 1.2fr) minmax(82px, .75fr) minmax(65px, .55fr) minmax(88px, .70fr) minmax(48px, .35fr) 22px`;
-const compactColumns = (obraMinimum: number) =>
-  `minmax(${obraMinimum}px, 2.4fr) minmax(110px, 1.2fr) minmax(82px, .75fr) 22px`;
 
 export function clampObraColumnWidth(width: number): number {
   return Math.min(
@@ -23,22 +32,25 @@ export function clampObraColumnWidth(width: number): number {
 export function obraGridColumns(
   obraWidth: number,
   detailsVisible = true,
-  flat = false,
 ): string {
-  const obraMinimum = clampObraColumnWidth(obraWidth);
-  return detailsVisible
-    ? expandedColumns(obraMinimum, flat)
-    : compactColumns(obraMinimum);
+  return layoutFor(detailsVisible ? OBRA_EXPANDED_COLUMNS : COMPACT_COLUMNS, obraWidth).gridTemplateColumns;
 }
 
-export function obraGridWidth(detailsVisible = true): string {
-  return detailsVisible ? EXPANDED_LEFT_WIDTH : COMPACT_LEFT_WIDTH;
+export function obraGridWidth(obraWidth = OBRA_COLUMN_WIDTH.default, detailsVisible = true): string {
+  return layoutFor(detailsVisible ? OBRA_EXPANDED_COLUMNS : COMPACT_COLUMNS, obraWidth).width;
 }
 
 export function obraPanelLayout(obraWidth: number, viewMode: "contracts" | "flat", detailsVisible: boolean): ObraPanelLayout {
-  const flatExpanded = viewMode === "flat" && detailsVisible;
-  const columns: readonly ObraPanelColumn[] = detailsVisible
-    ? ["obra", ...(flatExpanded ? (["contrato", "nomeContrato"] as const) : []), "mestres", "status", "empresa", "inicio", "dias", "toggle"]
-    : ["obra", "mestres", "status", "toggle"];
-  return { columns, gridTemplateColumns: obraGridColumns(obraWidth, detailsVisible, flatExpanded), width: obraGridWidth(detailsVisible) };
+  void viewMode;
+  return layoutFor(detailsVisible ? OBRA_EXPANDED_COLUMNS : COMPACT_COLUMNS, obraWidth);
+}
+
+function layoutFor(columns: readonly ColumnDefinition[], obraWidth: number): ObraPanelLayout {
+  const normalizedObraWidth = clampObraColumnWidth(obraWidth);
+  const widths = columns.map((column) => column.width === "obra" ? normalizedObraWidth : column.width);
+  return {
+    columns: columns.map((column) => column.id),
+    gridTemplateColumns: widths.map((width) => `${width}px`).join(" "),
+    width: `${widths.reduce((total, width) => total + width, 0)}px`,
+  };
 }
