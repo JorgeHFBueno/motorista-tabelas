@@ -16,6 +16,40 @@ export const OBRA_EXPANDED_COLUMNS: readonly ColumnDefinition[] = [
   { id: "dias", width: 55 },
   { id: "toggle", width: 22 },
 ] as const;
+// Obra iniciada intentionally has independent contracts for each view.
+// The fixed panel and its header always derive from these exact arrays.
+export const STARTED_FLAT_COLUMNS: readonly ColumnDefinition[] = [
+  { id: "nomeContrato", width: 230 },
+  { id: "obra", width: "obra" },
+  { id: "empresa", width: 82 },
+  { id: "status", width: 185 },
+  { id: "mestres", width: 130 },
+  { id: "inicio", width: 92 },
+  { id: "dias", width: 55 },
+  { id: "toggle", width: 22 },
+] as const;
+export const STARTED_FLAT_COLLAPSED_COLUMNS: readonly ColumnDefinition[] = [
+  { id: "nomeContrato", width: 230 },
+  { id: "obra", width: "obra" },
+  { id: "mestres", width: 130 },
+  { id: "inicio", width: 92 },
+  { id: "toggle", width: 22 },
+] as const;
+export const STARTED_CONTRACT_COLUMNS: readonly ColumnDefinition[] = [
+  { id: "nomeContrato", width: 230 },
+  { id: "empresa", width: 82 },
+  { id: "status", width: 185 },
+  { id: "mestres", width: 130 },
+  { id: "inicio", width: 92 },
+  { id: "dias", width: 55 },
+  { id: "toggle", width: 22 },
+] as const;
+export const STARTED_CONTRACT_COLLAPSED_COLUMNS: readonly ColumnDefinition[] = [
+  { id: "nomeContrato", width: 230 },
+  { id: "mestres", width: 130 },
+  { id: "inicio", width: 92 },
+  { id: "toggle", width: 22 },
+] as const;
 const COMPACT_COLUMNS: readonly ColumnDefinition[] = [
   ...OBRA_EXPANDED_COLUMNS.slice(0, 5),
   { id: "toggle", width: 22 },
@@ -40,9 +74,17 @@ export function obraGridWidth(obraWidth = OBRA_COLUMN_WIDTH.default, detailsVisi
   return layoutFor(detailsVisible ? OBRA_EXPANDED_COLUMNS : COMPACT_COLUMNS, obraWidth).width;
 }
 
-export function obraPanelLayout(obraWidth: number, viewMode: "contracts" | "flat", detailsVisible: boolean): ObraPanelLayout {
-  void viewMode;
-  return layoutFor(detailsVisible ? OBRA_EXPANDED_COLUMNS : COMPACT_COLUMNS, obraWidth);
+export function obraPanelLayout(obraWidth: number, viewMode: "contracts" | "flat", detailsVisible: boolean, started = false): ObraPanelLayout {
+  if (!started) return layoutFor(detailsVisible ? OBRA_EXPANDED_COLUMNS : COMPACT_COLUMNS, obraWidth);
+  if (viewMode === "flat")
+    return layoutFor(
+      detailsVisible ? STARTED_FLAT_COLUMNS : STARTED_FLAT_COLLAPSED_COLUMNS,
+      obraWidth,
+    );
+  return layoutFor(
+    detailsVisible ? STARTED_CONTRACT_COLUMNS : STARTED_CONTRACT_COLLAPSED_COLUMNS,
+    obraWidth,
+  );
 }
 
 function layoutFor(columns: readonly ColumnDefinition[], obraWidth: number): ObraPanelLayout {

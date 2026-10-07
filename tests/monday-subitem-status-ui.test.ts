@@ -72,3 +72,31 @@ test('UI integration does not expose Monday internals or write Firestore/sync au
   assert.match(page, /V-1\.665 · MK6A/); assert.doesNotMatch(page, /Planejador local · MK2/);
   assert.match(adapter, /mondaySubitemId = obra\.id/);
 });
+
+test('started work finalization reuses the controlled callable status and shared control', async () => {
+  let body: unknown;
+  await updateMondaySubitemStatus('13149530541', 'FINALIZADO', {
+    currentUser: () => ({ getIdToken: async () => 'firebase-id-token' }) as any,
+    fetch: async (_url, options) => {
+      body = JSON.parse(String(options?.body));
+      return new Response(JSON.stringify({ result: 'NO_CHANGE', subitemId: '13149530541', statusAnterior: { code: 'FINALIZADO', label: 'Finalizado' }, statusAtual: { code: 'FINALIZADO', label: 'Finalizado' } }), { status: 200 });
+    },
+  });
+  assert.deepEqual(body, { subitemId: '13149530541', novoStatus: 'FINALIZADO', dryRun: false });
+  const gantt = readFileSync('src/features/cronograma-obras/components/GanttGrid.tsx', 'utf8');
+  const control = readFileSync('src/features/cronograma-obras/components/MondaySubitemStatusControl.tsx', 'utf8');
+  assert.match(gantt, /MondaySubitemStatusControl obra=\{obra\} canStart=\{false\} canFinish/);
+  assert.match(control, /'FINALIZADO'/);
+  assert.match(control, /Finalizar/);
+  assert.match(control, /disabled=\{saving\}/);
+});
+
+test('status control renders either the available action or the badge, never both', () => {
+  const control = readFileSync('src/features/cronograma-obras/components/MondaySubitemStatusControl.tsx', 'utf8');
+  assert.match(control, /if \(!realLote \|\| !action \|\| alreadyFinished\) return <StatusBadge status=\{obra\.status\} \/>;/);
+  assert.match(control, /canFinish \? "finish" : canStart \? "start" : null/);
+  assert.match(control, /Finalizando/);
+  assert.match(control, /Iniciando/);
+  const actionReturn = control.slice(control.indexOf('const verb'), control.indexOf('\n}'));
+  assert.doesNotMatch(actionReturn, /<StatusBadge/);
+});

@@ -233,8 +233,9 @@
 .co-grid-row--contract svg { font-size: 1rem; transition: transform .16s ease; }
 .co-grid-row--contract svg.is-collapsed { transform: rotate(-90deg); }
 .co-grid-row--contract b { align-items: center; background: #cfdee7; border-radius: 99px; color: #35586d; display: inline-flex; font-size: .59rem; justify-content: center; margin-left: 2px; min-width: 19px; padding: 3px 5px; }
-.co-contract-controls { align-items: center; display: inline-flex; flex: 0 0 20px; flex-direction: column; gap: 0; justify-content: center; margin: -5px 0; min-height: 36px; }
+.co-contract-controls { align-items: center; display: inline-flex; flex: 0 0 30px; flex-direction: column; gap: 0; justify-content: center; margin: -5px 0; min-height: 36px; }
 .co-contract-controls > svg { flex: 0 0 16px; }
+.co-contract-controls > b { margin: 0; min-width: 20px; padding: 2px 4px; }
 .co-contract-details { align-items: center; background: #d8e8f0; border: 1px solid #789aae; border-radius: 4px; color: #163f5c; cursor: pointer; display: inline-flex; flex: 0 0 16px; height: 16px; justify-content: center; padding: 0; width: 18px; }
 .co-contract-details:hover, .co-contract-details:focus-visible { background: #b9d6e5; color: #092f48; outline: 2px solid #2f6b98; outline-offset: 1px; }
 .co-contract-details svg { font-size: 1rem; }

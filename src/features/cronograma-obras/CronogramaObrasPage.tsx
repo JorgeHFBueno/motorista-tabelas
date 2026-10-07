@@ -1590,6 +1590,7 @@ export default function CronogramaObrasPage() {
               centerRequest={centerRequest}
               focusDate={focusDate}
               onFocusDate={setFocusDate}
+              onStatusConfirmed={applyConfirmedMondayStatus}
               onSelect={(obra) => {
                 setMasterPanel(null);
                 setMastersPanelId(null);

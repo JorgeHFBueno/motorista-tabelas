@@ -1,5 +1,4 @@
 import WarningAmberRounded from "@mui/icons-material/WarningAmberRounded";
-import MoreVertRounded from "@mui/icons-material/MoreVertRounded";
 import KeyboardArrowDownRounded from "@mui/icons-material/KeyboardArrowDownRounded";
 import {
   type DragEvent,
@@ -13,6 +12,8 @@ import {
 import type { CalendarDisplayOptions } from "./CalendarToggles";
 import { TimelineHeader } from "./TimelineHeader";
 import { StatusBadge } from "./StatusBadge";
+import { MondaySubitemStatusControl } from "./MondaySubitemStatusControl";
+import type { MondaySubitemStatus } from "../../../services/mondaySubitemStatusService";
 import type {
   ContratoCronograma,
   MestrePlanejado,
@@ -97,6 +98,7 @@ interface Props {
   onResizeMasterCommit: (obraId: string, mestre: MestrePlanejado) => void;
   onResizeMasterCancel: (id: string) => void;
   onFocusDate: (date: string) => void;
+  onStatusConfirmed?: (mondaySubitemId: string, status: MondaySubitemStatus) => void;
   /** Allows the initial contract expansion state to be supplied by an embedding view. */
   initialExpandedContractIds?: readonly string[];
 }
@@ -844,6 +846,7 @@ export const GanttGrid = memo(function GanttGrid({
   onResizeMasterCommit,
   onResizeMasterCancel,
   onFocusDate,
+  onStatusConfirmed,
   initialExpandedContractIds = [],
 }: Props) {
   countCronogramaRender("GanttGrid");
@@ -1103,9 +1106,9 @@ export const GanttGrid = memo(function GanttGrid({
           .map((group) => group.id),
       );
     });
-  const obraPanel = obraPanelLayout(obraColumnWidth, viewMode, detailsVisible);
+  const obraPanel = obraPanelLayout(obraColumnWidth, viewMode, detailsVisible, true);
   const left =
-    view === "obras" ? (
+    view === "obras" && viewMode === "flat" ? (
       <>
         <span>Nome contrato</span>
         <span>
@@ -1117,15 +1120,15 @@ export const GanttGrid = memo(function GanttGrid({
             onPointerDown={startObraResize}
           />
         </span>
-        <span>Contrato</span>
+        {detailsVisible && <><span>Emp.</span><span>Status</span></>}
         <span>Mestres</span>
-        <span>Status</span>
-        {detailsVisible && (
+        {detailsVisible ? (
           <>
-            <span>Emp.</span>
             <span>Início</span>
             <span>Dias</span>
           </>
+        ) : (
+          <span>Início</span>
         )}
         <button
           type="button"
@@ -1144,6 +1147,14 @@ export const GanttGrid = memo(function GanttGrid({
         >
           {detailsVisible ? "›" : "‹"}
         </button>
+      </>
+    ) : view === "obras" ? (
+      <>
+        <span>Nome contrato</span>
+        {detailsVisible && <><span>Emp.</span><span>Status</span></>}
+        <span>Mestres</span><span>Início</span>
+        {detailsVisible && <span>Dias</span>}
+        <button type="button" className="co-columns-toggle" aria-label={detailsVisible ? "Ocultar colunas complementares" : "Mostrar colunas complementares"} title={detailsVisible ? "Ocultar Emp., Status e Dias" : "Mostrar todas as colunas"} onClick={() => setDetailsVisible((visible) => !visible)}>{detailsVisible ? "›" : "‹"}</button>
       </>
     ) : (
       <>
@@ -1167,7 +1178,7 @@ export const GanttGrid = memo(function GanttGrid({
   const obraRow = (obra: ObraCronograma, flat = false) => {
     const active = mastersWithRealPeriods(obra);
     const recent = recentStartedMaster(obra, todayCivil());
-    const visible = detailsVisible ? active : recent ? [recent] : [];
+    const visible = viewMode === "flat" && !detailsVisible ? recent ? [recent] : [] : active;
     const contrato = contratos.get(obra.contratoId ?? "");
     return (
       <div
@@ -1187,15 +1198,12 @@ export const GanttGrid = memo(function GanttGrid({
         }}
       >
         <div className="co-row-info co-left-row">
-          <span className="co-contract-name-flat" title={contrato?.nome ?? "—"}>
-            {contrato?.nome ?? "—"}
-          </span>
+          {flat && <span className="co-contract-name-flat" title={contrato?.nome ?? "—"}>{contrato?.nome ?? "—"}</span>}
           <span className="co-work-name" title={obra.nomeObra}>
             {obra.nomeObra}
           </span>
-          <span className="co-contract-number">
-            {contrato?.numeroContrato ?? "—"}
-          </span>
+          {detailsVisible && <span>{obra.empresa}</span>}
+          {detailsVisible && <span><MondaySubitemStatusControl obra={obra} canStart={false} canFinish onStatusConfirmed={onStatusConfirmed} /></span>}
           <span
             className="co-masters-cell"
             onClick={(event) => {
@@ -1217,12 +1225,8 @@ export const GanttGrid = memo(function GanttGrid({
               <em>Sem mestre</em>
             )}
           </span>
-          <span>
-            <StatusBadge status={obra.status} />
-          </span>
           {detailsVisible && (
             <>
-              <span>{obra.empresa}</span>
               <button
                 type="button"
                 className="co-start-date"
@@ -1237,6 +1241,7 @@ export const GanttGrid = memo(function GanttGrid({
               <span>{obra.tempoPlanejado ?? "—"}</span>
             </>
           )}
+          {!detailsVisible && <button type="button" className="co-start-date" disabled={!obra.inicioPlanejado} onClick={(event) => { event.stopPropagation(); if (obra.inicioPlanejado) onFocusDate(obra.inicioPlanejado); }}>{formatDateShort(obra.inicioPlanejado)}</button>}
           <span className="co-row-toggle-spacer" aria-hidden="true" />
         </div>
         <div className="co-row-timeline">
@@ -1299,26 +1304,11 @@ export const GanttGrid = memo(function GanttGrid({
                   <KeyboardArrowDownRounded
                     className={collapsed ? "is-collapsed" : ""}
                   />
-                  <button
-                    type="button"
-                    className="co-contract-details"
-                    aria-label={`Ver detalhes de ${group.name}`}
-                    title="Ver detalhes do contrato"
-                    onClick={(event) => {
-                      event.stopPropagation();
-                      if (contrato) onOpenContract(contrato);
-                    }}
-                  >
-                    <MoreVertRounded />
-                  </button>
+                  <b aria-label={`${group.obras.length} obras`}>{group.obras.length}</b>
                 </span>
                 {group.name}
-                <b>{group.obras.length}</b>
               </span>
-              <span>{`${group.obras.length} ${group.obras.length === 1 ? "obra" : "obras"}`}</span>
-              <span className="co-contract-number">
-                {contrato?.numeroContrato ?? "—"}
-              </span>
+              {detailsVisible && <><span>{contrato?.empresa ?? "—"}</span><span><StatusBadge status={contrato?.status ?? "Sem status"} /></span></>}
               <span
                 className="co-masters-cell co-contract-masters"
                 title={mastersTooltip(masters)}
@@ -1339,16 +1329,8 @@ export const GanttGrid = memo(function GanttGrid({
                   <em>Sem mestre</em>
                 )}
               </span>
-              <span>
-                <StatusBadge status={contrato?.status ?? "Sem status"} />
-              </span>
-              {detailsVisible && (
-                <>
-                  <span>{contrato?.empresa ?? "—"}</span>
-                  <span>{formatDateShort(contrato?.inicio)}</span>
-                  <span>{contractDays ?? "—"}</span>
-                </>
-              )}
+              <span>{formatDateShort(contrato?.inicio)}</span>
+              {detailsVisible && <span>{contractDays ?? "—"}</span>}
               <span className="co-row-toggle-spacer" aria-hidden="true" />
             </div>
             <div className="co-row-timeline co-contract-calendar">
