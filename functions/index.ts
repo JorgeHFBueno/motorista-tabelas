@@ -10,6 +10,7 @@ import { mondayWebhookApp, mondayWebhookSigningSecret } from './mondayWebhook.js
 import { mondayWebhookProvisionApp } from './mondayWebhookProvision.js';
 import { mondayOAuthStartApp, mondayOAuthCallbackApp, mondayOAuthClientSecret } from './mondayOAuth.js';
 import { mondayRefreshTokenSecret } from './mondayOAuthTokenStore.js';
+export { mondayLinkObraV2 } from './mondayLinkObraV2.js';
 export { mondayReconcileScheduled } from './mondayReconcileScheduled.js';
 export { getKioskCredentialStatus, provisionKioskCredential, revokeKioskQr, setKioskPin, setKioskPinEnabled } from './kiosk/kioskAdmin.js';
 export { kioskAuthenticatePin } from './kiosk/kioskAuth.js';

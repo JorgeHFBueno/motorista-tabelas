@@ -53,6 +53,9 @@ export default function Header() {
                       <Nav.Link as={Link} to="/engenharia/cronograma">
                         Cronograma de Obras
                       </Nav.Link>
+                      <Nav.Link as={Link} to="/engenharia/obras">
+                        Conciliação de Obras
+                      </Nav.Link>
                     </>
                   )}
                 </>

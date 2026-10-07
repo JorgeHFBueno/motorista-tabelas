@@ -32,6 +32,10 @@
     ],
     "rewrites": [
       {
+        "source": "/api/monday-link-obra-v2",
+        "function": "mondayLinkObraV2"
+      },
+      {
         "source": "/api/admin/**",
         "function": "adminApi"
       },
