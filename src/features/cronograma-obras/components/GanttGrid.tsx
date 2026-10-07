@@ -1,5 +1,4 @@
 import WarningAmberRounded from "@mui/icons-material/WarningAmberRounded";
-import KeyboardArrowDownRounded from "@mui/icons-material/KeyboardArrowDownRounded";
 import {
   type DragEvent,
   memo,
@@ -13,6 +12,8 @@ import type { CalendarDisplayOptions } from "./CalendarToggles";
 import { TimelineHeader } from "./TimelineHeader";
 import { StatusBadge } from "./StatusBadge";
 import { MondaySubitemStatusControl } from "./MondaySubitemStatusControl";
+import { ContractAnalysisRequest } from "./ContractAnalysisRequest";
+import { ContractRowControls } from "./ContractRowControls";
 import type { MondaySubitemStatus } from "../../../services/mondaySubitemStatusService";
 import type {
   ContratoCronograma,
@@ -33,6 +34,7 @@ import {
   weeklyTimelineCells,
 } from "../domain/temporal";
 import { getDirectMasterDropInterval } from "../domain/dropPlanning";
+import { requiresContractReview } from "../data/source/rawCronogramaAdapter";
 import {
   resizeMasterPlanning,
   type MasterResizeEdge,
@@ -52,9 +54,12 @@ import {
 import { clientXToCalendarDay, clientXToTimelineBucket } from "../domain/timelineGeometry";
 import { plannedDaysInYear, yearBucket } from "../domain/calendarYears";
 import {
-  clampObraColumnWidth,
+  clampColumnWidth,
   OBRA_COLUMN_WIDTH,
+  notStartedPanelLayout,
   obraPanelLayout,
+  RESIZABLE_COLUMNS,
+  type ObraPanelColumn,
 } from "../domain/obraGridColumns";
 import {
   masterSelectionForPeriod,
@@ -79,6 +84,7 @@ import {
 interface Props {
   view: "obras" | "mestres";
   viewMode?: "contracts" | "flat";
+  variant?: "started" | "not-started";
   zoom: ZoomCronograma;
   years: number[];
   obras: ObraCronograma[];
@@ -110,6 +116,16 @@ const BUCKET_WIDTH: Record<Exclude<ZoomCronograma, "year">, number> = {
 };
 const DAY_GRID_LINE = "#dfe8ec";
 const WEEK_GRID_LINE = "#b7c8d1";
+const displayRawValue = (value: unknown): string => {
+  if (value === null || value === undefined) return "â€”";
+  if (typeof value === "string") return value.trim() || "â€”";
+  if (["number", "boolean", "bigint"].includes(typeof value)) return String(value);
+  if (typeof value === "object") {
+    const normalized = value as { label?: unknown; name?: unknown; text?: unknown; value?: unknown };
+    return displayRawValue(normalized.label ?? normalized.name ?? normalized.text ?? normalized.value);
+  }
+  return "â€”";
+};
 const MONTH_GRID_LINE = "#8ca6b6";
 const colorStyle = (key: string): React.CSSProperties =>
   ({
@@ -827,6 +843,7 @@ function MasterCells({
 export const GanttGrid = memo(function GanttGrid({
   view,
   viewMode = "contracts",
+  variant = "started",
   zoom,
   years,
   obras,
@@ -855,9 +872,9 @@ export const GanttGrid = memo(function GanttGrid({
   const groupsRef = useRef<ContractGroup[]>(groupObrasByContract(obras));
   const draggingMasterRef = useRef(draggingMaster);
   draggingMasterRef.current = draggingMaster;
-  const [obraColumnWidth, setObraColumnWidth] = useState(
-    OBRA_COLUMN_WIDTH.default,
-  );
+  const [columnWidths, setColumnWidths] = useState<Partial<Record<ObraPanelColumn, number>>>({});
+  const defaultObraWidth = view === "obras" && variant === "started" && viewMode === "flat" ? 285 : OBRA_COLUMN_WIDTH.default;
+  const obraColumnWidth = columnWidths.obra ?? defaultObraWidth;
   const [detailsVisible, setDetailsVisible] = useState(true);
   const [resizingMasterId, setResizingMasterId] = useState<string | null>(null);
   // Only expanded IDs are stored, so every contract starts closed after F5.
@@ -933,19 +950,18 @@ export const GanttGrid = memo(function GanttGrid({
     );
     return () => cancelAnimationFrame(frame);
   }, [focusDate, zoom]);
-  const startObraResize = (event: React.PointerEvent<HTMLButtonElement>) => {
+  const startColumnResize = (column: ObraPanelColumn) => (event: React.PointerEvent<HTMLButtonElement>) => {
     event.preventDefault();
     event.stopPropagation();
     resizeCleanupRef.current?.();
     const pointerId = event.pointerId;
     const handle = event.currentTarget;
     const startX = event.clientX;
-    const startWidth = obraColumnWidth;
+    const defaults: Partial<Record<ObraPanelColumn, number>> = { nomeContrato: 230, obra: defaultObraWidth, empresa: 82, status: 185 };
+    const startWidth = columnWidths[column] ?? defaults[column] ?? 0;
     const move = (moveEvent: PointerEvent) => {
       if (moveEvent.pointerId === pointerId)
-        setObraColumnWidth(
-          clampObraColumnWidth(startWidth + moveEvent.clientX - startX),
-        );
+        setColumnWidths((current) => ({ ...current, [column]: clampColumnWidth(column, startWidth + moveEvent.clientX - startX) }));
     };
     const cleanup = () => {
       document.removeEventListener("pointermove", move);
@@ -1106,18 +1122,23 @@ export const GanttGrid = memo(function GanttGrid({
           .map((group) => group.id),
       );
     });
-  const obraPanel = obraPanelLayout(obraColumnWidth, viewMode, detailsVisible, true);
+  const notStarted = variant === "not-started";
+  const obraPanel = notStarted
+    ? notStartedPanelLayout(obraColumnWidth, viewMode, columnWidths)
+    : obraPanelLayout(obraColumnWidth, viewMode, detailsVisible, true, columnWidths);
   const left =
-    view === "obras" && viewMode === "flat" ? (
+    notStarted && viewMode === "flat" ? <><span>Nome contrato</span><span>Obra</span><span>Emp.</span><span>Status</span><span>Ordem de Ini</span><span>Recurso</span><span>Início</span><span>Dias</span></>
+    : notStarted && view === "obras" ? <><span>Nome contrato</span><span>Emp.</span><span>Status</span><span>Ordem de Ini</span><span>Recurso</span><span>Início</span><span>Dias</span></>
+    : view === "obras" && viewMode === "flat" ? (
       <>
-        <span>Nome contrato</span>
+        <span>Nome contrato{RESIZABLE_COLUMNS.startedFlat.includes("nomeContrato") && <button type="button" className="co-obra-resize-handle" aria-label="Redimensionar coluna Nome contrato" onPointerDown={startColumnResize("nomeContrato")} />}</span>
         <span>
           Obra
           <button
             type="button"
             className="co-obra-resize-handle"
             aria-label="Redimensionar coluna Obra"
-            onPointerDown={startObraResize}
+            onPointerDown={startColumnResize("obra")}
           />
         </span>
         {detailsVisible && <><span>Emp.</span><span>Status</span></>}
@@ -1150,8 +1171,8 @@ export const GanttGrid = memo(function GanttGrid({
       </>
     ) : view === "obras" ? (
       <>
-        <span>Nome contrato</span>
-        {detailsVisible && <><span>Emp.</span><span>Status</span></>}
+        <span>Nome contrato{RESIZABLE_COLUMNS.startedContracts.includes("nomeContrato") && <button type="button" className="co-obra-resize-handle" aria-label="Redimensionar coluna Nome contrato" onPointerDown={startColumnResize("nomeContrato")} />}</span>
+        {detailsVisible && <><span>Emp.{RESIZABLE_COLUMNS.startedContracts.includes("empresa") && <button type="button" className="co-obra-resize-handle" aria-label="Redimensionar coluna Emp." onPointerDown={startColumnResize("empresa")} />}</span><span>Status{RESIZABLE_COLUMNS.startedContracts.includes("status") && <button type="button" className="co-obra-resize-handle" aria-label="Redimensionar coluna Status" onPointerDown={startColumnResize("status")} />}</span></>}
         <span>Mestres</span><span>Início</span>
         {detailsVisible && <span>Dias</span>}
         <button type="button" className="co-columns-toggle" aria-label={detailsVisible ? "Ocultar colunas complementares" : "Mostrar colunas complementares"} title={detailsVisible ? "Ocultar Emp., Status e Dias" : "Mostrar todas as colunas"} onClick={() => setDetailsVisible((visible) => !visible)}>{detailsVisible ? "›" : "‹"}</button>
@@ -1176,6 +1197,24 @@ export const GanttGrid = memo(function GanttGrid({
       : {}),
   } as React.CSSProperties;
   const obraRow = (obra: ObraCronograma, flat = false) => {
+    if (notStarted) {
+      const contrato = contratos.get(obra.contratoId ?? "");
+      const review = obra.targetType === "contrato";
+      const status = review ? flat ? displayRawValue(contrato?.status) : "â€”" : <MondaySubitemStatusControl obra={obra} canStart onStatusConfirmed={onStatusConfirmed} />;
+      const workName = review && contrato
+        ? <ContractAnalysisRequest contrato={contrato} variant="alert" />
+        : obra.nomeObra;
+      return <div role="button" tabIndex={0} className={`co-grid-row co-grid-row--child ${flat ? "co-grid-row--flat" : ""} ${selectedId === obra.id ? "is-selected" : ""}`} key={obra.id} onClick={() => onSelect(obra)} onKeyDown={(event) => { if (event.currentTarget !== event.target || (event.key !== "Enter" && event.key !== " ")) return; event.preventDefault(); onSelect(obra); }}>
+        <div className="co-row-info co-left-row">
+          {flat && <span className="co-contract-name-flat" title={contrato?.nome ?? "â€”"}>{contrato?.nome ?? "â€”"}</span>}
+          <span className="co-work-name" title={obra.nomeObra}>{workName}</span>
+          <span>{obra.empresa || "â€”"}</span><span>{status}</span>
+          <span>{displayRawValue(contrato?.ordemInicio)}</span><span>{displayRawValue(contrato?.confirmacaoRecurso)}</span>
+          <span>{formatDateShort(obra.inicioPlanejado ?? contrato?.inicio)}</span><span>{obra.tempoPlanejado ?? inclusiveCivilDays(contrato?.inicio, contrato?.fim) ?? "â€”"}</span>
+        </div>
+        <div className="co-row-timeline"><ObraCells obra={obra} zoom={zoom} years={years} draggingMaster={draggingMaster} display={display} onDropMaster={stableDropMaster} onResizeMaster={stableStartMasterResize} onSelectMaster={stableSelectMaster} /></div>
+      </div>;
+    }
     const active = mastersWithRealPeriods(obra);
     const recent = recentStartedMaster(obra, todayCivil());
     const visible = viewMode === "flat" && !detailsVisible ? recent ? [recent] : [] : active;
@@ -1299,13 +1338,12 @@ export const GanttGrid = memo(function GanttGrid({
             }}
           >
             <div className="co-row-info co-left-row">
+              {notStarted ? <>
+                <span className="co-contract-name"><ContractRowControls collapsed={collapsed} count={group.obras.length} contrato={contrato} showReview={requiresContractReview(contrato)} />{group.name}</span>
+                <span>{contrato?.empresa ?? "â€”"}</span><span>{displayRawValue(contrato?.status)}</span><span>{displayRawValue(contrato?.ordemInicio)}</span><span>{displayRawValue(contrato?.confirmacaoRecurso)}</span><span>{formatDateShort(contrato?.inicio)}</span><span>{contractDays ?? "â€”"}</span>
+              </> : <>
               <span className="co-contract-name">
-                <span className="co-contract-controls">
-                  <KeyboardArrowDownRounded
-                    className={collapsed ? "is-collapsed" : ""}
-                  />
-                  <b aria-label={`${group.obras.length} obras`}>{group.obras.length}</b>
-                </span>
+                <ContractRowControls collapsed={collapsed} count={group.obras.length} />
                 {group.name}
               </span>
               {detailsVisible && <><span>{contrato?.empresa ?? "—"}</span><span><StatusBadge status={contrato?.status ?? "Sem status"} /></span></>}
@@ -1332,6 +1370,7 @@ export const GanttGrid = memo(function GanttGrid({
               <span>{formatDateShort(contrato?.inicio)}</span>
               {detailsVisible && <span>{contractDays ?? "—"}</span>}
               <span className="co-row-toggle-spacer" aria-hidden="true" />
+              </>}
             </div>
             <div className="co-row-timeline co-contract-calendar">
               {collapsed && (
@@ -1363,7 +1402,7 @@ export const GanttGrid = memo(function GanttGrid({
   ]);
   return (
     <section
-      className={`co-gantt co-gantt--${view} ${draggingMaster ? "is-dragging-master" : ""} ${resizingMasterId ? "is-resizing-master" : ""}`}
+      className={`co-gantt co-gantt--${view} ${notStarted ? "co-gantt--not-started" : ""} ${draggingMaster ? "is-dragging-master" : ""} ${resizingMasterId ? "is-resizing-master" : ""}`}
       aria-label="Cronograma anual"
     >
       <div className="co-gantt-scroll" ref={scrollRef}>

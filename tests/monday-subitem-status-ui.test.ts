@@ -7,6 +7,8 @@ import { updateObraStatusByMondaySubitemId } from '../src/features/cronograma-ob
 import { separarObrasPorSituacao } from '../src/features/cronograma-obras/domain/contractStatus';
 import { classificarLotePorStatus } from '../src/features/cronograma-obras/domain/contractStatus';
 
+test('subitem without a name remains visible as Analisar Contrato', () => { const data = adaptRawCronograma([{ id: 'contract', exists: true, data: { obraV2Id: 'v2', raw: { nome: 'PARENT NAME', ordemInicio: 'ORDEM X', confirmacaoRecurso: 'RECURSO Y', subitems: [{ id: 'child', nome: '   ', status: 'Revisar escopo' }] } } }]); assert.equal(data.obras[0].nomeObra, 'Analisar Contrato'); assert.equal(data.contratos[0].ordemInicio, 'ORDEM X'); assert.equal(data.contratos[0].confirmacaoRecurso, 'RECURSO Y'); });
+
 test('real LOTEs expose mondaySubitemId while synthetic contract rows never do', () => {
   const data = adaptRawCronograma([{ id: 'contract', exists: true, data: { obraV2Id: 'v2', raw: { nome: 'Contrato', subitems: [{ id: '13149530541', nome: 'LOTE 1', status: 'Revisar escopo' }] } } }, { id: 'synthetic', exists: true, data: { obraV2Id: 'v2', raw: { nome: 'Sem LOTE', subitems: [] } } }]);
   assert.equal(data.obras[0].mondaySubitemId, '13149530541'); assert.equal(data.obras[1].mondaySubitemId, undefined); assert.equal(data.obras[1].targetType, 'contrato');

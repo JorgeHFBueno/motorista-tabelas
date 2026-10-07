@@ -8,8 +8,9 @@ const fakeUser = { getIdToken: async () => 'firebase-id-token' } as any;
 
 test('button is visible only through the existing adm2 authorization gate', () => {
   assert.match(page, /useAdm2Authorization/);
-  assert.match(page, /\{canSyncMonday && <div className="co-dev-menu"[\s\S]*?Autorizar Monday/);
-  assert.match(page, />DEV<\/button>/);
+  assert.match(page, /\{canSyncMonday && \([\s\S]*className="co-dev-menu" hidden/);
+  assert.match(page, /Autorizar Monday/);
+  assert.match(page, /runViewTransition\(next, view, \(\) => setView\(next\)\)/);
 });
 
 test('OAuth start sends the Firebase ID token to the exact endpoint with an empty body', async () => {

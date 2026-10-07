@@ -1614,33 +1614,29 @@ export default function CronogramaObrasPage() {
             /></CronogramaProfiler>
           </section>
           <section>
+          <header className="co-section-heading"><h2>Obra não iniciada ({contratosPorSituacao["nao-iniciada"]})</h2><button type="button" className="co-button co-button--secondary" aria-expanded={textSectionsExpanded.notStarted} onClick={() => setTextSectionsExpanded((current) => ({ ...current, notStarted: !current.notStarted }))}>{textSectionsExpanded.notStarted ? "Recolher" : "Expandir"}</button></header>
           <CronogramaProfiler id="ContractTextTable"><ContractTextTable
             viewMode={sectionViews.notStarted}
             variant="not-started"
-              sectionTitle="Obra não iniciada"
-              sectionCount={contratosPorSituacao["nao-iniciada"]}
-              sectionExpanded={textSectionsExpanded.notStarted}
-              onToggleSection={() =>
-                setTextSectionsExpanded((current) => ({
-                  ...current,
-                  notStarted: !current.notStarted,
-                }))
-              }
-              obras={obrasPorSituacao["nao-iniciada"]}
-              contratos={contractMap}
-              onOpenContract={setContractDetails}
-              onSelect={(obra) => {
-                setMasterPanel(null);
-                setMastersPanelId(null);
-                setSelectedId(obra.id);
-              }}
-              onSelectMasters={(obra) => {
-                setMasterPanel(null);
-                setSelectedId(null);
-                setMastersPanelId(null);
-              }}
-              onStatusConfirmed={applyConfirmedMondayStatus}
-            /></CronogramaProfiler>
+            sectionTitle="Obra não iniciada"
+            sectionCount={contratosPorSituacao["nao-iniciada"]}
+            sectionExpanded={textSectionsExpanded.notStarted}
+            onToggleSection={() => setTextSectionsExpanded((current) => ({ ...current, notStarted: !current.notStarted }))}
+            obras={obrasPorSituacao["nao-iniciada"]}
+            contratos={contractMap}
+            onOpenContract={setContractDetails}
+            onSelect={(obra) => {
+              setMasterPanel(null);
+              setMastersPanelId(null);
+              setSelectedId(obra.id);
+            }}
+            onSelectMasters={(obra) => {
+              setMasterPanel(null);
+              setSelectedId(null);
+              setMastersPanelId(null);
+            }}
+            onStatusConfirmed={applyConfirmedMondayStatus}
+          /></CronogramaProfiler>
           </section>
           <section>
           <CronogramaProfiler id="ContractTextTable"><ContractTextTable

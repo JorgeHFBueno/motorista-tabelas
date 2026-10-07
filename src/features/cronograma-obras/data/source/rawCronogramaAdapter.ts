@@ -27,8 +27,8 @@ export function adaptRawContract(document: RawDocument, diagnostics: string[]): 
   if (!Array.isArray(raw.subitems) && raw.subitems !== undefined && raw.subitems !== null) diagnostics.push(`Contrato ${document.id}: raw.subitems não é uma lista; tratado como vazio.`);
   const nome = text(raw.nome, document.id);
   const obras: ObraCronograma[] = subitems.flatMap((subitem) => {
-    const id = text(subitem?.id); const nomeLote = text(subitem?.nome);
-    if (!id || !nomeLote) { diagnostics.push(`Contrato ${document.id} contém subitem sem id ou nome; ignorado.`); return []; }
+    const id = text(subitem?.id); const nomeLote = optionalText(subitem?.nome) ?? 'Analisar Contrato';
+    if (!id) { diagnostics.push(`Contrato ${document.id} contém subitem sem id; ignorado.`); return []; }
     const dias = inclusiveCivilDays(inicio, fim);
     return [{ id, targetType: 'obra', contratoId: document.id, contratoNome: nome, sourceRow: 0, codObra: id, siglaObra: 'LOTE', nomeObra: nomeLote, local: nomeLote, status: text(subitem.status, 'Sem status'), empresa: text(raw.empresa, 'Não informado'), mestreInicial: null, descricao: null, inicioPlanejado: dias === null ? null : inicio, tempoPlanejado: dias, allocationAllowed: dias !== null, mestresPlanejados: [] } satisfies ObraCronograma];
   });
