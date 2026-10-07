@@ -1,7 +1,9 @@
 import EngineeringRounded from "@mui/icons-material/EngineeringRounded";
 import FilterListRounded from "@mui/icons-material/FilterListRounded";
+import ArrowBackRounded from "@mui/icons-material/ArrowBackRounded";
 import ViewListRounded from "@mui/icons-material/ViewListRounded";
 import { Profiler, useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import {
   CalendarToggles,
   type CalendarDisplayOptions,
@@ -102,6 +104,12 @@ type CronogramaViewTransition =
   | "dias"
   | "semanas"
   | null;
+
+type VisualizationPopoverPosition = {
+  top: number;
+  left?: number;
+  right?: number;
+};
 
 const VIEW_TRANSITION_MESSAGES: Record<
   Exclude<CronogramaViewTransition, null>,
@@ -282,7 +290,10 @@ export default function CronogramaObrasPage() {
     DEFAULT_WORK_SECTION_VIEWS,
   );
   const [sectionViewsOpen, setSectionViewsOpen] = useState(false);
-  const sectionViewsRef = useRef<HTMLDivElement>(null);
+  const visualizationTriggerRef = useRef<HTMLButtonElement>(null);
+  const visualizationPopoverRef = useRef<HTMLDivElement>(null);
+  const [visualizationPopoverPosition, setVisualizationPopoverPosition] =
+    useState<VisualizationPopoverPosition | null>(null);
   const [sectionViewsUid, setSectionViewsUid] = useState<string | null>(null);
   const [sectionTransitionLabel, setSectionTransitionLabel] = useState<string | null>(null);
   const [textSectionsExpanded, setTextSectionsExpanded] = useState({
@@ -371,7 +382,10 @@ export default function CronogramaObrasPage() {
   useEffect(() => {
     if (!sectionViewsOpen) return;
     const closeOnOutsidePointer = (event: PointerEvent) => {
-      if (!sectionViewsRef.current?.contains(event.target as Node))
+      const target = event.target as Node;
+      const clickedTrigger = visualizationTriggerRef.current?.contains(target);
+      const clickedPopover = visualizationPopoverRef.current?.contains(target);
+      if (!clickedTrigger && !clickedPopover)
         setSectionViewsOpen(false);
     };
     const closeOnEscape = (event: KeyboardEvent) => {
@@ -382,6 +396,30 @@ export default function CronogramaObrasPage() {
     return () => {
       window.removeEventListener("pointerdown", closeOnOutsidePointer);
       window.removeEventListener("keydown", closeOnEscape);
+    };
+  }, [sectionViewsOpen]);
+  useEffect(() => {
+    if (!sectionViewsOpen) {
+      setVisualizationPopoverPosition(null);
+      return;
+    }
+    const updatePosition = () => {
+      const trigger = visualizationTriggerRef.current;
+      if (!trigger) return;
+      const rect = trigger.getBoundingClientRect();
+      const alignRight = rect.left + 430 > window.innerWidth - 8;
+      setVisualizationPopoverPosition(
+        alignRight
+          ? { top: rect.bottom + 7, right: Math.max(8, window.innerWidth - rect.right) }
+          : { top: rect.bottom + 7, left: Math.max(8, rect.left) },
+      );
+    };
+    updatePosition();
+    window.addEventListener("resize", updatePosition);
+    window.addEventListener("scroll", updatePosition, true);
+    return () => {
+      window.removeEventListener("resize", updatePosition);
+      window.removeEventListener("scroll", updatePosition, true);
     };
   }, [sectionViewsOpen]);
   useEffect(() => {
@@ -1022,63 +1060,6 @@ export default function CronogramaObrasPage() {
   return (
     <main className={`co-page co-zoom--${zoom}`}>
       <header className="co-page-header">
-      <div className="co-work-view-control co-controls" aria-label="Controles de visualização">
-          <div className="co-section-views" ref={sectionViewsRef}>
-            <button
-              type="button"
-              className={`co-section-views-trigger ${sectionViewsOpen ? "is-active" : ""}`}
-              aria-expanded={sectionViewsOpen}
-              aria-haspopup="dialog"
-              onClick={() => setSectionViewsOpen((open) => !open)}
-            >
-              <ViewListRounded fontSize="small" />
-              Visualização
-            </button>
-            {sectionViewsOpen && (
-              <div className="co-section-views-popover" role="dialog" aria-label="Visualização das tabelas">
-                <strong>Visualização das tabelas</strong>
-                {([
-                  ["started", "Obra iniciada"],
-                  ["notStarted", "Obra não iniciada"],
-                  ["finished", "Obra finalizada"],
-                ] as const).map(([section, label]) => (
-                  <div className="co-section-views-row" key={section}>
-                    <span>{label}</span>
-                    <div className="co-view-switch" aria-label={`Visualização: ${label}`}>
-                      <button
-                        type="button"
-                        aria-pressed={sectionViews[section] === "contracts"}
-                        className={sectionViews[section] === "contracts" ? "is-active" : ""}
-                        disabled={isViewTransitioning}
-                        onClick={() => changeSectionView(section, "contracts")}
-                      >
-                        Contratos
-                      </button>
-                      <button
-                        type="button"
-                        aria-pressed={sectionViews[section] === "flat"}
-                        className={sectionViews[section] === "flat" ? "is-active" : ""}
-                        disabled={isViewTransitioning}
-                        onClick={() => changeSectionView(section, "flat")}
-                      >
-                        Lista corrida
-                      </button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-          <div className="co-view-switch co-header-segmented-control" aria-label="Domínio do cronograma">
-            <button type="button" disabled={isViewTransitioning} className={`co-header-segmented-option ${view === "obras" ? "is-active" : ""}`} onClick={() => changeView("obras")}>Obras</button>
-            <button type="button" disabled={isViewTransitioning} className={`co-header-segmented-option ${view === "mestres" ? "is-active" : ""}`} onClick={() => changeView("mestres")}>Mestres</button>
-          </div>
-          <div className="co-view-switch co-zoom-switch co-header-segmented-control" aria-label="Escala do cronograma">
-            {([ ["day", "Dias"], ["week", "Semanas"] ] as const).map(([value, label]) => (
-              <button type="button" key={value} disabled={isViewTransitioning} className={`co-header-segmented-option ${zoom === value ? "is-active" : ""}`} onClick={() => changeZoom(value)}>{label}</button>
-            ))}
-          </div>
-      </div>
         <div className="co-title">
           <span className="co-title-icon">
             <EngineeringRounded />
@@ -1179,9 +1160,9 @@ export default function CronogramaObrasPage() {
             <span>Conflitos de alocação</span>
             <strong>{indicators.conflicts}</strong>
           </div>
-        </div>
-        <div className="co-operational-controls">
-          {canSyncMonday && (
+          </div>
+          <div className="co-operational-controls">
+          {false && canSyncMonday && (
             <div className="co-dev-menu">
               <button
                 className="co-button co-button--secondary"
@@ -1268,6 +1249,56 @@ export default function CronogramaObrasPage() {
               )}
             </div>
           )}
+          <div className="co-section-views-control">
+            <button
+              ref={visualizationTriggerRef}
+              data-crono-visualization-trigger
+              type="button"
+              className={`co-section-views-trigger ${sectionViewsOpen ? "is-active" : ""}`}
+              title="Visualização"
+              aria-label="Visualização"
+              aria-expanded={sectionViewsOpen}
+              aria-haspopup="dialog"
+              onClick={() => setSectionViewsOpen((open) => !open)}
+            >
+              <ViewListRounded fontSize="small" />
+            </button>
+            {sectionViewsOpen && visualizationPopoverPosition && createPortal(
+              <div ref={visualizationPopoverRef} data-crono-visualization-popover className="co-section-views-popover" role="dialog" aria-label="Visualização das tabelas" style={visualizationPopoverPosition}>
+                <strong>Visualização das tabelas</strong>
+                {([
+                  ["started", "Obra iniciada"],
+                  ["notStarted", "Obra não iniciada"],
+                  ["finished", "Obra finalizada"],
+                ] as const).map(([section, label]) => (
+                  <div className="co-section-views-row" key={section}>
+                    <span>{label}</span>
+                    <div className="co-view-switch" aria-label={`Visualização: ${label}`}>
+                      <button
+                        type="button"
+                        aria-pressed={sectionViews[section] === "contracts"}
+                        className={sectionViews[section] === "contracts" ? "is-active" : ""}
+                        disabled={isViewTransitioning}
+                        onClick={() => changeSectionView(section, "contracts")}
+                      >
+                        Contratos
+                      </button>
+                      <button
+                        type="button"
+                        aria-pressed={sectionViews[section] === "flat"}
+                        className={sectionViews[section] === "flat" ? "is-active" : ""}
+                        disabled={isViewTransitioning}
+                        onClick={() => changeSectionView(section, "flat")}
+                      >
+                        Lista corrida
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>,
+              document.body,
+            )}
+          </div>
           <button
             className={`co-button co-button--secondary co-filter-toggle ${filtersOpen ? "is-active" : ""}`}
             type="button"
@@ -1482,6 +1513,8 @@ export default function CronogramaObrasPage() {
         masters={masters}
         draggingMaster={draggingMaster}
         disabled={zoom === "year"}
+        onViewMasters={() => changeView("mestres")}
+        showViewMasters={view === "obras"}
         onDragStart={setDraggingMaster}
         onDragEnd={() => setDraggingMaster(null)}
         onAdd={() => {
@@ -1537,6 +1570,11 @@ export default function CronogramaObrasPage() {
           <section>
             <header className="co-section-heading">
               <h2>Obra iniciada ({contratosPorSituacao.iniciada})</h2>
+              <div className="co-view-switch co-zoom-switch" aria-label="Escala do cronograma">
+                {([ ["day", "Dias"], ["week", "Semanas"] ] as const).map(([value, label]) => (
+                  <button type="button" key={value} disabled={isViewTransitioning} className={zoom === value ? "is-active" : ""} onClick={() => changeZoom(value)}>{label}</button>
+                ))}
+              </div>
             </header>
           <CronogramaProfiler id="GanttGrid"><GanttGrid
             view="obras"
@@ -1639,7 +1677,15 @@ export default function CronogramaObrasPage() {
           )}
         </div>
       ) : (
-        <CronogramaProfiler id="GanttGrid"><GanttGrid
+        <>
+          <header className="co-section-heading co-masters-section-heading">
+            <h2>Mestres</h2>
+            <button type="button" className="co-button co-button--secondary" disabled={isViewTransitioning} onClick={() => changeView("obras")}>
+              <ArrowBackRounded fontSize="small" />
+              Voltar para Obras
+            </button>
+          </header>
+          <CronogramaProfiler id="GanttGrid"><GanttGrid
           view={view}
           zoom={zoom}
           years={years}
@@ -1672,7 +1718,8 @@ export default function CronogramaObrasPage() {
           onResizeMasterPreview={resizeMasterPreview}
           onResizeMasterCommit={resizeMaster}
           onResizeMasterCancel={cancelResizeMaster}
-        /></CronogramaProfiler>
+          /></CronogramaProfiler>
+        </>
       )}
       {view === "mestres" && <WorkloadPanel workloads={workloads} />}
       {viewTransition && (
