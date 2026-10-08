@@ -249,6 +249,40 @@
 .co-contract-details { align-items: center; background: #d8e8f0; border: 1px solid #789aae; border-radius: 4px; color: #163f5c; cursor: pointer; display: inline-flex; flex: 0 0 16px; height: 16px; justify-content: center; padding: 0; width: 18px; }
 .co-contract-details:hover, .co-contract-details:focus-visible { background: #b9d6e5; color: #092f48; outline: 2px solid #2f6b98; outline-offset: 1px; }
 .co-contract-details svg { font-size: 1rem; }
+.co-work-hover-trigger { display: inline-flex; max-width: 100%; min-width: 0; overflow: hidden; text-overflow: ellipsis; vertical-align: middle; }
+.co-work-hover-trigger:focus-visible { outline: 2px solid #2f6b98; outline-offset: 2px; }
+.co-work-hover-card { align-items: center; background: #132532; border: 1px solid #29485a; border-radius: 10px; box-shadow: 0 9px 24px rgb(8 20 28 / .32); display: flex; flex-wrap: wrap; gap: 3px; padding: 4px; position: fixed; z-index: 1600; }
+.co-work-hover-card.is-expanded { display: block; min-width: min(380px, calc(100vw - 16px)); padding: 6px; }
+.co-work-hover-card::after { border: 7px solid transparent; content: ""; left: var(--co-work-hover-arrow-left, 50%); margin-left: -7px; position: absolute; }
+.co-work-hover-card.is-above::after { border-top-color: #132532; bottom: -14px; }
+.co-work-hover-card.is-below::after { border-bottom-color: #132532; top: -14px; }
+.co-work-hover-action { align-items: center; background: transparent; border: 0; border-radius: 7px; color: #fff; cursor: pointer; display: inline-flex; font: inherit; font-size: .73rem; font-weight: 750; gap: 4px; justify-content: center; min-height: 29px; padding: 4px 8px; }
+.co-work-hover-action:hover, .co-work-hover-action:focus-visible { background: rgb(255 255 255 / .14); outline: none; }
+.co-work-hover-actions { display: flex; gap: 3px; }
+.co-work-balance { border-top: 1px solid #29485a; color: #e9f4f8; margin-top: 4px; padding: 9px 4px 3px; }
+.co-balance-summary section + section { border-top: 1px solid rgb(255 255 255 / .12); margin-top: 10px; padding-top: 9px; }
+.co-balance-summary h3 { font-size: .67rem; letter-spacing: .08em; margin: 0 0 6px; }
+.co-balance-summary-grid { display: grid; gap: 8px; }
+.co-balance-summary-grid--total { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.co-balance-summary-grid--saldo { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.co-balance-summary-value { min-width: 0; }
+.co-balance-summary-value span { color: #aec4cf; display: block; font-size: .63rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.co-balance-summary-value strong { display: block; font-size: .82rem; margin-top: 2px; white-space: nowrap; }
+.co-balance-modal-backdrop { align-items: center; background: rgb(0 0 0 / .42); display: flex; inset: 0; justify-content: center; padding: 24px; position: fixed; z-index: 1800; }
+.co-balance-modal { background: #f8fbfd; border: 1px solid #b9c9d2; border-radius: 12px; box-shadow: 0 20px 54px rgb(8 20 28 / .38); color: #163f5c; max-height: calc(100vh - 48px); max-width: 760px; overflow: auto; padding: 22px; width: min(100%, 680px); }
+.co-balance-modal header { align-items: flex-start; border-bottom: 1px solid #d5e0e6; display: flex; gap: 18px; justify-content: space-between; margin-bottom: 20px; padding-bottom: 16px; }
+.co-balance-modal header p { color: #567282; font-size: .7rem; font-weight: 800; letter-spacing: .08em; margin: 0 0 6px; }
+.co-balance-modal header h2 { font-size: 1rem; line-height: 1.35; margin: 0; }
+.co-balance-modal header button { align-items: center; background: transparent; border: 0; border-radius: 6px; color: #31576f; cursor: pointer; display: inline-flex; padding: 4px; }
+.co-balance-modal header button:hover, .co-balance-modal header button:focus-visible { background: #e1edf3; outline: 2px solid #2f6b98; outline-offset: 1px; }
+.co-balance-summary--modal { display: grid; gap: 20px; }
+.co-balance-summary--modal section + section { border-top: 1px solid #d5e0e6; margin-top: 0; padding-top: 18px; }
+.co-balance-summary--modal h3 { color: #567282; font-size: .7rem; }
+.co-balance-summary--modal .co-balance-summary-grid { gap: 12px; }
+.co-balance-summary--modal .co-balance-summary-value { background: #edf4f7; border: 1px solid #d5e0e6; border-radius: 7px; padding: 13px; }
+.co-balance-summary--modal .co-balance-summary-value span { color: #567282; font-size: .67rem; font-weight: 750; white-space: normal; }
+.co-balance-summary--modal .co-balance-summary-value strong { color: #163f5c; font-size: .94rem; }
+@media (max-width: 540px) { .co-balance-modal-backdrop { padding: 12px; } .co-balance-modal { max-height: calc(100vh - 24px); padding: 17px; } .co-balance-summary--modal .co-balance-summary-grid--total { grid-template-columns: 1fr; } }
 .co-gantt:not(.co-gantt--not-started) .co-contract-group:has(.co-work-name[title="Analisar Contrato"]) .co-contract-name::after { background: #fff0c9; border: 1px solid #e5bd65; border-radius: 99px; color: #76521f; content: 'Analisar Contrato'; flex: 0 1 auto; font-size: .55rem; font-weight: 850; letter-spacing: 0; overflow: hidden; padding: 2px 5px; text-overflow: ellipsis; white-space: nowrap; }
 .co-gantt:not(.co-gantt--not-started) .co-grid-row--child:has(.co-work-name[title="Analisar Contrato"]) .co-work-name { background: #fff4d8; border: 1px solid #efd49c; border-radius: 4px; color: #76521f; font-weight: 850; padding-right: 7px; }
 .co-gantt:not(.co-gantt--not-started) .co-grid-row--child:has(.co-work-name[title="Analisar Contrato"]) .co-work-name::after { color: #a56d1d; content: '⚠'; font-size: .75rem; margin-left: 5px; }

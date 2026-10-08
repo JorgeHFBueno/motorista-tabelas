@@ -1,5 +1,4 @@
 import KeyboardArrowDownRounded from "@mui/icons-material/KeyboardArrowDownRounded";
-import MoreVertRounded from "@mui/icons-material/MoreVertRounded";
 import WarningAmberRounded from "@mui/icons-material/WarningAmberRounded";
 import { memo, useEffect, useMemo, useRef, useState } from "react";
 import type { ContratoCronograma, ObraCronograma } from "../domain/models";
@@ -10,6 +9,7 @@ import { clampColumnWidth, OBRA_COLUMN_WIDTH, notStartedPanelLayout, obraPanelLa
 import { MondaySubitemStatusControl } from "./MondaySubitemStatusControl";
 import { ContractAnalysisRequest } from "./ContractAnalysisRequest";
 import { ContractRowControls } from "./ContractRowControls";
+import { WorkHoverActions, WorkHoverTrigger } from "./WorkHoverActions";
 import type { MondaySubitemStatus } from "../../../services/mondaySubitemStatusService";
 import {
   buildFlatWorkGroupsByWorkType,
@@ -149,7 +149,7 @@ export const ContractTextTable = memo(function ContractTextTable({
     const needsContractReview = obra.targetType === "contrato" && requiresContractReview(contrato);
     if (notStarted) return <>
       <span title={contrato?.nome ?? missing}>{contrato?.nome ?? missing}</span>
-      <span className="co-work-name" title={obra.nomeObra}>{needsContractReview && contrato ? <ContractAnalysisRequest contrato={contrato} variant="alert" /> : obra.nomeObra}</span>
+      <span className="co-work-name" title={obra.nomeObra}>{contrato ? <WorkHoverTrigger id={obra.id} contractId={contrato.id} contractName={contrato.nome} onMore={() => onOpenContract(contrato)}>{needsContractReview ? <ContractAnalysisRequest contrato={contrato} variant="alert" /> : obra.nomeObra}</WorkHoverTrigger> : needsContractReview && contrato ? <ContractAnalysisRequest contrato={contrato} variant="alert" /> : obra.nomeObra}</span>
       <span>{obra.empresa || missing}</span>
       <span><MondaySubitemStatusControl obra={obra} canStart={notStarted} onStatusConfirmed={onStatusConfirmed} /></span>
       <span>{displayOptionalValue(contrato?.ordemInicio)}</span>
@@ -160,7 +160,7 @@ export const ContractTextTable = memo(function ContractTextTable({
     const review = obra.targetType === "contrato";
     return <>
       <span title={contrato?.nome ?? missing}>{contrato?.nome ?? missing}</span>
-      <span className="co-work-name" title={obra.nomeObra}>{obra.nomeObra}{review && <WarningAmberRounded className="co-review-icon" fontSize="inherit" titleAccess="Contrato sem LOTEs/subitems. Revisar no Monday." />}</span>
+      <span className="co-work-name" title={obra.nomeObra}>{contrato ? <WorkHoverTrigger id={obra.id} contractId={contrato.id} contractName={contrato.nome} onMore={() => onOpenContract(contrato)}>{obra.nomeObra}{review && <WarningAmberRounded className="co-review-icon" fontSize="inherit" titleAccess="Contrato sem LOTEs/subitems. Revisar no Monday." />}</WorkHoverTrigger> : <>{obra.nomeObra}{review && <WarningAmberRounded className="co-review-icon" fontSize="inherit" titleAccess="Contrato sem LOTEs/subitems. Revisar no Monday." />}</>}</span>
       <span>{displayRawValue(contrato?.numeroContrato)}</span>
       <MastersCell obras={[obra]} onSelectMasters={onSelectMasters} />
       <span><MondaySubitemStatusControl obra={obra} canStart={notStarted} onStatusConfirmed={onStatusConfirmed} /></span>
@@ -174,7 +174,7 @@ export const ContractTextTable = memo(function ContractTextTable({
     if (!notStarted) return obraCells(obra, contrato);
     const needsContractReview = obra.targetType === "contrato" && requiresContractReview(contrato);
     return <>
-      <span className="co-work-name" title={obra.nomeObra}>{needsContractReview && contrato ? <ContractAnalysisRequest contrato={contrato} variant="alert" /> : obra.nomeObra}</span>
+      <span className="co-work-name" title={obra.nomeObra}>{contrato ? <WorkHoverTrigger id={obra.id} contractId={contrato.id} contractName={contrato.nome} onMore={() => onOpenContract(contrato)}>{needsContractReview ? <ContractAnalysisRequest contrato={contrato} variant="alert" /> : obra.nomeObra}</WorkHoverTrigger> : needsContractReview && contrato ? <ContractAnalysisRequest contrato={contrato} variant="alert" /> : obra.nomeObra}</span>
       <span>{obra.empresa || missing}</span>
       <span>{obra.targetType === "obra" && obra.mondaySubitemId
         ? <MondaySubitemStatusControl obra={obra} canStart={notStarted} onStatusConfirmed={onStatusConfirmed} />
@@ -193,8 +193,7 @@ export const ContractTextTable = memo(function ContractTextTable({
       return <div role="button" tabIndex={0} className={`co-text-row co-text-row--flat ${needsContractReview ? "co-text-row--review" : ""}`} key={obra.id} onClick={() => onSelect(obra)} onKeyDown={(event) => selectOnKey(event, obra)}>{obraCells(obra, contrato)}</div>;
     }),
   ]);
-  return (
-    <section className={`co-text-table co-text-table--${variant} ${viewMode === "flat" ? "co-text-table--flat" : ""}`} aria-label={sectionTitle} style={tableStyle}>
+  return <WorkHoverActions closeKey={`${viewMode}.${variant}.${sectionExpanded}.${obras.map((obra) => obra.id).join(",")}`}><section className={`co-text-table co-text-table--${variant} ${viewMode === "flat" ? "co-text-table--flat" : ""}`} aria-label={sectionTitle} style={tableStyle}>
       <div className="co-text-head">
         {notStarted && (viewMode === "flat"
           ? ([['nomeContrato', 'Nome contrato'], ['obra', 'Obra'], ['empresa', 'Emp.'], ['status', 'Status'], ['ordemInicio', 'Ordem de Ini'], ['confirmacaoRecurso', 'Recurso'], ['inicio', 'In\u00edcio'], ['dias', 'Dias']] as const).map(([column, label]) => <HeaderCell key={column} column={column} label={label} />)
@@ -221,8 +220,8 @@ export const ContractTextTable = memo(function ContractTextTable({
           return <div className={`co-text-contract ${needsReview ? "co-text-contract--review" : ""}`} key={group.id}>
             <div className="co-text-row co-text-row--contract" role="button" tabIndex={0} aria-expanded={expanded} onClick={() => toggle(group.id)} onKeyDown={(event) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); event.currentTarget.click(); } }}>
               <span className="co-contract-name" title={group.name}>
-                {notStarted ? <ContractRowControls collapsed={!expanded} count={group.obras.length} contrato={contrato} showReview={needsReview} /> : <><KeyboardArrowDownRounded className={expanded ? "" : "is-collapsed"} /><button type="button" className="co-contract-details" aria-label={`Ver detalhes de ${group.name}`} onClick={(event) => { event.stopPropagation(); if (contrato) onOpenContract(contrato); }}><MoreVertRounded /></button></>}
-                {group.name}
+                {notStarted ? <ContractRowControls collapsed={!expanded} count={group.obras.length} contrato={contrato} showReview={needsReview} /> : <><KeyboardArrowDownRounded className={expanded ? "" : "is-collapsed"} /></>}
+                {contrato ? <WorkHoverTrigger id={group.id} contractId={contrato.id} contractName={contrato.nome} onMore={() => onOpenContract(contrato)}>{group.name}</WorkHoverTrigger> : group.name}
                 {needsReview && !notStarted && <><WarningAmberRounded className="co-review-icon" fontSize="inherit" /><ContractAnalysisRequest contrato={contrato!} /></>}
               </span>
               {notStarted ? <><span>{contrato?.empresa ?? missing}</span><span>{displayRawValue(contrato?.status)}</span><span>{displayOptionalValue(contrato?.ordemInicio)}</span><span>{displayOptionalValue(contrato?.confirmacaoRecurso)}</span><span>{formatDateShort(contrato?.inicio ?? null)}</span><span>{days ?? missing}</span></> : <><span>{obrasLabel}</span><span>{displayRawValue(contrato?.numeroContrato)}</span><MastersCell obras={group.obras} /><span>{displayRawValue(contrato?.status)}</span><span>{contrato?.empresa ?? missing}</span><span>{formatDateShort(contrato?.inicio ?? null)}</span><span>{days ?? missing}</span><span className="co-text-toggle-spacer" aria-hidden="true" /></>}
@@ -232,6 +231,5 @@ export const ContractTextTable = memo(function ContractTextTable({
         }),
       ]))}
       {sectionExpanded && !groups.length && <div className="co-empty">Nenhum contrato nesta situação.</div>}
-    </section>
-  );
+    </section></WorkHoverActions>;
 });
