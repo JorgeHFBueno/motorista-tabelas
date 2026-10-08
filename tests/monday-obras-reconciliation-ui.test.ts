@@ -17,8 +17,10 @@ test('reconciliation UI has client-side searches, filters, selection and safe co
   const page = source('src/pages/EngenhariaObrasPage.tsx');
   assert.match(page, /\[row\.nome, row\.numeroContrato, row\.documentId\]/);
   assert.match(page, /\[row\.nomeObra, row\.siglaObra, row\.codObra, row\.documentId\]/);
-  assert.match(page, /<Tab value="Pendentes"/);
-  assert.match(page, /<Tab value="Vinculados"/);
+  assert.match(page, /useState<ReconciliationFilter>\('Pendentes'\)/g);
+  assert.equal((page.match(/<Tabs value=\{(?:mondayFilter|obraFilter)\}[\s\S]*?<Tab value="Pendentes" label="Pendentes" \/><Tab value="Vinculados" label="Vinculados" \/><Tab value="Todos" label="Todos" \/><\/Tabs>/g) ?? []).length, 2);
+  assert.match(page, /filterMondayObras\(monday, mondayFilter\)/);
+  assert.match(page, /filterObrasV2\(obras, monday, obraFilter\)/);
   assert.match(page, /setSelectedMonday\(row\)/);
   assert.match(page, /setSelectedObra\(row\)/);
   assert.match(page, /Confirmar vínculo/);
