@@ -415,6 +415,7 @@
 .co-master-strips { min-width: 0; pointer-events: auto; position: relative; }
 .co-cell-lanes--alert-off > .co-temporal-layer, .co-cell-lanes--alert-off > .co-cell-space, .co-day-lanes.co-cell-lanes--alert-off > .co-temporal-layer, .co-day-lanes.co-cell-lanes--alert-off > .co-cell-space, .co-week-lanes.co-cell-lanes--alert-off > .co-temporal-layer, .co-week-lanes.co-cell-lanes--alert-off > .co-cell-space { opacity: 0; visibility: hidden; }
 .co-cell-lanes--alert-off { grid-template-rows: minmax(0, 1fr); }
+.co-cell-lanes--alert-off > .co-master-strips { grid-row: 1; }
 .co-master-strips--alert-off { height: auto; inset-block: 0; left: 0; position: absolute; right: 0; }
 .co-master-strip { background: var(--co-master-color); container-type: inline-size; min-width: 2px; overflow: visible; position: absolute; }
 .co-master-strips--alert-on .co-master-strip { height: calc(100% / var(--co-master-count)); top: calc((var(--co-master-index) * 100%) / var(--co-master-count)); }
