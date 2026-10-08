@@ -26,5 +26,8 @@ async function request(path = '', options: RequestInit = {}) {
 
 export async function listMondayObras(): Promise<{ monday: MondayObraRow[]; obrasV2: ObraV2Row[] }> { return request(); }
 export async function linkMondayObra(mondayItemId: string, obraV2Id: string): Promise<{ result: 'UPDATED' | 'NO_CHANGE' }> {
-  return request('', { method: 'POST', body: JSON.stringify({ mondayItemId, obraV2Id }) });
+  return request('', { method: 'POST', body: JSON.stringify({ action: 'LINK_EXISTING', mondayItemId, obraV2Id }) });
+}
+export async function createAndLinkMondayObra(mondayItemId: string): Promise<{ result: 'CREATED_AND_LINKED'; obraV2Id: string }> {
+  return request('', { method: 'POST', body: JSON.stringify({ action: 'CREATE_AND_LINK', mondayItemId }) });
 }

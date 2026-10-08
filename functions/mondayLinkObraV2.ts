@@ -7,6 +7,7 @@ import { db } from './firebaseAdmin.js';
 type AnyRecord = Record<string, any>;
 type FirestoreLike = any;
 export type LinkResult = 'UPDATED' | 'NO_CHANGE';
+export type CreateAndLinkResult = { result: 'CREATED_AND_LINKED'; obraV2Id: string; obra: Record<string, unknown> };
 
 export class LinkError extends Error {
   constructor(readonly code: string, readonly httpStatus: number) { super(code); }
@@ -19,6 +20,37 @@ export function mondayRow(id: string, data: AnyRecord) {
 
 export function obraV2Row(id: string, data: AnyRecord) {
   return { documentId: id, codObra: data?.codObra ?? null, siglaObra: data?.siglaObra ?? null, nomeObra: data?.nomeObra ?? null, local: data?.local ?? null, status: data?.status ?? null, data };
+}
+
+export function normalizeObraV2Date(value: unknown): string | null {
+  if (value === null || value === undefined || value === '') return null;
+  const text = String(value);
+  return /^\d{4}-\d{2}-\d{2}$/.test(text) ? `${text}T00:00:00` : text;
+}
+
+export function composeObraV2Name(name: unknown, contract: unknown): string {
+  const base = String(name ?? '').trim();
+  const value = String(contract ?? '').trim();
+  if (!base) return value;
+  if (!value) return base;
+  const digits = value.replace(/^0+/, '') || '0';
+  return new RegExp(`(^|\\D)0*${digits}(\\D|$)`).test(base) ? base : `${base} ${value}`;
+}
+
+export function obraV2FromMonday(data: AnyRecord): Record<string, unknown> {
+  const raw = data?.raw;
+  const nome = typeof raw?.nome === 'string' ? raw.nome.trim() : '';
+  if (!nome) throw new LinkError('monday_missing_required_fields', 422);
+  const date = normalizeObraV2Date(raw.inicio);
+  return {
+    codObra: 0,
+    nomeObra: composeObraV2Name(nome, raw.numeroContrato),
+    siglaObra: nome,
+    local: 'CORRIGIR',
+    status: 'CONTRATADA',
+    dataInicial: date,
+    dataFinal: date,
+  };
 }
 
 export async function listObras(firestore: FirestoreLike = db) {
@@ -55,6 +87,23 @@ export async function linkObraV2(mondayItemId: string, obraV2Id: string, firesto
   });
 }
 
+export async function createAndLinkObraV2(mondayItemId: string, firestore: FirestoreLike = db): Promise<CreateAndLinkResult> {
+  if (!/^\d+$/.test(mondayItemId)) throw new LinkError('invalid_request', 400);
+  return firestore.runTransaction(async (transaction: any) => {
+    const mondayRef = firestore.collection('monday-obras').doc(mondayItemId);
+    const mondaySnapshot = await transaction.get(mondayRef);
+    if (!mondaySnapshot.exists) throw new LinkError('monday_not_found', 404);
+    const current = mondaySnapshot.get('obraV2Id');
+    if (typeof current === 'string' && current.trim()) throw new LinkError('already_linked', 409);
+
+    const obra = obraV2FromMonday(mondaySnapshot.data?.() ?? {});
+    const obraRef = firestore.collection('obras-v2').doc();
+    transaction.create(obraRef, obra);
+    transaction.update(mondayRef, { obraV2Id: obraRef.id });
+    return { result: 'CREATED_AND_LINKED', obraV2Id: obraRef.id, obra };
+  });
+}
+
 export function createMondayLinkObraV2App(options: { authMiddleware?: typeof adminAuthMiddleware; firestore?: FirestoreLike } = {}) {
   const app = express();
   app.use(cors({ origin: true }));
@@ -70,7 +119,14 @@ export function createMondayLinkObraV2App(options: { authMiddleware?: typeof adm
   app.post(['/', '/api/monday-link-obra-v2'], async (req: AdminRequest, res) => {
     const mondayItemId = typeof req.body?.mondayItemId === 'string' ? req.body.mondayItemId : '';
     const obraV2Id = typeof req.body?.obraV2Id === 'string' ? req.body.obraV2Id : '';
+    const action = typeof req.body?.action === 'string' ? req.body.action : 'LINK_EXISTING';
     try {
+      if (action === 'CREATE_AND_LINK') {
+        const result = await createAndLinkObraV2(mondayItemId, firestore);
+        res.json({ ...result, mondayItemId });
+        return;
+      }
+      if (action !== 'LINK_EXISTING') throw new LinkError('invalid_action', 400);
       const result = await linkObraV2(mondayItemId, obraV2Id, firestore);
       res.json({ result, mondayItemId, obraV2Id });
     } catch (error) {
