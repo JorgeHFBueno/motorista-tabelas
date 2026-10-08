@@ -45,6 +45,7 @@ import {
   persistWorkSectionViews,
   type WorkSectionViews,
 } from "./domain/sectionViews";
+import { loadTimelineZoom, persistTimelineZoom } from "./domain/zoomPreferences";
 import type {
   CivilDate,
   ContratoCronograma,
@@ -295,6 +296,7 @@ export default function CronogramaObrasPage() {
   const [visualizationPopoverPosition, setVisualizationPopoverPosition] =
     useState<VisualizationPopoverPosition | null>(null);
   const [sectionViewsUid, setSectionViewsUid] = useState<string | null>(null);
+  const [zoomUid, setZoomUid] = useState<string | null>(null);
   const [sectionTransitionLabel, setSectionTransitionLabel] = useState<string | null>(null);
   const [textSectionsExpanded, setTextSectionsExpanded] = useState({
     notStarted: true,
@@ -379,6 +381,14 @@ export default function CronogramaObrasPage() {
       return;
     persistWorkSectionViews(currentUser.uid, sectionViews, window.localStorage);
   }, [currentUser?.uid, sectionViews, sectionViewsUid]);
+  useEffect(() => {
+    if (!currentUser?.uid || typeof window === "undefined") {
+      setZoomUid(null);
+      return;
+    }
+    setZoomState(loadTimelineZoom(currentUser.uid, window.localStorage, "week"));
+    setZoomUid(currentUser.uid);
+  }, [currentUser?.uid]);
   useEffect(() => {
     if (!sectionViewsOpen) return;
     const closeOnOutsidePointer = (event: PointerEvent) => {
@@ -633,10 +643,15 @@ export default function CronogramaObrasPage() {
     });
   };
   const changeZoom = (next: ZoomCronograma) => {
-    if (next === zoom) return;
+    if (next === zoom) {
+      setCenterRequest((request) => request + 1);
+      return;
+    }
     runViewTransition(next === "day" ? "dias" : "semanas", zoom === "day" ? "dias" : "semanas", () => {
       setZoomState(next);
       setCenterRequest((request) => request + 1);
+      if (currentUser?.uid && zoomUid === currentUser.uid && typeof window !== "undefined")
+        persistTimelineZoom(currentUser.uid, next, window.localStorage);
     });
   };
   const changeView = (next: "obras" | "mestres") => {

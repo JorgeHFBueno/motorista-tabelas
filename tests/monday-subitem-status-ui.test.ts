@@ -67,7 +67,7 @@ test('start action follows section classification, never a specific Monday label
 test('UI integration does not expose Monday internals or write Firestore/sync automatically', () => {
   const service = readFileSync('src/services/mondaySubitemStatusService.ts', 'utf8'); const control = readFileSync('src/features/cronograma-obras/components/MondaySubitemStatusControl.tsx', 'utf8'); const adapter = readFileSync('src/features/cronograma-obras/data/source/rawCronogramaAdapter.ts', 'utf8'); const page = readFileSync('src/features/cronograma-obras/CronogramaObrasPage.tsx', 'utf8');
   assert.doesNotMatch(service, /MONDAY_API_TOKEN|boardId|columnId|labelId|graphql|firestore|mondaySync/iu); assert.match(service, /Authorization: `Bearer \$\{token\}`/); assert.match(service, /dryRun: false/);
-  assert.match(control, /disabled=\{saving\}/); assert.match(control, /'EM_ANDAMENTO'/); assert.match(control, /statusAtual/); assert.match(control, /Iniciar/); assert.doesNotMatch(control, /<select|MONDAY_SUBITEM_STATUS_OPTIONS|setDoc|updateDoc|mondaySync/);
+  assert.match(control, /disabled=\{saving\}/); assert.match(control, /'EM_ANDAMENTO'/); assert.match(control, /statusAtual/); assert.match(control, /Iniciar/); assert.match(control, /<select/); assert.match(control, /MONDAY_SUBITEM_STATUS_OPTIONS/); assert.doesNotMatch(control, /setDoc|updateDoc|mondaySync/);
   assert.match(control, /SNAPSHOT_UPDATE_FAILED/); assert.match(control, /mondayUpdated/);
   assert.match(control, /onStatusConfirmed/); assert.match(control, /result\.statusAtual/);
   assert.match(page, /applyConfirmedMondayStatus/); assert.match(page, /updateObraStatusByMondaySubitemId/); assert.match(page, /onStatusConfirmed=\{applyConfirmedMondayStatus\}/);

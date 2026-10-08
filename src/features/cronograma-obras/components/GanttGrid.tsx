@@ -1,4 +1,6 @@
 import WarningAmberRounded from "@mui/icons-material/WarningAmberRounded";
+import ChevronLeftRounded from "@mui/icons-material/ChevronLeftRounded";
+import ChevronRightRounded from "@mui/icons-material/ChevronRightRounded";
 import {
   type DragEvent,
   memo,
@@ -76,6 +78,7 @@ import {
   reconcileContractGroups,
   type ContractGroup,
 } from "../domain/contractGroups";
+import { nextTableSort, sortContractGroups, sortObras, type TableSort } from "../domain/tableSort";
 import {
   countCronogramaRender,
   measureCronogramaCompute,
@@ -274,7 +277,7 @@ function MasterStrips({
                 />
               </>
             )}
-            {label && <span>{label}</span>}
+            {label && <span className="co-master-strip-label">{label}</span>}
           </i>
         );
       })}
@@ -876,6 +879,7 @@ export const GanttGrid = memo(function GanttGrid({
   const defaultObraWidth = view === "obras" && variant === "started" && viewMode === "flat" ? 285 : OBRA_COLUMN_WIDTH.default;
   const obraColumnWidth = columnWidths.obra ?? defaultObraWidth;
   const [detailsVisible, setDetailsVisible] = useState(true);
+  const [sorts, setSorts] = useState<Record<string, TableSort>>({});
   const [resizingMasterId, setResizingMasterId] = useState<string | null>(null);
   // Only expanded IDs are stored, so every contract starts closed after F5.
   const [expandedContracts, setExpandedContracts] = useState<Set<string>>(
@@ -957,7 +961,11 @@ export const GanttGrid = memo(function GanttGrid({
     const pointerId = event.pointerId;
     const handle = event.currentTarget;
     const startX = event.clientX;
-    const defaults: Partial<Record<ObraPanelColumn, number>> = { nomeContrato: 230, obra: defaultObraWidth, empresa: 82, status: 185 };
+    const defaults: Partial<Record<ObraPanelColumn, number>> = {
+      nomeContrato: 230, obra: defaultObraWidth, empresa: 82,
+      status: viewMode === "flat" ? 120 : 185, mestres: 130,
+      ordemInicio: 105, confirmacaoRecurso: 100, inicio: 92, dias: 55,
+    };
     const startWidth = columnWidths[column] ?? defaults[column] ?? 0;
     const move = (moveEvent: PointerEvent) => {
       if (moveEvent.pointerId === pointerId)
@@ -982,6 +990,15 @@ export const GanttGrid = memo(function GanttGrid({
     document.addEventListener("pointercancel", end);
     resizeCleanupRef.current = cleanup;
   };
+  const resizeHandle = (column: ObraPanelColumn, label: string) => (
+    <button
+      type="button"
+      className="co-obra-resize-handle"
+      aria-label={`Redimensionar coluna ${label}`}
+      onPointerDown={startColumnResize(column)}
+      onClick={(event) => event.stopPropagation()}
+    />
+  );
   const startMasterResize = (
     obra: ObraCronograma,
     mestre: MestrePlanejado,
@@ -1090,11 +1107,16 @@ export const GanttGrid = memo(function GanttGrid({
       ),
     [view, viewMode, obras, contratos],
   );
+  const sortKey = `${variant}.${viewMode}`;
+  const sort = sorts[sortKey] ?? { column: null, direction: null };
+  const sortedWorkTypeGroups = useMemo(() => workTypeGroups.map((workType) => ({ ...workType, groups: sortContractGroups(workType.groups, contratos, sort) })), [workTypeGroups, contratos, sort]);
+  const sortedFlatWorkTypeGroups = useMemo(() => flatWorkTypeGroups.map((workType) => ({ ...workType, obras: sortObras(workType.obras, contratos, sort) })), [flatWorkTypeGroups, contratos, sort]);
+  const changeSort = (column: Parameters<typeof nextTableSort>[1]) => setSorts((current) => ({ ...current, [sortKey]: nextTableSort(current[sortKey] ?? { column: null, direction: null }, column) }));
   const rows =
     view === "obras"
       ? viewMode === "flat"
-        ? flatWorkTypeGroups.length + obras.length
-        : workTypeGroups.length +
+        ? sortedFlatWorkTypeGroups.length + obras.length
+        : sortedWorkTypeGroups.length +
           groups.length +
           groups.reduce(
             (total, group) =>
@@ -1126,13 +1148,19 @@ export const GanttGrid = memo(function GanttGrid({
   const obraPanel = notStarted
     ? notStartedPanelLayout(obraColumnWidth, viewMode, columnWidths)
     : obraPanelLayout(obraColumnWidth, viewMode, detailsVisible, true, columnWidths);
-  const left =
+  const HeaderCell = ({ column, label, sortable = false }: { column: ObraPanelColumn; label: string; sortable?: boolean }) => (
+    <span className={`co-header-column${sortable ? " co-sort-header" : ""}`} role={sortable ? "button" : undefined} tabIndex={sortable ? 0 : undefined} onClick={sortable ? () => changeSort(column) : undefined}>
+      <span className="co-header-label">{label}</span>
+      {resizeHandle(column, label)}
+    </span>
+  );
+  const legacyLeft =
     notStarted && viewMode === "flat" ? <><span>Nome contrato</span><span>Obra</span><span>Emp.</span><span>Status</span><span>Ordem de Ini</span><span>Recurso</span><span>Início</span><span>Dias</span></>
     : notStarted && view === "obras" ? <><span>Nome contrato</span><span>Emp.</span><span>Status</span><span>Ordem de Ini</span><span>Recurso</span><span>Início</span><span>Dias</span></>
     : view === "obras" && viewMode === "flat" ? (
       <>
-        <span>Nome contrato{RESIZABLE_COLUMNS.startedFlat.includes("nomeContrato") && <button type="button" className="co-obra-resize-handle" aria-label="Redimensionar coluna Nome contrato" onPointerDown={startColumnResize("nomeContrato")} />}</span>
-        <span>
+        <span className="co-sort-header" role="button" tabIndex={0} onClick={() => changeSort("nomeContrato")}>Nome contrato{RESIZABLE_COLUMNS.startedFlat.includes("nomeContrato") && <button type="button" className="co-obra-resize-handle" aria-label="Redimensionar coluna Nome contrato" onPointerDown={startColumnResize("nomeContrato")} />}</span>
+        <span className="co-sort-header" role="button" tabIndex={0} onClick={() => changeSort("obra")}>
           Obra
           <button
             type="button"
@@ -1141,8 +1169,8 @@ export const GanttGrid = memo(function GanttGrid({
             onPointerDown={startColumnResize("obra")}
           />
         </span>
-        {detailsVisible && <><span>Emp.</span><span>Status</span></>}
-        <span>Mestres</span>
+        {detailsVisible && <><span className="co-sort-header" role="button" tabIndex={0} onClick={() => changeSort("empresa")}>Emp.</span><span className="co-sort-header" role="button" tabIndex={0} onClick={() => changeSort("status")}>Status</span></>}
+        <span className="co-sort-header" role="button" tabIndex={0} onClick={() => changeSort("mestres")}>Mestres</span>
         {detailsVisible ? (
           <>
             <span>Início</span>
@@ -1186,6 +1214,18 @@ export const GanttGrid = memo(function GanttGrid({
         <span>Conflitos</span>
       </>
     );
+  const left =
+    notStarted && viewMode === "flat" ? <>{([['nomeContrato', 'Nome contrato'], ['obra', 'Obra'], ['empresa', 'Emp.'], ['status', 'Status'], ['ordemInicio', 'Ordem de Ini'], ['confirmacaoRecurso', 'Recurso'], ['inicio', 'In\u00edcio'], ['dias', 'Dias']] as const).map(([column, label]) => <HeaderCell key={column} column={column} label={label} />)}</>
+    : notStarted && view === "obras" ? <>{([['nomeContrato', 'Nome contrato'], ['empresa', 'Emp.'], ['status', 'Status'], ['ordemInicio', 'Ordem de Ini'], ['confirmacaoRecurso', 'Recurso'], ['inicio', 'In\u00edcio'], ['dias', 'Dias']] as const).map(([column, label]) => <HeaderCell key={column} column={column} label={label} />)}</>
+    : view === "obras" && viewMode === "flat" ? <>
+      {([['nomeContrato', 'Nome contrato'], ['obra', 'Obra'], ...(detailsVisible ? [['empresa', 'Emp.'], ['status', 'Status']] : []), ['mestres', 'Mestres'], ['inicio', 'In\u00edcio'], ...(detailsVisible ? [['dias', 'Dias']] : [])] as [ObraPanelColumn, string][]).map(([column, label]) => <HeaderCell key={column} column={column} label={label} sortable />)}
+      <button type="button" className="co-columns-toggle" aria-label={detailsVisible ? "Ocultar colunas complementares" : "Mostrar colunas complementares"} title={detailsVisible ? "Ocultar Emp., In\u00edcio e Dias" : "Mostrar Emp., In\u00edcio e Dias"} onClick={() => setDetailsVisible((visible) => !visible)}>{detailsVisible ? <ChevronRightRounded fontSize="inherit" /> : <ChevronLeftRounded fontSize="inherit" />}</button>
+    </>
+    : view === "obras" ? <>
+      {([['nomeContrato', 'Nome contrato'], ...(detailsVisible ? [['empresa', 'Emp.'], ['status', 'Status']] : []), ['mestres', 'Mestres'], ['inicio', 'In\u00edcio'], ...(detailsVisible ? [['dias', 'Dias']] : [])] as [ObraPanelColumn, string][]).map(([column, label]) => <HeaderCell key={column} column={column} label={label} sortable />)}
+      <button type="button" className="co-columns-toggle" aria-label={detailsVisible ? "Ocultar colunas complementares" : "Mostrar colunas complementares"} title={detailsVisible ? "Ocultar Emp., Status e Dias" : "Mostrar todas as colunas"} onClick={() => setDetailsVisible((visible) => !visible)}>{detailsVisible ? <ChevronRightRounded fontSize="inherit" /> : <ChevronLeftRounded fontSize="inherit" />}</button>
+    </>
+    : legacyLeft;
   const gridStyle = {
     "--row-count": rows,
     "--co-year-count": years.length,
@@ -1196,6 +1236,16 @@ export const GanttGrid = memo(function GanttGrid({
         }
       : {}),
   } as React.CSSProperties;
+  const sortFromHeaderClick = (event: React.MouseEvent<HTMLDivElement>) => {
+    if (notStarted || view !== "obras" || (event.target as HTMLElement).closest("button, .co-sort-header")) return;
+    const header = event.currentTarget;
+    const index = Array.from(header.children).findIndex((child) => child.contains(event.target as Node));
+    const columns = viewMode === "flat"
+      ? (detailsVisible ? ["nomeContrato", "obra", "empresa", "status", "mestres", "inicio", "dias"] : ["nomeContrato", "obra", "mestres", "inicio"])
+      : (detailsVisible ? ["nomeContrato", "empresa", "status", "mestres", "inicio", "dias"] : ["nomeContrato", "mestres", "inicio"]);
+    const column = columns[index] as Parameters<typeof changeSort>[0] | undefined;
+    if (column) changeSort(column);
+  };
   const obraRow = (obra: ObraCronograma, flat = false) => {
     if (notStarted) {
       const contrato = contratos.get(obra.contratoId ?? "");
@@ -1298,7 +1348,7 @@ export const GanttGrid = memo(function GanttGrid({
       </div>
     );
   };
-  const contractRows = workTypeGroups.flatMap((workType) => [
+  const contractRows = sortedWorkTypeGroups.flatMap((workType) => [
     <div
       className={`co-work-type-divider co-work-type-divider--${workType.kind}`}
       key={`work-type-${workType.kind}`}
@@ -1388,7 +1438,7 @@ export const GanttGrid = memo(function GanttGrid({
       );
     }),
   ]);
-  const flatRows = flatWorkTypeGroups.flatMap((workType) => [
+  const flatRows = sortedFlatWorkTypeGroups.flatMap((workType) => [
     <div
       className={`co-work-type-divider co-work-type-divider--${workType.kind}`}
       key={`work-type-${workType.kind}`}
@@ -1411,7 +1461,7 @@ export const GanttGrid = memo(function GanttGrid({
           style={gridStyle}
         >
           <div className="co-gantt-header">
-            <div className="co-header-info co-left-header">{left}</div>
+            <div className="co-header-info co-left-header" onClick={sortFromHeaderClick}>{left}</div>
             <div className="co-header-timeline">
               <TimelineHeader zoom={zoom} years={years} />
             </div>

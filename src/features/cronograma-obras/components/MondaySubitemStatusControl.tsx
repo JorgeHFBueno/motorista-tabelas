@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import type { ObraCronograma } from '../domain/models';
-import { MondaySubitemStatusRequestError, type MondaySubitemStatus, updateMondaySubitemStatus } from '../../../services/mondaySubitemStatusService';
+import { MONDAY_SUBITEM_STATUS_OPTIONS, MondaySubitemStatusRequestError, type MondaySubitemStatus, type MondaySubitemStatusCode, updateMondaySubitemStatus } from '../../../services/mondaySubitemStatusService';
 import { StatusBadge } from './StatusBadge';
 
 /** Operational action; the parent section owns the canonical classification. */
@@ -13,6 +13,31 @@ export function MondaySubitemStatusControl({ obra, canStart, canFinish = false, 
   const action = canFinish ? "finish" : canStart ? "start" : null;
   const alreadyFinished = ['Finalizado'].includes(obra.status);
   if (!realLote || !action || alreadyFinished) return <StatusBadge status={obra.status} />;
+
+  const selectStatus = async (novoStatus: MondaySubitemStatusCode) => {
+    if (saving) return;
+    setSaving(true); setError(null); setUpdated(false);
+    try {
+      const result = await updateMondaySubitemStatus(obra.mondaySubitemId!, novoStatus);
+      if (result.statusAtual) onStatusConfirmed?.(obra.mondaySubitemId!, result.statusAtual);
+      if (result.result === 'UPDATED' || result.result === 'NO_CHANGE') setUpdated(true);
+    } catch (cause) {
+      if (cause instanceof MondaySubitemStatusRequestError && cause.code === 'SNAPSHOT_UPDATE_FAILED' && cause.mondayUpdated) {
+        if (cause.statusAtual) onStatusConfirmed?.(obra.mondaySubitemId!, cause.statusAtual);
+        setUpdated(true); setError(cause.message);
+      } else setError(cause instanceof MondaySubitemStatusRequestError ? cause.message : 'NÃ£o foi possÃ­vel atualizar o Status no Monday.');
+    } finally { setSaving(false); }
+  };
+
+  // Started LOTEs use the same callable flow, but expose every canonical
+  // Monday status rather than a one-way "Finalizar" action.
+  if (canFinish) return <span className="co-monday-status-control" onClick={(event) => event.stopPropagation()} onKeyDown={(event) => event.stopPropagation()}>
+    <select aria-label={`Status de ${obra.nomeObra}`} value={MONDAY_SUBITEM_STATUS_OPTIONS.find((item) => item.label === obra.status)?.code ?? ''} disabled={saving} onChange={(event) => { const value = event.target.value as MondaySubitemStatusCode; if (value) void selectStatus(value); }}>
+      <option value="" disabled>{obra.status || 'Status'}</option>
+      {MONDAY_SUBITEM_STATUS_OPTIONS.map((status) => <option key={status.code} value={status.code}>{status.label}</option>)}
+    </select>
+    {saving && <small className="co-status-feedback" role="status">Salvando…</small>}{error && <small className="co-status-error" role="alert">{error}</small>}{updated && <small className="co-status-feedback" role="status">Status atualizado no Monday.</small>}
+  </span>;
 
   const start = async () => {
     if (saving) return;

@@ -1,7 +1,7 @@
 export const OBRA_COLUMN_WIDTH = { default: 220, min: 140, max: 360 } as const;
 
 export type ObraPanelColumn = "nomeContrato" | "obra" | "contrato" | "mestres" | "status" | "empresa" | "ordemInicio" | "confirmacaoRecurso" | "inicio" | "dias" | "toggle";
-type ColumnDefinition = { id: ObraPanelColumn; width: number | "obra" };
+export type ColumnDefinition = { id: ObraPanelColumn; width: number | "obra"; resizable?: boolean };
 
 // This is the single source of truth for both column geometry and panel width.
 // The timeline therefore starts exactly after DIAS in every row and the header.
@@ -77,16 +77,20 @@ const COMPACT_COLUMNS: readonly ColumnDefinition[] = [
 ] as const;
 export type ObraPanelLayout = { columns: readonly ObraPanelColumn[]; gridTemplateColumns: string; width: string };
 export type ObraColumnWidths = Partial<Record<ObraPanelColumn, number>>;
+const DATA_COLUMNS = ["nomeContrato", "obra", "contrato", "mestres", "status", "empresa", "ordemInicio", "confirmacaoRecurso", "inicio", "dias"] as const;
 export const RESIZABLE_COLUMNS = {
-  startedFlat: ["nomeContrato", "obra"],
-  startedContracts: ["nomeContrato", "empresa", "status"],
-  notStartedContracts: ["nomeContrato", "empresa", "status"],
+  startedFlat: ["nomeContrato", "obra", "empresa", "status", "mestres", "inicio", "dias"],
+  startedContracts: ["nomeContrato", "empresa", "status", "mestres", "inicio", "dias"],
+  notStartedFlat: ["nomeContrato", "obra", "empresa", "status", "ordemInicio", "confirmacaoRecurso", "inicio", "dias"],
+  notStartedContracts: ["nomeContrato", "empresa", "status", "ordemInicio", "confirmacaoRecurso", "inicio", "dias"],
+  finished: DATA_COLUMNS,
 } as const satisfies Record<string, readonly ObraPanelColumn[]>;
 
 export function clampColumnWidth(column: ObraPanelColumn, width: number): number {
   const bounds: Partial<Record<ObraPanelColumn, readonly [number, number]>> = {
-    nomeContrato: [180, 360], obra: [OBRA_COLUMN_WIDTH.min, OBRA_COLUMN_WIDTH.max],
-    empresa: [60, 180], status: [100, 300],
+    nomeContrato: [180, 420], obra: [OBRA_COLUMN_WIDTH.min, 480], contrato: [70, 220],
+    mestres: [110, 300], empresa: [60, 220], status: [100, 320],
+    ordemInicio: [95, 260], confirmacaoRecurso: [95, 280], inicio: [84, 180], dias: [52, 130],
   };
   const [min, max] = bounds[column] ?? [40, 360];
   return Math.min(max, Math.max(min, width));

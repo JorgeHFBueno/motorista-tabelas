@@ -6,7 +6,7 @@ import type { ContratoCronograma, ObraCronograma } from "../domain/models";
 import { formatDateShort, inclusiveCivilDays, todayCivil } from "../domain/temporal";
 import { startedMasterPeriods } from "../domain/masterPlanningDetails";
 import { getMestreColor, normalizeMestreKey } from "../domain/mestres";
-import { clampColumnWidth, OBRA_COLUMN_WIDTH, notStartedPanelLayout, obraPanelLayout, RESIZABLE_COLUMNS, type ObraPanelColumn, type ObraColumnWidths } from "../domain/obraGridColumns";
+import { clampColumnWidth, OBRA_COLUMN_WIDTH, notStartedPanelLayout, obraPanelLayout, type ObraPanelColumn, type ObraColumnWidths } from "../domain/obraGridColumns";
 import { MondaySubitemStatusControl } from "./MondaySubitemStatusControl";
 import { ContractAnalysisRequest } from "./ContractAnalysisRequest";
 import { ContractRowControls } from "./ContractRowControls";
@@ -111,7 +111,11 @@ export const ContractTextTable = memo(function ContractTextTable({
     event.preventDefault();
     event.stopPropagation();
     resizeCleanupRef.current?.();
-    const defaults: Partial<Record<ObraPanelColumn, number>> = { nomeContrato: 230, empresa: 82, status: 100 };
+    const defaults: Partial<Record<ObraPanelColumn, number>> = {
+      nomeContrato: 230, obra: 220, contrato: 95, mestres: 130,
+      empresa: 82, status: 100, ordemInicio: 105,
+      confirmacaoRecurso: 100, inicio: 92, dias: 55,
+    };
     const startWidth = columnWidths[column] ?? defaults[column] ?? 0;
     const startX = event.clientX;
     const pointerId = event.pointerId;
@@ -135,6 +139,12 @@ export const ContractTextTable = memo(function ContractTextTable({
     document.addEventListener("pointercancel", end);
     resizeCleanupRef.current = cleanup;
   };
+  const resizeHandle = (column: ObraPanelColumn, label: string) => (
+    <button type="button" className="co-obra-resize-handle" aria-label={`Redimensionar coluna ${label}`} onPointerDown={startColumnResize(column)} onClick={(event) => event.stopPropagation()} />
+  );
+  const HeaderCell = ({ column, label }: { column: ObraPanelColumn; label: string }) => (
+    <span className="co-header-column"><span className="co-header-label">{label}</span>{resizeHandle(column, label)}</span>
+  );
   const obraCells = (obra: ObraCronograma, contrato: ContratoCronograma | undefined) => {
     const needsContractReview = obra.targetType === "contrato" && requiresContractReview(contrato);
     if (notStarted) return <>
@@ -186,14 +196,18 @@ export const ContractTextTable = memo(function ContractTextTable({
   return (
     <section className={`co-text-table co-text-table--${variant} ${viewMode === "flat" ? "co-text-table--flat" : ""}`} aria-label={sectionTitle} style={tableStyle}>
       <div className="co-text-head">
-        {notStarted && <span>Nome contrato{viewMode === "contracts" && RESIZABLE_COLUMNS.notStartedContracts.includes("nomeContrato") && <button type="button" className="co-obra-resize-handle" aria-label="Redimensionar coluna Nome contrato" onPointerDown={startColumnResize("nomeContrato")} />}</span>}
-        {notStarted && (viewMode === "flat" ? <><span>Obra</span><span>Emp.</span><span>Status</span><span>Ordem de Ini</span><span>Recurso</span><span>Início</span><span>Dias</span></> : <><span>Emp.{RESIZABLE_COLUMNS.notStartedContracts.includes("empresa") && <button type="button" className="co-obra-resize-handle" aria-label="Redimensionar coluna Emp." onPointerDown={startColumnResize("empresa")} />}</span><span>Status{RESIZABLE_COLUMNS.notStartedContracts.includes("status") && <button type="button" className="co-obra-resize-handle" aria-label="Redimensionar coluna Status" onPointerDown={startColumnResize("status")} />}</span><span>Ordem de Ini</span><span>Recurso</span><span>Início</span><span>Dias</span></>)}
+        {notStarted && (viewMode === "flat"
+          ? ([['nomeContrato', 'Nome contrato'], ['obra', 'Obra'], ['empresa', 'Emp.'], ['status', 'Status'], ['ordemInicio', 'Ordem de Ini'], ['confirmacaoRecurso', 'Recurso'], ['inicio', 'In\u00edcio'], ['dias', 'Dias']] as const).map(([column, label]) => <HeaderCell key={column} column={column} label={label} />)
+          : ([['nomeContrato', 'Nome contrato'], ['empresa', 'Emp.'], ['status', 'Status'], ['ordemInicio', 'Ordem de Ini'], ['confirmacaoRecurso', 'Recurso'], ['inicio', 'In\u00edcio'], ['dias', 'Dias']] as const).map(([column, label]) => <HeaderCell key={column} column={column} label={label} />))}
         {!notStarted && <>
-        <button type="button" className="co-text-section-toggle" aria-expanded={sectionExpanded} aria-label={`${sectionExpanded ? "Recolher" : "Expandir"} ${sectionTitle}`} title={`${sectionExpanded ? "Recolher" : "Expandir"} ${sectionTitle}`} onClick={onToggleSection}>
-          <KeyboardArrowDownRounded className={sectionExpanded ? "" : "is-collapsed"} />
-          Nome contrato <small>{sectionTitle} ({sectionCount})</small>
-        </button>
-        <span>Obra</span><span>Contrato</span><span>Mestres</span><span>Status</span><span>Emp.</span><span>Início</span><span>Dias</span><span className="co-text-toggle-spacer" aria-hidden="true" />
+        <span className="co-header-column">
+          <button type="button" className="co-text-section-toggle" aria-expanded={sectionExpanded} aria-label={`${sectionExpanded ? "Recolher" : "Expandir"} ${sectionTitle}`} title={`${sectionExpanded ? "Recolher" : "Expandir"} ${sectionTitle}`} onClick={onToggleSection}>
+            <KeyboardArrowDownRounded className={sectionExpanded ? "" : "is-collapsed"} />
+            Nome contrato <small>{sectionTitle} ({sectionCount})</small>
+          </button>
+          {resizeHandle("nomeContrato", "Nome contrato")}
+        </span>
+        {([['obra', 'Obra'], ['contrato', 'Contrato'], ['mestres', 'Mestres'], ['status', 'Status'], ['empresa', 'Emp.'], ['inicio', 'In\u00edcio'], ['dias', 'Dias']] as const).map(([column, label]) => <HeaderCell key={column} column={column} label={label} />)}<span className="co-text-toggle-spacer" aria-hidden="true" />
         </>}
       </div>
       {sectionExpanded && (viewMode === "flat" ? flatRows : workTypeGroups.flatMap((workType) => [
