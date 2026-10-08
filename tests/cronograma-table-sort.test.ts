@@ -20,8 +20,16 @@ test("all active data schemas expose resize handles while control slots remain e
 
 test("master label remains inside its strip and is aligned to the end with ellipsis", () => {
   const css = readFileSync("src/features/cronograma-obras/styles/cronograma-obras.css", "utf8");
-  assert.match(css, /\.co-master-strip > span[\s\S]*justify-content: flex-end/);
-  assert.match(css, /\.co-master-strip > span[\s\S]*text-overflow: ellipsis/);
+  const labelRule = css.match(/\.co-master-strip > span, \.co-master-strip-label, \.co-week-masters i > span \{([^}]+)\}/)?.[1] ?? "";
+  const previousFontSizeRem = 0.5;
+  const currentFontSizeRem = Number(labelRule.match(/font-size:\s*([\d.]+)rem/)?.[1]);
+  assert.equal(currentFontSizeRem, previousFontSizeRem * 2);
+  assert.match(labelRule, /justify-content: flex-end/);
+  assert.match(labelRule, /line-height: 1\.2/);
+  assert.match(labelRule, /inset: 0 2px/);
+  assert.match(labelRule, /overflow: hidden/);
+  assert.match(labelRule, /text-overflow: ellipsis/);
+  assert.doesNotMatch(labelRule, /(?:^|;)\s*height\s*:/);
 });
 
 test("panel toggle uses accessible chevron icons without mojibake", () => {
