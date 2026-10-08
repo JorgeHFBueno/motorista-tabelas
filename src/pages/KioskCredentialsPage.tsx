@@ -9,6 +9,7 @@ import KioskQrDialog from '../components/kiosk/KioskQrDialog';
 import { KioskPinStatusChip, KioskQrStatusChip } from '../components/kiosk/KioskCredentialStatusChip';
 import { getKioskCredentialStatus, provisionKioskCredential, revokeKioskQr, setKioskPin, setKioskPinEnabled, type KioskCredentialStatus, type ProvisionKioskCredentialResponse } from '../services/kioskCredentials';
 import { formatKioskUpdatedAt, kioskFunctionErrorMessage, uniqueUidBatches } from '../services/kioskCredentialsUtils';
+import { kioskCredentialEligibleUsers } from '../services/kioskCredentialEligibility';
 import type { AdminUser } from '../services/adminUsersApi';
 
 type PendingAction = { type: 'provision' | 'revoke'; user: AdminUser } | null;
@@ -30,7 +31,7 @@ export default function KioskCredentialsPage() {
   const [qrCredential, setQrCredential] = useState<ProvisionKioskCredentialResponse | null>(null);
   const [snackbar, setSnackbar] = useState<string | null>(null);
   const authorized = profile?.ativo === true && profile.adm2 === true;
-  const employees = useMemo(() => users.filter((user) => Boolean(user.funcionario)), [users]);
+  const employees = useMemo(() => kioskCredentialEligibleUsers(users), [users]);
 
   const loadStatuses = useCallback(async () => {
     const batches = uniqueUidBatches(employees.map((user) => user.uid));
