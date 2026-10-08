@@ -7,6 +7,18 @@ export const MONDAY_SUBITEM_STATUS_OPTIONS: readonly MondaySubitemStatus[] = [
   { code: 'PARADA', label: 'Parada' }, { code: 'PROXIMA_A_INICIAR', label: 'Próxima a Iniciar' },
   { code: 'REVISAR_ESCOPO', label: 'Revisar escopo' }, { code: 'NAO_INICIADA', label: 'Não iniciada' },
 ] as const;
+
+/** Visual mapping for the CronoObra Monday status control. Keep labels sourced from the options above. */
+export const MONDAY_SUBITEM_STATUS_COLORS: Readonly<Record<string, string>> = {
+  'Finalizado': '#33D391',
+  'Em andamento': '#FDBC64',
+  'Parada': '#E8697D',
+  'Não iniciada': '#797E93',
+  'Próxima a Iniciar': '#339ECD',
+  'Revisar escopo': '#B57DE3',
+};
+export const MONDAY_SUBITEM_STATUS_FALLBACK_COLOR = '#E5E7EB';
+export const mondayStatusColor = (label: string) => MONDAY_SUBITEM_STATUS_COLORS[label] ?? MONDAY_SUBITEM_STATUS_FALLBACK_COLOR;
 const endpoint = 'https://southamerica-east1-app-motor-api.cloudfunctions.net/mondayUpdateSubitemStatus';
 const byCode = new Map(MONDAY_SUBITEM_STATUS_OPTIONS.map((status) => [status.code, status]));
 const byLabel = new Map(MONDAY_SUBITEM_STATUS_OPTIONS.map((status) => [status.label, status]));

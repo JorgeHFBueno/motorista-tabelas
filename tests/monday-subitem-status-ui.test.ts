@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { readFileSync } from 'node:fs';
-import { MONDAY_SUBITEM_STATUS_OPTIONS, MondaySubitemStatusRequestError, mondayStatusFromLabel, updateMondaySubitemStatus } from '../src/services/mondaySubitemStatusService';
+import { MONDAY_SUBITEM_STATUS_COLORS, MONDAY_SUBITEM_STATUS_FALLBACK_COLOR, MONDAY_SUBITEM_STATUS_OPTIONS, MondaySubitemStatusRequestError, mondayStatusColor, mondayStatusFromLabel, updateMondaySubitemStatus } from '../src/services/mondaySubitemStatusService';
 import { adaptRawCronograma } from '../src/features/cronograma-obras/data/source/rawCronogramaAdapter';
 import { updateObraStatusByMondaySubitemId } from '../src/features/cronograma-obras/application/localPlanner';
 import { separarObrasPorSituacao } from '../src/features/cronograma-obras/domain/contractStatus';
@@ -17,6 +17,12 @@ test('real LOTEs expose mondaySubitemId while synthetic contract rows never do',
 test('the six UI labels map only to controlled frontend codes', () => {
   assert.deepEqual(MONDAY_SUBITEM_STATUS_OPTIONS.map((item) => item.code), ['EM_ANDAMENTO', 'FINALIZADO', 'PARADA', 'PROXIMA_A_INICIAR', 'REVISAR_ESCOPO', 'NAO_INICIADA']);
   assert.equal(mondayStatusFromLabel('Revisar escopo')?.code, 'REVISAR_ESCOPO'); assert.equal(mondayStatusFromLabel('Livre') ?? null, null);
+});
+
+test('Monday status colors are manually mapped and unknown labels use a neutral fallback', () => {
+  assert.deepEqual(MONDAY_SUBITEM_STATUS_COLORS, { 'Finalizado': '#33D391', 'Em andamento': '#FDBC64', 'Parada': '#E8697D', 'Não iniciada': '#797E93', 'Próxima a Iniciar': '#339ECD', 'Revisar escopo': '#B57DE3' });
+  assert.equal(mondayStatusColor('Parada'), '#E8697D');
+  assert.equal(mondayStatusColor('Novo status'), MONDAY_SUBITEM_STATUS_FALLBACK_COLOR);
 });
 
 test('frontend request sends only subitemId, controlled code and dryRun false with Firebase token', async () => {
@@ -65,9 +71,9 @@ test('start action follows section classification, never a specific Monday label
 });
 
 test('UI integration does not expose Monday internals or write Firestore/sync automatically', () => {
-  const service = readFileSync('src/services/mondaySubitemStatusService.ts', 'utf8'); const control = readFileSync('src/features/cronograma-obras/components/MondaySubitemStatusControl.tsx', 'utf8'); const adapter = readFileSync('src/features/cronograma-obras/data/source/rawCronogramaAdapter.ts', 'utf8'); const page = readFileSync('src/features/cronograma-obras/CronogramaObrasPage.tsx', 'utf8');
+  const service = readFileSync('src/services/mondaySubitemStatusService.ts', 'utf8'); const control = readFileSync('src/features/cronograma-obras/components/MondaySubitemStatusControl.tsx', 'utf8'); const styles = readFileSync('src/features/cronograma-obras/styles/cronograma-obras.css', 'utf8'); const adapter = readFileSync('src/features/cronograma-obras/data/source/rawCronogramaAdapter.ts', 'utf8'); const page = readFileSync('src/features/cronograma-obras/CronogramaObrasPage.tsx', 'utf8');
   assert.doesNotMatch(service, /MONDAY_API_TOKEN|boardId|columnId|labelId|graphql|firestore|mondaySync/iu); assert.match(service, /Authorization: `Bearer \$\{token\}`/); assert.match(service, /dryRun: false/);
-  assert.match(control, /disabled=\{saving\}/); assert.match(control, /'EM_ANDAMENTO'/); assert.match(control, /statusAtual/); assert.match(control, /Iniciar/); assert.match(control, /<select/); assert.match(control, /MONDAY_SUBITEM_STATUS_OPTIONS/); assert.doesNotMatch(control, /setDoc|updateDoc|mondaySync/);
+  assert.match(control, /disabled=\{saving\}/); assert.match(control, /'EM_ANDAMENTO'/); assert.match(control, /statusAtual/); assert.match(control, /Iniciar/); assert.doesNotMatch(control, /<select/); assert.match(control, /MONDAY_SUBITEM_STATUS_OPTIONS/); assert.match(control, /aria-haspopup="listbox"/); assert.match(control, /role="listbox"/); assert.match(control, /role="option"/); assert.match(control, /mondayStatusColor/); assert.match(control, /onOptionKeyDown/); assert.match(control, /event\.key === 'Escape'/); assert.match(control, /closeOnOutsidePointer/); assert.match(control, /statusTriggerRef/); assert.match(control, /statusMenuRef/); assert.match(control, /createPortal\(/); assert.match(control, /document\.body/); assert.match(styles, /\.co-monday-status-list[^}]*position: fixed/); assert.match(control, /void selectStatus\(status\.code\)/); assert.doesNotMatch(control, /setDoc|updateDoc|mondaySync/);
   assert.match(control, /SNAPSHOT_UPDATE_FAILED/); assert.match(control, /mondayUpdated/);
   assert.match(control, /onStatusConfirmed/); assert.match(control, /result\.statusAtual/);
   assert.match(page, /applyConfirmedMondayStatus/); assert.match(page, /updateObraStatusByMondaySubitemId/); assert.match(page, /onStatusConfirmed=\{applyConfirmedMondayStatus\}/);
