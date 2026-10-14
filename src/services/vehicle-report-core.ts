@@ -61,6 +61,14 @@ export function fuelReportSupplier(raw: Record<string, unknown>) {
   return candidates.find((value) => extractCnpj(value)) ?? candidates[0] ?? '';
 }
 
+/** Maps ERP Q47 rows into the report's presentation-safe summary. */
+export function summarizeVehicleReportErp47(rows: Record<string, unknown>[]) {
+  const text = (value: unknown) => String(value ?? '').trim();
+  const number = (value: unknown) => typeof value === 'number' && Number.isFinite(value) ? value : Number(String(value ?? '').replace(',', '.')) || 0;
+  const details = rows.map((row) => ({ data: text(row.data_emissao), nota: text(row.numero_nota), fornecedor: text(row.cliente_fornecedor), natureza: text(row.natureza), conta: text(row.conta), tipo: text(row.tipo_movimento), valor_rateio: number(row.valor_rateio), placa_nota: text(row.placa_nota) || '—' }));
+  return { linhas: rows.length, notas: new Set(rows.map((row) => text(row.numero_nota || row.cod_nota)).filter(Boolean)).size, despesa: rows.filter((row) => text(row.tipo_movimento).toUpperCase() === 'DESPESA').reduce((total, row) => total + number(row.valor_rateio), 0), detalhes: details };
+}
+
 export type ExternalMatchDiagnostic = {
   fuelDate: string;
   maintenanceDate: string;

@@ -79,18 +79,44 @@ function createDrawing() {
 }
 
 export function createVehicleReportPdf(report: PdfReport) {
-  const q47 = report.erp.query47 as any; const drawing = createDrawing(); const right = (indexes: number[]) => new Set(indexes);
+  const drawing = createDrawing(); const right = (indexes: number[]) => new Set(indexes);
+  const unavailable = 'INDISPONÍVEL';
+  const known = (value: number | null | undefined) => value == null ? unavailable : money(value);
+  const source = (key: 'fuel' | 'maintenance' | 'erp') => (report as any).sources?.[key] ?? { status: 'ok' };
+  const sourceStatus = (key: 'fuel' | 'maintenance' | 'erp') => source(key).status === 'ok' ? 'OK' : 'ERRO';
+  // Keep the PDF safe even if a caller accidentally passes an unsanitized error model.
+  const sourceReason = (key: 'fuel' | 'maintenance' | 'erp') => ({ fuel: 'Não foi possível carregar os dados de combustível no Firebase.', maintenance: 'Não foi possível consultar os dados de manutenção no Firebase.', erp: 'Não foi possível consultar o ERP no momento da geração.' })[key];
+  const reportStatus = (report as any).status ?? 'complete';
+  const fuelClassified = report.firebase.combustivel.classificacaoDisponivel ?? true;
+  const q47 = report.erp.query47 as any;
   drawing.title('RELATÓRIO DE CUSTOS DO VEÍCULO');
   drawing.text(PAGE.left, drawing.y, formatVehicleReportHeader(report.veiculo.placa, report.veiculo.nome), 9, true); drawing.y -= 13;
   drawing.text(PAGE.left, drawing.y, `Período: ${formatReportDate(report.periodo.dataInicial)} a ${formatReportDate(report.periodo.dataFinal)}   Gerado em: ${new Date().toLocaleString('pt-BR')}`, 8); drawing.y -= 18;
+  if (reportStatus !== 'complete') {
+    drawing.section(reportStatus === 'failed' ? 'RELATÓRIO PARCIAL / SEM DADOS DISPONÍVEIS' : 'RELATÓRIO PARCIAL');
+    drawing.text(PAGE.left, drawing.y, reportStatus === 'failed' ? 'Nenhuma das fontes de dados pôde ser consultada no momento da geração. Tente novamente posteriormente.' : 'Uma ou mais fontes não puderam ser consultadas. Os dados disponíveis foram incluídos normalmente.', 8);
+    drawing.y -= 18;
+  }
   drawing.section('RESUMO EXECUTIVO');
-  drawing.table(['Componente', 'Valor'], [['Firebase', money(report.totais.firebase)], ['ERP Q47 — Competência / Notas', money(report.totais.erpQ47)], ['Total consolidado', money(report.totais.consolidado)]], [350, 173], right([1]), new Set([2]));
-  drawing.table(['Componente', 'Quantidade', 'Valor'], [['Diesel interno', `${liters(report.firebase.combustivel.litros)} L / ${report.firebase.combustivel.registros} abastecimentos`, money(report.firebase.combustivel.valor)], ['Abastecimentos externos excluídos', report.firebase.combustivel.externos, '—'], ['Manutenções', `${report.firebase.manutencoes.registros} registros`, money(report.firebase.manutencoes.valor)]], [250, 160, 113], right([1, 2]));
-  drawing.section('COMBUSTÍVEL INTERNO'); drawing.text(PAGE.left, drawing.y, `Documentos encontrados antes da classificação: ${report.firebase.combustivel.registrosEncontrados}`, 7); drawing.y -= 13;
-  drawing.table(['Data', 'Litros', 'Valor', 'KM', 'Obra', 'Responsável'], report.firebase.combustivel.itens.map((item: any) => [item.data, `${liters(item.litros)} L`, money(item.valor), item.km ?? '—', item.obra, item.motorista]), [62, 58, 73, 48, 145, 137], right([1, 2, 3]));
-  drawing.section('MANUTENÇÕES'); drawing.table(['Data', 'Descrição', 'Fornecedor', 'Valor'], report.firebase.manutencoes.itens.map((item: any) => [item.data, item.descricao, item.fornecedor, money(item.valor)]), [64, 190, 170, 99], right([3]));
-  drawing.section('ERP Q47 — COMPETÊNCIA / NOTAS'); drawing.table(['Data', 'Nota', 'Fornecedor', 'Natureza / conta', 'Tipo', 'Valor'], q47.detalhes.map((item: any) => [formatReportDate(item.data), item.nota, item.fornecedor, `${item.natureza} / ${item.conta}`, item.tipo, money(item.valor_rateio)]), [57, 43, 125, 150, 65, 83], right([5]));
-  drawing.section('METODOLOGIA / PARÂMETROS'); drawing.table(['Parâmetro', 'Valor'], [['Veículo', report.veiculo.placa], ['Período', `${formatReportDate(report.periodo.dataInicial)} a ${formatReportDate(report.periodo.dataFinal)}`], ['Diesel interno', 'R$ 5,90/L'], ['Documentos combustível encontrados', report.firebase.combustivel.registrosEncontrados], ['Internos / externos excluídos', `${report.firebase.combustivel.registros} / ${report.firebase.combustivel.externos}`], ['ERP', 'Query 47 — competência / notas'], ['Placa enviada ao ERP', report.veiculo.placa.replace(/[-\s]/g, '').toUpperCase()]], [250, 273]);
+  const firebaseLabel = report.firebase.total == null ? (source('fuel').status === 'error' && source('maintenance').status === 'error' ? unavailable : 'PARCIAL') : money(report.firebase.total);
+  drawing.table(['Componente', 'Valor'], [['Firebase', firebaseLabel], ['ERP Q47 — Competência / Notas', known(report.totais.erpQ47)], ['Total consolidado', report.totais.consolidado == null ? 'NÃO CALCULADO' : money(report.totais.consolidado)]], [350, 173], right([1]), new Set([2]));
+  if (reportStatus !== 'complete') { drawing.section('STATUS DAS FONTES'); drawing.table(['Fonte', 'Status'], [['Firebase — Combustível', sourceStatus('fuel')], ['Firebase — Manutenções', sourceStatus('maintenance')], ['ERP Q47', sourceStatus('erp')]], [350, 173]); ['fuel', 'maintenance', 'erp'].forEach((key: any) => { if (source(key).status === 'error') { drawing.text(PAGE.left, drawing.y, sourceReason(key), 7); drawing.y -= 11; if (source(key).error?.code) { drawing.text(PAGE.left, drawing.y, `Código: ${source(key).error.code}`, 7); drawing.y -= 11; } } }); drawing.y -= 5; }
+  drawing.table(['Componente', 'Quantidade', 'Valor'], [
+    ['Diesel interno', fuelClassified ? `${liters(report.firebase.combustivel.litros!)} L / ${report.firebase.combustivel.registros} abastecimentos` : unavailable, known(report.firebase.combustivel.valor)],
+    ['Abastecimentos externos excluídos', fuelClassified ? report.firebase.combustivel.externos! : unavailable, '—'],
+    ['Manutenções', report.firebase.manutencoes.registros == null ? unavailable : `${report.firebase.manutencoes.registros} registros`, known(report.firebase.manutencoes.valor)],
+  ], [250, 160, 113], right([1, 2]));
+  drawing.section('COMBUSTÍVEL INTERNO');
+  if (source('fuel').status === 'error') { drawing.text(PAGE.left, drawing.y, sourceReason('fuel'), 8); drawing.y -= 15; }
+  else if (!fuelClassified) { drawing.text(PAGE.left, drawing.y, `Documentos encontrados: ${report.firebase.combustivel.registrosEncontrados}`, 8); drawing.y -= 12; drawing.text(PAGE.left, drawing.y, 'Classificação interno/externo: INDISPONÍVEL — dados de manutenção não puderam ser consultados.', 8); drawing.y -= 16; }
+  else { drawing.text(PAGE.left, drawing.y, `Documentos encontrados antes da classificação: ${report.firebase.combustivel.registrosEncontrados}`, 7); drawing.y -= 13; drawing.table(['Data', 'Litros', 'Valor', 'KM', 'Obra', 'Responsável'], report.firebase.combustivel.itens.map((item: any) => [item.data, `${liters(item.litros)} L`, money(item.valor), item.km ?? '—', item.obra, item.motorista]), [62, 58, 73, 48, 145, 137], right([1, 2, 3])); }
+  drawing.section('MANUTENÇÕES');
+  if (source('maintenance').status === 'error') { drawing.text(PAGE.left, drawing.y, sourceReason('maintenance'), 8); drawing.y -= 15; }
+  else drawing.table(['Data', 'Descrição', 'Fornecedor', 'Valor'], report.firebase.manutencoes.itens.map((item: any) => [item.data, item.descricao, item.fornecedor, money(item.valor)]), [64, 190, 170, 99], right([3]));
+  drawing.section('ERP Q47 — COMPETÊNCIA / NOTAS');
+  if (!q47) { drawing.text(PAGE.left, drawing.y, 'Dados indisponíveis para este relatório.', 8); drawing.y -= 12; drawing.text(PAGE.left, drawing.y, `Motivo: ${sourceReason('erp')}`, 8); drawing.y -= 16; }
+  else drawing.table(['Data', 'Nota', 'Fornecedor', 'Natureza / conta', 'Tipo', 'Valor'], q47.detalhes.map((item: any) => [formatReportDate(item.data), item.nota, item.fornecedor, `${item.natureza} / ${item.conta}`, item.tipo, money(item.valor_rateio)]), [57, 43, 125, 150, 65, 83], right([5]));
+  drawing.section('METODOLOGIA / PARÂMETROS'); drawing.table(['Parâmetro', 'Valor'], [['Veículo', report.veiculo.placa], ['Período', `${formatReportDate(report.periodo.dataInicial)} a ${formatReportDate(report.periodo.dataFinal)}`], ['Diesel interno', fuelClassified ? 'R$ 5,90/L' : 'Não calculado'], ['Documentos combustível encontrados', report.firebase.combustivel.registrosEncontrados ?? unavailable], ['Internos / externos excluídos', fuelClassified ? `${report.firebase.combustivel.registros} / ${report.firebase.combustivel.externos}` : unavailable], ['ERP', 'Query 47 — competência / notas'], ['Placa enviada ao ERP', report.veiculo.placa.replace(/[-\s]/g, '').toUpperCase()]], [250, 273]);
   const pages = drawing.pages; pages.forEach((page, index) => { page.commands.push(`BT /F1 7 Tf ${colors.ink} rg 1 0 0 1 ${PAGE.left} 27 Tm (${encodePdfText('Ledur Motorista — relatório veicular')}) Tj ET`); page.commands.push(`BT /F1 7 Tf ${colors.ink} rg 1 0 0 1 470 27 Tm (${encodePdfText(`Pág. ${index + 1} de ${pages.length}`)}) Tj ET`); });
   const objects: string[] = ['<< /Type /Catalog /Pages 2 0 R >>', `<< /Type /Pages /Count ${pages.length} /Kids [${pages.map((_, index) => `${3 + index * 2} 0 R`).join(' ')}] >>`];
   pages.forEach((page, index) => { const content = page.commands.join('\n'); objects.push(`<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 ${3 + pages.length * 2} 0 R /F2 ${4 + pages.length * 2} 0 R >> >> /Contents ${4 + index * 2} 0 R >>`, `<< /Length ${content.length} >>\nstream\n${content}\nendstream`); });

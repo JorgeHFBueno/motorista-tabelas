@@ -1,7 +1,50 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { custoDieselInterno, extractCnpj, filterVehicleReportPeriod, fuelReportSupplier, litrosFromQuantidadeRaw, matchExternalFuelToMaintenance, normalizeCalendarDate, normalizeSupplier, normalizeVehiclePlate, reportTotals, resolveVehicleReportPeriod, summarizeInternalFuel } from '../src/services/vehicle-report-core';
+import { custoDieselInterno, extractCnpj, filterVehicleReportPeriod, fuelReportSupplier, litrosFromQuantidadeRaw, matchExternalFuelToMaintenance, normalizeCalendarDate, normalizeSupplier, normalizeVehiclePlate, reportTotals, resolveVehicleReportPeriod, summarizeInternalFuel, summarizeVehicleReportErp47 } from '../src/services/vehicle-report-core';
 import { createVehicleReportPdf, formatReportDate, formatVehicleReportHeader, sanitizeErpPresentationText, sanitizePdfText } from '../src/services/vehicle-report-pdf';
+const ok = <T>(data: T) => ({ status: 'ok' as const, data });
+const error = (code = 'unavailable') => ({ status: 'error' as const, error: { code, message: 'segredo que não pode aparecer' } });
+const makeBestEffortReport = (fuel: any, maintenance: any, erp: any) => {
+  const sources = { fuel, maintenance, erp }; const available = Object.values(sources).filter((source: any) => source.status === 'ok').length;
+  const status = available === 3 ? 'complete' : available === 0 ? 'failed' : 'partial'; const fuelReady = fuel.status === 'ok' && maintenance.status === 'ok';
+  const fuelValue = fuelReady ? 0 : null; const maintenanceValue = maintenance.status === 'ok' ? 25 : null; const firebase = fuelValue !== null && maintenanceValue !== null ? fuelValue + maintenanceValue : null; const erpValue = erp.status === 'ok' ? 75 : null;
+  return { veiculo: { placa: 'ABC-1234', nome: 'ABC-1234' }, periodo: { dataInicial: '2026-01-01', dataFinal: '2026-12-31' }, status, sources, firebase: { combustivel: { registrosEncontrados: fuel.status === 'ok' ? 0 : null, classificacaoDisponivel: fuelReady, externos: fuelReady ? 0 : null, registros: fuelReady ? 0 : null, litros: fuelReady ? 0 : null, valor: fuelValue, itens: [] }, manutencoes: { registros: maintenance.status === 'ok' ? 1 : null, valor: maintenanceValue, itens: [] }, total: firebase }, erp: { query47: erp.status === 'ok' ? { detalhes: [] } : null }, totais: { firebase, erpQ47: erpValue, consolidado: firebase !== null && erpValue !== null ? firebase + erpValue : null } };
+};
+
+test('modelo best-effort cobre estados completo, parcial e falho sem transformar erro em zero', () => {
+  const erp = ok({ query47: [] }); const maintenance = ok([]);
+  const complete = makeBestEffortReport(ok([]), maintenance, erp);
+  assert.equal(complete.status, 'complete');
+  const erpFailure = makeBestEffortReport(ok([]), maintenance, error('timeout'));
+  assert.equal(erpFailure.status, 'partial'); assert.equal(erpFailure.totais.erpQ47, null); assert.equal(erpFailure.totais.consolidado, null);
+  const fuelFailure = makeBestEffortReport(error(), maintenance, erp);
+  assert.equal(fuelFailure.status, 'partial'); assert.equal(fuelFailure.firebase.combustivel.valor, null); assert.equal(fuelFailure.firebase.total, null);
+  const maintenanceFailure = makeBestEffortReport(ok([]), error(), erp);
+  assert.equal(maintenanceFailure.firebase.combustivel.classificacaoDisponivel, false); assert.equal(maintenanceFailure.firebase.combustivel.valor, null);
+  const firebaseFailure = makeBestEffortReport(error(), error(), erp);
+  assert.equal(firebaseFailure.status, 'partial'); assert.equal(firebaseFailure.firebase.total, null); assert.equal(firebaseFailure.totais.erpQ47, 75);
+  const allFailure = makeBestEffortReport(error(), error(), error());
+  assert.equal(allFailure.status, 'failed'); assert.equal(allFailure.totais.consolidado, null);
+});
+
+test('PDF best-effort inclui diagnóstico seguro quando todas as fontes falham', async () => {
+  const report = makeBestEffortReport(error('permission-denied'), error('unavailable'), error('timeout'));
+  const content = new TextDecoder('windows-1252').decode(new Uint8Array(await createVehicleReportPdf(report).arrayBuffer()));
+  assert.match(content, /SEM DADOS DISPONÍVEIS/); assert.match(content, /STATUS DAS FONTES/); assert.match(content, /NÃO CALCULADO/);
+  assert.doesNotMatch(content, /segredo que não pode aparecer/);
+});
+
+test('estrutura IUT com ERP disponível produz detalhes sem ReferenceError', () => {
+  const q47 = summarizeVehicleReportErp47([{ data_emissao: '2026-04-08', numero_nota: '47', cliente_fornecedor: 'Fornecedor IUT', natureza: 'MANUTENÇÃO', conta: '4.1', tipo_movimento: 'DESPESA', valor_rateio: 120 }]);
+  assert.deepEqual(q47.detalhes, [{ data: '2026-04-08', nota: '47', fornecedor: 'Fornecedor IUT', natureza: 'MANUTENÇÃO', conta: '4.1', tipo: 'DESPESA', valor_rateio: 120, placa_nota: '—' }]);
+});
+
+test('metadata opcional ausente usa a placa no cabeçalho e ainda gera PDF', async () => {
+  const report = { ...makeBestEffortReport(ok([]), ok([]), ok({ query47: [] })), veiculo: { placa: 'SEM-0001', nome: 'SEM-0001' } };
+  const content = new TextDecoder('windows-1252').decode(new Uint8Array(await createVehicleReportPdf(report).arrayBuffer()));
+  assert.match(content, /Veículo: SEM-0001/);
+});
+
 
 test('normaliza JBJ-4J22 para o contrato ERP', () => assert.equal(normalizeVehiclePlate('JBJ-4J22'), 'JBJ4J22'));
 test('calcula o total consolidado Firebase + ERP Q47 da fixture JBJ', () => {
