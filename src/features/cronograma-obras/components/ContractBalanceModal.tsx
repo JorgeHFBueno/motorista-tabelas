@@ -1,9 +1,10 @@
 import CloseRounded from "@mui/icons-material/CloseRounded";
 import { createPortal } from "react-dom";
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
+import { loadMondaySerpSnapshot, syncMondaySerpMeasurements, type MondaySerpSnapshot } from "../../../services/monday-serp.service";
 
-export type WorkBalanceSummary = { totalContrato: number; totalDisponivel: number; medicoes: number; saldoDisponivel: number; saldoContrato: number };
-export const EMPTY_BALANCE: WorkBalanceSummary = { totalContrato: 0, totalDisponivel: 0, medicoes: 0, saldoDisponivel: 0, saldoContrato: 0 };
+export type WorkBalanceSummary = { totalContrato: number | null; totalDisponivel: number | null; medicoes: number | null; saldoDisponivel: number | null; saldoContrato: number | null };
+export const EMPTY_BALANCE: WorkBalanceSummary = { totalContrato: null, totalDisponivel: null, medicoes: null, saldoDisponivel: null, saldoContrato: null };
 const brlFormatter = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" });
 export const formatBRL = (value: number) => brlFormatter.format(value);
 
@@ -16,15 +17,28 @@ export function BalanceSummary({ summary, variant }: { summary: WorkBalanceSumma
   </div>;
 }
 
-function BalanceValue({ label, value }: { label: string; value: number }) { return <div className="co-balance-summary-value"><span>{label}</span><strong>{formatBRL(value)}</strong></div>; }
+function BalanceValue({ label, value }: { label: string; value: number | null }) { return <div className="co-balance-summary-value"><span>{label}</span><strong>{value === null ? "R$ --,--" : formatBRL(value)}</strong></div>; }
 
-export function ContractBalanceModal({ contractName, summary, onClose }: { contractName: string; summary: WorkBalanceSummary; onClose: () => void }) {
+const measurementsSummary = (snapshot: MondaySerpSnapshot | null): WorkBalanceSummary => ({ ...EMPTY_BALANCE, medicoes: snapshot?.valor_bruto_servico ?? null });
+
+export function ContractBalanceModal({ contractName, idObra, subcentroErp, onClose }: { contractName: string; idObra: string; subcentroErp: string | null; onClose: () => void }) {
   const closeRef = useRef<HTMLButtonElement>(null);
+  const [snapshot, setSnapshot] = useState<MondaySerpSnapshot | null>(null);
+  const [updating, setUpdating] = useState(Boolean(subcentroErp));
+  const [error, setError] = useState<string | null>(null);
   useEffect(() => { const onKeyDown = (event: KeyboardEvent) => { if (event.key === "Escape") onClose(); }; document.addEventListener("keydown", onKeyDown); closeRef.current?.focus(); return () => document.removeEventListener("keydown", onKeyDown); }, [onClose]);
+  useEffect(() => {
+    let active = true;
+    if (!subcentroErp) { setSnapshot(null); setUpdating(false); return () => { active = false; }; }
+    void loadMondaySerpSnapshot(idObra).then((known) => { if (active && known) setSnapshot(known); }).catch(() => { /* A remote refresh can still recover this snapshot. */ });
+    void syncMondaySerpMeasurements({ idObra, subcentroErp }).then((fresh) => { if (active && fresh) setSnapshot(fresh); if (active) setUpdating(false); }).catch(() => { if (active) { setUpdating(false); setError("Não foi possível atualizar as medições."); } });
+    return () => { active = false; };
+  }, [idObra, subcentroErp]);
   return createPortal(<div className="co-balance-modal-backdrop" role="presentation" onMouseDown={onClose}>
     <section className="co-balance-modal" role="dialog" aria-modal="true" aria-labelledby="co-balance-modal-title" onMouseDown={(event) => event.stopPropagation()}>
       <header><div><p>SALDO DO CONTRATO</p><h2 id="co-balance-modal-title">{contractName}</h2></div><button ref={closeRef} type="button" aria-label="Fechar saldo do contrato" title="Fechar" onClick={onClose}><CloseRounded /></button></header>
-      <BalanceSummary summary={summary} variant="modal" />
+      <BalanceSummary summary={measurementsSummary(snapshot)} variant="modal" />
+      <p className="co-balance-modal-status" role="status">{!subcentroErp ? "Não há Subcentro ERP vinculado." : updating ? "Atualizando..." : error}</p>
     </section>
   </div>, document.body);
 }

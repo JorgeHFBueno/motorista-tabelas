@@ -15,6 +15,7 @@ export { mondayReconcileScheduled } from './mondayReconcileScheduled.js';
 export { getKioskCredentialStatus, provisionKioskCredential, revokeKioskQr, setKioskPin, setKioskPinEnabled } from './kiosk/kioskAdmin.js';
 export { kioskAuthenticatePin } from './kiosk/kioskAuth.js';
 export { getVehicleErpCosts } from './vehicleReport.js';
+export { syncMondaySerpMeasurements } from './mondaySerpMeasurements.js';
 
 export const api = onRequest(app);
 export const adminApi = onRequest(adminApp);

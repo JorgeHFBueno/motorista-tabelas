@@ -4,9 +4,9 @@ import { createPortal } from "react-dom";
 import { createContext, type ReactNode, useCallback, useContext, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { BalanceSummary, ContractBalanceModal, EMPTY_BALANCE } from "./ContractBalanceModal";
 
-type OpenWork = { id: string; contractId: string; contractName: string; anchor: HTMLElement; onMore: () => void };
+type OpenWork = { id: string; contractId: string; idObra: string; contractName: string; subcentroErp: string | null; anchor: HTMLElement; onMore: () => void };
 type HoverContextValue = { enter: (work: OpenWork) => void; leave: () => void; focus: (work: OpenWork) => void };
-type OpenModal = { contractId: string; contractName: string; returnFocus: HTMLButtonElement };
+type OpenModal = { idObra: string; contractName: string; subcentroErp: string | null; returnFocus: HTMLButtonElement };
 const HoverContext = createContext<HoverContextValue | null>(null);
 const OPEN_DELAY = 1000;
 const CLOSE_GRACE = 150;
@@ -53,13 +53,13 @@ export function WorkHoverActions({ children, closeKey }: { children: ReactNode; 
   useEffect(() => { const onKeyDown = (event: KeyboardEvent) => { if (event.key === "Escape") close(); }; document.addEventListener("keydown", onKeyDown); return () => document.removeEventListener("keydown", onKeyDown); }, [close]);
   useEffect(() => { const closeOther = (event: Event) => { if ((event as CustomEvent<string>).detail !== instanceId.current) close(); }; window.addEventListener("co-work-hover-open", closeOther); return () => window.removeEventListener("co-work-hover-open", closeOther); }, [close]);
   return <HoverContext.Provider value={{ enter, leave, focus }}>{children}{open && createPortal(<div ref={cardRef} className={`co-work-hover-card ${balanceOpen ? "is-expanded" : ""} ${placement.above ? "is-above" : "is-below"}`} style={{ left: placement.left, top: placement.top, "--co-work-hover-arrow-left": `${placement.arrowLeft}px` } as React.CSSProperties} role="menu" onPointerEnter={keepOpen} onPointerLeave={leave}>
-    <div className="co-work-hover-actions"><button type="button" className="co-work-hover-action" aria-label="Ver detalhes do contrato" title="Ver detalhes do contrato" onClick={(event) => { event.stopPropagation(); open.onMore(); close(); }}><MoreVertRounded fontSize="small" /></button><button type="button" className="co-work-hover-action" aria-label="Saldo" title="Saldo" aria-expanded={balanceOpen} onPointerEnter={openBalance} onPointerLeave={scheduleBalanceClose} onClick={(event) => { event.stopPropagation(); const returnFocus = event.currentTarget; close(); setModal({ contractId: open.contractId, contractName: open.contractName, returnFocus }); }}><AttachMoneyRounded fontSize="small" /></button></div>
+    <div className="co-work-hover-actions"><button type="button" className="co-work-hover-action" aria-label="Ver detalhes do contrato" title="Ver detalhes do contrato" onClick={(event) => { event.stopPropagation(); open.onMore(); close(); }}><MoreVertRounded fontSize="small" /></button><button type="button" className="co-work-hover-action" aria-label="Saldo" title="Saldo" aria-expanded={balanceOpen} onPointerEnter={openBalance} onPointerLeave={scheduleBalanceClose} onClick={(event) => { event.stopPropagation(); const returnFocus = event.currentTarget; close(); setModal({ idObra: open.idObra, contractName: open.contractName, subcentroErp: open.subcentroErp, returnFocus }); }}><AttachMoneyRounded fontSize="small" /></button></div>
     {balanceOpen && <div className="co-work-balance" onPointerEnter={openBalance} onPointerLeave={scheduleBalanceClose}><BalanceSummary summary={EMPTY_BALANCE} variant="preview" /></div>}
-  </div>, document.body)}{modal && <ContractBalanceModal contractName={modal.contractName} summary={EMPTY_BALANCE} onClose={closeModal} />}</HoverContext.Provider>;
+  </div>, document.body)}{modal && <ContractBalanceModal contractName={modal.contractName} idObra={modal.idObra} subcentroErp={modal.subcentroErp} onClose={closeModal} />}</HoverContext.Provider>;
 }
 
-export function WorkHoverTrigger({ id, contractId, contractName, onMore, children }: { id: string; contractId: string; contractName: string; onMore: () => void; children: ReactNode }) {
+export function WorkHoverTrigger({ id, contractId, idObra, contractName, subcentroErp, onMore, children }: { id: string; contractId: string; idObra: string; contractName: string; subcentroErp: string | null; onMore: () => void; children: ReactNode }) {
   const hover = useContext(HoverContext); if (!hover) return <>{children}</>;
-  const work = (anchor: HTMLElement): OpenWork => ({ id, contractId, contractName, anchor, onMore });
+  const work = (anchor: HTMLElement): OpenWork => ({ id, contractId, idObra, contractName, subcentroErp, anchor, onMore });
   return <span className="co-work-hover-trigger" tabIndex={0} onPointerEnter={(event) => hover.enter(work(event.currentTarget))} onPointerLeave={hover.leave} onFocus={(event) => hover.focus(work(event.currentTarget))}>{children}</span>;
 }

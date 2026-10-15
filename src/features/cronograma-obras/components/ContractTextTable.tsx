@@ -149,7 +149,7 @@ export const ContractTextTable = memo(function ContractTextTable({
     const needsContractReview = obra.targetType === "contrato" && requiresContractReview(contrato);
     if (notStarted) return <>
       <span title={contrato?.nome ?? missing}>{contrato?.nome ?? missing}</span>
-      <span className="co-work-name" title={obra.nomeObra}>{contrato ? <WorkHoverTrigger id={obra.id} contractId={contrato.id} contractName={contrato.nome} onMore={() => onOpenContract(contrato)}>{needsContractReview ? <ContractAnalysisRequest contrato={contrato} variant="alert" /> : obra.nomeObra}</WorkHoverTrigger> : needsContractReview && contrato ? <ContractAnalysisRequest contrato={contrato} variant="alert" /> : obra.nomeObra}</span>
+      <span className="co-work-name" title={obra.nomeObra}>{contrato ? <WorkHoverTrigger id={obra.id} contractId={contrato.id} idObra={contrato.idObra} contractName={contrato.nome} subcentroErp={contrato.subcentroErp} onMore={() => onOpenContract(contrato)}>{needsContractReview ? <ContractAnalysisRequest contrato={contrato} variant="alert" /> : obra.nomeObra}</WorkHoverTrigger> : needsContractReview && contrato ? <ContractAnalysisRequest contrato={contrato} variant="alert" /> : obra.nomeObra}</span>
       <span>{obra.empresa || missing}</span>
       <span><MondaySubitemStatusControl obra={obra} canStart={notStarted} onStatusConfirmed={onStatusConfirmed} /></span>
       <span>{displayOptionalValue(contrato?.ordemInicio)}</span>
@@ -160,7 +160,7 @@ export const ContractTextTable = memo(function ContractTextTable({
     const review = obra.targetType === "contrato";
     return <>
       <span title={contrato?.nome ?? missing}>{contrato?.nome ?? missing}</span>
-      <span className="co-work-name" title={obra.nomeObra}>{contrato ? <WorkHoverTrigger id={obra.id} contractId={contrato.id} contractName={contrato.nome} onMore={() => onOpenContract(contrato)}>{obra.nomeObra}{review && <WarningAmberRounded className="co-review-icon" fontSize="inherit" titleAccess="Contrato sem LOTEs/subitems. Revisar no Monday." />}</WorkHoverTrigger> : <>{obra.nomeObra}{review && <WarningAmberRounded className="co-review-icon" fontSize="inherit" titleAccess="Contrato sem LOTEs/subitems. Revisar no Monday." />}</>}</span>
+      <span className="co-work-name" title={obra.nomeObra}>{contrato ? <WorkHoverTrigger id={obra.id} contractId={contrato.id} idObra={contrato.idObra} contractName={contrato.nome} subcentroErp={contrato.subcentroErp} onMore={() => onOpenContract(contrato)}>{obra.nomeObra}{review && <WarningAmberRounded className="co-review-icon" fontSize="inherit" titleAccess="Contrato sem LOTEs/subitems. Revisar no Monday." />}</WorkHoverTrigger> : <>{obra.nomeObra}{review && <WarningAmberRounded className="co-review-icon" fontSize="inherit" titleAccess="Contrato sem LOTEs/subitems. Revisar no Monday." />}</>}</span>
       <span>{displayRawValue(contrato?.numeroContrato)}</span>
       <MastersCell obras={[obra]} onSelectMasters={onSelectMasters} />
       <span><MondaySubitemStatusControl obra={obra} canStart={notStarted} onStatusConfirmed={onStatusConfirmed} /></span>
@@ -174,7 +174,7 @@ export const ContractTextTable = memo(function ContractTextTable({
     if (!notStarted) return obraCells(obra, contrato);
     const needsContractReview = obra.targetType === "contrato" && requiresContractReview(contrato);
     return <>
-      <span className="co-work-name" title={obra.nomeObra}>{contrato ? <WorkHoverTrigger id={obra.id} contractId={contrato.id} contractName={contrato.nome} onMore={() => onOpenContract(contrato)}>{needsContractReview ? <ContractAnalysisRequest contrato={contrato} variant="alert" /> : obra.nomeObra}</WorkHoverTrigger> : needsContractReview && contrato ? <ContractAnalysisRequest contrato={contrato} variant="alert" /> : obra.nomeObra}</span>
+      <span className="co-work-name" title={obra.nomeObra}>{contrato ? <WorkHoverTrigger id={obra.id} contractId={contrato.id} idObra={contrato.idObra} contractName={contrato.nome} subcentroErp={contrato.subcentroErp} onMore={() => onOpenContract(contrato)}>{needsContractReview ? <ContractAnalysisRequest contrato={contrato} variant="alert" /> : obra.nomeObra}</WorkHoverTrigger> : needsContractReview && contrato ? <ContractAnalysisRequest contrato={contrato} variant="alert" /> : obra.nomeObra}</span>
       <span>{obra.empresa || missing}</span>
       <span>{obra.targetType === "obra" && obra.mondaySubitemId
         ? <MondaySubitemStatusControl obra={obra} canStart={notStarted} onStatusConfirmed={onStatusConfirmed} />
@@ -221,7 +221,7 @@ export const ContractTextTable = memo(function ContractTextTable({
             <div className="co-text-row co-text-row--contract" role="button" tabIndex={0} aria-expanded={expanded} onClick={() => toggle(group.id)} onKeyDown={(event) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); event.currentTarget.click(); } }}>
               <span className="co-contract-name" title={group.name}>
                 {notStarted ? <ContractRowControls collapsed={!expanded} count={group.obras.length} contrato={contrato} showReview={needsReview} /> : <><KeyboardArrowDownRounded className={expanded ? "" : "is-collapsed"} /></>}
-                {contrato ? <WorkHoverTrigger id={group.id} contractId={contrato.id} contractName={contrato.nome} onMore={() => onOpenContract(contrato)}>{group.name}</WorkHoverTrigger> : group.name}
+                {contrato ? <WorkHoverTrigger id={group.id} contractId={contrato.id} idObra={contrato.idObra} contractName={contrato.nome} subcentroErp={contrato.subcentroErp} onMore={() => onOpenContract(contrato)}>{group.name}</WorkHoverTrigger> : group.name}
                 {needsReview && !notStarted && <><WarningAmberRounded className="co-review-icon" fontSize="inherit" /><ContractAnalysisRequest contrato={contrato!} /></>}
               </span>
               {notStarted ? <><span>{contrato?.empresa ?? missing}</span><span>{displayRawValue(contrato?.status)}</span><span>{displayOptionalValue(contrato?.ordemInicio)}</span><span>{displayOptionalValue(contrato?.confirmacaoRecurso)}</span><span>{formatDateShort(contrato?.inicio ?? null)}</span><span>{days ?? missing}</span></> : <><span>{obrasLabel}</span><span>{displayRawValue(contrato?.numeroContrato)}</span><MastersCell obras={group.obras} /><span>{displayRawValue(contrato?.status)}</span><span>{contrato?.empresa ?? missing}</span><span>{formatDateShort(contrato?.inicio ?? null)}</span><span>{days ?? missing}</span><span className="co-text-toggle-spacer" aria-hidden="true" /></>}

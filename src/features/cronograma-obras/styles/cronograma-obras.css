@@ -282,6 +282,7 @@
 .co-balance-summary--modal .co-balance-summary-value { background: #edf4f7; border: 1px solid #d5e0e6; border-radius: 7px; padding: 13px; }
 .co-balance-summary--modal .co-balance-summary-value span { color: #567282; font-size: .67rem; font-weight: 750; white-space: normal; }
 .co-balance-summary--modal .co-balance-summary-value strong { color: #163f5c; font-size: .94rem; }
+.co-balance-modal-status { color: #567282; font-size: .78rem; margin: 15px 0 0; min-height: 1.2em; }
 @media (max-width: 540px) { .co-balance-modal-backdrop { padding: 12px; } .co-balance-modal { max-height: calc(100vh - 24px); padding: 17px; } .co-balance-summary--modal .co-balance-summary-grid--total { grid-template-columns: 1fr; } }
 .co-gantt:not(.co-gantt--not-started) .co-contract-group:has(.co-work-name[title="Analisar Contrato"]) .co-contract-name::after { background: #fff0c9; border: 1px solid #e5bd65; border-radius: 99px; color: #76521f; content: 'Analisar Contrato'; flex: 0 1 auto; font-size: .55rem; font-weight: 850; letter-spacing: 0; overflow: hidden; padding: 2px 5px; text-overflow: ellipsis; white-space: nowrap; }
 .co-gantt:not(.co-gantt--not-started) .co-grid-row--child:has(.co-work-name[title="Analisar Contrato"]) .co-work-name { background: #fff4d8; border: 1px solid #efd49c; border-radius: 4px; color: #76521f; font-weight: 850; padding-right: 7px; }

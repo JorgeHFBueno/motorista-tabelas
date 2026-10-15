@@ -1268,7 +1268,7 @@ export const GanttGrid = memo(function GanttGrid({
       return <div role="button" tabIndex={0} className={`co-grid-row co-grid-row--child ${flat ? "co-grid-row--flat" : ""} ${selectedId === obra.id ? "is-selected" : ""}`} key={obra.id} onClick={() => onSelect(obra)} onKeyDown={(event) => { if (event.currentTarget !== event.target || (event.key !== "Enter" && event.key !== " ")) return; event.preventDefault(); onSelect(obra); }}>
         <div className="co-row-info co-left-row">
           {flat && <span className="co-contract-name-flat" title={contrato?.nome ?? "â€”"}>{contrato?.nome ?? "â€”"}</span>}
-          <span className="co-work-name" title={obra.nomeObra}>{contrato ? <WorkHoverTrigger id={obra.id} contractId={contrato.id} contractName={contrato.nome} onMore={() => onOpenContract(contrato)}>{workName}</WorkHoverTrigger> : workName}</span>
+          <span className="co-work-name" title={obra.nomeObra}>{contrato ? <WorkHoverTrigger id={obra.id} contractId={contrato.id} idObra={contrato.idObra} contractName={contrato.nome} subcentroErp={contrato.subcentroErp} onMore={() => onOpenContract(contrato)}>{workName}</WorkHoverTrigger> : workName}</span>
           <span>{obra.empresa || "â€”"}</span><span>{status}</span>
           <span>{displayRawValue(contrato?.ordemInicio)}</span><span>{displayRawValue(contrato?.confirmacaoRecurso)}</span>
           <span>{formatDateShort(obra.inicioPlanejado ?? contrato?.inicio)}</span><span>{obra.tempoPlanejado ?? inclusiveCivilDays(contrato?.inicio, contrato?.fim) ?? "â€”"}</span>
@@ -1299,7 +1299,7 @@ export const GanttGrid = memo(function GanttGrid({
       >
         <div className="co-row-info co-left-row">
           {flat && <span className="co-contract-name-flat" title={contrato?.nome ?? "—"}>{contrato?.nome ?? "—"}</span>}
-          <span className="co-work-name" title={obra.nomeObra}>{contrato ? <WorkHoverTrigger id={obra.id} contractId={contrato.id} contractName={contrato.nome} onMore={() => onOpenContract(contrato)}>{obra.nomeObra}</WorkHoverTrigger> : obra.nomeObra}</span>
+          <span className="co-work-name" title={obra.nomeObra}>{contrato ? <WorkHoverTrigger id={obra.id} contractId={contrato.id} idObra={contrato.idObra} contractName={contrato.nome} subcentroErp={contrato.subcentroErp} onMore={() => onOpenContract(contrato)}>{obra.nomeObra}</WorkHoverTrigger> : obra.nomeObra}</span>
           {detailsVisible && <span>{obra.empresa}</span>}
           {detailsVisible && <span><MondaySubitemStatusControl obra={obra} canStart={false} canFinish onStatusConfirmed={onStatusConfirmed} /></span>}
           <span
@@ -1398,12 +1398,12 @@ export const GanttGrid = memo(function GanttGrid({
           >
             <div className="co-row-info co-left-row">
               {notStarted ? <>
-                <span className="co-contract-name"><ContractRowControls collapsed={collapsed} count={group.obras.length} contrato={contrato} showReview={requiresContractReview(contrato)} />{contrato ? <WorkHoverTrigger id={group.id} contractId={contrato.id} contractName={contrato.nome} onMore={() => onOpenContract(contrato)}>{group.name}</WorkHoverTrigger> : group.name}</span>
+                <span className="co-contract-name"><ContractRowControls collapsed={collapsed} count={group.obras.length} contrato={contrato} showReview={requiresContractReview(contrato)} />{contrato ? <WorkHoverTrigger id={group.id} contractId={contrato.id} idObra={contrato.idObra} contractName={contrato.nome} subcentroErp={contrato.subcentroErp} onMore={() => onOpenContract(contrato)}>{group.name}</WorkHoverTrigger> : group.name}</span>
                 <span>{contrato?.empresa ?? "â€”"}</span><span>{displayRawValue(contrato?.status)}</span><span>{displayRawValue(contrato?.ordemInicio)}</span><span>{displayRawValue(contrato?.confirmacaoRecurso)}</span><span>{formatDateShort(contrato?.inicio)}</span><span>{contractDays ?? "â€”"}</span>
               </> : <>
               <span className="co-contract-name">
                 <ContractRowControls collapsed={collapsed} count={group.obras.length} />
-                {contrato ? <WorkHoverTrigger id={group.id} contractId={contrato.id} contractName={contrato.nome} onMore={() => onOpenContract(contrato)}>{group.name}</WorkHoverTrigger> : group.name}
+                {contrato ? <WorkHoverTrigger id={group.id} contractId={contrato.id} idObra={contrato.idObra} contractName={contrato.nome} subcentroErp={contrato.subcentroErp} onMore={() => onOpenContract(contrato)}>{group.name}</WorkHoverTrigger> : group.name}
               </span>
               {detailsVisible && <><span>{contrato?.empresa ?? "—"}</span><span><StatusBadge status={contrato?.status ?? "Sem status"} /></span></>}
               <span

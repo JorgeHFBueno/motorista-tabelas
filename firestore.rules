@@ -336,6 +336,12 @@ service cloud.firestore {
       allow delete: if isAuthorized();
     }
 
+    // ERP balances are written exclusively by the Admin SDK Function.
+    match /monday-serp/{idObra} {
+      allow read: if isAuthorized();
+      allow write: if false;
+    }
+
 
     match /veiculos/{veiculoId} {
       allow read: if isAuthorized();
