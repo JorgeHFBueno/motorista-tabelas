@@ -3,12 +3,13 @@ import test from 'node:test';
 import { applyPlan, createMondaySyncApp, createPlan, normalizeMondayItem } from '../lib/mondaySync.js';
 import http from 'node:http';
 
-const monday = (overrides = {}) => ({ id: 'parent-1', nome: 'Contrato', status: 'Em andamento', ordemInicio: null, confirmacaoRecurso: null, tipoObra: null, numeroContrato: '001', ano: 2026, empresa: 'LEDUR', inicio: '2026-01-01', fim: '2026-02-01', updatedAt: '2026-01-01T00:00:00Z', subitems: [], ...overrides });
-const document = (overrides = {}) => ({ id: 'parent-1', data: { raw: { id: 'parent-1', nome: 'Contrato', status: 'Em andamento', ordemInicio: null, confirmacaoRecurso: null, tipoObra: null, numeroContrato: '001', ano: 2026, empresa: 'LEDUR', inicio: '2026-01-01', fim: '2026-02-01', subitems: [] }, sincronizacao: { itemId: 'parent-1', boardId: '8515762377', apiVersion: '2026-07', mondayUpdatedAt: '2026-01-01T00:00:00Z', capturadoEm: 'kept' }, obraV2Id: 'internal-v2', internal: { kept: true }, ...overrides } });
+const monday = (overrides = {}) => ({ id: 'parent-1', nome: 'Contrato', status: 'Em andamento', ordemInicio: null, confirmacaoRecurso: null, tipoObra: null, subcentroErp: null, numeroContrato: '001', ano: 2026, empresa: 'LEDUR', inicio: '2026-01-01', fim: '2026-02-01', updatedAt: '2026-01-01T00:00:00Z', subitems: [], ...overrides });
+const document = (overrides = {}) => ({ id: 'parent-1', data: { raw: { id: 'parent-1', nome: 'Contrato', status: 'Em andamento', ordemInicio: null, confirmacaoRecurso: null, tipoObra: null, subcentroErp: null, numeroContrato: '001', ano: 2026, empresa: 'LEDUR', inicio: '2026-01-01', fim: '2026-02-01', subitems: [] }, sincronizacao: { itemId: 'parent-1', boardId: '8515762377', apiVersion: '2026-07', mondayUpdatedAt: '2026-01-01T00:00:00Z', capturadoEm: 'kept' }, obraV2Id: 'internal-v2', internal: { kept: true }, ...overrides } });
 const mondayApiItem = (columns) => ({ id: 'parent-1', name: 'Contrato', updated_at: '2026-01-01T00:00:00Z', column_values: columns, subitems: [] });
 const formula = (display_value, extras = {}) => ({ id: 'f_rmula_mknbt1hr', type: 'formula', text: '', value: null, display_value, ...extras });
 const status1 = (text) => ({ id: 'color_mm7da26y', type: 'status', text });
 const tipoObra = (text) => ({ id: 'dropdown_mkvc6z6r', type: 'dropdown', text });
+const subcentroErp = (text) => ({ id: 'text_mm847yy0', type: 'text', text });
 
 test('parent status uses FormulaValue.display_value, even when formula text and value are empty', () => {
   const item = normalizeMondayItem(mondayApiItem([formula('Obra em Andamento')]));
@@ -52,6 +53,35 @@ test('empty Tipo de Obra becomes null, equal values avoid an update, and a missi
   const missing = createPlan([privateItem], [document()]);
   assert.equal(missing.operations[0].patch.raw.tipoObra, 'Privada');
   assert.equal(missing.operations[0].patch.raw.status, 'Contrato em andamento');
+});
+
+test('Subcentro ERP reads the audited text column as an exact string and empty text as null', () => {
+  for (const value of ['001234', '12345', '12-34', 'AB 12', ' 001234 ']) {
+    const item = normalizeMondayItem(mondayApiItem([subcentroErp(value)]));
+    assert.equal(item.subcentroErp, value);
+  }
+  assert.equal(normalizeMondayItem(mondayApiItem([subcentroErp('   ')])).subcentroErp, null);
+  assert.equal(normalizeMondayItem(mondayApiItem([])).subcentroErp, null);
+});
+
+test('Subcentro ERP is idempotent, patches only raw, and never plans obras-v2 writes', async () => {
+  const item = normalizeMondayItem(mondayApiItem([formula('Em andamento'), subcentroErp('001234')]));
+  const missing = createPlan([item], [document()]);
+  assert.equal(missing.summary.subcentroErpAtualizar, 1);
+  assert.equal(missing.operations[0].patch.raw.subcentroErp, '001234');
+  assert.equal('obraV2Id' in missing.operations[0].patch, false);
+  const equal = createPlan([item], [document({ raw: { ...document().data.raw, subcentroErp: '001234' } })]);
+  assert.equal(equal.summary.subcentroErpAtualizar, 0);
+  assert.ok(!equal.operations[0].changedReasons.includes('SUBCENTRO_ERP_ATUALIZAR'));
+  const changed = createPlan([normalizeMondayItem(mondayApiItem([formula('Em andamento'), subcentroErp('001235')]))], [document({ raw: { ...document().data.raw, subcentroErp: '001234' } })]);
+  assert.equal(changed.summary.subcentroErpAtualizar, 1);
+  assert.equal(changed.operations[0].patch.raw.subcentroErp, '001235');
+  const fake = fakeFirestore();
+  await applyPlan(changed, fake);
+  const writes = [...fake.calls.update, ...fake.calls.set];
+  assert.equal(writes.length, 1);
+  assert.equal(writes[0][0].name, 'monday-obras');
+  assert.equal(writes[0][1].raw.subcentroErp, '001235');
 });
 
 test('parent formula status and subitem status stay independent in a dry-run with zero writes', () => {
@@ -144,6 +174,7 @@ test('the public sync surface keeps authorization, server secret, dry-run and to
   assert.match(source, /app\.use\(options\.authMiddleware \?\? adminAuthMiddleware\)/); assert.match(client, /defineSecret\('MONDAY_API_TOKEN'\)/); assert.match(source, /req\.body\?\.mode/); assert.match(source, /app\.post\(\['\/', '\/api\/monday-sync'\]/);
   assert.doesNotMatch(source, /req\.body\?\.token|MONDAY_API_TOKEN.*res\./); assert.match(source, /mode === 'apply' \? await applyPlan\(plan\) : 0/);
   assert.match(source, /f_rmula_mknbt1hr/); assert.match(source, /\.\.\. on FormulaValue \{ display_value \}/); assert.doesNotMatch(source, /status: columnText\(columns, 'color_mm7da26y'\)/);
+  assert.match(source, /text_mm847yy0/);
 });
 
 function request(app, path, body, authorization) {

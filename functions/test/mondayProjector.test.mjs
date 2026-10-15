@@ -2,8 +2,8 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { buildMondayManagedPatch } from '../lib/mondayProjector.js';
 
-const parent = (status = 'Obra em Andamento') => ({ id: '12808776050', nome: 'DOIS IRMÃOS DAS MISSÕES 46/2026', status, ordemInicio: null, confirmacaoRecurso: null, numeroContrato: '46/2026', ano: 2026, empresa: 'LEDUR', inicio: null, fim: null, updatedAt: '2026-10-02T00:00:00Z', subitems: [{ id: '13044433147', nome: 'LOTE 4', status: 'Em andamento' }] });
-const current = (status = 'Obra não iniciada') => ({ obraV2Id: 'local-v2', semObraV2: false, local: { retained: true }, raw: { id: '12808776050', nome: 'DOIS IRMÃOS DAS MISSÕES 46/2026', status, ordemInicio: null, confirmacaoRecurso: null, numeroContrato: '46/2026', ano: 2026, empresa: 'LEDUR', inicio: null, fim: null, subitems: [{ id: '13044433147', nome: 'LOTE 4', status: 'Em andamento' }] }, sincronizacao: { itemId: '12808776050', boardId: '8515762377', apiVersion: '2026-07', mondayUpdatedAt: '2026-10-02T00:00:00Z' } });
+const parent = (status = 'Obra em Andamento') => ({ id: '12808776050', nome: 'DOIS IRMÃOS DAS MISSÕES 46/2026', status, ordemInicio: null, confirmacaoRecurso: null, tipoObra: null, subcentroErp: null, numeroContrato: '46/2026', ano: 2026, empresa: 'LEDUR', inicio: null, fim: null, updatedAt: '2026-10-02T00:00:00Z', subitems: [{ id: '13044433147', nome: 'LOTE 4', status: 'Em andamento' }] });
+const current = (status = 'Obra não iniciada') => ({ obraV2Id: 'local-v2', semObraV2: false, local: { retained: true }, raw: { id: '12808776050', nome: 'DOIS IRMÃOS DAS MISSÕES 46/2026', status, ordemInicio: null, confirmacaoRecurso: null, tipoObra: null, subcentroErp: null, numeroContrato: '46/2026', ano: 2026, empresa: 'LEDUR', inicio: null, fim: null, subitems: [{ id: '13044433147', nome: 'LOTE 4', status: 'Em andamento' }] }, sincronizacao: { itemId: '12808776050', boardId: '8515762377', apiVersion: '2026-07', mondayUpdatedAt: '2026-10-02T00:00:00Z' } });
 
 test('formula divergence projects only Monday-owned fields and is idempotent', () => {
   const first = buildMondayManagedPatch(current(), parent());
