@@ -3,6 +3,7 @@ import { Suspense, lazy } from 'react';
 import './App.css';
 import Header from './components/Header';
 import PrivateRoute from './components/PrivateRoute';
+import EmployeeRoute from './components/EmployeeRoute';
 import CombustivelRouteGuard from './components/CombustivelRouteGuard';
 import NetworkStatusBanner from './components/NetworkStatusBanner';
 import PwaUpdateBanner from './components/PwaUpdateBanner';
@@ -31,6 +32,7 @@ const BombasPage = lazy(() => import('./pages/BombasPage'));
 const AccessDeniedPage = lazy(() => import('./pages/AccessDeniedPage'));
 const CronogramaObrasPage = lazy(() => import('./features/cronograma-obras/CronogramaObrasPage'));
 const EngenhariaObrasPage = lazy(() => import('./pages/EngenhariaObrasPage'));
+const TheManuscriptPage = lazy(() => import('./pages/TheManuscriptPage'));
 
 function LoadingFallback({ label }: { label?: string }) {
   return (
@@ -55,6 +57,9 @@ export default function App() {
           <Route path="login" element={<LoginPage />} />
           <Route path="signup" element={<SignupPage />} />
           <Route path="acesso-negado" element={<AccessDeniedPage />} />
+          <Route element={<EmployeeRoute />}>
+            <Route path="the-manuscript/*" element={<TheManuscriptPage />} />
+          </Route>
           <Route element={<PrivateRoute />}>
             <Route index element={<HomeDashboard />} />
             <Route element={<CombustivelRouteGuard />}>

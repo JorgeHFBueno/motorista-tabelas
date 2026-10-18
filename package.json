@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "vite build",
+    "build": "node --max-old-space-size=4096 ./node_modules/vite/bin/vite.js build",
     "preview": "vite preview",
     "deploy": "npm run build && firebase deploy --only hosting",
     "deploy:channel": "npm run build && firebase hosting:channel:deploy staging",
@@ -38,13 +38,17 @@
     "firebase-admin": "^13.4.0",
     "firebase-functions": "^6.3.2",
     "functions": "^1.0.9",
+    "mermaid": "^12.2.0",
     "plotly.js": "^3.0.1",
     "qrcode": "1.5.4",
     "react": "^19.1.0",
     "react-bootstrap": "^2.10.10",
     "react-dom": "^19.1.0",
+    "react-markdown": "^10.1.0",
     "react-plotly.js": "^2.6.0",
     "react-router-dom": "^7.6.2",
+    "rehype-slug": "^6.0.0",
+    "remark-gfm": "^4.0.1",
     "xlsx": "^0.18.5"
   },
   "devDependencies": {

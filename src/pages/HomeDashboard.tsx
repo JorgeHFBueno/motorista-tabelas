@@ -13,6 +13,7 @@ import ChevronLeftRoundedIcon from '@mui/icons-material/ChevronLeftRounded';
 import ChevronRightRoundedIcon from '@mui/icons-material/ChevronRightRounded';
 import PersonOutlineRoundedIcon from '@mui/icons-material/PersonOutlineRounded';
 import LogoutRoundedIcon from '@mui/icons-material/LogoutRounded';
+import MenuBookRoundedIcon from '@mui/icons-material/MenuBookRounded';
 import { type ReactNode, useCallback, useEffect, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useAuthorizationProfile } from '../hooks/useAuthorizationProfile';
@@ -28,10 +29,20 @@ type HomeAction = {
   accent: string;
   to?: string;
   requiresAdm2?: boolean;
+  visibleToAll?: boolean;
   children?: Array<{ label: string; to: string; icon: ReactNode }>;
 };
 
 const actions: HomeAction[] = [
+  {
+    label: 'The Manuscript',
+    description: 'Documentação técnica e auditoria',
+    icon: <MenuBookRoundedIcon fontSize="large" />,
+    color: '#EDF3F7',
+    accent: '#174F76',
+    to: '/the-manuscript',
+    visibleToAll: true,
+  },
   {
     label: 'Cadastros',
     description: 'Cadastrar e organizar pessoas',
@@ -118,7 +129,7 @@ export default function HomeDashboard() {
 
   const resolvedActions = actions.filter((action) => {
     if (action.requiresAdm2) return isAdm2;
-    return !isAdm1 || action.label === 'Combustível';
+    return !isAdm1 || action.label === 'Combustível' || action.visibleToAll;
   });
 
   const isActiveRoute = (to: string) => to === '/' ? location.pathname === to : location.pathname === to || location.pathname.startsWith(`${to}/`);
