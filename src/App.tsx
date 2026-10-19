@@ -33,6 +33,7 @@ const AccessDeniedPage = lazy(() => import('./pages/AccessDeniedPage'));
 const CronogramaObrasPage = lazy(() => import('./features/cronograma-obras/CronogramaObrasPage'));
 const EngenhariaObrasPage = lazy(() => import('./pages/EngenhariaObrasPage'));
 const TheManuscriptPage = lazy(() => import('./pages/TheManuscriptPage'));
+const FridayApp = lazy(() => import('./features/friday-gestao-interna/App'));
 
 function LoadingFallback({ label }: { label?: string }) {
   return (
@@ -59,6 +60,7 @@ export default function App() {
           <Route path="acesso-negado" element={<AccessDeniedPage />} />
           <Route element={<EmployeeRoute />}>
             <Route path="the-manuscript/*" element={<TheManuscriptPage />} />
+            <Route path="friday/*" element={<FridayApp />} />
           </Route>
           <Route element={<PrivateRoute />}>
             <Route index element={<HomeDashboard />} />
