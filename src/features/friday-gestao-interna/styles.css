@@ -1,0 +1,779 @@
+/* Layout de quadros (estilo inspirado em ferramentas de gestão de trabalho). Cores próprias da Ledur. */
+.friday-root {
+  --fundo-app: #eef1f7;
+  --superficie: #ffffff;
+  --superficie-2: #f6f7fb;
+  --hover: #eef0f6;
+  --borda: #d0d4e4;
+  --borda-suave: #e6e9ef;
+  --texto: #323338;
+  --texto-2: #676879;
+  --texto-3: #9699a6;
+  --primaria: #2f6fde;
+  --primaria-hover: #1f5bc4;
+  --primaria-clara: #dce8fb;
+  --selecao: #e5efff;
+  --perigo: #d83a52;
+  --marca: #14223a;
+  --acento: #ff8a3d;
+  --periodo-cheio: #2f3e5c;
+  --periodo-vazio: #a3a9bc;
+  --fim-semana: rgba(50, 51, 56, 0.045);
+  --raio: 8px;
+  --sombra: 0 4px 17px rgba(0, 0, 0, 0.12);
+  --sombra-leve: 0 1px 3px rgba(0, 0, 0, 0.08);
+  font-family: 'Segoe UI', system-ui, -apple-system, Roboto, 'Helvetica Neue', sans-serif;
+  font-size: 14px;
+  color: var(--texto);
+  background: var(--fundo-app);
+}
+.friday-root, .friday-root * { box-sizing: border-box; }
+.friday-root { margin: 0; background: var(--fundo-app); overflow: hidden; }
+body.redimensionando .friday-root, body.redimensionando .friday-root * { cursor: col-resize !important; user-select: none; }
+.friday-root h1, .friday-root h2, .friday-root h3, .friday-root h4 { margin: 0; font-weight: 600; }
+.friday-root a { color: var(--primaria); text-decoration: none; }
+.friday-root button { font: inherit; color: inherit; }
+.friday-root input, .friday-root select, .friday-root textarea { font: inherit; color: inherit; }
+.friday-root .muted { color: var(--texto-2); }
+.friday-root .fr-small { font-size: 12px; }
+.friday-root .espaco { flex: 1; }
+.friday-root .texto-alerta { color: var(--perigo); }
+.friday-root .carregando, .friday-root .vazio-grande { padding: 60px; text-align: center; color: var(--texto-2); }
+.friday-root .vazio-grande h3, .friday-root .vazio-grande h2 { margin-bottom: 14px; color: var(--texto); }
+
+/* ---------------- controles ---------------- */
+.friday-root .fr-btn { display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--borda); background: var(--superficie); padding: 0 12px; height: 32px; border-radius: 4px; cursor: pointer; white-space: nowrap; }
+.friday-root .fr-btn:hover { background: var(--hover); }
+.friday-root .fr-btn:disabled { opacity: 0.5; cursor: default; }
+.friday-root .btn-primario { background: var(--primaria); border-color: var(--primaria); color: #fff; }
+.friday-root .btn-primario:hover { background: var(--primaria-hover); }
+.friday-root .btn-perigo-cheio { background: var(--perigo); border-color: var(--perigo); color: #fff; }
+.friday-root .btn-perigo-cheio:hover { background: #b92f45; }
+.friday-root .btn-icone { display: inline-flex; align-items: center; justify-content: center; background: none; border: 0; border-radius: 4px; cursor: pointer; padding: 4px; color: var(--texto-2); }
+.friday-root .btn-icone:hover { background: var(--hover); color: var(--texto); }
+.friday-root .fr-btn-link { display: inline-flex; align-items: center; gap: 6px; background: none; border: 0; padding: 0; color: var(--primaria); cursor: pointer; }
+.friday-root .fr-btn-link:hover { text-decoration: underline; }
+.friday-root .caixa { width: 16px; height: 16px; accent-color: var(--primaria); cursor: pointer; margin: 0; }
+.friday-root .input-cheio { width: 100%; height: 38px; border: 1px solid var(--borda); border-radius: 4px; padding: 0 10px; background: var(--superficie); }
+.friday-root .input-cheio:focus, .friday-root .editavel-input:focus { outline: 2px solid var(--primaria-clara); border-color: var(--primaria); }
+.friday-root .campo-form { display: flex; flex-direction: column; gap: 6px; margin-bottom: 14px; font-size: 13px; color: var(--texto-2); }
+.friday-root .check-form { display: flex; align-items: center; gap: 8px; margin-bottom: 14px; cursor: pointer; }
+.friday-root .form-acoes { display: flex; justify-content: flex-end; gap: 8px; margin-top: 8px; }
+.friday-root .bolinha { display: inline-block; width: 10px; height: 10px; border-radius: 50%; flex: none; }
+
+/* ---------------- popover, menu, modal ---------------- */
+.friday-root .fr-popover { position: fixed; z-index: 1000; background: var(--superficie); border-radius: var(--raio); box-shadow: var(--sombra); padding: 6px 0; max-height: min(520px, calc(100vh - 16px)); overflow-y: auto; }
+.friday-root .menu { display: flex; flex-direction: column; padding: 0 6px; }
+.friday-root .menu-item { display: flex; align-items: center; gap: 10px; width: 100%; text-align: left; background: none; border: 0; padding: 7px 10px; border-radius: 4px; cursor: pointer; white-space: nowrap; }
+.friday-root .menu-item:hover { background: var(--hover); }
+.friday-root .menu-item.ativo { background: var(--selecao); }
+.friday-root .menu-item.perigo { color: var(--perigo); }
+.friday-root .menu-icone { display: inline-flex; width: 18px; justify-content: center; color: var(--texto-2); }
+.friday-root .menu-item.perigo .menu-icone { color: var(--perigo); }
+.friday-root .menu-sep { height: 1px; background: var(--borda-suave); margin: 6px 4px; }
+.friday-root .menu-titulo { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--texto-2); padding: 6px 16px 8px; }
+.friday-root .modal-fundo { position: fixed; inset: 0; background: rgba(41, 47, 76, 0.55); display: grid; place-items: center; z-index: 900; padding: 16px; }
+.friday-root .fr-modal { background: var(--superficie); border-radius: 10px; box-shadow: var(--sombra); max-height: calc(100vh - 32px); display: flex; flex-direction: column; }
+.friday-root .fr-modal > header { display: flex; justify-content: space-between; align-items: center; padding: 18px 22px 8px; }
+.friday-root .fr-modal h2 { font-size: 20px; }
+.friday-root .modal-corpo { padding: 8px 22px 20px; overflow-y: auto; }
+.friday-root .modal-corpo p { margin: 0 0 8px; }
+.friday-root .modal-rodape { display: flex; justify-content: flex-end; gap: 8px; padding: 12px 22px 18px; }
+
+.friday-root .editavel { cursor: text; border: 1px solid transparent; border-radius: 4px; padding: 1px 4px; margin-left: -5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: inline-block; max-width: 100%; vertical-align: middle; }
+.friday-root .editavel:hover { border-color: var(--borda); }
+.friday-root .editavel.vazio { color: var(--texto-3); }
+.friday-root .editavel-input { border: 1px solid var(--primaria); border-radius: 4px; padding: 1px 4px; margin-left: -5px; background: var(--superficie); min-width: 60px; width: 100%; }
+.friday-root .avatar { display: inline-flex; align-items: center; justify-content: center; border-radius: 50%; color: #fff; font-weight: 600; flex: none; border: 2px solid var(--superficie); letter-spacing: -0.02em; }
+.friday-root .avatares { display: inline-flex; align-items: center; }
+.friday-root .avatares .avatar + .avatar { margin-left: -8px; }
+.friday-root .avatar-mais { font-size: 11px; color: var(--texto-2); margin-left: 4px; }
+
+/* ---------------- estrutura ---------------- */
+.friday-root .app { display: grid; grid-template-columns: var(--largura-lateral, 255px) 1fr; grid-template-rows: 48px 1fr; height: 100%; }
+.friday-root .app.sem-lateral { grid-template-columns: 1fr; }
+.friday-root .topo { grid-column: 1 / -1; display: flex; align-items: center; gap: 12px; padding: 0 14px; background: var(--fundo-app); }
+.friday-root .marca { display: flex; align-items: center; gap: 6px; background: none; border: 0; cursor: pointer; padding: 4px 6px; font-size: 16px; }
+/* Logo oficial (repositório ledur-marca). */
+.friday-root .marca-logo { height: 26px; width: auto; display: block; }
+.friday-root .topo-busca { display: flex; align-items: center; gap: 8px; width: min(420px, 40vw); height: 32px; background: var(--superficie); border: 1px solid var(--borda); border-radius: 4px; padding: 0 10px; margin-left: 32px; color: var(--texto-2); }
+.friday-root .topo-busca input { border: 0; outline: 0; flex: 1; background: none; }
+.friday-root .topo-ic { color: var(--texto); }
+.friday-root .topo-perfil { background: none; border: 0; cursor: pointer; padding: 0; border-radius: 50%; }
+.friday-root .perfil-cab { display: flex; flex-direction: column; padding: 8px 16px 10px; border-bottom: 1px solid var(--borda-suave); margin-bottom: 6px; }
+.friday-root .busca-res { padding: 0 6px; }
+.friday-root .busca-res .muted { padding: 8px 10px; margin: 0; }
+
+.friday-root .principal { background: var(--superficie); border-top-left-radius: 16px; overflow: auto; position: relative; box-shadow: var(--sombra-leve); container-type: inline-size; }
+.friday-root .app.sem-lateral .principal { border-top-left-radius: 0; }
+
+/* ---------------- lateral ---------------- */
+.friday-root .lateral { background: var(--superficie); border-top-right-radius: 16px; margin-right: 6px; display: flex; flex-direction: column; overflow: hidden; box-shadow: var(--sombra-leve); position: relative; }
+.friday-root .lateral-redim { position: absolute; top: 0; right: 0; width: 5px; height: 100%; cursor: col-resize; z-index: 5; }
+.friday-root .lateral-redim:hover { background: var(--primaria-clara); }
+.friday-root .lateral-atalhos { display: flex; flex-direction: column; padding: 10px 8px 6px; border-bottom: 1px solid var(--borda-suave); position: relative; }
+.friday-root .atalho { display: flex; align-items: center; gap: 10px; padding: 7px 10px; border-radius: 4px; color: var(--texto); }
+.friday-root .atalho:hover { background: var(--hover); }
+.friday-root .atalho.ativo { background: var(--selecao); }
+.friday-root .recolher { position: absolute; right: 8px; top: 12px; }
+.friday-root .lateral-secao { padding: 6px 8px; border-bottom: 1px solid var(--borda-suave); }
+.friday-root .secao-titulo { display: flex; align-items: center; gap: 8px; width: 100%; background: none; border: 0; padding: 6px 6px; border-radius: 4px; cursor: pointer; color: var(--texto); }
+.friday-root .secao-titulo:hover { background: var(--hover); }
+.friday-root .area-secao { border-bottom: 0; }
+.friday-root .area-linha { display: flex; align-items: center; gap: 4px; }
+.friday-root .seletor-area { display: flex; align-items: center; gap: 8px; flex: 1; min-width: 0; background: none; border: 1px solid transparent; border-radius: 4px; padding: 5px 6px; cursor: pointer; text-align: left; }
+.friday-root .seletor-area:hover { border-color: var(--borda); }
+.friday-root .area-nome { flex: 1; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.friday-root .area-icone { display: inline-grid; place-items: center; width: 26px; height: 26px; border-radius: 6px; font-weight: 700; font-size: 13px; flex: none; }
+.friday-root .area-icone.pequeno { width: 20px; height: 20px; font-size: 11px; border-radius: 5px; }
+.friday-root .area-op .btn-icone { opacity: 0; }
+.friday-root .area-op:hover .btn-icone { opacity: 1; }
+.friday-root .btn-mais { background: var(--primaria); color: #fff; width: 30px; height: 30px; }
+.friday-root .btn-mais:hover { background: var(--primaria-hover); color: #fff; }
+.friday-root .lateral-busca { display: flex; align-items: center; gap: 6px; margin-top: 8px; height: 30px; border: 1px solid var(--borda); border-radius: 4px; padding: 0 8px; color: var(--texto-3); }
+.friday-root .lateral-busca input { border: 0; outline: 0; flex: 1; background: none; min-width: 0; }
+.friday-root .arvore { flex: 1; overflow-y: auto; padding: 4px 8px 16px; }
+.friday-root .arvore.alvo { background: var(--selecao); }
+/* Árvore: cada nível recua 16 px (--nivel); a linha guia mostra o que está dentro de cada pasta. */
+.friday-root .arvore-linha { display: flex; align-items: center; gap: 6px; height: 32px; padding-left: calc(4px + var(--nivel, 0) * 16px); padding-right: 4px; border-radius: 4px; cursor: pointer; color: var(--texto); user-select: none; }
+.friday-root .seta-vazia { width: 14px; flex: none; }
+.friday-root .arvore-filhos { position: relative; }
+.friday-root .arvore-filhos::before { content: ''; position: absolute; top: 0; bottom: 6px; left: calc(4px + var(--nivel, 0) * 16px + 7px); border-left: 1px solid var(--borda); pointer-events: none; }
+.friday-root .arvore-n { flex: none; font-size: 11px; color: var(--texto-3); background: var(--superficie-2); border-radius: 8px; padding: 0 6px; line-height: 16px; }
+.friday-root .arvore-linha:hover .arvore-n { display: none; }
+.friday-root .arvore-linha:hover { background: var(--hover); }
+.friday-root .arvore-linha.ativo { background: var(--selecao); }
+.friday-root .arvore-linha.alvo { background: var(--primaria-clara); outline: 1px dashed var(--primaria); }
+.friday-root .arvore-linha.arrastando { opacity: 0.4; }
+.friday-root .arvore-linha .seta { color: var(--texto-2); flex: none; }
+.friday-root .arvore-linha.pasta svg:not(.seta) { color: var(--texto-2); flex: none; }
+.friday-root .arvore-linha.quadro svg { color: var(--texto-2); flex: none; }
+.friday-root .arvore-nome { flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.friday-root .arvore-menu { opacity: 0; }
+.friday-root .arvore-linha:hover .arvore-menu { opacity: 1; }
+.friday-root .arvore-vazia { font-size: 12px; color: var(--texto-3); padding: 4px 0 6px calc(24px + var(--nivel, 0) * 16px); }
+.friday-root .arvore-vazia.grande { text-align: center; padding: 24px 8px; display: flex; flex-direction: column; gap: 10px; align-items: center; }
+.friday-root .zona-raiz { margin-top: 8px; border: 1px dashed var(--borda); border-radius: 4px; padding: 10px; text-align: center; font-size: 12px; color: var(--texto-2); }
+.friday-root .zona-raiz.alvo { border-color: var(--primaria); background: var(--primaria-clara); }
+
+/* ---------------- quadro: cabeçalho e barra ---------------- */
+/* A página cresce com a tabela; cabeçalho e barra ficam do tamanho da área visível (100cqw) e presos à esquerda. */
+.friday-root .pagina-quadro { display: flex; flex-direction: column; min-height: 100%; }
+.friday-root .pagina-quadro.visao-tabela { width: max-content; min-width: 100%; }
+.friday-root .quadro-cab, .friday-root .quadro-barra { width: 100cqw; }
+.friday-root .quadro-cab { padding: 16px 28px 0; position: sticky; left: 0; }
+.friday-root .qc-linha { display: flex; align-items: center; gap: 8px; }
+.friday-root .quadro-nome { font-size: 24px; font-weight: 600; max-width: 60vw; }
+.friday-root .editavel-input.quadro-nome { font-size: 24px; font-weight: 600; width: auto; }
+.friday-root .favorito svg { color: var(--texto-3); }
+.friday-root .favorito.on svg { color: #ffcb00; fill: #ffcb00; }
+.friday-root .qc-pessoas { margin-right: 6px; }
+.friday-root .quadro-desc { color: var(--texto-2); font-size: 13px; margin-top: 2px; max-width: 70vw; }
+.friday-root .abas-visoes { display: flex; align-items: center; gap: 2px; margin-top: 12px; border-bottom: 1px solid var(--borda-suave); }
+.friday-root .aba-visao { display: flex; align-items: center; gap: 6px; padding: 8px 10px; cursor: pointer; border-bottom: 2px solid transparent; color: var(--texto-2); border-radius: 4px 4px 0 0; }
+.friday-root .aba-visao:hover { background: var(--hover); }
+.friday-root .aba-visao.on { color: var(--texto); border-bottom-color: var(--primaria); }
+.friday-root .aba-menu { padding: 2px; margin-left: 2px; }
+.friday-root .aba-nova { margin-left: 4px; }
+.friday-root .quadro-barra { display: flex; align-items: center; gap: 6px; padding: 12px 28px; flex-wrap: wrap; position: sticky; left: 0; }
+.friday-root .btn-dividido { display: inline-flex; }
+.friday-root .btn-dividido .fr-btn:first-child { border-radius: 4px 0 0 4px; }
+.friday-root .btn-seta { border-radius: 0 4px 4px 0; padding: 0 6px; border-left: 1px solid rgba(255, 255, 255, 0.35); }
+.friday-root .btn-barra { border-color: transparent; background: none; color: var(--texto); }
+.friday-root .btn-barra.ativo { background: var(--selecao); }
+.friday-root .busca-barra { display: flex; align-items: center; gap: 6px; height: 32px; padding: 0 8px; border: 1px solid transparent; border-radius: 4px; color: var(--texto-2); }
+.friday-root .busca-barra:hover, .friday-root .busca-barra:focus-within { border-color: var(--borda); }
+.friday-root .busca-barra input { border: 0; outline: 0; width: 140px; background: none; }
+.friday-root .base-visao { display: flex; align-items: center; gap: 6px; color: var(--texto-2); font-size: 13px; }
+.friday-root .base-visao select { height: 30px; border: 1px solid var(--borda); border-radius: 4px; padding: 0 6px; }
+.friday-root .filtro-pessoas { display: flex; flex-wrap: wrap; gap: 6px; padding: 0 12px 10px; }
+.friday-root .filtro-pessoas button { background: none; border: 2px solid transparent; border-radius: 50%; padding: 1px; cursor: pointer; }
+.friday-root .filtro-pessoas button.on { border-color: var(--primaria); }
+.friday-root .filtro-colunas { display: flex; gap: 12px; padding: 0 12px 10px; overflow-x: auto; }
+.friday-root .filtro-coluna { display: flex; flex-direction: column; gap: 4px; min-width: 190px; }
+.friday-root .filtro-coluna strong { font-size: 12px; color: var(--texto-2); font-weight: 600; margin-bottom: 2px; }
+.friday-root .filtro-opcao { display: flex; align-items: center; gap: 8px; background: var(--superficie-2); border: 1px solid transparent; border-radius: 4px; padding: 5px 8px; cursor: pointer; text-align: left; }
+.friday-root .filtro-opcao:hover { background: var(--hover); }
+.friday-root .filtro-opcao.on { background: var(--selecao); border-color: var(--primaria); }
+.friday-root .ordenar { display: flex; gap: 8px; padding: 0 12px 10px; }
+.friday-root .ordenar select { flex: 1; height: 32px; border: 1px solid var(--borda); border-radius: 4px; }
+.friday-root .lista-check { display: flex; flex-direction: column; padding: 0 10px 8px; }
+.friday-root .lista-check label { display: flex; align-items: center; gap: 8px; padding: 5px 6px; border-radius: 4px; cursor: pointer; }
+.friday-root .lista-check label:hover { background: var(--hover); }
+.friday-root .tipo-ic { display: inline-grid; place-items: center; width: 22px; height: 22px; border-radius: 4px; flex: none; }
+.friday-root .quadro-conteudo { padding: 0 28px 120px; flex: 1; }
+
+/* ---------------- tabela do quadro ---------------- */
+.friday-root .tabela-quadro { padding-bottom: 20px; }
+.friday-root .grupo { margin-bottom: 36px; }
+.friday-root .grupo-cab { display: flex; align-items: center; gap: 4px; margin-bottom: 6px; position: sticky; left: 0; width: max-content; }
+.friday-root .grupo-menu { opacity: 0; margin-left: -30px; }
+.friday-root .grupo-cab:hover .grupo-menu { opacity: 1; }
+.friday-root .grupo-nome { color: var(--cor-grupo); font-size: 18px; font-weight: 600; }
+.friday-root .editavel-input.grupo-nome { font-size: 18px; font-weight: 600; width: 320px; }
+.friday-root .grupo-total { color: var(--texto-3); font-size: 13px; margin-left: 6px; opacity: 0; }
+.friday-root .grupo-cab:hover .grupo-total { opacity: 1; }
+.friday-root .tq { border-collapse: separate; border-spacing: 0; table-layout: fixed; width: 100%; }
+.friday-root .tq th, .friday-root .tq td { border-bottom: 1px solid var(--borda-suave); border-right: 1px solid var(--borda-suave); height: 36px; padding: 0; background: var(--superficie); }
+.friday-root .tq thead th { border-top: 1px solid var(--borda-suave); font-weight: 400; color: var(--texto-2); font-size: 13px; position: relative; }
+.friday-root .tq .fixo { position: sticky; z-index: 2; }
+.friday-root .tq .tq-sel { left: 0; text-align: center; border-left: 6px solid var(--cor-grupo); }
+.friday-root .tq thead .tq-sel { border-top-left-radius: 6px; }
+.friday-root .tq .tq-nome { left: 40px; text-align: left; padding: 0 0 0 8px; }
+.friday-root .tq tbody tr:hover td { background: var(--superficie-2); }
+.friday-root .tq tbody tr.sel td { background: var(--selecao); }
+.friday-root .tq tr.alvo-antes td { box-shadow: inset 0 2px 0 var(--primaria); }
+.friday-root .tq tr.arrastando td { opacity: 0.4; }
+.friday-root .tq-col { text-align: center; }
+.friday-root .col-cab { display: flex; align-items: center; justify-content: center; gap: 2px; padding: 0 22px; height: 100%; }
+.friday-root .col-titulo { font-size: 13px; color: var(--texto-2); }
+.friday-root .col-menu { position: absolute; right: 2px; top: 8px; opacity: 0; }
+.friday-root .tq-col:hover .col-menu { opacity: 1; }
+.friday-root .redim { position: absolute; top: 0; right: -3px; width: 6px; height: 100%; cursor: col-resize; z-index: 3; }
+.friday-root .redim:hover { background: var(--primaria-clara); }
+.friday-root .tq-mais { text-align: center; }
+.friday-root .nome-item { display: flex; align-items: center; gap: 4px; height: 36px; padding-right: 6px; }
+.friday-root .nome-item .nome-texto { flex: 1; min-width: 0; }
+.friday-root .alca { color: var(--texto-3); cursor: grab; opacity: 0; display: inline-flex; margin-left: -8px; }
+.friday-root .tq tr:hover .alca { opacity: 1; }
+.friday-root .abrir-item { display: inline-flex; align-items: center; gap: 4px; background: var(--superficie); border: 1px solid var(--borda); border-radius: 4px; height: 24px; padding: 0 6px; font-size: 12px; color: var(--texto-2); cursor: pointer; opacity: 0; }
+.friday-root .tq tr:hover .abrir-item { opacity: 1; }
+.friday-root .abrir-item:hover { color: var(--primaria); border-color: var(--primaria); }
+.friday-root .bolha { position: relative; display: inline-flex; align-items: center; background: none; border: 0; cursor: pointer; color: var(--texto-3); padding: 4px; }
+.friday-root .bolha.com { color: var(--primaria); }
+.friday-root .bolha span { position: absolute; right: -2px; bottom: 0; background: var(--primaria); color: #fff; font-size: 10px; border-radius: 8px; min-width: 15px; height: 15px; display: grid; place-items: center; padding: 0 3px; }
+.friday-root .tq-novo td { background: var(--superficie); }
+.friday-root .novo-item { border: 1px solid transparent; outline: 0; width: calc(100% - 8px); height: 28px; padding: 0 6px; border-radius: 4px; background: none; color: var(--texto); }
+.friday-root .novo-item:hover { border-color: var(--borda); }
+.friday-root .novo-item:focus { border-color: var(--primaria); background: var(--superficie); }
+.friday-root .tq-rodape td { border-right-color: transparent; background: none !important; }
+.friday-root .tq-rodape .tq-sel-vazio, .friday-root .tq-rodape .tq-nome-vazio { border-bottom-color: transparent; }
+.friday-root .tq-rodape .tq-resumo { border: 1px solid var(--borda-suave); border-top: 0; border-left: 0; }
+.friday-root .tq-rodape td.tq-resumo:nth-child(3) { border-left: 1px solid var(--borda-suave); }
+.friday-root .tq-recolhido td { height: 44px; }
+.friday-root .tq-recolhido .tq-nome { padding-left: 12px; }
+.friday-root .tq-resumo { padding: 0 6px !important; }
+.friday-root .resumo-status { display: flex; height: 22px; gap: 1px; overflow: hidden; border-radius: 2px; }
+.friday-root .resumo-status span { min-width: 4px; }
+.friday-root .resumo-num { display: flex; flex-direction: column; align-items: center; line-height: 1.1; }
+.friday-root .resumo-num small { font-size: 10px; color: var(--texto-3); }
+.friday-root .resumo-datas { text-align: center; font-size: 12px; color: var(--texto-2); }
+.friday-root .adicionar-grupo { margin-top: 4px; position: sticky; left: 0; }
+
+/* ---------------- células ---------------- */
+.friday-root .cel { height: 35px; display: flex; align-items: center; padding: 0 8px; cursor: pointer; overflow: hidden; white-space: nowrap; position: relative; }
+.friday-root .cel:hover { outline: 1px solid var(--borda); outline-offset: -1px; }
+.friday-root .cel-centro { justify-content: center; }
+.friday-root .cel-texto { gap: 6px; }
+.friday-root .cel-dica { color: var(--texto-3); opacity: 0; position: absolute; right: 8px; }
+/* Na tabela o conteúdo das células fica centralizado; se não couber, começa da esquerda e termina em "…".
+   No painel do item (campos) continua alinhado à esquerda. */
+.friday-root .tq .cel { justify-content: safe center; text-align: center; }
+.friday-root .cel-valor { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.friday-root .cel:hover .cel-dica, .friday-root .cel:hover .cel-dica-txt { opacity: 1; }
+.friday-root .cel-dica-txt { opacity: 0; color: var(--texto-3); font-size: 18px; }
+.friday-root .cel-input { width: 100%; height: 35px; border: 1px solid var(--primaria); outline: 0; padding: 0 8px; background: var(--superficie); }
+.friday-root .cel-input.num { text-align: center; }
+.friday-root textarea.cel-input { height: auto; padding: 8px; resize: vertical; }
+.friday-root .cel-status { justify-content: center; font-size: 13px; padding: 0 4px; color: #fff; transition: filter 0.1s; }
+.friday-root .cel-status:hover { outline: 0; filter: brightness(0.95); }
+.friday-root .cel-status span:first-child { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.friday-root .dobra { position: absolute; top: 0; right: 0; border-style: solid; border-width: 0 10px 10px 0; border-color: transparent rgba(255, 255, 255, 0.55) transparent transparent; opacity: 0; }
+.friday-root .cel-status:hover .dobra { opacity: 1; }
+.friday-root .cel-vazia-pessoa { color: var(--texto-3); opacity: 0.6; display: inline-flex; }
+.friday-root .cel:hover .cel-vazia-pessoa { opacity: 1; color: var(--primaria); }
+.friday-root .cel-data { gap: 4px; }
+.friday-root .cel-data.passada { color: var(--perigo); }
+.friday-root .cel-data.feita svg { color: #00a36c; }
+.friday-root .periodo { display: inline-flex; align-items: center; justify-content: center; gap: 4px; color: #fff; border-radius: 12px; padding: 2px 10px; font-size: 12px; min-width: 120px; }
+.friday-root .periodo.feito { background: #00a36c; }
+.friday-root .periodo.atrasado svg { color: #ffb3bf; }
+.friday-root .cel-lista { gap: 4px; }
+.friday-root .tag { display: inline-block; background: var(--superficie-2); border: 1px solid var(--borda-suave); border-radius: 10px; padding: 1px 8px; font-size: 12px; max-width: 100%; overflow: hidden; text-overflow: ellipsis; }
+.friday-root .tag-ligacao { background: var(--primaria-clara); border-color: transparent; color: #1b4a96; }
+.friday-root .cel-ligacao { justify-content: flex-start; }
+.friday-root .estrelas { gap: 1px; }
+.friday-root .estrelas button { background: none; border: 0; padding: 1px; cursor: pointer; color: var(--borda); display: inline-flex; }
+.friday-root .estrelas .cheia { color: #ffcb00; fill: #ffcb00; }
+.friday-root .campo-valor .cel { border: 1px solid var(--borda-suave); border-radius: 4px; }
+.friday-root .campo-valor .cel-input { border-color: var(--borda-suave); border-radius: 4px; }
+.friday-root .campo-valor .cel-input:focus { border-color: var(--primaria); }
+.friday-root .campo-valor .cel-dica, .friday-root .campo-valor .cel-dica-txt { opacity: 1; }
+
+/* popovers das células */
+.friday-root .pop-status { display: flex; flex-direction: column; gap: 6px; padding: 6px 12px 4px; }
+.friday-root .rotulo-btn { border: 0; height: 32px; border-radius: 3px; cursor: pointer; font-size: 13px; }
+.friday-root .rotulo-btn:hover { filter: brightness(0.93); }
+.friday-root .pop-rodape { border-top: 1px solid var(--borda-suave); padding-top: 8px; margin-top: 4px; justify-content: center; }
+.friday-root .editor-rotulos { display: flex; flex-direction: column; gap: 6px; padding: 6px 12px; }
+.friday-root .er-linha { display: flex; align-items: center; gap: 6px; position: relative; flex-wrap: wrap; }
+.friday-root .er-linha input { flex: 1; height: 30px; border: 1px solid var(--borda); border-radius: 4px; padding: 0 8px; min-width: 0; }
+.friday-root .er-cor { width: 22px; height: 30px; border: 0; border-radius: 3px; cursor: pointer; }
+.friday-root .er-acoes { display: flex; justify-content: flex-end; gap: 6px; border-top: 1px solid var(--borda-suave); padding-top: 8px; }
+.friday-root .paleta { display: grid; grid-template-columns: repeat(10, 18px); gap: 4px; padding: 6px; background: var(--superficie-2); border-radius: 4px; width: 100%; }
+.friday-root .paleta button { width: 18px; height: 18px; border-radius: 3px; border: 0; cursor: pointer; }
+.friday-root .paleta button:hover { transform: scale(1.15); }
+.friday-root .paleta-solta { margin: 4px 10px; width: auto; }
+.friday-root .pop-pessoa { display: flex; flex-direction: column; padding: 4px 8px; gap: 2px; }
+.friday-root .busca-pop { display: flex; align-items: center; gap: 6px; border: 1px solid var(--borda); border-radius: 4px; padding: 0 8px; height: 32px; margin-bottom: 6px; color: var(--texto-3); }
+.friday-root .busca-pop input { border: 0; outline: 0; flex: 1; min-width: 0; }
+.friday-root .pop-linha { display: flex; align-items: center; gap: 8px; background: none; border: 0; text-align: left; padding: 6px 8px; border-radius: 4px; cursor: pointer; width: 100%; }
+.friday-root .pop-linha:hover { background: var(--hover); }
+.friday-root .pop-linha small { color: var(--texto-3); margin-left: auto; }
+.friday-root .pop-rolagem { max-height: 280px; overflow-y: auto; }
+.friday-root .chips { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 6px; }
+.friday-root .chip { display: inline-flex; align-items: center; gap: 4px; background: var(--superficie-2); border-radius: 12px; padding: 2px 4px 2px 2px; font-size: 12px; }
+.friday-root .chip button { display: inline-flex; background: none; border: 0; cursor: pointer; color: var(--texto-2); padding: 0; }
+.friday-root .marcador { width: 16px; height: 16px; border: 1px solid var(--borda); border-radius: 3px; display: inline-grid; place-items: center; flex: none; }
+.friday-root .marcador.on { background: var(--primaria); border-color: var(--primaria); color: #fff; }
+.friday-root .pop-data { display: flex; flex-direction: column; gap: 10px; padding: 8px 12px; }
+.friday-root .pop-data label { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: var(--texto-2); }
+.friday-root .pop-data input { height: 34px; border: 1px solid var(--borda); border-radius: 4px; padding: 0 8px; }
+.friday-root .pop-data-atalhos { display: flex; gap: 6px; }
+.friday-root .pop-textarea { width: calc(100% - 20px); margin: 4px 10px; border: 1px solid var(--borda); border-radius: 4px; padding: 8px; resize: vertical; }
+.friday-root .menu-tipos { padding: 0 6px 4px; }
+.friday-root .grade-tipos { display: grid; grid-template-columns: 1fr 1fr; gap: 2px; }
+.friday-root .tipo-btn { display: flex; align-items: center; gap: 8px; background: none; border: 0; padding: 6px 8px; border-radius: 4px; cursor: pointer; text-align: left; }
+.friday-root .tipo-btn:hover { background: var(--hover); }
+
+/* ---------------- seleção em lote ---------------- */
+.friday-root .barra-selecao { position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%); display: flex; align-items: center; gap: 14px; background: var(--superficie); border-radius: 8px; box-shadow: var(--sombra); padding: 0 12px 0 0; height: 64px; z-index: 50; overflow: hidden; }
+.friday-root .bs-n { background: var(--primaria); color: #fff; height: 64px; width: 64px; display: grid; place-items: center; font-size: 22px; }
+.friday-root .bs-acao { display: flex; flex-direction: column; align-items: center; gap: 2px; background: none; border: 0; cursor: pointer; font-size: 12px; padding: 6px 8px; border-radius: 4px; }
+.friday-root .bs-acao:hover { background: var(--hover); }
+.friday-root .bs-acao.perigo { color: var(--perigo); }
+
+/* ---------------- painel do item ---------------- */
+.friday-root .painel-fundo { position: fixed; inset: 0; z-index: 800; background: rgba(41, 47, 76, 0.12); }
+.friday-root .painel { position: absolute; top: 0; right: 0; bottom: 0; width: min(640px, 100vw); background: var(--superficie); box-shadow: var(--sombra); display: flex; flex-direction: column; animation: entrar 0.18s ease-out; }
+@keyframes entrar { from { transform: translateX(40px); opacity: 0.6; } }
+.friday-root .painel-cab { padding: 14px 24px 0; border-bottom: 1px solid var(--borda-suave); }
+.friday-root .painel-topo { display: flex; align-items: center; gap: 4px; }
+.friday-root .painel-grupo { font-size: 13px; font-weight: 600; }
+.friday-root .painel-titulo { font-size: 22px; font-weight: 600; margin: 6px 0 10px; }
+.friday-root .editavel-input.painel-titulo { font-size: 22px; font-weight: 600; }
+.friday-root .painel-abas { display: flex; gap: 2px; overflow-x: auto; }
+.friday-root .painel-abas button { white-space: nowrap; flex: none; }
+.friday-root .painel-abas button { display: flex; align-items: center; gap: 6px; background: none; border: 0; border-bottom: 2px solid transparent; padding: 8px 10px; cursor: pointer; color: var(--texto-2); }
+.friday-root .painel-abas button.on { border-bottom-color: var(--primaria); color: var(--texto); }
+.friday-root .painel-corpo { flex: 1; overflow-y: auto; padding: 18px 24px; background: var(--superficie-2); }
+.friday-root .nova-atualizacao { background: var(--superficie); border: 1px solid var(--borda); border-radius: 8px; padding: 10px; margin-bottom: 16px; }
+.friday-root .nova-atualizacao textarea { width: 100%; border: 0; outline: 0; resize: vertical; }
+.friday-root .na-acoes { display: flex; justify-content: space-between; align-items: center; }
+.friday-root .atualizacao { background: var(--superficie); border: 1px solid var(--borda-suave); border-radius: 8px; padding: 12px 14px; margin-bottom: 10px; }
+.friday-root .atualizacao header { display: flex; align-items: center; gap: 8px; }
+.friday-root .atualizacao header small { margin-left: auto; }
+.friday-root .atualizacao p { margin: 10px 0 0; white-space: pre-wrap; }
+.friday-root .vazio-painel { text-align: center; color: var(--texto-2); padding: 30px 20px; display: flex; flex-direction: column; align-items: center; gap: 6px; }
+.friday-root .vazio-painel svg { color: var(--texto-3); }
+.friday-root .vazio-painel p { margin: 0; font-weight: 600; color: var(--texto); }
+.friday-root .campos { display: flex; flex-direction: column; gap: 8px; }
+.friday-root .campo { display: grid; grid-template-columns: 170px 1fr; align-items: center; gap: 10px; }
+.friday-root .campo-rotulo { display: flex; align-items: center; gap: 6px; color: var(--texto-2); font-size: 13px; }
+.friday-root .campo-valor { background: var(--superficie); border-radius: 4px; min-height: 35px; }
+.friday-root .atividades { list-style: none; margin: 0; padding: 0; background: var(--superficie); border-radius: 8px; border: 1px solid var(--borda-suave); }
+.friday-root .atividades li { display: grid; grid-template-columns: 82px 26px minmax(80px, 180px) 1fr; align-items: center; gap: 8px; padding: 8px 12px; border-bottom: 1px solid var(--borda-suave); font-size: 13px; }
+.friday-root .atividades li:last-child { border-bottom: 0; }
+.friday-root .at-item { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-weight: 600; }
+.friday-root .at-desc s { color: var(--texto-3); }
+
+/* ---------------- kanban ---------------- */
+.friday-root .kanban { display: flex; gap: 12px; align-items: flex-start; overflow-x: auto; padding-bottom: 16px; }
+.friday-root .kb-coluna { width: 270px; flex: none; background: var(--superficie-2); border-radius: 8px; overflow: hidden; }
+.friday-root .kb-coluna header { display: flex; justify-content: space-between; align-items: center; padding: 10px 12px; font-weight: 600; }
+.friday-root .kb-cartoes { display: flex; flex-direction: column; gap: 8px; padding: 8px; min-height: 80px; }
+.friday-root .cartao { background: var(--superficie); border-radius: 6px; padding: 10px 12px; box-shadow: var(--sombra-leve); cursor: pointer; display: flex; flex-direction: column; gap: 6px; align-items: flex-start; }
+.friday-root .cartao:hover { box-shadow: 0 2px 8px rgba(0, 0, 0, 0.14); }
+.friday-root .cartao-nome { font-weight: 500; }
+.friday-root .cartao-status { font-size: 11.5px; padding: 2px 8px; border-radius: 3px; }
+.friday-root .cartao-meta { font-size: 12px; color: var(--texto-2); }
+.friday-root .cartao-rodape { display: flex; justify-content: space-between; align-items: center; width: 100%; min-height: 4px; }
+.friday-root .cartao-bolha { display: inline-flex; align-items: center; gap: 3px; font-size: 12px; color: var(--primaria); }
+.friday-root .kb-novo { display: flex; align-items: center; gap: 6px; background: none; border: 0; padding: 6px; color: var(--texto-2); cursor: pointer; border-radius: 4px; }
+.friday-root .kb-novo:hover { background: var(--hover); color: var(--texto); }
+
+/* ---------------- calendário ---------------- */
+.friday-root .cal-barra { display: flex; align-items: center; gap: 6px; margin-bottom: 10px; }
+.friday-root .cal-barra h3 { margin-left: 8px; }
+.friday-root .cal-barra h3::first-letter { text-transform: uppercase; }
+.friday-root .cal-grade { display: grid; grid-template-columns: repeat(7, minmax(110px, 1fr)); border-top: 1px solid var(--borda-suave); border-left: 1px solid var(--borda-suave); }
+.friday-root .cal-dia-semana { padding: 6px 8px; font-size: 12px; color: var(--texto-2); border-right: 1px solid var(--borda-suave); border-bottom: 1px solid var(--borda-suave); text-transform: capitalize; }
+.friday-root .cal-dia { min-height: 104px; padding: 4px 6px; border-right: 1px solid var(--borda-suave); border-bottom: 1px solid var(--borda-suave); display: flex; flex-direction: column; gap: 3px; }
+.friday-root .cal-dia.fora { background: var(--superficie-2); }
+.friday-root .cal-dia.fora .cal-num { color: var(--texto-3); }
+.friday-root .cal-dia.hoje .cal-num { background: var(--primaria); color: #fff; border-radius: 50%; }
+.friday-root .cal-num { font-size: 12px; width: 22px; height: 22px; display: grid; place-items: center; }
+.friday-root .cal-item { text-align: left; background: var(--superficie-2); border: 0; border-left: 3px solid var(--primaria); border-radius: 3px; padding: 3px 6px; font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; cursor: pointer; }
+.friday-root .cal-item:hover { background: var(--hover); }
+.friday-root .dica { margin-top: 10px; }
+
+/* ---------------- cronograma (gantt) ---------------- */
+.friday-root .gantt { overflow-x: auto; border: 1px solid var(--borda-suave); border-radius: 8px; }
+.friday-root .gt-cab, .friday-root .gt-linha, .friday-root .gt-grupo-nome { display: flex; }
+.friday-root .gt-cab { height: 36px; border-bottom: 1px solid var(--borda-suave); position: sticky; top: 0; background: var(--superficie); z-index: 3; }
+.friday-root .gt-fixo { position: sticky; left: 0; width: 260px; flex: none; background: var(--superficie); z-index: 2; display: flex; align-items: center; padding: 0 12px; border-right: 1px solid var(--borda-suave); }
+.friday-root .gt-cab .gt-fixo { color: var(--texto-2); font-size: 13px; }
+.friday-root .gt-escala { position: relative; }
+.friday-root .gt-escala span { position: absolute; top: 10px; font-size: 12px; color: var(--texto-2); border-left: 1px solid var(--borda-suave); padding-left: 6px; height: 26px; }
+.friday-root .gt-grupo-nome { height: 36px; font-weight: 600; border-bottom: 1px solid var(--borda-suave); }
+.friday-root .gt-linha { height: 36px; border-bottom: 1px solid var(--borda-suave); }
+.friday-root .gt-nome { border: 0; border-right: 1px solid var(--borda-suave); text-align: left; cursor: pointer; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: block; line-height: 36px; padding: 0 12px 0 24px; }
+.friday-root .gt-nome:hover { color: var(--primaria); }
+.friday-root .gt-trilho { position: relative; background-image: linear-gradient(90deg, transparent 0 130px, var(--fim-semana) 130px 182px); background-size: 182px 100%; }
+.friday-root .gt-hoje { position: absolute; top: 0; bottom: 0; width: 2px; background: rgba(216, 58, 82, 0.55); }
+.friday-root .gt-barra { position: absolute; top: 7px; height: 22px; border-radius: 11px; font-size: 12px; padding: 2px 10px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; cursor: grab; box-shadow: var(--sombra-leve); }
+.friday-root .gt-barra:active { cursor: grabbing; }
+.friday-root .vazio-visao { padding: 20px; }
+
+/* ---------------- páginas ---------------- */
+.friday-root .pagina { padding: 28px 36px 60px; max-width: 1200px; }
+.friday-root .pagina-cab { display: flex; justify-content: space-between; align-items: flex-end; gap: 16px; margin-bottom: 24px; flex-wrap: wrap; }
+.friday-root .pagina-cab h1 { font-size: 26px; }
+.friday-root .pagina-cab p { margin: 4px 0 0; text-transform: none; }
+.friday-root .inicio-resumo { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 12px; margin-bottom: 30px; }
+.friday-root .resumo-cartao { display: flex; flex-direction: column; border: 1px solid var(--borda-suave); border-top: 4px solid; border-radius: 8px; padding: 14px 16px; color: var(--texto); }
+.friday-root .resumo-cartao:hover { box-shadow: var(--sombra-leve); }
+.friday-root .resumo-cartao strong { font-size: 28px; }
+.friday-root .resumo-cartao span { color: var(--texto-2); }
+.friday-root .inicio-secao { margin-bottom: 30px; }
+.friday-root .inicio-secao h2 { display: flex; align-items: center; gap: 8px; font-size: 18px; margin-bottom: 14px; }
+.friday-root .inicio-pasta h3 { display: flex; align-items: center; gap: 6px; font-size: 13px; color: var(--texto-2); margin: 14px 0 8px; font-weight: 600; }
+.friday-root .grade-quadros { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 12px; }
+.friday-root .cartao-quadro { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; text-align: left; background: var(--superficie); border: 1px solid var(--borda-suave); border-radius: 8px; padding: 12px; cursor: pointer; }
+.friday-root .cartao-quadro:hover { box-shadow: var(--sombra-leve); border-color: var(--borda); }
+.friday-root .cq-capa { display: grid; place-items: center; width: 100%; height: 70px; background: var(--superficie-2); border-radius: 6px; color: var(--primaria); }
+.friday-root .cq-nome { font-weight: 600; display: flex; align-items: center; gap: 6px; }
+.friday-root .cq-fav { color: #ffcb00; fill: #ffcb00; }
+.friday-root .mt-grupo { margin-bottom: 22px; }
+.friday-root .mt-grupo-cab { display: flex; align-items: center; gap: 6px; background: none; border: 0; font-size: 18px; font-weight: 600; cursor: pointer; padding: 0; margin-bottom: 8px; }
+.friday-root .mt-grupo-cab small { font-size: 13px; font-weight: 400; margin-left: 6px; }
+.friday-root .mt-tabela { border: 1px solid var(--borda-suave); border-left: 6px solid var(--cor-grupo); border-radius: 6px; overflow: hidden; }
+.friday-root .mt-linha { display: grid; grid-template-columns: minmax(200px, 2fr) minmax(160px, 1.5fr) 150px 170px; align-items: center; min-height: 38px; border-bottom: 1px solid var(--borda-suave); cursor: pointer; }
+.friday-root .mt-linha > span { padding: 0 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.friday-root .mt-linha:last-child { border-bottom: 0; }
+.friday-root .mt-linha:hover:not(.mt-cab) { background: var(--superficie-2); }
+.friday-root .mt-cab { cursor: default; color: var(--texto-2); font-size: 13px; min-height: 34px; }
+.friday-root .mt-quadro { color: var(--texto-2); display: flex !important; align-items: center; gap: 6px; }
+.friday-root .mt-status { display: inline-block; padding: 3px 10px; border-radius: 3px; font-size: 12px; }
+.friday-root .mt-vazio { padding: 10px 12px; color: var(--texto-3); }
+
+/* ---------------- entrar ---------------- */
+.friday-root .entrar { min-height: 100vh; display: grid; place-items: center; background: var(--fundo-app); padding: 16px; }
+.friday-root .entrar-caixa { background: var(--superficie); border-radius: 12px; padding: 32px; width: min(420px, 100%); text-align: center; box-shadow: var(--sombra); }
+.friday-root .marca-grande { justify-content: center; margin: 4px 0 6px; cursor: default; }
+.friday-root .marca-grande .marca-logo { height: 54px; }
+.friday-root .entrar-lista { display: grid; gap: 8px; margin-top: 20px; }
+.friday-root .entrar-usuario { display: flex; align-items: center; gap: 12px; padding: 10px 14px; background: var(--superficie); border: 1px solid var(--borda-suave); border-radius: 8px; cursor: pointer; text-align: left; }
+.friday-root .entrar-usuario:hover { border-color: var(--primaria); background: var(--superficie-2); }
+.friday-root .entrar-usuario span { display: flex; flex-direction: column; }
+.friday-root .entrar-usuario small { color: var(--texto-2); }
+
+@media (max-width: 900px) {
+  .friday-root .app { grid-template-columns: 1fr; }
+  .friday-root .lateral { display: none; }
+  .friday-root .topo-busca { margin-left: 0; }
+  .friday-root .quadro-cab, .friday-root .quadro-barra, .friday-root .quadro-conteudo { padding-left: 14px; padding-right: 14px; }
+  .friday-root .pagina { padding: 18px 16px; }
+}
+
+/* ---------------- subitens e grupos grandes ---------------- */
+.friday-root .chip-sub { display: inline-flex; align-items: center; gap: 3px; background: var(--superficie-2); border: 1px solid var(--borda-suave); border-radius: 10px; height: 22px; padding: 0 7px; font-size: 12px; color: var(--texto-2); cursor: pointer; }
+.friday-root .chip-sub:hover { border-color: var(--primaria); color: var(--primaria); }
+.friday-root .tq-mais-itens td { background: var(--superficie-2) !important; }
+.friday-root .tq-mais-itens .tq-nome { padding-left: 12px; }
+.friday-root .novo-subitem { display: flex; align-items: center; gap: 8px; margin-top: 10px; background: var(--superficie); border: 1px dashed var(--borda); border-radius: 8px; padding: 0 10px; color: var(--texto-3); }
+.friday-root .novo-subitem input { border: 0; outline: 0; flex: 1; height: 38px; background: none; }
+
+/* ---------------- atualizações: escrita, menções, anexos e respostas ---------------- */
+.friday-root .composer { position: relative; background: var(--superficie); border: 1px solid var(--borda); border-radius: 8px; padding: 10px 10px 6px; margin-bottom: 16px; }
+.friday-root .composer:focus-within { border-color: var(--primaria); box-shadow: 0 0 0 3px var(--primaria-clara); }
+.friday-root .composer.arrastando { border-style: dashed; border-color: var(--primaria); background: var(--selecao); }
+.friday-root .composer textarea { width: 100%; border: 0; outline: 0; resize: vertical; background: none; line-height: 1.45; }
+.friday-root .composer.compacto { margin: 8px 0 0; }
+.friday-root .composer-barra { display: flex; align-items: center; gap: 4px; border-top: 1px solid var(--borda-suave); padding-top: 6px; margin-top: 4px; }
+.friday-root .composer-fechado { width: 100%; text-align: left; background: var(--superficie); border: 1px solid var(--borda-suave); border-radius: 6px; padding: 8px 10px; color: var(--texto-3); cursor: text; margin-top: 8px; }
+.friday-root .mencao-lista { position: absolute; left: 10px; top: 100%; margin-top: -6px; z-index: 20; background: var(--superficie); border-radius: 8px; box-shadow: var(--sombra); padding: 4px; min-width: 280px; }
+.friday-root .mencao-lista button { display: flex; align-items: center; gap: 8px; width: 100%; background: none; border: 0; padding: 6px 8px; border-radius: 4px; cursor: pointer; text-align: left; }
+.friday-root .mencao-lista button.on, .friday-root .mencao-lista button:hover { background: var(--selecao); }
+.friday-root .mencao-lista small { margin-left: auto; color: var(--texto-3); }
+.friday-root .mencao { color: var(--primaria); background: var(--primaria-clara); border-radius: 4px; padding: 0 3px; font-weight: 500; }
+.friday-root .mencao.eu { background: #ffe6b3; color: #7a4b00; }
+.friday-root .anexos-pendentes { display: flex; flex-wrap: wrap; gap: 6px; margin: 6px 0; }
+.friday-root .anexo-chip { display: inline-flex; align-items: center; gap: 6px; background: var(--superficie-2); border: 1px solid var(--borda-suave); border-radius: 6px; padding: 4px 6px 4px 8px; font-size: 12.5px; max-width: 280px; }
+.friday-root .anexo-chip small { color: var(--texto-3); }
+.friday-root .anexo-chip button { display: inline-flex; background: none; border: 0; cursor: pointer; color: var(--texto-2); padding: 2px; }
+.friday-root .at-cab { display: flex; align-items: center; gap: 8px; }
+.friday-root .at-texto { margin: 10px 0 0; white-space: pre-wrap; word-break: break-word; line-height: 1.5; }
+.friday-root .at-texto:empty { display: none; }
+.friday-root .at-rodape { display: flex; align-items: center; gap: 12px; border-top: 1px solid var(--borda-suave); margin-top: 10px; padding-top: 8px; }
+.friday-root .respostas { margin-top: 8px; padding-left: 14px; border-left: 2px solid var(--borda-suave); display: flex; flex-direction: column; gap: 8px; }
+.friday-root .resposta { background: var(--superficie-2); border-radius: 6px; padding: 8px 10px; }
+.friday-root .resposta .at-texto { margin-top: 6px; }
+.friday-root .grade-anexos { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px; margin-top: 10px; }
+.friday-root .anexo { border: 1px solid var(--borda-suave); border-radius: 6px; overflow: hidden; background: var(--superficie); display: flex; flex-direction: column; position: relative; }
+.friday-root .anexo-visual { display: grid; place-items: center; height: 90px; background: var(--superficie-2); color: var(--texto-2); }
+.friday-root .anexo-visual img { width: 100%; height: 100%; object-fit: cover; }
+.friday-root .anexo-info { display: flex; flex-direction: column; padding: 6px 8px; min-width: 0; }
+.friday-root .anexo-nome { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: 12.5px; color: var(--texto); }
+.friday-root .anexo-acoes { position: absolute; top: 4px; right: 4px; display: flex; gap: 2px; background: var(--superficie); border-radius: 4px; box-shadow: var(--sombra-leve); opacity: 0; }
+.friday-root .anexo:hover .anexo-acoes { opacity: 1; }
+.friday-root .ic-pdf { color: #d83a52; } .friday-root .ic-planilha { color: #037f4c; } .friday-root .ic-doc { color: #2f6fde; } .friday-root .ic-img { color: #a25ddc; } .friday-root .ic-zip { color: #b07d00; } .friday-root .ic-video { color: #ff642e; }
+
+/* ---------------- aba Arquivos ---------------- */
+.friday-root .zona-envio { display: flex; align-items: center; justify-content: center; gap: 8px; border: 1.5px dashed var(--borda); border-radius: 8px; padding: 18px; color: var(--texto-2); cursor: pointer; background: var(--superficie); margin-bottom: 14px; }
+.friday-root .zona-envio:hover, .friday-root .arquivos.arrastando .zona-envio { border-color: var(--primaria); color: var(--primaria); background: var(--selecao); }
+.friday-root .lista-arquivos { background: var(--superficie); border: 1px solid var(--borda-suave); border-radius: 8px; }
+.friday-root .arquivo-linha { display: flex; align-items: center; gap: 10px; padding: 8px 10px; border-bottom: 1px solid var(--borda-suave); }
+.friday-root .arquivo-linha:last-child { border-bottom: 0; }
+.friday-root .arquivo-mini { width: 44px; height: 44px; border-radius: 6px; background: var(--superficie-2); display: grid; place-items: center; overflow: hidden; flex: none; color: var(--texto-2); }
+.friday-root .arquivo-mini img { width: 100%; height: 100%; object-fit: cover; }
+.friday-root .arquivo-desc { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.friday-root .arquivo-desc .anexo-nome { font-size: 13.5px; }
+
+/* ---------------- avisos (sino) ---------------- */
+.friday-root .sino { position: relative; }
+.friday-root .sino-n { position: absolute; top: -2px; right: -4px; background: var(--perigo); color: #fff; font-size: 10px; font-weight: 700; min-width: 17px; height: 17px; border-radius: 9px; display: grid; place-items: center; padding: 0 4px; border: 2px solid var(--fundo-app); }
+.friday-root .avisos-cab { display: flex; align-items: center; gap: 12px; padding: 6px 14px 10px; border-bottom: 1px solid var(--borda-suave); }
+.friday-root .avisos-cab .check-form { margin: 0; font-size: 12.5px; color: var(--texto-2); }
+.friday-root .avisos-vazio { padding: 16px; margin: 0; }
+.friday-root .avisos-lista { display: flex; flex-direction: column; max-height: 460px; overflow-y: auto; }
+.friday-root .aviso { display: flex; gap: 10px; text-align: left; background: none; border: 0; border-bottom: 1px solid var(--borda-suave); padding: 10px 14px; cursor: pointer; }
+.friday-root .aviso:hover { background: var(--superficie-2); }
+.friday-root .aviso.nao-lido { background: var(--selecao); }
+.friday-root .aviso.nao-lido:hover { background: var(--primaria-clara); }
+.friday-root .aviso-av { position: relative; flex: none; }
+.friday-root .aviso-tipo { position: absolute; right: -3px; bottom: -3px; width: 18px; height: 18px; border-radius: 50%; background: var(--primaria); color: #fff; display: grid; place-items: center; border: 2px solid var(--superficie); }
+.friday-root .aviso-corpo { display: flex; flex-direction: column; gap: 3px; min-width: 0; font-size: 13px; }
+.friday-root .aviso-corpo > span { display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+.friday-root .bolha { color: var(--texto-3); }
+
+/* ---------------- menu de tipos de coluna ---------------- */
+.friday-root .menu-tipos { padding: 4px 8px 6px; }
+.friday-root .busca-tipos { display: flex; align-items: center; gap: 8px; height: 36px; border: 1px solid var(--primaria); border-radius: 6px; padding: 0 10px; margin: 2px 2px 6px; color: var(--texto-3); }
+.friday-root .busca-tipos input { border: 0; outline: 0; flex: 1; background: none; min-width: 0; }
+.friday-root .menu-tipos .menu-titulo { padding: 8px 8px 6px; }
+
+/* ---------------- células de fórmula e arquivos ---------------- */
+.friday-root .cel-formula { cursor: default; color: var(--texto); }
+.friday-root .cel-formula:hover { outline: 0; }
+.friday-root .cel-formula.erro { color: #c98a00; }
+.friday-root .cel-arquivos.arrastando { background: var(--selecao); outline: 1px dashed var(--primaria); }
+.friday-root .arquivos-mini { display: inline-flex; align-items: center; gap: 4px; }
+.friday-root .pop-arquivo { display: flex; align-items: center; gap: 6px; padding: 4px 4px; border-radius: 4px; }
+.friday-root .pop-arquivo:hover { background: var(--hover); }
+.friday-root .pop-arquivo > a:not(.btn-icone), .friday-root .pop-arquivo > span { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--texto); }
+.friday-root .pop-arquivo.pendente > span { color: var(--texto-2); }
+.friday-root .pop-arquivo.pendente svg:first-child, .friday-root .arquivo-pendente { opacity: 0.45; }
+.friday-root .selo-monday { font-size: 10px; background: var(--superficie-2); border: 1px solid var(--borda-suave); border-radius: 8px; padding: 0 6px; margin-left: 4px; color: var(--texto-2); }
+.friday-root .dica-monday { display: block; margin: 6px 4px 8px; font-size: 11px; }
+
+/* ---------------- editor de fórmula ---------------- */
+.friday-root .editor-formula { display: grid; grid-template-columns: minmax(0, 1fr) 330px; gap: 18px; }
+.friday-root .ef-texto { width: 100%; font-family: Consolas, 'Cascadia Mono', 'Courier New', monospace; font-size: 13px; line-height: 1.5; border: 1px solid var(--borda); border-radius: 6px; padding: 10px; resize: vertical; tab-size: 2; }
+.friday-root .ef-texto:focus { outline: 2px solid var(--primaria-clara); border-color: var(--primaria); }
+.friday-root .ef-validacao { display: flex; align-items: center; gap: 6px; margin-top: 8px; font-size: 13px; }
+.friday-root .ef-validacao.ok { color: #037f4c; }
+.friday-root .ef-validacao.erro { color: var(--perigo); }
+.friday-root .ef-previa { margin-top: 12px; border: 1px solid var(--borda-suave); border-radius: 6px; padding-bottom: 4px; }
+.friday-root .ef-previa .menu-titulo { padding: 8px 10px 4px; }
+.friday-root .ef-previa-linha { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.3fr); gap: 10px; padding: 5px 10px; border-top: 1px solid var(--borda-suave); font-size: 13px; }
+.friday-root .ef-item { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--texto-2); }
+.friday-root .ef-lateral { border-left: 1px solid var(--borda-suave); padding-left: 14px; display: flex; flex-direction: column; min-height: 0; max-height: 62vh; }
+.friday-root .ef-lateral .menu-titulo { padding: 4px 0 6px; }
+.friday-root .ef-colunas { display: flex; flex-wrap: wrap; gap: 4px; max-height: 180px; overflow-y: auto; margin-bottom: 10px; }
+.friday-root .ef-col { display: inline-flex; }
+.friday-root .ef-col button { display: inline-flex; align-items: center; gap: 4px; border: 1px solid var(--borda-suave); background: var(--superficie-2); border-radius: 4px; padding: 3px 7px; font-size: 12px; cursor: pointer; }
+.friday-root .ef-col button:hover { border-color: var(--primaria); color: var(--primaria); }
+.friday-root .ef-col .ef-mod { margin-left: 2px; font-size: 11px; padding: 3px 5px; }
+.friday-root .ef-funcoes { overflow-y: auto; flex: 1; }
+.friday-root .ef-grupo { font-size: 11px; font-weight: 600; color: var(--texto-3); text-transform: uppercase; letter-spacing: 0.04em; margin: 10px 0 4px; }
+.friday-root .ef-funcao { display: flex; flex-direction: column; align-items: flex-start; gap: 1px; width: 100%; text-align: left; background: none; border: 0; border-radius: 4px; padding: 5px 6px; cursor: pointer; }
+.friday-root .ef-funcao:hover { background: var(--hover); }
+.friday-root .ef-funcao code { font-family: Consolas, 'Courier New', monospace; font-size: 12px; color: var(--primaria); }
+.friday-root .ef-funcao small { color: var(--texto-2); font-size: 11.5px; }
+.friday-root .rodape-dica { margin-right: auto; align-self: center; }
+@media (max-width: 900px) { .friday-root .editor-formula { grid-template-columns: 1fr; } .friday-root .ef-lateral { border-left: 0; padding-left: 0; } }
+
+/* ---------------- pacote do dia a dia: concluído, subitens, filtros, agrupar, arquivo, Excel ---------------- */
+.friday-root .rotulo-btn { display: inline-flex; align-items: center; justify-content: center; gap: 6px; }
+.friday-root .rotulo-feito { opacity: 0.85; }
+.friday-root .menu-check { margin-left: auto; color: var(--primaria); }
+.friday-root .er-feito { color: var(--texto-3); }
+.friday-root .er-feito.on { color: #00a36c; }
+.friday-root .er-dica { display: flex; align-items: center; gap: 4px; font-size: 11px; }
+.friday-root .er-dica svg { color: #00a36c; }
+.friday-root .gt-barra.feito { opacity: 0.7; }
+.friday-root .gt-barra svg { vertical-align: -2px; margin-right: 4px; }
+
+/* subitens na tabela */
+.friday-root .seta-sub { display: inline-flex; align-items: center; justify-content: center; width: 18px; height: 22px; border: 0; background: none; padding: 0; color: var(--texto-3); cursor: pointer; border-radius: 3px; opacity: 0; transition: transform 0.12s; flex: none; }
+.friday-root .tq tr:hover .seta-sub, .friday-root .seta-sub.tem, .friday-root .seta-sub.aberta { opacity: 1; }
+.friday-root .seta-sub.tem { color: var(--texto-2); }
+.friday-root .seta-sub.aberta { transform: rotate(90deg); color: var(--primaria); }
+.friday-root .seta-sub:hover { background: var(--hover); }
+.friday-root .chip-sub.on { border-color: var(--primaria); color: var(--primaria); background: var(--primaria-clara); }
+.friday-root .item-menu { opacity: 0; padding: 2px; }
+.friday-root .tq tr:hover .item-menu { opacity: 1; }
+/* Linha que abre os subitens: sem fundo de destaque; as linhas de dentro seguem o desenho da tabela principal. */
+.friday-root .tq-subs > td { height: auto; border-right-color: transparent; }
+.friday-root .tq tbody tr.tq-subs:hover td { background: var(--superficie); }
+.friday-root .tq-subs-cel { padding: 0 0 12px 30px !important; }
+.friday-root .subitens-tabela { position: sticky; left: 70px; width: max-content; max-width: calc(100cqw - 130px); }
+.friday-root .sub-rolagem { overflow-x: auto; }
+.friday-root .tq.tq-sub { width: auto; }
+.friday-root .tq.tq-sub .tq-sel { border-left-width: 4px; }
+.friday-root .tq.tq-sub .tq-nome-sub { text-align: center; }
+.friday-root .tq.tq-sub .tq-nome-sub .editavel { color: var(--texto-2); font-size: 13px; }
+.friday-root .tq.tq-sub tbody tr:hover > td { background: var(--superficie-2); }
+.friday-root .tq.tq-sub tbody tr.sel > td { background: var(--selecao); }
+.friday-root .tq.tq-sub tbody tr.tq-novo > td { background: var(--superficie); }
+.friday-root .subitens-painel .sub-rolagem { border-radius: 6px; margin-top: 4px; }
+.friday-root .painel-pai { font-size: 13px; }
+
+/* barra da visão: salvar */
+.friday-root .btn-pequeno { height: 28px; padding: 0 10px; font-size: 13px; }
+.friday-root .salvar-visao { display: flex; align-items: center; gap: 6px; margin-left: auto; background: var(--primaria-clara); border-radius: 6px; padding: 3px 4px 3px 10px; }
+.friday-root .aba-filtro { color: var(--primaria); }
+
+/* filtro rápido */
+.friday-root .pop-filtro { padding-top: 0; }
+.friday-root .filtro-topo { display: flex; align-items: center; gap: 10px; padding: 10px 14px; position: sticky; top: 0; background: var(--superficie); z-index: 1; border-bottom: 1px solid var(--borda-suave); margin-bottom: 10px; }
+.friday-root .filtro-busca { margin: 0; height: 30px; width: 200px; }
+.friday-root .filtro-busca input { border: 0; outline: 0; background: none; width: 100%; }
+.friday-root .filtro-colunas { padding: 0 14px 12px; }
+.friday-root .filtro-coluna { min-width: 180px; max-width: 220px; }
+.friday-root .filtro-coluna strong { display: flex; align-items: center; gap: 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.friday-root .filtro-opcoes { display: flex; flex-direction: column; gap: 4px; max-height: 300px; overflow-y: auto; padding-right: 2px; }
+.friday-root .filtro-opcao { font-size: 13px; }
+.friday-root .filtro-opcao .fo-texto { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.friday-root .filtro-opcao small { color: var(--texto-3); font-size: 11px; }
+.friday-root .filtro-opcao.zero { opacity: 0.55; }
+.friday-root .filtro-opcao.especial .fo-texto { font-style: italic; }
+.friday-root .agrupar { flex-direction: column; }
+.friday-root .agrupar .check-form { margin: 4px 0 0; }
+.friday-root .agrupar p { margin: 2px 0 0; }
+
+/* aviso rápido (com desfazer) */
+.friday-root .avisos-rapidos { position: fixed; left: 24px; bottom: 24px; display: flex; flex-direction: column; gap: 8px; z-index: 1200; }
+.friday-root .aviso-rapido { display: flex; align-items: center; gap: 12px; background: #323338; color: #fff; border-radius: 6px; padding: 8px 8px 8px 14px; box-shadow: var(--sombra); font-size: 13px; min-width: 260px; }
+.friday-root .aviso-rapido .fr-btn-link { color: #8fb6ff; font-weight: 600; }
+.friday-root .aviso-rapido .btn-icone { color: #c5c7d0; }
+.friday-root .aviso-rapido .btn-icone:hover { background: rgba(255, 255, 255, 0.12); color: #fff; }
+.friday-root .aviso-rapido span { flex: 1; }
+
+/* arquivo e lixeira */
+.friday-root .arquivo-abas { margin: 0 0 14px; }
+.friday-root .arquivo-abas .aba-visao { background: none; border-top: 0; border-left: 0; border-right: 0; font: inherit; }
+.friday-root .arquivo-barra { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
+.friday-root .arquivo-barra .busca-barra { border-color: var(--borda); background: var(--superficie); }
+.friday-root .arquivo-barra .busca-barra input { width: 280px; }
+.friday-root .arquivo-tipo { height: 32px; border: 1px solid var(--borda); border-radius: 4px; padding: 0 8px; background: var(--superficie); }
+.friday-root .arquivo-lista { background: var(--superficie); border: 1px solid var(--borda-suave); border-radius: 8px; overflow: hidden; }
+.friday-root .arquivo-linha { display: flex; align-items: center; gap: 12px; padding: 10px 14px; border-bottom: 1px solid var(--borda-suave); }
+.friday-root .arquivo-linha:last-child { border-bottom: 0; }
+.friday-root .arquivo-linha:hover { background: var(--superficie-2); }
+.friday-root .arquivo-ic { display: grid; place-items: center; width: 32px; height: 32px; border-radius: 6px; background: var(--superficie-2); color: var(--texto-2); flex: none; }
+.friday-root .arquivo-nome { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.friday-root .arquivo-nome strong { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.friday-root .arquivo-quando { text-align: right; min-width: 170px; }
+.friday-root .btn-perigo-texto { color: var(--perigo); }
+.friday-root .btn-perigo-texto:hover { background: #fde8eb; border-color: var(--perigo); }
+
+/* importar do Excel */
+.friday-root .importar-zona { display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 40px 20px; border: 2px dashed var(--borda); border-radius: 10px; cursor: pointer; text-align: center; color: var(--texto-2); }
+.friday-root .importar-zona:hover, .friday-root .importar-zona.arrastando { border-color: var(--primaria); background: var(--primaria-clara); color: var(--primaria); }
+.friday-root .importar-zona strong { color: var(--texto); }
+.friday-root .importar-topo { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; margin-bottom: 12px; }
+.friday-root .importar-topo > span { display: inline-flex; align-items: center; gap: 6px; font-weight: 600; }
+.friday-root .importar-topo label { display: flex; align-items: center; gap: 6px; color: var(--texto-2); font-size: 13px; }
+.friday-root .importar-topo select, .friday-root .importar-mapa select { height: 30px; border: 1px solid var(--borda); border-radius: 4px; padding: 0 6px; background: var(--superficie); max-width: 320px; }
+.friday-root .importar-mapa { width: 100%; border-collapse: collapse; margin-bottom: 12px; table-layout: fixed; }
+.friday-root .importar-mapa th { text-align: left; font-weight: 400; font-size: 12px; color: var(--texto-2); padding: 6px 8px; border-bottom: 1px solid var(--borda-suave); }
+.friday-root .importar-mapa td { padding: 5px 8px; border-bottom: 1px solid var(--borda-suave); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.friday-root .importar-mapa th:nth-child(3) { width: 330px; }
+.friday-root .importar-mapa tr.ignorada td:not(:last-child) { opacity: 0.45; }
+.friday-root .importar-status { display: flex; align-items: center; gap: 10px; padding: 24px 4px; font-size: 15px; }
+.friday-root .importar-status.ok { color: #037f4c; font-weight: 600; }
+.friday-root .girando { width: 18px; height: 18px; border: 2px solid var(--primaria-clara); border-top-color: var(--primaria); border-radius: 50%; animation: girar 0.8s linear infinite; }
+@keyframes girar { to { transform: rotate(360deg); } }
+.friday-root .aviso-erro { background: #fde8eb; color: #a3243a; border-radius: 6px; padding: 8px 12px; margin: 0 0 12px; }
+.friday-root .fr-modal h2 { display: flex; align-items: center; gap: 8px; }
+
+/* ---------------- automações ---------------- */
+.friday-root .ic-auto { color: #f5a623; }
+.friday-root .pagina-automacoes .voltar { margin-bottom: 10px; }
+.friday-root .pagina-automacoes h1 { display: flex; align-items: center; gap: 8px; }
+.friday-root .arquivo-busca { border: 1px solid var(--borda); background: var(--superficie); margin-bottom: 12px; width: 320px; }
+.friday-root .arquivo-busca input { width: 100%; }
+.friday-root .auto-lista { display: flex; flex-direction: column; gap: 10px; }
+.friday-root .auto-cartao { display: flex; align-items: center; gap: 12px; background: var(--superficie); border: 1px solid var(--borda-suave); border-radius: 10px; padding: 14px 14px 14px 18px; }
+.friday-root .auto-cartao:hover { border-color: var(--borda); box-shadow: var(--sombra-leve); }
+.friday-root .auto-cartao.desligada .auto-cartao-corpo { opacity: 0.55; }
+.friday-root .auto-cartao-corpo { flex: 1; min-width: 0; cursor: pointer; }
+.friday-root .auto-nome { font-weight: 600; margin-bottom: 2px; }
+.friday-root .auto-frase { font-size: 15px; line-height: 1.5; }
+.friday-root .auto-token { font-weight: 600; color: var(--primaria); }
+.friday-root .auto-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 14px; margin-top: 6px; }
+.friday-root .auto-meta span { display: inline-flex; align-items: center; gap: 4px; }
+.friday-root .chave { position: relative; width: 38px; height: 22px; flex: none; cursor: pointer; }
+.friday-root .chave input { opacity: 0; width: 0; height: 0; position: absolute; }
+.friday-root .chave span { position: absolute; inset: 0; background: var(--borda); border-radius: 11px; transition: background 0.15s; }
+.friday-root .chave span::before { content: ''; position: absolute; width: 16px; height: 16px; left: 3px; top: 3px; background: #fff; border-radius: 50%; transition: transform 0.15s; box-shadow: 0 1px 2px rgba(0,0,0,0.2); }
+.friday-root .chave input:checked + span { background: var(--primaria); }
+.friday-root .chave input:checked + span::before { transform: translateX(16px); }
+.friday-root .chave input:focus-visible + span { outline: 2px solid var(--primaria-clara); }
+.friday-root .arquivo-ic.ok { color: #00a36c; }
+.friday-root .arquivo-ic.erro { color: var(--perigo); }
+.friday-root .auto-modelos { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.friday-root .auto-modelo { display: flex; align-items: center; gap: 8px; text-align: left; background: var(--superficie-2); border: 1px solid var(--borda-suave); border-radius: 8px; padding: 12px; cursor: pointer; }
+.friday-root .auto-modelo svg { color: #f5a623; flex: none; }
+.friday-root .auto-modelo:hover { border-color: var(--primaria); background: var(--primaria-clara); }
+.friday-root .auto-modelo.zero svg { color: var(--primaria); }
+.friday-root .auto-previa { background: var(--superficie-2); border-radius: 8px; padding: 12px 14px; margin-bottom: 14px; }
+.friday-root .auto-bloco { border-left: 3px solid var(--primaria-clara); padding: 2px 0 6px 14px; margin-bottom: 14px; }
+.friday-root .auto-bloco h4 { font-size: 13px; text-transform: uppercase; letter-spacing: 0.04em; color: var(--texto-2); margin-bottom: 8px; }
+.friday-root .auto-linha { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin-bottom: 8px; }
+.friday-root .auto-linha select, .friday-root .auto-texto, .friday-root .auto-num { height: 32px; border: 1px solid var(--borda); border-radius: 4px; padding: 0 8px; background: var(--superficie); max-width: 280px; }
+.friday-root .auto-texto { min-width: 180px; }
+.friday-root .auto-texto.largo { flex: 1; min-width: 260px; max-width: none; }
+.friday-root .auto-num { width: 70px; }
+.friday-root .auto-item { background: var(--superficie-2); border-radius: 6px; padding: 6px 6px 6px 8px; }
+.friday-root .auto-sub { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; flex: 1; }
+.friday-root .auto-escolha { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 4px; min-height: 32px; min-width: 120px; border: 1px solid var(--borda); border-radius: 4px; padding: 3px 8px; background: var(--superficie); cursor: pointer; text-align: left; }
+.friday-root .auto-ficha { display: inline-block; background: var(--superficie-2); border-radius: 10px; padding: 1px 8px; font-size: 12px; }
+.friday-root .auto-nome-campo { margin-top: 4px; }
+.friday-root .avatar-auto { display: inline-grid; place-items: center; width: 22px; height: 22px; background: #fff4dd; color: #c27c00; }
+@media (max-width: 700px) { .friday-root .auto-modelos { grid-template-columns: 1fr; } }
+
+/* ---------------- login, pessoas e permissões ---------------- */
+.friday-root .entrar-titulo { font-size: 20px; margin: 10px 0 2px; }
+.friday-root .entrar-sub { margin: 0 0 10px; }
+.friday-root .entrar-form { text-align: left; margin-top: 14px; }
+.friday-root .entrar-botao { width: 100%; justify-content: center; height: 38px; margin: 4px 0 12px; }
+.friday-root .perfil-cab small { line-height: 1.3; }
+.friday-root .papeis { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 16px; }
+.friday-root .papeis > div { display: flex; flex-direction: column; gap: 2px; background: var(--superficie-2); border-radius: 8px; padding: 10px 12px; }
+.friday-root .pessoas-lista select { height: 32px; border: 1px solid var(--borda); border-radius: 4px; padding: 0 6px; background: var(--superficie); }
+.friday-root .arquivo-linha.desativado { opacity: 0.55; }
+.friday-root .pessoa-status { min-width: 190px; text-align: right; color: var(--texto-2); }
+.friday-root .pessoa-status.ok { color: #037f4c; }
+.friday-root .btn-icone.perigo:hover { color: var(--perigo); }
+.friday-root .link-gerado { display: flex; gap: 8px; margin: 10px 0; }
+.friday-root .link-gerado input { font-size: 12px; }
+.friday-root .perm-opcoes { display: grid; gap: 8px; margin-bottom: 14px; }
+.friday-root .perm-opcao { display: flex; align-items: flex-start; gap: 10px; border: 1px solid var(--borda-suave); border-radius: 8px; padding: 10px 12px; cursor: pointer; }
+.friday-root .perm-opcao.on { border-color: var(--primaria); background: var(--primaria-clara); }
+.friday-root .perm-opcao span { display: flex; flex-direction: column; }
+.friday-root .perm-opcao svg { margin-top: 2px; color: var(--texto-2); flex: none; }
+.friday-root .perm-lista { display: flex; flex-direction: column; gap: 6px; margin-bottom: 12px; }
+.friday-root .perm-linha { display: flex; align-items: center; gap: 10px; padding: 4px 4px 4px 6px; border-radius: 6px; }
+.friday-root .perm-linha:hover { background: var(--superficie-2); }
+.friday-root .perm-nome { flex: 1; }
+.friday-root .perm-linha select, .friday-root .perm-adicionar { height: 30px; border: 1px solid var(--borda); border-radius: 4px; padding: 0 6px; background: var(--superficie); }
+.friday-root .perm-adicionar { align-self: flex-start; margin-top: 4px; }
+.friday-root .arvore-cadeado { color: var(--texto-3); flex: none; }
+.friday-root .selo-restrito { color: var(--texto-3); display: inline-flex; }
+.friday-root .aviso-leitura { display: inline-flex; align-items: center; gap: 8px; margin-top: 8px; background: #fff4dd; color: #8a5a00; border-radius: 6px; padding: 6px 10px; font-size: 13px; }
+/* Só leitura: some o que serve para criar ou mudar a estrutura. */
+.friday-root .somente-leitura .tq-novo, .friday-root .somente-leitura .adicionar-grupo, .friday-root .somente-leitura .btn-dividido, .friday-root .somente-leitura .aba-nova, .friday-root .somente-leitura .tq-mais .btn-icone, .friday-root .somente-leitura .item-menu, .friday-root .somente-leitura .grupo-menu, .friday-root .somente-leitura .alca, .friday-root .somente-leitura .sub-novo, .friday-root .somente-leitura .tq-sub .tq-novo { display: none !important; }
+@media (max-width: 800px) { .friday-root .papeis { grid-template-columns: 1fr; } }

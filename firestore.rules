@@ -601,6 +601,50 @@ service cloud.firestore {
     }
 
 
+    // Friday (/friday): gestão interna em quadros. Etapa atual: todo funcionário ativo lê e edita;
+    // permissões por área/pasta/quadro chegam na etapa de credenciais.
+    function fridayAccess() {
+      return employeeExists() && employee().get('ativo', false) == true;
+    }
+
+    // Cadastro da pessoa no Friday (id do documento = UID). Cada um cria o próprio no 1º acesso;
+    // adm2 também traz os funcionários ativos para poderem ser marcados em quadros.
+    match /friday-usuarios/{uid} {
+      allow read: if fridayAccess();
+      allow create: if fridayAccess()
+        && (request.auth.uid == uid || isAdm2())
+        && request.resource.data.uid == uid
+        && request.resource.data.id is int;
+      allow update: if fridayAccess()
+        && request.auth.uid == uid
+        && changedOnly(['ultimo_acesso']);
+      allow delete: if false;
+    }
+
+    // Avisos (sino): qualquer um avisa; só o destinatário lê, marca como lido ou apaga.
+    match /friday-notificacoes/{notificacaoId} {
+      allow create: if fridayAccess()
+        && request.resource.data.usuario_uid is string;
+      allow read, delete: if fridayAccess()
+        && resource.data.usuario_uid == request.auth.uid;
+      allow update: if fridayAccess()
+        && resource.data.usuario_uid == request.auth.uid
+        && changedOnly(['lida']);
+    }
+
+    // Registro de atividade: só acrescenta (apagado junto com o quadro ou item).
+    match /friday-atividades/{atividadeId} {
+      allow read, create, delete: if fridayAccess();
+      allow update: if false;
+    }
+
+    // Áreas, pastas, quadros, grupos, colunas, itens, visões, atualizações, anexos e automações.
+    match /{colecao}/{registroId} {
+      allow read, write: if fridayAccess()
+        && colecao.matches('^friday-(areas|pastas|quadros|grupos|colunas|itens|visoes|atualizacoes|anexos|automacoes|execucoes)$');
+    }
+
+
     // Default deny for every undeclared collection and subcollection.
     match /{document=**} {
       allow read, write: if false;
