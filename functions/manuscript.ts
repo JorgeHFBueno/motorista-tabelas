@@ -17,6 +17,9 @@ interface GitTreeEntry { path: string; type: string; sha: string }
 interface Snapshot { headSha: string; documents: ManuscriptDocument[]; expiresAt: number }
 interface CachedDocument { content: string; headSha: string }
 interface InstallationToken { value: string; expiresAt: number }
+export interface ManuscriptBacklink { sourcePath: string; sourceTitle: string; anchor?: string; context?: string }
+export interface ManuscriptBacklinksResponse { path: string; headSha: string; backlinks: ManuscriptBacklink[] }
+interface LinkGraph { headSha: string; backlinks: Map<string, ManuscriptBacklink[]>; brokenInternalLinks: string[] }
 
 function base64Url(value: string | Buffer) { return Buffer.from(value).toString('base64url'); }
 function cleanError(error: unknown): HttpsError {
@@ -37,6 +40,32 @@ export function filterManuscriptTree(entries: GitTreeEntry[]): ManuscriptDocumen
     .filter((entry) => entry.path.split('/').every((part) => !part.startsWith('.') || part === '_AUDITORIA'))
     .map((entry) => ({ path: entry.path, name: entry.path.split('/').at(-1) ?? entry.path, directory: entry.path.split('/').slice(0, -1).join('/'), sha: entry.sha }))
     .sort((a, b) => a.path.localeCompare(b.path, 'pt-BR', { numeric: true }));
+}
+
+/** Resolves a Markdown link without allowing it to leave the logical repository root. */
+export function resolveManuscriptLink(sourcePath: string, href: string): { path: string; anchor?: string } | null {
+  const trimmed = href.trim();
+  if (!trimmed || trimmed.startsWith('/') || trimmed.startsWith('\\') || /^[a-z][a-z\d+.-]*:/i.test(trimmed) || trimmed.startsWith('//')) return null;
+  const [rawPath, anchor] = trimmed.split('#', 2);
+  if (!rawPath || rawPath.includes('\\') || rawPath.includes('?') || !rawPath.toLowerCase().endsWith('.md')) return null;
+  const parts = sourcePath.split('/').slice(0, -1);
+  for (const segment of rawPath.split('/')) {
+    if (!segment || segment === '.') continue;
+    if (segment === '..') { if (!parts.length) return null; parts.pop(); } else parts.push(segment);
+  }
+  const path = parts.join('/');
+  return path && path.toLowerCase().endsWith('.md') ? { path, ...(anchor ? { anchor } : {}) } : null;
+}
+
+export function extractMarkdownLinks(content: string): Array<{ href: string; offset: number }> {
+  const links: Array<{ href: string; offset: number }> = [];
+  const pattern = /!?\[[^\]]*\]\(([^\s)]+)(?:\s+[^)]*)?\)/g;
+  for (let match = pattern.exec(content); match; match = pattern.exec(content)) links.push({ href: match[1], offset: match.index });
+  return links;
+}
+
+export function manuscriptTitle(content: string, fallback: string) {
+  return /^#\s+(.+)$/m.exec(content)?.[1]?.trim() || fallback.replace(/\.md$/i, '');
 }
 
 export class ManuscriptGitHubClient {
@@ -93,12 +122,13 @@ export class ManuscriptService {
   private readonly documents = new Map<string, CachedDocument>();
   private indexedHead: string | null = null;
   private index: Array<{ path: string; title: string; content: string }> = [];
+  private graph: LinkGraph | null = null;
   constructor(private readonly github: ManuscriptGitHubClient) {}
   async listTree() {
     if (this.snapshot && this.snapshot.expiresAt > Date.now()) return { headSha: this.snapshot.headSha, documents: this.snapshot.documents };
     const { headSha, entries } = await this.github.headAndTree();
     const documents = filterManuscriptTree(entries);
-    if (this.snapshot?.headSha !== headSha) { this.indexedHead = null; this.index = []; this.documents.clear(); }
+    if (this.snapshot?.headSha !== headSha) { this.indexedHead = null; this.index = []; this.graph = null; this.documents.clear(); }
     this.snapshot = { headSha, documents, expiresAt: Date.now() + TREE_TTL_MS };
     return { headSha, documents };
   }
@@ -120,7 +150,7 @@ export class ManuscriptService {
     if (this.indexedHead !== tree.headSha) {
       this.index = await Promise.all(tree.documents.map(async (document) => {
         const loaded = await this.getDocument(document.path);
-        const title = /^#\s+(.+)$/m.exec(loaded.content)?.[1]?.trim() || document.name.replace(/\.md$/i, '');
+        const title = manuscriptTitle(loaded.content, document.name);
         return { path: document.path, title, content: loaded.content };
       }));
       this.indexedHead = tree.headSha;
@@ -137,6 +167,35 @@ export class ManuscriptService {
     }).filter((result): result is { path: string; title: string; snippet: string; matches: number } => result !== null).slice(0, limit);
     return { query, headSha: tree.headSha, results };
   }
+  private async linkGraph(tree: { headSha: string; documents: ManuscriptDocument[] }): Promise<LinkGraph> {
+    if (this.graph?.headSha === tree.headSha) return this.graph;
+    const knownPaths = new Set(tree.documents.map((document) => document.path));
+    const loadedDocuments = await Promise.all(tree.documents.map(async (document) => ({ document, loaded: await this.getDocument(document.path) })));
+    const backlinks = new Map<string, ManuscriptBacklink[]>();
+    const brokenInternalLinks: string[] = [];
+    for (const { document, loaded } of loadedDocuments) {
+      const title = manuscriptTitle(loaded.content, document.name);
+      for (const link of extractMarkdownLinks(loaded.content)) {
+        const target = resolveManuscriptLink(document.path, link.href);
+        if (!target) continue;
+        if (!knownPaths.has(target.path)) { brokenInternalLinks.push(`${document.path} -> ${target.path}`); continue; }
+        const start = Math.max(0, link.offset - 90);
+        const context = loaded.content.slice(start, link.offset + link.href.length + 120).replace(/\s+/g, ' ').trim().slice(0, 220);
+        const item: ManuscriptBacklink = { sourcePath: document.path, sourceTitle: title, ...(target.anchor ? { anchor: target.anchor } : {}), ...(context ? { context } : {}) };
+        const list = backlinks.get(target.path) ?? [];
+        list.push(item); backlinks.set(target.path, list);
+      }
+    }
+    this.graph = { headSha: tree.headSha, backlinks, brokenInternalLinks };
+    return this.graph;
+  }
+  async getBacklinks(pathInput: unknown): Promise<ManuscriptBacklinksResponse> {
+    const path = validateManuscriptPath(pathInput);
+    const tree = await this.listTree();
+    if (!tree.documents.some((document) => document.path === path)) throw new HttpsError('not-found', 'MANUSCRIPT_DOCUMENT_NOT_FOUND');
+    const graph = await this.linkGraph(tree);
+    return { path, headSha: tree.headSha, backlinks: graph.backlinks.get(path) ?? [] };
+  }
 }
 
 const service = new ManuscriptService(new ManuscriptGitHubClient(() => ({ appId: manuscriptGithubAppId.value(), installationId: manuscriptGithubInstallationId.value(), privateKey: manuscriptGithubPrivateKey.value() })));
@@ -149,3 +208,4 @@ const callableOptions = { region: 'southamerica-east1', secrets: [manuscriptGith
 export const manuscriptListTree = onCall(callableOptions, async (request) => { try { await assertReader(request.auth?.uid); return await service.listTree(); } catch (error) { throw cleanError(error); } });
 export const manuscriptGetDocument = onCall(callableOptions, async (request) => { try { await assertReader(request.auth?.uid); return await service.getDocument(request.data?.path); } catch (error) { throw cleanError(error); } });
 export const manuscriptSearch = onCall(callableOptions, async (request) => { try { await assertReader(request.auth?.uid); return await service.search(request.data?.query, request.data?.limit); } catch (error) { throw cleanError(error); } });
+export const manuscriptGetBacklinks = onCall(callableOptions, async (request) => { try { await assertReader(request.auth?.uid); return await service.getBacklinks(request.data?.path); } catch (error) { throw cleanError(error); } });
