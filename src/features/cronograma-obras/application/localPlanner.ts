@@ -6,6 +6,12 @@ export function updateObraLocal(obras: ObraCronograma[], obra: ObraCronograma): 
 export function updateObraStatusByMondaySubitemId(obras: readonly ObraCronograma[], mondaySubitemId: string, status: string): ObraCronograma[] {
   return obras.map((obra) => obra.mondaySubitemId === mondaySubitemId && obra.status !== status ? { ...obra, status } : obra);
 }
+/** True when every projected LOTE field except its hydrated masters is unchanged (name, status, period, contract...). */
+export function sameObraExceptMasters(left: ObraCronograma, right: ObraCronograma): boolean {
+  const keys = new Set([...Object.keys(left), ...Object.keys(right)] as Array<keyof ObraCronograma>);
+  keys.delete('mestresPlanejados');
+  return [...keys].every((key) => left[key] === right[key]);
+}
 /** Exact duplicates are ignored; conflicts remain allowed and are derived by workload. */
 export function addMestrePlanejadoLocal(obras: ObraCronograma[], obraId: string, mestre: MestrePlanejado): ObraCronograma[] {
   return obras.map((obra) => {

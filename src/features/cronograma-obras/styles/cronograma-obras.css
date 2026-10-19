@@ -138,6 +138,9 @@
 .co-work-type-divider--publica { background: #eff6fa; color: #38647d; }
 .co-work-type-divider--privada { background: #fff7e9; color: #8a6430; }
 .co-work-type-divider--sem-classificacao { background: #f5f6f7; color: #697883; }
+/* Stage divider ("Próxima a Iniciar") sits above the work-type dividers, so it is stronger. */
+.co-work-stage-divider { border-top: 2px solid #339ecd; font-size: .66rem; min-height: 34px; }
+.co-work-stage-divider--proxima-a-iniciar { background: #e3f2f9; color: #1f6f93; }
 .co-gantt-grid > .co-work-type-divider { grid-template-columns: var(--co-left-width) var(--co-timeline-width); min-width: calc(var(--co-left-width) + var(--co-timeline-width)); }
 .co-work-type-divider__fixed { align-items: center; background: inherit; border-right: 1px solid #d4e0e6; display: flex; grid-column: 1; min-height: 30px; position: sticky; left: 0; z-index: 6; }
 .co-work-type-divider__fixed > span { align-items: center; display: flex; gap: 9px; padding: 0 12px; white-space: nowrap; width: 100%; }

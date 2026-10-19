@@ -3,7 +3,9 @@ import type { ObraCronograma } from './models';
 /** Administrative sections are decided by the exact status of each LOTE. */
 export type SituacaoLote = 'iniciada' | 'nao-iniciada' | 'finalizada';
 
-const INICIADAS = new Set(['Em andamento', 'Parada']);
+/** "Próxima a Iniciar" is listed with started works; the flat view separates it with its own divider. */
+export const STATUS_PROXIMA_A_INICIAR = 'Próxima a Iniciar';
+const INICIADAS = new Set(['Em andamento', 'Parada', STATUS_PROXIMA_A_INICIAR]);
 const FINALIZADAS = new Set(['Finalizado']);
 const NAO_INICIADAS = new Set(['Não iniciada', 'Revisar escopo']);
 
@@ -21,6 +23,10 @@ export function classificarLotePorStatus(status: string): SituacaoLote {
   if (NAO_INICIADAS.has(status)) return 'nao-iniciada';
   // Unknown values stay visible rather than silently disappearing.
   return 'nao-iniciada';
+}
+
+export function loteProximoAIniciar(obra: ObraCronograma): boolean {
+  return obra.targetType !== 'contrato' && obra.status === STATUS_PROXIMA_A_INICIAR;
 }
 
 export function statusLoteConhecido(status: string): boolean {

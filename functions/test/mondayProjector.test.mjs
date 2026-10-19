@@ -12,3 +12,16 @@ test('formula divergence projects only Monday-owned fields and is idempotent', (
   const second = buildMondayManagedPatch({ ...current('Obra em Andamento'), raw: first.patch.raw }, parent());
   assert.equal(second.changed, false); assert.deepEqual(second.changedFields, []);
 });
+
+test('subitems deleted in Monday leave the projection; renamed ones are updated and the result is idempotent', () => {
+  const existing = { ...current('Obra em Andamento'), raw: { ...current('Obra em Andamento').raw, subitems: [{ id: '13044433147', nome: 'LOTE 4', status: 'Em andamento' }, { id: 'deleted', nome: 'LOTE 5', status: 'Não iniciada' }] } };
+  const renamed = { ...parent(), subitems: [{ id: '13044433147', nome: 'LOTE 4 - RENOMEADO', status: 'Em andamento' }] };
+  const first = buildMondayManagedPatch(existing, renamed);
+  assert.equal(first.changed, true);
+  assert.deepEqual(first.patch.raw.subitems, [{ id: '13044433147', nome: 'LOTE 4 - RENOMEADO', status: 'Em andamento' }]);
+  assert.ok(first.details.some((detail) => detail.type === 'SUBITEM_AUSENTE_NO_MONDAY' && detail.subitemId === 'deleted'));
+  const second = buildMondayManagedPatch({ ...existing, raw: first.patch.raw }, renamed);
+  assert.equal(second.changed, false);
+  const emptied = buildMondayManagedPatch(existing, { ...parent(), subitems: [] });
+  assert.deepEqual(emptied.patch.raw.subitems, []);
+});

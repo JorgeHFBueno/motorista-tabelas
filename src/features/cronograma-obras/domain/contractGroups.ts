@@ -1,3 +1,4 @@
+import { loteProximoAIniciar } from "./contractStatus";
 import type { ContratoCronograma, ObraCronograma } from "./models";
 
 export interface ContractGroup {
@@ -74,6 +75,30 @@ export function buildFlatWorkGroupsByWorkType(
         .map((item) => item.obra),
     }))
     .filter((group) => group.obras.length);
+}
+
+export type FlatWorkStageKind = "iniciada" | "proxima-a-iniciar";
+export interface FlatWorkStageGroup {
+  kind: FlatWorkStageKind;
+  /** Null keeps the leading block without its own divider. */
+  label: string | null;
+  workTypes: FlatWorkTypeGroup[];
+}
+
+/**
+ * Flat "Obra iniciada" projection: LOTEs "Próxima a Iniciar" come after the
+ * others behind their own divider, each block keeping the work-type grouping.
+ */
+export function buildStartedFlatWorkStages(
+  obras: readonly ObraCronograma[],
+  contratos: ReadonlyMap<string, ContratoCronograma>,
+): FlatWorkStageGroup[] {
+  const proximas = obras.filter(loteProximoAIniciar);
+  const iniciadas = obras.filter((obra) => !loteProximoAIniciar(obra));
+  return [
+    { kind: "iniciada" as const, label: null, workTypes: buildFlatWorkGroupsByWorkType(iniciadas, contratos) },
+    { kind: "proxima-a-iniciar" as const, label: "PRÓXIMA A INICIAR", workTypes: buildFlatWorkGroupsByWorkType(proximas, contratos) },
+  ].filter((stage) => stage.workTypes.length);
 }
 
 /** Presentation-only grouping that retains every contract and its source order. */

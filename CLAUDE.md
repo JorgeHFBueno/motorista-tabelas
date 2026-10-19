@@ -1,4 +1,4 @@
-# The Manuscript — Claude Code
+# Ledur Motorista WEB — Claude Code
 
 @AGENTS.md
 

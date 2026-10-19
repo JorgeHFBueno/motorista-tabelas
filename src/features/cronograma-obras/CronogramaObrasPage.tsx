@@ -54,7 +54,10 @@ import type {
   ZoomCronograma,
 } from "./domain/models";
 import { contractPlanningRowFor } from "./data/source/rawCronogramaAdapter";
-import { updateObraStatusByMondaySubitemId } from "./application/localPlanner";
+import {
+  sameObraExceptMasters,
+  updateObraStatusByMondaySubitemId,
+} from "./application/localPlanner";
 import { todayCivil } from "./domain/temporal";
 import {
   separarObrasPorSituacao,
@@ -216,7 +219,10 @@ function hydrateFirestoreAlocacoes(
       },
     );
     const prior = previousById.get(obra.id);
-    return prior && sameMasters(prior.mestresPlanejados, mestresPlanejados)
+    // Reuse only when the Monday projection of the LOTE did not change either.
+    return prior &&
+      sameObraExceptMasters(prior, obra) &&
+      sameMasters(prior.mestresPlanejados, mestresPlanejados)
       ? prior
       : { ...obra, mestresPlanejados };
   });

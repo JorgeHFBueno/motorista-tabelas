@@ -135,13 +135,13 @@ test('fim equal, changed and empty are projected exactly', () => {
   const empty = createPlan([monday({ fim: null })], [document()]); assert.equal(empty.operations[0].patch.raw.fim, null);
 });
 
-test('subitem update preserves local fields and local order, then appends new Monday subitems', () => {
-  const current = document({ raw: { ...document().data.raw, subitems: [{ id: '1', nome: 'LOTE', status: 'Não iniciada', campoLocal: 'X' }, { id: 'old', nome: 'Mantido', local: true }] } });
+test('subitem update preserves local fields and local order, appends new Monday subitems and drops those deleted in Monday', () => {
+  const current = document({ raw: { ...document().data.raw, subitems: [{ id: 'old', nome: 'Excluído', local: true }, { id: '1', nome: 'LOTE', status: 'Não iniciada', campoLocal: 'X' }] } });
   const plan = createPlan([monday({ subitems: [{ id: '1', nome: 'LOTE NOVO', status: 'Em andamento' }, { id: '2', nome: 'NOVO', status: 'Revisar escopo' }] })], [current]);
   const subitems = plan.operations[0].patch.raw.subitems;
-  assert.deepEqual(subitems.map((item) => item.id), ['1', 'old', '2']);
+  assert.deepEqual(subitems.map((item) => item.id), ['1', '2']);
+  assert.deepEqual(subitems[1], { id: '2', nome: 'NOVO', status: 'Revisar escopo' });
   assert.deepEqual(subitems[0], { id: '1', nome: 'LOTE NOVO', status: 'Em andamento', campoLocal: 'X' });
-  assert.deepEqual(subitems[2], { id: '2', nome: 'NOVO', status: 'Revisar escopo' });
   assert.equal(plan.summary.subitemsAdicionar, 1); assert.equal(plan.summary.subitemsAtualizar, 1); assert.equal(plan.summary.subitemsAusentesMonday, 1);
   assert.ok(plan.details[0].changes.some((change) => change.type === 'SUBITEM_AUSENTE_NO_MONDAY' && change.subitemId === 'old'));
 });
