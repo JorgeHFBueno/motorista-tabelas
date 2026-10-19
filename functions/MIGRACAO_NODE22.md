@@ -27,7 +27,7 @@ Prazo: o Node 20 é desativado no Cloud Functions em **2026-10-30**. Pendência 
 ## Validação feita (local, Node 20.20.2)
 
 - `npx tsc` (build das functions): sem erros.
-- Testes `functions/test/*.test.mjs`: **114/114 passaram**.
+- Testes `functions/test/*.test.mjs`: **114/114 passaram**. Repetido em 2026-10-19 após integrar o `main` (Friday): build ok e 114/114.
   - No Windows com Node 20, `npm test` falha antes de rodar: `node --test test/*.test.mjs` não expande o glob.
     Isso já acontecia antes desta mudança. Com Node 22 local o glob é expandido pelo próprio Node.
     Rodar os testes por um shell que expanda o glob (Git Bash): `node --test test/*.test.mjs`.
@@ -50,7 +50,7 @@ Prazo: o Node 20 é desativado no Cloud Functions em **2026-10-30**. Pendência 
 | `mondayOAuthStart` | HTTPS (`onRequest`) | southamerica-east1 | — | |
 | `mondayOAuthCallback` | HTTPS (`onRequest`) | southamerica-east1 | MONDAY_OAUTH_CLIENT_SECRET | |
 | `mondayLinkObraV2` | HTTPS (`onRequest`) | southamerica-east1 | — | rewrite `/api/monday-link-obra-v2` |
-| `mondayReconcileScheduled` | Agendada (`onSchedule`, every 30 minutes, America/Sao_Paulo) | southamerica-east1 | MONDAY_API_TOKEN | |
+| `mondayReconcileScheduled` | Agendada (`onSchedule`, every 30 minutes, America/Sao_Paulo) | southamerica-east1 | MONDAY_API_TOKEN | **nunca publicada**: fora deste deploy |
 | `syncMondaySerpMeasurements` | Callable (`onCall`) | southamerica-east1 | ERP360_API_TOKEN | ERP Elevor |
 | `getVehicleErpCosts` | Callable (`onCall`) | southamerica-east1 | ERP360_API_TOKEN | ERP Elevor |
 | `manuscriptListTree` | Callable (`onCall`) | southamerica-east1 | MANUSCRIPT_GITHUB_* (3) | The Manuscript |
@@ -64,76 +64,59 @@ Prazo: o Node 20 é desativado no Cloud Functions em **2026-10-30**. Pendência 
 | `getKioskCredentialStatus` | Callable (`onCall`) | us-central1 | — | Kiosk (admin) |
 | `setKioskPin` | Callable (`onCall`) | us-central1 | — | Kiosk (admin) |
 | `setKioskPinEnabled` | Callable (`onCall`) | us-central1 | — | Kiosk (admin) |
-| `kioskAuthenticatePin` | Callable (`onCall`) | us-central1 | — | Kiosk (login por PIN) |
+| `kioskAuthenticatePin` | Callable (`onCall`) | us-central1 | — | Kiosk (login por PIN); **a versão publicada vem do `MotoristaV2_MKI`**: fora deste deploy |
+
+## Produção × este repositório (conferido em 2026-10-19)
+
+`firebase functions:list` mostrou 33 funções em produção, e este repositório exporta 25. A comparação usou os rótulos `firebase-functions-hash`: funções publicadas juntas compartilham o mesmo hash. Resultado:
+
+| Situação | Funções | Tratamento |
+| --- | --- | --- |
+| Publicadas a partir deste repositório | as 23 das etapas abaixo | migram neste deploy |
+| No código, mas nunca publicada | `mondayReconcileScheduled` | **não publicar daqui**: criaria uma tarefa agendada nova (a cada 30 min); decisão separada |
+| Mesmo nome, mas a versão publicada vem do `MotoristaV2_MKI` | `kioskAuthenticatePin` | **não publicar daqui**: a versão de produção tem o PIN de administrador (`mode: "admin"`, `kioskAdminConfig`) e a deste repositório não; migrar pelo `MotoristaV2_MKI` |
+| Publicadas a partir do `MotoristaV2_MKI` | `kioskAuthenticateQr`, `kioskSessionEvent`, `provisionKioskAdminPin` | migrar pelo `MotoristaV2_MKI`, que ainda usa `engines.node: 20` e `firebase-functions ^6` |
+| Publicada sem código versionado | `manuscriptGetGlobalGraph` (Manuscript V5) | versionar o V5 e então republicar em Node 22 |
+| Publicada sem código localizado | `novaNotificacao` (trigger Firestore, **Node 18**) | localizar a origem e decidir entre migrar ou remover |
+| Extension do Firebase | `ext-firestore-bigquery-export-*` (3 em Node 20) | atualizar a Extension (`firebase ext:update` ou console); não é deploy de Functions |
+
+**Nunca rode `firebase deploy --only functions` (completo) a partir deste repositório.** O CLI tentaria apagar as 5 funções publicadas que não estão aqui, e ainda publicaria a `mondayReconcileScheduled` e a `kioskAuthenticatePin` deste repositório. O mesmo vale no sentido inverso para o `MotoristaV2_MKI`, que também exporta `provisionKioskCredential` e `revokeKioskQr`.
+
+Isso inclui o script `npm --prefix functions run deploy` (`functions/package.json`), que roda o deploy completo.
 
 ## Deploy seletivo (só com aprovação)
 
-Rodar a partir da raiz do repositório, depois de `npm --prefix functions ci`. O `predeploy` já roda o build.
-Cada deploy cria uma nova revisão no runtime Node 22; o rollback é voltar este commit e redeployar a mesma função.
+Rode a partir da raiz do repositório, **com este commit no checkout**, depois de `npm --prefix functions ci`. O `predeploy` já faz o build. Cada deploy cria uma revisão nova em Node 22; para voltar atrás, volte o commit e republique a mesma função.
 
 Ordem sugerida, da menor para a maior exposição:
 
-1. Canário (leitor interno The Manuscript):
+1. Canário (leitor interno do The Manuscript):
    ```bash
-   firebase deploy --only functions:manuscriptListTree,functions:manuscriptGetDocument,functions:manuscriptSearch,functions:manuscriptGetBacklinks,functions:manuscriptGetDocumentGraph,functions:manuscriptGetDocumentHistory
+   firebase deploy --project app-motor-api --only functions:manuscriptListTree,functions:manuscriptGetDocument,functions:manuscriptSearch,functions:manuscriptGetBacklinks,functions:manuscriptGetDocumentGraph,functions:manuscriptGetDocumentHistory
    ```
-   Abrir The Manuscript no app e conferir os logs antes de seguir.
+   Abra o The Manuscript no app e confira os logs antes de seguir.
 2. ERP Elevor:
    ```bash
-   firebase deploy --only functions:getVehicleErpCosts,functions:syncMondaySerpMeasurements
+   firebase deploy --project app-motor-api --only functions:getVehicleErpCosts,functions:syncMondaySerpMeasurements
    ```
-3. Monday (OAuth, sincronização, auditoria, agendada):
+3. Monday (OAuth, sincronização e auditoria), sem a agendada:
    ```bash
-   firebase deploy --only functions:mondayOAuthStart,functions:mondayOAuthCallback,functions:mondayWebhookProvision,functions:mondaySync,functions:mondayStatusAudit,functions:mondayLinkObraV2,functions:mondayReconcileScheduled
+   firebase deploy --project app-motor-api --only functions:mondayOAuthStart,functions:mondayOAuthCallback,functions:mondayWebhookProvision,functions:mondaySync,functions:mondayStatusAudit,functions:mondayLinkObraV2
    ```
 4. Monday (endpoints públicos):
    ```bash
-   firebase deploy --only functions:mondayWebhook,functions:mondayUpdateSubitemStatus
+   firebase deploy --project app-motor-api --only functions:mondayWebhook,functions:mondayUpdateSubitemStatus
    ```
-5. Kiosk:
+5. Kiosk administrativo (publicado a partir daqui), sem `kioskAuthenticatePin`:
    ```bash
-   firebase deploy --only functions:kioskAuthenticatePin,functions:provisionKioskCredential,functions:revokeKioskQr,functions:getKioskCredentialStatus,functions:setKioskPin,functions:setKioskPinEnabled
+   firebase deploy --project app-motor-api --only functions:provisionKioskCredential,functions:revokeKioskQr,functions:getKioskCredentialStatus,functions:setKioskPin,functions:setKioskPinEnabled
    ```
 6. APIs Express principais:
    ```bash
-   firebase deploy --only functions:api,functions:adminApi
+   firebase deploy --project app-motor-api --only functions:api,functions:adminApi
    ```
 
-Comandos individuais, um por função:
-
-```text
-firebase deploy --only functions:api
-firebase deploy --only functions:adminApi
-firebase deploy --only functions:mondaySync
-firebase deploy --only functions:mondayStatusAudit
-firebase deploy --only functions:mondayUpdateSubitemStatus
-firebase deploy --only functions:mondayWebhook
-firebase deploy --only functions:mondayWebhookProvision
-firebase deploy --only functions:mondayOAuthStart
-firebase deploy --only functions:mondayOAuthCallback
-firebase deploy --only functions:mondayLinkObraV2
-firebase deploy --only functions:mondayReconcileScheduled
-firebase deploy --only functions:syncMondaySerpMeasurements
-firebase deploy --only functions:getVehicleErpCosts
-firebase deploy --only functions:manuscriptListTree
-firebase deploy --only functions:manuscriptGetDocument
-firebase deploy --only functions:manuscriptSearch
-firebase deploy --only functions:manuscriptGetBacklinks
-firebase deploy --only functions:manuscriptGetDocumentGraph
-firebase deploy --only functions:manuscriptGetDocumentHistory
-firebase deploy --only functions:provisionKioskCredential
-firebase deploy --only functions:revokeKioskQr
-firebase deploy --only functions:getKioskCredentialStatus
-firebase deploy --only functions:setKioskPin
-firebase deploy --only functions:setKioskPinEnabled
-firebase deploy --only functions:kioskAuthenticatePin
-```
-
-Todas de uma vez (equivale às etapas 1 a 6 juntas): `firebase deploy --only functions`.
-
-Atenção: um deploy seletivo publica o runtime Node 22 só nas funções listadas. As demais continuam em Node 20
-até serem redeployadas, e **todas** precisam passar por deploy antes de 2026-10-30.
-O Firebase CLI local (15.32.1) já suporta `nodejs22`.
+Depois de cada etapa, `firebase functions:list` deve mostrar `nodejs22` nas funções daquela etapa.
 
 ## Pendências fora do escopo
 
