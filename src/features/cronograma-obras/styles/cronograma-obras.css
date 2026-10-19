@@ -109,7 +109,7 @@
 .co-toggle-row > i { background: #dfe6ea; border-radius: 999px; color: #647581; font-size: .53rem; font-style: normal; font-weight: 850; min-width: 38px; padding: 4px 6px; text-align: center; }
 .co-toggle-row > i.is-on { background: #dcece4; color: #246248; }
 
-.co-indicators-bar { align-items: stretch; background: #fff; border: 1px solid var(--co-line); border-radius: 8px; display: grid; grid-template-columns: minmax(0, 1fr) auto; margin: 0 0 18px; max-width: 1880px; overflow: hidden; }
+.co-indicators-bar { align-items: stretch; background: #fff; border: 1px solid var(--co-line); border-radius: 8px; display: grid; grid-template-columns: minmax(0, 1fr) auto; margin: 0 0 18px; max-width: 1880px; overflow: visible; }
 .co-indicators-group { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); min-width: 0; }
 .co-indicators-group > div { align-items: center; border-right: 1px solid var(--co-line-soft); display: flex; flex: 1 1 0; gap: clamp(6px, .9vw, 12px); min-height: 48px; min-width: 0; padding: 7px clamp(8px, 1.2vw, 17px); }
 .co-indicators-group span { color: var(--co-muted); font-size: .7rem; font-weight: 650; min-width: 0; overflow-wrap: anywhere; }

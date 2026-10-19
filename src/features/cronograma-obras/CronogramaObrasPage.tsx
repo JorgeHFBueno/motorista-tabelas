@@ -1183,7 +1183,7 @@ export default function CronogramaObrasPage() {
           </div>
           </div>
           <div className="co-operational-controls">
-          {false && canSyncMonday && (
+          {canSyncMonday && (
             <div className="co-dev-menu">
               <button
                 className="co-button co-button--secondary"
