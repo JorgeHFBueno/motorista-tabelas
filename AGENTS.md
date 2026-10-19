@@ -68,7 +68,7 @@ Never expose, commit, or print credentials, tokens, service-account data, `.env*
 
 ## Documentation
 
-Behavioral, data, rules, integration, and architecture documentation belongs in The Manuscript (see above). Keep in-repo documentation limited to local operational notes next to the affected code (for example `functions/MIGRACAO_NODE22.md`); do not duplicate canonical contracts here.
+Behavioral, data, rules, integration, and architecture documentation belongs in The Manuscript (see above). Keep in-repo documentation limited to local operational notes next to the affected code; do not duplicate canonical contracts here.
 
 ## Operating Principles
 
