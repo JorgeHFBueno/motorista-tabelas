@@ -38,15 +38,16 @@ export function normalizeMondayParent(item: any): MondayParent {
   };
 }
 
+/** `raw.subitems` mirrors Monday: local order/fields survive, subitems deleted or archived in Monday are dropped. */
 function projectSubitems(previous: AnyRecord[], subitems: MondaySubitem[]) {
-  const byId = new Map(previous.map((subitem) => [String(subitem?.id), subitem])); const mondayIds = new Set(subitems.map((subitem) => subitem.id)); const details: AnyRecord[] = []; const next = [...previous];
+  const byId = new Map(previous.map((subitem) => [String(subitem?.id), subitem])); const mondayIds = new Set(subitems.map((subitem) => subitem.id)); const details: AnyRecord[] = []; const next: Array<AnyRecord | null> = [...previous];
   for (const subitem of subitems) {
     const existing = byId.get(subitem.id); const projected = existing ? { ...existing, id: subitem.id, nome: subitem.nome, status: subitem.status } : { id: subitem.id, nome: subitem.nome, status: subitem.status };
     if (!existing) details.push({ type: 'SUBITEM_ADD', subitemId: subitem.id, after: projected }); else if (!semanticallyEqual(existing, projected)) details.push({ type: 'SUBITEM_UPDATE', subitemId: subitem.id, before: existing, after: projected });
     if (existing) next[previous.indexOf(existing)] = projected; else next.push(projected);
   }
-  for (const subitem of previous) if (!mondayIds.has(String(subitem?.id))) details.push({ type: 'SUBITEM_AUSENTE_NO_MONDAY', subitemId: String(subitem?.id) });
-  return { subitems: next, details };
+  previous.forEach((subitem, index) => { if (!mondayIds.has(String(subitem?.id))) { details.push({ type: 'SUBITEM_AUSENTE_NO_MONDAY', subitemId: String(subitem?.id), before: subitem }); next[index] = null; } });
+  return { subitems: next.filter((subitem): subitem is AnyRecord => subitem !== null), details };
 }
 
 /** Builds only Monday-managed fields; top-level local-owned fields are never included. */
