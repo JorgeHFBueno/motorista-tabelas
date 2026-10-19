@@ -73,6 +73,7 @@ import {
 } from "../domain/masterPlanningDetails";
 import {
   buildFlatWorkGroupsByWorkType,
+  buildStartedFlatWorkStages,
   contractAllocationSummary,
   groupContractGroupsByWorkType,
   groupObrasByContract,
@@ -1109,24 +1110,26 @@ export const GanttGrid = memo(function GanttGrid({
       ),
     [view, groups, contratos],
   );
-  const flatWorkTypeGroups = useMemo(
+  const flatWorkStages = useMemo(
     () =>
       measureCronogramaCompute("buildFlatWorkGroupsByWorkType", () =>
-        view === "obras" && viewMode === "flat"
-          ? buildFlatWorkGroupsByWorkType(obras, contratos)
-          : [],
+        view !== "obras" || viewMode !== "flat"
+          ? []
+          : variant === "started"
+            ? buildStartedFlatWorkStages(obras, contratos)
+            : [{ kind: "iniciada" as const, label: null, workTypes: buildFlatWorkGroupsByWorkType(obras, contratos) }],
       ),
-    [view, viewMode, obras, contratos],
+    [view, viewMode, variant, obras, contratos],
   );
   const sortKey = `${variant}.${viewMode}`;
   const sort = sorts[sortKey] ?? { column: null, direction: null };
   const sortedWorkTypeGroups = useMemo(() => workTypeGroups.map((workType) => ({ ...workType, groups: sortContractGroups(workType.groups, contratos, sort) })), [workTypeGroups, contratos, sort]);
-  const sortedFlatWorkTypeGroups = useMemo(() => flatWorkTypeGroups.map((workType) => ({ ...workType, obras: sortObras(workType.obras, contratos, sort) })), [flatWorkTypeGroups, contratos, sort]);
+  const sortedFlatWorkStages = useMemo(() => flatWorkStages.map((stage) => ({ ...stage, workTypes: stage.workTypes.map((workType) => ({ ...workType, obras: sortObras(workType.obras, contratos, sort) })) })), [flatWorkStages, contratos, sort]);
   const changeSort = (column: Parameters<typeof nextTableSort>[1]) => setSorts((current) => ({ ...current, [sortKey]: nextTableSort(current[sortKey] ?? { column: null, direction: null }, column) }));
   const rows =
     view === "obras"
       ? viewMode === "flat"
-        ? sortedFlatWorkTypeGroups.length + obras.length
+        ? sortedFlatWorkStages.reduce((total, stage) => total + (stage.label ? 1 : 0) + stage.workTypes.length, 0) + obras.length
         : sortedWorkTypeGroups.length +
           groups.length +
           groups.reduce(
@@ -1447,17 +1450,32 @@ export const GanttGrid = memo(function GanttGrid({
       );
     }),
   ]);
-  const flatRows = sortedFlatWorkTypeGroups.flatMap((workType) => [
-    <div
-      className={`co-work-type-divider co-work-type-divider--${workType.kind}`}
-      key={`work-type-${workType.kind}`}
-    >
-      <div className="co-work-type-divider__fixed">
-        <span>{workType.label}</span>
-      </div>
-      <div className="co-work-type-divider__timeline" aria-hidden="true" />
-    </div>,
-    ...workType.obras.map((obra) => obraRow(obra, true)),
+  const flatRows = sortedFlatWorkStages.flatMap((stage) => [
+    ...(stage.label
+      ? [
+          <div
+            className={`co-work-type-divider co-work-stage-divider co-work-stage-divider--${stage.kind}`}
+            key={`work-stage-${stage.kind}`}
+          >
+            <div className="co-work-type-divider__fixed">
+              <span>{stage.label}</span>
+            </div>
+            <div className="co-work-type-divider__timeline" aria-hidden="true" />
+          </div>,
+        ]
+      : []),
+    ...stage.workTypes.flatMap((workType) => [
+      <div
+        className={`co-work-type-divider co-work-type-divider--${workType.kind}`}
+        key={`work-type-${stage.kind}-${workType.kind}`}
+      >
+        <div className="co-work-type-divider__fixed">
+          <span>{workType.label}</span>
+        </div>
+        <div className="co-work-type-divider__timeline" aria-hidden="true" />
+      </div>,
+      ...workType.obras.map((obra) => obraRow(obra, true)),
+    ]),
   ]);
   return <WorkHoverActions closeKey={`${sortKey}.${sort.column ?? ""}.${sort.direction ?? ""}.${viewMode}.${variant}`}><section
       className={`co-gantt co-gantt--${view} ${notStarted ? "co-gantt--not-started" : ""} ${draggingMaster ? "is-dragging-master" : ""} ${resizingMasterId ? "is-resizing-master" : ""}`}

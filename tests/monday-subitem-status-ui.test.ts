@@ -3,7 +3,8 @@ import test from 'node:test';
 import { readFileSync } from 'node:fs';
 import { MONDAY_SUBITEM_STATUS_COLORS, MONDAY_SUBITEM_STATUS_FALLBACK_COLOR, MONDAY_SUBITEM_STATUS_OPTIONS, MondaySubitemStatusRequestError, mondayStatusColor, mondayStatusFromLabel, updateMondaySubitemStatus } from '../src/services/mondaySubitemStatusService';
 import { adaptRawCronograma } from '../src/features/cronograma-obras/data/source/rawCronogramaAdapter';
-import { updateObraStatusByMondaySubitemId } from '../src/features/cronograma-obras/application/localPlanner';
+import { sameObraExceptMasters, updateObraStatusByMondaySubitemId } from '../src/features/cronograma-obras/application/localPlanner';
+import { buildStartedFlatWorkStages, groupObrasByContract } from '../src/features/cronograma-obras/domain/contractGroups';
 import { separarObrasPorSituacao } from '../src/features/cronograma-obras/domain/contractStatus';
 import { classificarLotePorStatus } from '../src/features/cronograma-obras/domain/contractStatus';
 
@@ -61,7 +62,7 @@ test('same-category confirmation and pre-confirmation failure leave grouping int
 test('start action follows section classification, never a specific Monday label', () => {
   assert.equal(classificarLotePorStatus('Não iniciada'), 'nao-iniciada');
   assert.equal(classificarLotePorStatus('Revisar escopo'), 'nao-iniciada');
-  assert.equal(classificarLotePorStatus('Próxima a Iniciar'), 'nao-iniciada');
+  assert.equal(classificarLotePorStatus('Próxima a Iniciar'), 'iniciada');
   assert.equal(classificarLotePorStatus('Outro status'), 'nao-iniciada');
   const table = readFileSync('src/features/cronograma-obras/components/ContractTextTable.tsx', 'utf8');
   const control = readFileSync('src/features/cronograma-obras/components/MondaySubitemStatusControl.tsx', 'utf8');
@@ -107,4 +108,28 @@ test('status control renders either the available action or the badge, never bot
   assert.match(control, /Iniciando/);
   const actionReturn = control.slice(control.indexOf('const verb'), control.indexOf('\n}'));
   assert.doesNotMatch(actionReturn, /<StatusBadge/);
+});
+
+test('Obra iniciada inclui Próxima a Iniciar; a lista corrida a separa por divisória e mantém Públicas/Privadas', () => {
+  const lote = (id: string, contratoId: string, status: string) => ({ id, targetType: 'obra' as const, mondaySubitemId: id, sourceRow: 0, contratoId, contratoNome: contratoId, codObra: id, siglaObra: 'LOTE', nomeObra: id, local: id, status, empresa: 'LEDUR', mestreInicial: null, descricao: null, inicioPlanejado: null, tempoPlanejado: null, mestresPlanejados: [] });
+  const obras = [lote('prox-priv', 'c3', 'Próxima a Iniciar'), lote('and-pub', 'c1', 'Em andamento'), lote('prox-pub', 'c2', 'Próxima a Iniciar'), lote('parada', 'c1', 'Parada')];
+  assert.deepEqual(separarObrasPorSituacao(obras).iniciada.map((obra) => obra.id), ['prox-priv', 'and-pub', 'prox-pub', 'parada']);
+  const contratos = new Map([['c1', { numeroContrato: '1', tipoObra: 'Pública' }], ['c2', { numeroContrato: '2', tipoObra: 'Pública' }], ['c3', { numeroContrato: '3', tipoObra: 'Privada' }]]) as never;
+  assert.deepEqual(buildStartedFlatWorkStages(obras, contratos).map((stage) => [stage.kind, stage.label, stage.workTypes.map((group) => [group.kind, group.obras.map((obra) => obra.id)])]), [
+    ['iniciada', null, [['publica', ['and-pub', 'parada']]]],
+    ['proxima-a-iniciar', 'PRÓXIMA A INICIAR', [['publica', ['prox-pub']], ['privada', ['prox-priv']]]],
+  ]);
+  assert.deepEqual(buildStartedFlatWorkStages(obras.filter((obra) => obra.status !== 'Próxima a Iniciar'), contratos).map((stage) => stage.label), [null]);
+  // The contracts view has no stage division: it keeps every contract in source order.
+  assert.deepEqual(groupObrasByContract(obras).map((group) => group.id), ['c3', 'c1', 'c2']);
+});
+
+test('realtime rehydration reuses a LOTE only when its Monday projection did not change', () => {
+  const [obra] = adaptRawCronograma([{ id: 'contract', exists: true, data: { obraV2Id: 'v2', raw: { nome: 'Contrato', subitems: [{ id: '1', nome: 'LOTE 1', status: 'Em andamento' }] } } }]).obras;
+  const hydrated = { ...obra, mestresPlanejados: [{ localId: 'a', nome: 'DILAMAR', inicio: '2026-10-05', tempoPlanejado: 7 }] };
+  assert.equal(sameObraExceptMasters(hydrated, obra), true);
+  assert.equal(sameObraExceptMasters(hydrated, { ...obra, nomeObra: 'LOTE RENOMEADO', local: 'LOTE RENOMEADO' }), false);
+  assert.equal(sameObraExceptMasters(hydrated, { ...obra, status: 'Finalizado' }), false);
+  assert.equal(sameObraExceptMasters(hydrated, { ...obra, contratoNome: 'Contrato renomeado' }), false);
+  assert.equal(sameObraExceptMasters(hydrated, { ...obra, inicioPlanejado: '2026-11-01' }), false);
 });
