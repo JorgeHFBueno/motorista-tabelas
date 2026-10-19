@@ -11,6 +11,9 @@ const REPO = 'ledur-the-manuscript';
 const BRANCH = 'main';
 const TREE_TTL_MS = 3 * 60_000;
 const MAX_SEARCH_LIMIT = 30;
+const MAX_GRAPH_NODES = 30;
+const DEFAULT_HISTORY_LIMIT = 10;
+const MAX_HISTORY_LIMIT = 20;
 
 export interface ManuscriptDocument { path: string; name: string; directory: string; sha: string }
 interface GitTreeEntry { path: string; type: string; sha: string }
@@ -19,7 +22,12 @@ interface CachedDocument { content: string; headSha: string }
 interface InstallationToken { value: string; expiresAt: number }
 export interface ManuscriptBacklink { sourcePath: string; sourceTitle: string; anchor?: string; context?: string }
 export interface ManuscriptBacklinksResponse { path: string; headSha: string; backlinks: ManuscriptBacklink[] }
-interface LinkGraph { headSha: string; backlinks: Map<string, ManuscriptBacklink[]>; brokenInternalLinks: string[] }
+export interface ManuscriptGraphNode { path: string; title: string; kind: 'CURRENT' | 'REFERENCE' | 'AUDIT'; direction?: 'INCOMING' | 'OUTGOING' | 'BIDIRECTIONAL' }
+export interface ManuscriptGraphEdge { source: string; target: string; anchor?: string }
+export interface ManuscriptDocumentGraphResponse { path: string; headSha: string; nodes: ManuscriptGraphNode[]; edges: ManuscriptGraphEdge[]; totalNodes: number; visibleNodes: number; truncated: boolean }
+export interface ManuscriptCommit { sha: string; shortSha: string; message: string; authorName: string; authoredAt: string; htmlUrl?: string }
+export interface ManuscriptDocumentHistoryResponse { path: string; headSha: string; commits: ManuscriptCommit[] }
+interface LinkGraph { headSha: string; backlinks: Map<string, ManuscriptBacklink[]>; outgoing: Map<string, ManuscriptGraphEdge[]>; titles: Map<string, string>; brokenInternalLinks: string[] }
 
 function base64Url(value: string | Buffer) { return Buffer.from(value).toString('base64url'); }
 function cleanError(error: unknown): HttpsError {
@@ -115,6 +123,9 @@ export class ManuscriptGitHubClient {
     if (blob.encoding !== 'base64' || typeof blob.content !== 'string') throw new HttpsError('unavailable', 'MANUSCRIPT_SOURCE_UNAVAILABLE');
     return Buffer.from(blob.content.replace(/\n/g, ''), 'base64').toString('utf8');
   }
+  async commits(path: string, limit: number): Promise<unknown> {
+    return this.request(`/repos/${OWNER}/${REPO}/commits?sha=${encodeURIComponent(BRANCH)}&path=${encodeURIComponent(path)}&per_page=${limit}`);
+  }
 }
 
 export class ManuscriptService {
@@ -123,12 +134,13 @@ export class ManuscriptService {
   private indexedHead: string | null = null;
   private index: Array<{ path: string; title: string; content: string }> = [];
   private graph: LinkGraph | null = null;
+  private readonly histories = new Map<string, ManuscriptDocumentHistoryResponse>();
   constructor(private readonly github: ManuscriptGitHubClient) {}
   async listTree() {
     if (this.snapshot && this.snapshot.expiresAt > Date.now()) return { headSha: this.snapshot.headSha, documents: this.snapshot.documents };
     const { headSha, entries } = await this.github.headAndTree();
     const documents = filterManuscriptTree(entries);
-    if (this.snapshot?.headSha !== headSha) { this.indexedHead = null; this.index = []; this.graph = null; this.documents.clear(); }
+    if (this.snapshot?.headSha !== headSha) { this.indexedHead = null; this.index = []; this.graph = null; this.documents.clear(); this.histories.clear(); }
     this.snapshot = { headSha, documents, expiresAt: Date.now() + TREE_TTL_MS };
     return { headSha, documents };
   }
@@ -172,9 +184,12 @@ export class ManuscriptService {
     const knownPaths = new Set(tree.documents.map((document) => document.path));
     const loadedDocuments = await Promise.all(tree.documents.map(async (document) => ({ document, loaded: await this.getDocument(document.path) })));
     const backlinks = new Map<string, ManuscriptBacklink[]>();
+    const outgoing = new Map<string, ManuscriptGraphEdge[]>();
+    const titles = new Map<string, string>();
     const brokenInternalLinks: string[] = [];
     for (const { document, loaded } of loadedDocuments) {
       const title = manuscriptTitle(loaded.content, document.name);
+      titles.set(document.path, title);
       for (const link of extractMarkdownLinks(loaded.content)) {
         const target = resolveManuscriptLink(document.path, link.href);
         if (!target) continue;
@@ -184,9 +199,12 @@ export class ManuscriptService {
         const item: ManuscriptBacklink = { sourcePath: document.path, sourceTitle: title, ...(target.anchor ? { anchor: target.anchor } : {}), ...(context ? { context } : {}) };
         const list = backlinks.get(target.path) ?? [];
         list.push(item); backlinks.set(target.path, list);
+        const edges = outgoing.get(document.path) ?? [];
+        edges.push({ source: document.path, target: target.path, ...(target.anchor ? { anchor: target.anchor } : {}) });
+        outgoing.set(document.path, edges);
       }
     }
-    this.graph = { headSha: tree.headSha, backlinks, brokenInternalLinks };
+    this.graph = { headSha: tree.headSha, backlinks, outgoing, titles, brokenInternalLinks };
     return this.graph;
   }
   async getBacklinks(pathInput: unknown): Promise<ManuscriptBacklinksResponse> {
@@ -195,6 +213,52 @@ export class ManuscriptService {
     if (!tree.documents.some((document) => document.path === path)) throw new HttpsError('not-found', 'MANUSCRIPT_DOCUMENT_NOT_FOUND');
     const graph = await this.linkGraph(tree);
     return { path, headSha: tree.headSha, backlinks: graph.backlinks.get(path) ?? [] };
+  }
+  async getDocumentGraph(pathInput: unknown): Promise<ManuscriptDocumentGraphResponse> {
+    const path = validateManuscriptPath(pathInput);
+    const tree = await this.listTree();
+    if (!tree.documents.some((document) => document.path === path)) throw new HttpsError('not-found', 'MANUSCRIPT_DOCUMENT_NOT_FOUND');
+    const graph = await this.linkGraph(tree);
+    const incoming = graph.backlinks.get(path) ?? [];
+    const outgoing = graph.outgoing.get(path) ?? [];
+    const incomingPaths = new Set(incoming.map((item) => item.sourcePath));
+    const outgoingPaths = new Set(outgoing.map((item) => item.target));
+    const relations = [...new Set([...incomingPaths, ...outgoingPaths])].sort((a, b) => a.localeCompare(b, 'pt-BR'));
+    const visibleRelations = relations.slice(0, MAX_GRAPH_NODES - 1);
+    const visible = new Set([path, ...visibleRelations]);
+    const nodes: ManuscriptGraphNode[] = [
+      { path, title: graph.titles.get(path) ?? path.replace(/\.md$/i, ''), kind: 'CURRENT' },
+      ...visibleRelations.map((item): ManuscriptGraphNode => ({
+        path: item, title: graph.titles.get(item) ?? item.replace(/\.md$/i, ''),
+        kind: item.startsWith('_AUDITORIA/') ? 'AUDIT' : 'REFERENCE',
+        direction: incomingPaths.has(item) && outgoingPaths.has(item) ? 'BIDIRECTIONAL' : incomingPaths.has(item) ? 'INCOMING' : 'OUTGOING',
+      })),
+    ];
+    const edges = [...incoming.map((item) => ({ source: item.sourcePath, target: path, ...(item.anchor ? { anchor: item.anchor } : {}) })), ...outgoing]
+      .filter((edge) => visible.has(edge.source) && visible.has(edge.target));
+    return { path, headSha: tree.headSha, nodes, edges, totalNodes: relations.length + 1, visibleNodes: nodes.length, truncated: relations.length > visibleRelations.length };
+  }
+  async getDocumentHistory(pathInput: unknown, limitInput: unknown): Promise<ManuscriptDocumentHistoryResponse> {
+    const path = validateManuscriptPath(pathInput);
+    const limit = typeof limitInput === 'number' && Number.isInteger(limitInput) ? Math.min(Math.max(limitInput, 1), MAX_HISTORY_LIMIT) : DEFAULT_HISTORY_LIMIT;
+    const tree = await this.listTree();
+    if (!tree.documents.some((document) => document.path === path)) throw new HttpsError('not-found', 'MANUSCRIPT_DOCUMENT_NOT_FOUND');
+    const key = `${tree.headSha}:${path}:${limit}`;
+    const cached = this.histories.get(key);
+    if (cached) return cached;
+    const raw = await this.github.commits(path, limit);
+    if (!Array.isArray(raw)) throw new HttpsError('unavailable', 'MANUSCRIPT_SOURCE_UNAVAILABLE');
+    const commits = raw.map((item): ManuscriptCommit | null => {
+      if (!item || typeof item !== 'object') return null;
+      const value = item as { sha?: unknown; html_url?: unknown; commit?: { message?: unknown; author?: { name?: unknown; date?: unknown } }; author?: { login?: unknown } };
+      if (typeof value.sha !== 'string' || typeof value.commit?.message !== 'string') return null;
+      const authoredAt = value.commit.author?.date;
+      if (typeof authoredAt !== 'string') return null;
+      return { sha: value.sha, shortSha: value.sha.slice(0, 7), message: value.commit.message.split('\n')[0], authorName: typeof value.commit.author?.name === 'string' ? value.commit.author.name : typeof value.author?.login === 'string' ? value.author.login : 'Desconhecido', authoredAt, ...(typeof value.html_url === 'string' ? { htmlUrl: value.html_url } : {}) };
+    }).filter((item): item is ManuscriptCommit => item !== null);
+    const response = { path, headSha: tree.headSha, commits };
+    this.histories.set(key, response);
+    return response;
   }
 }
 
@@ -209,3 +273,5 @@ export const manuscriptListTree = onCall(callableOptions, async (request) => { t
 export const manuscriptGetDocument = onCall(callableOptions, async (request) => { try { await assertReader(request.auth?.uid); return await service.getDocument(request.data?.path); } catch (error) { throw cleanError(error); } });
 export const manuscriptSearch = onCall(callableOptions, async (request) => { try { await assertReader(request.auth?.uid); return await service.search(request.data?.query, request.data?.limit); } catch (error) { throw cleanError(error); } });
 export const manuscriptGetBacklinks = onCall(callableOptions, async (request) => { try { await assertReader(request.auth?.uid); return await service.getBacklinks(request.data?.path); } catch (error) { throw cleanError(error); } });
+export const manuscriptGetDocumentGraph = onCall(callableOptions, async (request) => { try { await assertReader(request.auth?.uid); return await service.getDocumentGraph(request.data?.path); } catch (error) { throw cleanError(error); } });
+export const manuscriptGetDocumentHistory = onCall(callableOptions, async (request) => { try { await assertReader(request.auth?.uid); return await service.getDocumentHistory(request.data?.path, request.data?.limit); } catch (error) { throw cleanError(error); } });
