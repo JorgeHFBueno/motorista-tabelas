@@ -50,7 +50,7 @@ Prazo: o Node 20 é desativado no Cloud Functions em **2026-10-30**. Pendência 
 | `mondayOAuthStart` | HTTPS (`onRequest`) | southamerica-east1 | — | |
 | `mondayOAuthCallback` | HTTPS (`onRequest`) | southamerica-east1 | MONDAY_OAUTH_CLIENT_SECRET | |
 | `mondayLinkObraV2` | HTTPS (`onRequest`) | southamerica-east1 | — | rewrite `/api/monday-link-obra-v2` |
-| `mondayReconcileScheduled` | Agendada (`onSchedule`, every 30 minutes, America/Sao_Paulo) | southamerica-east1 | MONDAY_API_TOKEN | **nunca publicada**: fora deste deploy |
+| `mondayReconcileScheduled` | Agendada (`onSchedule`, every 30 minutes, America/Sao_Paulo) | southamerica-east1 | MONDAY_API_TOKEN | publicada em 2026-10-19 já em `nodejs22` (deploy só dela, autorizado); fora das etapas abaixo |
 | `syncMondaySerpMeasurements` | Callable (`onCall`) | southamerica-east1 | ERP360_API_TOKEN | ERP Elevor |
 | `getVehicleErpCosts` | Callable (`onCall`) | southamerica-east1 | ERP360_API_TOKEN | ERP Elevor |
 | `manuscriptListTree` | Callable (`onCall`) | southamerica-east1 | MANUSCRIPT_GITHUB_* (3) | The Manuscript |
@@ -73,14 +73,14 @@ Prazo: o Node 20 é desativado no Cloud Functions em **2026-10-30**. Pendência 
 | Situação | Funções | Tratamento |
 | --- | --- | --- |
 | Publicadas a partir deste repositório | as 23 das etapas abaixo | migram neste deploy |
-| No código, mas nunca publicada | `mondayReconcileScheduled` | **não publicar daqui**: criaria uma tarefa agendada nova (a cada 30 min); decisão separada |
+| No código, sem deploy até 2026-10-19 | `mondayReconcileScheduled` | publicada em 2026-10-19 (`nodejs22`), por decisão separada, para levar criação/renomeação/exclusão de LOTEs a `monday-obras` a cada 30 min |
 | Mesmo nome, mas a versão publicada vem do `MotoristaV2_MKI` | `kioskAuthenticatePin` | **não publicar daqui**: a versão de produção tem o PIN de administrador (`mode: "admin"`, `kioskAdminConfig`) e a deste repositório não; migrar pelo `MotoristaV2_MKI` |
 | Publicadas a partir do `MotoristaV2_MKI` | `kioskAuthenticateQr`, `kioskSessionEvent`, `provisionKioskAdminPin` | migrar pelo `MotoristaV2_MKI`, que ainda usa `engines.node: 20` e `firebase-functions ^6` |
 | Publicada sem código versionado | `manuscriptGetGlobalGraph` (Manuscript V5) | versionar o V5 e então republicar em Node 22 |
 | Publicada sem código localizado | `novaNotificacao` (trigger Firestore, **Node 18**) | localizar a origem e decidir entre migrar ou remover |
 | Extension do Firebase | `ext-firestore-bigquery-export-*` (3 em Node 20) | atualizar a Extension (`firebase ext:update` ou console); não é deploy de Functions |
 
-**Nunca rode `firebase deploy --only functions` (completo) a partir deste repositório.** O CLI tentaria apagar as 5 funções publicadas que não estão aqui, e ainda publicaria a `mondayReconcileScheduled` e a `kioskAuthenticatePin` deste repositório. O mesmo vale no sentido inverso para o `MotoristaV2_MKI`, que também exporta `provisionKioskCredential` e `revokeKioskQr`.
+**Nunca rode `firebase deploy --only functions` (completo) a partir deste repositório.** O CLI tentaria apagar as 5 funções publicadas que não estão aqui, e ainda publicaria a `kioskAuthenticatePin` deste repositório. O mesmo vale no sentido inverso para o `MotoristaV2_MKI`, que também exporta `provisionKioskCredential` e `revokeKioskQr`.
 
 Isso inclui o script `npm --prefix functions run deploy` (`functions/package.json`), que roda o deploy completo.
 
