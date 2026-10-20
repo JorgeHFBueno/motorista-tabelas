@@ -98,6 +98,28 @@ async function seed() {
     await setDoc(doc(db, 'motoristas', 'm1'), { nome: 'Motorista', ativo: true });
     await setDoc(doc(db, 'motivos', 'm1'), { nome: 'Motivo', ativo: true });
     await setDoc(doc(db, 'manutencoes', 'maint1'), { status: 'ABERTA' });
+    // Revisão das Rules (2026-10-20): frota e obras V2, monday, Friday e cadastros oficiais.
+    await setDoc(doc(db, 'veiculos-v2', 'vv1'), {
+      schemaVersion: 2, cadastro: { ativo: true }, identificacao: { categoria: 'PLACA', identificador: 'ABC1D23', nome: 'Caminhão 1' },
+      operacional: { quilometragemUltima: 125000, dataUltimaAtualizacao: Timestamp.fromMillis(1) },
+    });
+    await setDoc(doc(db, 'veiculos-v2', 'vm1'), {
+      schemaVersion: 2, cadastro: { ativo: true }, identificacao: { categoria: 'EXTRA', identificador: 'CARREGADEIRA', nome: 'Carregadeira Case' },
+      operacional: { quilometragemUltima: 8700 },
+    });
+    await setDoc(doc(db, 'obras-v2', 'ob1'), { nomeObra: 'Obra V2', local: 'Ledur', codObra: 101, siglaObra: 'OBV' });
+    await setDoc(doc(db, 'monday-obras', 'mo1'), { nome: 'Obra monday' });
+    await setDoc(doc(db, 'monday-mestres', 'dine'), { nome: 'Dine', cor: '#123456' });
+    await setDoc(doc(db, 'manutencoes-legado', 'legacy1'), { status: 'OK' });
+    await setDoc(doc(db, 'kioskCredentials', 'uid-user'), { pinHash: 'x' });
+    await setDoc(doc(db, 'friday-quadros', '10'), { id: 10, nome: 'Quadro', cadastro: null, restrito: 0 });
+    await setDoc(doc(db, 'friday-quadros', '11'), { id: 11, nome: 'Quadro oficial', cadastro: 'pontes', restrito: 0 });
+    await setDoc(doc(db, 'friday-itens', '20'), { id: 20, quadro_id: 10, nome: 'Item', valores: {}, vinculo: null, importado_em: null });
+    await setDoc(doc(db, 'friday-itens', '21'), { id: 21, quadro_id: 11, nome: 'Item oficial', valores: {}, vinculo: { cadastro: 'pontes', id: 'abc' } });
+    await setDoc(doc(db, 'friday-importacoes', '123'), { board_id: '123', situacao: 'ok' });
+    await setDoc(doc(db, 'friday-cadastros', 'pontes'), { chave: 'pontes', colecao: 'cadastro-pontes', situacao: 'ativo' });
+    await setDoc(doc(db, 'cadastro-pontes', 'abc'), { nome: 'Ponte', situacao: 'ativo' });
+    await setDoc(doc(db, 'friday-anexos', '30'), { id: 30, item_id: 20 });
   });
 }
 
@@ -143,9 +165,9 @@ test('[firestore] user can update non-privileged legacy profile data', async () 
 test('[firestore] user cannot elevate legacy profile privileges', async () => assertFails(updateDoc(doc(dbAs('user'), 'users', 'uid-user'), { role: 'adm2' })));
 test('[firestore] employee identity is readable by its owner', async () => assertSucceeds(getDoc(doc(dbAs('user'), 'funcionarios', 'uid-user'))));
 test('[firestore] employee identity is not writable by its owner', async () => assertFails(updateDoc(doc(dbAs('user'), 'funcionarios', 'uid-user'), { 'perfis.adm2': true })));
-test('[firestore] employee identity is readable and editable by adm2', async () => {
+test('[firestore] employee identity is readable by adm2 but written only by the Admin SDK', async () => {
   await assertSucceeds(getDoc(doc(dbAs('adm2'), 'funcionarios', 'uid-user')));
-  await assertSucceeds(updateDoc(doc(dbAs('adm2'), 'funcionarios', 'uid-user'), { nome: 'User updated by adm2' }));
+  await assertFails(updateDoc(doc(dbAs('adm2'), 'funcionarios', 'uid-user'), { nome: 'User updated by adm2' }));
 });
 test('[firestore] employee identity cannot be created by client', async () => assertFails(setDoc(doc(dbAs('adm2'), 'funcionarios', 'uid-new'), {
   nome: 'New', email: 'new@example.com', ativo: true,
@@ -225,40 +247,36 @@ test('[firestore] adm1 can register fuel for another driver with own authorship'
 test('[firestore] adm2 can register fuel for another driver with own authorship', async () => assertSucceeds(setDoc(doc(dbAs('adm2'), '03-combustivel', 'fuel-adm2-other'), { uid: 'uid-adm2', criadoPorUid: 'uid-adm2', motoristaUid: 'uid-user' })));
 test('[firestore] normal user cannot register administrative diesel entry', async () => assertFails(setDoc(doc(dbAs('user'), '03-combustivel', 'fuel-stock-entry-user'), { motorista: 'uid-user', motivo: 'Abastecimento de Diesel', qa: 5000, diesel: 9000 })));
 test('[firestore] adm2 registers administrative diesel entry', async () => assertSucceeds(setDoc(doc(dbAs('adm2'), '03-combustivel', 'fuel-stock-entry-adm2'), { motorista: 'uid-adm2', motivo: 'Abastecimento de Diesel', qa: 5000, diesel: 9000, precoTotal: 2000, precoPorLitro: 4, lote: 'LT-2026-08' })));
-test('[firestore] adm2 registers the new diesel entry schema', async () => assertSucceeds(setDoc(doc(dbAs('adm2'), '03-combustivel', 'fuel-stock-entry-v2-adm2'), {
-  data: new Date('2026-09-04T12:00:00Z'), schemaVersion: 2, tipo: 'entrada', bombaId: 'diesel_patio', litrosComprados: 50000,
-  preco: 2000000, precoLitro: 400, lote: 'LT-2026-09',
-  responsavel: { id: 'adm2@example.com', nome: 'Adm2' }, estoqueAntes: 34000,
-  estoqueAposMovimento: 84000, montanteSnapshot: 491264,
-})));
-test('[firestore] new diesel entry volume fields must be integers', async () => assertFails(setDoc(doc(dbAs('adm2'), '03-combustivel', 'fuel-stock-entry-v2-decimal'), {
-  data: new Date('2026-09-04T12:00:00Z'), schemaVersion: 2, tipo: 'entrada', bombaId: 'diesel_patio', litrosComprados: 50000.5,
-  preco: 2000000, precoLitro: 400, lote: 'LT-2026-09',
-  responsavel: { id: 'adm2@example.com', nome: 'Adm2' }, estoqueAntes: 34000,
-  estoqueAposMovimento: 84000, montanteSnapshot: 491264,
-})));
-test('[firestore] normal user cannot register the new diesel entry schema', async () => assertFails(setDoc(doc(dbAs('user'), '03-combustivel', 'fuel-stock-entry-v2-user'), {
-  data: new Date('2026-09-04T12:00:00Z'), schemaVersion: 2, tipo: 'entrada', bombaId: 'diesel_patio', litrosComprados: 50000,
-  preco: 2000000, precoLitro: 400, lote: 'LT-2026-09',
-  responsavel: { id: 'user@example.com', nome: 'User' }, estoqueAntes: 34000,
-  estoqueAposMovimento: 84000, montanteSnapshot: 491264,
-})));
-test('[firestore] versioned diesel money fields must be integers', async () => {
-  const base = {
-    data: new Date('2026-09-04T12:00:00Z'), schemaVersion: 2, tipo: 'entrada', bombaId: 'diesel_patio', litrosComprados: 50000,
-    preco: 2000000, precoLitro: 400, lote: 'LT-2026-09',
-    responsavel: { id: 'adm2@example.com', nome: 'Adm2' }, estoqueAntes: 34000,
-    estoqueAposMovimento: 84000, montanteSnapshot: 491264,
+function entradaV2(overrides = {}) {
+  return {
+    data: Timestamp.fromDate(new Date('2026-09-04T12:00:00Z')), schemaVersion: 2, tipo: 'entrada', bombaId: 'diesel_patio',
+    movimentoId: 'mov-entrada-1', litrosComprados: 50000, preco: 2000000, precoLitro: 400, lote: 'LT-2026-09',
+    estoqueAntes: 34000, estoqueAposMovimento: 84000, montanteSnapshot: null,
+    criadoPor: { uid: 'uid-canonical-adm2', nome: 'uid-canonical-adm2' }, motivo: 'Abastecimento de Diesel', ...overrides,
   };
-  await assertFails(setDoc(doc(dbAs('adm2'), '03-combustivel', 'fuel-stock-entry-v2-price-decimal'), { ...base, preco: 29000.5 }));
-  await assertFails(setDoc(doc(dbAs('adm2'), '03-combustivel', 'fuel-stock-entry-v2-unit-decimal'), { ...base, precoLitro: 5.8 }));
-  await assertSucceeds(setDoc(doc(dbAs('adm2'), '03-combustivel', 'fuel-stock-entry-v2-cents'), base));
+}
+test('[firestore] adm2 registers the contract diesel entry (montanteSnapshot int or null)', async () => {
+  await assertSucceeds(setDoc(doc(dbAs('canonicalAdm2'), '03-combustivel', 'fuel-entrada-v2-null'), entradaV2()));
+  await assertSucceeds(setDoc(doc(dbAs('canonicalAdm2'), '03-combustivel', 'fuel-entrada-v2-int'), entradaV2({ montanteSnapshot: 491264 })));
 });
-test('[firestore] new diesel entry cannot forge its Firestore responsible profile', async () => assertFails(setDoc(doc(dbAs('adm2'), '03-combustivel', 'fuel-stock-entry-v2-forged'), {
-  data: new Date('2026-09-04T12:00:00Z'), schemaVersion: 2, tipo: 'entrada', bombaId: 'diesel_patio', litrosComprados: 50000,
-  preco: 2000000, precoLitro: 400, lote: 'LT-2026-09',
-  responsavel: { id: 'user@example.com', nome: 'User' }, estoqueAntes: 34000,
-  estoqueAposMovimento: 84000, montanteSnapshot: 491264,
+test('[firestore] diesel entry volume and money fields must be integers', async () => {
+  await assertFails(setDoc(doc(dbAs('canonicalAdm2'), '03-combustivel', 'fuel-entrada-v2-decimal'), entradaV2({ litrosComprados: 50000.5, estoqueAposMovimento: 84000.5 })));
+  await assertFails(setDoc(doc(dbAs('canonicalAdm2'), '03-combustivel', 'fuel-entrada-v2-price-decimal'), entradaV2({ preco: 29000.5 })));
+  await assertFails(setDoc(doc(dbAs('canonicalAdm2'), '03-combustivel', 'fuel-entrada-v2-unit-decimal'), entradaV2({ precoLitro: 5.8 })));
+  await assertFails(setDoc(doc(dbAs('canonicalAdm2'), '03-combustivel', 'fuel-entrada-v2-bad-stock'), entradaV2({ estoqueAposMovimento: 1 })));
+});
+test('[firestore] only adm2 registers the diesel entry', async () => {
+  await assertFails(setDoc(doc(dbAs('canonicalUser'), '03-combustivel', 'fuel-entrada-v2-user'), entradaV2({ criadoPor: { uid: 'uid-canonical-user', nome: 'uid-canonical-user' } })));
+  await assertFails(setDoc(doc(dbAs('canonicalAdm1'), '03-combustivel', 'fuel-entrada-v2-adm1'), entradaV2({ criadoPor: { uid: 'uid-canonical-adm1', nome: 'uid-canonical-adm1' } })));
+});
+test('[firestore] diesel entry cannot forge its author', async () => {
+  await assertFails(setDoc(doc(dbAs('canonicalAdm2'), '03-combustivel', 'fuel-entrada-v2-forged-uid'), entradaV2({ criadoPor: { uid: 'uid-user', nome: 'User' } })));
+  await assertFails(setDoc(doc(dbAs('canonicalAdm2'), '03-combustivel', 'fuel-entrada-v2-forged-name'), entradaV2({ criadoPor: { uid: 'uid-canonical-adm2', nome: 'Outra pessoa' } })));
+});
+test('[firestore] old WEB diesel entry shape (responsavel) is denied', async () => assertFails(setDoc(doc(dbAs('canonicalAdm2'), '03-combustivel', 'fuel-entrada-web-antiga'), {
+  data: Timestamp.fromDate(new Date('2026-09-04T12:00:00Z')), schemaVersion: 2, tipo: 'entrada', bombaId: 'diesel_patio', litrosComprados: 50000,
+  preco: 2000000, precoLitro: 400, lote: 'LT-2026-09', responsavel: { id: 'uid-canonical-adm2', nome: 'uid-canonical-adm2' },
+  estoqueAntes: 34000, estoqueAposMovimento: 84000, montanteSnapshot: 491264,
 })));
 test('[firestore] fuel forged creator is denied', async () => assertFails(setDoc(doc(dbAs('adm2'), '03-combustivel', 'fuel-forged-author'), { criadoPorUid: 'uid-user', motoristaUid: 'uid-user' })));
 test('[firestore] normal fuel update is denied', async () => assertFails(updateDoc(doc(dbAs('user'), '03-combustivel', 'fuel-existing'), { lf: 30 })));
@@ -266,46 +284,73 @@ test('[firestore] normal fuel delete is denied', async () => assertFails(deleteD
 test('[firestore] custom claim admin updates fuel', async () => assertSucceeds(updateDoc(doc(dbAs('admin'), '03-combustivel', 'fuel-existing'), { lf: 31 })));
 test('[firestore] custom claim admin deletes fuel', async () => { await setDoc(doc(dbAs('user'), '03-combustivel', 'fuel-admin-delete'), { lf: 1 }); await assertSucceeds(deleteDoc(doc(dbAs('admin'), '03-combustivel', 'fuel-admin-delete'))); });
 
+// Saída V2 no formato do contrato (Manuscript 02_PROCESSOS/combustivel-saida-v2.md), como o app grava.
 function v2Output(overrides = {}) {
   return {
     schemaVersion: 2, tipo: 'saida', data: Timestamp.fromMillis(1757000000000), modalidadeAbastecimento: 'direto',
     quantidadeAbastecida: 10, valorAbastecimento: 100, origemPreco: { movimentoId: 'entry-1', lote: '1006', precoLitro: 580 },
-    estoqueAntes: 5000, estoqueAposMovimento: 4990, montanteAntes: 1100, montanteAposMovimento: 1110,
-    frentista: { uid: 'uid-user', nomeSnapshot: 'User' }, paraQuem: { uid: 'uid-user', nomeSnapshot: 'User' },
-    autorLancamento: { uid: 'uid-user', nomeSnapshot: 'User' }, itemFrota: { uid: 'v1', tipo: 'veiculo', identificadorSnapshot: 'ABC1D23', km: 125430 },
-    obra: { uid: 'o1', nomeSnapshot: 'Obra', localSnapshot: null }, motivo: 'Uso', arla: 0, ...overrides,
+    estoqueAntes: 5000, estoqueAposMovimento: 4990, montanteAntes: 1100, montanteAposMovimento: 1110, arla: 0,
+    frentista: { uid: 'uid-canonical-adm1', nome: 'uid-canonical-adm1' },
+    motoristaOperador: { uid: 'uid-user', nome: 'User' },
+    criadoPor: { uid: 'uid-user', nome: 'User' },
+    item_frota_id: 'vv1', item_frota_snapshot: { categoria: 'PLACA', identificador: 'ABC1D23', nome: 'Caminhão 1' },
+    id_obra: 'ob1', id_obra_snap: { codObra: 101, siglaObra: 'OBV', nomeObra: 'Obra V2', local: 'Ledur' },
+    motivo: 'Uso', quilometragem: 125430, ...overrides,
   };
 }
 
+// Transação T2 do app: movimento, bomba (campos V2) e quilometragem do item de frota.
 async function coherentV2Write(name, changes = {}, identity = 'user') {
   const db = dbAs(identity); const movement = doc(db, '03-combustivel', name); const pump = doc(db, 'bombas', 'diesel_patio');
   await assertSucceeds(runTransaction(db, async (transaction) => {
     const current = (await transaction.get(pump)).data();
-    const output = v2Output({ estoqueAntes: current.estoqueAtual, estoqueAposMovimento: current.estoqueAtual - 10, montanteAntes: current.montanteAtual, ...changes });
+    const output = Object.fromEntries(Object.entries(v2Output({ estoqueAntes: current.estoqueAtual, estoqueAposMovimento: current.estoqueAtual - 10, montanteAntes: current.montanteAtual, ...changes }))
+      .filter(([, v]) => v !== undefined));
     transaction.set(movement, output);
-    transaction.update(pump, { estoqueAtual: output.estoqueAposMovimento, montanteAtual: output.montanteAposMovimento, ultimoAbastecimento: output.data, ultimoFrentista: 'User' });
+    transaction.update(pump, {
+      estoqueAtual: output.estoqueAposMovimento, montanteAtual: output.montanteAposMovimento, ultimoAbastecimento: output.data, ultimoFrentista: output.frentista.nome,
+      ultimaMovimentacao: { movimentoId: name, tipo: 'saida', data: output.data }, atualizadoEm: output.data,
+    });
+    const medidor = output.quilometragem ?? output.horimetro;
+    if (medidor != null) transaction.update(doc(db, 'veiculos-v2', output.item_frota_id), { 'operacional.quilometragemUltima': medidor });
   }));
 }
 
-test('[firestore] V2 vehicle direct output is accepted with atomic pump state', async () => coherentV2Write('fuel-v2-vehicle'));
-test('[firestore] V2 machine and gallon outputs are accepted', async () => {
-  await coherentV2Write('fuel-v2-machine', { modalidadeAbastecimento: 'direto', itemFrota: { uid: 'm1', tipo: 'maquina', identificadorSnapshot: 'CARREGADEIRA CASE', horimetro: 8752 } });
-  await coherentV2Write('fuel-v2-gallon', { modalidadeAbastecimento: 'galao', itemFrota: { uid: 'v1', tipo: 'veiculo', identificadorSnapshot: 'ABC1D23' } });
+test('[firestore] V2 vehicle direct output is accepted with atomic pump and fleet state', async () => coherentV2Write('fuel-v2-vehicle'));
+test('[firestore] V2 machine, gallon, no-odometer and anonymous operator outputs are accepted', async () => {
+  await coherentV2Write('fuel-v2-machine', { item_frota_id: 'vm1', item_frota_snapshot: { categoria: 'EXTRA', identificador: 'CARREGADEIRA', nome: 'Carregadeira Case' }, quilometragem: undefined, horimetro: 8752 });
+  await coherentV2Write('fuel-v2-gallon', { modalidadeAbastecimento: 'galao', quilometragem: undefined });
+  await coherentV2Write('fuel-v2-sem-odometro', { semKm: 'Sem Odometro', quilometragem: undefined });
+  await coherentV2Write('fuel-v2-operador-anonimo', { motoristaOperador: { uid: null, nome: 'Terceiro' } });
 });
+test('[firestore] Kiosk employee can be the frentista', async () => coherentV2Write('fuel-v2-kiosk', { frentista: { uid: 'uid-user', nome: 'User' } }));
 test('[firestore] V2 rejects incompatible meters, fractional numbers and forged author', async () => {
-  await assertFails(setDoc(doc(dbAs('user'), '03-combustivel', 'fuel-v2-bad-machine-km'), v2Output({ itemFrota: { uid: 'm1', tipo: 'maquina', identificadorSnapshot: 'M', km: 10 } })));
-  await assertFails(setDoc(doc(dbAs('user'), '03-combustivel', 'fuel-v2-bad-km'), v2Output({ itemFrota: { uid: 'v1', tipo: 'veiculo', identificadorSnapshot: 'V', km: 10.5 } })));
-  await assertFails(setDoc(doc(dbAs('user'), '03-combustivel', 'fuel-v2-bad-author'), v2Output({ autorLancamento: { uid: 'uid-other', nomeSnapshot: 'Other' } })));
+  await assertFails(setDoc(doc(dbAs('user'), '03-combustivel', 'fuel-v2-bad-machine-km'), v2Output({ item_frota_id: 'vm1', item_frota_snapshot: { categoria: 'EXTRA', identificador: 'CARREGADEIRA', nome: 'Carregadeira Case' } })));
+  await assertFails(setDoc(doc(dbAs('user'), '03-combustivel', 'fuel-v2-bad-km'), v2Output({ quilometragem: 10.5 })));
+  await assertFails(setDoc(doc(dbAs('user'), '03-combustivel', 'fuel-v2-bad-author'), v2Output({ criadoPor: { uid: 'uid-other', nome: 'Other' } })));
+  await assertFails(setDoc(doc(dbAs('user'), '03-combustivel', 'fuel-v2-bad-author-name'), v2Output({ criadoPor: { uid: 'uid-user', nome: 'Outro nome' } })));
 });
-test('[firestore] V2 requires item, identities, origin and consistent stock', async () => {
-  await assertFails(setDoc(doc(dbAs('user'), '03-combustivel', 'fuel-v2-no-item'), v2Output({ itemFrota: null })));
+test('[firestore] V2 requires a real item, obra, active frentista and consistent stock', async () => {
+  await assertFails(setDoc(doc(dbAs('user'), '03-combustivel', 'fuel-v2-no-item'), v2Output({ item_frota_id: 'nao-existe' })));
+  await assertFails(setDoc(doc(dbAs('user'), '03-combustivel', 'fuel-v2-wrong-snapshot'), v2Output({ item_frota_snapshot: { categoria: 'PLACA', identificador: 'XYZ', nome: 'Caminhão 1' } })));
+  await assertFails(setDoc(doc(dbAs('user'), '03-combustivel', 'fuel-v2-no-obra'), v2Output({ id_obra: 'nao-existe' })));
   await assertFails(setDoc(doc(dbAs('user'), '03-combustivel', 'fuel-v2-no-frentista'), v2Output({ frentista: null })));
-  await assertFails(setDoc(doc(dbAs('user'), '03-combustivel', 'fuel-v2-no-origin'), v2Output({ origemPreco: null })));
+  await assertFails(setDoc(doc(dbAs('user'), '03-combustivel', 'fuel-v2-inactive-frentista'), v2Output({ frentista: { uid: 'uid-canonical-inactive', nome: 'uid-canonical-inactive' } })));
+  await assertFails(setDoc(doc(dbAs('user'), '03-combustivel', 'fuel-v2-frentista-name'), v2Output({ frentista: { uid: 'uid-canonical-adm1', nome: 'Outro' } })));
   await assertFails(setDoc(doc(dbAs('user'), '03-combustivel', 'fuel-v2-bad-stock'), v2Output({ estoqueAposMovimento: 1 })));
 });
+test('[firestore] old WEB V2 output shape is denied', async () => assertFails(setDoc(doc(dbAs('user'), '03-combustivel', 'fuel-v2-web-antiga'), {
+  schemaVersion: 2, tipo: 'saida', data: Timestamp.fromMillis(1757000000000), modalidadeAbastecimento: 'direto',
+  quantidadeAbastecida: 10, valorAbastecimento: 100, origemPreco: { movimentoId: 'entry-1', lote: '1006', precoLitro: 580 },
+  estoqueAntes: 5000, estoqueAposMovimento: 4990, montanteAntes: 1100, montanteAposMovimento: 1110,
+  frentista: { uid: 'uid-user', nomeSnapshot: 'User' }, paraQuem: { uid: 'uid-user', nomeSnapshot: 'User' },
+  autorLancamento: { uid: 'uid-user', nomeSnapshot: 'User' }, itemFrota: { uid: 'v1', tipo: 'veiculo', identificadorSnapshot: 'ABC1D23', km: 125430 },
+  obra: { uid: 'o1', nomeSnapshot: 'Obra', localSnapshot: null }, motivo: 'Uso', arla: 0,
+})));
 test('[firestore] V2 movement remains compatible when pump is updated in a separate write', async () => {
   await assertSucceeds(setDoc(doc(dbAs('user'), '03-combustivel', 'fuel-v2-no-pump-update'), v2Output()));
 });
+test('[firestore] V2 pump update requires integer stock and amount', async () => assertFails(updateDoc(doc(dbAs('user'), 'bombas', 'diesel_patio'), { estoqueAtual: 10.5, montanteAtual: 1, atualizadoEm: 3 })));
 
 test('[firestore] normal updates exact operational pump fields', async () => assertSucceeds(updateDoc(doc(dbAs('user'), 'bombas', 'diesel_patio'), { montanteAtual: 1100, estoqueAtual: 4900, ultimoAbastecimento: 2, ultimoFrentista: 'user' })));
 test('[firestore] normal cannot update any other pump field', async () => assertFails(updateDoc(doc(dbAs('user'), 'bombas', 'diesel_patio'), { ativo: false })));
@@ -353,7 +398,7 @@ test('[firestore] authorized reads motorists and reasons', async () => { await a
 test('[firestore] clients cannot write motorists', async () => assertFails(updateDoc(doc(dbAs('adm2'), 'motoristas', 'm1'), { ativo: false })));
 test('[firestore] only adm2 reads maintenance', async () => { await assertFails(getDoc(doc(dbAs('user'), 'manutencoes', 'maint1'))); await assertSucceeds(getDoc(doc(dbAs('adm2'), 'manutencoes', 'maint1'))); });
 test('[firestore] only adm2 creates maintenance', async () => { await assertFails(setDoc(doc(dbAs('user'), 'manutencoes', 'maint-user'), { status: 'A' })); await assertSucceeds(setDoc(doc(dbAs('adm2'), 'manutencoes', 'maint-adm2'), { status: 'A' })); });
-test('[firestore] generic maintenance update requires admin claim', async () => { await assertFails(updateDoc(doc(dbAs('adm2'), 'manutencoes', 'maint1'), { arbitrary: true })); await assertSucceeds(updateDoc(doc(dbAs('admin'), 'manutencoes', 'maint1'), { arbitrary: true })); });
+test('[firestore] adm2 and the admin claim edit maintenance records; others cannot', async () => { await assertSucceeds(updateDoc(doc(dbAs('adm2'), 'manutencoes', 'maint1'), { arbitrary: true })); await assertSucceeds(updateDoc(doc(dbAs('admin'), 'manutencoes', 'maint1'), { arbitrary2: true })); await assertFails(updateDoc(doc(dbAs('adm1'), 'manutencoes', 'maint1'), { arbitrary3: true })); await assertFails(updateDoc(doc(dbAs('user'), 'manutencoes', 'maint1'), { arbitrary3: true })); });
 test('[firestore] unknown collection is default denied', async () => assertFails(getDoc(doc(dbAs('adm2'), 'unknown', 'x'))));
 test('[firestore] unknown collection write is default denied', async () => assertFails(setDoc(doc(dbAs('adm2'), 'future-undeclared', 'x'), { value: true })));
 
@@ -415,10 +460,23 @@ test('[storage] adm2 reads existing departure checklist photo', async () => {
   await seedStorageObject(path);
   await assertSucceeds(getBytes(ref(storageAs('adm2'), path)));
 });
-test('[storage] normal user cannot read departure checklist photo', async () => {
+test('[storage] any authorized employee reads departure checklist photo', async () => {
   const path = 'checklists/saidas/storage-read/user.jpg';
   await seedStorageObject(path);
-  await assertFails(getBytes(ref(storageAs('user'), path)));
+  await assertSucceeds(getBytes(ref(storageAs('user'), path)));
+});
+test('[storage] canonical employee without a legacy profile reads checklist photo', async () => {
+  const path = 'checklists/saidas/storage-read/canonical.jpg';
+  await seedStorageObject(path);
+  await assertSucceeds(getBytes(ref(storageAs('canonicalAdm2'), path)));
+  await assertFails(getBytes(ref(storageAs('canonicalInactive'), path)));
+});
+test('[storage] authorized employee uploads a well-named checklist image', async () => {
+  await assertSucceeds(uploadBytes(ref(storageAs('canonicalUser'), 'checklists/saidas/at1/pneus_20261020_101500.jpg'), image, { contentType: 'image/jpeg' }));
+  await assertSucceeds(uploadBytes(ref(storageAs('canonicalUser'), 'checklists/chegadas/at1/pneus_20261020_101500_2.png'), image, { contentType: 'image/png' }));
+  await assertFails(uploadBytes(ref(storageAs('canonicalUser'), 'checklists/saidas/at1/documento_20261020_101500.pdf'), image, { contentType: 'application/pdf' }));
+  await assertFails(uploadBytes(ref(storageAs('canonicalUser'), 'checklists/outros/at1/pneus_20261020_101500.jpg'), image, { contentType: 'image/jpeg' }));
+  await assertFails(uploadBytes(ref(storageAs('missing'), 'checklists/saidas/at1/pneus_20261020_101501.jpg'), image, { contentType: 'image/jpeg' }));
 });
 test('[storage] client upload remains denied', async () => assertFails(uploadBytes(ref(storageAs('adm2'), 'checklists/saidas/a/image.png'), image, { contentType: 'image/png' })));
 test('[storage] object overwrite remains denied', async () => {
@@ -431,8 +489,13 @@ test('[storage] object delete remains denied', async () => {
   await seedStorageObject(path);
   await assertFails(deleteObject(ref(storageAs('adm2'), path)));
 });
-test('[storage] arrival path is not opened by the Web ruleset', async () => {
+test('[storage] arrival photos are readable as in production', async () => {
   const path = 'checklists/chegadas/a/arrival.jpg';
+  await seedStorageObject(path);
+  await assertSucceeds(getBytes(ref(storageAs('adm2'), path)));
+});
+test('[storage] other paths stay closed', async () => {
+  const path = 'outros/a/file.jpg';
   await seedStorageObject(path);
   await assertFails(getBytes(ref(storageAs('adm2'), path)));
 });
@@ -441,8 +504,151 @@ test('[storage] unauthorized profile is denied', async () => {
   await seedStorageObject(path);
   await assertFails(getBytes(ref(storageAs('missing'), path)));
 });
-test('[storage] current Web rules still allow inactive profile carrying adm2', async () => {
+test('[storage] inactive legacy profile is denied even carrying adm2', async () => {
   const path = 'checklists/saidas/a/inactive.jpg';
   await seedStorageObject(path);
-  await assertSucceeds(getBytes(ref(storageAs('inactive'), path)));
+  await assertFails(getBytes(ref(storageAs('inactive'), path)));
+});
+
+// ------------------------------------------------------------------ revisão das Rules (2026-10-20)
+test('[firestore] active employees list funcionarios (app pickers); legacy-only and inactive cannot', async () => {
+  await assertSucceeds(getDocs(collection(dbAs('canonicalUser'), 'funcionarios')));
+  await assertSucceeds(getDocs(collection(dbAs('user'), 'funcionarios')));
+  await assertFails(getDocs(collection(dbAs('adm1'), 'funcionarios')));
+  await assertFails(getDocs(collection(dbAs('canonicalInactive'), 'funcionarios')));
+  await assertFails(getDocs(collection(env.unauthenticatedContext().firestore(), 'funcionarios')));
+});
+test('[firestore] Kiosk collections and schema-info are closed to clients', async () => {
+  await assertFails(getDoc(doc(dbAs('adm2'), 'kioskCredentials', 'uid-user')));
+  await assertFails(setDoc(doc(dbAs('canonicalAdm2'), 'kioskAudit', 'e1'), { ok: true }));
+  await assertFails(getDoc(doc(dbAs('canonicalAdm2'), 'schema-info', 'x')));
+});
+
+test('[firestore] veiculos-v2: read and operational meter update', async () => {
+  await assertSucceeds(getDocs(collection(dbAs('canonicalUser'), 'veiculos-v2')));
+  await assertSucceeds(updateDoc(doc(dbAs('canonicalUser'), 'veiculos-v2', 'vv1'), { 'operacional.quilometragemUltima': 125500, 'operacional.dataUltimaAtualizacao': Timestamp.fromMillis(2) }));
+});
+test('[firestore] veiculos-v2: no regression, no other field, no fractional meter', async () => {
+  await assertFails(updateDoc(doc(dbAs('canonicalUser'), 'veiculos-v2', 'vv1'), { 'operacional.quilometragemUltima': 100 }));
+  await assertFails(updateDoc(doc(dbAs('canonicalUser'), 'veiculos-v2', 'vv1'), { 'operacional.quilometragemUltima': 130000.5 }));
+  await assertFails(updateDoc(doc(dbAs('canonicalUser'), 'veiculos-v2', 'vv1'), { 'identificacao.nome': 'Outro' }));
+  await assertFails(updateDoc(doc(dbAs('canonicalUser'), 'veiculos-v2', 'vv1'), { 'operacional.quilometragemUltima': 130000, 'cadastro.ativo': false }));
+  await assertFails(updateDoc(doc(dbAs('canonicalUser'), 'veiculos-v2', 'vv1'), { 'operacional.outro': 1 }));
+});
+test('[firestore] veiculos-v2: adm2 administers; nobody deletes', async () => {
+  await assertSucceeds(updateDoc(doc(dbAs('canonicalAdm2'), 'veiculos-v2', 'vm1'), { 'identificacao.nome': 'Carregadeira Case 2' }));
+  await assertSucceeds(updateDoc(doc(dbAs('canonicalAdm2'), 'veiculos-v2', 'vm1'), { 'identificacao.nome': 'Carregadeira Case' }));
+  await assertFails(deleteDoc(doc(dbAs('canonicalAdm2'), 'veiculos-v2', 'vm1')));
+});
+test('[firestore] obras-v2: read by employees, written by adm2', async () => {
+  await assertSucceeds(getDocs(collection(dbAs('canonicalUser'), 'obras-v2')));
+  await assertFails(updateDoc(doc(dbAs('canonicalUser'), 'obras-v2', 'ob1'), { nomeObra: 'X' }));
+  await assertFails(getDocs(collection(dbAs('missing'), 'obras-v2')));
+});
+
+test('[firestore] monday-obras: read by employees, written only by Functions', async () => {
+  await assertSucceeds(getDocs(collection(dbAs('canonicalAdm2'), 'monday-obras')));
+  await assertFails(setDoc(doc(dbAs('canonicalAdm2'), 'monday-obras', 'mo2'), { nome: 'X' }));
+});
+test('[firestore] monday-mestres: adm2 creates {nome, cor}; nothing else', async () => {
+  await assertSucceeds(getDocs(collection(dbAs('canonicalUser'), 'monday-mestres')));
+  await assertSucceeds(setDoc(doc(dbAs('canonicalAdm2'), 'monday-mestres', 'joao'), { nome: 'João', cor: '#abcdef' }));
+  await assertFails(setDoc(doc(dbAs('canonicalAdm2'), 'monday-mestres', 'maria'), { nome: 'Maria', cor: '#abcdef', extra: 1 }));
+  await assertFails(setDoc(doc(dbAs('canonicalUser'), 'monday-mestres', 'pedro'), { nome: 'Pedro', cor: '#abcdef' }));
+  await assertFails(deleteDoc(doc(dbAs('canonicalAdm2'), 'monday-mestres', 'dine')));
+});
+test('[firestore] cronograma accepts contract-level allocations (no obraId) and keeps targets immutable', async () => {
+  const { obraId, ...semObra } = cronogramaAlocacao('uid-canonical-adm2');
+  void obraId;
+  const db = dbAs('canonicalAdm2');
+  await assertSucceeds(setDoc(doc(db, 'monday-cronograma', 'contrato-sem-obra'), semObra));
+  await assertSucceeds(updateDoc(doc(db, 'monday-cronograma', 'contrato-sem-obra'), { tempoPlanejado: 9, atualizadoEm: Timestamp.fromMillis(2) }));
+  await assertFails(updateDoc(doc(db, 'monday-cronograma', 'contrato-sem-obra'), { contratoId: 'outro', atualizadoEm: Timestamp.fromMillis(3) }));
+  await assertFails(updateDoc(doc(db, 'monday-cronograma', 'contrato-sem-obra'), { obraId: '1', atualizadoEm: Timestamp.fromMillis(3) }));
+  await assertFails(setDoc(doc(db, 'monday-cronograma', 'obra-vazia'), { ...semObra, obraId: '' }));
+});
+
+function atividadeV2(overrides = {}) {
+  return {
+    schemaVersion: 2, tipo: 'saida', data: Timestamp.fromMillis(1757000000000), destino: 'Obra V2', local: 'Ledur', km: 125600, motivo: 'Serviço',
+    motorista: { uid: 'uid-user', nome: 'User' }, criadoPor: { uid: 'uid-user', nome: 'User' },
+    item_frota_id: 'vv1', item_frota_snapshot: { categoria: 'PLACA', identificador: 'ABC1D23', nome: 'Caminhão 1' },
+    id_obra: 'ob1', id_obra_snap: { codObra: 101, siglaObra: 'OBV', nomeObra: 'Obra V2', local: 'Ledur' }, ...overrides,
+  };
+}
+test('[firestore] V2 activity: own Saída with fleet km update in one transaction', async () => {
+  const db = dbAs('user');
+  await assertSucceeds(runTransaction(db, async (transaction) => {
+    await transaction.get(doc(db, 'obras-v2', 'ob1'));
+    transaction.set(doc(db, 'atividades', 'saida - v2 - user'), atividadeV2());
+    transaction.update(doc(db, 'veiculos-v2', 'vv1'), { 'operacional.quilometragemUltima': 125600, 'operacional.dataUltimaAtualizacao': Timestamp.fromMillis(3) });
+  }));
+});
+test('[firestore] V2 activity: only admins register for another driver; snapshots must match', async () => {
+  await assertFails(setDoc(doc(dbAs('canonicalUser'), 'atividades', 'v2-forjada'), atividadeV2({ criadoPor: { uid: 'uid-canonical-user', nome: 'uid-canonical-user' } })));
+  await assertSucceeds(setDoc(doc(dbAs('canonicalAdm1'), 'atividades', 'v2-adm1-outro'), atividadeV2({ criadoPor: { uid: 'uid-canonical-adm1', nome: 'uid-canonical-adm1' } })));
+  await assertFails(setDoc(doc(dbAs('user'), 'atividades', 'v2-autor-forjado'), atividadeV2({ criadoPor: { uid: 'uid-canonical-adm1', nome: 'X' } })));
+  await assertFails(setDoc(doc(dbAs('user'), 'atividades', 'v2-snapshot-errado'), atividadeV2({ item_frota_snapshot: { categoria: 'PLACA', identificador: 'ZZZ', nome: 'Caminhão 1' } })));
+  await assertFails(setDoc(doc(dbAs('user'), 'atividades', 'v2-extra'), atividadeV2({ item_frota_id: 'vm1', item_frota_snapshot: { categoria: 'EXTRA', identificador: 'CARREGADEIRA', nome: 'Carregadeira Case' } })));
+});
+test('[firestore] app automatic adjustment (legacy shape, id = chamado) is accepted', async () => {
+  await assertSucceeds(setDoc(doc(dbAs('canonicalUser'), '03-combustivel', 'chamado-ajuste-1'), {
+    semKm: 'Sem Odometro', tipoPlaca: false, li: 1000, lf: 1010, qa: 10, data: Timestamp.fromMillis(5), para_quem: 'ERRO', motivo: 'Uso Fábrica',
+    local: '', placa: '', arla: 0, obra: '', motorista: 'ERRO', observacao: 'Ajuste | UID: uid-canonical-user', diesel: 4990,
+  }));
+});
+test('[firestore] maintenance legacy: adm2 edits and deletes, nobody creates', async () => {
+  await assertSucceeds(updateDoc(doc(dbAs('canonicalAdm2'), 'manutencoes-legado', 'legacy1'), { status: 'REVISTO' }));
+  await assertFails(setDoc(doc(dbAs('canonicalAdm2'), 'manutencoes-legado', 'legacy2'), { status: 'NOVO' }));
+  await assertSucceeds(deleteDoc(doc(dbAs('canonicalAdm2'), 'manutencoes-legado', 'legacy1')));
+});
+
+test('[firestore] Friday: boards cannot be created official nor have "cadastro" changed by clients', async () => {
+  const db = dbAs('canonicalUser');
+  await assertSucceeds(setDoc(doc(db, 'friday-quadros', '12'), { id: 12, nome: 'Novo', cadastro: null, restrito: 0 }));
+  await assertFails(setDoc(doc(db, 'friday-quadros', '13'), { id: 13, nome: 'Forjado', cadastro: 'pontes' }));
+  await assertSucceeds(updateDoc(doc(db, 'friday-quadros', '11'), { nome: 'Renomeado' }));
+  await assertFails(updateDoc(doc(db, 'friday-quadros', '11'), { cadastro: null }));
+  await assertFails(updateDoc(doc(db, 'friday-quadros', '10'), { cadastro: 'pontes' }));
+});
+test('[firestore] Friday: items keep "vinculo" and import control written only by Functions', async () => {
+  const db = dbAs('canonicalUser');
+  await assertSucceeds(setDoc(doc(db, 'friday-itens', '22'), { id: 22, quadro_id: 10, nome: 'Novo', valores: {}, vinculo: null, importado_em: null }));
+  await assertFails(setDoc(doc(db, 'friday-itens', '23'), { id: 23, quadro_id: 11, nome: 'Forjado', vinculo: { cadastro: 'pontes', id: 'abc' } }));
+  await assertFails(setDoc(doc(db, 'friday-itens', '24'), { id: 24, quadro_id: 10, nome: 'Forjado', importado_em: '2026-10-20 10:00:00' }));
+  await assertSucceeds(updateDoc(doc(db, 'friday-itens', '21'), { nome: 'Renomeado', 'valores.5': 'x', pessoas: [1], busca: ['re'] }));
+  await assertFails(updateDoc(doc(db, 'friday-itens', '21'), { vinculo: null }));
+  await assertFails(updateDoc(doc(db, 'friday-itens', '20'), { importado_em: '2026-10-20 10:00:00' }));
+});
+test('[firestore] Friday: generic resources still open to active employees only', async () => {
+  await assertSucceeds(setDoc(doc(dbAs('canonicalUser'), 'friday-grupos', '40'), { id: 40, quadro_id: 10, nome: 'Grupo' }));
+  await assertFails(setDoc(doc(dbAs('adm2'), 'friday-grupos', '41'), { id: 41, quadro_id: 10, nome: 'Legado' }));
+  await assertFails(setDoc(doc(dbAs('canonicalInactive'), 'friday-grupos', '42'), { id: 42, quadro_id: 10, nome: 'Inativo' }));
+});
+test('[firestore] Friday: attachments and executions are read/delete only; imports closed; meta only "indices"', async () => {
+  const db = dbAs('canonicalUser');
+  await assertSucceeds(getDoc(doc(db, 'friday-anexos', '30')));
+  await assertFails(setDoc(doc(db, 'friday-anexos', '31'), { id: 31 }));
+  await assertFails(setDoc(doc(db, 'friday-execucoes', '50'), { id: 50 }));
+  await assertSucceeds(deleteDoc(doc(db, 'friday-anexos', '30')));
+  await assertFails(getDoc(doc(db, 'friday-importacoes', '123')));
+  await assertFails(setDoc(doc(dbAs('canonicalAdm2'), 'friday-importacoes', '124'), { situacao: 'ok' }));
+  await assertSucceeds(setDoc(doc(db, 'friday-meta', 'indices'), { versao: 1, itens: 3 }));
+  await assertSucceeds(getDoc(doc(db, 'friday-meta', 'indices')));
+  await assertFails(setDoc(doc(db, 'friday-meta', 'outro'), { x: 1 }));
+  await assertFails(deleteDoc(doc(db, 'friday-meta', 'indices')));
+});
+test('[firestore] Friday: official registries are readable, never writable by clients', async () => {
+  const db = dbAs('canonicalUser');
+  await assertSucceeds(getDoc(doc(db, 'friday-cadastros', 'pontes')));
+  await assertFails(getDocs(collection(db, 'friday-cadastros')));
+  await assertFails(setDoc(doc(dbAs('canonicalAdm2'), 'friday-cadastros', 'novo'), { chave: 'novo' }));
+  await assertSucceeds(getDoc(doc(db, 'cadastro-pontes', 'abc')));
+  await assertFails(updateDoc(doc(dbAs('canonicalAdm2'), 'cadastro-pontes', 'abc'), { nome: 'X' }));
+  await assertFails(getDoc(doc(dbAs('missing'), 'cadastro-pontes', 'abc')));
+});
+test('[firestore] Friday: a person enters as "membro" and cannot self-elevate', async () => {
+  await assertSucceeds(setDoc(doc(dbAs('canonicalAdm1'), 'friday-usuarios', 'uid-canonical-adm1'), { id: 1, uid: 'uid-canonical-adm1', nome: 'A', acesso: 'membro', ativo: 1 }));
+  await assertFails(setDoc(doc(dbAs('canonicalUser'), 'friday-usuarios', 'uid-canonical-user'), { id: 2, uid: 'uid-canonical-user', nome: 'U', acesso: 'admin', ativo: 1 }));
+  await assertFails(updateDoc(doc(dbAs('canonicalAdm1'), 'friday-usuarios', 'uid-canonical-adm1'), { acesso: 'admin' }));
 });
