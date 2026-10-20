@@ -31,6 +31,7 @@ const HomeDashboard = lazy(() => import('./pages/HomeDashboard'));
 const BombasPage = lazy(() => import('./pages/BombasPage'));
 const AccessDeniedPage = lazy(() => import('./pages/AccessDeniedPage'));
 const CronogramaObrasPage = lazy(() => import('./features/cronograma-obras/CronogramaObrasPage'));
+const PrazosContratuaisPage = lazy(() => import('./features/prazos-contratuais/PrazosContratuaisPage'));
 const EngenhariaObrasPage = lazy(() => import('./pages/EngenhariaObrasPage'));
 const TheManuscriptPage = lazy(() => import('./pages/TheManuscriptPage'));
 const FridayApp = lazy(() => import('./features/friday-gestao-interna/App'));
@@ -84,6 +85,7 @@ export default function App() {
             <Route path="portfolio" element={<PortifolioPage />} />
             <Route path="engenharia/cronograma" element={<CronogramaObrasPage />} />
             <Route path="engenharia/obras" element={<EngenhariaObrasPage />} />
+            <Route path="engenharia/prazos" element={<PrazosContratuaisPage />} />
           </Route>
         </Routes>
       </Suspense>

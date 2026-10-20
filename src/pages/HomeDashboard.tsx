@@ -8,6 +8,7 @@ import EngineeringIcon from '@mui/icons-material/Engineering';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import ConstructionIcon from '@mui/icons-material/Construction';
 import CalendarMonthIcon from '@mui/icons-material/CalendarMonth';
+import EventBusyIcon from '@mui/icons-material/EventBusy';
 import MenuRoundedIcon from '@mui/icons-material/MenuRounded';
 import ChevronLeftRoundedIcon from '@mui/icons-material/ChevronLeftRounded';
 import ChevronRightRoundedIcon from '@mui/icons-material/ChevronRightRounded';
@@ -93,6 +94,7 @@ const actions: HomeAction[] = [
     children: [
       { label: 'Obras', to: '/engenharia/obras', icon: <ConstructionIcon /> },
       { label: 'Cronograma', to: '/engenharia/cronograma', icon: <CalendarMonthIcon /> },
+      { label: 'Prazos contratuais', to: '/engenharia/prazos', icon: <EventBusyIcon /> },
     ],
   },
 ];

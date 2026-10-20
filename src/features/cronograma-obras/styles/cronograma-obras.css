@@ -108,6 +108,8 @@
 .co-toggle-row > span { font-size: .72rem; font-weight: 700; }
 .co-toggle-row > i { background: #dfe6ea; border-radius: 999px; color: #647581; font-size: .53rem; font-style: normal; font-weight: 850; min-width: 38px; padding: 4px 6px; text-align: center; }
 .co-toggle-row > i.is-on { background: #dcece4; color: #246248; }
+.co-baseline-link { text-decoration: none; }
+.co-section-views-row > .co-toggle-row { justify-self: end; }
 
 .co-indicators-bar { align-items: stretch; background: #fff; border: 1px solid var(--co-line); border-radius: 8px; display: grid; grid-template-columns: minmax(0, 1fr) auto; margin: 0 0 18px; max-width: 1880px; overflow: visible; }
 .co-indicators-group { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); min-width: 0; }
@@ -455,7 +457,7 @@
 .co-cell-lanes > .co-master-strips, .co-day-lanes > .co-master-strips { grid-row: 3; }
 .co-temporal-layer { min-width: 0; pointer-events: none; position: relative; }
 .co-temporal-segment { border-radius: 1px; bottom: 0; min-width: 1px; position: absolute; top: 0; }
-.co-temporal-segment.is-planned { background: #d7eafa; }.co-temporal-segment.is-mastered { background: #8fc7a2; }.co-temporal-segment.is-overdue { background: #f8d9d5; }.co-temporal-segment.is-attention { background: #fff0c9; }
+.co-temporal-segment.is-vencido { background: #c00000; }.co-temporal-segment.is-critico-decorrido { background: #e26b0a; }.co-temporal-segment.is-critico-a-decorrer { background: #f8cbad; }.co-temporal-segment.is-atencao-decorrido { background: #bf8f00; }.co-temporal-segment.is-atencao-a-decorrer { background: #ffe699; }.co-temporal-segment.is-folgado-decorrido { background: #548235; }.co-temporal-segment.is-folgado-a-decorrer { background: #c6e0b4; }
 .co-cell-space { align-items: center; display: flex; justify-content: center; min-width: 0; overflow: hidden; }
 .co-cell-space .co-allocation { height: 14px; max-width: 100%; position: static; }
 .co-master-strips { min-width: 0; pointer-events: auto; position: relative; }
@@ -482,7 +484,7 @@
 .co-week-masters { pointer-events: auto; }
 .co-week-lanes--alert-off .co-week-temporal, .co-week-lanes--alert-off .co-week-space { opacity: 0; visibility: hidden; }
 .co-week-lanes--alert-off .co-week-masters { bottom: 0; height: auto; left: 0; position: absolute; right: 0; top: 0; }
-.co-week-temporal i { bottom: 0; min-width: 3px; position: absolute; top: 0; }.co-week-temporal .is-planned { background: #d7eafa; }.co-week-temporal .is-mastered { background: #8fc7a2; }.co-week-temporal .is-overdue { background: #f8d9d5; }.co-week-temporal .is-attention { background: #fff0c9; }
+.co-week-temporal i { bottom: 0; min-width: 3px; position: absolute; top: 0; }.co-week-temporal .is-vencido { background: #c00000; }.co-week-temporal .is-critico-decorrido { background: #e26b0a; }.co-week-temporal .is-critico-a-decorrer { background: #f8cbad; }.co-week-temporal .is-atencao-decorrido { background: #bf8f00; }.co-week-temporal .is-atencao-a-decorrer { background: #ffe699; }.co-week-temporal .is-folgado-decorrido { background: #548235; }.co-week-temporal .is-folgado-a-decorrer { background: #c6e0b4; }
 .co-week-space { align-items: center; display: flex; justify-content: center; }.co-week-space b { color: #526a79; font-size: .58rem; font-variant-numeric: tabular-nums; }
 .co-week-masters i { background: var(--co-master-color); bottom: 0; container-type: inline-size; min-width: 4px; overflow: hidden; position: absolute; top: calc((var(--co-week-master-index) * 100%) / var(--co-week-master-count)); height: calc(100% / var(--co-week-master-count)); }
 .co-week-masters i .co-master-resize-handle { height: auto; }
@@ -496,7 +498,7 @@
 .co-month-summary--alert-off > .co-master-strips { bottom: 0; height: auto; left: 0; position: absolute; right: 0; top: 0; }
 .co-month-state { overflow: hidden; position: relative; }
 .co-month-state i { bottom: 0; display: block; min-width: 2px; position: absolute; top: 0; }
-.co-month-state .is-planned { background: #d7eafa; }.co-month-state .is-mastered { background: #8fc7a2; }.co-month-state .is-overdue { background: #f8d9d5; }.co-month-state .is-attention { background: #fff0c9; }
+.co-month-state .is-vencido { background: #c00000; }.co-month-state .is-critico-decorrido { background: #e26b0a; }.co-month-state .is-critico-a-decorrer { background: #f8cbad; }.co-month-state .is-atencao-decorrido { background: #bf8f00; }.co-month-state .is-atencao-a-decorrer { background: #ffe699; }.co-month-state .is-folgado-decorrido { background: #548235; }.co-month-state .is-folgado-a-decorrer { background: #c6e0b4; }
 .co-month-summary > strong { align-self: center; color: #315369; font-size: .78rem; font-variant-numeric: tabular-nums; }
 .co-week-cell, .co-month-cell { position: relative; }
 .is-dragging-master .co-day-timeline, .is-dragging-master .co-week-timeline, .is-dragging-master .co-month-cell:has(.co-work-allocation) { cursor: copy; }

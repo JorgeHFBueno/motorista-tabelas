@@ -6,6 +6,7 @@ import { Profiler, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import {
   CalendarToggles,
+  ToggleRow,
   type CalendarDisplayOptions,
 } from "./components/CalendarToggles";
 import { FiltersBar } from "./components/FiltersBar";
@@ -1287,6 +1288,15 @@ export default function CronogramaObrasPage() {
             {sectionViewsOpen && visualizationPopoverPosition && createPortal(
               <div ref={visualizationPopoverRef} data-crono-visualization-popover className="co-section-views-popover" role="dialog" aria-label="Visualização das tabelas" style={visualizationPopoverPosition}>
                 <strong>Visualização das tabelas</strong>
+                <div className="co-section-views-row">
+                  <span>Linha de Base</span>
+                  <ToggleRow
+                    label="Linha de Base"
+                    hideLabel
+                    enabled={display.liveAlerts}
+                    onToggle={() => setDisplay((current) => ({ ...current, liveAlerts: !current.liveAlerts }))}
+                  />
+                </div>
                 {([
                   ["started", "Obra iniciada"],
                   ["notStarted", "Obra não iniciada"],
