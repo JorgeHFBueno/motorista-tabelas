@@ -110,11 +110,11 @@ async function itensDoQuadro(token: string, boardId: string): Promise<MItem[]> {
 }
 
 // ---------------------------------------------------------------- autorização
-async function exigirAdm2(uid: string | undefined): Promise<string> {
+export async function exigirAdm2(uid: string | undefined, acao = 'importar do monday'): Promise<string> {
   if (!uid) throw new HttpsError('unauthenticated', 'Autenticação obrigatória.');
   const funcionario = await db.collection('funcionarios').doc(uid).get();
   const dados = funcionario.data();
-  if (!funcionario.exists || dados?.ativo !== true || dados?.perfis?.adm2 !== true) throw new HttpsError('permission-denied', 'Só adm2 pode importar do monday.');
+  if (!funcionario.exists || dados?.ativo !== true || dados?.perfis?.adm2 !== true) throw new HttpsError('permission-denied', `Só adm2 pode ${acao}.`);
   return uid;
 }
 function tokenMonday(): string {
@@ -357,6 +357,8 @@ async function importarQuadro(token: string, boardId: string, uid: string) {
   const areaId = await garantirArea(board.workspace ?? null);
   const pastaId = await garantirPasta(token, board.board_folder_id ? String(board.board_folder_id) : null, areaId);
   const { quadro, criado } = await garantirQuadro(board, { area_id: areaId, pasta_id: pastaId, tipo: 'quadro', nome_item: 'Item' });
+  // Quadro que virou cadastro oficial: os valores oficiais não vivem mais no quadro; reimportar gravaria por cima.
+  if (quadro.cadastro) throw new HttpsError('failed-precondition', `O quadro "${quadro.nome}" é um cadastro oficial (${quadro.cadastro}); a reimportação dele ainda não é suportada.`);
 
   const grupos = await sincronizarGrupos(quadro.id, board.groups ?? []);
   const { importadas: colunas, ignoradas, colunasPessoa } = await sincronizarColunas(quadro.id, board.columns ?? []);

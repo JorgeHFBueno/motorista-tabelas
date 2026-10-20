@@ -30,13 +30,14 @@ const CAMPOS: Record<Recurso, string[]> = {
   usuarios: ['id', 'uid', 'nome', 'papel', 'email', 'cor', 'origem_id', 'acesso', 'ativo', 'ultimo_acesso'],
   areas: ['id', 'nome', 'cor', 'posicao', 'origem_id', 'restrito'],
   pastas: ['id', 'area_id', 'pasta_pai_id', 'nome', 'cor', 'posicao', 'aberta', 'origem_id', 'restrito'],
-  quadros: ['id', 'area_id', 'pasta_id', 'nome', 'descricao', 'posicao', 'favorito', 'nome_item', 'criado_em', 'tipo', 'quadro_pai_id', 'origem_id', 'arquivado_em', 'excluido_em', 'restrito'],
+  // cadastro: chave do cadastro oficial do quadro (friday-cadastros/{chave}), gravada pela Function fridayCadastroPromover.
+  quadros: ['id', 'area_id', 'pasta_id', 'nome', 'descricao', 'posicao', 'favorito', 'nome_item', 'criado_em', 'tipo', 'quadro_pai_id', 'origem_id', 'arquivado_em', 'excluido_em', 'restrito', 'cadastro'],
   grupos: ['id', 'quadro_id', 'nome', 'cor', 'posicao', 'recolhido', 'arquivado_em', 'excluido_em', 'origem_id'],
   colunas: ['id', 'quadro_id', 'titulo', 'tipo', 'config', 'largura', 'posicao', 'oculta', 'origem_id'],
   // pessoas e busca: índices do Meu trabalho e da busca (ver prefixosBusca). importado_em, monday_atualizado_em e
   // ligacoes_pendentes: controle da importação do monday (gravados pela Function fridayMondayImportarQuadro).
   itens: ['id', 'quadro_id', 'grupo_id', 'item_pai_id', 'nome', 'posicao', 'valores', 'criado_por', 'criado_em', 'atualizado_em', 'origem_id', 'arquivado_em', 'excluido_em',
-    'pessoas', 'busca', 'importado_em', 'monday_atualizado_em', 'ligacoes_pendentes'],
+    'pessoas', 'busca', 'importado_em', 'monday_atualizado_em', 'ligacoes_pendentes', 'vinculo'],
   visoes: ['id', 'quadro_id', 'nome', 'tipo', 'config', 'posicao'],
   // quadro_id em atualizações e anexos: quadro do item, guardado para contar sem consultar item por item.
   atualizacoes: ['id', 'item_id', 'quadro_id', 'usuario_id', 'texto', 'criado_em', 'resposta_de', 'mencoes'],
@@ -50,9 +51,10 @@ const CAMPOS: Record<Recurso, string[]> = {
 const JSON_COLS: Partial<Record<Recurso, string[]>> = { colunas: ['config'], itens: ['valores'], visoes: ['config'], atualizacoes: ['mencoes'], automacoes: ['gatilho', 'condicoes', 'acoes'] };
 // Campos que a API genérica não grava (têm rotas próprias).
 const PROTEGIDOS: Partial<Record<Recurso, string[]>> = {
-  usuarios: ['uid', 'acesso', 'ativo', 'ultimo_acesso'], areas: ['restrito'], pastas: ['restrito'], quadros: ['restrito'],
+  usuarios: ['uid', 'acesso', 'ativo', 'ultimo_acesso'], areas: ['restrito'], pastas: ['restrito'], quadros: ['restrito', 'cadastro'],
   atualizacoes: ['quadro_id'], anexos: ['quadro_id'], notificacoes: ['usuario_uid'],
-  itens: ['pessoas', 'busca', 'importado_em', 'monday_atualizado_em', 'ligacoes_pendentes'],
+  // vinculo: { cadastro, id } do registro oficial do item (cadastros oficiais).
+  itens: ['pessoas', 'busca', 'importado_em', 'monday_atualizado_em', 'ligacoes_pendentes', 'vinculo'],
 };
 const SOMENTE_LEITURA = new Set<Recurso>(['atividades', 'execucoes']);
 // Recursos que podem ser arquivados ou ir para a lixeira (em vez de sumir de vez).
