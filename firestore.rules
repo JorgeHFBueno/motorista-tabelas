@@ -641,7 +641,7 @@ service cloud.firestore {
     // Áreas, pastas, quadros, grupos, colunas, itens, visões, atualizações, anexos e automações.
     match /{colecao}/{registroId} {
       allow read, write: if fridayAccess()
-        && colecao.matches('^friday-(areas|pastas|quadros|grupos|colunas|itens|visoes|atualizacoes|anexos|automacoes|execucoes)$');
+        && colecao.matches('^friday-(areas|pastas|quadros|grupos|colunas|itens|visoes|atualizacoes|anexos|automacoes|execucoes|meta|importacoes)$');
     }
 
 

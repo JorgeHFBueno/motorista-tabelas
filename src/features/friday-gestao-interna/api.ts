@@ -31,9 +31,12 @@ const CAMPOS: Record<Recurso, string[]> = {
   areas: ['id', 'nome', 'cor', 'posicao', 'origem_id', 'restrito'],
   pastas: ['id', 'area_id', 'pasta_pai_id', 'nome', 'cor', 'posicao', 'aberta', 'origem_id', 'restrito'],
   quadros: ['id', 'area_id', 'pasta_id', 'nome', 'descricao', 'posicao', 'favorito', 'nome_item', 'criado_em', 'tipo', 'quadro_pai_id', 'origem_id', 'arquivado_em', 'excluido_em', 'restrito'],
-  grupos: ['id', 'quadro_id', 'nome', 'cor', 'posicao', 'recolhido', 'arquivado_em', 'excluido_em'],
+  grupos: ['id', 'quadro_id', 'nome', 'cor', 'posicao', 'recolhido', 'arquivado_em', 'excluido_em', 'origem_id'],
   colunas: ['id', 'quadro_id', 'titulo', 'tipo', 'config', 'largura', 'posicao', 'oculta', 'origem_id'],
-  itens: ['id', 'quadro_id', 'grupo_id', 'item_pai_id', 'nome', 'posicao', 'valores', 'criado_por', 'criado_em', 'atualizado_em', 'origem_id', 'arquivado_em', 'excluido_em'],
+  // pessoas e busca: índices do Meu trabalho e da busca (ver prefixosBusca). importado_em, monday_atualizado_em e
+  // ligacoes_pendentes: controle da importação do monday (gravados pela Function fridayMondayImportarQuadro).
+  itens: ['id', 'quadro_id', 'grupo_id', 'item_pai_id', 'nome', 'posicao', 'valores', 'criado_por', 'criado_em', 'atualizado_em', 'origem_id', 'arquivado_em', 'excluido_em',
+    'pessoas', 'busca', 'importado_em', 'monday_atualizado_em', 'ligacoes_pendentes'],
   visoes: ['id', 'quadro_id', 'nome', 'tipo', 'config', 'posicao'],
   // quadro_id em atualizações e anexos: quadro do item, guardado para contar sem consultar item por item.
   atualizacoes: ['id', 'item_id', 'quadro_id', 'usuario_id', 'texto', 'criado_em', 'resposta_de', 'mencoes'],
@@ -49,6 +52,7 @@ const JSON_COLS: Partial<Record<Recurso, string[]>> = { colunas: ['config'], ite
 const PROTEGIDOS: Partial<Record<Recurso, string[]>> = {
   usuarios: ['uid', 'acesso', 'ativo', 'ultimo_acesso'], areas: ['restrito'], pastas: ['restrito'], quadros: ['restrito'],
   atualizacoes: ['quadro_id'], anexos: ['quadro_id'], notificacoes: ['usuario_uid'],
+  itens: ['pessoas', 'busca', 'importado_em', 'monday_atualizado_em', 'ligacoes_pendentes'],
 };
 const SOMENTE_LEITURA = new Set<Recurso>(['atividades', 'execucoes']);
 // Recursos que podem ser arquivados ou ir para a lixeira (em vez de sumir de vez).
@@ -189,8 +193,35 @@ async function inserir(r: Recurso, dados: Record<string, unknown>): Promise<Row>
   }
   const id = novoId();
   const row = { ...padrao(r), ...semUndefined(dados), id } as Row;
+  if (r === 'itens') {
+    row.busca = prefixosBusca(row.nome);
+    row.pessoas = Object.keys(row.valores ?? {}).length ? pessoasDosValores(row.valores, await colunasPessoaDe(row.quadro_id)) : [];
+  }
   await setDoc(ref(r, id), row);
   return row;
+}
+
+// ------------------------------------------------------------------ índices dos itens
+// O Firestore não busca por trecho de texto nem dentro dos valores das células. Cada item guarda:
+// - pessoas: ids que aparecem em colunas "pessoa" (o Meu trabalho consulta com array-contains);
+// - busca: prefixos das palavras do nome, sem acento e em minúsculas (a busca consulta a 1ª palavra digitada).
+// A mesma regra existe na Function de importação do monday (functions/fridayMondayConverter.ts).
+const semAcento = (t: string) => t.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+export function prefixosBusca(nome: unknown): string[] {
+  const prefixos = new Set<string>();
+  for (const palavra of semAcento(String(nome ?? '')).split(/[^a-z0-9]+/).filter(Boolean)) {
+    const p = palavra.slice(0, 20);
+    for (let n = 1; n <= p.length; n++) prefixos.add(p.slice(0, n));
+  }
+  return [...prefixos].slice(0, 300);
+}
+function pessoasDosValores(valores: Record<string, unknown> | undefined, colunasPessoa: Set<string>): number[] {
+  const ids = new Set<number>();
+  for (const [k, v] of Object.entries(valores ?? {})) if (colunasPessoa.has(k) && Array.isArray(v)) v.forEach(x => { if (Number.isFinite(Number(x))) ids.add(Number(x)); });
+  return [...ids];
+}
+async function colunasPessoaDe(quadroId: unknown): Promise<Set<string>> {
+  return new Set((await consultar('colunas', { quadro_id: quadroId, tipo: 'pessoa' })).map(c => String(c.id)));
 }
 
 // Grava muitos documentos em lotes (o Firestore aceita até 500 operações por lote).
@@ -450,6 +481,8 @@ async function importar(quadroId: number, corpo: unknown) {
   for (const i of itensAtuais) ultima.set(Number(i.grupo_id), Math.max(ultima.get(Number(i.grupo_id)) ?? 0, Number(i.posicao) || 0));
   let criados = 0, subCriados = 0, gruposCriados = 0, subquadro: number | null = null, subGrupo: number | null = null;
   const novos: Row[] = [];
+  const pessoasQuadro = await colunasPessoaDe(quadroId);
+  let pessoasSub = new Set<string>();
   for (const it of lista) {
     let gid = it.grupo_id ?? null;
     if (!gid) {
@@ -463,12 +496,14 @@ async function importar(quadroId: number, corpo: unknown) {
     }
     const posicao = (ultima.get(gid) ?? 0) + 1;
     ultima.set(gid, posicao);
-    const item = { ...padrao('itens'), id: novoId(), quadro_id: quadroId, grupo_id: gid, nome: String(it.nome || 'Sem nome').slice(0, 500), posicao, valores: semUndefined(it.valores ?? {}), criado_por: eu().id } as Row;
+    const nomeItem = String(it.nome || 'Sem nome').slice(0, 500), valoresItem = semUndefined(it.valores ?? {});
+    const item = { ...padrao('itens'), id: novoId(), quadro_id: quadroId, grupo_id: gid, nome: nomeItem, posicao, valores: valoresItem, criado_por: eu().id, busca: prefixosBusca(nomeItem), pessoas: pessoasDosValores(valoresItem, pessoasQuadro) } as Row;
     novos.push(item);
     criados++;
     for (const [k, s] of (it.subitens ?? []).entries()) {
-      if (!subquadro) { subquadro = await garantirSubquadro(quadro); subGrupo = await grupoDoSubquadro(subquadro); }
-      novos.push({ ...padrao('itens'), id: novoId(), quadro_id: subquadro, grupo_id: subGrupo, item_pai_id: item.id, nome: String(s.nome || 'Sem nome').slice(0, 500), posicao: k + 1, valores: semUndefined(s.valores ?? {}), criado_por: eu().id } as Row);
+      if (!subquadro) { subquadro = await garantirSubquadro(quadro); subGrupo = await grupoDoSubquadro(subquadro); pessoasSub = await colunasPessoaDe(subquadro); }
+      const nomeSub = String(s.nome || 'Sem nome').slice(0, 500), valoresSub = semUndefined(s.valores ?? {});
+      novos.push({ ...padrao('itens'), id: novoId(), quadro_id: subquadro, grupo_id: subGrupo, item_pai_id: item.id, nome: nomeSub, posicao: k + 1, valores: valoresSub, criado_por: eu().id, busca: prefixosBusca(nomeSub), pessoas: pessoasDosValores(valoresSub, pessoasSub) } as Row);
       subCriados++;
     }
   }
@@ -501,9 +536,11 @@ async function duplicarQuadro(id: number, corpo: unknown) {
     consultar('colunas', { quadro_id: id }), consultar('visoes', { quadro_id: id }), consultar('grupos', { quadro_id: id }), b.com_itens ? consultar('itens', { quadro_id: id }) : Promise.resolve([]),
   ]);
   const mapaCol = new Map<string, number>();
+  const pessoasNovas = new Set<string>();
   for (const c of ordenar('colunas', colunas)) {
     const n = await inserir('colunas', { quadro_id: novo.id, titulo: c.titulo, tipo: c.tipo, config: c.config ?? {}, largura: c.largura, posicao: c.posicao, oculta: c.oculta });
     mapaCol.set(String(c.id), n.id);
+    if (c.tipo === 'pessoa') pessoasNovas.add(String(n.id));
   }
   // Visões apontam para colunas: troca o id antigo pelo novo.
   for (const v of ordenar('visoes', visoes)) {
@@ -517,7 +554,7 @@ async function duplicarQuadro(id: number, corpo: unknown) {
     if (!b.com_itens) continue;
     for (const it of ordenar('itens', itens.filter(i => i.grupo_id === g.id && i.item_pai_id == null))) {
       const valores = Object.fromEntries(Object.entries(it.valores ?? {}).map(([k, x]) => [String(mapaCol.get(k) ?? k), x]));
-      copias.push({ ...padrao('itens'), id: novoId(), quadro_id: novo.id, grupo_id: ng.id, nome: it.nome, posicao: it.posicao, valores, criado_por: eu().id } as Row);
+      copias.push({ ...padrao('itens'), id: novoId(), quadro_id: novo.id, grupo_id: ng.id, nome: it.nome, posicao: it.posicao, valores, criado_por: eu().id, busca: prefixosBusca(it.nome), pessoas: pessoasDosValores(valores, pessoasNovas) } as Row);
     }
   }
   await emLotes(copias.map(c => lote => lote.set(ref('itens', c.id), c)));
@@ -536,7 +573,10 @@ async function definirValor(itemId: number, corpo: unknown) {
   const valores = { ...(item.valores ?? {}) };
   if (vazio(valor)) delete valores[chave]; else valores[chave] = semUndefined(valor);
   const atualizado_em = agora();
-  await updateDoc(ref('itens', item.id), new FieldPath('valores', chave), vazio(valor) ? deleteField() : semUndefined(valor), 'atualizado_em', atualizado_em);
+  // Coluna de pessoa: recalcula o índice usado pelo Meu trabalho.
+  const pessoas = coluna.tipo === 'pessoa' ? pessoasDosValores(valores, await colunasPessoaDe(item.quadro_id)) : item.pessoas;
+  await updateDoc(ref('itens', item.id), new FieldPath('valores', chave), vazio(valor) ? deleteField() : semUndefined(valor), 'atualizado_em', atualizado_em,
+    ...(coluna.tipo === 'pessoa' ? ['pessoas', pessoas] : []));
   const config = coluna.config ?? {};
   const [de, para] = await Promise.all([formatarValor(coluna.tipo, config, antes), formatarValor(coluna.tipo, config, valor)]);
   if (de !== para) {
@@ -547,7 +587,7 @@ async function definirValor(itemId: number, corpo: unknown) {
     }
   }
   // Automações ainda não rodam nesta etapa (virão em Cloud Functions): nenhuma disparou.
-  return { ...item, valores, atualizado_em, _automacoes: 0 };
+  return { ...item, valores, atualizado_em, pessoas, _automacoes: 0 };
 }
 
 // ------------------------------------------------------------------ arquivo, lixeira e exclusão definitiva
@@ -635,30 +675,75 @@ async function arquivo(estado: string | undefined, quadroId: number | null) {
 }
 
 // ------------------------------------------------------------------ meu trabalho, busca e avisos
+// Índices dos itens já existentes: gravados uma vez (marcador friday-meta/indices). Se não for possível gravar
+// (ex.: regras de produção), Meu trabalho e busca voltam a ler todos os itens, como antes.
+const VERSAO_INDICES = 1;
+let indicesProntos: Promise<boolean> | null = null;
+function garantirIndices(): Promise<boolean> {
+  indicesProntos ??= criarIndices().catch(e => { console.warn('[friday] índices indisponíveis, lendo tudo:', e); indicesProntos = null; return false; });
+  return indicesProntos;
+}
+async function criarIndices(): Promise<boolean> {
+  const marcador = doc(db, 'friday-meta', 'indices');
+  if (Number((await getDoc(marcador)).data()?.versao) >= VERSAO_INDICES) return true;
+  const [itens, colunasPessoa] = await Promise.all([todos('itens'), getDocs(query(colecao('colunas'), where('tipo', '==', 'pessoa')))]);
+  const pessoaPorQuadro = new Map<number, Set<string>>();
+  for (const c of colunasPessoa.docs.map(d => d.data() as Row)) {
+    if (!pessoaPorQuadro.has(Number(c.quadro_id))) pessoaPorQuadro.set(Number(c.quadro_id), new Set());
+    pessoaPorQuadro.get(Number(c.quadro_id))!.add(String(c.id));
+  }
+  await emLotes(itens.map(i => lote => lote.update(ref('itens', i.id), {
+    busca: prefixosBusca(i.nome), pessoas: pessoasDosValores(i.valores, pessoaPorQuadro.get(Number(i.quadro_id)) ?? new Set()),
+  })));
+  await setDoc(marcador, { versao: VERSAO_INDICES, gravado_em: agora(), itens: itens.length });
+  return true;
+}
+
 async function todos(r: Recurso) { return (await getDocs(colecao(r))).docs.map(d => d.data() as Row); }
+
+type Consulta = { quadro: (id: unknown) => Promise<Row | undefined>; grupo: (id: unknown) => Promise<Row | undefined>; item: (id: unknown) => Promise<Row | undefined>; colunas: (quadroId: unknown) => Promise<Row[]> };
 
 // Itens em que a pessoa aparece em alguma coluna "pessoa", de todos os quadros.
 async function meuTrabalho() {
   const uid = eu().id;
+  if (await garantirIndices()) {
+    // Só os itens com a pessoa no índice; quadros, grupos e colunas são lidos sob demanda.
+    const itens = (await getDocs(query(colecao('itens'), where('pessoas', 'array-contains', uid)))).docs.map(d => d.data() as Row);
+    const achar = memoria();
+    const colunas = new Map<number, Promise<Row[]>>();
+    return montarMeuTrabalho(uid, itens, {
+      quadro: id => achar('quadros', id), grupo: id => achar('grupos', id), item: id => achar('itens', id),
+      colunas: qid => { if (!colunas.has(Number(qid))) colunas.set(Number(qid), consultar('colunas', { quadro_id: qid }).then(l => ordenar('colunas', l))); return colunas.get(Number(qid))!; },
+    });
+  }
   const [colunasSnap, itens, quadros, grupos] = await Promise.all([
     getDocs(query(colecao('colunas'), where('tipo', 'in', ['pessoa', 'data', 'periodo', 'status']))), todos('itens'), todos('quadros'), todos('grupos'),
   ]);
   const porQuadro = new Map<number, Row[]>();
   for (const c of ordenar('colunas', colunasSnap.docs.map(d => d.data() as Row))) porQuadro.set(Number(c.quadro_id), [...(porQuadro.get(Number(c.quadro_id)) ?? []), c]);
   const Q = new Map(quadros.map(q => [q.id, q])), G = new Map(grupos.map(g => [g.id, g])), I = new Map(itens.map(i => [i.id, i]));
+  return montarMeuTrabalho(uid, itens, {
+    quadro: async id => Q.get(id as number), grupo: async id => G.get(id as number), item: async id => I.get(id as number), colunas: async qid => porQuadro.get(Number(qid)) ?? [],
+  });
+}
+
+async function montarMeuTrabalho(uid: number, itens: Row[], c: Consulta) {
   const out = [];
   for (const i of itens) {
-    const cs = porQuadro.get(Number(i.quadro_id)) ?? [];
+    const cs = (await c.colunas(i.quadro_id)).filter(x => ['pessoa', 'data', 'periodo', 'status'].includes(x.tipo));
     const v = i.valores ?? {};
-    if (!cs.some(c => c.tipo === 'pessoa' && Array.isArray(v[String(c.id)]) && v[String(c.id)].includes(uid))) continue;
-    const q = Q.get(i.quadro_id), g = G.get(i.grupo_id), p = I.get(i.item_pai_id), qp = q && Q.get(q.quadro_pai_id), gp = p && G.get(p.grupo_id);
-    if (!visivel(i) || !visivel(q) || (g && !visivel(g)) || (p && !visivel(p)) || (qp && !visivel(qp)) || (gp && !visivel(gp))) continue;
+    if (!cs.some(x => x.tipo === 'pessoa' && Array.isArray(v[String(x.id)]) && v[String(x.id)].includes(uid))) continue;
+    if (!visivel(i)) continue;
+    const q = await c.quadro(i.quadro_id);
+    const [g, p, qp] = await Promise.all([i.grupo_id != null ? c.grupo(i.grupo_id) : undefined, i.item_pai_id != null ? c.item(i.item_pai_id) : undefined, q?.quadro_pai_id != null ? c.quadro(q.quadro_pai_id) : undefined]);
+    const gp = p?.grupo_id != null ? await c.grupo(p.grupo_id) : undefined;
+    if (!visivel(q) || (g && !visivel(g)) || (p && !visivel(p)) || (qp && !visivel(qp)) || (gp && !visivel(gp))) continue;
     // Data do item = a primeira coluna de data que é prazo (data de início não conta como atraso).
-    const data = cs.filter(c => c.tipo === 'data' && ehPrazo(String(c.titulo), c.config ?? {})).map(c => v[String(c.id)]).find(Boolean)
-      ?? cs.filter(c => c.tipo === 'periodo').map(c => v[String(c.id)]?.fim).find(Boolean) ?? null;
+    const data = cs.filter(x => x.tipo === 'data' && ehPrazo(String(x.titulo), x.config ?? {})).map(x => v[String(x.id)]).find(Boolean)
+      ?? cs.filter(x => x.tipo === 'periodo').map(x => v[String(x.id)]?.fim).find(Boolean) ?? null;
     // Status "principal": o primeiro que tem rótulo de concluído (evita colunas como Prioridade ou Tipo).
-    const sts = cs.filter(c => c.tipo === 'status');
-    const st = sts.find(c => (c.config?.rotulos ?? []).some((r: { concluido?: boolean }) => r.concluido)) ?? sts[0];
+    const sts = cs.filter(x => x.tipo === 'status');
+    const st = sts.find(x => (x.config?.rotulos ?? []).some((r: { concluido?: boolean }) => r.concluido)) ?? sts[0];
     const rotulo = st ? (st.config?.rotulos ?? []).find((r: { id: string }) => r.id === String(v[String(st.id)])) : null;
     const sub = q!.tipo === 'subitens';
     out.push({
@@ -671,27 +756,40 @@ async function meuTrabalho() {
   return out;
 }
 
-// Busca por nome. O Firestore não busca por trecho de texto: lê os itens (com memória de 30 s) e filtra aqui.
+// Busca por nome: com os índices, consulta os itens cujo nome tem uma palavra começando pela 1ª palavra digitada
+// e confere o termo inteiro aqui. Sem índices, lê os itens (com memória de 30 s) e filtra aqui.
 let itensBusca: { quando: number; lista: Promise<Row[]> } | null = null;
 async function busca(termo: string | undefined) {
-  const t = String(termo ?? '').trim().toLowerCase();
+  const t = semAcento(String(termo ?? '').trim());
   if (!t) return { quadros: [], itens: [] };
-  if (!itensBusca || Date.now() - itensBusca.quando > 30000) itensBusca = { quando: Date.now(), lista: todos('itens') };
-  const [quadros, itens] = await Promise.all([todos('quadros'), itensBusca.lista]);
+  let candidatos: Row[];
+  if (await garantirIndices()) {
+    const primeira = t.split(/[^a-z0-9]+/).find(Boolean)?.slice(0, 20);
+    candidatos = primeira ? (await getDocs(query(colecao('itens'), where('busca', 'array-contains', primeira), limit(300)))).docs.map(d => d.data() as Row) : [];
+  } else {
+    if (!itensBusca || Date.now() - itensBusca.quando > 30000) itensBusca = { quando: Date.now(), lista: todos('itens') };
+    candidatos = await itensBusca.lista;
+  }
+  const quadros = await todos('quadros');
   const Q = new Map(quadros.map(q => [q.id, q]));
-  const grupos = new Map((await todos('grupos')).map(g => [g.id, g]));
-  const tem = (s: unknown) => String(s ?? '').toLowerCase().includes(t);
+  const achar = memoria();
+  // Cada palavra digitada precisa aparecer no nome, em qualquer ordem ("prim quad" acha "Criar o primeiro quadro").
+  const palavras = t.split(/[^a-z0-9]+/).filter(Boolean);
+  const tem = (s: unknown) => { const n = semAcento(String(s ?? '')); return palavras.every(w => n.includes(w)); };
+  const itens: Row[] = [];
+  for (const i of candidatos.filter(x => tem(x.nome) && visivel(x)).sort((a, b) => String(b.atualizado_em).localeCompare(String(a.atualizado_em)))) {
+    const q = Q.get(i.quadro_id), qp = q && Q.get(q.quadro_pai_id);
+    if (!visivel(q) || (qp && !visivel(qp))) continue;
+    const g = i.grupo_id != null ? await achar('grupos', i.grupo_id) : undefined;
+    if (g && !visivel(g)) continue;
+    itens.push({ id: i.id, nome: i.nome, quadro_id: q!.quadro_pai_id ?? i.quadro_id, abrir_item_id: i.item_pai_id ?? i.id, quadro_nome: qp?.nome ?? q!.nome });
+    if (itens.length >= 20) break;
+  }
   return {
     quadros: quadros.filter(q => tem(q.nome) && (q.tipo ?? 'quadro') !== 'subitens' && visivel(q))
       .sort((a, b) => String(a.nome).localeCompare(String(b.nome))).slice(0, 10).map(q => ({ id: q.id, nome: q.nome, area_id: q.area_id })),
     // Subitem: abre o quadro principal no item pai.
-    itens: itens.filter(i => {
-      const q = Q.get(i.quadro_id), qp = q && Q.get(q.quadro_pai_id), g = grupos.get(i.grupo_id);
-      return tem(i.nome) && visivel(i) && visivel(q) && (!qp || visivel(qp)) && (!g || visivel(g));
-    }).sort((a, b) => String(b.atualizado_em).localeCompare(String(a.atualizado_em))).slice(0, 20).map(i => {
-      const q = Q.get(i.quadro_id)!, qp = Q.get(q.quadro_pai_id);
-      return { id: i.id, nome: i.nome, quadro_id: q.quadro_pai_id ?? i.quadro_id, abrir_item_id: i.item_pai_id ?? i.id, quadro_nome: qp?.nome ?? q.nome };
-    }),
+    itens,
   };
 }
 
@@ -780,6 +878,7 @@ async function atualizar(r: Recurso, id: number, corpo: unknown) {
   if (!mudou.length) return antes;
   const campos: Record<string, unknown> = Object.fromEntries(mudou.map(k => [k, dados[k]]));
   if (r === 'itens' || r === 'automacoes') campos.atualizado_em = agora();
+  if (r === 'itens' && mudou.includes('nome')) campos.busca = prefixosBusca(dados.nome);
   await updateDoc(ref(r, id), campos as DocumentData);
   if (r === 'itens') {
     if (mudou.includes('nome')) await registrar({ quadro_id: antes.quadro_id, item_id: id, item_nome: dados.nome, acao: 'renomeou', de: antes.nome, para: dados.nome });
