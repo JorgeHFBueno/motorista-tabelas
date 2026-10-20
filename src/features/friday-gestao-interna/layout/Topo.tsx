@@ -1,27 +1,19 @@
 import { useEffect, useState } from 'react';
-import { useNavigate as useNavigateSistema } from 'react-router-dom';
+import { createPortal } from 'react-dom';
 import { useNavigate } from '../rotas.tsx';
-import { ChevronsRight, HelpCircle, LayoutGrid, LogOut, Search } from 'lucide-react';
+import { ChevronsRight, LayoutGrid, Search } from 'lucide-react';
 import { req, type Row } from '../api.ts';
-import { useNav } from '../nav.tsx';
-import { Avatar, Menu, Popover, usePopover, type ItemMenu } from '../ui/base.tsx';
+import { Popover, usePopover } from '../ui/base.tsx';
 import { Avisos } from './Avisos.tsx';
-import { LogoMarca } from './Marca.tsx';
 
-// Barra superior: marca, busca global, avisos e menu do usuário.
+// Barra superior: busca global. Ajuda e menu do usuário ficam no cabeçalho do sistema (components/Header.tsx),
+// e o sino de avisos do Friday é colocado lá, no espaço que o cabeçalho reserva enquanto o Friday está aberto.
 export function Topo({ lateralRecolhida, onExpandir }: { lateralRecolhida: boolean; onExpandir: () => void }) {
-  const nav = useNav();
   const navigate = useNavigate();
-  const navigateSistema = useNavigateSistema();
   const [busca, setBusca] = useState('');
   const [res, setRes] = useState<{ quadros: Row[]; itens: Row[] } | null>(null);
   const caixa = usePopover<HTMLLabelElement>();
-  const perfil = usePopover<HTMLButtonElement>();
-  const PAPEL = { admin: 'Administrador', membro: 'Membro', leitor: 'Só leitura' } as Record<string, string>;
-  // Login, senha e pessoas são os do sistema (Firebase). "Pessoas e acessos" volta na etapa de credenciais.
-  const itensPerfil: ItemMenu[] = [
-    { rotulo: 'Voltar ao sistema', icone: <LogOut size={15} />, onClick: () => navigateSistema('/') },
-  ];
+  const [slotAvisos] = useState(() => document.getElementById('ledur-header-avisos'));
 
   useEffect(() => {
     const t = busca.trim();
@@ -35,9 +27,6 @@ export function Topo({ lateralRecolhida, onExpandir }: { lateralRecolhida: boole
   return (
     <header className="topo">
       {lateralRecolhida && <button className="btn-icone" onClick={onExpandir} aria-label="Mostrar lateral"><ChevronsRight size={18} /></button>}
-      <button className="marca" onClick={() => navigate('/')} title="Início">
-        <LogoMarca />
-      </button>
       <label ref={caixa.ref} className="topo-busca">
         <Search size={15} />
         <input placeholder="Buscar quadros e itens" value={busca} onChange={e => { setBusca(e.target.value); caixa.abrir(); }} onFocus={caixa.abrir} />
@@ -53,18 +42,7 @@ export function Topo({ lateralRecolhida, onExpandir }: { lateralRecolhida: boole
           </div>
         </Popover>
       )}
-      <span className="espaco" />
-      <Avisos />
-      <button className="btn-icone topo-ic" title="Ajuda (em breve)" aria-label="Ajuda"><HelpCircle size={19} /></button>
-      <button ref={perfil.ref} className="topo-perfil" onClick={perfil.alternar} aria-label="Menu do usuário">
-        <Avatar nome={nav.usuario?.nome ?? '?'} cor={nav.usuario?.cor} tamanho={32} />
-      </button>
-      {perfil.aberto && (
-        <Popover ancora={perfil.ref.current} onClose={perfil.fechar} alinhar="fim" largura={250}>
-          <div className="perfil-cab"><strong>{nav.usuario?.nome}</strong><small className="muted">{nav.usuario?.email}</small><small className="muted">{PAPEL[nav.usuario?.acesso ?? ''] ?? ''}</small></div>
-          <Menu onEscolher={perfil.fechar} itens={itensPerfil} />
-        </Popover>
-      )}
+      {slotAvisos ? createPortal(<Avisos />, slotAvisos) : <><span className="espaco" /><Avisos /></>}
     </header>
   );
 }

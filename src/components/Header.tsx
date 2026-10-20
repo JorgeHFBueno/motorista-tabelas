@@ -1,49 +1,108 @@
 import Container from 'react-bootstrap/Container';
 import Nav from 'react-bootstrap/Nav';
 import Navbar from 'react-bootstrap/Navbar';
+import { Avatar, Box, Divider, IconButton, ListItemIcon, Menu, MenuItem, Popover, Tooltip, Typography } from '@mui/material';
+import MenuRoundedIcon from '@mui/icons-material/MenuRounded';
+import PersonOutlineRoundedIcon from '@mui/icons-material/PersonOutlineRounded';
+import LogoutRoundedIcon from '@mui/icons-material/LogoutRounded';
+import { Bell, HelpCircle } from 'lucide-react';
 import { Link, useLocation } from 'react-router-dom';
-import { useState } from 'react';
+import { useState, type ReactNode } from 'react';
 import PerfilDialog from './PerfilDialog';
+import MenuLateral from './MenuLateral';
 import { useAuth } from '../contexts/AuthContext';
 
+// Páginas sem menu lateral: a Home já é o menu; as demais são de quem ainda não entrou.
+const SEM_MENU_LATERAL = ['/', '/login', '/signup', '/acesso-negado'];
+
+const botaoIconeSx = { color: '#fff', width: 40, height: 40, '&:hover': { bgcolor: 'rgb(255 255 255 / 0.12)' } };
+
+// Mesma regra do avatar do Friday: primeira letra das duas primeiras palavras (sem o domínio, se for e-mail).
+const iniciais = (nome: string) => nome.replace(/@.*/, '').split(/\s+/).filter(Boolean).slice(0, 2).map((p) => p[0]).join('').toUpperCase() || '?';
+
+// Botão do cabeçalho cuja função ainda não existe: abre um aviso curto.
+function BotaoEmBreve({ rotulo, icone, mensagem }: { rotulo: string; icone: ReactNode; mensagem: string }) {
+  const [ancora, setAncora] = useState<HTMLElement | null>(null);
+  return (
+    <>
+      <Tooltip title={rotulo}>
+        <IconButton aria-label={rotulo} onClick={(e) => setAncora(e.currentTarget)} sx={botaoIconeSx}>{icone}</IconButton>
+      </Tooltip>
+      <Popover open={Boolean(ancora)} anchorEl={ancora} onClose={() => setAncora(null)} anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }} transformOrigin={{ vertical: 'top', horizontal: 'right' }}>
+        <Box sx={{ p: 2, maxWidth: 300 }}>
+          <Typography fontWeight={700} gutterBottom>{rotulo}</Typography>
+          <Typography variant="body2" color="text.secondary">{mensagem}</Typography>
+        </Box>
+      </Popover>
+    </>
+  );
+}
+
 export default function Header() {
-  const { currentUser, signOut } = useAuth();
+  const { currentUser, authorizationProfile, signOut } = useAuth();
   const location = useLocation();
   const [perfilOpen, setPerfilOpen] = useState(false);
-
-  // A Home possui sua própria navegação lateral; as outras rotas continuam
-  // usando este cabeçalho global, inclusive Perfil e Logout.
-  if (location.pathname === '/') return null;
+  const [menuLateralOpen, setMenuLateralOpen] = useState(false);
+  const [menuUsuario, setMenuUsuario] = useState<HTMLElement | null>(null);
+  const noFriday = location.pathname === '/friday' || location.pathname.startsWith('/friday/');
+  const comMenuLateral = Boolean(currentUser) && !SEM_MENU_LATERAL.includes(location.pathname);
+  const nome = authorizationProfile?.nome || currentUser?.displayName || currentUser?.email || '';
 
   return (
     <>
-      <Navbar expand="lg" className="ledur-navbar" variant="dark">
-        <Container>
-          <Navbar.Brand as={Link} to="/">
+      <Navbar expand className="ledur-navbar" variant="dark">
+        <Container fluid className="gap-2">
+          {comMenuLateral && (
+            <Tooltip title="Menu">
+              <IconButton aria-label="Abrir menu" onClick={() => setMenuLateralOpen(true)} sx={{ ...botaoIconeSx, ml: -1 }}>
+                <MenuRoundedIcon />
+              </IconButton>
+            </Tooltip>
+          )}
+          <Navbar.Brand as={Link} to="/" className="me-auto">
             <img src="/logo-ledur-branco.png" alt="" aria-hidden="true" />
           </Navbar.Brand>
-          <Navbar.Toggle aria-controls="basic-navbar-nav" />
-          <Navbar.Collapse id="basic-navbar-nav">
-            <Nav className="ms-auto">
-              {currentUser ? (
-                <>
-                  <Nav.Link onClick={() => setPerfilOpen(true)}>Usuário</Nav.Link>
-                  <Nav.Link onClick={() => signOut()}>Logout</Nav.Link>
-                </>
-              ) : (
-                <>
-                  <Nav.Link as={Link} to="/login">
-                    Login
-                  </Nav.Link>
-                  <Nav.Link as={Link} to="/signup">
-                    Cadastro
-                  </Nav.Link>
-                </>
-              )}
+          {currentUser ? (
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+              {/* No Friday, o sino é o de avisos dele, colocado aqui pela barra do Friday (layout/Topo.tsx). */}
+              {noFriday
+                ? <span id="ledur-header-avisos" className="ledur-header-avisos" />
+                : <BotaoEmBreve rotulo="Avisos" icone={<Bell size={20} />} mensagem="As notificações do sistema ainda serão implementadas. Por enquanto, os avisos existem apenas no Friday." />}
+              <BotaoEmBreve rotulo="Ajuda" icone={<HelpCircle size={20} />} mensagem="A ajuda do sistema ainda será implementada." />
+              <Tooltip title="Menu do usuário">
+                <IconButton aria-label="Menu do usuário" onClick={(e) => setMenuUsuario(e.currentTarget)} sx={{ ...botaoIconeSx, ml: 0.5 }}>
+                  <Avatar sx={{ width: 32, height: 32, fontSize: 13, fontWeight: 700, bgcolor: '#00a36c' }}>{iniciais(nome)}</Avatar>
+                </IconButton>
+              </Tooltip>
+              <Menu anchorEl={menuUsuario} open={Boolean(menuUsuario)} onClose={() => setMenuUsuario(null)} anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }} transformOrigin={{ vertical: 'top', horizontal: 'right' }} slotProps={{ paper: { sx: { minWidth: 240 } } }}>
+                <Box sx={{ px: 2, py: 1 }}>
+                  <Typography fontWeight={700} noWrap>{nome}</Typography>
+                  {currentUser.email && currentUser.email !== nome && <Typography variant="body2" color="text.secondary" noWrap>{currentUser.email}</Typography>}
+                </Box>
+                <Divider />
+                <MenuItem onClick={() => { setMenuUsuario(null); setPerfilOpen(true); }}>
+                  <ListItemIcon><PersonOutlineRoundedIcon fontSize="small" /></ListItemIcon>
+                  Usuário
+                </MenuItem>
+                <MenuItem onClick={() => { setMenuUsuario(null); signOut(); }}>
+                  <ListItemIcon><LogoutRoundedIcon fontSize="small" /></ListItemIcon>
+                  Logout
+                </MenuItem>
+              </Menu>
+            </Box>
+          ) : (
+            <Nav>
+              <Nav.Link as={Link} to="/login">
+                Login
+              </Nav.Link>
+              <Nav.Link as={Link} to="/signup">
+                Cadastro
+              </Nav.Link>
             </Nav>
-          </Navbar.Collapse>
+          )}
         </Container>
       </Navbar>
+      {comMenuLateral && <MenuLateral open={menuLateralOpen} onClose={() => setMenuLateralOpen(false)} />}
       <PerfilDialog open={perfilOpen} onClose={() => setPerfilOpen(false)} />
     </>
   );
