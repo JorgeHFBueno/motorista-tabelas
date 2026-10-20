@@ -409,6 +409,16 @@ async function importarQuadro(token: string, boardId: string, uid: string) {
 export const fridayMondayInventario = onCall({ region: REGIAO, secrets: [mondayApiToken], timeoutSeconds: 120, memory: '512MiB' }, async (request) => {
   await exigirAdm2(request.auth?.uid);
   const token = tokenMonday();
+  try {
+    return await inventario(token);
+  } catch (e) {
+    const mensagem = e instanceof Error ? e.message : String(e);
+    logger.error('friday-monday:inventario', { mensagem });
+    throw new HttpsError('internal', mensagem.slice(0, 300));
+  }
+});
+
+async function inventario(token: string) {
   const { workspaces } = await gql(token, 'query { workspaces(limit: 100) { id name } }');
   const boards: AnyRecord[] = [];
   for (let page = 1; ; page++) {
@@ -436,7 +446,7 @@ export const fridayMondayInventario = onCall({ region: REGIAO, secrets: [mondayA
     };
   }).sort((a, b) => a.area.localeCompare(b.area) || String(a.pasta ?? '').localeCompare(String(b.pasta ?? '')) || a.nome.localeCompare(b.nome));
   return { quadros, gerado_em: dataLocal() };
-});
+}
 
 /** Importa (ou atualiza) um quadro do monday no Friday. */
 export const fridayMondayImportarQuadro = onCall({ region: REGIAO, secrets: [mondayApiToken], timeoutSeconds: 540, memory: '1GiB' }, async (request) => {

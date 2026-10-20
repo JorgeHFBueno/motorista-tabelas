@@ -2,11 +2,12 @@ import { useEffect, useState, type CSSProperties, type ReactNode } from 'react';
 import { NavLink, useLocation, useNavigate } from '../rotas.tsx';
 import {
   ArrowDownAZ, Archive, ChevronDown, ChevronRight, ChevronsDownUp, ChevronsLeft, ChevronsUpDown, Copy, Folder, FolderOpen, FolderPlus, Home, LayoutGrid,
-  ListChecks, Lock, MoreHorizontal, Pencil, Plus, Search, Star, Trash2, FolderInput,
+  ListChecks, Lock, MoreHorizontal, Pencil, Plus, Search, Star, Trash2, FolderInput, CloudDownload,
 } from 'lucide-react';
 import { Permissoes } from './Permissoes.tsx';
 import { api, req, type Row } from '../api.ts';
 import { PERMISSOES_FINAS, useNav } from '../nav.tsx';
+import { useAuth } from '../../../contexts/AuthContext';
 import { Menu, Modal, Popover, useConfirmar, usePopover } from '../ui/base.tsx';
 import { CORES, corTexto } from '../util.ts';
 
@@ -31,6 +32,7 @@ export function Lateral({ onRecolher }: { onRecolher: () => void }) {
   const [soltarEm, setSoltarEm] = useState<number | 'raiz' | null>(null);
   const [permissoes, setPermissoes] = useState<{ recurso: 'area' | 'pasta' | 'quadro'; id: number; nome: string } | null>(null);
   const admin = !!nav.usuario?.admin;
+  const adm2 = useAuth().authorizationProfile?.adm2 === true;
   const area = nav.areas.find(a => a.id === nav.areaId);
   const mais = usePopover<HTMLButtonElement>();
   useEffect(() => { aplicarLargura(lerLargura()); }, []);
@@ -145,6 +147,7 @@ export function Lateral({ onRecolher }: { onRecolher: () => void }) {
         <NavLink to="/" end className={({ isActive }) => `atalho${isActive ? ' ativo' : ''}`}><Home size={17} /> Início</NavLink>
         <NavLink to="/meu-trabalho" className={({ isActive }) => `atalho${isActive ? ' ativo' : ''}`}><ListChecks size={17} /> Meu trabalho</NavLink>
         <NavLink to="/arquivo" className={({ isActive }) => `atalho${isActive ? ' ativo' : ''}`}><Archive size={17} /> Arquivo e lixeira</NavLink>
+        {adm2 && <NavLink to="/importar-monday" className={({ isActive }) => `atalho${isActive ? ' ativo' : ''}`}><CloudDownload size={17} /> Importar do monday</NavLink>}
         <button className="btn-icone recolher" onClick={onRecolher} title="Recolher lateral" aria-label="Recolher lateral"><ChevronsLeft size={16} /></button>
       </nav>
 

@@ -777,3 +777,21 @@ body.redimensionando .friday-root, body.redimensionando .friday-root * { cursor:
 /* Só leitura: some o que serve para criar ou mudar a estrutura. */
 .friday-root .somente-leitura .tq-novo, .friday-root .somente-leitura .adicionar-grupo, .friday-root .somente-leitura .btn-dividido, .friday-root .somente-leitura .aba-nova, .friday-root .somente-leitura .tq-mais .btn-icone, .friday-root .somente-leitura .item-menu, .friday-root .somente-leitura .grupo-menu, .friday-root .somente-leitura .alca, .friday-root .somente-leitura .sub-novo, .friday-root .somente-leitura .tq-sub .tq-novo { display: none !important; }
 @media (max-width: 800px) { .friday-root .papeis { grid-template-columns: 1fr; } }
+
+/* ---------------- importar do monday ---------------- */
+.friday-root .pagina-importar h1 { display: flex; align-items: center; gap: 8px; }
+.friday-root .importar-acoes { display: flex; gap: 8px; flex-wrap: wrap; }
+.friday-root .pagina-importar > .aviso-leitura { margin: -12px 0 16px; }
+.friday-root .importar-progresso { display: flex; flex-direction: column; gap: 4px; background: var(--superficie); border: 1px solid var(--borda-suave); border-radius: 8px; padding: 12px 14px; margin-bottom: 14px; font-size: 13px; }
+.friday-root .importar-barra { height: 6px; border-radius: 3px; background: var(--superficie-2); overflow: hidden; margin-top: 4px; }
+.friday-root .importar-barra span { display: block; height: 100%; background: var(--primaria); transition: width 0.3s; }
+.friday-root .importar-secao { padding: 8px 12px 4px; font-size: 12px; font-weight: 600; color: var(--texto-2); background: var(--superficie-2); border-bottom: 1px solid var(--borda-suave); }
+.friday-root .importar-linha { cursor: pointer; }
+.friday-root .importar-linha .arquivo-nome { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.friday-root .importar-resultado { color: #037f4c; }
+.friday-root .importar-selo { font-size: 11.5px; border-radius: 10px; padding: 2px 9px; white-space: nowrap; background: var(--superficie-2); color: var(--texto-2); }
+.friday-root .importar-selo.selo-novo { background: var(--primaria-clara); color: var(--primaria); }
+.friday-root .importar-selo.selo-importado { background: #dff5ea; color: #037f4c; }
+.friday-root .importar-selo.selo-atualizar { background: #fff4dd; color: #8a5a00; }
+.friday-root .importar-selo.selo-erro { background: #fde3e7; color: var(--perigo); }
+.friday-root .importar-selo.selo-importando { background: var(--primaria); color: #fff; }

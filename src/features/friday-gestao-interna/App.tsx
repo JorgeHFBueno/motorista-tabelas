@@ -10,6 +10,7 @@ import Inicio from './paginas/Inicio.tsx';
 import MeuTrabalho from './paginas/MeuTrabalho.tsx';
 import Arquivo from './paginas/Arquivo.tsx';
 import AutomacoesPage from './quadro/Automacoes.tsx';
+import ImportarMonday from './paginas/ImportarMonday.tsx';
 import './styles.css';
 
 // Friday — gestão interna em quadros (rota /friday do sistema). O acesso já foi validado pelo
@@ -53,6 +54,7 @@ function Friday() {
           <Route path="quadros/:id" element={<QuadroPage />} />
           <Route path="arquivo" element={<Arquivo />} />
           <Route path="quadros/:id/automacoes" element={<AutomacoesPage />} />
+          <Route path="importar-monday" element={<ImportarMonday />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </main>
