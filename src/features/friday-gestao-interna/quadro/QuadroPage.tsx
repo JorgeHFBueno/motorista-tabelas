@@ -3,11 +3,11 @@ import { useParams, useSearchParams } from 'react-router-dom';
 import { useNavigate } from '../rotas.tsx';
 import {
   Activity, Archive, ArchiveRestore, ArrowDownUp, CalendarDays, ChevronDown, Columns3, Copy, Download, EyeOff, FileSpreadsheet, Filter, FolderInput, GanttChart, Group,
-  Eye, Kanban as IconeKanban, Lock, MoreHorizontal, Pencil, Plus, Search, Star, Table2, Trash2, Upload, UserRound, X, Zap,
+  Eye, Kanban as IconeKanban, Lock, LockOpen, MoreHorizontal, Pencil, Plus, Search, Star, Table2, Trash2, Upload, UserRound, X, Zap,
 } from 'lucide-react';
 import { req } from '../api.ts';
 import { useAuth } from '../../../contexts/AuthContext';
-import { TornarOficial } from './TornarOficial.tsx';
+import { DesfazerOficial, TornarOficial } from './TornarOficial.tsx';
 import { NomeModal } from '../layout/Lateral.tsx';
 import { Permissoes } from '../layout/Permissoes.tsx';
 import { PERMISSOES_FINAS, useNav } from '../nav.tsx';
@@ -517,7 +517,7 @@ function MenuQuadro({ quadro, acoes, confirmar, temOcultas, onMostrarOcultas, on
   const pop = usePopover<HTMLButtonElement>();
   const [nomeItem, setNomeItem] = useState(false);
   const [permissoes, setPermissoes] = useState(false);
-  const [oficializar, setOficializar] = useState<'quadro' | 'subitens' | null>(null);
+  const [oficializar, setOficializar] = useState<'quadro' | 'subitens' | 'desfazer' | null>(null);
   const adm2 = useAuth().authorizationProfile?.adm2 === true;
   const itens: ItemMenu[] = [
     // Cadastros oficiais: só adm2, quadro comum ainda não oficial.
@@ -525,6 +525,7 @@ function MenuQuadro({ quadro, acoes, confirmar, temOcultas, onMostrarOcultas, on
     // Subitens oficiais: quadro oficial com subitens que ainda não são oficiais (ou promoção interrompida).
     ...(adm2 && quadro.oficial && quadro.oficial.subitens !== 'ativo' && acoes.dados?.sub
       ? [{ rotulo: quadro.oficial.subitens === 'migrando' ? 'Retomar subitens oficiais…' : 'Tornar subitens oficiais…', icone: <Lock size={15} />, onClick: () => setOficializar('subitens') }, 'separador' as const] : []),
+    ...(adm2 && quadro.oficial ? [{ rotulo: 'Desfazer oficialização…', icone: <LockOpen size={15} />, onClick: () => setOficializar('desfazer') }, 'separador' as const] : []),
     ...(PERMISSOES_FINAS && nav.usuario?.admin ? [{ rotulo: 'Permissões do quadro', icone: <Lock size={15} />, onClick: () => setPermissoes(true) }, 'separador' as const] : []),
     { rotulo: 'Exportar visão atual para Excel', icone: <FileSpreadsheet size={15} />, onClick: onExportarVisao },
     { rotulo: 'Exportar quadro inteiro para Excel', icone: <Download size={15} />, onClick: onExportarTudo },
@@ -548,6 +549,8 @@ function MenuQuadro({ quadro, acoes, confirmar, temOcultas, onMostrarOcultas, on
       {oficializar === 'subitens' && acoes.dados?.sub && <TornarOficial quadro={quadro} colunas={acoes.dados.sub.colunas}
         subitens={{ nomeItem: String(acoes.dados.sub.nome_item || 'Subitem'), chave: quadro.oficial?.subitens === 'migrando' ? quadro.oficial.sub_chave : null }}
         onFechar={() => setOficializar(null)} onPronto={() => { setOficializar(null); acoes.recarregar(); }} />}
+      {oficializar === 'desfazer' && quadro.oficial && <DesfazerOficial quadroId={Number(quadro.id)} oficial={quadro.oficial}
+        onFechar={() => setOficializar(null)} onPronto={() => { setOficializar(null); acoes.recarregar(); nav.recarregar(); }} />}
       {nomeItem && (
         <Modal titulo="Como chamar os itens deste quadro?" largura={420} onClose={() => setNomeItem(false)}>
           <form onSubmit={e => { e.preventDefault(); const v = new FormData(e.currentTarget).get('n') as string; if (v.trim()) acoes.atualizarQuadro({ nome_item: v.trim() }); setNomeItem(false); }}>

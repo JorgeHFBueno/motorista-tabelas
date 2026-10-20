@@ -259,8 +259,8 @@ export const fridayCadastroGravar = onCall({ region: REGIAO, timeoutSeconds: 60,
 });
 
 // ---------------------------------------------------------------- C3: campos oficiais por coluna, subitens e rótulos
-type OperacaoCampos = 'adicionar' | 'descontinuar' | 'subitens' | 'rotulos';
-const OPERACOES_CAMPOS: OperacaoCampos[] = ['adicionar', 'descontinuar', 'subitens', 'rotulos'];
+type OperacaoCampos = 'adicionar' | 'descontinuar' | 'subitens' | 'rotulos' | 'desfazer';
+const OPERACOES_CAMPOS: OperacaoCampos[] = ['adicionar', 'descontinuar', 'subitens', 'rotulos', 'desfazer'];
 
 /** Itens do escopo (quadro principal ou de subitens) já vinculados, com o caminho do valor no registro oficial. */
 async function itensVinculados(e: Escopo, quadroId: number) {
@@ -270,6 +270,7 @@ async function itensVinculados(e: Escopo, quadroId: number) {
 
 async function mudarCampos(uid: string, quadroId: number, op: OperacaoCampos, colunaId: number | null, chave: string, pedidos: PedidoCampo[]) {
   if (op === 'subitens') return promoverSubitens(uid, quadroId, chave, pedidos);
+  if (op === 'desfazer') return desfazer(uid, quadroId);
   const coluna = colunaId != null ? (await db.collection('friday-colunas').doc(String(colunaId)).get()).data() : undefined;
   if (!coluna) throw new HttpsError('not-found', 'Coluna não encontrada.');
   // O escopo vem da coluna: do quadro principal ou do quadro de subitens dele.
@@ -392,12 +393,71 @@ async function promoverSubitens(uid: string, quadroId: number, chave: string, pe
   return { chave: subChave, campos: campos.length, subitens_migrados: migrados, subitens_ja_migrados: jaMigrados, subitens_sem_pai: semPai, pessoas_sem_funcionario: pessoasSemFuncionario };
 }
 
-/** Mudanças nos campos de um cadastro oficial: tornar uma coluna oficial, descontinuar, subitens oficiais e rótulos. */
+/**
+ * Desfaz a oficialização de um quadro (C3b): os valores dos campos oficiais ativos voltam para as colunas dos itens e
+ * dos subitens, os vínculos saem, o quadro deixa de ser oficial e o registro fica "arquivado". Os documentos oficiais
+ * não são alterados nem apagados, e a chave do cadastro não pode ser reaproveitada. Repetir continua de onde parou
+ * (itens já desvinculados são pulados).
+ */
+async function desfazer(uid: string, quadroId: number) {
+  const quadroRef = db.collection('friday-quadros').doc(String(quadroId));
+  const quadro = (await quadroRef.get()).data();
+  if (!quadro) throw new HttpsError('not-found', 'Quadro não encontrado.');
+  const chave = quadro.cadastro;
+  if (!chave) throw new HttpsError('failed-precondition', 'Este quadro não é um cadastro oficial.');
+  const registroRef = db.collection('friday-cadastros').doc(String(chave));
+  const registro = (await registroRef.get()).data();
+  if (!registro) throw new HttpsError('not-found', `Registro do cadastro "${chave}" não encontrado.`);
+  const colecao = String(registro.colecao);
+  const ativos = (lista: unknown) => ((lista ?? []) as CampoOficial[]).filter(c => c.situacao === 'ativo');
+  const sub = registro.subitens as { chave: string; quadro_id: number; campos: CampoOficial[] } | undefined;
+  const { idDe } = await mapasDePessoas();
+
+  // Devolve um escopo (quadro principal ou de subitens): os valores voltam pela mesma conversão do "descontinuar".
+  async function devolver(alvo: number, campos: CampoOficial[], origemDe: (doc: AnyRecord | undefined, item: AnyRecord) => AnyRecord | undefined) {
+    const colunasPessoa = new Set((await db.collection('friday-colunas').where('quadro_id', '==', alvo).where('tipo', '==', 'pessoa').get()).docs.map(d => String(d.data().id)));
+    const itens = (await db.collection('friday-itens').where('quadro_id', '==', alvo).get()).docs.filter(d => d.data().vinculo?.cadastro === chave);
+    const ids = [...new Set(itens.map(d => String(d.data().vinculo.id)))];
+    const docs = new Map<string, AnyRecord | undefined>();
+    for (let k = 0; k < ids.length; k += 100) {
+      for (const sn of await db.getAll(...ids.slice(k, k + 100).map(id => db.collection(colecao).doc(id)))) docs.set(sn.id, sn.data());
+    }
+    for (let k = 0; k < itens.length; k += 200) {
+      const lote = db.batch();
+      for (const d of itens.slice(k, k + 200)) {
+        const item = d.data();
+        const origem = origemDe(docs.get(String(item.vinculo.id)), item);
+        const valores = { ...(item.valores ?? {}) };
+        const caminhos: unknown[] = [];
+        for (const c of campos) {
+          const v = valorDoOficial(c, origem?.[c.chave], idDe);
+          if (v === undefined) continue;
+          valores[String(c.coluna_id)] = v;
+          caminhos.push(new FieldPath('valores', String(c.coluna_id)), v);
+        }
+        lote.update(d.ref, 'vinculo', FieldValue.delete(), 'pessoas', indicePessoas(valores, colunasPessoa, [], undefined, idDe), ...caminhos);
+      }
+      await lote.commit();
+    }
+    return itens.length;
+  }
+
+  const subitens = sub?.quadro_id != null
+    ? await devolver(Number(sub.quadro_id), ativos(sub.campos), (doc, item) => doc?.[sub.chave]?.[String(item.vinculo.sub)])
+    : 0;
+  const itens = await devolver(quadroId, ativos(registro.campos), doc => doc);
+  await registroRef.update({ situacao: 'arquivado', arquivado_em: FieldValue.serverTimestamp(), arquivado_por: uid, versao: FieldValue.increment(1), atualizado_em: FieldValue.serverTimestamp() });
+  await quadroRef.update({ cadastro: FieldValue.delete() });
+  logger.info('friday-cadastro:desfeito', { chave, quadroId, itens, subitens, uid });
+  return { chave, itens_devolvidos: itens, subitens_devolvidos: subitens };
+}
+
+/** Mudanças nos campos de um cadastro oficial: tornar uma coluna oficial, descontinuar, subitens oficiais, rótulos e desfazer. */
 export const fridayCadastroCampos = onCall({ region: REGIAO, timeoutSeconds: 540, memory: '1GiB' }, async (request) => {
   const d = (request.data ?? {}) as { quadroId?: unknown; op?: unknown; colunaId?: unknown; chave?: unknown; campos?: unknown };
   const op = String(d.op ?? '') as OperacaoCampos;
   if (!OPERACOES_CAMPOS.includes(op)) throw new HttpsError('invalid-argument', 'Operação inválida.');
-  // Sincronizar rótulos acompanha a edição de rótulos (qualquer funcionário); mudar campos é de adm2.
+  // Sincronizar rótulos acompanha a edição de rótulos (qualquer funcionário); mudar campos e desfazer é de adm2.
   const uid = op === 'rotulos' ? await exigirFuncionarioAtivo(request.auth?.uid) : await exigirAdm2(request.auth?.uid, 'mudar os campos de um cadastro oficial');
   const quadroId = Number(d.quadroId);
   if (!Number.isSafeInteger(quadroId)) throw new HttpsError('invalid-argument', 'quadroId inválido.');

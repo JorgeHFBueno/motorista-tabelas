@@ -303,11 +303,11 @@ async function gravarOficial(itemId: number, op: 'valor' | 'nome' | 'situacao' |
 }
 /**
  * Mudanças nos campos de um cadastro oficial (Function fridayCadastroCampos): tornar uma coluna oficial ("adicionar"),
- * descontinuar, tornar os subitens oficiais ("subitens") e acompanhar rótulos ("rotulos").
+ * descontinuar, tornar os subitens oficiais ("subitens"), acompanhar rótulos ("rotulos") e desfazer a oficialização ("desfazer").
  */
 const chamarCampos = httpsCallable<{ quadroId: number; op: string; colunaId?: number; chave?: string; campos?: { coluna_id: number; chave: string }[] }, Record<string, unknown>>(
   functions, 'fridayCadastroCampos', { timeout: 560_000 });
-export async function camposOficiais(dados: { quadroId: number; op: 'adicionar' | 'descontinuar' | 'subitens' | 'rotulos'; colunaId?: number; chave?: string; campos?: { coluna_id: number; chave: string }[] }) {
+export async function camposOficiais(dados: { quadroId: number; op: 'adicionar' | 'descontinuar' | 'subitens' | 'rotulos' | 'desfazer'; colunaId?: number; chave?: string; campos?: { coluna_id: number; chave: string }[] }) {
   try { return (await chamarCampos(dados)).data; } catch (e) { throw new ErroApi(500, `Cadastro oficial: ${(e as Error).message}`); }
 }
 

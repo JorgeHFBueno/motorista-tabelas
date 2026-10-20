@@ -110,6 +110,43 @@ export function TornarOficial({ quadro, colunas, subitens, onFechar, onPronto }:
 }
 
 /**
+ * Desfazer a oficialização (só adm2): os valores voltam para as colunas do quadro e dos subitens e o cadastro fica
+ * arquivado — nada é apagado. A chave não pode ser reaproveitada.
+ */
+export function DesfazerOficial({ quadroId, oficial, onFechar, onPronto }: {
+  quadroId: number; oficial: { chave: string; nome: string }; onFechar: () => void; onPronto: () => void;
+}) {
+  const avisar = useAvisoRapido();
+  const [erro, setErro] = useState('');
+  const [enviando, setEnviando] = useState(false);
+  const enviar = async () => {
+    setErro('');
+    setEnviando(true);
+    try {
+      const r = await camposOficiais({ quadroId, op: 'desfazer' });
+      avisar(`“${oficial.nome}” deixou de ser cadastro oficial: valores de volta em ${r.itens_devolvidos} itens${Number(r.subitens_devolvidos) ? ` e ${r.subitens_devolvidos} subitens` : ''}.`);
+      onPronto();
+    } catch (e) {
+      setErro((e as Error).message);
+    } finally {
+      setEnviando(false);
+    }
+  };
+  return (
+    <Modal titulo="Desfazer a oficialização" largura={540} onClose={() => { if (!enviando) onFechar(); }}
+      rodape={<div className="form-acoes"><button type="button" className="fr-btn" disabled={enviando} onClick={onFechar}>Cancelar</button>
+        <button className="fr-btn btn-perigo-cheio" disabled={enviando} onClick={() => void enviar()}>{enviando ? 'Desfazendo…' : 'Desfazer'}</button></div>}>
+      <p className="muted fr-small">
+        Os valores dos campos oficiais voltam para as colunas deste quadro (e dos subitens), que perdem o cadeado e ficam livres.
+        O cadastro <code>{oficial.chave}</code> fica <strong>arquivado</strong>: nada é apagado, mas ele deixa de receber gravações e a chave
+        não pode ser reaproveitada. Para oficializar o quadro de novo, use outra chave.
+      </p>
+      {erro && <p className="aviso-erro">{erro}</p>}
+    </Modal>
+  );
+}
+
+/**
  * Por coluna, num quadro (ou subitens) já oficial — só adm2:
  * - "adicionar": a coluna vira campo oficial; os valores dela migram para o registro oficial.
  * - "descontinuar": o campo deixa de ser oficial; os valores voltam para a coluna (que fica livre) e o registro
