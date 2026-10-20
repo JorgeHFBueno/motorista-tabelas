@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { AlertCircle, AlertTriangle, Check, CheckCircle2, Circle, Download, ExternalLink, Paperclip, Pencil, Plus, Search, Star, Trash2, Upload, UserPlus, X } from 'lucide-react';
+import { AlertCircle, AlertTriangle, Check, CheckCircle2, Circle, Download, ExternalLink, Lock, Paperclip, Pencil, Plus, Search, Star, Trash2, Upload, UserPlus, X } from 'lucide-react';
 import { api, enviarArquivo, type Row } from '../api.ts';
 import { useNav } from '../nav.tsx';
 import { calcular, textoResultado } from './formula.ts';
@@ -87,7 +87,7 @@ function CelulaStatus({ coluna, valor, onMudar, onConfig }: CelulaProps) {
       {pop.aberto && (
         <Popover ancora={pop.ref.current} onClose={() => { pop.fechar(); setEditandoRotulos(false); }} alinhar="centro" largura={editandoRotulos ? 300 : 220}>
           {editandoRotulos ? (
-            <EditorRotulos rotulos={rotulos} comVazio comConcluido onSalvar={rs => onConfig({ ...coluna.config, rotulos: rs })} onFechar={() => setEditandoRotulos(false)} />
+            <EditorRotulos rotulos={rotulos} comVazio comConcluido protegidos={coluna.oficial?.rotulos} onSalvar={rs => onConfig({ ...coluna.config, rotulos: rs })} onFechar={() => setEditandoRotulos(false)} />
           ) : (
             <div className="pop-status">
               {[...rotulos.filter(x => x.id !== '0'), ...rotulos.filter(x => x.id === '0')].map(x => (
@@ -105,8 +105,9 @@ function CelulaStatus({ coluna, valor, onMudar, onConfig }: CelulaProps) {
 
 // Editor de rótulos (status) ou opções (lista suspensa): texto, cor, ordem e exclusão.
 // comConcluido: cada rótulo pode ser marcado como "concluído" (conta como feito).
-export function EditorRotulos({ rotulos, onSalvar, onFechar, comVazio, semCor, comConcluido }: {
-  rotulos: Rotulo[]; onSalvar: (r: Rotulo[]) => void; onFechar: () => void; comVazio?: boolean; semCor?: boolean; comConcluido?: boolean;
+// protegidos: ids dos rótulos de um campo oficial — podem ser renomeados e recoloridos, mas não excluídos.
+export function EditorRotulos({ rotulos, onSalvar, onFechar, comVazio, semCor, comConcluido, protegidos }: {
+  rotulos: Rotulo[]; onSalvar: (r: Rotulo[]) => void; onFechar: () => void; comVazio?: boolean; semCor?: boolean; comConcluido?: boolean; protegidos?: string[];
 }) {
   const [lista, setLista] = useState(rotulos);
   const [paleta, setPaleta] = useState<string | null>(null);
@@ -124,7 +125,9 @@ export function EditorRotulos({ rotulos, onSalvar, onFechar, comVazio, semCor, c
               {x.concluido ? <CheckCircle2 size={15} /> : <Circle size={15} />}
             </button>
           )}
-          {!(comVazio && x.id === '0') && <button className="btn-icone" aria-label="Excluir rótulo" onClick={() => setLista(l => l.filter(y => y.id !== x.id))}><Trash2 size={14} /></button>}
+          {protegidos?.includes(x.id)
+            ? <span className="btn-icone er-protegido" title="Rótulo de campo oficial: pode renomear, não pode excluir"><Lock size={13} /></span>
+            : !(comVazio && x.id === '0') && <button className="btn-icone" aria-label="Excluir rótulo" onClick={() => setLista(l => l.filter(y => y.id !== x.id))}><Trash2 size={14} /></button>}
           {paleta === x.id && (
             <div className="paleta">
               {CORES.map(c => <button key={c} style={{ background: c }} aria-label={c} onClick={() => { set(x.id, { cor: c }); setPaleta(null); }} />)}
@@ -272,7 +275,7 @@ function CelulaLista({ coluna, valor, onMudar, onConfig }: CelulaProps) {
       {pop.aberto && (
         <Popover ancora={pop.ref.current} onClose={() => { pop.fechar(); setEditando(false); }} alinhar="centro" largura={260}>
           {editando ? (
-            <EditorRotulos rotulos={opcoes} semCor onSalvar={rs => onConfig({ ...coluna.config, opcoes: rs })} onFechar={() => setEditando(false)} />
+            <EditorRotulos rotulos={opcoes} semCor protegidos={coluna.oficial?.rotulos} onSalvar={rs => onConfig({ ...coluna.config, opcoes: rs })} onFechar={() => setEditando(false)} />
           ) : (
             <div className="pop-pessoa">
               <div className="busca-pop"><Plus size={14} /><input autoFocus placeholder="Criar ou buscar opção" value={nova} onChange={e => setNova(e.target.value)} onKeyDown={e => e.key === 'Enter' && criar()} /></div>

@@ -1,8 +1,9 @@
 import { useMemo, useRef, useState } from 'react';
 import {
   AlarmClock, Archive, ArrowDownAZ, ArrowLeft, ArrowRight, ArrowUpAZ, CalendarDays, Check, ChevronDown, ChevronRight, Copy, EyeOff, FileSpreadsheet, GripVertical, Group, ListTree, Maximize2,
-  Lock, MessageCircle, MessageCirclePlus, Sigma, MoreHorizontal, Palette, Pencil, Plus, Trash2,
+  Lock, LockOpen, MessageCircle, MessageCirclePlus, Sigma, MoreHorizontal, Palette, Pencil, Plus, Trash2,
 } from 'lucide-react';
+import { useAuth } from '../../../contexts/AuthContext';
 import type { Row } from '../api.ts';
 import { Menu, Popover, useConfirmar, usePopover, Editavel, type ItemMenu } from '../ui/base.tsx';
 import { CORES, fmtData, fmtNumero, posEntre } from '../util.ts';
@@ -11,6 +12,7 @@ import { EditorFormula } from './EditorFormula.tsx';
 import { AGRUPAVEIS, type GrupoVirtual } from './filtros.ts';
 import { MenuTipos } from './MenuTipos.tsx';
 import { TabelaSubitens, type OpsItens } from './Subitens.tsx';
+import { CampoOficialDialogo, TIPOS_OFICIAIS } from './TornarOficial.tsx';
 import { ehPrazo, infoTipo, type Coluna, type Grupo, type Item, type Ordenacao, type Rotulo, type Sub } from './tipos.ts';
 import type { Acoes } from './useQuadro.ts';
 
@@ -315,6 +317,8 @@ function CabecalhoColuna({ coluna, acoes, confirmar, setOrdenacao, anterior, pro
   const menu = usePopover<HTMLButtonElement>();
   const [renomear, setRenomear] = useState(false);
   const [tipos, setTipos] = useState(false);
+  const [campoOficial, setCampoOficial] = useState<'adicionar' | 'descontinuar' | null>(null);
+  const adm2 = useAuth().authorizationProfile?.adm2 === true;
   const Icone = infoTipo(coluna.tipo).icone;
   const trocar = (outra?: Coluna) => {
     if (!outra) return;
@@ -353,6 +357,7 @@ function CabecalhoColuna({ coluna, acoes, confirmar, setOrdenacao, anterior, pro
                 { rotulo: 'Adicionar coluna à direita', icone: <Plus size={15} />, onClick: () => setTimeout(() => { menu.abrir(); setTipos(true); }) },
                 ...(AGRUPAVEIS.has(coluna.tipo) ? [{ rotulo: 'Agrupar por esta coluna', icone: <Group size={15} />, onClick: onAgrupar }] : []),
                 { rotulo: 'Ocultar coluna', icone: <EyeOff size={15} />, onClick: onOcultar },
+                ...itensCampoOficial(adm2 && !!acoes.oficial, coluna, setCampoOficial),
                 // Campo oficial não pode ser excluído (os dados vivem no cadastro oficial).
                 ...(coluna.oficial ? [] : ['separador' as const,
                   { rotulo: 'Excluir coluna', icone: <Trash2 size={15} />, perigo: true, onClick: async () => { if (await confirmar(`Excluir a coluna “${coluna.titulo}” e todos os valores dela?`)) acoes.excluirColuna(coluna.id); } }]),
@@ -361,8 +366,17 @@ function CabecalhoColuna({ coluna, acoes, confirmar, setOrdenacao, anterior, pro
           )}
         </Popover>
       )}
+      {campoOficial && acoes.oficial && <CampoOficialDialogo quadroId={acoes.oficial.quadroId} coluna={coluna} modo={campoOficial}
+        onFechar={() => setCampoOficial(null)} onPronto={() => { setCampoOficial(null); acoes.recarregar(); }} />}
     </th>
   );
+}
+
+/** Itens de menu de cadastro oficial de uma coluna (só adm2, quadro ou subitens já oficiais). */
+export function itensCampoOficial(podeMudar: boolean, coluna: Coluna, abrir: (modo: 'adicionar' | 'descontinuar') => void): ItemMenu[] {
+  if (!podeMudar) return [];
+  if (coluna.oficial) return [{ rotulo: 'Descontinuar campo oficial…', icone: <LockOpen size={15} />, onClick: () => abrir('descontinuar') }];
+  return TIPOS_OFICIAIS.has(coluna.tipo) ? [{ rotulo: 'Tornar campo oficial…', icone: <Lock size={15} />, onClick: () => abrir('adicionar') }] : [];
 }
 
 function AdicionarColuna({ acoes, aoCriar }: { acoes: Acoes; aoCriar: (c: Coluna) => void }) {

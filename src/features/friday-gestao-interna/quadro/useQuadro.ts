@@ -205,7 +205,10 @@ export function useQuadro(quadroId: number) {
       return Promise.reject(new Error('somente leitura'));
     }])) as typeof acoes)
     : acoes;
-  return { dados, erro, ...finais };
+  // Cadastro oficial do quadro (menus de campo oficial nas colunas); fica fora de `finais`, que só tem funções.
+  const oficial = dados?.quadro.oficial
+    ? { quadroId, ...dados.quadro.oficial } as { quadroId: number; chave: string; nome: string; subitens: string | null; sub_chave: string | null } : null;
+  return { dados, erro, oficial, ...finais };
 }
 
 export type Acoes = Omit<ReturnType<typeof useQuadro>, 'dados' | 'erro'>;

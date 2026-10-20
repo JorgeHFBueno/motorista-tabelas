@@ -8,7 +8,7 @@ type AnyRecord = Record<string, any>;
 export const TIPOS_OFICIAIS = new Set(['texto', 'texto_longo', 'telefone', 'email', 'numero', 'avaliacao', 'data', 'periodo', 'status', 'lista', 'pessoa', 'caixa', 'link']);
 
 /** Campos que todo documento oficial já tem e não podem ser usados como chave de campo. */
-export const CHAVES_RESERVADAS = new Set(['nome', 'situacao', 'criado_em', 'atualizado_em', 'criado_por', 'atualizado_por', 'origem']);
+export const CHAVES_RESERVADAS = new Set(['nome', 'situacao', 'criado_em', 'atualizado_em', 'criado_por', 'atualizado_por', 'origem', 'posicao']);
 
 // NFKD também decompõe símbolos como "ª" e "º" (2ª → 2a).
 const semAcento = (t: string) => t.normalize('NFKD').replace(/[̀-ͯ]/g, '').toLowerCase();
@@ -151,4 +151,50 @@ export function indicePessoas(valoresLivres: AnyRecord | undefined, colunasPesso
   for (const [k, v] of Object.entries(valoresLivres ?? {})) if (colunasPessoaLivres.has(k) && Array.isArray(v)) v.forEach(x => { if (Number.isFinite(Number(x))) ids.add(Number(x)); });
   for (const c of campos) if (c.tipo === 'pessoa' && c.situacao === 'ativo' && Array.isArray(oficial?.[c.chave])) for (const uid of oficial![c.chave]) { const id = idDeUid(String(uid)); if (id != null) ids.add(id); }
   return [...ids];
+}
+
+/** Valor oficial → valor da célula no Friday (o inverso de valorOficial). Usado ao descontinuar um campo. */
+export function valorDoOficial(campo: CampoOficial, valor: unknown, idDeUid: (uid: string) => number | undefined): unknown {
+  if (valor == null) return undefined;
+  switch (campo.tipo) {
+    case 'status': return campo.rotulos?.find(r => r.codigo === valor)?.friday_id;
+    case 'lista': {
+      const ids = (Array.isArray(valor) ? valor : []).map(c => campo.rotulos?.find(r => r.codigo === c)?.friday_id).filter((x): x is string => !!x);
+      return ids.length ? ids : undefined;
+    }
+    case 'pessoa': {
+      const ids = (Array.isArray(valor) ? valor : []).map(u => idDeUid(String(u))).filter((x): x is number => x != null);
+      return ids.length ? ids : undefined;
+    }
+    default: return valor;
+  }
+}
+
+/**
+ * Rótulos do Friday → rótulos do campo oficial: atualiza texto, cor e "concluído" dos já conhecidos (o `codigo` nunca
+ * muda) e acrescenta os novos. Rótulos que sumiram do Friday continuam no registro (dados antigos usam o código).
+ */
+export function sincronizarRotulos(campo: CampoOficial, rotulosFriday: AnyRecord[] | undefined): { campo: CampoOficial; mudou: boolean } {
+  const porId = new Map((rotulosFriday ?? []).map(r => [String(r.id), r]));
+  let mudou = false;
+  const atualizados = (campo.rotulos ?? []).map(r => {
+    const f = porId.get(r.friday_id);
+    if (!f) return r;
+    const texto = String(f.texto ?? '').trim() || r.texto;
+    const cor = String(f.cor ?? r.cor);
+    const concluido = !!f.concluido;
+    if (texto === r.texto && cor === r.cor && concluido === !!r.concluido) return r;
+    mudou = true;
+    const { concluido: _antigo, ...resto } = r;
+    void _antigo;
+    return { ...resto, texto, cor, ...(concluido ? { concluido: true } : {}) };
+  });
+  const comNovos = acrescentarRotulos({ ...campo, rotulos: atualizados }, rotulosFriday);
+  return { campo: comNovos.campo, mudou: mudou || comNovos.mudou };
+}
+
+/** Entrada de um subitem no mapa do registro pai (subitens oficiais). */
+export function entradaSubitem(campos: CampoOficial[], subitem: AnyRecord, uidDe: (idFriday: number) => string | undefined) {
+  const { valores, pessoasSemFuncionario } = camposDoItem(campos, subitem.valores, uidDe);
+  return { entrada: { posicao: Number(subitem.posicao) || 0, nome: String(subitem.nome ?? ''), situacao: situacaoDoItem(subitem), ...valores }, pessoasSemFuncionario };
 }

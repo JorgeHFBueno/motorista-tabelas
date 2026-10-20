@@ -5,7 +5,8 @@ import { db } from './firebaseAdmin.js';
 import { exigirAdm2 } from './fridayMondayImport.js';
 import { dataLocal, idDoUid, novoId } from './fridayMondayConverter.js';
 import {
-  acrescentarRotulos, camposDoItem, chaveValida, dataDoFriday, indicePessoas, montarCampos, situacaoDoItem, valorOficial, type CampoOficial, type PedidoCampo,
+  camposDoItem, CHAVES_RESERVADAS, chaveValida, dataDoFriday, entradaSubitem, indicePessoas, montarCampos, sincronizarRotulos, situacaoDoItem, valorDoOficial,
+  valorOficial, type CampoOficial, type PedidoCampo,
 } from './fridayCadastroConverter.js';
 
 // Cadastros oficiais do Friday (etapa C1): promove um quadro livre a cadastro oficial no modo "novo".
@@ -136,6 +137,35 @@ async function atualizarIndicePessoas(itemRef: FirebaseFirestore.DocumentReferen
   await itemRef.update({ pessoas: indicePessoas(item.valores, livres, campos, oficial, idDe) });
 }
 
+// Escopo de gravação: o quadro principal (campos na raiz do registro oficial) ou o quadro de subitens dele
+// (campos dentro do mapa `subitens.chave` do registro do item pai, em `<chave>.<id do subitem>.<campo>`).
+type Escopo = {
+  chave: string; registroRef: FirebaseFirestore.DocumentReference; registro: AnyRecord; sub: boolean; subChave: string | null; quadroPrincipal: number;
+  campos: CampoOficial[]; salvarCampos: (novos: CampoOficial[]) => Promise<unknown>;
+};
+async function escopoDoQuadro(quadroId: number): Promise<Escopo> {
+  const quadro = (await db.collection('friday-quadros').doc(String(quadroId)).get()).data();
+  if (!quadro) throw new HttpsError('not-found', 'Quadro não encontrado.');
+  const sub = quadro.tipo === 'subitens';
+  const principalId = sub ? Number(quadro.quadro_pai_id) : quadroId;
+  const principal = sub ? (await db.collection('friday-quadros').doc(String(principalId)).get()).data() : quadro;
+  const chave = principal?.cadastro;
+  if (!chave) throw new HttpsError('failed-precondition', 'Este quadro não é um cadastro oficial.');
+  const registroRef = db.collection('friday-cadastros').doc(String(chave));
+  const registro = (await registroRef.get()).data();
+  if (!registro || registro.situacao !== 'ativo') throw new HttpsError('failed-precondition', `O cadastro oficial "${chave}" não está ativo.`);
+  const versao = { versao: FieldValue.increment(1), atualizado_em: FieldValue.serverTimestamp() };
+  if (sub) {
+    const s = registro.subitens;
+    if (!s || s.situacao !== 'ativo' || Number(s.quadro_id) !== quadroId) throw new HttpsError('failed-precondition', 'Os subitens deste quadro não são oficiais.');
+    return { chave, registroRef, registro, sub: true, subChave: String(s.chave), quadroPrincipal: principalId, campos: (s.campos ?? []) as CampoOficial[],
+      salvarCampos: novos => registroRef.update({ 'subitens.campos': novos, ...versao }) };
+  }
+  return { chave, registroRef, registro, sub: false, subChave: null, quadroPrincipal: principalId, campos: (registro.campos ?? []) as CampoOficial[],
+    salvarCampos: novos => registroRef.update({ campos: novos, ...versao }) };
+}
+const apagarValores = (campos: CampoOficial[]) => campos.flatMap(c => [new FieldPath('valores', String(c.coluna_id)), FieldValue.delete()]);
+
 type Operacao = 'valor' | 'nome' | 'situacao' | 'vincular';
 const OPERACOES: Operacao[] = ['valor', 'nome', 'situacao', 'vincular'];
 
@@ -143,59 +173,69 @@ async function gravar(uid: string, itemId: number, op: Operacao, colunaId: numbe
   const itemRef = db.collection('friday-itens').doc(String(itemId));
   const item = (await itemRef.get()).data();
   if (!item) throw new HttpsError('not-found', 'Item não encontrado.');
-  const quadro = (await db.collection('friday-quadros').doc(String(item.quadro_id)).get()).data();
-  const chave = quadro?.cadastro;
-  if (!chave) throw new HttpsError('failed-precondition', 'O quadro deste item não é um cadastro oficial.');
-  const registroRef = db.collection('friday-cadastros').doc(String(chave));
-  const registro = (await registroRef.get()).data();
-  if (!registro || registro.situacao !== 'ativo') throw new HttpsError('failed-precondition', `O cadastro oficial "${chave}" não está ativo.`);
-  const campos = (registro.campos ?? []) as CampoOficial[];
-  const ativos = campos.filter(c => c.situacao === 'ativo');
-  const meta = { atualizado_em: FieldValue.serverTimestamp(), atualizado_por: uid };
+  const e = await escopoDoQuadro(Number(item.quadro_id));
+  const ativos = e.campos.filter(c => c.situacao === 'ativo');
+  const colecao = String(e.registro.colecao);
 
   if (op === 'vincular') {
-    // Item criado (ou duplicado) no quadro oficial: os valores das colunas oficiais viram o registro oficial.
-    if (item.vinculo?.cadastro === chave) return { id: item.vinculo.id };
+    // Item ou subitem criado (ou duplicado) num quadro oficial: os valores das colunas oficiais vão para o registro oficial.
+    if (item.vinculo?.cadastro === e.chave) return { id: item.vinculo.id };
     const { uidDe } = await mapasDePessoas();
-    const { valores } = camposDoItem(ativos, item.valores, uidDe);
-    const oficialRef = db.collection(registro.colecao).doc();
-    const lote = db.batch();
-    lote.set(oficialRef, {
-      nome: String(item.nome ?? ''), ...valores, situacao: situacaoDoItem(item), criado_em: FieldValue.serverTimestamp(), criado_por: uid, ...meta,
-      origem: { friday_quadro_id: item.quadro_id, friday_item_id: Number(item.id) },
-    });
-    lote.update(itemRef, 'vinculo', { cadastro: chave, id: oficialRef.id }, ...ativos.flatMap(c => [new FieldPath('valores', String(c.coluna_id)), FieldValue.delete()]));
-    await lote.commit();
     const livres = { ...(item.valores ?? {}) };
     for (const c of ativos) delete livres[String(c.coluna_id)];
-    await atualizarIndicePessoas(itemRef, { ...item, valores: livres }, ativos, valores);
-    return { id: oficialRef.id };
+    const lote = db.batch();
+    if (!e.sub) {
+      const { valores } = camposDoItem(ativos, item.valores, uidDe);
+      const oficialRef = db.collection(colecao).doc();
+      lote.set(oficialRef, {
+        nome: String(item.nome ?? ''), ...valores, situacao: situacaoDoItem(item), criado_em: FieldValue.serverTimestamp(), criado_por: uid,
+        atualizado_em: FieldValue.serverTimestamp(), atualizado_por: uid, origem: { friday_quadro_id: item.quadro_id, friday_item_id: Number(item.id) },
+      });
+      lote.update(itemRef, 'vinculo', { cadastro: e.chave, id: oficialRef.id }, ...apagarValores(ativos));
+      await lote.commit();
+      await atualizarIndicePessoas(itemRef, { ...item, valores: livres }, ativos, valores);
+      return { id: oficialRef.id };
+    }
+    const pai = item.item_pai_id != null ? (await db.collection('friday-itens').doc(String(item.item_pai_id)).get()).data() : undefined;
+    if (pai?.vinculo?.cadastro !== e.chave) throw new HttpsError('failed-precondition', 'O item pai ainda não está vinculado ao cadastro oficial.');
+    const { entrada } = entradaSubitem(ativos, item, uidDe);
+    const paiRef = db.collection(colecao).doc(String(pai.vinculo.id));
+    lote.update(paiRef, new FieldPath(e.subChave!, String(item.id)), entrada, 'atualizado_em', FieldValue.serverTimestamp(), 'atualizado_por', uid);
+    lote.update(itemRef, 'vinculo', { cadastro: e.chave, id: pai.vinculo.id, sub: String(item.id) }, ...apagarValores(ativos));
+    await lote.commit();
+    await atualizarIndicePessoas(itemRef, { ...item, valores: livres }, ativos, entrada);
+    return { id: pai.vinculo.id, sub: String(item.id) };
   }
 
-  if (item.vinculo?.cadastro !== chave) throw new HttpsError('failed-precondition', 'O item ainda não está vinculado ao cadastro oficial.');
-  const oficialRef = db.collection(registro.colecao).doc(String(item.vinculo.id));
+  if (item.vinculo?.cadastro !== e.chave) throw new HttpsError('failed-precondition', 'O item ainda não está vinculado ao cadastro oficial.');
+  const oficialRef = db.collection(colecao).doc(String(item.vinculo.id));
+  const caminho = (k: string) => (e.sub ? new FieldPath(e.subChave!, String(item.vinculo.sub), k) : new FieldPath(k));
+  const meta: unknown[] = ['atualizado_em', FieldValue.serverTimestamp(), 'atualizado_por', uid];
   // Nome e situação são lidos do item já gravado pela tela (o item é a referência, não o que o cliente envia).
-  if (op === 'nome') { await oficialRef.update({ nome: String(item.nome ?? ''), ...meta }); return { ok: true }; }
-  if (op === 'situacao') { await oficialRef.update({ situacao: situacaoDoItem(item), ...meta }); return { ok: true }; }
+  if (op === 'nome') { await oficialRef.update(caminho('nome'), String(item.nome ?? ''), ...meta); return { ok: true }; }
+  if (op === 'situacao') { await oficialRef.update(caminho('situacao'), situacaoDoItem(item), ...meta); return { ok: true }; }
 
-  const indice = campos.findIndex(c => c.coluna_id === colunaId && c.situacao === 'ativo');
+  const indice = e.campos.findIndex(c => c.coluna_id === colunaId && c.situacao === 'ativo');
   if (indice < 0) throw new HttpsError('invalid-argument', 'Esta coluna não é um campo oficial ativo.');
-  let campo = campos[indice];
+  let campo = e.campos[indice];
   if (campo.tipo === 'status' || campo.tipo === 'lista') {
-    // Rótulo criado no Friday depois da oficialização: entra no registro com um código novo.
+    // Rótulo criado ou renomeado no Friday depois da oficialização: o registro acompanha (o código não muda).
     const coluna = (await db.collection('friday-colunas').doc(String(colunaId)).get()).data();
-    const r = acrescentarRotulos(campo, campo.tipo === 'status' ? coluna?.config?.rotulos : coluna?.config?.opcoes);
+    const r = sincronizarRotulos(campo, campo.tipo === 'status' ? coluna?.config?.rotulos : coluna?.config?.opcoes);
     if (r.mudou) {
       campo = r.campo;
-      const novos = [...campos];
+      const novos = [...e.campos];
       novos[indice] = campo;
-      await registroRef.update({ campos: novos, versao: FieldValue.increment(1), atualizado_em: FieldValue.serverTimestamp() });
+      await e.salvarCampos(novos);
     }
   }
   const { uidDe } = await mapasDePessoas();
   const v = valorOficial(campo, valor, uidDe);
-  await oficialRef.update({ [campo.chave]: v === undefined ? FieldValue.delete() : v, ...meta });
-  if (campo.tipo === 'pessoa') await atualizarIndicePessoas(itemRef, item, ativos, (await oficialRef.get()).data());
+  await oficialRef.update(caminho(campo.chave), v === undefined ? FieldValue.delete() : v, ...meta);
+  if (campo.tipo === 'pessoa') {
+    const doc = (await oficialRef.get()).data();
+    await atualizarIndicePessoas(itemRef, item, ativos, e.sub ? doc?.[e.subChave!]?.[String(item.vinculo.sub)] : doc);
+  }
   return { ok: true, valor: v ?? null };
 }
 
@@ -214,6 +254,163 @@ export const fridayCadastroGravar = onCall({ region: REGIAO, timeoutSeconds: 60,
     if (e instanceof HttpsError) throw e;
     const mensagem = e instanceof Error ? e.message : String(e);
     logger.error('friday-cadastro:gravar', { itemId, op, mensagem });
+    throw new HttpsError('internal', mensagem.slice(0, 300));
+  }
+});
+
+// ---------------------------------------------------------------- C3: campos oficiais por coluna, subitens e rótulos
+type OperacaoCampos = 'adicionar' | 'descontinuar' | 'subitens' | 'rotulos';
+const OPERACOES_CAMPOS: OperacaoCampos[] = ['adicionar', 'descontinuar', 'subitens', 'rotulos'];
+
+/** Itens do escopo (quadro principal ou de subitens) já vinculados, com o caminho do valor no registro oficial. */
+async function itensVinculados(e: Escopo, quadroId: number) {
+  const itens = (await db.collection('friday-itens').where('quadro_id', '==', quadroId).get()).docs.filter(d => d.data().vinculo?.cadastro === e.chave);
+  return itens.map(d => ({ ref: d.ref, item: d.data(), oficialRef: db.collection(String(e.registro.colecao)).doc(String(d.data().vinculo.id)), sub: e.sub ? String(d.data().vinculo.sub) : null }));
+}
+
+async function mudarCampos(uid: string, quadroId: number, op: OperacaoCampos, colunaId: number | null, chave: string, pedidos: PedidoCampo[]) {
+  if (op === 'subitens') return promoverSubitens(uid, quadroId, chave, pedidos);
+  const coluna = colunaId != null ? (await db.collection('friday-colunas').doc(String(colunaId)).get()).data() : undefined;
+  if (!coluna) throw new HttpsError('not-found', 'Coluna não encontrada.');
+  // O escopo vem da coluna: do quadro principal ou do quadro de subitens dele.
+  const e = await escopoDoQuadro(Number(coluna.quadro_id));
+  if (e.quadroPrincipal !== quadroId) throw new HttpsError('invalid-argument', 'A coluna não pertence a este quadro.');
+  const indice = e.campos.findIndex(c => c.coluna_id === Number(coluna.id) && c.situacao === 'ativo');
+
+  if (op === 'rotulos') {
+    if (indice < 0) return { mudou: false };
+    const campo = e.campos[indice];
+    if (campo.tipo !== 'status' && campo.tipo !== 'lista') return { mudou: false };
+    const r = sincronizarRotulos(campo, campo.tipo === 'status' ? coluna.config?.rotulos : coluna.config?.opcoes);
+    if (r.mudou) { const novos = [...e.campos]; novos[indice] = r.campo; await e.salvarCampos(novos); }
+    return { mudou: r.mudou };
+  }
+
+  const vinculados = await itensVinculados(e, Number(coluna.quadro_id));
+  const LOTE = 200;
+  if (op === 'adicionar') {
+    if (indice >= 0) throw new HttpsError('already-exists', `“${coluna.titulo}” já é um campo oficial.`);
+    if (e.campos.some(c => c.chave === chave)) throw new HttpsError('already-exists', `A chave "${chave}" já foi usada neste cadastro.`);
+    if (!e.sub && e.registro.subitens?.chave === chave) throw new HttpsError('invalid-argument', `A chave "${chave}" é a dos subitens oficiais.`);
+    const { campos: [campo], erros } = montarCampos([coluna as { id: number; titulo: string; tipo: string; config?: AnyRecord }], [{ coluna_id: Number(coluna.id), chave }]);
+    if (erros.length) throw new HttpsError('invalid-argument', erros.join(' '));
+    // Migra primeiro e só então registra o campo: repetir a operação continua de onde parou.
+    const { uidDe } = await mapasDePessoas();
+    let migrados = 0;
+    for (let k = 0; k < vinculados.length; k += LOTE) {
+      const lote = db.batch();
+      for (const v of vinculados.slice(k, k + LOTE)) {
+        const bruto = v.item.valores?.[String(coluna.id)];
+        if (bruto === undefined) continue;
+        const valor = valorOficial(campo, bruto, uidDe);
+        if (valor !== undefined) lote.update(v.oficialRef, v.sub ? new FieldPath(e.subChave!, v.sub, campo.chave) : new FieldPath(campo.chave), valor);
+        lote.update(v.ref, new FieldPath('valores', String(coluna.id)), FieldValue.delete());
+        migrados++;
+      }
+      await lote.commit();
+    }
+    await e.salvarCampos([...e.campos, campo]);
+    return { chave: campo.chave, itens_migrados: migrados };
+  }
+
+  // op === 'descontinuar': os valores voltam para a coluna do Friday (que volta a ser livre); o registro oficial
+  // mantém os dados antigos e deixa de receber gravações nesse campo.
+  if (indice < 0) throw new HttpsError('failed-precondition', `“${coluna.titulo}” não é um campo oficial ativo.`);
+  const campo = e.campos[indice];
+  const { idDe } = await mapasDePessoas();
+  const docs = new Map<string, AnyRecord | undefined>();
+  for (const v of vinculados) if (!docs.has(v.oficialRef.id)) docs.set(v.oficialRef.id, undefined);
+  const ids = [...docs.keys()];
+  for (let k = 0; k < ids.length; k += 100) {
+    const snaps = await db.getAll(...ids.slice(k, k + 100).map(id => db.collection(String(e.registro.colecao)).doc(id)));
+    for (const sn of snaps) docs.set(sn.id, sn.data());
+  }
+  let devolvidos = 0;
+  for (let k = 0; k < vinculados.length; k += LOTE) {
+    const lote = db.batch();
+    let n = 0;
+    for (const v of vinculados.slice(k, k + LOTE)) {
+      const doc = docs.get(v.oficialRef.id);
+      const origem = v.sub ? doc?.[e.subChave!]?.[v.sub] : doc;
+      const valor = valorDoOficial(campo, origem?.[campo.chave], idDe);
+      if (valor === undefined) continue;
+      lote.update(v.ref, new FieldPath('valores', String(coluna.id)), valor);
+      n++;
+    }
+    if (n) await lote.commit();
+    devolvidos += n;
+  }
+  const novos = [...e.campos];
+  novos[indice] = { ...campo, situacao: 'descontinuado' };
+  await e.salvarCampos(novos);
+  return { chave: campo.chave, valores_devolvidos: devolvidos };
+}
+
+/** Torna oficiais os subitens de um quadro oficial: cada subitem vira uma entrada do mapa `<chave>` no registro do item pai. */
+async function promoverSubitens(uid: string, quadroId: number, chave: string, pedidos: PedidoCampo[]) {
+  const e = await escopoDoQuadro(quadroId);
+  if (e.sub) throw new HttpsError('invalid-argument', 'Use o quadro principal.');
+  const atual = e.registro.subitens;
+  if (atual && atual.situacao !== 'migrando') throw new HttpsError('already-exists', 'Os subitens deste quadro já são oficiais.');
+  if (!chaveValida(chave) || CHAVES_RESERVADAS.has(chave)) throw new HttpsError('invalid-argument', 'Chave dos subitens inválida ou reservada.');
+  if (e.campos.some(c => c.chave === chave)) throw new HttpsError('invalid-argument', `A chave "${chave}" já é um campo do cadastro.`);
+  const subQuadro = (await db.collection('friday-quadros').where('quadro_pai_id', '==', quadroId).where('tipo', '==', 'subitens').get()).docs.map(d => d.data())
+    .sort((a, b) => Number(a.id) - Number(b.id))[0];
+  if (!subQuadro) throw new HttpsError('failed-precondition', 'Este quadro ainda não tem subitens.');
+  let campos: CampoOficial[];
+  if (atual) {
+    campos = atual.campos; // retomada: vale o que já foi registrado
+  } else {
+    const colunas = (await db.collection('friday-colunas').where('quadro_id', '==', Number(subQuadro.id)).get()).docs.map(d => d.data() as { id: number; titulo: string; tipo: string; config?: AnyRecord });
+    const m = montarCampos(colunas, pedidos);
+    if (m.erros.length) throw new HttpsError('invalid-argument', m.erros.join(' '));
+    campos = m.campos;
+    await e.registroRef.update({ subitens: { chave, quadro_id: Number(subQuadro.id), campos, situacao: 'migrando' }, versao: FieldValue.increment(1), atualizado_em: FieldValue.serverTimestamp() });
+  }
+  const subChave = atual ? String(atual.chave) : chave;
+  const pais = new Map((await db.collection('friday-itens').where('quadro_id', '==', quadroId).get()).docs
+    .filter(d => d.data().vinculo?.cadastro === e.chave).map(d => [Number(d.data().id), String(d.data().vinculo.id)]));
+  const subitens = (await db.collection('friday-itens').where('quadro_id', '==', Number(subQuadro.id)).get()).docs;
+  const { uidDe } = await mapasDePessoas();
+  let migrados = 0, jaMigrados = 0, semPai = 0, pessoasSemFuncionario = 0;
+  for (let k = 0; k < subitens.length; k += 200) {
+    const lote = db.batch();
+    for (const d of subitens.slice(k, k + 200)) {
+      const s = d.data();
+      if (s.vinculo?.cadastro === e.chave) { jaMigrados++; continue; }
+      const paiId = pais.get(Number(s.item_pai_id));
+      if (!paiId) { semPai++; continue; }
+      const r = entradaSubitem(campos, s, uidDe);
+      pessoasSemFuncionario += r.pessoasSemFuncionario;
+      lote.update(db.collection(String(e.registro.colecao)).doc(paiId), new FieldPath(subChave, String(s.id)), r.entrada);
+      lote.update(d.ref, 'vinculo', { cadastro: e.chave, id: paiId, sub: String(s.id) }, ...apagarValores(campos));
+      migrados++;
+    }
+    await lote.commit();
+  }
+  await e.registroRef.update({ 'subitens.situacao': 'ativo', atualizado_em: FieldValue.serverTimestamp() });
+  return { chave: subChave, campos: campos.length, subitens_migrados: migrados, subitens_ja_migrados: jaMigrados, subitens_sem_pai: semPai, pessoas_sem_funcionario: pessoasSemFuncionario };
+}
+
+/** Mudanças nos campos de um cadastro oficial: tornar uma coluna oficial, descontinuar, subitens oficiais e rótulos. */
+export const fridayCadastroCampos = onCall({ region: REGIAO, timeoutSeconds: 540, memory: '1GiB' }, async (request) => {
+  const d = (request.data ?? {}) as { quadroId?: unknown; op?: unknown; colunaId?: unknown; chave?: unknown; campos?: unknown };
+  const op = String(d.op ?? '') as OperacaoCampos;
+  if (!OPERACOES_CAMPOS.includes(op)) throw new HttpsError('invalid-argument', 'Operação inválida.');
+  // Sincronizar rótulos acompanha a edição de rótulos (qualquer funcionário); mudar campos é de adm2.
+  const uid = op === 'rotulos' ? await exigirFuncionarioAtivo(request.auth?.uid) : await exigirAdm2(request.auth?.uid, 'mudar os campos de um cadastro oficial');
+  const quadroId = Number(d.quadroId);
+  if (!Number.isSafeInteger(quadroId)) throw new HttpsError('invalid-argument', 'quadroId inválido.');
+  const colunaId = d.colunaId == null ? null : Number(d.colunaId);
+  const chave = String(d.chave ?? '');
+  if (op === 'adicionar' && !chaveValida(chave)) throw new HttpsError('invalid-argument', 'Chave inválida: use minúsculas, números e "_", começando por letra.');
+  const pedidos = Array.isArray(d.campos) ? (d.campos as AnyRecord[]).map(c => ({ coluna_id: Number(c?.coluna_id), chave: String(c?.chave ?? '') })) : [];
+  try {
+    return await mudarCampos(uid, quadroId, op, colunaId, chave, pedidos);
+  } catch (e) {
+    if (e instanceof HttpsError) throw e;
+    const mensagem = e instanceof Error ? e.message : String(e);
+    logger.error('friday-cadastro:campos', { quadroId, op, mensagem });
     throw new HttpsError('internal', mensagem.slice(0, 300));
   }
 });
