@@ -1,0 +1,456 @@
+import { HttpsError, onCall } from 'firebase-functions/v2/https';
+import * as logger from 'firebase-functions/logger';
+import type { Query } from 'firebase-admin/firestore';
+import { db } from './firebaseAdmin.js';
+import { mondayApiToken, MONDAY_API_VERSION } from './mondayClient.js';
+import {
+  configDe, converterFormulaMonday, dataLocal, decidirItem, idDoUid, json, LARGURA_PADRAO, mesclarOpcoesLista, mesclarRotulosStatus,
+  mesclarValores, novoId, ordenarGrupos, pessoasDosValores, prefixosBusca, quadrosDeSubitens, resolverLigacoes, tipoFriday, tituloColuna,
+  valoresDoItem, type Alvo, type ColunaImportada, type MCol, type MItem,
+} from './fridayMondayConverter.js';
+
+// Importação dos quadros do monday para o Friday (coleções friday-*), um quadro por chamada.
+// Só lê o monday (nenhuma mutation). Grava pelo Admin SDK, então não depende das Rules; por isso a autorização
+// (funcionário ativo com adm2) é verificada aqui. Repetir a importação de um quadro não duplica nada: cada registro
+// guarda o id do monday em `origem_id`. Itens intocados no Friday são atualizados; editados no Friday, preservados.
+
+type AnyRecord = Record<string, any>;
+type Row = AnyRecord & { id: number };
+
+const REGIAO = 'southamerica-east1';
+const CORES = ['#00a36c', '#fdab3d', '#e2445c', '#579bfc', '#a25ddc', '#ff642e', '#037f4c', '#9cd326', '#cab641', '#ffcb00', '#0086c0', '#66ccff', '#bb3354', '#ff158a', '#ff5ac4', '#784bd1'];
+const COR_PASTA: Record<string, string> = { DONE_GREEN: '#00c875', BRIGHT_BLUE: '#579bfc', DARK_RED: '#bb3354', SOFIA_PINK: '#ff158a', INDIGO: '#5559df', DARK_ORANGE: '#ff642e', BRIGHT_GREEN: '#9cd326', WORKING_ORANGE: '#fdab3d', STUCK_RED: '#e2445c', PURPLE: '#a25ddc' };
+
+// ---------------------------------------------------------------- esquema do Friday (igual a src/features/friday-gestao-interna/api.ts)
+const CAMPOS: Record<string, string[]> = {
+  usuarios: ['id', 'uid', 'nome', 'papel', 'email', 'cor', 'origem_id', 'acesso', 'ativo', 'ultimo_acesso'],
+  areas: ['id', 'nome', 'cor', 'posicao', 'origem_id', 'restrito'],
+  pastas: ['id', 'area_id', 'pasta_pai_id', 'nome', 'cor', 'posicao', 'aberta', 'origem_id', 'restrito'],
+  quadros: ['id', 'area_id', 'pasta_id', 'nome', 'descricao', 'posicao', 'favorito', 'nome_item', 'criado_em', 'tipo', 'quadro_pai_id', 'origem_id', 'arquivado_em', 'excluido_em', 'restrito'],
+  grupos: ['id', 'quadro_id', 'nome', 'cor', 'posicao', 'recolhido', 'arquivado_em', 'excluido_em', 'origem_id'],
+  colunas: ['id', 'quadro_id', 'titulo', 'tipo', 'config', 'largura', 'posicao', 'oculta', 'origem_id'],
+  itens: ['id', 'quadro_id', 'grupo_id', 'item_pai_id', 'nome', 'posicao', 'valores', 'criado_por', 'criado_em', 'atualizado_em', 'origem_id', 'arquivado_em', 'excluido_em',
+    'pessoas', 'busca', 'importado_em', 'monday_atualizado_em', 'ligacoes_pendentes'],
+  visoes: ['id', 'quadro_id', 'nome', 'tipo', 'config', 'posicao'],
+  atividades: ['id', 'quadro_id', 'item_id', 'item_nome', 'usuario_id', 'automacao_id', 'acao', 'coluna_id', 'coluna_titulo', 'de', 'para', 'criado_em'],
+};
+function padrao(r: string): AnyRecord {
+  const t = dataLocal();
+  const extra: Record<string, AnyRecord> = {
+    usuarios: { acesso: 'membro', ativo: 1 },
+    areas: { cor: '#1f4e8c', posicao: 0, restrito: 0 },
+    pastas: { posicao: 0, aberta: 1, restrito: 0 },
+    quadros: { posicao: 0, favorito: 0, nome_item: 'Item', criado_em: t, tipo: 'quadro', restrito: 0 },
+    grupos: { cor: '#579bfc', posicao: 0, recolhido: 0 },
+    colunas: { config: {}, largura: 140, posicao: 0, oculta: 0 },
+    itens: { posicao: 0, valores: {}, criado_em: t, atualizado_em: t, pessoas: [], busca: [] },
+    visoes: { config: {}, posicao: 0 },
+    atividades: { criado_em: t },
+  };
+  return { ...Object.fromEntries(CAMPOS[r].map(c => [c, null])), ...extra[r] };
+}
+const colecao = (r: string) => db.collection(`friday-${r}`);
+async function consultar(r: string, filtros: AnyRecord = {}): Promise<Row[]> {
+  let q: Query = colecao(r);
+  for (const [k, v] of Object.entries(filtros)) q = q.where(k, '==', v);
+  return (await q.get()).docs.map(d => d.data() as Row);
+}
+async function inserir(r: string, dados: AnyRecord): Promise<Row> {
+  const row = { ...padrao(r), ...dados, id: novoId() } as Row;
+  await colecao(r).doc(String(row.id)).set(row);
+  return row;
+}
+const maxPosicao = (rows: Row[]) => Math.max(0, ...rows.map(x => Number(x.posicao) || 0));
+const visivel = (x: Row | undefined) => !!x && x.arquivado_em == null && x.excluido_em == null;
+
+// ---------------------------------------------------------------- monday (somente leitura, com espera nos limites da API)
+const espera = (ms: number) => new Promise(r => setTimeout(r, ms));
+async function gql(token: string, query: string, variables: AnyRecord = {}, tentativa = 1): Promise<AnyRecord> {
+  if (/\bmutation\b/i.test(query.split('{')[0])) throw new Error('mutations não são permitidas');
+  const res = await fetch('https://api.monday.com/v2', {
+    method: 'POST', headers: { Authorization: token, 'Content-Type': 'application/json', 'API-Version': MONDAY_API_VERSION }, body: JSON.stringify({ query, variables }),
+  });
+  const payload = await res.json().catch(() => ({})) as AnyRecord;
+  const erros = payload.errors ?? (payload.error_message ? [{ message: payload.error_message, extensions: { code: payload.error_code } }] : null);
+  if (res.status === 429 || erros?.some((e: AnyRecord) => /complexity|rate|limit/i.test(`${e.message} ${e.extensions?.code ?? ''}`))) {
+    if (tentativa > 5) throw new Error('MONDAY_LIMITE: a API do monday continua limitando as consultas; tente de novo em alguns minutos.');
+    const s = Math.min(60, Number(erros?.[0]?.extensions?.retry_in_seconds ?? res.headers.get('retry-after') ?? 20));
+    await espera((s + 1) * 1000);
+    return gql(token, query, variables, tentativa + 1);
+  }
+  if (!res.ok || erros?.length) throw new Error(`MONDAY_API: ${erros?.map((e: AnyRecord) => e.message).join('; ') || res.status}`);
+  return payload.data;
+}
+
+const CAMPOS_ITEM = `
+  id name created_at updated_at
+  group { id }
+  parent_item { id }
+  column_values {
+    id type text value
+    ... on FormulaValue { display_value }
+    ... on MirrorValue { display_value }
+    ... on BoardRelationValue { linked_item_ids }
+    ... on DependencyValue { linked_item_ids }
+  }`;
+const CAMPOS_QUADRO = 'id name description type board_folder_id updated_at items_count workspace { id name } groups { id title color position } columns { id title type settings_str }';
+
+async function itensDoQuadro(token: string, boardId: string): Promise<MItem[]> {
+  const itens: MItem[] = [];
+  let d = await gql(token, `query ($b: [ID!]) { boards(ids: $b) { items_page(limit: 200) { cursor items { ${CAMPOS_ITEM} } } } }`, { b: [boardId] });
+  let pagina = d.boards?.[0]?.items_page;
+  if (!pagina) return itens;
+  itens.push(...pagina.items);
+  while (pagina.cursor) {
+    d = await gql(token, `query ($c: String!) { next_items_page(cursor: $c, limit: 200) { cursor items { ${CAMPOS_ITEM} } } }`, { c: pagina.cursor });
+    pagina = d.next_items_page;
+    itens.push(...pagina.items);
+  }
+  return itens;
+}
+
+// ---------------------------------------------------------------- autorização
+async function exigirAdm2(uid: string | undefined): Promise<string> {
+  if (!uid) throw new HttpsError('unauthenticated', 'Autenticação obrigatória.');
+  const funcionario = await db.collection('funcionarios').doc(uid).get();
+  const dados = funcionario.data();
+  if (!funcionario.exists || dados?.ativo !== true || dados?.perfis?.adm2 !== true) throw new HttpsError('permission-denied', 'Só adm2 pode importar do monday.');
+  return uid;
+}
+function tokenMonday(): string {
+  const token = mondayApiToken.value();
+  if (!token?.trim()) throw new HttpsError('failed-precondition', 'MONDAY_API_TOKEN ausente.');
+  return token;
+}
+
+// ---------------------------------------------------------------- pessoas
+/** Pessoas do monday → friday-usuarios: pelo id já importado, pelo e-mail, por um funcionário com o mesmo e-mail, ou um cadastro "monday-<id>". */
+async function mapearPessoas(token: string) {
+  const { users } = await gql(token, 'query { users(limit: 1000) { id name email enabled is_guest } }');
+  const [fridaySnap, funcionariosSnap] = await Promise.all([colecao('usuarios').get(), db.collection('funcionarios').where('ativo', '==', true).get()]);
+  const friday = fridaySnap.docs.map(d => d.data() as Row);
+  const porOrigem = new Map(friday.filter(u => u.origem_id).map(u => [String(u.origem_id), u]));
+  const porEmail = new Map(friday.filter(u => u.email).map(u => [String(u.email).trim().toLowerCase(), u]));
+  const funcionarioPorEmail = new Map(funcionariosSnap.docs.filter(d => typeof d.data().email === 'string').map(d => [String(d.data().email).trim().toLowerCase(), d]));
+  const porMonday = new Map<string, number>();
+  const escrita = db.bulkWriter();
+  let criadas = 0;
+  for (const u of users as AnyRecord[]) {
+    const idMonday = String(u.id);
+    const email = typeof u.email === 'string' && u.email.trim() ? u.email.trim().toLowerCase() : null;
+    const existente = porOrigem.get(idMonday) ?? (email ? porEmail.get(email) : undefined);
+    if (existente) {
+      if (!existente.origem_id) void escrita.update(colecao('usuarios').doc(String(existente.uid)), { origem_id: idMonday });
+      porMonday.set(idMonday, existente.id);
+      continue;
+    }
+    const funcionario = email ? funcionarioPorEmail.get(email) : undefined;
+    const uid = funcionario ? funcionario.id : `monday-${idMonday}`;
+    const id = idDoUid(uid);
+    void escrita.set(colecao('usuarios').doc(uid), {
+      ...padrao('usuarios'), id, uid, email, cor: CORES[id % 16], origem_id: idMonday,
+      nome: funcionario && typeof funcionario.data().nome === 'string' ? funcionario.data().nome : String(u.name ?? 'Sem nome'),
+      papel: funcionario ? null : u.is_guest ? 'Convidado (monday)' : 'Importado do monday',
+      ativo: u.enabled === false ? 0 : 1,
+    });
+    porMonday.set(idMonday, id);
+    criadas++;
+  }
+  await escrita.close();
+  return { porMonday, criadas };
+}
+
+// ---------------------------------------------------------------- área, pastas e quadro
+async function garantirArea(ws: { id: string | null; name: string } | null): Promise<number> {
+  const origem = ws?.id ? String(ws.id) : 'principal';
+  const [existente] = await consultar('areas', { origem_id: origem });
+  if (existente) return existente.id;
+  const todas = await consultar('areas');
+  return (await inserir('areas', { nome: ws?.name || 'Principal', cor: CORES[todas.length % CORES.length], posicao: maxPosicao(todas) + 1, origem_id: origem })).id;
+}
+
+async function garantirPasta(token: string, folderId: string | null, areaId: number): Promise<number | null> {
+  if (!folderId) return null;
+  const [existente] = await consultar('pastas', { origem_id: String(folderId) });
+  if (existente) return existente.id;
+  // Sem conseguir ler a pasta, o quadro fica na raiz da área (não impede a importação).
+  const f = await gql(token, 'query ($ids: [ID!]) { folders(ids: $ids) { id name color parent { id } } }', { ids: [folderId] })
+    .then(d => d.folders?.[0], e => { logger.warn('friday-monday:pasta', { folderId, mensagem: String(e) }); return null; });
+  if (!f) return null;
+  const pai = f.parent?.id ? await garantirPasta(token, String(f.parent.id), areaId) : null;
+  const irmas = await consultar('pastas', { area_id: areaId });
+  return (await inserir('pastas', { area_id: areaId, pasta_pai_id: pai, nome: f.name, cor: f.color ? COR_PASTA[f.color] ?? null : null, posicao: maxPosicao(irmas) + 1, aberta: 0, origem_id: String(f.id) })).id;
+}
+
+async function garantirQuadro(board: AnyRecord, dados: AnyRecord): Promise<{ quadro: Row; criado: boolean }> {
+  const [existente] = await consultar('quadros', { origem_id: String(board.id) });
+  if (existente) return { quadro: existente, criado: false };
+  const irmaos = dados.tipo === 'subitens' ? [] : await consultar('quadros', { area_id: dados.area_id });
+  const quadro = await inserir('quadros', { nome: board.name, descricao: board.description || null, posicao: maxPosicao(irmaos) + 1, origem_id: String(board.id), ...dados });
+  return { quadro, criado: true };
+}
+
+// ---------------------------------------------------------------- grupos e colunas
+async function sincronizarGrupos(quadroId: number, grupos: AnyRecord[]): Promise<Map<string, number>> {
+  const existentes = await consultar('grupos', { quadro_id: quadroId });
+  const porOrigem = new Map(existentes.filter(g => g.origem_id).map(g => [String(g.origem_id), g.id]));
+  let posicao = maxPosicao(existentes);
+  for (const g of ordenarGrupos(grupos as { id: string; title: string; color: string; position: string }[])) {
+    if (porOrigem.has(g.id)) continue;
+    const row = await inserir('grupos', { quadro_id: quadroId, nome: g.title, cor: g.color || '#579bfc', posicao: ++posicao, origem_id: g.id });
+    porOrigem.set(g.id, row.id);
+  }
+  return porOrigem;
+}
+
+/** Cria as colunas que faltam e acrescenta rótulos/opções novos às existentes. Devolve as colunas importadas pelo id do monday. */
+async function sincronizarColunas(quadroId: number, colunas: MCol[]) {
+  const existentes = await consultar('colunas', { quadro_id: quadroId });
+  const porOrigem = new Map(existentes.filter(c => c.origem_id).map(c => [String(c.origem_id), c]));
+  const importadas = new Map<string, ColunaImportada>();
+  const novasFormulas: ColunaImportada[] = [];
+  let posicao = maxPosicao(existentes);
+  let ignoradas = 0;
+  for (const c of colunas) {
+    const tipo = tipoFriday(c.type);
+    if (!tipo) { if (!['name', 'subtasks'].includes(c.type)) ignoradas++; continue; }
+    const atual = porOrigem.get(c.id);
+    if (!atual) {
+      const config = configDe(c);
+      if (c.type === 'dependency') config.quadro_id = quadroId;
+      const row = await inserir('colunas', { quadro_id: quadroId, titulo: tituloColuna(c), tipo, config, largura: LARGURA_PADRAO[tipo] ?? 140, posicao: ++posicao, origem_id: c.id });
+      const col = { id: row.id, tipoMonday: c.type, config };
+      importadas.set(c.id, col);
+      if (c.type === 'formula') novasFormulas.push(col);
+      continue;
+    }
+    let config = atual.config ?? {};
+    if (c.type === 'status') config = mesclarRotulosStatus(config, json(c.settings_str) ?? {});
+    if (c.type === 'dropdown') config = mesclarOpcoesLista(config, json(c.settings_str) ?? {});
+    if (JSON.stringify(config) !== JSON.stringify(atual.config ?? {})) await colecao('colunas').doc(String(atual.id)).update({ config });
+    importadas.set(c.id, { id: atual.id, tipoMonday: c.type, config });
+  }
+  // Fórmulas novas: ids das colunas do monday → ids do Friday (com todas as colunas do quadro já conhecidas).
+  if (novasFormulas.length) {
+    const mapa = new Map<string, Alvo>(colunas.map(c => [c.id, { id: importadas.get(c.id)?.id ?? null, tipoMonday: c.type }]));
+    for (const col of novasFormulas) {
+      col.config = { ...col.config, formula: converterFormulaMonday(String(col.config.formula_monday ?? ''), mapa) };
+      await colecao('colunas').doc(String(col.id)).update({ config: col.config });
+    }
+  }
+  const pessoaFriday = new Set([...existentes.filter(c => c.tipo === 'pessoa').map(c => String(c.id)), ...[...importadas.values()].filter(c => c.tipoMonday === 'people' || c.tipoMonday === 'person').map(c => String(c.id))]);
+  return { importadas, ignoradas, colunasPessoa: pessoaFriday };
+}
+
+// ---------------------------------------------------------------- itens
+/** Itens do Friday já importados, pelo id do monday (consulta em lotes de 30). */
+async function acharItensPorOrigem(ids: string[], cache: Map<string, number>) {
+  const faltam = [...new Set(ids)].filter(id => !cache.has(id));
+  for (let k = 0; k < faltam.length; k += 30) {
+    const snap = await colecao('itens').where('origem_id', 'in', faltam.slice(k, k + 30)).get();
+    for (const d of snap.docs) cache.set(String(d.data().origem_id), Number(d.data().id));
+  }
+}
+
+type Contagem = { criados: number; atualizados: number; iguais: number; preservados: number; ignorados: number };
+async function sincronizarItens(p: {
+  quadroId: number; itens: MItem[]; grupos: Map<string, number>; grupoPadrao: () => Promise<number>;
+  colunas: Map<string, ColunaImportada>; colunasPessoa: Set<string>; pessoas: Map<string, number>;
+  itemPorOrigem: Map<string, number>; subitens: boolean;
+}): Promise<Contagem> {
+  const c: Contagem = { criados: 0, atualizados: 0, iguais: 0, preservados: 0, ignorados: 0 };
+  const existentes = await consultar('itens', { quadro_id: p.quadroId });
+  const porOrigem = new Map(existentes.filter(i => i.origem_id).map(i => [String(i.origem_id), i]));
+  const ultimaPosicao = new Map<number, number>();
+  for (const i of existentes) ultimaPosicao.set(Number(i.grupo_id), Math.max(ultimaPosicao.get(Number(i.grupo_id)) ?? 0, Number(i.posicao) || 0));
+  // 1ª passada: id de cada item (existente ou novo), para que ligações entre itens do mesmo quadro já se resolvam.
+  const idNovo = new Map<string, number>();
+  for (const it of p.itens) {
+    const existente = porOrigem.get(it.id);
+    if (existente) p.itemPorOrigem.set(it.id, existente.id);
+    else { const id = novoId(); idNovo.set(it.id, id); p.itemPorOrigem.set(it.id, id); }
+  }
+  const ligados = p.itens.flatMap(it => it.column_values.flatMap(cv => cv.linked_item_ids ?? []).map(String));
+  await acharItensPorOrigem(ligados, p.itemPorOrigem);
+
+  const colunasAlteradas = new Set<number>();
+  const tag = (col: ColunaImportada, nome: string) => {
+    const opcoes = (col.config.opcoes ??= []) as { id: string; texto: string; cor: string }[];
+    let op = opcoes.find(o => o.texto === nome);
+    if (!op) { op = { id: String(opcoes.length + 1), texto: nome, cor: '#c4c4c4' }; opcoes.push(op); colunasAlteradas.add(col.id); }
+    return op.id;
+  };
+  const importadas = [...p.colunas.values()].map(col => col.id);
+  const escrita = db.bulkWriter();
+  for (const it of p.itens) {
+    const existente = porOrigem.get(it.id);
+    const decisao = decidirItem(existente, it.updated_at);
+    if (decisao === 'igual') { c.iguais++; continue; }
+    if (decisao === 'preservar') { c.preservados++; continue; }
+    const itemPaiId = p.subitens ? p.itemPorOrigem.get(String(it.parent_item?.id ?? '')) ?? null : null;
+    if (p.subitens && itemPaiId == null) { c.ignorados++; continue; } // subitem de item não importado
+    const conv = valoresDoItem(it, p.colunas, { pessoa: id => p.pessoas.get(id), tag });
+    const lig = resolverLigacoes(conv.ligacoes, id => p.itemPorOrigem.get(id));
+    const marca = dataLocal(it.updated_at);
+    const grupoId = (it.group && p.grupos.get(it.group.id)) ?? await p.grupoPadrao();
+    if (decisao === 'criar') {
+      const valores = { ...conv.valores, ...lig.valores };
+      const posicao = (ultimaPosicao.get(grupoId) ?? 0) + 1;
+      ultimaPosicao.set(grupoId, posicao);
+      const id = idNovo.get(it.id)!;
+      void escrita.set(colecao('itens').doc(String(id)), {
+        ...padrao('itens'), id, quadro_id: p.quadroId, grupo_id: grupoId, item_pai_id: itemPaiId, nome: String(it.name ?? '').slice(0, 500) || 'Sem nome',
+        posicao, valores, criado_em: dataLocal(it.created_at), atualizado_em: marca, importado_em: marca, monday_atualizado_em: it.updated_at,
+        origem_id: it.id, busca: prefixosBusca(it.name), pessoas: pessoasDosValores(valores, p.colunasPessoa), ligacoes_pendentes: lig.pendentes,
+      });
+      c.criados++;
+    } else {
+      const valores = mesclarValores(existente!.valores, { ...conv.valores, ...lig.valores }, importadas);
+      void escrita.update(colecao('itens').doc(String(existente!.id)), {
+        nome: String(it.name ?? '').slice(0, 500) || 'Sem nome', grupo_id: grupoId, item_pai_id: p.subitens ? itemPaiId : existente!.item_pai_id ?? null, valores,
+        atualizado_em: marca, importado_em: marca, monday_atualizado_em: it.updated_at,
+        busca: prefixosBusca(it.name), pessoas: pessoasDosValores(valores, p.colunasPessoa), ligacoes_pendentes: lig.pendentes,
+      });
+      c.atualizados++;
+    }
+  }
+  for (const col of p.colunas.values()) if (colunasAlteradas.has(col.id)) void escrita.update(colecao('colunas').doc(String(col.id)), { config: col.config });
+  await escrita.close();
+  return c;
+}
+
+/** Ligações que apontavam para itens de quadros ainda não importados: resolve as que já podem ser resolvidas. */
+async function resolverPendentes(cache: Map<string, number>): Promise<number> {
+  const snap = await colecao('itens').where('ligacoes_pendentes', '!=', null).limit(2000).get();
+  if (snap.empty) return 0;
+  const pendentes = snap.docs.map(d => d.data() as Row);
+  await acharItensPorOrigem(pendentes.flatMap(i => Object.values(i.ligacoes_pendentes ?? {}).flat().map(String)), cache);
+  const escrita = db.bulkWriter();
+  let resolvidas = 0;
+  for (const item of pendentes) {
+    const lig = resolverLigacoes(item.ligacoes_pendentes ?? {}, id => cache.get(id));
+    if (!Object.keys(lig.valores).length) continue;
+    const valores = { ...(item.valores ?? {}) };
+    for (const [col, ids] of Object.entries(lig.valores)) valores[col] = [...new Set([...((valores[col] ?? []) as number[]), ...ids])];
+    // Completa a importação: não conta como edição no Friday (atualizado_em não muda).
+    void escrita.update(colecao('itens').doc(String(item.id)), { valores, ligacoes_pendentes: lig.pendentes });
+    resolvidas++;
+  }
+  await escrita.close();
+  // Colunas "conectar quadros" cujo quadro de destino ainda não tinha sido importado.
+  const colunas = (await consultar('colunas', { tipo: 'ligacao' })).filter(c => c.config?.quadro_id == null && c.config?.origem_quadros?.length);
+  for (const c of colunas) {
+    const [alvo] = await colecao('quadros').where('origem_id', 'in', c.config.origem_quadros.slice(0, 30)).limit(1).get().then(s => s.docs.map(d => d.data() as Row));
+    if (alvo) await colecao('colunas').doc(String(c.id)).update({ config: { ...c.config, quadro_id: alvo.id } });
+  }
+  return resolvidas;
+}
+
+// ---------------------------------------------------------------- importação de um quadro
+async function importarQuadro(token: string, boardId: string, uid: string) {
+  const { boards } = await gql(token, `query ($b: [ID!]) { boards(ids: $b) { ${CAMPOS_QUADRO} } }`, { b: [boardId] });
+  const board = boards?.[0];
+  if (!board) throw new HttpsError('not-found', 'Quadro não encontrado no monday (ou sem acesso pelo token).');
+  if (board.type !== 'board') throw new HttpsError('invalid-argument', 'Só quadros comuns podem ser importados.');
+
+  const { porMonday: pessoas, criadas: pessoasCriadas } = await mapearPessoas(token);
+  const areaId = await garantirArea(board.workspace ?? null);
+  const pastaId = await garantirPasta(token, board.board_folder_id ? String(board.board_folder_id) : null, areaId);
+  const { quadro, criado } = await garantirQuadro(board, { area_id: areaId, pasta_id: pastaId, tipo: 'quadro', nome_item: 'Item' });
+
+  const grupos = await sincronizarGrupos(quadro.id, board.groups ?? []);
+  const { importadas: colunas, ignoradas, colunasPessoa } = await sincronizarColunas(quadro.id, board.columns ?? []);
+  if (criado) {
+    await inserir('visoes', { quadro_id: quadro.id, nome: 'Tabela principal', tipo: 'tabela', posicao: 1 });
+    const periodo = [...colunas.values()].find(c => c.tipoMonday === 'timeline');
+    if (periodo) await inserir('visoes', { quadro_id: quadro.id, nome: 'Cronograma', tipo: 'cronograma', posicao: 2, config: { coluna_id: periodo.id } });
+  }
+  const primeiroGrupo = async () => {
+    const lista = (await consultar('grupos', { quadro_id: quadro.id })).filter(visivel).sort((a, b) => a.posicao - b.posicao);
+    return lista[0]?.id ?? (await inserir('grupos', { quadro_id: quadro.id, nome: 'Itens', cor: '#579bfc', posicao: 1 })).id;
+  };
+  const itemPorOrigem = new Map<string, number>();
+  const itens = await itensDoQuadro(token, boardId);
+  const principal = await sincronizarItens({ quadroId: quadro.id, itens, grupos, grupoPadrao: primeiroGrupo, colunas, colunasPessoa, pessoas, itemPorOrigem, subitens: false });
+
+  // Subitens: quadro interno "subitens" com colunas próprias e um grupo só.
+  const sub: Contagem = { criados: 0, atualizados: 0, iguais: 0, preservados: 0, ignorados: 0 };
+  for (const subId of quadrosDeSubitens(board.columns ?? [])) {
+    const d = await gql(token, `query ($b: [ID!]) { boards(ids: $b) { ${CAMPOS_QUADRO} } }`, { b: [subId] });
+    const subBoard = d.boards?.[0];
+    if (!subBoard) continue;
+    const { quadro: subQuadro } = await garantirQuadro(subBoard, { area_id: areaId, pasta_id: null, tipo: 'subitens', quadro_pai_id: quadro.id, nome_item: 'Subitem', nome: `Subitens de ${board.name}` });
+    const subColunas = await sincronizarColunas(subQuadro.id, subBoard.columns ?? []);
+    const grupoSub = async () => {
+      const lista = (await consultar('grupos', { quadro_id: subQuadro.id })).filter(visivel).sort((a, b) => a.posicao - b.posicao);
+      return lista[0]?.id ?? (await inserir('grupos', { quadro_id: subQuadro.id, nome: 'Subitens', cor: '#579bfc', posicao: 1 })).id;
+    };
+    const c = await sincronizarItens({
+      quadroId: subQuadro.id, itens: await itensDoQuadro(token, subId), grupos: new Map(), grupoPadrao: grupoSub,
+      colunas: subColunas.importadas, colunasPessoa: subColunas.colunasPessoa, pessoas, itemPorOrigem, subitens: true,
+    });
+    for (const k of Object.keys(sub) as (keyof Contagem)[]) sub[k] += c[k];
+  }
+  const ligacoesResolvidas = await resolverPendentes(itemPorOrigem);
+  const resultado = {
+    board_id: String(board.id), nome: board.name, quadro_id: quadro.id, quadro_criado: criado, itens_monday: itens.length,
+    ...principal, subitens: sub, colunas_ignoradas: ignoradas, pessoas_criadas: pessoasCriadas, ligacoes_resolvidas: ligacoesResolvidas,
+  };
+  await inserir('atividades', {
+    quadro_id: quadro.id, usuario_id: idDoUid(uid), acao: 'importou',
+    para: `do monday: ${principal.criados} novos, ${principal.atualizados} atualizados, ${principal.preservados} preservados (editados no Friday)`,
+  });
+  await colecao('importacoes').doc(String(board.id)).set({ ...resultado, situacao: 'ok', mensagem: null, importado_em: dataLocal(), monday_atualizado_em: board.updated_at ?? null, por_uid: uid });
+  return resultado;
+}
+
+// ---------------------------------------------------------------- Functions
+/** Quadros que o token do monday enxerga, com a situação de cada um no Friday. */
+export const fridayMondayInventario = onCall({ region: REGIAO, secrets: [mondayApiToken], timeoutSeconds: 120, memory: '512MiB' }, async (request) => {
+  await exigirAdm2(request.auth?.uid);
+  const token = tokenMonday();
+  const { workspaces } = await gql(token, 'query { workspaces(limit: 100) { id name } }');
+  const boards: AnyRecord[] = [];
+  for (let page = 1; ; page++) {
+    const d = await gql(token, 'query ($p: Int!) { boards(limit: 100, page: $p, state: active) { id name type items_count updated_at board_folder_id workspace { id name } } }', { p: page });
+    boards.push(...d.boards);
+    if (d.boards.length < 100) break;
+  }
+  const pastas = new Map<string, string>();
+  const wsIds = (workspaces as AnyRecord[]).map(w => w.id);
+  try {
+    for (let page = 1; wsIds.length; page++) {
+      const d = await gql(token, 'query ($ws: [ID], $p: Int) { folders(workspace_ids: $ws, limit: 100, page: $p) { id name } }', { ws: wsIds, p: page });
+      for (const f of d.folders) pastas.set(String(f.id), f.name);
+      if (d.folders.length < 100) break;
+    }
+  } catch (e) { logger.warn('friday-monday:pastas', { mensagem: String(e) }); } // só nomes de pasta na tela
+  const importacoes = new Map((await colecao('importacoes').get()).docs.map(d => [d.id, d.data()]));
+  const quadros = boards.filter(b => b.type === 'board').map(b => {
+    const imp = importacoes.get(String(b.id));
+    const situacao = !imp ? 'novo' : imp.situacao === 'erro' ? 'erro' : (b.updated_at && imp.monday_atualizado_em && b.updated_at > imp.monday_atualizado_em) ? 'atualizar' : 'importado';
+    return {
+      id: String(b.id), nome: b.name, itens: b.items_count ?? 0, monday_atualizado_em: b.updated_at ?? null,
+      area: b.workspace?.name ?? 'Principal', pasta: b.board_folder_id ? pastas.get(String(b.board_folder_id)) ?? null : null,
+      situacao, importado_em: imp?.importado_em ?? null, quadro_id: imp?.quadro_id ?? null, mensagem: imp?.mensagem ?? null,
+    };
+  }).sort((a, b) => a.area.localeCompare(b.area) || String(a.pasta ?? '').localeCompare(String(b.pasta ?? '')) || a.nome.localeCompare(b.nome));
+  return { quadros, gerado_em: dataLocal() };
+});
+
+/** Importa (ou atualiza) um quadro do monday no Friday. */
+export const fridayMondayImportarQuadro = onCall({ region: REGIAO, secrets: [mondayApiToken], timeoutSeconds: 540, memory: '1GiB' }, async (request) => {
+  const uid = await exigirAdm2(request.auth?.uid);
+  const boardId = String(request.data?.boardId ?? '');
+  if (!/^\d+$/.test(boardId)) throw new HttpsError('invalid-argument', 'boardId inválido.');
+  const token = tokenMonday();
+  try {
+    return await importarQuadro(token, boardId, uid);
+  } catch (e) {
+    const mensagem = e instanceof Error ? e.message : String(e);
+    logger.error('friday-monday:importar', { boardId, mensagem });
+    await colecao('importacoes').doc(boardId).set({ board_id: boardId, situacao: 'erro', mensagem, importado_em: dataLocal(), por_uid: uid }, { merge: true });
+    if (e instanceof HttpsError) throw e;
+    throw new HttpsError('internal', mensagem.slice(0, 300));
+  }
+});

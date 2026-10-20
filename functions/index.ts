@@ -16,6 +16,7 @@ export { getKioskCredentialStatus, provisionKioskCredential, revokeKioskQr, setK
 export { kioskAuthenticatePin } from './kiosk/kioskAuth.js';
 export { getVehicleErpCosts } from './vehicleReport.js';
 export { syncMondaySerpMeasurements } from './mondaySerpMeasurements.js';
+export { fridayMondayInventario, fridayMondayImportarQuadro } from './fridayMondayImport.js';
 export { manuscriptListTree, manuscriptGetDocument, manuscriptSearch, manuscriptGetBacklinks, manuscriptGetDocumentGraph, manuscriptGetDocumentHistory } from './manuscript.js';
 
 export const api = onRequest(app);
