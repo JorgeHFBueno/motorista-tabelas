@@ -53,3 +53,14 @@ test('situação e datas do Friday', () => {
   assert.equal(dataDoFriday('2026-10-19 14:30:00').toISOString(), '2026-10-19T17:30:00.000Z');
   assert.equal(dataDoFriday('lixo'), null);
 });
+
+test('rótulos novos do Friday ganham código sem mudar os existentes', async () => {
+  const { acrescentarRotulos, indicePessoas } = await import('../lib/fridayCadastroConverter.js');
+  const campo = { chave: 'status', tipo: 'status', coluna_id: 2, situacao: 'ativo', rotulos: [{ codigo: 'feito', texto: 'Feito', cor: '#0f0', friday_id: '2' }] };
+  const r = acrescentarRotulos(campo, [{ id: '2', texto: 'Concluído (renomeado)' }, { id: '5', texto: 'Feito' }, { id: '0', texto: '' }]);
+  assert.equal(r.mudou, true);
+  assert.deepEqual(r.campo.rotulos.map(x => [x.codigo, x.friday_id]), [['feito', '2'], ['feito_2', '5']]);
+  assert.equal(acrescentarRotulos(r.campo, [{ id: '2', texto: 'x' }]).mudou, false);
+  const idx = indicePessoas({ 9: [1, 2], 8: [3] }, new Set(['9']), [{ chave: 'resp', tipo: 'pessoa', situacao: 'ativo' }], { resp: ['u4', 'u-desconhecido'] }, uid => (uid === 'u4' ? 4 : undefined));
+  assert.deepEqual(idx.sort(), [1, 2, 4]);
+});

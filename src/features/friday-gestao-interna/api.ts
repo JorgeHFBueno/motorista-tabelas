@@ -2,7 +2,9 @@ import {
   collection, deleteField, doc, FieldPath, getDoc, getDocs, limit, query, runTransaction, setDoc, updateDoc, where, writeBatch,
   type DocumentData, type DocumentReference,
 } from 'firebase/firestore';
+import { httpsCallable } from 'firebase/functions';
 import { db } from '../../firebase';
+import { functions } from './funcoes.ts';
 import { CORES } from './util.ts';
 
 // Camada de dados do Friday. As telas chamam req()/api como se houvesse um servidor (/api/...); aqui cada
@@ -226,6 +228,62 @@ async function colunasPessoaDe(quadroId: unknown): Promise<Set<string>> {
   return new Set((await consultar('colunas', { quadro_id: quadroId, tipo: 'pessoa' })).map(c => String(c.id)));
 }
 
+// ------------------------------------------------------------------ cadastros oficiais
+// Quadro sinalizado como oficial (quadros.cadastro): os valores das colunas oficiais vivem na coleção do cadastro
+// (cadastro-<chave>) e são encaixados nas colunas ao ler; a gravação passa pela Function fridayCadastroGravar.
+// Contrato: The Manuscript, 03_APLICACAO_WEB/14_FRIDAY_CADASTROS_OFICIAIS.md.
+type CampoOficial = { chave: string; titulo: string; tipo: string; coluna_id: number; rotulos?: { codigo: string; friday_id: string }[]; situacao: string };
+type Registro = { chave: string; nome: string; colecao: string; campos: CampoOficial[]; situacao: string };
+const registros = new Map<string, Promise<Registro | undefined>>();
+function registroDe(chave: string, recarregar = false): Promise<Registro | undefined> {
+  if (recarregar || !registros.has(chave)) registros.set(chave, getDoc(doc(db, 'friday-cadastros', chave)).then(s => (s.exists() ? (s.data() as Registro) : undefined)));
+  return registros.get(chave)!;
+}
+const camposAtivos = (r: Registro | undefined) => (r?.campos ?? []).filter(c => c.situacao === 'ativo');
+async function campoOficialDa(coluna: Row): Promise<{ registro: Registro; campo: CampoOficial } | null> {
+  const quadro = await buscar('quadros', coluna.quadro_id);
+  if (!quadro?.cadastro) return null;
+  const registro = await registroDe(quadro.cadastro);
+  const campo = camposAtivos(registro).find(c => c.coluna_id === coluna.id);
+  return registro && campo ? { registro, campo } : null;
+}
+async function idsPorUid(): Promise<Map<string, number>> {
+  const lista = usuarios.length ? usuarios : await consultar('usuarios');
+  return new Map(lista.map(u => [String(u.uid), u.id]));
+}
+// Valor oficial → valor da célula no Friday (status/lista por código; pessoas por UID).
+function valorDoOficial(c: CampoOficial, v: unknown, idDe: Map<string, number>): unknown {
+  if (v == null) return undefined;
+  switch (c.tipo) {
+    case 'status': return c.rotulos?.find(r => r.codigo === v)?.friday_id;
+    case 'lista': { const ids = (Array.isArray(v) ? v : []).map(cod => c.rotulos?.find(r => r.codigo === cod)?.friday_id).filter(Boolean); return ids.length ? ids : undefined; }
+    case 'pessoa': { const ids = (Array.isArray(v) ? v : []).map(u => idDe.get(String(u))).filter(x => x != null); return ids.length ? ids : undefined; }
+    default: return v;
+  }
+}
+function mesclarOficial(item: Row, registro: Registro, oficial: Record<string, unknown> | undefined, idDe: Map<string, number>): Row {
+  if (!oficial) return item;
+  const valores = { ...(item.valores ?? {}) };
+  for (const c of camposAtivos(registro)) {
+    const v = valorDoOficial(c, oficial[c.chave], idDe);
+    if (v === undefined) delete valores[String(c.coluna_id)]; else valores[String(c.coluna_id)] = v;
+  }
+  return { ...item, valores };
+}
+/** Item avulso com os valores oficiais encaixados. */
+async function comOficiais(item: Row): Promise<Row> {
+  if (!item.vinculo?.cadastro) return item;
+  const registro = await registroDe(item.vinculo.cadastro);
+  if (!registro) return item;
+  const s = await getDoc(doc(db, registro.colecao, String(item.vinculo.id)));
+  return mesclarOficial(item, registro, s.data(), await idsPorUid());
+}
+const chamarGravacaoOficial = httpsCallable<{ itemId: number; op: string; colunaId?: number; valor?: unknown }, unknown>(functions, 'fridayCadastroGravar');
+async function gravarOficial(itemId: number, op: 'valor' | 'nome' | 'situacao' | 'vincular', extra: { colunaId?: number; valor?: unknown } = {}) {
+  try { await chamarGravacaoOficial({ itemId, op, ...extra }); } catch (e) { throw new ErroApi(500, `Cadastro oficial: ${(e as Error).message}`); }
+}
+async function quadroOficial(quadroId: unknown) { return (await buscar('quadros', quadroId))?.cadastro as string | undefined; }
+
 // Grava muitos documentos em lotes (o Firestore aceita até 500 operações por lote).
 async function emLotes(operacoes: ((lote: ReturnType<typeof writeBatch>) => void)[]) {
   for (let k = 0; k < operacoes.length; k += 450) {
@@ -431,6 +489,15 @@ async function completo(id: number) {
     consultar('grupos', { quadro_id: id }), consultar('colunas', { quadro_id: id }), consultar('visoes', { quadro_id: id }), consultar('itens', { quadro_id: id }),
     consultar('atualizacoes', { quadro_id: id }), consultar('anexos', { quadro_id: id }), consultar('automacoes', { quadro_id: id, ativa: 1 }), subquadroDe(id),
   ]);
+  // Quadro oficial: registro do cadastro e documentos oficiais dos itens (uma consulta).
+  const registro = quadro.cadastro ? await registroDe(quadro.cadastro, true) : undefined;
+  const oficiais = new Map<string, Record<string, unknown>>();
+  let idDe = new Map<string, number>();
+  if (registro) {
+    const [snap, mapa] = await Promise.all([getDocs(query(collection(db, registro.colecao), where('origem.friday_quadro_id', '==', id))), idsPorUid()]);
+    for (const d of snap.docs) oficiais.set(d.id, d.data());
+    idDe = mapa;
+  }
   const contar = (lista: Row[]) => { const m = new Map<number, number>(); for (const x of lista) m.set(Number(x.item_id), (m.get(Number(x.item_id)) ?? 0) + 1); return m; };
   const gruposVisiveis = ordenar('grupos', grupos.filter(visivel));
   const idsGrupos = new Set(gruposVisiveis.map(g => g.id));
@@ -452,9 +519,20 @@ async function completo(id: number) {
   }
   const nAt = contar(atualizacoes), nAn = contar(anexos);
   return {
-    quadro: { ...quadro, subquadro_id: sub?.id ?? null, permissao: eu().acesso === 'leitor' ? 'ver' : 'editar', n_automacoes: automacoes.length },
-    grupos: gruposVisiveis, colunas: ordenar('colunas', colunas), visoes: ordenar('visoes', visoes),
-    itens: itensVisiveis.map(i => ({ ...i, n_atualizacoes: nAt.get(i.id) ?? 0, n_subitens: nSub.get(i.id) ?? 0, n_anexos: nAn.get(i.id) ?? 0 })),
+    quadro: {
+      ...quadro, subquadro_id: sub?.id ?? null, permissao: eu().acesso === 'leitor' ? 'ver' : 'editar', n_automacoes: automacoes.length,
+      oficial: registro ? { chave: registro.chave, nome: registro.nome } : null,
+    },
+    grupos: gruposVisiveis, visoes: ordenar('visoes', visoes),
+    // Colunas oficiais levam a marca `oficial` (cadeado na tela, exclusão bloqueada).
+    colunas: ordenar('colunas', colunas).map(c => {
+      const campo = camposAtivos(registro).find(x => x.coluna_id === c.id);
+      return campo ? { ...c, oficial: { cadastro: registro!.chave, chave: campo.chave, nome: registro!.nome } } : c;
+    }),
+    itens: itensVisiveis.map(i => {
+      const base = registro && i.vinculo ? mesclarOficial(i, registro, oficiais.get(String(i.vinculo.id)), idDe) : i;
+      return { ...base, n_atualizacoes: nAt.get(i.id) ?? 0, n_subitens: nSub.get(i.id) ?? 0, n_anexos: nAn.get(i.id) ?? 0 };
+    }),
     sub: subDados,
   };
 }
@@ -474,6 +552,7 @@ async function importar(quadroId: number, corpo: unknown) {
   const quadro = await buscar('quadros', quadroId);
   if (!quadro) throw new ErroApi(404, 'quadro não encontrado');
   exigirEscrita();
+  if (quadro.cadastro) throw new ErroApi(409, 'Importar do Excel num quadro oficial ainda não é suportado.');
   const lista = ((corpo as { itens?: ItemImportado[] })?.itens ?? []) as ItemImportado[];
   const CORES_GRUPO = ['#579bfc', '#00a36c', '#a25ddc', '#fdab3d', '#e2445c', '#0086c0', '#ff642e', '#037f4c'];
   const [gruposAtuais, itensAtuais] = await Promise.all([consultar('grupos', { quadro_id: quadroId }), consultar('itens', { quadro_id: quadroId })]);
@@ -519,7 +598,9 @@ async function duplicarItem(id: number) {
   if (!item) throw new ErroApi(404, 'item não encontrado');
   exigirEscrita();
   const nome = `${item.nome} (cópia)`;
-  const novo = await inserir('itens', { quadro_id: item.quadro_id, grupo_id: item.grupo_id, item_pai_id: item.item_pai_id, nome, posicao: Number(item.posicao) + 0.5, valores: item.valores ?? {}, criado_por: eu().id });
+  const completoItem = await comOficiais(item);
+  const novo = await inserir('itens', { quadro_id: item.quadro_id, grupo_id: item.grupo_id, item_pai_id: item.item_pai_id, nome, posicao: Number(item.posicao) + 0.5, valores: completoItem.valores ?? {}, criado_por: eu().id });
+  if (item.vinculo) await gravarOficial(novo.id, 'vincular');
   await registrar({ quadro_id: item.quadro_id, item_id: novo.id, item_nome: nome, acao: 'duplicou' });
   return novo;
 }
@@ -530,6 +611,7 @@ async function duplicarQuadro(id: number, corpo: unknown) {
   if (!orig) throw new ErroApi(404, 'quadro não encontrado');
   exigirEscrita();
   const b = (corpo ?? {}) as { nome?: string; area_id?: number; pasta_id?: number | null; com_itens?: boolean };
+  if (orig.cadastro && b.com_itens) throw new ErroApi(409, 'Quadro oficial: só dá para duplicar a estrutura (sem itens).');
   const novo = await inserir('quadros', {
     area_id: b.area_id ?? orig.area_id, pasta_id: b.pasta_id !== undefined ? b.pasta_id : orig.pasta_id,
     nome: b.nome || `${orig.nome} (cópia)`, descricao: orig.descricao, nome_item: orig.nome_item,
@@ -571,14 +653,23 @@ async function definirValor(itemId: number, corpo: unknown) {
   if (coluna.quadro_id !== item.quadro_id) throw new ErroApi(400, 'a coluna não pertence ao quadro do item');
   exigirEscrita();
   const chave = String(coluna.id);
-  const antes = item.valores?.[chave];
-  const valores = { ...(item.valores ?? {}) };
+  const oficial = item.vinculo ? await campoOficialDa(coluna) : null;
+  const atual = oficial ? await comOficiais(item) : item;
+  const antes = atual.valores?.[chave];
+  const valores = { ...(atual.valores ?? {}) };
   if (vazio(valor)) delete valores[chave]; else valores[chave] = semUndefined(valor);
   const atualizado_em = agora();
-  // Coluna de pessoa: recalcula o índice usado pelo Meu trabalho.
-  const pessoas = coluna.tipo === 'pessoa' ? pessoasDosValores(valores, await colunasPessoaDe(item.quadro_id)) : item.pessoas;
-  await updateDoc(ref('itens', item.id), new FieldPath('valores', chave), vazio(valor) ? deleteField() : semUndefined(valor), 'atualizado_em', atualizado_em,
-    ...(coluna.tipo === 'pessoa' ? ['pessoas', pessoas] : []));
+  let pessoas = item.pessoas;
+  if (oficial) {
+    // Campo oficial: a Function valida e grava no cadastro (e atualiza o índice de pessoas do item).
+    await gravarOficial(item.id, 'valor', { colunaId: coluna.id, valor: vazio(valor) ? null : semUndefined(valor) });
+    await updateDoc(ref('itens', item.id), { atualizado_em });
+  } else {
+    // Coluna de pessoa: recalcula o índice usado pelo Meu trabalho.
+    if (coluna.tipo === 'pessoa') pessoas = pessoasDosValores(valores, await colunasPessoaDe(item.quadro_id));
+    await updateDoc(ref('itens', item.id), new FieldPath('valores', chave), vazio(valor) ? deleteField() : semUndefined(valor), 'atualizado_em', atualizado_em,
+      ...(coluna.tipo === 'pessoa' ? ['pessoas', pessoas] : []));
+  }
   const config = coluna.config ?? {};
   const [de, para] = await Promise.all([formatarValor(coluna.tipo, config, antes), formatarValor(coluna.tipo, config, valor)]);
   if (de !== para) {
@@ -589,7 +680,7 @@ async function definirValor(itemId: number, corpo: unknown) {
     }
   }
   // Automações ainda não rodam nesta etapa (virão em Cloud Functions): nenhuma disparou.
-  return { ...item, valores, atualizado_em, pessoas, _automacoes: 0 };
+  return { ...atual, valores, atualizado_em, pessoas, _automacoes: 0 };
 }
 
 // ------------------------------------------------------------------ arquivo, lixeira e exclusão definitiva
@@ -600,6 +691,7 @@ async function mudarEstado(r: Recurso, id: number, acao: 'arquivar' | 'restaurar
   exigirEscrita();
   const campos = acao === 'arquivar' ? { arquivado_em: agora() } : { arquivado_em: null, excluido_em: null };
   await updateDoc(ref(r, id), campos as DocumentData);
+  if (r === 'itens' && antes.vinculo) await gravarOficial(id, 'situacao');
   if (r === 'itens') await registrar({ quadro_id: antes.quadro_id, item_id: antes.id, item_nome: antes.nome, acao: acao === 'arquivar' ? 'arquivou' : 'restaurou' });
   return { ...antes, ...campos };
 }
@@ -731,7 +823,8 @@ async function meuTrabalho() {
 
 async function montarMeuTrabalho(uid: number, itens: Row[], c: Consulta) {
   const out = [];
-  for (const i of itens) {
+  for (const bruto of itens) {
+    const i = bruto.vinculo ? await comOficiais(bruto) : bruto;
     const cs = (await c.colunas(i.quadro_id)).filter(x => ['pessoa', 'data', 'periodo', 'status'].includes(x.tipo));
     const v = i.valores ?? {};
     if (!cs.some(x => x.tipo === 'pessoa' && Array.isArray(v[String(x.id)]) && v[String(x.id)].includes(uid))) continue;
@@ -853,6 +946,7 @@ async function criar(r: Recurso, corpo: unknown) {
   if (r === 'atualizacoes') dados.quadro_id = (await buscar('itens', dados.item_id))?.quadro_id ?? null;
   const row = await inserir(r, dados);
   if (r === 'quadros' && !b.vazio) await prepararQuadro(row.id);
+  if (r === 'itens' && await quadroOficial(row.quadro_id)) await gravarOficial(row.id, 'vincular');
   if (r === 'itens') await registrar({ quadro_id: row.quadro_id, item_id: row.id, item_nome: row.nome, acao: 'criou' });
   if (r === 'atualizacoes') {
     const onde = await ondeAbrir(row.item_id);
@@ -878,10 +972,19 @@ async function atualizar(r: Recurso, id: number, corpo: unknown) {
   const dados = limpar(r, corpo);
   const mudou = Object.keys(dados).filter(k => !igual(antes[k], dados[k]));
   if (!mudou.length) return antes;
+  if (r === 'colunas' && mudou.includes('config')) {
+    // Campo oficial: rótulos e opções podem ser acrescentados, mas não removidos (os dados oficiais usam os códigos deles).
+    const oficial = await campoOficialDa(antes);
+    if (oficial?.campo.rotulos?.length) {
+      const novos = new Set(((((dados.config as Record<string, unknown>)?.[oficial.campo.tipo === 'status' ? 'rotulos' : 'opcoes'] ?? []) as { id: string }[]).map(x => String(x.id))));
+      if (oficial.campo.rotulos.some(x => !novos.has(x.friday_id))) throw new ErroApi(409, `“${antes.titulo}” é um campo oficial: rótulos podem ser acrescentados, mas não removidos.`);
+    }
+  }
   const campos: Record<string, unknown> = Object.fromEntries(mudou.map(k => [k, dados[k]]));
   if (r === 'itens' || r === 'automacoes') campos.atualizado_em = agora();
   if (r === 'itens' && mudou.includes('nome')) campos.busca = prefixosBusca(dados.nome);
   await updateDoc(ref(r, id), campos as DocumentData);
+  if (r === 'itens' && antes.vinculo && mudou.includes('nome')) await gravarOficial(id, 'nome');
   if (r === 'itens') {
     if (mudou.includes('nome')) await registrar({ quadro_id: antes.quadro_id, item_id: id, item_nome: dados.nome, acao: 'renomeou', de: antes.nome, para: dados.nome });
     if (mudou.includes('grupo_id')) {
@@ -898,9 +1001,16 @@ async function excluir(r: Recurso, id: number, definitivo: boolean) {
   if (!antes) throw new ErroApi(404, 'não encontrado');
   if (r === 'notificacoes') { if (antes.usuario_uid !== eu().uid) throw new ErroApi(404, 'não encontrado'); } else exigirEscrita();
   if (r === 'atualizacoes' && Number(antes.usuario_id) !== eu().id) throw new ErroApi(403, 'Só quem escreveu pode apagar esta atualização.');
+  if (r === 'colunas' && await campoOficialDa(antes)) throw new ErroApi(409, `“${antes.titulo}” é um campo oficial e não pode ser excluído.`);
   // Itens, grupos e quadros vão para a lixeira (restauráveis por 30 dias).
-  if (COM_ESTADO.has(r) && !definitivo) await updateDoc(ref(r, id), { excluido_em: agora() });
-  else await apagarDeVez(r, antes);
+  if (COM_ESTADO.has(r) && !definitivo) {
+    await updateDoc(ref(r, id), { excluido_em: agora() });
+    if (r === 'itens' && antes.vinculo) await gravarOficial(id, 'situacao');
+  } else {
+    // Item oficial apagado de vez: o registro oficial fica, marcado como excluído.
+    if (r === 'itens' && antes.vinculo && !antes.excluido_em) { await updateDoc(ref(r, id), { excluido_em: agora() }); await gravarOficial(id, 'situacao'); }
+    await apagarDeVez(r, antes);
+  }
   if (r === 'itens') await registrar({ quadro_id: antes.quadro_id, item_id: id, item_nome: antes.nome, acao: 'excluiu' });
 }
 

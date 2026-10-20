@@ -1,7 +1,7 @@
 import { useMemo, useRef, useState } from 'react';
 import {
   AlarmClock, Archive, ArrowDownAZ, ArrowLeft, ArrowRight, ArrowUpAZ, CalendarDays, Check, ChevronDown, ChevronRight, Copy, EyeOff, FileSpreadsheet, GripVertical, Group, ListTree, Maximize2,
-  MessageCircle, MessageCirclePlus, Sigma, MoreHorizontal, Palette, Pencil, Plus, Trash2,
+  Lock, MessageCircle, MessageCirclePlus, Sigma, MoreHorizontal, Palette, Pencil, Plus, Trash2,
 } from 'lucide-react';
 import type { Row } from '../api.ts';
 import { Menu, Popover, useConfirmar, usePopover, Editavel, type ItemMenu } from '../ui/base.tsx';
@@ -326,6 +326,7 @@ function CabecalhoColuna({ coluna, acoes, confirmar, setOrdenacao, anterior, pro
       <div className="col-cab">
         <Editavel key={renomear ? 'r' : 'n'} iniciarEditando={renomear} valor={coluna.titulo} className="col-titulo"
           onSalvar={v => { setRenomear(false); if (v) acoes.atualizarColuna(coluna.id, { titulo: v }); }} />
+        {coluna.oficial && <span className="col-oficial" title={`Campo oficial do cadastro “${coluna.oficial.nome}” (${coluna.oficial.chave}). Pode renomear; não pode excluir.`}><Lock size={12} /></span>}
         <button ref={menu.ref} className="btn-icone col-menu" aria-label={`Menu da coluna ${coluna.titulo}`} onClick={menu.alternar}><MoreHorizontal size={15} /></button>
       </div>
       <span className="redim" onMouseDown={e => { e.preventDefault(); onResize(e.clientX); }} />
@@ -352,8 +353,9 @@ function CabecalhoColuna({ coluna, acoes, confirmar, setOrdenacao, anterior, pro
                 { rotulo: 'Adicionar coluna à direita', icone: <Plus size={15} />, onClick: () => setTimeout(() => { menu.abrir(); setTipos(true); }) },
                 ...(AGRUPAVEIS.has(coluna.tipo) ? [{ rotulo: 'Agrupar por esta coluna', icone: <Group size={15} />, onClick: onAgrupar }] : []),
                 { rotulo: 'Ocultar coluna', icone: <EyeOff size={15} />, onClick: onOcultar },
-                'separador',
-                { rotulo: 'Excluir coluna', icone: <Trash2 size={15} />, perigo: true, onClick: async () => { if (await confirmar(`Excluir a coluna “${coluna.titulo}” e todos os valores dela?`)) acoes.excluirColuna(coluna.id); } },
+                // Campo oficial não pode ser excluído (os dados vivem no cadastro oficial).
+                ...(coluna.oficial ? [] : ['separador' as const,
+                  { rotulo: 'Excluir coluna', icone: <Trash2 size={15} />, perigo: true, onClick: async () => { if (await confirmar(`Excluir a coluna “${coluna.titulo}” e todos os valores dela?`)) acoes.excluirColuna(coluna.id); } }]),
               ]} />
             </>
           )}

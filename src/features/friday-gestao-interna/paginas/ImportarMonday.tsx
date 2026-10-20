@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { connectFunctionsEmulator, httpsCallable } from 'firebase/functions';
+import { httpsCallable } from 'firebase/functions';
 import { CloudDownload, LayoutGrid, RefreshCw, Search, Square } from 'lucide-react';
-import { functions } from '../../../firebase';
+import { functions } from '../funcoes.ts';
 import { useAuth } from '../../../contexts/AuthContext';
 import { useNav } from '../nav.tsx';
 import { useNavigate } from '../rotas.tsx';
@@ -20,9 +20,6 @@ type Execucao = { id: string; estado: 'fila' | 'importando' | 'ok' | 'erro'; res
 
 const ROTULO: Record<Situacao, string> = { novo: 'Novo', importado: 'Importado', atualizar: 'Com novidades', erro: 'Erro' };
 
-if (import.meta.env.VITE_USE_FIREBASE_EMULATORS === 'true') {
-  try { connectFunctionsEmulator(functions, '127.0.0.1', 5001); } catch { /* já conectado */ }
-}
 const inventario = httpsCallable<void, { quadros: QuadroMonday[]; gerado_em: string }>(functions, 'fridayMondayInventario', { timeout: 130_000 });
 const importarQuadro = httpsCallable<{ boardId: string }, Resultado>(functions, 'fridayMondayImportarQuadro', { timeout: 560_000 });
 

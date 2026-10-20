@@ -124,3 +124,31 @@ export function camposDoItem(campos: CampoOficial[], valores: AnyRecord | undefi
   }
   return { valores: out, pessoasSemFuncionario };
 }
+
+/**
+ * Rótulos criados no Friday depois da oficialização: acrescenta ao campo os que ainda não têm `codigo`
+ * (os existentes nunca mudam de código). Devolve o campo atualizado e se algo mudou.
+ */
+export function acrescentarRotulos(campo: CampoOficial, rotulosFriday: AnyRecord[] | undefined): { campo: CampoOficial; mudou: boolean } {
+  const atuais = campo.rotulos ?? [];
+  const conhecidos = new Set(atuais.map(r => r.friday_id));
+  const novos = (rotulosFriday ?? []).filter(r => !conhecidos.has(String(r.id)));
+  if (!novos.length) return { campo, mudou: false };
+  const usados = new Set(atuais.map(r => r.codigo));
+  const acrescentados: RotuloOficial[] = [];
+  for (const r of rotulosOficiais(novos)) {
+    let codigo = r.codigo, n = 2;
+    while (usados.has(codigo)) codigo = `${r.codigo.slice(0, 36)}_${n++}`;
+    usados.add(codigo);
+    acrescentados.push({ ...r, codigo });
+  }
+  return acrescentados.length ? { campo: { ...campo, rotulos: [...atuais, ...acrescentados] }, mudou: true } : { campo, mudou: false };
+}
+
+/** Índice `pessoas` de um item de quadro oficial: pessoas das colunas livres + das colunas oficiais (UID → id do Friday). */
+export function indicePessoas(valoresLivres: AnyRecord | undefined, colunasPessoaLivres: Set<string>, campos: CampoOficial[], oficial: AnyRecord | undefined, idDeUid: (uid: string) => number | undefined): number[] {
+  const ids = new Set<number>();
+  for (const [k, v] of Object.entries(valoresLivres ?? {})) if (colunasPessoaLivres.has(k) && Array.isArray(v)) v.forEach(x => { if (Number.isFinite(Number(x))) ids.add(Number(x)); });
+  for (const c of campos) if (c.tipo === 'pessoa' && c.situacao === 'ativo' && Array.isArray(oficial?.[c.chave])) for (const uid of oficial![c.chave]) { const id = idDeUid(String(uid)); if (id != null) ids.add(id); }
+  return [...ids];
+}

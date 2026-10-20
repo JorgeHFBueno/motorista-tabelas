@@ -87,7 +87,7 @@ export function Menu({ itens, onEscolher }: { itens: ItemMenu[]; onEscolher?: ()
 export function Modal({ titulo, onClose, children, largura = 520, rodape }: { titulo: ReactNode; onClose: () => void; children: ReactNode; largura?: number; rodape?: ReactNode }) {
   useEffect(() => {
     // Escape fecha só a camada de cima: com um popover aberto dentro da janela, quem fecha é o popover.
-    const esc = (e: globalThis.KeyboardEvent) => { if (e.key === 'Escape' && !document.querySelector('.popover')) onClose(); };
+    const esc = (e: globalThis.KeyboardEvent) => { if (e.key === 'Escape' && !document.querySelector('.fr-popover')) onClose(); };
     document.addEventListener('keydown', esc);
     return () => document.removeEventListener('keydown', esc);
   }, [onClose]);

@@ -644,6 +644,16 @@ service cloud.firestore {
         && colecao.matches('^friday-(areas|pastas|quadros|grupos|colunas|itens|visoes|atualizacoes|anexos|automacoes|execucoes|meta|importacoes)$');
     }
 
+    // Cadastros oficiais do Friday (quadro sinalizado): leitura por funcionário ativo; gravação só pelas
+    // Functions fridayCadastroPromover e fridayCadastroGravar (Admin SDK, que validam o contrato).
+    match /friday-cadastros/{chave} {
+      allow read: if fridayAccess();
+      allow write: if false;
+    }
+    match /{cadastroColecao}/{cadastroId} {
+      allow read: if fridayAccess() && cadastroColecao.matches('^cadastro-[a-z][a-z0-9_]*$');
+    }
+
 
     // Default deny for every undeclared collection and subcollection.
     match /{document=**} {

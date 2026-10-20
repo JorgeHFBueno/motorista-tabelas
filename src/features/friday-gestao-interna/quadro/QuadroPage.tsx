@@ -6,6 +6,8 @@ import {
   Eye, Kanban as IconeKanban, Lock, MoreHorizontal, Pencil, Plus, Search, Star, Table2, Trash2, Upload, UserRound, X, Zap,
 } from 'lucide-react';
 import { req } from '../api.ts';
+import { useAuth } from '../../../contexts/AuthContext';
+import { TornarOficial } from './TornarOficial.tsx';
 import { NomeModal } from '../layout/Lateral.tsx';
 import { Permissoes } from '../layout/Permissoes.tsx';
 import { PERMISSOES_FINAS, useNav } from '../nav.tsx';
@@ -152,6 +154,7 @@ export default function QuadroPage() {
         <div className="qc-linha">
           <Editavel valor={quadro.nome} className="quadro-nome" onSalvar={async v => { if (v) { await q.atualizarQuadro({ nome: v }); nav.recarregar(); } }} />
           {!!quadro.restrito && <span className="selo-restrito" title="Quadro restrito: só algumas pessoas têm acesso"><Lock size={14} /></span>}
+          {quadro.oficial && <span className="selo-oficial" title={`Cadastro oficial “${quadro.oficial.nome}” (${quadro.oficial.chave}): as colunas com cadeado são lidas e gravadas no cadastro oficial.`}><Lock size={12} /> Oficial</span>}
           <button className={`btn-icone favorito${quadro.favorito ? ' on' : ''}`} title={quadro.favorito ? 'Remover dos favoritos' : 'Favoritar'}
             onClick={async () => { await q.atualizarQuadro({ favorito: quadro.favorito ? 0 : 1 }); nav.recarregar(); }}>
             <Star size={18} />
@@ -514,7 +517,11 @@ function MenuQuadro({ quadro, acoes, confirmar, temOcultas, onMostrarOcultas, on
   const pop = usePopover<HTMLButtonElement>();
   const [nomeItem, setNomeItem] = useState(false);
   const [permissoes, setPermissoes] = useState(false);
+  const [oficializar, setOficializar] = useState(false);
+  const adm2 = useAuth().authorizationProfile?.adm2 === true;
   const itens: ItemMenu[] = [
+    // Cadastros oficiais: só adm2, quadro comum ainda não oficial.
+    ...(adm2 && !quadro.oficial && quadro.tipo !== 'subitens' ? [{ rotulo: 'Tornar oficial…', icone: <Lock size={15} />, onClick: () => setOficializar(true) }, 'separador' as const] : []),
     ...(PERMISSOES_FINAS && nav.usuario?.admin ? [{ rotulo: 'Permissões do quadro', icone: <Lock size={15} />, onClick: () => setPermissoes(true) }, 'separador' as const] : []),
     { rotulo: 'Exportar visão atual para Excel', icone: <FileSpreadsheet size={15} />, onClick: onExportarVisao },
     { rotulo: 'Exportar quadro inteiro para Excel', icone: <Download size={15} />, onClick: onExportarTudo },
@@ -534,6 +541,7 @@ function MenuQuadro({ quadro, acoes, confirmar, temOcultas, onMostrarOcultas, on
       <button ref={pop.ref} className="btn-icone" aria-label="Menu do quadro" onClick={pop.alternar}><MoreHorizontal size={18} /></button>
       {pop.aberto && <Popover ancora={pop.ref.current} onClose={pop.fechar} alinhar="fim" largura={280}><Menu onEscolher={pop.fechar} itens={itens} /></Popover>}
       {permissoes && <Permissoes recurso="quadro" id={Number(quadro.id)} nome={String(quadro.nome)} onFechar={() => { setPermissoes(false); acoes.recarregar(); }} />}
+      {oficializar && <TornarOficial quadro={quadro} colunas={acoes.dados?.colunas ?? []} onFechar={() => setOficializar(false)} onPronto={() => { setOficializar(false); acoes.recarregar(); }} />}
       {nomeItem && (
         <Modal titulo="Como chamar os itens deste quadro?" largura={420} onClose={() => setNomeItem(false)}>
           <form onSubmit={e => { e.preventDefault(); const v = new FormData(e.currentTarget).get('n') as string; if (v.trim()) acoes.atualizarQuadro({ nome_item: v.trim() }); setNomeItem(false); }}>
