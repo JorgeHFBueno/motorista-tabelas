@@ -283,6 +283,7 @@ function CabecalhoGrupo({ grupo, total, acoes, confirmar, nomeItem, virtual, rec
       {virtual
         ? <span className="grupo-nome">{grupo.nome}</span>
         : <Editavel key={renomear ? 'r' : 'n'} iniciarEditando={renomear} valor={grupo.nome} className="grupo-nome" onSalvar={v => { setRenomear(false); if (v) acoes.atualizarGrupo(grupo.id, { nome: v }); }} />}
+      {!virtual && acoes.oficial?.grupo === 'ativo' && <span className="col-oficial" title={`Grupo oficial do cadastro “${acoes.oficial.nome}” (${acoes.oficial.grupo_chave}): o nome do grupo é gravado no cadastro oficial.`}><Lock size={12} /></span>}
       <span className="grupo-total">{total} {total === 1 ? nomeItem.toLowerCase() : 'itens'}</span>
       {menu.aberto && (
         <Popover ancora={menu.ref.current} onClose={() => { menu.fechar(); setCores(false); }} largura={230}>

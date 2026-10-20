@@ -198,3 +198,14 @@ export function entradaSubitem(campos: CampoOficial[], subitem: AnyRecord, uidDe
   const { valores, pessoasSemFuncionario } = camposDoItem(campos, subitem.valores, uidDe);
   return { entrada: { posicao: Number(subitem.posicao) || 0, nome: String(subitem.nome ?? ''), situacao: situacaoDoItem(subitem), ...valores }, pessoasSemFuncionario };
 }
+
+/**
+ * Chave já usada no registro (campos, inclusive descontinuados, mapa dos subitens ou grupo oficial)? Devolve a
+ * mensagem do conflito ou null. Chaves reservadas são verificadas à parte.
+ */
+export function conflitoDeChave(registro: { campos?: CampoOficial[]; subitens?: { chave?: string } | null; grupo?: { chave?: string } | null }, chave: string): string | null {
+  if ((registro.campos ?? []).some(c => c.chave === chave)) return `A chave "${chave}" já foi usada neste cadastro.`;
+  if (registro.subitens?.chave === chave) return `A chave "${chave}" é a dos subitens oficiais.`;
+  if (registro.grupo?.chave === chave) return `A chave "${chave}" é a do grupo oficial.`;
+  return null;
+}

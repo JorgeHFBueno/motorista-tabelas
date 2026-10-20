@@ -79,3 +79,13 @@ test('C3: valor de volta, rótulos sincronizados e entrada de subitem', async ()
   const e = entradaSubitem([{ chave: 'status', tipo: 'status', coluna_id: 5, situacao: 'ativo', rotulos: [{ codigo: 'ok', texto: 'Ok', cor: '#0f0', friday_id: '1' }] }], { nome: 'Fundação', posicao: 2, valores: { 5: '1' } }, () => undefined);
   assert.deepEqual(e.entrada, { posicao: 2, nome: 'Fundação', situacao: 'ativo', status: 'ok' });
 });
+
+test('grupo oficial: chave em conflito com campos, subitens e grupo', async () => {
+  const { conflitoDeChave } = await import('../lib/fridayCadastroConverter.js');
+  const registro = { campos: [{ chave: 'status', situacao: 'descontinuado' }], subitens: { chave: 'lotes' }, grupo: { chave: 'grupo' } };
+  assert.match(conflitoDeChave(registro, 'status'), /já foi usada/);
+  assert.match(conflitoDeChave(registro, 'lotes'), /subitens/);
+  assert.match(conflitoDeChave(registro, 'grupo'), /grupo oficial/);
+  assert.equal(conflitoDeChave(registro, 'fase'), null);
+  assert.equal(conflitoDeChave({}, 'grupo'), null);
+});

@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { Lock } from 'lucide-react';
 import { httpsCallable } from 'firebase/functions';
 import { camposOficiais } from '../api.ts';
 import { functions } from '../funcoes.ts';
@@ -21,7 +22,7 @@ const sugerirChave = (titulo: string) => {
 const chaveValida = (c: string) => /^[a-z][a-z0-9_]{1,39}$/.test(c);
 
 type Resultado = { chave: string; colecao: string; campos: number; itens_migrados: number; itens_ja_migrados: number; pessoas_sem_funcionario: number };
-const promover = httpsCallable<{ quadroId: number; chave: string; nome: string; campos: { coluna_id: number; chave: string }[] }, Resultado>(functions, 'fridayCadastroPromover', { timeout: 560_000 });
+const promover = httpsCallable<{ quadroId: number; chave: string; nome: string; campos: { coluna_id: number; chave: string }[]; grupo?: string }, Resultado>(functions, 'fridayCadastroPromover', { timeout: 560_000 });
 
 /**
  * subitens: torna oficiais os subitens do quadro (já oficial). `colunas` são então as do quadro de subitens e a chave
@@ -36,11 +37,14 @@ export function TornarOficial({ quadro, colunas, subitens, onFechar, onPronto }:
   const retomada = !!subitens?.chave;
   const aceitas = colunas.filter(c => TIPOS_OFICIAIS.has(c.tipo));
   const [marcadas, setMarcadas] = useState<Record<number, string>>({});
+  // Grupo oficial (opcional, só no quadro principal): null = não marcado.
+  const [grupo, setGrupo] = useState<string | null>(null);
   const [erro, setErro] = useState('');
   const [enviando, setEnviando] = useState(false);
   const escolhidas = Object.entries(marcadas).map(([id, k]) => ({ coluna_id: Number(id), chave: k }));
-  const repetidas = new Set(escolhidas.map(e => e.chave).filter((k, i, l) => l.indexOf(k) !== i));
-  const invalida = !retomada && ((!subitens && !nome.trim()) || !chaveValida(chave) || (subitens ? RESERVADAS.has(chave) : !escolhidas.length)
+  const repetidas = new Set([...escolhidas.map(e => e.chave), ...(grupo != null ? [grupo] : [])].filter((k, i, l) => l.indexOf(k) !== i));
+  const problemaGrupo = grupo == null ? '' : !chaveValida(grupo) ? 'chave inválida' : RESERVADAS.has(grupo) ? 'chave reservada' : repetidas.has(grupo) ? 'chave repetida' : '';
+  const invalida = !retomada && ((!subitens && !nome.trim()) || !chaveValida(chave) || (subitens ? RESERVADAS.has(chave) : !escolhidas.length) || !!problemaGrupo
     || escolhidas.some(e => !chaveValida(e.chave) || RESERVADAS.has(e.chave) || repetidas.has(e.chave)));
 
   const enviar = async () => {
@@ -51,7 +55,7 @@ export function TornarOficial({ quadro, colunas, subitens, onFechar, onPronto }:
         const r = await camposOficiais({ quadroId: Number(quadro.id), op: 'subitens', chave, campos: escolhidas });
         avisar(`Subitens oficiais em “${r.chave}”: ${Number(r.subitens_migrados) + Number(r.subitens_ja_migrados)} subitens${Number(r.subitens_sem_pai) ? ` (${r.subitens_sem_pai} sem item pai vinculado ficaram livres)` : ''}.`);
       } else {
-        const { data } = await promover({ quadroId: Number(quadro.id), chave, nome: nome.trim(), campos: escolhidas });
+        const { data } = await promover({ quadroId: Number(quadro.id), chave, nome: nome.trim(), campos: escolhidas, ...(grupo != null ? { grupo } : {}) });
         avisar(`“${nome.trim()}” agora é um cadastro oficial: ${data.campos} campos, ${data.itens_migrados + data.itens_ja_migrados} itens${data.pessoas_sem_funcionario ? ` (${data.pessoas_sem_funcionario} pessoa(s) sem cadastro de funcionário ficaram de fora)` : ''}.`);
       }
       onPronto();
@@ -101,8 +105,66 @@ export function TornarOficial({ quadro, colunas, subitens, onFechar, onPronto }:
               </div>
             );
           })}
+          {!subitens && (
+            <div className="oficial-coluna">
+              <label className="check-form" title="O nome do grupo de cada item vira um campo do cadastro oficial">
+                <input type="checkbox" className="caixa" checked={grupo != null} onChange={e => setGrupo(e.target.checked ? 'grupo' : null)} />
+                <Lock size={14} /> Grupo <span className="muted">(nome do grupo de cada item)</span>
+              </label>
+              {grupo != null && <input className="input-cheio oficial-chave" value={grupo} onChange={e => setGrupo(e.target.value)} />}
+              {problemaGrupo && <small className="texto-alerta">{problemaGrupo}</small>}
+            </div>
+          )}
           {colunas.length > aceitas.length && <p className="muted fr-small">Fórmulas, arquivos e ligações ainda não podem ser campos oficiais e continuam livres.</p>}
         </div>
+      )}
+      {erro && <p className="aviso-erro">{erro}</p>}
+    </Modal>
+  );
+}
+
+/**
+ * Grupo oficial num quadro já oficial (só adm2): "ativar" grava o nome do grupo de cada item no cadastro oficial e
+ * passa a mantê-lo; "descontinuar" deixa de manter (os documentos guardam o último nome). A chave nunca muda.
+ */
+export function GrupoOficialDialogo({ quadroId, oficial, modo, onFechar, onPronto }: {
+  quadroId: number; oficial: { nome: string; grupo_chave: string | null }; modo: 'ativar' | 'descontinuar'; onFechar: () => void; onPronto: () => void;
+}) {
+  const avisar = useAvisoRapido();
+  const [chave, setChave] = useState(oficial.grupo_chave ?? 'grupo');
+  const [erro, setErro] = useState('');
+  const [enviando, setEnviando] = useState(false);
+  const fixa = oficial.grupo_chave != null;
+  const invalida = modo === 'ativar' && !fixa && (!chaveValida(chave) || RESERVADAS.has(chave));
+  const enviar = async () => {
+    setErro('');
+    setEnviando(true);
+    try {
+      const r = await camposOficiais({ quadroId, op: modo === 'ativar' ? 'grupo' : 'grupo_descontinuar', ...(modo === 'ativar' ? { chave } : {}) });
+      avisar(modo === 'ativar' ? `O grupo agora é campo oficial (${r.itens} itens atualizados).` : 'O grupo deixou de ser campo oficial.');
+      onPronto();
+    } catch (e) {
+      setErro((e as Error).message);
+    } finally {
+      setEnviando(false);
+    }
+  };
+  return (
+    <Modal titulo={modo === 'ativar' ? 'Tornar o grupo oficial' : 'Descontinuar o grupo oficial'} largura={520} onClose={() => { if (!enviando) onFechar(); }}
+      rodape={<div className="form-acoes"><button type="button" className="fr-btn" disabled={enviando} onClick={onFechar}>Cancelar</button>
+        <button className={`fr-btn ${modo === 'ativar' ? 'btn-primario' : 'btn-perigo-cheio'}`} disabled={invalida || enviando} onClick={() => void enviar()}>
+          {enviando ? 'Aguarde…' : modo === 'ativar' ? 'Tornar oficial' : 'Descontinuar'}</button></div>}>
+      {modo === 'ativar' ? (
+        <>
+          <p className="muted fr-small">O nome do grupo de cada item passa a ser gravado no cadastro oficial “{oficial.nome}” e acompanha quando o item muda de grupo ou o grupo é renomeado.</p>
+          <label className="campo-form">Chave do campo (não muda depois)
+            <input className="input-cheio" value={chave} disabled={fixa} onChange={e => setChave(e.target.value)} />
+            {fixa ? <small className="muted">O grupo já foi oficial antes: a chave é a mesma.</small>
+              : !chaveValida(chave) ? <small className="texto-alerta">Use minúsculas, números e "_", começando por letra.</small> : RESERVADAS.has(chave) && <small className="texto-alerta">Chave reservada.</small>}
+          </label>
+        </>
+      ) : (
+        <p className="muted fr-small">O cadastro oficial deixa de acompanhar os grupos: os documentos guardam o último nome de grupo de cada item. Os grupos do quadro não mudam.</p>
       )}
       {erro && <p className="aviso-erro">{erro}</p>}
     </Modal>
