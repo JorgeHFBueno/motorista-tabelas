@@ -645,7 +645,8 @@ async function dadosDaConciliacao(quadroId: number, colecao: string) {
     db.collection('friday-colunas').where('quadro_id', '==', quadroId).get(),
   ]);
   const docsItens = itensSnap.docs.filter(d => !d.data().excluido_em && d.data().item_pai_id == null);
-  const itens: ItemConciliavel[] = docsItens.map(d => {
+  // Itens arquivados (ex.: duplicados da conciliação) ficam fora da análise, mas um arquivado vinculado ainda segura o registro.
+  const itens: ItemConciliavel[] = docsItens.filter(d => !d.data().arquivado_em).map(d => {
     const i = d.data();
     return { id: Number(i.id), nome: String(i.nome ?? ''), valores: i.valores ?? {}, vinculado: !!registro && i.vinculo?.cadastro === registro.chave };
   });

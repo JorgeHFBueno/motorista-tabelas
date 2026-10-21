@@ -823,4 +823,25 @@ body.redimensionando .friday-root, body.redimensionando .friday-root * { cursor:
 .friday-root .conc-tabela th, .friday-root .conc-tabela td { border-bottom: 1px solid var(--borda-suave); padding: 4px 8px; text-align: right; }
 .friday-root .conc-tabela th:first-child, .friday-root .conc-tabela td:first-child { text-align: left; }
 .friday-root .conc-riscado { text-decoration: line-through; opacity: .6; }
+/* página da conciliação: parte 1 em 4 colunas, parte 2 em 2 */
+.friday-root .conc-pagina { max-width: 1600px; }
+.friday-root .conc-topo { position: sticky; top: 0; z-index: 5; background: var(--superficie); display: flex; justify-content: space-between; align-items: flex-end; gap: 16px; padding: 4px 0 12px; border-bottom: 1px solid var(--borda-suave); flex-wrap: wrap; }
+.friday-root .conc-topo h1 { margin: 6px 0 4px; font-size: 22px; }
+.friday-root .conc-topo-titulo { min-width: 0; flex: 1 1 420px; }
+.friday-root .conc-topo-acoes { display: flex; gap: 8px; }
+.friday-root .conc-parte { padding: 16px 0 4px; }
+.friday-root .conc-parte h2 { font-size: 16px; margin: 0 0 10px; }
+.friday-root .conc-grade4 { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
+.friday-root .conc-grade2 { display: grid; grid-template-columns: minmax(0, 3fr) minmax(0, 2fr); gap: 12px; }
+.friday-root .conc-cartao { border: 1px solid var(--borda-suave); border-radius: 8px; display: flex; flex-direction: column; min-width: 0; }
+.friday-root .conc-cartao-cab { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; padding: 8px 10px; border-bottom: 1px solid var(--borda-suave); font-weight: 600; font-size: 14px; }
+.friday-root .conc-cartao-cab small { font-weight: 400; flex-basis: 100%; }
+.friday-root .conc-cartao-lista { max-height: 460px; overflow-y: auto; display: flex; flex-direction: column; gap: 8px; padding: 8px 10px; }
+.friday-root .conc-cartao-lista.conc-campos { max-height: 560px; }
+.friday-root .conc-linha-item { display: flex; flex-direction: column; gap: 4px; font-size: 13px; padding-bottom: 8px; border-bottom: 1px dashed var(--borda-suave); }
+.friday-root .conc-linha-item:last-child { border-bottom: 0; }
+.friday-root .conc-linha-item.check-form { flex-direction: row; align-items: flex-start; }
+.friday-root .conc-linha-item .input-cheio { height: 30px; }
+@media (max-width: 1100px) { .friday-root .conc-grade4 { grid-template-columns: repeat(2, minmax(0, 1fr)); } .friday-root .conc-grade2 { grid-template-columns: 1fr; } }
+@media (max-width: 640px) { .friday-root .conc-grade4 { grid-template-columns: 1fr; } .friday-root .conc-campo { grid-template-columns: 1fr; } .friday-root .conc-linha { grid-template-columns: 1fr; } }
 .friday-root .cel-so-leitura { color: var(--texto-2, #555); background: repeating-linear-gradient(45deg, transparent, transparent 6px, rgba(0,0,0,.025) 6px, rgba(0,0,0,.025) 12px); cursor: not-allowed; }

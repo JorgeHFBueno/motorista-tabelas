@@ -526,7 +526,7 @@ function MenuQuadro({ quadro, acoes, confirmar, temOcultas, onMostrarOcultas, on
     ...(adm2 && !quadro.oficial && quadro.tipo !== 'subitens' ? [{ rotulo: 'Tornar oficial…', icone: <Lock size={15} />, onClick: () => setOficializar('quadro') }, 'separador' as const] : []),
     // Subitens oficiais: quadro oficial com subitens que ainda não são oficiais (ou promoção interrompida).
     // Cadastro existente: itens novos ficam sem vínculo até conciliar de novo; subitens e grupo oficiais ainda não valem.
-    ...(adm2 && existente ? [{ rotulo: 'Conciliar de novo…', icone: <Lock size={15} />, onClick: () => setOficializar('conciliar') }] : []),
+    ...(adm2 && existente ? [{ rotulo: 'Conciliar de novo…', icone: <Lock size={15} />, onClick: () => navigate(`/quadros/${quadro.id}/conciliar`) }] : []),
     ...(adm2 && quadro.oficial && !existente && quadro.oficial.subitens !== 'ativo' && acoes.dados?.sub
       ? [{ rotulo: quadro.oficial.subitens === 'migrando' ? 'Retomar subitens oficiais…' : 'Tornar subitens oficiais…', icone: <Lock size={15} />, onClick: () => setOficializar('subitens') }, 'separador' as const] : []),
     ...(adm2 && quadro.oficial ? [
@@ -555,7 +555,7 @@ function MenuQuadro({ quadro, acoes, confirmar, temOcultas, onMostrarOcultas, on
       {permissoes && <Permissoes recurso="quadro" id={Number(quadro.id)} nome={String(quadro.nome)} onFechar={() => { setPermissoes(false); acoes.recarregar(); }} />}
       {oficializar === 'quadro' && <TornarOficial quadro={quadro} colunas={acoes.dados?.colunas ?? []} onFechar={() => setOficializar(null)} onPronto={() => { setOficializar(null); acoes.recarregar(); }}
         onConciliar={() => setOficializar('conciliar')} />}
-      {oficializar === 'conciliar' && <Conciliar quadro={quadro} colunas={acoes.dados?.colunas ?? []} onFechar={() => setOficializar(null)} onPronto={() => { setOficializar(null); acoes.recarregar(); }} />}
+      {oficializar === 'conciliar' && <Conciliar quadroId={Number(quadro.id)} colunas={acoes.dados?.colunas ?? []} onFechar={() => setOficializar(null)} />}
       {oficializar === 'subitens' && acoes.dados?.sub && <TornarOficial quadro={quadro} colunas={acoes.dados.sub.colunas}
         subitens={{ nomeItem: String(acoes.dados.sub.nome_item || 'Subitem'), chave: quadro.oficial?.subitens === 'migrando' ? quadro.oficial.sub_chave : null }}
         onFechar={() => setOficializar(null)} onPronto={() => { setOficializar(null); acoes.recarregar(); }} />}
