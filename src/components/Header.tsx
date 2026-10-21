@@ -6,19 +6,16 @@ import MenuRoundedIcon from '@mui/icons-material/MenuRounded';
 import PersonOutlineRoundedIcon from '@mui/icons-material/PersonOutlineRounded';
 import LogoutRoundedIcon from '@mui/icons-material/LogoutRounded';
 import { Bell, HelpCircle } from 'lucide-react';
-import { Link, useLocation } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useState, type ReactNode } from 'react';
-import PerfilDialog from './PerfilDialog';
 import MenuLateral from './MenuLateral';
 import { useAuth } from '../contexts/AuthContext';
+import { iniciais } from '../services/funcionarios';
 
 // Páginas sem menu lateral: a Home já é o menu; as demais são de quem ainda não entrou.
 const SEM_MENU_LATERAL = ['/', '/login', '/signup', '/acesso-negado'];
 
 const botaoIconeSx = { color: '#fff', width: 40, height: 40, '&:hover': { bgcolor: 'rgb(255 255 255 / 0.12)' } };
-
-// Mesma regra do avatar do Friday: primeira letra das duas primeiras palavras (sem o domínio, se for e-mail).
-const iniciais = (nome: string) => nome.replace(/@.*/, '').split(/\s+/).filter(Boolean).slice(0, 2).map((p) => p[0]).join('').toUpperCase() || '?';
 
 // Botão do cabeçalho cuja função ainda não existe: abre um aviso curto.
 function BotaoEmBreve({ rotulo, icone, mensagem }: { rotulo: string; icone: ReactNode; mensagem: string }) {
@@ -41,7 +38,7 @@ function BotaoEmBreve({ rotulo, icone, mensagem }: { rotulo: string; icone: Reac
 export default function Header() {
   const { currentUser, authorizationProfile, signOut } = useAuth();
   const location = useLocation();
-  const [perfilOpen, setPerfilOpen] = useState(false);
+  const navigate = useNavigate();
   const [menuLateralOpen, setMenuLateralOpen] = useState(false);
   const [menuUsuario, setMenuUsuario] = useState<HTMLElement | null>(null);
   const noFriday = location.pathname === '/friday' || location.pathname.startsWith('/friday/');
@@ -80,9 +77,9 @@ export default function Header() {
                   {currentUser.email && currentUser.email !== nome && <Typography variant="body2" color="text.secondary" noWrap>{currentUser.email}</Typography>}
                 </Box>
                 <Divider />
-                <MenuItem onClick={() => { setMenuUsuario(null); setPerfilOpen(true); }}>
+                <MenuItem onClick={() => { setMenuUsuario(null); navigate('/perfil'); }}>
                   <ListItemIcon><PersonOutlineRoundedIcon fontSize="small" /></ListItemIcon>
-                  Usuário
+                  Meu perfil
                 </MenuItem>
                 <MenuItem onClick={() => { setMenuUsuario(null); signOut(); }}>
                   <ListItemIcon><LogoutRoundedIcon fontSize="small" /></ListItemIcon>
@@ -103,7 +100,6 @@ export default function Header() {
         </Container>
       </Navbar>
       {comMenuLateral && <MenuLateral open={menuLateralOpen} onClose={() => setMenuLateralOpen(false)} />}
-      <PerfilDialog open={perfilOpen} onClose={() => setPerfilOpen(false)} />
     </>
   );
 }

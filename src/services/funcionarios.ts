@@ -29,6 +29,35 @@ export type LegacyMotoristaRecord = {
   ordem?: number;
 };
 
+// Primeira letra das duas primeiras palavras (sem o domínio, se for e-mail); mesma regra do avatar do Friday.
+export function iniciais(nome: string) {
+  return nome.replace(/@.*/, '').split(/\s+/).filter(Boolean).slice(0, 2).map((p) => p[0]).join('').toUpperCase() || '?';
+}
+
+const ROTULOS_PERFIS: Array<[string, string]> = [
+  ['adm2', 'Adm2'],
+  ['adm1', 'Adm1'],
+  ['motorista', 'Motorista'],
+  ['mecanico', 'Mecânico'],
+  ['user', 'User'],
+];
+
+// Perfis marcados como true em funcionarios/{uid}.perfis, na ordem de importância; chaves desconhecidas vêm no fim.
+export function perfisMarcados(perfis: unknown): string[] {
+  if (!perfis || typeof perfis !== 'object') return [];
+  const valores = perfis as Record<string, unknown>;
+  const conhecidos = ROTULOS_PERFIS.filter(([chave]) => valores[chave] === true).map(([, rotulo]) => rotulo);
+  const outros = Object.keys(valores).filter((chave) => valores[chave] === true && !ROTULOS_PERFIS.some(([c]) => c === chave)).sort();
+  return [...conhecidos, ...outros];
+}
+
+const CAMPOS_CONHECIDOS = new Set(['nome', 'email', 'ativo', 'perfis', 'motorista', 'createdAt', 'updatedAt']);
+
+// Campos de funcionarios/{uid} que a tela de perfil não exibe em destaque, para mostrá-los também.
+export function camposExtrasFuncionario(data: Record<string, unknown>) {
+  return Object.keys(data).filter((chave) => !CAMPOS_CONHECIDOS.has(chave)).sort().map((chave) => [chave, data[chave]] as const);
+}
+
 export function normalizeName(value: string | null | undefined) {
   return (value ?? '')
     .normalize('NFD')

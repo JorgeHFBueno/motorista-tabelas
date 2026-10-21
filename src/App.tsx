@@ -34,6 +34,7 @@ const CronogramaObrasPage = lazy(() => import('./features/cronograma-obras/Crono
 const PrazosContratuaisPage = lazy(() => import('./features/prazos-contratuais/PrazosContratuaisPage'));
 const EngenhariaObrasPage = lazy(() => import('./pages/EngenhariaObrasPage'));
 const TheManuscriptPage = lazy(() => import('./pages/TheManuscriptPage'));
+const MeuPerfilPage = lazy(() => import('./pages/MeuPerfilPage'));
 const FridayApp = lazy(() => import('./features/friday-gestao-interna/App'));
 
 function LoadingFallback({ label }: { label?: string }) {
@@ -62,6 +63,7 @@ export default function App() {
           <Route element={<EmployeeRoute />}>
             <Route path="the-manuscript/*" element={<TheManuscriptPage />} />
             <Route path="friday/*" element={<FridayApp />} />
+            <Route path="perfil" element={<MeuPerfilPage />} />
           </Route>
           <Route element={<PrivateRoute />}>
             <Route index element={<HomeDashboard />} />

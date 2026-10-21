@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { buildFuncionario, namesAreEquivalent, normalizeName } from '../src/services/funcionarios';
+import { buildFuncionario, camposExtrasFuncionario, iniciais, namesAreEquivalent, normalizeName, perfisMarcados } from '../src/services/funcionarios';
 
 test('normalizes names only for non-destructive suggestions', () => {
   assert.equal(normalizeName('  Ámilton  Pinheiro-Fortes '), 'amilton pinheiro fortes');
@@ -27,4 +27,21 @@ test('builds non-driver employee without motorista object', () => {
   assert.equal(employee.perfis.adm1, true);
   assert.equal(employee.perfis.motorista, false);
   assert.equal('motorista' in employee, false);
+});
+
+test('profile page lists only true perfis, known ones first', () => {
+  assert.deepEqual(perfisMarcados({ user: true, adm1: false, motorista: true, adm2: true, mecanico: true, novo: true, outro: false }), ['Adm2', 'Motorista', 'Mecânico', 'User', 'novo']);
+  assert.deepEqual(perfisMarcados(undefined), []);
+  assert.deepEqual(perfisMarcados('adm2'), []);
+});
+
+test('profile page shows funcionarios fields beyond the known ones', () => {
+  const extras = camposExtrasFuncionario({ nome: 'A', email: 'a@x.com', ativo: true, perfis: {}, motorista: { ordem: 1 }, createdAt: 1, updatedAt: 2, telefone: '51', cpf: '1' });
+  assert.deepEqual(extras, [['cpf', '1'], ['telefone', '51']]);
+});
+
+test('avatar initials use the first two words, without e-mail domain', () => {
+  assert.equal(iniciais('Jorge Henrique Fiel'), 'JH');
+  assert.equal(iniciais('jorge@example.com'), 'J');
+  assert.equal(iniciais(''), '?');
 });

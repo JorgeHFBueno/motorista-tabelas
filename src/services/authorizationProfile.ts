@@ -14,3 +14,9 @@ const readAuthorizationProfile = createAuthorizationProfileReader(async (uid) =>
 export function getAuthorizationProfile(uid: string) {
   return readAuthorizationProfile(uid);
 }
+
+// Documento completo do próprio funcionário, para a página Meu perfil (somente leitura; Rules não permitem escrita).
+export async function getFuncionarioData(uid: string) {
+  const snapshot = await getDoc(doc(db, EMPLOYEES_COLLECTION, uid));
+  return snapshot.exists() ? snapshot.data() : null;
+}
