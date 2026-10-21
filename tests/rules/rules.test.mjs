@@ -13,9 +13,11 @@ import {
   doc,
   getDoc,
   getDocs,
+  query,
   runTransaction,
   setDoc,
   updateDoc,
+  where,
   writeBatch,
 } from 'firebase/firestore';
 import {
@@ -41,6 +43,8 @@ const identities = {
   canonicalInactive: { uid: 'uid-canonical-inactive', email: 'canonical-inactive@example.com' },
   canonicalPrecedence: { uid: 'uid-canonical-precedence', email: 'canonical-precedence@example.com' },
   canonicalInactivePrecedence: { uid: 'uid-canonical-inactive-precedence', email: 'canonical-inactive-precedence@example.com' },
+  legacyOnly: { uid: 'uid-legacy-only', email: 'legacy-only@example.com' },
+  mecanico: { uid: 'uid-mecanico', email: 'mecanico@example.com' },
 };
 
 function dbAs(name, tokenOverrides = {}) {
@@ -81,6 +85,21 @@ async function seed() {
     await canonicalEmployee('uid-canonical-inactive-precedence', 'canonical-inactive-precedence@example.com', false, { adm1: false, adm2: true, user: false, motorista: false });
     await setDoc(doc(db, '00-autorizados', 'canonical-precedence@example.com'), { nome: 'Legacy elevation', ativo: true, adm2: true });
     await setDoc(doc(db, '00-autorizados', 'canonical-inactive-precedence@example.com'), { nome: 'Legacy active', ativo: true, adm2: true });
+    // 00-autorizados no longer authorizes: the legacy identities also have their funcionarios document.
+    const employeeLike = (uid, nome, email, ativo, perfis) => setDoc(doc(db, 'funcionarios', uid), {
+      nome, email, ativo, perfis: { adm1: false, adm2: false, user: false, motorista: false, ...perfis },
+      createdAt: Timestamp.fromMillis(1), updatedAt: Timestamp.fromMillis(1),
+    });
+    await employeeLike('uid-adm1', 'Adm1', 'adm1@example.com', true, { adm1: true });
+    await employeeLike('uid-adm2', 'Adm2', 'adm2@example.com', true, { adm2: true });
+    await employeeLike('uid-admin', 'Admin claim', 'admin@example.com', true, {});
+    await employeeLike('uid-inactive', 'Inactive', 'inactive@example.com', false, { adm2: true });
+    await employeeLike('uid-mecanico', 'Mecanico', 'mecanico@example.com', true, { mecanico: true });
+    await setDoc(doc(db, '00-autorizados', 'legacy-only@example.com'), { nome: 'Legacy only', ativo: true, adm2: true });
+    await setDoc(doc(db, 'veiculos-v2', 'vv-inativo'), {
+      schemaVersion: 2, cadastro: { ativo: false }, identificacao: { categoria: 'PLACA', identificador: 'OLD1A23', nome: 'Caminhão parado' },
+      operacional: { quilometragemUltima: 90000 },
+    });
     await setDoc(doc(db, 'veiculos', 'v1'), { placa: 'ABC1D23', categoria: 'truck', quilometragemUltima: 100, dataUltimaAtualizacao: 1 });
     await setDoc(doc(db, 'bombas', 'diesel_patio'), { nomeBomba: 'Pátio', montanteAtual: 1000, estoqueAtual: 5000, ultimoAbastecimento: 1, ultimoFrentista: 'old', ativo: true });
     await setDoc(doc(db, 'atividades', 'historic'), { tipo: 'saida', motorista: 'uid-user' });
@@ -150,7 +169,13 @@ test('[firestore] canonical employee denies legacy privilege elevation', async (
 test('[firestore] canonical inactive employee denies legacy authorization', async () => assertFails(getDoc(doc(dbAs('canonicalInactivePrecedence'), 'veiculos', 'v1'))));
 test('[firestore] normal authorized reads vehicle', async () => assertSucceeds(getDoc(doc(dbAs('user'), 'veiculos', 'v1'))));
 test('[firestore] adm1 remains an authorized operational user', async () => assertSucceeds(getDoc(doc(dbAs('adm1'), 'veiculos', 'v1'))));
-test('[firestore] uppercase Auth email resolves lowercase profile ID', async () => assertSucceeds(getDoc(doc(dbAs('user', { email: 'User@Example.COM' }), 'veiculos', 'v1'))));
+test('[firestore] legacy-only profile (00-autorizados, no funcionarios) is denied, even active adm2', async () => {
+  const db = dbAs('legacyOnly');
+  await assertFails(getDoc(doc(db, 'veiculos', 'v1')));
+  await assertFails(getDocs(collection(db, 'notificacoes')));
+  await assertFails(setDoc(doc(db, 'configuracoes', 'legacy-only'), { enabled: true }));
+  await assertFails(getDocs(collection(db, 'funcionarios')));
+});
 test('[firestore] own lowercase profile can be read with uppercase Auth email', async () => assertSucceeds(getDoc(doc(dbAs('user', { email: 'User@Example.COM' }), '00-autorizados', 'user@example.com'))));
 test('[firestore] normal user cannot get an arbitrary profile', async () => assertFails(getDoc(doc(dbAs('user'), '00-autorizados', 'adm1@example.com'))));
 test('[firestore] adm2 can get an arbitrary profile', async () => assertSucceeds(getDoc(doc(dbAs('adm2'), '00-autorizados', 'user@example.com'))));
@@ -283,6 +308,13 @@ test('[firestore] normal fuel update is denied', async () => assertFails(updateD
 test('[firestore] normal fuel delete is denied', async () => assertFails(deleteDoc(doc(dbAs('user'), '03-combustivel', 'fuel-existing'))));
 test('[firestore] custom claim admin updates fuel', async () => assertSucceeds(updateDoc(doc(dbAs('admin'), '03-combustivel', 'fuel-existing'), { lf: 31 })));
 test('[firestore] custom claim admin deletes fuel', async () => { await setDoc(doc(dbAs('user'), '03-combustivel', 'fuel-admin-delete'), { lf: 1 }); await assertSucceeds(deleteDoc(doc(dbAs('admin'), '03-combustivel', 'fuel-admin-delete'))); });
+test('[firestore] adm2 corrects and deletes fuel records (WEB document inspector); adm1 cannot', async () => {
+  await setDoc(doc(dbAs('user'), '03-combustivel', 'fuel-adm2-inspector'), { lf: 1 });
+  await assertFails(updateDoc(doc(dbAs('canonicalAdm1'), '03-combustivel', 'fuel-adm2-inspector'), { lf: 2 }));
+  await assertSucceeds(updateDoc(doc(dbAs('canonicalAdm2'), '03-combustivel', 'fuel-adm2-inspector'), { lf: 3 }));
+  await assertFails(deleteDoc(doc(dbAs('canonicalAdm1'), '03-combustivel', 'fuel-adm2-inspector')));
+  await assertSucceeds(deleteDoc(doc(dbAs('canonicalAdm2'), '03-combustivel', 'fuel-adm2-inspector')));
+});
 
 // Saída V2 no formato do contrato (Manuscript 02_PROCESSOS/combustivel-saida-v2.md), como o app grava.
 function v2Output(overrides = {}) {
@@ -484,6 +516,11 @@ test('[storage] object overwrite remains denied', async () => {
   await seedStorageObject(path);
   await assertFails(uploadBytes(ref(storageAs('adm2'), path), image, { contentType: 'image/jpeg' }));
 });
+test('[storage] a well-named existing checklist photo cannot be overwritten', async () => {
+  const path = 'checklists/saidas/a/pneus_20261021_101500.jpg';
+  await seedStorageObject(path);
+  await assertFails(uploadBytes(ref(storageAs('canonicalUser'), path), image, { contentType: 'image/jpeg' }));
+});
 test('[storage] object delete remains denied', async () => {
   const path = 'checklists/saidas/a/delete.jpg';
   await seedStorageObject(path);
@@ -514,7 +551,7 @@ test('[storage] inactive legacy profile is denied even carrying adm2', async () 
 test('[firestore] active employees list funcionarios (app pickers); legacy-only and inactive cannot', async () => {
   await assertSucceeds(getDocs(collection(dbAs('canonicalUser'), 'funcionarios')));
   await assertSucceeds(getDocs(collection(dbAs('user'), 'funcionarios')));
-  await assertFails(getDocs(collection(dbAs('adm1'), 'funcionarios')));
+  await assertFails(getDocs(collection(dbAs('legacyOnly'), 'funcionarios')));
   await assertFails(getDocs(collection(dbAs('canonicalInactive'), 'funcionarios')));
   await assertFails(getDocs(collection(env.unauthenticatedContext().firestore(), 'funcionarios')));
 });
@@ -622,7 +659,7 @@ test('[firestore] Friday: items keep "vinculo" and import control written only b
 });
 test('[firestore] Friday: generic resources still open to active employees only', async () => {
   await assertSucceeds(setDoc(doc(dbAs('canonicalUser'), 'friday-grupos', '40'), { id: 40, quadro_id: 10, nome: 'Grupo' }));
-  await assertFails(setDoc(doc(dbAs('adm2'), 'friday-grupos', '41'), { id: 41, quadro_id: 10, nome: 'Legado' }));
+  await assertFails(setDoc(doc(dbAs('legacyOnly'), 'friday-grupos', '41'), { id: 41, quadro_id: 10, nome: 'Legado' }));
   await assertFails(setDoc(doc(dbAs('canonicalInactive'), 'friday-grupos', '42'), { id: 42, quadro_id: 10, nome: 'Inativo' }));
 });
 test('[firestore] Friday: attachments and executions are read/delete only; imports closed; meta only "indices"', async () => {
@@ -651,4 +688,113 @@ test('[firestore] Friday: a person enters as "membro" and cannot self-elevate', 
   await assertSucceeds(setDoc(doc(dbAs('canonicalAdm1'), 'friday-usuarios', 'uid-canonical-adm1'), { id: 1, uid: 'uid-canonical-adm1', nome: 'A', acesso: 'membro', ativo: 1 }));
   await assertFails(setDoc(doc(dbAs('canonicalUser'), 'friday-usuarios', 'uid-canonical-user'), { id: 2, uid: 'uid-canonical-user', nome: 'U', acesso: 'admin', ativo: 1 }));
   await assertFails(updateDoc(doc(dbAs('canonicalAdm1'), 'friday-usuarios', 'uid-canonical-adm1'), { acesso: 'admin' }));
+});
+
+// ------------------------------------------------------------------ revisão das Rules (2026-10-21)
+// Item de frota inativo: o cliente decide o que oferece; as Rules aceitam medidor, combustível e Saída nele.
+test('[firestore] inactive fleet item: meter update, fuel V2 output and V2 activity are accepted', async () => {
+  await assertSucceeds(updateDoc(doc(dbAs('canonicalUser'), 'veiculos-v2', 'vv-inativo'), { 'operacional.quilometragemUltima': 90100, 'operacional.dataUltimaAtualizacao': Timestamp.fromMillis(2) }));
+  await assertFails(updateDoc(doc(dbAs('canonicalUser'), 'veiculos-v2', 'vv-inativo'), { 'operacional.quilometragemUltima': 80000 }));
+  const inativo = { item_frota_id: 'vv-inativo', item_frota_snapshot: { categoria: 'PLACA', identificador: 'OLD1A23', nome: 'Caminhão parado' } };
+  await coherentV2Write('fuel-v2-inativo', { ...inativo, quilometragem: 90200 });
+  await assertSucceeds(setDoc(doc(dbAs('user'), 'atividades', 'v2-inativo'), atividadeV2({ ...inativo, km: 90300 })));
+});
+
+function checklistV2(overrides = {}) {
+  return {
+    schemaVersion: 1, tipo: 'saida', catalogo: 'veiculos', catalogoVersao: '1',
+    item_frota_id: 'vv1', item_frota_snapshot: { categoria: 'PLACA', identificador: 'ABC1D23', nome: 'Caminhão 1' },
+    medidor: { tipo: 'km', valor: 126000, anterior: 125000 }, guincho: false,
+    criadoPor: { uid: 'uid-mecanico', nome: 'Mecanico' }, criadoPorUid: 'uid-mecanico',
+    iniciadoEm: Timestamp.fromMillis(1), concluidoEm: Timestamp.fromMillis(2), registradoEm: Timestamp.fromMillis(3),
+    totais: { ok: 1, avaria: 0, naoSeAplica: 0 },
+    itens: [{ itemId: 'frente_farolete', parte: 'frente', titulo: 'Farolete', status: 'ok', observacao: null, fotos: [] }],
+    ...overrides,
+  };
+}
+
+test('[firestore] checklists-v2: mechanic saves in one transaction (read before create, meter update)', async () => {
+  const db = dbAs('mecanico');
+  const checklist = doc(db, 'checklists-v2', 'AbCdEfGhIjKlMnOpQrSt');
+  const veiculo = doc(db, 'veiculos-v2', 'vv-inativo');
+  await assertSucceeds(runTransaction(db, async (tx) => {
+    if ((await tx.get(checklist)).exists()) return;
+    await tx.get(veiculo);
+    tx.set(checklist, checklistV2({
+      item_frota_id: 'vv-inativo', item_frota_snapshot: { categoria: 'PLACA', identificador: 'OLD1A23', nome: 'Caminhão parado' },
+      medidor: { tipo: 'km', valor: 95000, anterior: 90100 },
+    }));
+    tx.update(veiculo, { 'operacional.quilometragemUltima': 95000, 'operacional.dataUltimaAtualizacao': Timestamp.fromMillis(4) });
+  }));
+});
+test('[firestore] checklists-v2: mechanic and adm2 read all; other employees and legacy-only cannot', async () => {
+  await assertSucceeds(getDocs(query(collection(dbAs('mecanico'), 'checklists-v2'), where('item_frota_id', '==', 'vv-inativo'))));
+  await assertSucceeds(getDocs(collection(dbAs('canonicalAdm2'), 'checklists-v2')));
+  await assertSucceeds(getDoc(doc(dbAs('mecanico'), 'checklists-v2', 'ainda-nao-existe')));
+  await assertFails(getDocs(collection(dbAs('canonicalUser'), 'checklists-v2')));
+  await assertFails(getDocs(collection(dbAs('canonicalAdm1'), 'checklists-v2')));
+  await assertFails(getDocs(collection(dbAs('legacyOnly'), 'checklists-v2')));
+});
+test('[firestore] checklists-v2: adm2 creates; plain employee cannot', async () => {
+  await assertSucceeds(setDoc(doc(dbAs('canonicalAdm2'), 'checklists-v2', 'adm2-checklist'), checklistV2({ criadoPor: { uid: 'uid-canonical-adm2', nome: 'uid-canonical-adm2' }, criadoPorUid: 'uid-canonical-adm2' })));
+  await assertFails(setDoc(doc(dbAs('canonicalUser'), 'checklists-v2', 'user-checklist'), checklistV2({ criadoPor: { uid: 'uid-canonical-user', nome: 'x' }, criadoPorUid: 'uid-canonical-user' })));
+});
+test('[firestore] checklists-v2: rejects forged author and invalid shape', async () => {
+  const db = dbAs('mecanico');
+  const bad = {
+    'forged-uid': { criadoPorUid: 'uid-other' },
+    'forged-snapshot': { criadoPor: { uid: 'uid-other', nome: 'Mecanico' } },
+    schema: { schemaVersion: 2 },
+    tipo: { tipo: 'outro' },
+    catalogo: { catalogo: 'outros' },
+    'no-vehicle': { item_frota_id: 'nao-existe' },
+    'fractional-meter': { medidor: { tipo: 'km', valor: 10.5, anterior: null } },
+    'negative-meter': { medidor: { tipo: 'km', valor: -1, anterior: null } },
+    'no-meter': { medidor: null },
+    'itens-map': { itens: { a: 1 } },
+  };
+  for (const [id, change] of Object.entries(bad)) {
+    await assertFails(setDoc(doc(db, 'checklists-v2', `bad-${id}`), checklistV2(change)));
+  }
+});
+test('[firestore] checklists-v2: immutable', async () => {
+  await assertSucceeds(setDoc(doc(dbAs('mecanico'), 'checklists-v2', 'imutavel'), checklistV2()));
+  await assertFails(updateDoc(doc(dbAs('mecanico'), 'checklists-v2', 'imutavel'), { guincho: true }));
+  await assertFails(updateDoc(doc(dbAs('canonicalAdm2'), 'checklists-v2', 'imutavel'), { guincho: true }));
+  await assertFails(deleteDoc(doc(dbAs('canonicalAdm2'), 'checklists-v2', 'imutavel')));
+});
+
+test('[storage] legacy-only profile (00-autorizados, no funcionarios) is denied', async () => {
+  const path = 'checklists/saidas/a/legacy-only.jpg';
+  await seedStorageObject(path);
+  await assertFails(getBytes(ref(storageAs('legacyOnly'), path)));
+  await assertFails(uploadBytes(ref(storageAs('legacyOnly'), 'checklists/saidas/at1/pneus_20261021_101500.jpg'), image, { contentType: 'image/jpeg' }));
+});
+test('[storage] checklists-v2: mechanic and adm2 upload photos and thumbnails; others cannot', async () => {
+  await assertSucceeds(uploadBytes(ref(storageAs('mecanico'), 'checklists-v2/ck1/frente_farolete_1.jpg'), image, { contentType: 'image/jpeg' }));
+  await assertSucceeds(uploadBytes(ref(storageAs('mecanico'), 'checklists-v2/ck1/miniaturas/frente_farolete_1.jpg'), image, { contentType: 'image/jpeg' }));
+  await assertSucceeds(uploadBytes(ref(storageAs('canonicalAdm2'), 'checklists-v2/ck2/parte_mecanica_pneu_suplente_2.jpg'), image, { contentType: 'image/jpeg' }));
+  await assertFails(uploadBytes(ref(storageAs('canonicalUser'), 'checklists-v2/ck3/frente_farolete_1.jpg'), image, { contentType: 'image/jpeg' }));
+  await assertFails(uploadBytes(ref(storageAs('canonicalAdm1'), 'checklists-v2/ck3/frente_farolete_1.jpg'), image, { contentType: 'image/jpeg' }));
+  await assertFails(uploadBytes(ref(storageAs('legacyOnly'), 'checklists-v2/ck3/frente_farolete_1.jpg'), image, { contentType: 'image/jpeg' }));
+});
+test('[storage] checklists-v2: JPEG only, size limits and file name', async () => {
+  const st = storageAs('mecanico');
+  await assertFails(uploadBytes(ref(st, 'checklists-v2/ck4/frente_farolete_1.png'), image, { contentType: 'image/png' }));
+  await assertFails(uploadBytes(ref(st, 'checklists-v2/ck4/frente_farolete_1.jpg'), image, { contentType: 'image/png' }));
+  await assertFails(uploadBytes(ref(st, 'checklists-v2/ck4/foto.jpg'), image, { contentType: 'image/jpeg' }));
+  await assertFails(uploadBytes(ref(st, 'checklists-v2/ck4/outra/frente_farolete_1.jpg'), image, { contentType: 'image/jpeg' }));
+  await assertSucceeds(uploadBytes(ref(st, 'checklists-v2/ck4/frente_farolete_2.jpg'), new Uint8Array(2 * 1024 * 1024), { contentType: 'image/jpeg' }));
+  await assertFails(uploadBytes(ref(st, 'checklists-v2/ck4/frente_farolete_3.jpg'), new Uint8Array(2 * 1024 * 1024 + 1), { contentType: 'image/jpeg' }));
+  await assertSucceeds(uploadBytes(ref(st, 'checklists-v2/ck4/miniaturas/frente_farolete_2.jpg'), new Uint8Array(200 * 1024), { contentType: 'image/jpeg' }));
+  await assertFails(uploadBytes(ref(st, 'checklists-v2/ck4/miniaturas/frente_farolete_3.jpg'), new Uint8Array(200 * 1024 + 1), { contentType: 'image/jpeg' }));
+});
+test('[storage] checklists-v2: read by mechanic and adm2; never overwritten or deleted', async () => {
+  const path = 'checklists-v2/ck5/frente_farolete_1.jpg';
+  await seedStorageObject(path);
+  await assertSucceeds(getBytes(ref(storageAs('mecanico'), path)));
+  await assertSucceeds(getBytes(ref(storageAs('canonicalAdm2'), path)));
+  await assertFails(getBytes(ref(storageAs('canonicalUser'), path)));
+  await assertFails(uploadBytes(ref(storageAs('mecanico'), path), image, { contentType: 'image/jpeg' }));
+  await assertFails(deleteObject(ref(storageAs('canonicalAdm2'), path)));
 });

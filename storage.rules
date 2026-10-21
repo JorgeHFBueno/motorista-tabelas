@@ -1,39 +1,43 @@
 rules_version = '2';
 
-// Fonte única das Rules de Storage do projeto app-motor-api (WEB e app Flutter). Base: as Rules publicadas em
-// produção em 2026-10-20, com autorização por funcionarios/{uid} e 00-autorizados como fallback de transição.
-// Contrato no Manuscript (01_FIRESTORE/03_RULES.md). Não publicar sem a revisão do app Flutter.
+// Fonte única das Rules de Storage do projeto app-motor-api (WEB e app Flutter). Autorização só por
+// funcionarios/{uid}. Contrato no Manuscript (01_FIRESTORE/03_RULES.md).
 service firebase.storage {
   match /b/{bucket}/o {
     function signedIn() {
       return request.auth != null;
     }
 
-    function authEmail() {
-      return request.auth.token.get('email', '').lower();
-    }
-
     function employeePath() {
       return /databases/(default)/documents/funcionarios/$(request.auth.uid);
     }
 
-    function legacyPath() {
-      return /databases/(default)/documents/00-autorizados/$(authEmail());
-    }
-
-    function legacyProfile() {
-      return firestore.get(legacyPath()).data;
-    }
-
     function isAuthorized() {
       return signedIn()
-        && (
-          firestore.exists(employeePath())
-            ? firestore.get(employeePath()).data.get('ativo', false) == true
-            : authEmail() != ''
-              && firestore.exists(legacyPath())
-              && legacyProfile().get('ativo', legacyProfile().get('active', true)) == true
-        );
+        && firestore.exists(employeePath())
+        && firestore.get(employeePath()).data.get('ativo', false) == true;
+    }
+
+    function hasPerfil(perfil) {
+      return isAuthorized()
+        && firestore.get(employeePath()).data.get('perfis', {}).get(perfil, false) == true;
+    }
+
+    // Mechanic checklist (app): mechanics and adm2.
+    function isChecklistV2User() {
+      return hasPerfil('mecanico') || hasPerfil('adm2');
+    }
+
+    // Writing over an existing object is evaluated as create; resource == null keeps files from being replaced.
+    function isNewObject() {
+      return resource == null;
+    }
+
+    function isChecklistV2Jpeg(maxBytes, arquivo) {
+      return isNewObject()
+        && request.resource.contentType == 'image/jpeg'
+        && request.resource.size <= maxBytes
+        && arquivo.matches('^[a-z0-9_]+_[0-9]+\\.jpg$');
     }
 
     function isChecklistVehicleFlow(fluxo) {
@@ -60,10 +64,25 @@ service firebase.storage {
       allow read: if isAuthorized() && isChecklistVehicleFlow(fluxo);
 
       allow create: if isAuthorized()
+        && isNewObject()
         && isChecklistVehicleFlow(fluxo)
         && isChecklistImage()
         && isChecklistPhotoFile(arquivo);
 
+      allow update, delete: if false;
+    }
+
+    // Mechanic checklist photos <itemId>_<n>.jpg (the app keeps them under 1 MB) and thumbnails. The app checks
+    // whether a file already exists before re-sending and downloads photos to the gallery; never overwritten.
+    match /checklists-v2/{checklistId}/{arquivo} {
+      allow read: if isChecklistV2User();
+      allow create: if isChecklistV2User() && isChecklistV2Jpeg(2 * 1024 * 1024, arquivo);
+      allow update, delete: if false;
+    }
+
+    match /checklists-v2/{checklistId}/miniaturas/{arquivo} {
+      allow read: if isChecklistV2User();
+      allow create: if isChecklistV2User() && isChecklistV2Jpeg(200 * 1024, arquivo);
       allow update, delete: if false;
     }
 

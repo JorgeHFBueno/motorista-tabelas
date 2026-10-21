@@ -29,52 +29,27 @@ service cloud.firestore {
       ).data;
     }
 
-    function legacyProfileExists() {
-      return signedIn()
-        && authEmail() != ''
-        && exists(
-          /databases/$(database)/documents/00-autorizados/$(authEmail())
-        );
-    }
-
-    function legacyProfile() {
-      return get(
-        /databases/$(database)/documents/00-autorizados/$(authEmail())
-      ).data;
-    }
-
-    // funcionarios/{uid} is the canonical identity; 00-autorizados is a transition fallback used only when the
-    // employee document does not exist.
+    // funcionarios/{uid} is the only identity. 00-autorizados (legacy) no longer authorizes anything.
     function isAuthorized() {
       return employeeExists()
-        ? employee().get('ativo', false) == true
-        : legacyProfileExists()
-          && legacyProfile().get(
-            'ativo',
-            legacyProfile().get('active', true)
-          ) == true;
+        && employee().get('ativo', false) == true;
+    }
+
+    function hasPerfil(perfil) {
+      return isAuthorized()
+        && employee().get('perfis', {}).get(perfil, false) == true;
     }
 
     function isAdm1() {
-      return employeeExists()
-        ? employee().get('ativo', false) == true
-          && employee().get('perfis', {}).get('adm1', false) == true
-        : legacyProfileExists()
-          && legacyProfile().get('ativo', legacyProfile().get('active', true)) == true
-          && (legacyProfile().get('adm1', false) == true
-            || legacyProfile().get('role', '') == 'adm1'
-            || legacyProfile().get('perfil', '') == 'adm1');
+      return hasPerfil('adm1');
     }
 
     function isAdm2() {
-      return employeeExists()
-        ? employee().get('ativo', false) == true
-          && employee().get('perfis', {}).get('adm2', false) == true
-        : legacyProfileExists()
-          && legacyProfile().get('ativo', legacyProfile().get('active', true)) == true
-          && (legacyProfile().get('adm2', false) == true
-            || legacyProfile().get('role', '') == 'adm2'
-            || legacyProfile().get('perfil', '') == 'adm2');
+      return hasPerfil('adm2');
+    }
+
+    function isMecanico() {
+      return hasPerfil('mecanico');
     }
 
     function isAdmin() {
@@ -131,7 +106,8 @@ service cloud.firestore {
         && request.resource.data.get('criadoPor', {}).get('uid', '') == request.auth.uid;
     }
 
-    // Saída/Chegada V2 references an active PLACA item of veiculos-v2 and copies its identification.
+    // Saída/Chegada V2 references a PLACA item of veiculos-v2 and copies its identification. Whether the item is
+    // active is a client concern (the pickers list only active items).
     function validItemFrotaSnapshot() {
       let itemId = request.resource.data.get('item_frota_id', '');
       let snapshot = request.resource.data.get('item_frota_snapshot', {});
@@ -143,7 +119,6 @@ service cloud.firestore {
         && nonEmptyString(snapshot.get('identificador', ''))
         && nonEmptyString(snapshot.get('nome', ''))
         && item.get('schemaVersion', 0) == 2
-        && item.get('cadastro', {}).get('ativo', false) == true
         && item.get('identificacao', {}).get('categoria', '') == 'PLACA'
         && snapshot.get('identificador', '') == item.get('identificacao', {}).get('identificador', '')
         && snapshot.get('nome', '') == item.get('identificacao', {}).get('nome', '');
@@ -226,7 +201,6 @@ service cloud.firestore {
         && nonEmptyString(snapshot.get('identificador', ''))
         && nonEmptyString(snapshot.get('nome', ''))
         && item.get('schemaVersion', 0) == 2
-        && item.get('cadastro', {}).get('ativo', false) == true
         && snapshot.get('categoria', '') == item.get('identificacao', {}).get('categoria', '')
         && snapshot.get('identificador', '') == item.get('identificacao', {}).get('identificador', '')
         && snapshot.get('nome', '') == item.get('identificacao', {}).get('nome', '');
@@ -349,8 +323,8 @@ service cloud.firestore {
 
     // ================================================================ identity and legacy profiles
 
-    // Legacy authorization profiles, maintained by the Admin SDK. The app still reads its own profile for adm2
-    // screens and registers FCM tokens under it.
+    // Legacy authorization profiles (no longer used for authorization). Kept only while the app still reads its own
+    // profile on adm2 screens and registers FCM tokens under it; close when the app stops.
     match /00-autorizados/{email} {
       allow get: if isSelfEmail(email) || isAdm2();
       allow list: if isAdm1() || isAdm2();
@@ -398,7 +372,7 @@ service cloud.firestore {
     // whole document is returned (a name-only projection is a pending improvement).
     match /funcionarios/{uid} {
       allow get: if signedIn() && (request.auth.uid == uid || isAdm2());
-      allow list: if employeeExists() && isAuthorized();
+      allow list: if isAuthorized();
       allow create, update, delete: if false;
     }
 
@@ -502,7 +476,8 @@ service cloud.firestore {
       allow delete: if false;
     }
 
-    // Fleet V2. Operational users (Saída/Chegada and fuel) update only the last meter reading, never backwards.
+    // Fleet V2. Operational users (Saída/Chegada, fuel and checklist) update only the last meter reading, never
+    // backwards, whether or not the item is active.
     match /veiculos-v2/{itemFrotaId} {
       allow read: if isAuthorized();
       allow create: if isAdm2();
@@ -514,7 +489,6 @@ service cloud.firestore {
           && request.resource.data.operacional.diff(resource.data.get('operacional', {}))
             .affectedKeys().hasOnly(['quilometragemUltima', 'dataUltimaAtualizacao'])
           && request.resource.data.get('schemaVersion', 0) == 2
-          && request.resource.data.get('cadastro', {}).get('ativo', false) == true
           && request.resource.data.get('identificacao', {}).get('categoria', '') in ['PLACA', 'EXTRA']
           && request.resource.data.operacional.quilometragemUltima is int
           && (
@@ -627,6 +601,32 @@ service cloud.firestore {
       }
     }
 
+    // Mechanic checklist (app), written once after its photos are uploaded; immutable. Mechanics read every checklist
+    // (the app remembers "Não se aplica" per vehicle), and the saving transaction reads the document before it exists.
+    function validChecklistV2Create() {
+      let data = request.resource.data;
+      let itemId = data.get('item_frota_id', '');
+      let medidor = data.get('medidor', {});
+      return data.get('criadoPorUid', '') == request.auth.uid
+        && data.get('criadoPor', null) is map
+        && data.get('criadoPor', {}).get('uid', '') == request.auth.uid
+        && data.get('schemaVersion', 0) == 1
+        && data.get('tipo', '') in ['saida', 'chegada']
+        && data.get('catalogo', '') in ['veiculos', 'maquinas']
+        && nonEmptyString(itemId)
+        && exists(/databases/$(database)/documents/veiculos-v2/$(itemId))
+        && medidor is map
+        && medidor.get('valor', null) is int
+        && medidor.get('valor', -1) >= 0
+        && data.get('itens', null) is list;
+    }
+
+    match /checklists-v2/{checklistId} {
+      allow read: if isMecanico() || isAdm2();
+      allow create: if (isMecanico() || isAdm2()) && validChecklistV2Create();
+      allow update, delete: if false;
+    }
+
 
     // ================================================================ fuel
 
@@ -642,8 +642,8 @@ service cloud.firestore {
           || validLegacyFuelCreate()
         );
 
-      // Corrections go through the Admin SDK (WEB /combustivel API) or the administrative claim.
-      allow update, delete: if hasAdminClaim();
+      // Corrections: adm2 (WEB document inspector), the Admin SDK (WEB /combustivel API) or the administrative claim.
+      allow update, delete: if isAdm2() || hasAdminClaim();
     }
 
     match /bombas/{bombaId} {
