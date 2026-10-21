@@ -28,17 +28,11 @@ export function consolidateMeasurements(rows: ErpRow[]): { qtd_notas: number; va
   }, { qtd_notas: 0, valor_bruto_servico: 0 });
 }
 
-async function assertCronoObraAuthorization(uid: string, email: unknown) {
+// Active employee in funcionarios/{uid}; 00-autorizados (legacy) no longer authorizes.
+async function assertCronoObraAuthorization(uid: string) {
   const employee = await db.collection('funcionarios').doc(uid).get();
-  if (employee.exists) {
-    if (employee.data()?.ativo === true) return;
-    throw new HttpsError('permission-denied', 'Acesso não autorizado.');
-  }
-  const normalizedEmail = typeof email === 'string' ? email.toLowerCase() : '';
-  if (!normalizedEmail) throw new HttpsError('permission-denied', 'Acesso não autorizado.');
-  const legacy = await db.collection('00-autorizados').doc(normalizedEmail).get();
-  const data = legacy.data();
-  if (!legacy.exists || (data?.ativo ?? data?.active ?? true) !== true) throw new HttpsError('permission-denied', 'Acesso não autorizado.');
+  if (employee.exists && employee.data()?.ativo === true) return;
+  throw new HttpsError('permission-denied', 'Acesso não autorizado.');
 }
 
 async function query55(subcentroErp: string, token: string) {
@@ -59,7 +53,7 @@ export const syncMondaySerpMeasurements = onCall({ region: 'southamerica-east1',
     logger.info('monday-serp:start', { hasAuth: Boolean(request.auth), hasIdObra: Boolean(request.data?.idObra), hasSubcentroErp: Boolean(request.data?.subcentroErp) });
     if (!request.auth) throw new HttpsError('unauthenticated', 'Autenticação obrigatória.');
     stage = 'authorization';
-    await assertCronoObraAuthorization(request.auth.uid, request.auth.token.email);
+    await assertCronoObraAuthorization(request.auth.uid);
     logger.info('monday-serp:authorized');
     stage = 'validation';
     const idObra = typeof request.data?.idObra === 'string' ? request.data.idObra.trim() : '';
