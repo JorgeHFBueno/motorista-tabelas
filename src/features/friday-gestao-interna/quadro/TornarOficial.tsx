@@ -28,8 +28,9 @@ const promover = httpsCallable<{ quadroId: number; chave: string; nome: string; 
  * subitens: torna oficiais os subitens do quadro (já oficial). `colunas` são então as do quadro de subitens e a chave
  * é a do mapa de subitens dentro do registro do item pai.
  */
-export function TornarOficial({ quadro, colunas, subitens, onFechar, onPronto }: {
+export function TornarOficial({ quadro, colunas, subitens, onFechar, onPronto, onConciliar }: {
   quadro: Record<string, unknown>; colunas: Coluna[]; subitens?: { nomeItem: string; chave?: string | null }; onFechar: () => void; onPronto: () => void;
+  onConciliar?: () => void; // "Sim, já existe no sistema": abre a conciliação com um cadastro existente (C5)
 }) {
   const avisar = useAvisoRapido();
   const [nome, setNome] = useState(String(quadro.nome ?? ''));
@@ -81,6 +82,12 @@ export function TornarOficial({ quadro, colunas, subitens, onFechar, onPronto }:
           As colunas escolhidas viram <strong>campos oficiais</strong>: os valores migram uma vez para o cadastro <code>cadastro-{chave || '…'}</code> e,
           daí em diante, o quadro lê e grava lá. As outras colunas continuam livres. Campo oficial pode ser renomeado, mas não excluído.
         </p>
+      )}
+      {!subitens && onConciliar && (
+        <div className="oficial-pergunta">
+          <span>Esse assunto já existe num cadastro do sistema (por exemplo, a frota em <code>veiculos-v2</code>)?</span>
+          <button type="button" className="fr-btn" disabled={enviando} onClick={onConciliar}>Sim, conciliar com um cadastro existente</button>
+        </div>
       )}
       {!subitens && <label className="campo-form">Nome do cadastro<input className="input-cheio" value={nome} onChange={e => setNome(e.target.value)} /></label>}
       <label className="campo-form">{subitens ? 'Chave dos subitens no registro (não muda depois)' : 'Chave do cadastro (não muda depois)'}

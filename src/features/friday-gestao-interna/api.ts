@@ -1,5 +1,5 @@
 import {
-  collection, deleteField, doc, FieldPath, getDoc, getDocs, limit, query, runTransaction, setDoc, updateDoc, where, writeBatch,
+  collection, deleteField, doc, documentId, FieldPath, getDoc, getDocs, limit, query, runTransaction, setDoc, updateDoc, where, writeBatch,
   type DocumentData, type DocumentReference,
 } from 'firebase/firestore';
 import { httpsCallable } from 'firebase/functions';
@@ -232,11 +232,14 @@ async function colunasPessoaDe(quadroId: unknown): Promise<Set<string>> {
 // Quadro sinalizado como oficial (quadros.cadastro): os valores das colunas oficiais vivem na coleção do cadastro
 // (cadastro-<chave>) e são encaixados nas colunas ao ler; a gravação passa pela Function fridayCadastroGravar.
 // Contrato: The Manuscript, 03_APLICACAO_WEB/14_FRIDAY_CADASTROS_OFICIAIS.md.
-type CampoOficial = { chave: string; titulo: string; tipo: string; coluna_id: number; rotulos?: { codigo: string; friday_id: string }[]; situacao: string };
+// Cadastro existente (C5): `chave` é o caminho no documento ("identificacao.nome"); `escala` (×10) e `somente_leitura` vêm do contrato.
+type CampoOficial = { chave: string; titulo: string; tipo: string; coluna_id: number; rotulos?: { codigo: string; friday_id: string }[]; situacao: string; escala?: number; somente_leitura?: boolean };
 // subitens: subitens oficiais (C3) — cada subitem é uma entrada do mapa `chave` no documento oficial do item pai.
 type SubOficial = { chave: string; quadro_id: number; campos: CampoOficial[]; situacao: string };
 // grupo: grupo oficial (opcional) — o nome do grupo de cada item fica no campo `chave` do documento oficial.
-type Registro = { chave: string; nome: string; colecao: string; campos: CampoOficial[]; situacao: string; subitens?: SubOficial; grupo?: { chave: string; situacao: string } };
+// modo "existente": o quadro é a tela de uma coleção que já existia (veiculos-v2...), conciliada pela Function fridayCadastroConciliar.
+type Registro = { chave: string; nome: string; colecao: string; campos: CampoOficial[]; situacao: string; subitens?: SubOficial; grupo?: { chave: string; situacao: string };
+  modo?: 'novo' | 'existente'; conciliacao?: { coluna_id: number | null; caminho: string } };
 const registros = new Map<string, Promise<Registro | undefined>>();
 function registroDe(chave: string, recarregar = false): Promise<Registro | undefined> {
   if (recarregar || !registros.has(chave)) registros.set(chave, getDoc(doc(db, 'friday-cadastros', chave)).then(s => (s.exists() ? (s.data() as Registro) : undefined)));
@@ -271,18 +274,26 @@ async function idsPorUid(): Promise<Map<string, number>> {
 // Valor oficial → valor da célula no Friday (status/lista por código; pessoas por UID).
 function valorDoOficial(c: CampoOficial, v: unknown, idDe: Map<string, number>): unknown {
   if (v == null) return undefined;
+  if (c.escala && typeof v === 'number') return v / c.escala;
   switch (c.tipo) {
+    case 'caixa': return v === true ? true : undefined;
     case 'status': return c.rotulos?.find(r => r.codigo === v)?.friday_id;
     case 'lista': { const ids = (Array.isArray(v) ? v : []).map(cod => c.rotulos?.find(r => r.codigo === cod)?.friday_id).filter(Boolean); return ids.length ? ids : undefined; }
     case 'pessoa': { const ids = (Array.isArray(v) ? v : []).map(u => idDe.get(String(u))).filter(x => x != null); return ids.length ? ids : undefined; }
     default: return v;
   }
 }
+// Campo aninhado do documento oficial ("identificacao.nome"); nos cadastros novos, a chave não tem ponto.
+function lerCaminho(doc: Record<string, unknown> | undefined, caminho: string): unknown {
+  let atual: unknown = doc;
+  for (const parte of caminho.split('.')) { if (atual == null || typeof atual !== 'object') return undefined; atual = (atual as Record<string, unknown>)[parte]; }
+  return atual;
+}
 function mesclarOficial(item: Row, campos: CampoOficial[], oficial: Record<string, unknown> | undefined, idDe: Map<string, number>): Row {
   if (!oficial) return item;
   const valores = { ...(item.valores ?? {}) };
   for (const c of campos) {
-    const v = valorDoOficial(c, oficial[c.chave], idDe);
+    const v = valorDoOficial(c, lerCaminho(oficial, c.chave), idDe);
     if (v === undefined) delete valores[String(c.coluna_id)]; else valores[String(c.coluna_id)] = v;
   }
   return { ...item, valores };
@@ -310,6 +321,11 @@ async function quadroCadastro(quadroId: unknown) { return (await buscar('quadros
  */
 const chamarCampos = httpsCallable<{ quadroId: number; op: string; colunaId?: number; chave?: string; campos?: { coluna_id: number; chave: string }[]; grupoId?: number }, Record<string, unknown>>(
   functions, 'fridayCadastroCampos', { timeout: 560_000 });
+// Modo "existente" (C5): catálogo, análise e simulação (só leitura) e a conciliação, travada por cadastro até ser liberada.
+const chamarConciliar = httpsCallable<Record<string, unknown>, Record<string, unknown>>(functions, 'fridayCadastroConciliar', { timeout: 560_000 });
+export async function conciliarCadastro(dados: Record<string, unknown> & { op: 'catalogo' | 'analisar' | 'simular' | 'executar' }) {
+  try { return (await chamarConciliar(dados)).data; } catch (e) { throw new ErroApi(500, `Conciliação: ${(e as Error).message}`); }
+}
 type OpCampos = 'adicionar' | 'descontinuar' | 'subitens' | 'rotulos' | 'desfazer' | 'grupo' | 'grupo_descontinuar' | 'grupo_nome';
 export async function camposOficiais(dados: { quadroId: number; op: OpCampos; colunaId?: number; chave?: string; campos?: { coluna_id: number; chave: string }[]; grupoId?: number }) {
   try { return (await chamarCampos(dados)).data; } catch (e) { throw new ErroApi(500, `Cadastro oficial: ${(e as Error).message}`); }
@@ -526,14 +542,27 @@ async function completo(id: number) {
   // Colunas oficiais levam a marca `oficial` (cadeado na tela, exclusão bloqueada, rótulos protegidos).
   const marcar = (c: Row, campos: CampoOficial[]) => {
     const campo = campos.find(x => x.coluna_id === c.id);
-    return campo ? { ...c, oficial: { cadastro: registro!.chave, chave: campo.chave, nome: registro!.nome, rotulos: (campo.rotulos ?? []).map(r => r.friday_id) } } : c;
+    return campo ? { ...c, oficial: {
+      cadastro: registro!.chave, chave: campo.chave, nome: registro!.nome, rotulos: (campo.rotulos ?? []).map(r => r.friday_id),
+      ...(campo.somente_leitura ? { somente_leitura: true } : {}), ...(registro!.modo === 'existente' ? { existente: true } : {}),
+    } } : c;
   };
   const oficiais = new Map<string, Record<string, unknown>>();
   let idDe = new Map<string, number>();
   if (registro) {
-    const [snap, mapa] = await Promise.all([getDocs(query(collection(db, registro.colecao), where('origem.friday_quadro_id', '==', id))), idsPorUid()]);
-    for (const d of snap.docs) oficiais.set(d.id, d.data());
-    idDe = mapa;
+    if (registro.modo === 'existente') {
+      // Coleção existente: os documentos não guardam a origem; lê pelos vínculos dos itens (30 por consulta).
+      const ids = [...new Set(itensTodos.filter(i => i.vinculo?.cadastro === registro.chave).map(i => String(i.vinculo.id)))];
+      const lotes = [];
+      for (let k = 0; k < ids.length; k += 30) lotes.push(getDocs(query(collection(db, registro.colecao), where(documentId(), 'in', ids.slice(k, k + 30)))));
+      const [snaps, mapa] = await Promise.all([Promise.all(lotes), idsPorUid()]);
+      for (const s of snaps) for (const d of s.docs) oficiais.set(d.id, d.data());
+      idDe = mapa;
+    } else {
+      const [snap, mapa] = await Promise.all([getDocs(query(collection(db, registro.colecao), where('origem.friday_quadro_id', '==', id))), idsPorUid()]);
+      for (const d of snap.docs) oficiais.set(d.id, d.data());
+      idDe = mapa;
+    }
   }
   const contar = (lista: Row[]) => { const m = new Map<number, number>(); for (const x of lista) m.set(Number(x.item_id), (m.get(Number(x.item_id)) ?? 0) + 1); return m; };
   const gruposVisiveis = ordenar('grupos', grupos.filter(visivel));
@@ -565,7 +594,7 @@ async function completo(id: number) {
       // subitens: situação dos subitens oficiais (null = livres; "migrando" = promoção interrompida, pode ser retomada).
       oficial: registro ? {
         chave: registro.chave, nome: registro.nome, subitens: registro.subitens?.situacao ?? null, sub_chave: registro.subitens?.chave ?? null,
-        grupo: registro.grupo?.situacao ?? null, grupo_chave: registro.grupo?.chave ?? null,
+        grupo: registro.grupo?.situacao ?? null, grupo_chave: registro.grupo?.chave ?? null, modo: registro.modo ?? 'novo', colecao: registro.colecao,
       } : null,
     },
     grupos: gruposVisiveis, visoes: ordenar('visoes', visoes),
@@ -641,7 +670,8 @@ async function duplicarItem(id: number) {
   const nome = `${item.nome} (cópia)`;
   const completoItem = await comOficiais(item);
   const novo = await inserir('itens', { quadro_id: item.quadro_id, grupo_id: item.grupo_id, item_pai_id: item.item_pai_id, nome, posicao: Number(item.posicao) + 0.5, valores: completoItem.valores ?? {}, criado_por: eu().id });
-  if (item.vinculo) await gravarOficial(novo.id, 'vincular');
+  // Num cadastro existente, a cópia nasce sem vínculo (vira registro só pela conciliação).
+  if (item.vinculo && (await registroDe(item.vinculo.cadastro))?.modo !== 'existente') await gravarOficial(novo.id, 'vincular');
   await registrar({ quadro_id: item.quadro_id, item_id: novo.id, item_nome: nome, acao: 'duplicou' });
   return novo;
 }
@@ -695,6 +725,7 @@ async function definirValor(itemId: number, corpo: unknown) {
   exigirEscrita();
   const chave = String(coluna.id);
   const oficial = item.vinculo ? await campoOficialDa(coluna) : null;
+  if (oficial?.campo.somente_leitura) throw new ErroApi(409, `“${coluna.titulo}” é só leitura: o valor vem do cadastro ${oficial.registro.nome}.`);
   const atual = oficial ? await comOficiais(item) : item;
   const antes = atual.valores?.[chave];
   const valores = { ...(atual.valores ?? {}) };
@@ -988,7 +1019,8 @@ async function criar(r: Recurso, corpo: unknown) {
   const row = await inserir(r, dados);
   if (r === 'quadros' && !b.vazio) await prepararQuadro(row.id);
   // Item (ou subitem, quando os subitens são oficiais) criado num quadro oficial: vincula ao cadastro.
-  if (r === 'itens' && await escopoOficial(row.quadro_id)) await gravarOficial(row.id, 'vincular');
+  // Num cadastro existente, o item novo fica sem vínculo até a próxima conciliação (não cria registro sozinho).
+  if (r === 'itens') { const e = await escopoOficial(row.quadro_id); if (e && e.registro.modo !== 'existente') await gravarOficial(row.id, 'vincular'); }
   if (r === 'itens') await registrar({ quadro_id: row.quadro_id, item_id: row.id, item_nome: row.nome, acao: 'criou' });
   if (r === 'atualizacoes') {
     const onde = await ondeAbrir(row.item_id);

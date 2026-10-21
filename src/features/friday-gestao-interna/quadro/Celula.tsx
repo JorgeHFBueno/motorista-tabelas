@@ -22,6 +22,11 @@ export type CelulaProps = {
 
 // Uma célula: mostra o valor conforme o tipo da coluna e abre o editor adequado.
 export function Celula(p: CelulaProps) {
+  // Campo só leitura de um cadastro existente (ex.: quilometragem, mantida pelo app): mostra o valor, sem editor.
+  if (p.coluna.oficial?.somente_leitura) {
+    const v = p.valor;
+    return <div className="cel cel-centro cel-so-leitura" title="Só leitura: o valor vem do cadastro">{vazio(v) ? '' : typeof v === 'number' ? v.toLocaleString('pt-BR') : String(v)}</div>;
+  }
   switch (p.coluna.tipo) {
     case 'status': return <CelulaStatus {...p} />;
     case 'pessoa': return <CelulaPessoa {...p} />;

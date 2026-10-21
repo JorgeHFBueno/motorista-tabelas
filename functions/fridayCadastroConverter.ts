@@ -156,7 +156,11 @@ export function indicePessoas(valoresLivres: AnyRecord | undefined, colunasPesso
 /** Valor oficial → valor da célula no Friday (o inverso de valorOficial). Usado ao descontinuar um campo. */
 export function valorDoOficial(campo: CampoOficial, valor: unknown, idDeUid: (uid: string) => number | undefined): unknown {
   if (valor == null) return undefined;
+  // Cadastro existente: números com escala (×10) voltam para a unidade da tela.
+  const escala = (campo as CampoOficial & { escala?: number }).escala;
+  if (escala && typeof valor === 'number') return valor / escala;
   switch (campo.tipo) {
+    case 'caixa': return valor === true ? true : undefined;
     case 'status': return campo.rotulos?.find(r => r.codigo === valor)?.friday_id;
     case 'lista': {
       const ids = (Array.isArray(valor) ? valor : []).map(c => campo.rotulos?.find(r => r.codigo === c)?.friday_id).filter((x): x is string => !!x);
