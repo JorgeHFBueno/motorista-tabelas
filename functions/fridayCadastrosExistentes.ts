@@ -82,7 +82,11 @@ export function conciliacaoLiberada(colecao: string, env: string | undefined = p
 }
 
 /** Chave do registro (friday-cadastros) de um cadastro existente: "veiculos-v2" → "veiculos_v2_<sufixo>". */
-export const chaveDoExistente = (colecao: string, sufixo: string) => `${colecao.replace(/[^a-z0-9]+/g, '_')}_${sufixo}`.slice(0, 40);
+// Marca gravada pela conciliação em cada registro ligado a um item: `<grupo_livre>.ok = true` (apagada ao desfazer).
+export const MARCA_VINCULO = 'ok';
+export const caminhoDaMarca = (cadastro: CadastroExistente) => `${cadastro.grupo_livre}.${MARCA_VINCULO}`;
+
+export const chaveDoExistente =(colecao: string, sufixo: string) => `${colecao.replace(/[^a-z0-9]+/g, '_')}_${sufixo}`.slice(0, 40);
 
 // ---------------------------------------------------------------- caminhos (campos aninhados)
 export function lerCaminho(doc: AnyRecord | undefined, caminho: string): unknown {
@@ -203,6 +207,7 @@ export function montarCamposExistente(cadastro: CadastroExistente, colunas: Colu
     if (p.caminho.startsWith(livre)) {
       const sufixo = p.caminho.slice(livre.length);
       if (!chaveValida(sufixo)) { erros.push(`Chave inválida para "${col.titulo}": use minúsculas, números e "_", começando por letra.`); continue; }
+      if (sufixo === MARCA_VINCULO) { erros.push(`A chave "${MARCA_VINCULO}" é reservada em "${cadastro.grupo_livre}" (marca dos registros ligados).`); continue; }
       if (!TIPOS_OFICIAIS.has(col.tipo) || col.tipo === 'pessoa') { erros.push(`A coluna "${col.titulo}" (${col.tipo}) ainda não pode ser campo oficial de um cadastro existente.`); continue; }
       const rotulos = col.tipo === 'status' ? rotulosOficiais(col.config?.rotulos) : col.tipo === 'lista' ? rotulosOficiais(col.config?.opcoes) : undefined;
       caminhos.add(p.caminho); usadas.add(col.id);

@@ -184,6 +184,9 @@ test('rótulo → texto, situação com ativo calculado e grupo livre "friday"',
   assert.deepEqual(m.valorParaGravarExistente(c('friday.combustivel'), '1'), { gravar: [['friday.combustivel', 'diesel_s10']] });
   assert.equal(valorDoOficial(c('cadastro.empresa'), 'ARTEBASE', () => undefined), '1');
   assert.ok(m.montarCamposExistente(veiculos, cols, [{ caminho: 'friday.Errada', coluna_id: 13 }], chave).erros.some(e => e.includes('Chave inválida')));
+  // "friday.ok" é a marca dos registros ligados: nenhuma coluna pode usar essa chave.
+  assert.equal(m.caminhoDaMarca(veiculos), 'friday.ok');
+  assert.ok(m.montarCamposExistente(veiculos, cols, [{ caminho: 'friday.ok', coluna_id: 13 }], chave).erros.some(e => e.includes('reservada')));
 
   // Plano: textos do cadastro que não são rótulo viram rótulos novos; situação preenchida grava o ativo calculado.
   const regs = [{ id: 'v1', dados: { identificacao: { identificador: 'JBJ-4J22' }, cadastro: { empresa: 'OUTRA EMPRESA', ativo: true } } }];

@@ -5,7 +5,7 @@ import { db } from './firebaseAdmin.js';
 import { exigirAdm2 } from './fridayMondayImport.js';
 import { dataLocal, idDoUid, novoId, prefixosBusca } from './fridayMondayConverter.js';
 import {
-  acrescentarRotulosDeTexto, analisar, CADASTROS_EXISTENTES, cadastroExistente, chaveDoExistente, conciliacaoLiberada, lerCaminho, montarCamposExistente,
+  acrescentarRotulosDeTexto, analisar, CADASTROS_EXISTENTES, cadastroExistente, caminhoDaMarca, chaveDoExistente, conciliacaoLiberada, gravarCaminho, lerCaminho, montarCamposExistente,
   planejar, valorParaGravarExistente, type CampoExistente, type ChaveConciliacao, type Decisoes, type ItemConciliavel, type PedidoLigacao,
   type RegistroExistente,
 } from './fridayCadastrosExistentes.js';
@@ -276,7 +276,7 @@ async function gravar(uid: string, itemId: number, op: Operacao, colunaId: numbe
 
 /**
  * Quadro ligado a um cadastro existente (C5): grava só os campos ligados, no caminho do contrato, sem metadados do
- * Friday no documento. Itens novos não criam registro (ficam sem vínculo até a próxima conciliação); arquivar ou excluir
+ * Friday no documento (só a marca `friday.ok`, gravada pela conciliação). Itens novos não criam registro (ficam sem vínculo até a próxima conciliação); arquivar ou excluir
  * o item não mexe no registro; o nome do item só é gravado quando ele é a chave de conciliação.
  */
 async function gravarExistente(uid: string, item: AnyRecord, e: Escopo, op: Operacao, colunaId: number | null, valor: unknown) {
@@ -503,9 +503,12 @@ async function desfazer(uid: string, quadroId: number) {
   const ativos = (lista: unknown) => ((lista ?? []) as CampoOficial[]).filter(c => c.situacao === 'ativo' && !(c as CampoExistente).secundario);
   const sub = registro.subitens as { chave: string; quadro_id: number; campos: CampoOficial[] } | undefined;
   const { idDe } = await mapasDePessoas();
+  // Cadastro existente: a marca `friday.ok` sai dos registros que deixam de estar ligados.
+  const existente = registro.modo === 'existente' ? cadastroExistente(colecao) : undefined;
+  const marca = existente ? new FieldPath(...caminhoDaMarca(existente).split('.')) : null;
 
   // Devolve um escopo (quadro principal ou de subitens): os valores voltam pela mesma conversão do "descontinuar".
-  async function devolver(alvo: number, campos: CampoOficial[], origemDe: (doc: AnyRecord | undefined, item: AnyRecord) => AnyRecord | undefined) {
+  async function devolver(alvo: number, campos: CampoOficial[], origemDe: (doc: AnyRecord | undefined, item: AnyRecord) => AnyRecord | undefined, tirarMarca = false) {
     const colunasPessoa = new Set((await db.collection('friday-colunas').where('quadro_id', '==', alvo).where('tipo', '==', 'pessoa').get()).docs.map(d => String(d.data().id)));
     const itens = (await db.collection('friday-itens').where('quadro_id', '==', alvo).get()).docs.filter(d => d.data().vinculo?.cadastro === chave);
     const ids = [...new Set(itens.map(d => String(d.data().vinculo.id)))];
@@ -527,6 +530,7 @@ async function desfazer(uid: string, quadroId: number) {
           caminhos.push(new FieldPath('valores', String(c.coluna_id)), v);
         }
         lote.update(d.ref, 'vinculo', FieldValue.delete(), 'pessoas', indicePessoas(valores, colunasPessoa, [], undefined, idDe), ...caminhos);
+        if (tirarMarca && marca && docs.get(String(item.vinculo.id))) lote.update(db.collection(colecao).doc(String(item.vinculo.id)), marca, FieldValue.delete());
       }
       await lote.commit();
     }
@@ -536,7 +540,7 @@ async function desfazer(uid: string, quadroId: number) {
   const subitens = sub?.quadro_id != null
     ? await devolver(Number(sub.quadro_id), ativos(sub.campos), (doc, item) => doc?.[sub.chave]?.[String(item.vinculo.sub)])
     : 0;
-  const itens = await devolver(quadroId, ativos(registro.campos), doc => doc);
+  const itens = await devolver(quadroId, ativos(registro.campos), doc => doc, true);
   await registroRef.update({ situacao: 'arquivado', arquivado_em: FieldValue.serverTimestamp(), arquivado_por: uid, versao: FieldValue.increment(1), atualizado_em: FieldValue.serverTimestamp() });
   await quadroRef.update({ cadastro: FieldValue.delete() });
   logger.info('friday-cadastro:desfeito', { chave, quadroId, itens, subitens, uid });
@@ -731,12 +735,16 @@ async function conciliar(uid: string, op: OperacaoConciliar, d: AnyRecord) {
   const refItem = new Map(x.docsItens.map(doc => [Number(doc.data().id), doc.ref]));
   const apagar = [...new Set(campos.map(c => c.coluna_id))].flatMap(id => [new FieldPath('valores', String(id)), FieldValue.delete()]); // secundário usa a mesma coluna
   const operacoes: ((lote: FirebaseFirestore.WriteBatch) => void)[] = [];
+  // Todo registro ligado a um item ganha a marca `friday.ok = true` (a única coisa do Friday no documento).
+  const marca = caminhoDaMarca(x.cadastro);
+  const comMarca = (gravar: [string, unknown][]) => [...gravar, [marca, true]].flatMap(([caminho, valor]) => [new FieldPath(...String(caminho).split('.')), valor]) as [FieldPath, unknown];
   for (const v of plano.vincular) {
-    if (v.gravar.length) operacoes.push(lote => lote.update(colecaoRef.doc(v.registroId), ...(v.gravar.flatMap(([caminho, valor]) => [new FieldPath(...caminho.split('.')), valor]) as [FieldPath, unknown])));
+    operacoes.push(lote => lote.update(colecaoRef.doc(v.registroId), ...comMarca(v.gravar)));
     operacoes.push(lote => lote.update(refItem.get(v.itemId)!, 'vinculo', { cadastro: registroChave, id: v.registroId }, ...apagar));
   }
   for (const c of plano.criar) {
     const novo = colecaoRef.doc();
+    gravarCaminho(c.doc, marca, true);
     operacoes.push(lote => lote.set(novo, c.doc));
     operacoes.push(lote => lote.update(refItem.get(c.itemId)!, 'vinculo', { cadastro: registroChave, id: novo.id }, ...apagar));
   }
@@ -755,6 +763,7 @@ async function conciliar(uid: string, op: OperacaoConciliar, d: AnyRecord) {
         importado_em: null, monday_atualizado_em: null, ligacoes_pendentes: null, vinculo: { cadastro: registroChave, id: t.registroId },
       };
       operacoes.push(lote => lote.set(db.collection('friday-itens').doc(String(id)), item));
+      operacoes.push(lote => lote.update(colecaoRef.doc(t.registroId), ...comMarca([])));
     }
   }
   if (plano.arquivar.length) {
