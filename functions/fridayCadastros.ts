@@ -107,7 +107,7 @@ async function promover(uid: string, quadroId: number, chave: string, nome: stri
         origem: { friday_quadro_id: quadroId, friday_item_id: Number(item.id) },
       });
       // O valor oficial sai do mapa livre do item; atualizado_em do item não muda (é migração, não edição).
-      const apagar = campos.flatMap(c => [new FieldPath('valores', String(c.coluna_id)), FieldValue.delete()]);
+      const apagar = [...new Set(campos.map(c => c.coluna_id))].flatMap(id => [new FieldPath('valores', String(id)), FieldValue.delete()]); // secundário usa a mesma coluna
       lote.update(d.ref, 'vinculo', { cadastro: chave, id: oficialRef.id }, ...apagar);
       migrados++;
     }
@@ -292,7 +292,7 @@ async function gravarExistente(uid: string, item: AnyRecord, e: Escopo, op: Oper
     await ref.update(new FieldPath(...caminho.split('.')), nome);
     return { ok: true };
   }
-  const indice = e.campos.findIndex(c => c.coluna_id === colunaId && c.situacao === 'ativo');
+  const indice = e.campos.findIndex(c => c.coluna_id === colunaId && c.situacao === 'ativo' && !(c as CampoExistente).secundario);
   if (indice < 0) throw new HttpsError('invalid-argument', 'Esta coluna não é um campo oficial ativo.');
   let campo = e.campos[indice] as CampoExistente;
   // Rótulo criado no Friday depois da conciliação: entra no campo se o contrato aceita (texto, opções abertas, grupo livre).
@@ -312,7 +312,11 @@ async function gravarExistente(uid: string, item: AnyRecord, e: Escopo, op: Oper
   }
   const r = valorParaGravarExistente(campo, valor);
   if ('erro' in r) throw new HttpsError('invalid-argument', r.erro);
-  await ref.update(...(r.gravar.flatMap(([caminho, v]) => [new FieldPath(...caminho.split('.')), v]) as [FieldPath, unknown]));
+  // Secundários da mesma coluna: gravados junto; rótulo sem opção correspondente não bloqueia o principal.
+  const extras = (e.campos as CampoExistente[]).filter(c => c.coluna_id === colunaId && c.situacao === 'ativo' && c.secundario)
+    .flatMap(c => { const x = valorParaGravarExistente(c, valor); return 'erro' in x || valor == null ? [] : x.gravar; });
+  const gravar = [...r.gravar, ...extras];
+  await ref.update(...(gravar.flatMap(([caminho, v]) => [new FieldPath(...caminho.split('.')), v]) as [FieldPath, unknown]));
   return { ok: true, valor: r.gravar[0][1] };
 }
 
@@ -496,7 +500,7 @@ async function desfazer(uid: string, quadroId: number) {
   const registro = (await registroRef.get()).data();
   if (!registro) throw new HttpsError('not-found', `Registro do cadastro "${chave}" não encontrado.`);
   const colecao = String(registro.colecao);
-  const ativos = (lista: unknown) => ((lista ?? []) as CampoOficial[]).filter(c => c.situacao === 'ativo');
+  const ativos = (lista: unknown) => ((lista ?? []) as CampoOficial[]).filter(c => c.situacao === 'ativo' && !(c as CampoExistente).secundario);
   const sub = registro.subitens as { chave: string; quadro_id: number; campos: CampoOficial[] } | undefined;
   const { idDe } = await mapasDePessoas();
 
@@ -668,7 +672,7 @@ async function conciliar(uid: string, op: OperacaoConciliar, d: AnyRecord) {
   if (op === 'analisar') {
     // Rótulo legível dos registros disputados (ambíguos): os dois primeiros campos do contrato.
     const porId = new Map(x.registros.map(r => [r.id, r.dados]));
-    const nomes = Object.fromEntries(analise.ambiguos.flatMap(a => a.registroIds).map(id => [id,
+    const nomes = Object.fromEntries([...analise.ambiguos.flatMap(a => a.registroIds), ...analise.casados.map(c => c.registroId), ...analise.semItem.map(r => r.registroId)].map(id => [id,
       x.cadastro.campos.slice(0, 2).map(c => lerCaminho(porId.get(id), c.caminho)).filter(v => v != null && v !== '').join(' · ') || id]));
     return { analise, nomes, registro: x.registro ? { chave: x.registro.chave, campos: x.registro.campos, conciliacao: x.registro.conciliacao } : null };
   }
@@ -677,7 +681,7 @@ async function conciliar(uid: string, op: OperacaoConciliar, d: AnyRecord) {
   if (x.registro) campos = (x.registro.campos ?? []).filter((c: CampoExistente) => c.situacao === 'ativo');
   else {
     const pedidos: PedidoLigacao[] = Array.isArray(d.campos) ? (d.campos as AnyRecord[]).map(c => ({
-      caminho: String(c?.caminho ?? ''), coluna_id: Number(c?.coluna_id), prioridade: c?.prioridade === 'quadro' ? 'quadro' : 'cadastro',
+      caminho: String(c?.caminho ?? ''), coluna_id: Number(c?.coluna_id), prioridade: c?.prioridade === 'quadro' ? 'quadro' : 'cadastro', secundario: c?.secundario === true,
       rotulos: c?.rotulos && typeof c.rotulos === 'object' ? Object.fromEntries(Object.entries(c.rotulos).map(([k, v]) => [String(k), String(v)])) : undefined,
     })) : [];
     const m = montarCamposExistente(x.cadastro, x.colunas, pedidos, chave);
@@ -692,6 +696,7 @@ async function conciliar(uid: string, op: OperacaoConciliar, d: AnyRecord) {
     trazidos: plano.trazer.length, deixados_fora: plano.deixadosFora, ambiguos_pendentes: plano.ambiguosPendentes, fora_do_quadro: plano.foraDoQuadro,
     ja_vinculados: analise.jaVinculados, campos: plano.campos, erros: plano.erros.slice(0, 50), total_erros: plano.erros.length,
     rotulos_novos: plano.rotulosNovos.map(r => ({ coluna_id: r.coluna_id, textos: r.textos })),
+    manuais: plano.manuais, desfeitos: plano.desfeitos, arquivados: plano.arquivar.length,
   };
   if (op === 'simular') return { simulacao: true, liberado: conciliacaoLiberada(x.cadastro.colecao), relatorio };
 
@@ -723,7 +728,7 @@ async function conciliar(uid: string, op: OperacaoConciliar, d: AnyRecord) {
   }
   const colecaoRef = db.collection(x.cadastro.colecao);
   const refItem = new Map(x.docsItens.map(doc => [Number(doc.data().id), doc.ref]));
-  const apagar = campos.flatMap(c => [new FieldPath('valores', String(c.coluna_id)), FieldValue.delete()]);
+  const apagar = [...new Set(campos.map(c => c.coluna_id))].flatMap(id => [new FieldPath('valores', String(id)), FieldValue.delete()]); // secundário usa a mesma coluna
   const operacoes: ((lote: FirebaseFirestore.WriteBatch) => void)[] = [];
   for (const v of plano.vincular) {
     if (v.gravar.length) operacoes.push(lote => lote.update(colecaoRef.doc(v.registroId), ...(v.gravar.flatMap(([caminho, valor]) => [new FieldPath(...caminho.split('.')), valor]) as [FieldPath, unknown])));
@@ -750,6 +755,10 @@ async function conciliar(uid: string, op: OperacaoConciliar, d: AnyRecord) {
       };
       operacoes.push(lote => lote.set(db.collection('friday-itens').doc(String(id)), item));
     }
+  }
+  if (plano.arquivar.length) {
+    const quando = dataLocal();
+    for (const itemId of plano.arquivar) operacoes.push(lote => lote.update(refItem.get(itemId)!, { arquivado_em: quando, atualizado_em: quando }));
   }
   for (let k = 0; k < operacoes.length; k += 400) {
     const lote = db.batch();

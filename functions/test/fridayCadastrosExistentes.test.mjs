@@ -209,3 +209,51 @@ test('coluna número ×10: sem conversão dupla nos campos ×10 do contrato', ()
   assert.deepEqual(m.valorParaGravarExistente(ano, 20220), { gravar: [['cadastro.anoFabricacao', 2022]] });
   assert.equal(valorDoOficial(ano, 2022, () => undefined), 20220);
 });
+
+test('decisões: desfazer casado, vínculo manual, duplicado arquivado', () => {
+  const regs = [
+    { id: 'a', dados: { identificacao: { identificador: 'ICV-8E43' } } },
+    { id: 'b', dados: { identificacao: { identificador: 'IQM-6971' } } },
+    { id: 'c', dados: { identificacao: { identificador: 'AAA-1111' } } }, // placa escrita diferente no quadro
+  ];
+  const chave = { coluna_id: null, caminho: 'identificacao.identificador', modo: 'prefixo' };
+  const itens = [
+    { id: 1, nome: 'ICV-8E43 CARRETA LS Branca', valores: {} },
+    { id: 2, nome: 'ICV-8E43 LS Branca', valores: {} },        // duplicado
+    { id: 3, nome: 'IQM-6971 Ford 2628', valores: {} },
+    { id: 4, nome: 'AAA 1112 Errada', valores: {} },           // sem par: liga à mão em "c"
+  ];
+  const a = m.analisar(itens, regs, chave, new Set(), 'identificacao.identificador');
+  assert.deepEqual(a.ambiguos.map(x => x.itemId), [1, 2]);
+  assert.deepEqual(a.casados.map(x => [x.itemId, x.registroId]), [[3, 'b']]);
+  const p = m.planejar(veiculos, [], a, itens, regs, { ambiguos: { 1: 'a' }, duplicados: [2], manuais: { 4: 'c' }, desfazer: [3] }, chave);
+  assert.deepEqual(p.vincular.map(v => [v.itemId, v.registroId]), [[1, 'a'], [4, 'c']]);
+  assert.deepEqual(p.arquivar, [2]);
+  assert.equal(p.manuais, 1);
+  assert.equal(p.desfeitos, 1);
+  assert.equal(p.deixadosFora, 1);     // o casado desfeito (3) ficou fora
+  assert.equal(p.ambiguosPendentes, 0);
+  // O registro liberado pelo casado desfeito pode ser ligado à mão a outro item.
+  const p2 = m.planejar(veiculos, [], a, itens, regs, { ambiguos: { 1: 'a' }, duplicados: [2], desfazer: [3], manuais: { 4: 'b' } }, chave);
+  assert.deepEqual(p2.vincular.map(v => [v.itemId, v.registroId]), [[1, 'a'], [4, 'b']]);
+  // Registro em uso não aceita vínculo manual.
+  const p3 = m.planejar(veiculos, [], a, itens, regs, { manuais: { 4: 'b' } }, chave);
+  assert.ok(p3.erros.some(e => e.includes('Vínculo manual inválido')));
+});
+
+test('campo secundário: Tipo do Veículo também alimenta a Categoria', () => {
+  const cols = [{ id: 31, titulo: 'Tipo do Veículo', tipo: 'status', config: { rotulos: [{ id: '1', texto: 'Carretas' }, { id: '2', texto: 'Máquinas' }] } }];
+  const chave = { coluna_id: null, caminho: 'identificacao.identificador', modo: 'prefixo' };
+  const pedidos = [{ caminho: 'cadastro.tipoVeiculo', coluna_id: 31 }, { caminho: 'identificacao.categoria', coluna_id: 31, secundario: true, rotulos: { 1: 'PLACA', 2: 'EXTRA' } }];
+  const { campos, erros } = m.montarCamposExistente(veiculos, cols, pedidos, chave);
+  assert.deepEqual(erros, []);
+  const cat = campos.find(c => c.chave === 'identificacao.categoria');
+  assert.equal(cat.secundario, true);
+  assert.deepEqual(m.valorParaGravarExistente(cat, '2'), { gravar: [['identificacao.categoria', 'EXTRA']] });
+  assert.ok(m.montarCamposExistente(veiculos, cols, [pedidos[1]], chave).erros.some(e => e.includes('já está ligada')));
+  assert.ok(m.montarCamposExistente(veiculos, cols, [pedidos[0], { caminho: 'cadastro.empresa', coluna_id: 31, secundario: true }], chave).erros.length);
+  // Criação: categoria vem do Tipo; o tipo grava o texto do rótulo.
+  const r = m.novoRegistro(veiculos, campos, { id: 1, nome: 'XYZ-1A23 Case 580', valores: { 31: '2' } }, chave);
+  assert.deepEqual(r.erros, []);
+  assert.deepEqual([r.doc.identificacao.categoria, r.doc.cadastro.tipoVeiculo], ['EXTRA', 'Máquinas']);
+});

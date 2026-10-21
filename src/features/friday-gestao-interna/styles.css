@@ -822,4 +822,5 @@ body.redimensionando .friday-root, body.redimensionando .friday-root * { cursor:
 .friday-root .conc-tabela { border-collapse: collapse; font-size: 12.5px; }
 .friday-root .conc-tabela th, .friday-root .conc-tabela td { border-bottom: 1px solid var(--borda-suave); padding: 4px 8px; text-align: right; }
 .friday-root .conc-tabela th:first-child, .friday-root .conc-tabela td:first-child { text-align: left; }
+.friday-root .conc-riscado { text-decoration: line-through; opacity: .6; }
 .friday-root .cel-so-leitura { color: var(--texto-2, #555); background: repeating-linear-gradient(45deg, transparent, transparent 6px, rgba(0,0,0,.025) 6px, rgba(0,0,0,.025) 12px); cursor: not-allowed; }

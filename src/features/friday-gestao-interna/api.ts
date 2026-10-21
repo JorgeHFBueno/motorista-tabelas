@@ -235,7 +235,8 @@ async function colunasPessoaDe(quadroId: unknown): Promise<Set<string>> {
 // (cadastro-<chave>) e são encaixados nas colunas ao ler; a gravação passa pela Function fridayCadastroGravar.
 // Contrato: The Manuscript, 03_APLICACAO_WEB/14_FRIDAY_CADASTROS_OFICIAIS.md.
 // Cadastro existente (C5): `chave` é o caminho no documento ("identificacao.nome"); `escala` (×10) e `somente_leitura` vêm do contrato.
-type CampoOficial = { chave: string; titulo: string; tipo: string; coluna_id: number; rotulos?: { codigo: string; friday_id: string }[]; situacao: string; escala?: number; somente_leitura?: boolean };
+type CampoOficial = { chave: string; titulo: string; tipo: string; coluna_id: number; rotulos?: { codigo: string; friday_id: string }[]; situacao: string; escala?: number; somente_leitura?: boolean;
+  secundario?: boolean }; // secundário: alimentado pela coluna de outro campo (ex.: Categoria a partir do Tipo do Veículo); não aparece na tela
 // subitens: subitens oficiais (C3) — cada subitem é uma entrada do mapa `chave` no documento oficial do item pai.
 type SubOficial = { chave: string; quadro_id: number; campos: CampoOficial[]; situacao: string };
 // grupo: grupo oficial (opcional) — o nome do grupo de cada item fica no campo `chave` do documento oficial.
@@ -247,7 +248,7 @@ function registroDe(chave: string, recarregar = false): Promise<Registro | undef
   if (recarregar || !registros.has(chave)) registros.set(chave, getDoc(doc(db, 'friday-cadastros', chave)).then(s => (s.exists() ? (s.data() as Registro) : undefined)));
   return registros.get(chave)!;
 }
-const camposAtivos = (r: { campos?: CampoOficial[] } | undefined) => (r?.campos ?? []).filter(c => c.situacao === 'ativo');
+const camposAtivos = (r: { campos?: CampoOficial[] } | undefined) => (r?.campos ?? []).filter(c => c.situacao === 'ativo' && !c.secundario);
 const subOficial = (r: Registro | undefined, subQuadroId: unknown) =>
   (r?.subitens?.situacao === 'ativo' && Number(r.subitens.quadro_id) === Number(subQuadroId) ? r.subitens : undefined);
 // Escopo oficial de um quadro: o próprio quadro oficial ou o quadro de subitens dele (quando os subitens são oficiais).

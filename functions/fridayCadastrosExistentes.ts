@@ -163,8 +163,11 @@ export type Prioridade = 'cadastro' | 'quadro';
 export type CampoExistente = CampoOficial & {
   tipo_contrato?: TipoContrato; obrigatorio: boolean; nulo: boolean; inteiro?: boolean; escala?: number; somente_leitura?: boolean;
   opcoes_abertas?: boolean; deriva?: { caminho: string; verdadeiro_quando: string }; prioridade: Prioridade;
+  // Secundário: a coluna já é de outro campo (o principal, que ela mostra); este só é gravado a partir dela.
+  secundario?: boolean;
 };
-export type PedidoLigacao = { caminho: string; coluna_id: number; prioridade?: Prioridade; rotulos?: Record<string, string> };
+/** secundario: a coluna já está ligada a outro campo; este campo de opções fixas é gravado a partir dela, sem mudar o que ela mostra. */
+export type PedidoLigacao = { caminho: string; coluna_id: number; prioridade?: Prioridade; rotulos?: Record<string, string>; secundario?: boolean };
 type ColunaQuadro = { id: number; titulo: string; tipo: string; config?: AnyRecord };
 // Coluna número ×10 do Friday (config.x10) já guarda o inteiro ×10: com um campo ×10 do contrato, não há conversão.
 const escalaEfetiva = (contrato: CampoContrato, col: ColunaQuadro) => (contrato.escala ?? 1) / (col.tipo === 'numero' && col.config?.x10 ? 10 : 1);
@@ -189,7 +192,13 @@ export function montarCamposExistente(cadastro: CadastroExistente, colunas: Colu
     const col = porId.get(Number(p.coluna_id));
     if (!col) { erros.push(`A coluna ${p.coluna_id} não pertence ao quadro.`); continue; }
     if (caminhos.has(p.caminho)) { erros.push(`"${p.caminho}" foi ligado duas vezes.`); continue; }
-    if (usadas.has(col.id)) { erros.push(`A coluna "${col.titulo}" foi ligada duas vezes.`); continue; }
+    if (p.secundario) {
+      const contratoSec = cadastro.campos.find(c => c.caminho === p.caminho);
+      const principal = pedidos.some(o => o !== p && !o.secundario && Number(o.coluna_id) === col.id);
+      if (!contratoSec || contratoSec.tipo !== 'opcao' || contratoSec.opcoes_abertas || col.tipo !== 'status' || !principal) {
+        erros.push(`"${col.titulo}" só pode alimentar também um campo de opções fixas quando já está ligada a outro campo.`); continue;
+      }
+    } else if (usadas.has(col.id)) { erros.push(`A coluna "${col.titulo}" foi ligada duas vezes.`); continue; }
     // Grupo livre: a coluna vira campo oficial com as regras dos cadastros novos.
     if (p.caminho.startsWith(livre)) {
       const sufixo = p.caminho.slice(livre.length);
@@ -220,9 +229,10 @@ export function montarCamposExistente(cadastro: CadastroExistente, colunas: Colu
       }
     }
     caminhos.add(p.caminho);
-    usadas.add(col.id);
+    if (!p.secundario) usadas.add(col.id);
     campos.push({
-      chave: contrato.caminho, titulo: col.titulo, tipo: col.tipo, coluna_id: col.id, situacao: 'ativo', ...(rotulos ? { rotulos } : {}),
+      chave: contrato.caminho, titulo: p.secundario ? `${contrato.titulo} (de ${col.titulo})` : col.titulo, tipo: col.tipo, coluna_id: col.id, situacao: 'ativo',
+      ...(rotulos ? { rotulos } : {}), ...(p.secundario ? { secundario: true } : {}),
       tipo_contrato: contrato.tipo, obrigatorio: contrato.obrigatorio, nulo: contrato.nulo,
       ...(contrato.inteiro ? { inteiro: true } : {}), ...(escalaEfetiva(contrato, col) !== 1 ? { escala: escalaEfetiva(contrato, col) } : {}),
       ...(contrato.somente_leitura ? { somente_leitura: true } : {}), ...(contrato.opcoes_abertas ? { opcoes_abertas: true } : {}),
@@ -313,7 +323,15 @@ export function novoRegistro(cadastro: CadastroExistente, campos: CampoExistente
 }
 
 // ---------------------------------------------------------------- plano da conciliação (simulação e execução usam o mesmo)
-export type Decisoes = { criar?: number[]; trazer?: string[]; ambiguos?: Record<string, string> };
+/**
+ * criar: itens sem par que viram registro novo; trazer: registros sem item que entram no quadro; ambiguos: item → registro
+ * escolhido; desfazer: casados que não devem ser vinculados; manuais: item → registro livre escolhido à mão (itens sem par,
+ * casados desfeitos e ambíguos deixados fora); duplicados: itens ambíguos que são cópia de outro e serão arquivados.
+ */
+export type Decisoes = {
+  criar?: number[]; trazer?: string[]; ambiguos?: Record<string, string>;
+  desfazer?: number[]; manuais?: Record<string, string>; duplicados?: number[];
+};
 export type RelatorioCampo = { caminho: string; titulo: string; iguais: number; preenchidos: number; divergentes: number; mantidos: number; sobrescritos: number; erros: number };
 export type Plano = {
   vincular: { itemId: number; registroId: string; gravar: [string, unknown][] }[];
@@ -321,6 +339,9 @@ export type Plano = {
   trazer: { registroId: string; nome: string }[];
   // Valores de texto do cadastro que ainda não são rótulo na coluna (entram como rótulos novos).
   rotulosNovos: { coluna_id: number; chave: string; textos: string[] }[];
+  arquivar: number[];      // itens duplicados (arquivados no quadro, restauráveis)
+  manuais: number;         // vínculos escolhidos à mão
+  desfeitos: number;       // casados desfeitos
   foraDoQuadro: number; deixadosFora: number; ambiguosPendentes: number;
   campos: RelatorioCampo[]; erros: string[];
 };
@@ -335,14 +356,34 @@ export function planejar(cadastro: CadastroExistente, campos: CampoExistente[], 
   registros: RegistroExistente[], decisoes: Decisoes, chave: ChaveConciliacao, uidDe: UidDe = semUid): Plano {
   const porItem = new Map(itens.map(i => [i.id, i]));
   const porRegistro = new Map(registros.map(r => [r.id, r]));
-  const plano: Plano = { vincular: [], criar: [], trazer: [], rotulosNovos: [], foraDoQuadro: 0, deixadosFora: 0, ambiguosPendentes: 0, campos: [], erros: [] };
+  const plano: Plano = { vincular: [], criar: [], trazer: [], rotulosNovos: [], arquivar: [], manuais: 0, desfeitos: 0, foraDoQuadro: 0, deixadosFora: 0, ambiguosPendentes: 0, campos: [], erros: [] };
   const rel = new Map(campos.map(c => [c.chave, { caminho: c.chave, titulo: c.titulo, iguais: 0, preenchidos: 0, divergentes: 0, mantidos: 0, sobrescritos: 0, erros: 0 }]));
-  const pares: { itemId: number; registroId: string }[] = analise.casados.map(c => ({ itemId: c.itemId, registroId: c.registroId }));
-  const escolhidos = new Set(pares.map(p => p.registroId));
+  const desfazer = new Set(decisoes.desfazer ?? []);
+  const duplicados = new Set(decisoes.duplicados ?? []);
+  const pares: { itemId: number; registroId: string }[] = [];
+  const escolhidos = new Set<string>();
+  // Itens e registros que podem ser ligados à mão: sem par, casados desfeitos e ambíguos que ficaram de fora.
+  const avulsos = new Set<number>(analise.semPar.map(s => s.itemId));
+  const livres = new Set<string>(analise.semItem.map(s => s.registroId));
+  for (const c of analise.casados) {
+    if (desfazer.has(c.itemId)) { plano.desfeitos++; avulsos.add(c.itemId); livres.add(c.registroId); continue; }
+    pares.push({ itemId: c.itemId, registroId: c.registroId }); escolhidos.add(c.registroId);
+  }
   for (const a of analise.ambiguos) {
+    if (duplicados.has(a.itemId)) { plano.arquivar.push(a.itemId); continue; }
     const escolha = decisoes.ambiguos?.[String(a.itemId)];
     if (escolha && a.registroIds.includes(escolha) && !escolhidos.has(escolha)) { pares.push({ itemId: a.itemId, registroId: escolha }); escolhidos.add(escolha); }
-    else plano.ambiguosPendentes++;
+    else { plano.ambiguosPendentes++; avulsos.add(a.itemId); }
+  }
+  for (const a of analise.ambiguos) for (const id of a.registroIds) if (!escolhidos.has(id)) livres.add(id);
+  const ligadosAMao = new Set<number>();
+  for (const [k, registroId] of Object.entries(decisoes.manuais ?? {})) {
+    const itemId = Number(k);
+    if (!avulsos.has(itemId) || !livres.has(registroId) || escolhidos.has(registroId)) {
+      plano.erros.push(`Vínculo manual inválido: o item ${porItem.get(itemId)?.nome ?? k} ou o registro já está em uso.`); continue;
+    }
+    pares.push({ itemId, registroId }); escolhidos.add(registroId); ligadosAMao.add(itemId); plano.manuais++;
+    if (analise.ambiguos.some(a => a.itemId === itemId)) plano.ambiguosPendentes--;
   }
   for (const { itemId, registroId } of pares) {
     const item = porItem.get(itemId)!, doc = porRegistro.get(registroId)!.dados;
@@ -354,6 +395,7 @@ export function planejar(cadastro: CadastroExistente, campos: CampoExistente[], 
       if (v.erro) { r.erros++; plano.erros.push(`${item.nome}: ${v.erro}`); continue; }
       if (v.vazio) continue;
       const atual = lerCaminho(doc, c.chave);
+      // Secundário de opções fixas (ex.: Categoria a partir do Tipo do Veículo): só preenche ou sobrescreve conforme a prioridade.
       if (igual(atual, v.valor)) { r.iguais++; continue; }
       if (atual == null || atual === '') { r.preenchidos++; gravar.push([c.chave, v.valor], ...derivados(c, v.valor)); continue; }
       r.divergentes++;
@@ -362,7 +404,9 @@ export function planejar(cadastro: CadastroExistente, campos: CampoExistente[], 
     plano.vincular.push({ itemId, registroId, gravar });
   }
   const criar = new Set(decisoes.criar ?? []);
+  plano.deixadosFora += plano.desfeitos - [...desfazer].filter(id => ligadosAMao.has(id)).length;
   for (const s of analise.semPar) {
+    if (ligadosAMao.has(s.itemId)) continue;
     if (!criar.has(s.itemId)) { plano.deixadosFora++; continue; }
     const item = porItem.get(s.itemId)!;
     const r = novoRegistro(cadastro, campos, item, chave, uidDe);
@@ -371,13 +415,14 @@ export function planejar(cadastro: CadastroExistente, campos: CampoExistente[], 
   }
   const trazer = new Set(decisoes.trazer ?? []);
   for (const s of analise.semItem) {
+    if (escolhidos.has(s.registroId)) continue; // ligado à mão
     if (trazer.has(s.registroId)) plano.trazer.push({ registroId: s.registroId, nome: s.nome || s.chave || s.registroId });
     else plano.foraDoQuadro++;
   }
   // Rótulo → texto: textos do cadastro (vinculados e trazidos) que ainda não são rótulo da coluna.
   const lidos = [...pares.map(p => p.registroId), ...plano.trazer.map(t => t.registroId)].map(id => porRegistro.get(id)!.dados);
   for (const c of campos) {
-    if (c.tipo !== 'status' || c.tipo_contrato !== 'texto') continue;
+    if (c.tipo !== 'status' || c.tipo_contrato !== 'texto' || c.secundario) continue;
     const conhecidos = new Set((c.rotulos ?? []).map(r => r.codigo));
     const textos = [...new Set(lidos.map(d => lerCaminho(d, c.chave)).filter((v): v is string => typeof v === 'string' && v.trim() !== '' && !conhecidos.has(v)))];
     if (textos.length) plano.rotulosNovos.push({ coluna_id: c.coluna_id, chave: c.chave, textos });

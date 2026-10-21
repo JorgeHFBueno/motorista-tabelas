@@ -26,7 +26,7 @@ type RelatorioCampo = { caminho: string; titulo: string; iguais: number; preench
 type Relatorio = {
   vinculados: number; registros_atualizados: number; criados: number; trazidos: number; deixados_fora: number; ambiguos_pendentes: number;
   fora_do_quadro: number; ja_vinculados: number; campos: RelatorioCampo[]; erros: string[]; total_erros: number;
-  rotulos_novos?: { coluna_id: number; textos: string[] }[];
+  rotulos_novos?: { coluna_id: number; textos: string[] }[]; manuais?: number; desfeitos?: number; arquivados?: number;
 };
 
 // Igual a functions/fridayCadastrosExistentes.ts (COLUNAS_COMPATIVEIS): texto aceita rótulo (grava o texto do rótulo).
@@ -51,13 +51,16 @@ export function Conciliar({ quadro, colunas, onFechar, onPronto }: {
   const cadastro = catalogo.find(c => c.colecao === colecao);
   // "começa com" atende quadros do monday cujo nome junta placa e modelo ("JBJ-4J22 Mercedez Atego").
   const [colunaChave, setColunaChave] = useState<string>(NOME_PREFIXO);
-  const [livres, setLivres] = useState<Record<number, string>>({}); // coluna → chave em <grupo_livre>.<chave>
+  const [livresColunas, setLivresColunas] = useState<Record<number, string>>({}); // coluna → chave em <grupo_livre>.<chave>
   const [caminhoChave, setCaminhoChave] = useState('');
   const [analise, setAnalise] = useState<Analise | null>(null);
   const [nomes, setNomes] = useState<Record<string, string>>({});
   const [criar, setCriar] = useState<Set<number>>(new Set());
   const [trazer, setTrazer] = useState<Set<string>>(new Set());
   const [ambiguos, setAmbiguos] = useState<Record<string, string>>({});
+  const [desfazer, setDesfazer] = useState<Set<number>>(new Set());          // casados que não devem ser vinculados
+  const [manuais, setManuais] = useState<Record<string, string>>({});        // item → registro escolhido à mão
+  const [duplicados, setDuplicados] = useState<Set<number>>(new Set());      // ambíguos que são cópia (arquivados)
   const [ligacoes, setLigacoes] = useState<Record<string, Ligacao>>({});
   const [relatorio, setRelatorio] = useState<{ simulacao: boolean; dados: Relatorio } | null>(null);
   const [erro, setErro] = useState('');
@@ -80,14 +83,36 @@ export function Conciliar({ quadro, colunas, onFechar, onPronto }: {
     if (colunaChaveId != null && caminhoChave) l[caminhoChave] = { coluna_id: colunaChaveId, prioridade: l[caminhoChave]?.prioridade ?? 'cadastro', rotulos: {} };
     return l;
   }, [ligacoes, colunaChaveId, caminhoChave]);
+  const opcaoFixa = (caminho: string) => { const c = cadastro?.campos.find(x => x.caminho === caminho); return c?.tipo === 'opcao' && !c.opcoes_abertas; };
+  const principalDa = new Map(Object.entries(ligacoesEfetivas).filter(([caminho, l]) => l.coluna_id !== '' && !opcaoFixa(caminho)).map(([caminho, l]) => [Number(l.coluna_id), caminho]));
+  const ehSecundario = (caminho: string, l?: Ligacao) => !!l && l.coluna_id !== '' && opcaoFixa(caminho) && principalDa.has(Number(l.coluna_id));
   const pedidos = [
     ...Object.entries(ligacoesEfetivas).filter(([, l]) => l.coluna_id !== '')
-      .map(([caminho, l]) => ({ caminho, coluna_id: Number(l.coluna_id), prioridade: l.prioridade, rotulos: l.rotulos })),
-    ...Object.entries(livres).map(([id, k]) => ({ caminho: `${cadastro?.grupo_livre ?? 'friday'}.${k}`, coluna_id: Number(id), prioridade: 'quadro' as const, rotulos: {} })),
+      .map(([caminho, l]) => ({ caminho, coluna_id: Number(l.coluna_id), prioridade: l.prioridade, rotulos: l.rotulos, ...(ehSecundario(caminho, l) ? { secundario: true } : {}) })),
+    ...Object.entries(livresColunas).map(([id, k]) => ({ caminho: `${cadastro?.grupo_livre ?? 'friday'}.${k}`, coluna_id: Number(id), prioridade: 'quadro' as const, rotulos: {} })),
   ];
   const ligadas = new Set(pedidos.map(p => p.coluna_id));
   const base = { quadroId: Number(quadro.id), colecao, colunaChave: colunaChaveId, caminhoChave, modoChave: colunaChave === NOME_PREFIXO ? 'prefixo' : 'igual' };
-  const decisoes = { criar: [...criar], trazer: [...trazer], ambiguos };
+  const decisoes = { criar: [...criar], trazer: [...trazer], ambiguos, desfazer: [...desfazer], manuais, duplicados: [...duplicados] };
+  // Registros livres para ligar à mão: sem item, os de casados desfeitos e os ambíguos não escolhidos.
+  const escolhidosAmb = new Set(Object.values(ambiguos));
+  const livres = analise ? [
+    ...analise.semItem.map(s => ({ id: s.registroId, rotulo: nomes[s.registroId] ?? (s.nome || s.chave || s.registroId) })),
+    ...analise.casados.filter(c => desfazer.has(c.itemId)).map(c => ({ id: c.registroId, rotulo: nomes[c.registroId] ?? c.registroId })),
+    ...[...new Set(analise.ambiguos.flatMap(a => a.registroIds))].filter(id => !escolhidosAmb.has(id)).map(id => ({ id, rotulo: nomes[id] ?? id })),
+  ].sort((a, b) => a.rotulo.localeCompare(b.rotulo)) : [];
+  const usadosAMao = new Map(Object.entries(manuais).map(([item, reg]) => [reg, Number(item)]));
+  const ligarAMao = (itemId: number, registroId: string) => {
+    setRelatorio(null);
+    setManuais(m => { const n = { ...m }; if (registroId) n[itemId] = registroId; else delete n[itemId]; return n; });
+    if (registroId) { setTrazer(t => { const n = new Set(t); n.delete(registroId); return n; }); setCriar(c => { const n = new Set(c); n.delete(itemId); return n; }); }
+  };
+  const seletorManual = (itemId: number, extra?: { valor: string; rotulo: string }[], valorAtual?: string, aoMudar?: (v: string) => void) => (
+    <select className="input-cheio" value={valorAtual ?? manuais[itemId] ?? ''} onChange={e => (aoMudar ?? (v => ligarAMao(itemId, v)))(e.target.value)}>
+      {extra?.map(x => <option key={x.valor} value={x.valor}>{x.rotulo}</option>) ?? <option value="">Deixar fora</option>}
+      {livres.filter(r => !usadosAMao.has(r.id) || usadosAMao.get(r.id) === itemId).map(r => <option key={r.id} value={r.id}>Ligar a {r.rotulo}</option>)}
+    </select>
+  );
 
   const chamar = async (rotulo: string, f: () => Promise<void>) => {
     setErro(''); setOcupado(rotulo);
@@ -96,7 +121,7 @@ export function Conciliar({ quadro, colunas, onFechar, onPronto }: {
   const analisar = () => chamar('Analisando…', async () => {
     const r = await conciliarCadastro({ op: 'analisar', ...base });
     setAnalise(r.analise as Analise); setNomes((r.nomes ?? {}) as Record<string, string>);
-    setCriar(new Set()); setTrazer(new Set()); setAmbiguos({}); setRelatorio(null);
+    setCriar(new Set()); setTrazer(new Set()); setAmbiguos({}); setDesfazer(new Set()); setManuais({}); setDuplicados(new Set()); setRelatorio(null);
   });
   useEffect(() => { if (fixo && cadastro && !analise) void analisar(); }, [fixo, cadastro]); // eslint-disable-line react-hooks/exhaustive-deps
   const simular = () => chamar('Simulando…', async () => {
@@ -106,7 +131,7 @@ export function Conciliar({ quadro, colunas, onFechar, onPronto }: {
   const executar = () => chamar('Conciliando…', async () => {
     const r = await conciliarCadastro({ op: 'executar', ...base, campos: pedidos, decisoes });
     const d = r.relatorio as Relatorio;
-    avisar(`Conciliado com ${cadastro?.nome}: ${d.vinculados} vinculados, ${d.criados} criados, ${d.trazidos} trazidos.`);
+    avisar(`Conciliado com ${cadastro?.nome}: ${d.vinculados} vinculados, ${d.criados} criados, ${d.trazidos} trazidos${d.arquivados ? `, ${d.arquivados} duplicados arquivados` : ''}.`);
     onPronto();
   });
 
@@ -176,16 +201,39 @@ export function Conciliar({ quadro, colunas, onFechar, onPronto }: {
             <span className="conc-chip">{analise.semItem.length} registros sem item</span>
             {analise.jaVinculados > 0 && <span className="conc-chip">{analise.jaVinculados} já vinculados</span>}
           </div>
+          {analise.casados.length > 0 && (
+            <details>
+              <summary>Casados: confira e desfaça os errados ({desfazer.size} desfeitos de {analise.casados.length})</summary>
+              <div className="conc-lista">
+                {analise.casados.map(c => (
+                  <div key={c.itemId} className="conc-item">
+                    <label className="check-form" title="Desfazer: o item não é vinculado a este registro">
+                      <input type="checkbox" className="caixa" checked={desfazer.has(c.itemId)}
+                        onChange={() => { alternar(desfazer, c.itemId, setDesfazer); if (desfazer.has(c.itemId)) ligarAMao(c.itemId, ''); }} />
+                      <span className={desfazer.has(c.itemId) ? 'conc-riscado' : ''}>{c.nome} → <strong>{nomes[c.registroId] ?? c.registroId}</strong></span>
+                    </label>
+                    {desfazer.has(c.itemId) && seletorManual(c.itemId)}
+                  </div>
+                ))}
+              </div>
+            </details>
+          )}
           {analise.ambiguos.length > 0 && (
             <details open>
-              <summary>Ambíguos: escolha o registro de cada item (sem escolha, o item fica fora)</summary>
+              <summary>Ambíguos: escolha o registro de cada item, deixe fora ou marque como duplicado (arquivado no quadro)</summary>
               <div className="conc-lista">
                 {analise.ambiguos.map(a => (
                   <div key={a.itemId} className="conc-item">
                     <span>{a.nome}</span>
-                    <select className="input-cheio" value={ambiguos[a.itemId] ?? ''} onChange={e => { setAmbiguos(m => ({ ...m, [a.itemId]: e.target.value })); setRelatorio(null); }}>
+                    <select className="input-cheio" value={duplicados.has(a.itemId) ? '__duplicado' : ambiguos[a.itemId] ?? ''} onChange={e => {
+                      const v = e.target.value;
+                      setRelatorio(null);
+                      setDuplicados(d => { const n = new Set(d); if (v === '__duplicado') n.add(a.itemId); else n.delete(a.itemId); return n; });
+                      setAmbiguos(m => { const n = { ...m }; if (v && v !== '__duplicado') n[a.itemId] = v; else delete n[a.itemId]; return n; });
+                    }}>
                       <option value="">Deixar fora</option>
                       {a.registroIds.map(id => <option key={id} value={id}>{nomes[id] ?? id}</option>)}
+                      <option value="__duplicado">Duplicado: arquivar este item</option>
                     </select>
                   </div>
                 ))}
@@ -194,13 +242,18 @@ export function Conciliar({ quadro, colunas, onFechar, onPronto }: {
           )}
           {analise.semPar.length > 0 && (
             <details>
-              <summary>Sem par: marque os que viram registro novo ({criar.size} de {analise.semPar.length})</summary>
-              <button className="fr-btn-link" onClick={() => { setCriar(new Set(criar.size === analise.semPar.length ? [] : analise.semPar.map(s => s.itemId))); setRelatorio(null); }}>
-                {criar.size === analise.semPar.length ? 'Desmarcar todos' : 'Marcar todos'}</button>
+              <summary>Sem par: ligue à mão a um registro, crie um registro novo ou deixe fora ({Object.keys(manuais).filter(k => analise.semPar.some(s => String(s.itemId) === k)).length} ligados, {criar.size} a criar, de {analise.semPar.length})</summary>
               <div className="conc-lista">
                 {analise.semPar.map(s => (
-                  <label key={s.itemId} className="check-form"><input type="checkbox" className="caixa" checked={criar.has(s.itemId)} onChange={() => alternar(criar, s.itemId, setCriar)} />
-                    {s.nome}{!s.chave && <small className="texto-alerta"> sem chave</small>}</label>
+                  <div key={s.itemId} className="conc-item">
+                    <span>{s.nome}{!s.chave && <small className="texto-alerta"> sem chave</small>}</span>
+                    {seletorManual(s.itemId, [{ valor: '', rotulo: 'Deixar fora' }, { valor: '__criar', rotulo: 'Criar registro novo' }],
+                      manuais[s.itemId] ?? (criar.has(s.itemId) ? '__criar' : ''),
+                      v => {
+                        if (v === '__criar') { ligarAMao(s.itemId, ''); setCriar(c => new Set(c).add(s.itemId)); }
+                        else { setCriar(c => { const n = new Set(c); n.delete(s.itemId); return n; }); ligarAMao(s.itemId, v); }
+                      })}
+                  </div>
                 ))}
               </div>
             </details>
@@ -211,10 +264,14 @@ export function Conciliar({ quadro, colunas, onFechar, onPronto }: {
               <button className="fr-btn-link" onClick={() => { setTrazer(new Set(trazer.size === analise.semItem.length ? [] : analise.semItem.map(s => s.registroId))); setRelatorio(null); }}>
                 {trazer.size === analise.semItem.length ? 'Desmarcar todos' : 'Marcar todos'}</button>
               <div className="conc-lista">
-                {analise.semItem.map(s => (
-                  <label key={s.registroId} className="check-form"><input type="checkbox" className="caixa" checked={trazer.has(s.registroId)} onChange={() => alternar(trazer, s.registroId, setTrazer)} />
-                    {s.chave || s.registroId}{s.nome && s.nome !== s.chave && <span className="muted"> · {s.nome}</span>}</label>
-                ))}
+                {analise.semItem.map(s => {
+                  const aMao = usadosAMao.get(s.registroId);
+                  return (
+                    <label key={s.registroId} className="check-form"><input type="checkbox" className="caixa" disabled={aMao != null} checked={aMao == null && trazer.has(s.registroId)} onChange={() => alternar(trazer, s.registroId, setTrazer)} />
+                      {nomes[s.registroId] ?? (s.nome || s.chave || s.registroId)}
+                      {aMao != null && <small className="muted"> · ligado à mão a {analise.semPar.find(x => x.itemId === aMao)?.nome ?? analise.casados.find(x => x.itemId === aMao)?.nome ?? aMao}</small>}</label>
+                  );
+                })}
               </div>
             </details>
           )}
@@ -239,7 +296,7 @@ export function Conciliar({ quadro, colunas, onFechar, onPronto }: {
                   </span>
                   <select className="input-cheio" value={l?.coluna_id ?? ''} disabled={ehChave} onChange={e => ligar(c.caminho, { coluna_id: e.target.value === '' ? '' : Number(e.target.value), rotulos: {} })}>
                     <option value="">— não ligar —</option>
-                    {colunas.filter(x => COMPATIVEIS[c.tipo].includes(x.tipo) && (x.id === l?.coluna_id || !(x.id in livres))).map(x => <option key={x.id} value={x.id}>{x.titulo}</option>)}
+                    {colunas.filter(x => COMPATIVEIS[c.tipo].includes(x.tipo) && (x.id === l?.coluna_id || !(x.id in livresColunas))).map(x => <option key={x.id} value={x.id}>{x.titulo}{opcaoFixa(c.caminho) && principalDa.has(x.id) ? ' (também alimenta este campo)' : ''}</option>)}
                   </select>
                   <select className="input-cheio" value={l?.prioridade ?? 'cadastro'} disabled={!l || l.coluna_id === '' || c.somente_leitura}
                     title="Quando o item e o registro têm valores diferentes" onChange={e => ligar(c.caminho, { prioridade: e.target.value as Ligacao['prioridade'] })}>
@@ -253,6 +310,7 @@ export function Conciliar({ quadro, colunas, onFechar, onPronto }: {
                     </div>
                   )}
                   {coluna && c.tipo === 'texto' && coluna.tipo === 'status' && <div className="conc-opcoes muted fr-small">Grava o texto do rótulo; textos do cadastro que não forem rótulo viram rótulos novos.</div>}
+                  {ehSecundario(c.caminho, l) && coluna && <div className="conc-opcoes muted fr-small">Também gravado a partir de “{coluna.titulo}”, que continua mostrando {cadastro.campos.find(x => x.caminho === principalDa.get(coluna.id))?.titulo ?? 'o outro campo'}. Ligue cada rótulo a uma opção:</div>}
                   {rotulos.length > 0 && !c.opcoes_abertas && c.tipo === 'opcao' && (
                     <div className="conc-opcoes">
                       {rotulos.map(r => (
@@ -269,16 +327,16 @@ export function Conciliar({ quadro, colunas, onFechar, onPronto }: {
               );
             })}
           </div>
-          <strong className="fr-small">Outras colunas: viram campos oficiais em <code>{cadastro.grupo_livre}.&lt;chave&gt;</code></strong>
+          <strong className="fr-small">Colunas ainda não ligadas (opcional): marque as que também viram campos oficiais, em <code>{cadastro.grupo_livre}.&lt;chave&gt;</code></strong>
           <div className="conc-campos">
-            {colunas.filter(x => TIPOS_LIVRES.has(x.tipo) && (x.id in livres || !ligadas.has(x.id))).map(x => (
+            {colunas.filter(x => TIPOS_LIVRES.has(x.tipo) && (x.id in livresColunas || !ligadas.has(x.id))).map(x => (
               <div key={x.id} className="oficial-coluna">
                 <label className="check-form">
-                  <input type="checkbox" className="caixa" checked={x.id in livres}
-                    onChange={e => { setRelatorio(null); setLivres(m => { const n = { ...m }; if (e.target.checked) n[x.id] = sugerirChave(x.titulo); else delete n[x.id]; return n; }); }} />
+                  <input type="checkbox" className="caixa" checked={x.id in livresColunas}
+                    onChange={e => { setRelatorio(null); setLivresColunas(m => { const n = { ...m }; if (e.target.checked) n[x.id] = sugerirChave(x.titulo); else delete n[x.id]; return n; }); }} />
                   {x.titulo} <small className="muted">({x.tipo})</small>
                 </label>
-                {x.id in livres && <input className="input-cheio oficial-chave" value={livres[x.id]} onChange={e => { setRelatorio(null); setLivres(m => ({ ...m, [x.id]: e.target.value })); }} />}
+                {x.id in livresColunas && <input className="input-cheio oficial-chave" value={livresColunas[x.id]} onChange={e => { setRelatorio(null); setLivresColunas(m => ({ ...m, [x.id]: e.target.value })); }} />}
               </div>
             ))}
           </div>
@@ -296,6 +354,9 @@ export function Conciliar({ quadro, colunas, onFechar, onPronto }: {
             <span className="conc-chip">{relatorio.dados.trazidos} trazidos</span>
             <span className="conc-chip">{relatorio.dados.deixados_fora} itens fora</span>
             {relatorio.dados.ambiguos_pendentes > 0 && <span className="conc-chip atencao">{relatorio.dados.ambiguos_pendentes} ambíguos sem escolha</span>}
+            {!!relatorio.dados.manuais && <span className="conc-chip">{relatorio.dados.manuais} ligados à mão</span>}
+            {!!relatorio.dados.desfeitos && <span className="conc-chip">{relatorio.dados.desfeitos} casados desfeitos</span>}
+            {!!relatorio.dados.arquivados && <span className="conc-chip atencao">{relatorio.dados.arquivados} duplicados a arquivar</span>}
             {(relatorio.dados.rotulos_novos ?? []).map(r => (
               <span key={r.coluna_id} className="conc-chip" title={r.textos.join(', ')}>{r.textos.length} rótulo(s) novo(s) em “{colunas.find(c => c.id === r.coluna_id)?.titulo}”</span>
             ))}
