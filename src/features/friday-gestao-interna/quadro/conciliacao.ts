@@ -5,7 +5,9 @@ export type CampoContrato = {
   caminho: string; titulo: string; tipo: 'texto' | 'numero' | 'caixa' | 'opcao' | 'data'; obrigatorio: boolean; nulo: boolean; somente_leitura?: boolean; escala?: number;
   opcoes?: string[]; opcoes_abertas?: boolean; derivado?: boolean; deriva?: { caminho: string; verdadeiro_quando: string };
 };
-export type Cadastro = { colecao: string; nome: string; descricao: string; chaves: string[]; campos: CampoContrato[]; liberado: boolean; grupo_livre: string };
+export type Cadastro = { colecao: string; nome: string; descricao: string; chaves: string[]; campos: CampoContrato[]; liberado: boolean; grupo_livre: string;
+  dividir_nome?: { identificador: string; resto: string }; // chave "nome começa com": ao criar, 1ª palavra e resto do nome
+};
 export type Analise = {
   casados: { itemId: number; nome: string; registroId: string }[];
   ambiguos: { itemId: number; nome: string; chave: string; registroIds: string[] }[];

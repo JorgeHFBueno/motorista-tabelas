@@ -127,7 +127,15 @@ function Conciliacao() {
   if (!quadro) return <div className="carregando">Carregando…</div>;
   const nomeChave = colunaChave === NOME_PREFIXO ? 'nome do item começa com a chave' : colunaChave === NOME ? 'nome do item (igual)'
     : `coluna “${colunas.find(c => c.id === colunaChaveId)?.titulo ?? colunaChave}”`;
-  const ligadosAMaoSemPar = analise ? Object.keys(manuais).filter(k => analise.semPar.some(s => String(s.itemId) === k)).length : 0;
+  // Com a chave no nome do item, os campos que saem do nome não têm coluna para ligar.
+  const doNome: Record<string, string> = colunaChaveId != null ? {} : {
+    [caminhoChave]: 'Vem do nome do item.',
+    ...(colunaChave === NOME_PREFIXO && cadastro?.dividir_nome ? {
+      [cadastro.dividir_nome.identificador]: 'Vem do nome do item: casa pelo início do nome; num registro novo, é a 1ª palavra.',
+      [cadastro.dividir_nome.resto]: 'Vem do nome do item: num registro novo, é o que vem depois da 1ª palavra.',
+    } : {}),
+  };
+  const ligadosAMaoSemPar =analise ? Object.keys(manuais).filter(k => analise.semPar.some(s => String(s.itemId) === k)).length : 0;
 
   return (
     <div className="pagina conc-pagina">
@@ -255,6 +263,7 @@ function Conciliacao() {
                             {c.somente_leitura && <Lock size={12} />} {c.titulo}
                             <small className="muted"> {c.caminho}{c.escala ? ` (×${c.escala})` : ''}{c.somente_leitura ? ' · só leitura' : c.obrigatorio && !c.nulo ? ' · obrigatório' : ''}</small>
                           </span>
+                          {doNome[c.caminho] ? <span className="conc-do-nome muted fr-small">{doNome[c.caminho]}</span> : <>
                           <select className="input-cheio" value={l?.coluna_id ?? ''} disabled={ehChave} onChange={e => ligar(c.caminho, { coluna_id: e.target.value === '' ? '' : Number(e.target.value), rotulos: {} })}>
                             <option value="">— não ligar —</option>
                             {colunas.filter(x => COMPATIVEIS[c.tipo].includes(x.tipo) && (x.id === l?.coluna_id || !(x.id in livresColunas))).map(x => <option key={x.id} value={x.id}>{x.titulo}{opcaoFixa(c.caminho) && principalDa.has(x.id) ? ' (também alimenta este campo)' : ''}</option>)}
@@ -263,7 +272,7 @@ function Conciliacao() {
                             title="Quando o item e o registro têm valores diferentes" onChange={e => ligar(c.caminho, { prioridade: e.target.value as Ligacao['prioridade'] })}>
                             <option value="cadastro">vale o cadastro</option>
                             <option value="quadro">vale o quadro</option>
-                          </select>
+                          </select></>}
                           {coluna && c.opcoes_abertas && (
                             <div className="conc-opcoes muted fr-small">
                               Códigos: {rotulos.map(r => `${r.texto} → ${sugerirChave(r.texto)}`).join(' · ')}
