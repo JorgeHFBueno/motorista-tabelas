@@ -9,8 +9,11 @@ import type { Coluna } from './tipos.ts';
 // campos do contrato; 4) simulação e conciliação. A simulação só lê; a conciliação fica travada por cadastro até ser
 // liberada (Function fridayCadastroConciliar, só adm2). Contrato: The Manuscript, 03_APLICACAO_WEB/14_FRIDAY_CADASTROS_OFICIAIS.md.
 
-type CampoContrato = { caminho: string; titulo: string; tipo: 'texto' | 'numero' | 'caixa' | 'opcao' | 'data'; obrigatorio: boolean; nulo: boolean; somente_leitura?: boolean; escala?: number; opcoes?: string[] };
-type Cadastro = { colecao: string; nome: string; descricao: string; chaves: string[]; campos: CampoContrato[]; liberado: boolean };
+type CampoContrato = {
+  caminho: string; titulo: string; tipo: 'texto' | 'numero' | 'caixa' | 'opcao' | 'data'; obrigatorio: boolean; nulo: boolean; somente_leitura?: boolean; escala?: number;
+  opcoes?: string[]; opcoes_abertas?: boolean; derivado?: boolean; deriva?: { caminho: string; verdadeiro_quando: string };
+};
+type Cadastro = { colecao: string; nome: string; descricao: string; chaves: string[]; campos: CampoContrato[]; liberado: boolean; grupo_livre: string };
 type Analise = {
   casados: { itemId: number; nome: string; registroId: string }[];
   ambiguos: { itemId: number; nome: string; chave: string; registroIds: string[] }[];
@@ -23,13 +26,20 @@ type RelatorioCampo = { caminho: string; titulo: string; iguais: number; preench
 type Relatorio = {
   vinculados: number; registros_atualizados: number; criados: number; trazidos: number; deixados_fora: number; ambiguos_pendentes: number;
   fora_do_quadro: number; ja_vinculados: number; campos: RelatorioCampo[]; erros: string[]; total_erros: number;
+  rotulos_novos?: { coluna_id: number; textos: string[] }[];
 };
 
-// Igual a functions/fridayCadastrosExistentes.ts (COLUNAS_COMPATIVEIS).
+// Igual a functions/fridayCadastrosExistentes.ts (COLUNAS_COMPATIVEIS): texto aceita rótulo (grava o texto do rótulo).
 const COMPATIVEIS: Record<CampoContrato['tipo'], string[]> = {
-  texto: ['texto', 'texto_longo', 'telefone', 'email'], numero: ['numero', 'avaliacao'], caixa: ['caixa'], opcao: ['status'], data: ['data'],
+  texto: ['texto', 'texto_longo', 'telefone', 'email', 'status'], numero: ['numero', 'avaliacao'], caixa: ['caixa'], opcao: ['status'], data: ['data'],
 };
-const NOME = 'nome';
+const NOME = 'nome', NOME_PREFIXO = 'nome_prefixo';
+// Colunas que podem ir para o grupo livre ("friday.<chave>"), com as regras dos cadastros novos. Igual a TIPOS_OFICIAIS, sem pessoa.
+const TIPOS_LIVRES = new Set(['texto', 'texto_longo', 'telefone', 'email', 'numero', 'avaliacao', 'data', 'periodo', 'status', 'lista', 'caixa', 'link']);
+const sugerirChave = (titulo: string) => {
+  const base = titulo.normalize('NFKD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '').slice(0, 40);
+  return !base ? 'campo' : /^[a-z]/.test(base) ? base : `c_${base}`.slice(0, 40);
+};
 
 export function Conciliar({ quadro, colunas, onFechar, onPronto }: {
   quadro: { id?: unknown; oficial?: { modo?: string; colecao?: string; nome?: string } | null }; colunas: Coluna[]; onFechar: () => void; onPronto: () => void;
@@ -39,7 +49,9 @@ export function Conciliar({ quadro, colunas, onFechar, onPronto }: {
   const [catalogo, setCatalogo] = useState<Cadastro[]>([]);
   const [colecao, setColecao] = useState<string>(fixo ? String(quadro.oficial?.colecao ?? '') : '');
   const cadastro = catalogo.find(c => c.colecao === colecao);
-  const [colunaChave, setColunaChave] = useState<string>(NOME);
+  // "começa com" atende quadros do monday cujo nome junta placa e modelo ("JBJ-4J22 Mercedez Atego").
+  const [colunaChave, setColunaChave] = useState<string>(NOME_PREFIXO);
+  const [livres, setLivres] = useState<Record<number, string>>({}); // coluna → chave em <grupo_livre>.<chave>
   const [caminhoChave, setCaminhoChave] = useState('');
   const [analise, setAnalise] = useState<Analise | null>(null);
   const [nomes, setNomes] = useState<Record<string, string>>({});
@@ -60,7 +72,7 @@ export function Conciliar({ quadro, colunas, onFechar, onPronto }: {
   }, [fixo]);
   useEffect(() => { if (cadastro && !caminhoChave) setCaminhoChave(cadastro.chaves[0]); }, [cadastro, caminhoChave]);
 
-  const colunaChaveId = colunaChave === NOME ? null : Number(colunaChave);
+  const colunaChaveId = colunaChave === NOME || colunaChave === NOME_PREFIXO ? null : Number(colunaChave);
   const colunasTexto = colunas.filter(c => COMPATIVEIS.texto.includes(c.tipo));
   // A coluna-chave fica ligada ao campo-chave.
   const ligacoesEfetivas = useMemo(() => {
@@ -68,9 +80,13 @@ export function Conciliar({ quadro, colunas, onFechar, onPronto }: {
     if (colunaChaveId != null && caminhoChave) l[caminhoChave] = { coluna_id: colunaChaveId, prioridade: l[caminhoChave]?.prioridade ?? 'cadastro', rotulos: {} };
     return l;
   }, [ligacoes, colunaChaveId, caminhoChave]);
-  const pedidos = Object.entries(ligacoesEfetivas).filter(([, l]) => l.coluna_id !== '')
-    .map(([caminho, l]) => ({ caminho, coluna_id: Number(l.coluna_id), prioridade: l.prioridade, rotulos: l.rotulos }));
-  const base = { quadroId: Number(quadro.id), colecao, colunaChave: colunaChaveId, caminhoChave };
+  const pedidos = [
+    ...Object.entries(ligacoesEfetivas).filter(([, l]) => l.coluna_id !== '')
+      .map(([caminho, l]) => ({ caminho, coluna_id: Number(l.coluna_id), prioridade: l.prioridade, rotulos: l.rotulos })),
+    ...Object.entries(livres).map(([id, k]) => ({ caminho: `${cadastro?.grupo_livre ?? 'friday'}.${k}`, coluna_id: Number(id), prioridade: 'quadro' as const, rotulos: {} })),
+  ];
+  const ligadas = new Set(pedidos.map(p => p.coluna_id));
+  const base = { quadroId: Number(quadro.id), colecao, colunaChave: colunaChaveId, caminhoChave, modoChave: colunaChave === NOME_PREFIXO ? 'prefixo' : 'igual' };
   const decisoes = { criar: [...criar], trazer: [...trazer], ambiguos };
 
   const chamar = async (rotulo: string, f: () => Promise<void>) => {
@@ -131,7 +147,8 @@ export function Conciliar({ quadro, colunas, onFechar, onPronto }: {
             <>
               <label className="campo-form">Chave no quadro
                 <select className="input-cheio" value={colunaChave} disabled={!!analise} onChange={e => setColunaChave(e.target.value)}>
-                  <option value={NOME}>Nome do item</option>
+                  <option value={NOME_PREFIXO}>Nome do item começa com a chave</option>
+                  <option value={NOME}>Nome do item (igual)</option>
                   {colunasTexto.map(c => <option key={c.id} value={c.id}>{c.titulo}</option>)}
                 </select>
               </label>
@@ -209,7 +226,7 @@ export function Conciliar({ quadro, colunas, onFechar, onPronto }: {
         <div className="conc-secao">
           <strong className="fr-small">Ligue as colunas aos campos do cadastro</strong>
           <div className="conc-campos">
-            {cadastro.campos.map(c => {
+            {cadastro.campos.filter(c => !c.derivado).map(c => {
               const l = ligacoesEfetivas[c.caminho];
               const ehChave = c.caminho === caminhoChave && colunaChaveId != null;
               const coluna = colunas.find(x => x.id === l?.coluna_id);
@@ -222,14 +239,21 @@ export function Conciliar({ quadro, colunas, onFechar, onPronto }: {
                   </span>
                   <select className="input-cheio" value={l?.coluna_id ?? ''} disabled={ehChave} onChange={e => ligar(c.caminho, { coluna_id: e.target.value === '' ? '' : Number(e.target.value), rotulos: {} })}>
                     <option value="">— não ligar —</option>
-                    {colunas.filter(x => COMPATIVEIS[c.tipo].includes(x.tipo)).map(x => <option key={x.id} value={x.id}>{x.titulo}</option>)}
+                    {colunas.filter(x => COMPATIVEIS[c.tipo].includes(x.tipo) && (x.id === l?.coluna_id || !(x.id in livres))).map(x => <option key={x.id} value={x.id}>{x.titulo}</option>)}
                   </select>
                   <select className="input-cheio" value={l?.prioridade ?? 'cadastro'} disabled={!l || l.coluna_id === '' || c.somente_leitura}
                     title="Quando o item e o registro têm valores diferentes" onChange={e => ligar(c.caminho, { prioridade: e.target.value as Ligacao['prioridade'] })}>
                     <option value="cadastro">vale o cadastro</option>
                     <option value="quadro">vale o quadro</option>
                   </select>
-                  {rotulos.length > 0 && (
+                  {coluna && c.opcoes_abertas && (
+                    <div className="conc-opcoes muted fr-small">
+                      Códigos: {rotulos.map(r => `${r.texto} → ${sugerirChave(r.texto)}`).join(' · ')}
+                      {c.deriva && <> · <strong>{c.deriva.caminho}</strong> fica calculado: sim quando a situação é <code>{c.deriva.verdadeiro_quando}</code></>}
+                    </div>
+                  )}
+                  {coluna && c.tipo === 'texto' && coluna.tipo === 'status' && <div className="conc-opcoes muted fr-small">Grava o texto do rótulo; textos do cadastro que não forem rótulo viram rótulos novos.</div>}
+                  {rotulos.length > 0 && !c.opcoes_abertas && c.tipo === 'opcao' && (
                     <div className="conc-opcoes">
                       {rotulos.map(r => (
                         <label key={r.id} className="fr-small">{r.texto} →
@@ -245,6 +269,19 @@ export function Conciliar({ quadro, colunas, onFechar, onPronto }: {
               );
             })}
           </div>
+          <strong className="fr-small">Outras colunas: viram campos oficiais em <code>{cadastro.grupo_livre}.&lt;chave&gt;</code></strong>
+          <div className="conc-campos">
+            {colunas.filter(x => TIPOS_LIVRES.has(x.tipo) && (x.id in livres || !ligadas.has(x.id))).map(x => (
+              <div key={x.id} className="oficial-coluna">
+                <label className="check-form">
+                  <input type="checkbox" className="caixa" checked={x.id in livres}
+                    onChange={e => { setRelatorio(null); setLivres(m => { const n = { ...m }; if (e.target.checked) n[x.id] = sugerirChave(x.titulo); else delete n[x.id]; return n; }); }} />
+                  {x.titulo} <small className="muted">({x.tipo})</small>
+                </label>
+                {x.id in livres && <input className="input-cheio oficial-chave" value={livres[x.id]} onChange={e => { setRelatorio(null); setLivres(m => ({ ...m, [x.id]: e.target.value })); }} />}
+              </div>
+            ))}
+          </div>
         </div>
       )}
 
@@ -259,6 +296,9 @@ export function Conciliar({ quadro, colunas, onFechar, onPronto }: {
             <span className="conc-chip">{relatorio.dados.trazidos} trazidos</span>
             <span className="conc-chip">{relatorio.dados.deixados_fora} itens fora</span>
             {relatorio.dados.ambiguos_pendentes > 0 && <span className="conc-chip atencao">{relatorio.dados.ambiguos_pendentes} ambíguos sem escolha</span>}
+            {(relatorio.dados.rotulos_novos ?? []).map(r => (
+              <span key={r.coluna_id} className="conc-chip" title={r.textos.join(', ')}>{r.textos.length} rótulo(s) novo(s) em “{colunas.find(c => c.id === r.coluna_id)?.titulo}”</span>
+            ))}
           </div>
           {relatorio.dados.campos.length > 0 && (
             <table className="conc-tabela">
