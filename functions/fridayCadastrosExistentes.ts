@@ -166,6 +166,8 @@ export type CampoExistente = CampoOficial & {
 };
 export type PedidoLigacao = { caminho: string; coluna_id: number; prioridade?: Prioridade; rotulos?: Record<string, string> };
 type ColunaQuadro = { id: number; titulo: string; tipo: string; config?: AnyRecord };
+// Coluna número ×10 do Friday (config.x10) já guarda o inteiro ×10: com um campo ×10 do contrato, não há conversão.
+const escalaEfetiva = (contrato: CampoContrato, col: ColunaQuadro) => (contrato.escala ?? 1) / (col.tipo === 'numero' && col.config?.x10 ? 10 : 1);
 const rotulosDaColuna = (col: ColunaQuadro) => ((col.config?.rotulos ?? []) as AnyRecord[]).filter(r => String(r.id) !== '0' && String(r.texto ?? '').trim());
 
 /**
@@ -222,7 +224,7 @@ export function montarCamposExistente(cadastro: CadastroExistente, colunas: Colu
     campos.push({
       chave: contrato.caminho, titulo: col.titulo, tipo: col.tipo, coluna_id: col.id, situacao: 'ativo', ...(rotulos ? { rotulos } : {}),
       tipo_contrato: contrato.tipo, obrigatorio: contrato.obrigatorio, nulo: contrato.nulo,
-      ...(contrato.inteiro ? { inteiro: true } : {}), ...(contrato.escala ? { escala: contrato.escala } : {}),
+      ...(contrato.inteiro ? { inteiro: true } : {}), ...(escalaEfetiva(contrato, col) !== 1 ? { escala: escalaEfetiva(contrato, col) } : {}),
       ...(contrato.somente_leitura ? { somente_leitura: true } : {}), ...(contrato.opcoes_abertas ? { opcoes_abertas: true } : {}),
       ...(contrato.deriva ? { deriva: contrato.deriva } : {}),
       prioridade: contrato.somente_leitura ? 'cadastro' : p.prioridade === 'quadro' ? 'quadro' : 'cadastro',

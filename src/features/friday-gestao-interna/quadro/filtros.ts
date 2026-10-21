@@ -1,5 +1,5 @@
 // Filtros, ordenação e "agrupar por" de uma visão. Tudo calculado no navegador sobre os itens do quadro.
-import { CORES, hojeISO, inicioDaSemana, somarDias } from '../util.ts';
+import { CORES, fmtNumeroColuna, hojeISO, inicioDaSemana, somarDias } from '../util.ts';
 import { itemConcluido, rotuloDe, textoCelula, vazio, type Agrupar, type Coluna, type EstadoVisao, type Grupo, type Item, type Rotulo, type Visao } from './tipos.ts';
 
 export type Contexto = { colunas: Coluna[]; nomeUsuario: (id: unknown) => string; eu: number | null; hoje?: string };
@@ -172,7 +172,7 @@ export function agruparItens(itens: Item[], ag: Agrupar, ctx: Contexto & { usuar
       if (k === '__vazio') { add(vazioB); continue; }
       if (c.tipo === 'pessoa') { const u = ctx.usuarios.find(x => x.id === Number(k)); add({ chave: k, nome: u?.nome ?? ctx.nomeUsuario(k), cor: u?.cor ?? '#579bfc', ordem: (u?.nome ?? '').toLowerCase(), valoresNovo: { [c.id]: [Number(k)] } }); }
       else if (c.tipo === 'data' || c.tipo === 'periodo') { const [a, m] = k.split('-').map(Number); add({ chave: k, nome: `${MESES[m - 1]} de ${a}`, cor: CORES[(m * 5) % CORES.length], ordem: k, valoresNovo: {} }); }
-      else if (c.tipo === 'numero' || c.tipo === 'avaliacao') add({ chave: k, nome: k.replace('.', ','), cor: '#579bfc', ordem: Number(k), valoresNovo: { [c.id]: Number(k) } });
+      else if (c.tipo === 'numero' || c.tipo === 'avaliacao') add({ chave: k, nome: c.tipo === 'numero' ? fmtNumeroColuna({ ...c.config, unidade: '' }, k) : k.replace('.', ','), cor: '#579bfc', ordem: Number(k), valoresNovo: { [c.id]: Number(k) } });
       else { const t = k.slice(2); add({ chave: k, nome: t, cor: '#579bfc', ordem: t.toLowerCase(), valoresNovo: ['texto', 'telefone', 'email'].includes(c.tipo) ? { [c.id]: t } : {} }); }
     }
   }

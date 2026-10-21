@@ -1,11 +1,13 @@
 import { useState } from 'react';
-import { Archive, Copy, ListTree, Lock, Maximize2, MessageCircle, MessageCirclePlus, MoreHorizontal, Pencil, Plus, Trash2 } from 'lucide-react';
+import { Archive, Copy, ListTree, Lock, Maximize2, Shuffle, MessageCircle, MessageCirclePlus, MoreHorizontal, Pencil, Plus, Trash2 } from 'lucide-react';
 import { useAuth } from '../../../contexts/AuthContext';
 import type { Row } from '../api.ts';
 import { Editavel, Menu, Popover, useConfirmar, usePopover } from '../ui/base.tsx';
 import { Celula } from './Celula.tsx';
 import { MenuTipos } from './MenuTipos.tsx';
 import { itensCampoOficial } from './Tabela.tsx';
+import { alvosPara } from './mudarTipo.ts';
+import { MudarTipoDialogo } from './MudarTipo.tsx';
 import { CampoOficialDialogo } from './TornarOficial.tsx';
 import { infoTipo, type Coluna, type Item, type Sub } from './tipos.ts';
 import { porPosicao, type Acoes } from './useQuadro.ts';
@@ -132,6 +134,7 @@ function CabecalhoSub({ coluna, acoes, confirmar }: { coluna: Coluna; acoes: Aco
   const pop = usePopover<HTMLButtonElement>();
   const [renomear, setRenomear] = useState(false);
   const [campoOficial, setCampoOficial] = useState<'adicionar' | 'descontinuar' | null>(null);
+  const [mudarTipo, setMudarTipo] = useState(false);
   const adm2 = useAuth().authorizationProfile?.adm2 === true;
   const Ic = infoTipo(coluna.tipo).icone;
   return (
@@ -147,6 +150,7 @@ function CabecalhoSub({ coluna, acoes, confirmar }: { coluna: Coluna; acoes: Aco
           <div className="menu-titulo"><Ic size={14} /> {infoTipo(coluna.tipo).rotulo} (subitens)</div>
           <Menu onEscolher={pop.fechar} itens={[
             { rotulo: 'Renomear', icone: <Pencil size={15} />, onClick: () => setRenomear(true) },
+            ...(!coluna.oficial && alvosPara(coluna).length ? [{ rotulo: 'Mudar tipo…', icone: <Shuffle size={15} />, onClick: () => setMudarTipo(true) }] : []),
             ...itensCampoOficial(adm2 && acoes.oficial?.subitens === 'ativo', coluna, setCampoOficial),
             // Campo oficial não pode ser excluído (os dados vivem no cadastro oficial).
             ...(coluna.oficial ? [] : ['separador' as const,
@@ -156,6 +160,7 @@ function CabecalhoSub({ coluna, acoes, confirmar }: { coluna: Coluna; acoes: Aco
       )}
       {campoOficial && acoes.oficial && <CampoOficialDialogo quadroId={acoes.oficial.quadroId} coluna={coluna} modo={campoOficial}
         onFechar={() => setCampoOficial(null)} onPronto={() => { setCampoOficial(null); acoes.recarregar(); }} />}
+      {mudarTipo && <MudarTipoDialogo coluna={coluna} onFechar={() => setMudarTipo(false)} onPronto={() => { setMudarTipo(false); acoes.recarregar(); }} />}
     </th>
   );
 }

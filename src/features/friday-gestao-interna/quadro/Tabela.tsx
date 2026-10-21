@@ -1,17 +1,19 @@
 import { useMemo, useRef, useState } from 'react';
 import {
   AlarmClock, Archive, ArrowDownAZ, ArrowLeft, ArrowRight, ArrowUpAZ, CalendarDays, Check, ChevronDown, ChevronRight, Copy, EyeOff, FileSpreadsheet, GripVertical, Group, ListTree, Maximize2,
-  Lock, LockOpen, MessageCircle, MessageCirclePlus, Sigma, MoreHorizontal, Palette, Pencil, Plus, Trash2,
+  Lock, LockOpen, MessageCircle, Shuffle, MessageCirclePlus, Sigma, MoreHorizontal, Palette, Pencil, Plus, Trash2,
 } from 'lucide-react';
 import { useAuth } from '../../../contexts/AuthContext';
 import type { Row } from '../api.ts';
 import { Menu, Popover, useConfirmar, usePopover, Editavel, type ItemMenu } from '../ui/base.tsx';
-import { CORES, fmtData, fmtNumero, posEntre } from '../util.ts';
+import { CORES, fmtData, fmtNumeroColuna, posEntre } from '../util.ts';
 import { Celula } from './Celula.tsx';
 import { EditorFormula } from './EditorFormula.tsx';
 import { AGRUPAVEIS, type GrupoVirtual } from './filtros.ts';
 import { MenuTipos } from './MenuTipos.tsx';
 import { TabelaSubitens, type OpsItens } from './Subitens.tsx';
+import { alvosPara } from './mudarTipo.ts';
+import { MudarTipoDialogo } from './MudarTipo.tsx';
 import { CampoOficialDialogo, TIPOS_OFICIAIS } from './TornarOficial.tsx';
 import { ehPrazo, infoTipo, type Coluna, type Grupo, type Item, type Ordenacao, type Rotulo, type Sub } from './tipos.ts';
 import type { Acoes } from './useQuadro.ts';
@@ -319,6 +321,7 @@ function CabecalhoColuna({ coluna, acoes, confirmar, setOrdenacao, anterior, pro
   const [renomear, setRenomear] = useState(false);
   const [tipos, setTipos] = useState(false);
   const [campoOficial, setCampoOficial] = useState<'adicionar' | 'descontinuar' | null>(null);
+  const [mudarTipo, setMudarTipo] = useState(false);
   const adm2 = useAuth().authorizationProfile?.adm2 === true;
   const Icone = infoTipo(coluna.tipo).icone;
   const trocar = (outra?: Coluna) => {
@@ -347,6 +350,8 @@ function CabecalhoColuna({ coluna, acoes, confirmar, setOrdenacao, anterior, pro
               <Menu onEscolher={menu.fechar} itens={[
                 ...(coluna.tipo === 'formula' ? [{ rotulo: 'Editar fórmula', icone: <Sigma size={15} />, onClick: () => onFormula(coluna) }] : []),
                 { rotulo: 'Renomear', icone: <Pencil size={15} />, onClick: () => setRenomear(true) },
+                // Campo oficial não muda de tipo; só aparece quando há um tipo compatível para converter.
+                ...(!coluna.oficial && alvosPara(coluna).length ? [{ rotulo: 'Mudar tipo…', icone: <Shuffle size={15} />, onClick: () => setMudarTipo(true) }] : []),
                 { rotulo: 'Ordenar crescente', icone: <ArrowDownAZ size={15} />, onClick: () => setOrdenacao({ colunaId: coluna.id, dir: 1 }) },
                 { rotulo: 'Ordenar decrescente', icone: <ArrowUpAZ size={15} />, onClick: () => setOrdenacao({ colunaId: coluna.id, dir: -1 }) },
                 ...(coluna.tipo === 'data' ? [
@@ -371,6 +376,7 @@ function CabecalhoColuna({ coluna, acoes, confirmar, setOrdenacao, anterior, pro
       )}
       {campoOficial && acoes.oficial && <CampoOficialDialogo quadroId={acoes.oficial.quadroId} coluna={coluna} modo={campoOficial}
         onFechar={() => setCampoOficial(null)} onPronto={() => { setCampoOficial(null); acoes.recarregar(); }} />}
+      {mudarTipo && <MudarTipoDialogo coluna={coluna} onFechar={() => setMudarTipo(false)} onPronto={() => { setMudarTipo(false); acoes.recarregar(); }} />}
     </th>
   );
 }
@@ -448,7 +454,7 @@ export function Resumo({ coluna, itens }: { coluna: Coluna; itens: Item[] }) {
       const nums = vals.map(Number).filter(Number.isFinite);
       const soma = nums.reduce((a, b) => a + b, 0);
       const media = coluna.config.resumo === 'media';
-      return <div className="resumo-num"><strong>{fmtNumero(media ? soma / nums.length : soma, coluna.config.unidade)}</strong><small>{media ? 'média' : 'soma'}</small></div>;
+      return <div className="resumo-num"><strong>{fmtNumeroColuna(coluna.config, media ? soma / nums.length : soma)}</strong><small>{media ? 'média' : 'soma'}</small></div>;
     }
     case 'data': case 'periodo': {
       const ds = vals.flatMap(v => (coluna.tipo === 'periodo' ? [v.inicio, v.fim] : [v])).filter(Boolean).sort();

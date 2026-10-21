@@ -312,7 +312,7 @@ function valorReferencia(c: Coluna, item: Item, mod: string, ctx: Contexto, pilh
       if (mod === 'end' || mod === 'fim') return p.fim ?? '';
       return p.inicio || p.fim ? `${p.inicio ?? ''} - ${p.fim ?? ''}` : '';
     }
-    case 'numero': case 'avaliacao': return v == null || v === '' ? '' : Number(v);
+    case 'numero': case 'avaliacao': return v == null || v === '' ? '' : Number(v) / (c.config?.x10 ? 10 : 1);
     case 'caixa': return !!v;
     case 'link': return v ? (typeof v === 'string' ? v : v.url ?? '') : '';
     case 'arquivos': return ((v ?? []) as { nome: string }[]).map(a => a.nome).join(', ');

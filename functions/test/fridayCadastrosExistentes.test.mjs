@@ -196,3 +196,16 @@ test('rótulo → texto, situação com ativo calculado e grupo livre "friday"',
   assert.deepEqual(r.config.rotulos.at(-1), { id: '3', texto: 'OUTRA EMPRESA', cor: '#ff642e' });
   assert.deepEqual(r.campo.rotulos.at(-1), { codigo: 'OUTRA EMPRESA', texto: 'OUTRA EMPRESA', cor: '#ff642e', friday_id: '3' });
 });
+
+test('coluna número ×10: sem conversão dupla nos campos ×10 do contrato', () => {
+  const cols = [{ id: 21, titulo: 'Cap. Carga', tipo: 'numero', config: { x10: true } }, { id: 22, titulo: 'Ano', tipo: 'numero', config: { x10: true } }];
+  const chave = { coluna_id: null, caminho: 'identificacao.identificador', modo: 'prefixo' };
+  const { campos } = m.montarCamposExistente(veiculos, cols, [{ caminho: 'capacidades.cargaLiquida', coluna_id: 21 }, { caminho: 'cadastro.anoFabricacao', coluna_id: 22 }], chave);
+  const carga = campos.find(c => c.chave === 'capacidades.cargaLiquida'), ano = campos.find(c => c.chave === 'cadastro.anoFabricacao');
+  assert.equal(carga.escala, undefined);
+  assert.deepEqual(m.valorParaGravarExistente(carga, 205), { gravar: [['capacidades.cargaLiquida', 205]] });
+  assert.equal(valorDoOficial(carga, 200, () => undefined), 200);
+  assert.equal(ano.escala, 0.1); // ano é inteiro puro no contrato: 20220 (×10) → 2022
+  assert.deepEqual(m.valorParaGravarExistente(ano, 20220), { gravar: [['cadastro.anoFabricacao', 2022]] });
+  assert.equal(valorDoOficial(ano, 2022, () => undefined), 20220);
+});

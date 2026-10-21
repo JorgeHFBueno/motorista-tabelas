@@ -15,7 +15,7 @@ const nomeAba = (s: string) => s.replace(/[[\]:*?/\\]/g, ' ').trim().slice(0, 31
 function valorExcel(c: Coluna, item: Item, colunas: Coluna[], nomeUsuario: (id: unknown) => string, nomesLigados: Map<number, string>): Celula {
   const v = item.valores[c.id];
   switch (c.tipo) {
-    case 'numero': case 'avaliacao': return v == null || v === '' || !Number.isFinite(Number(v)) ? null : Number(v);
+    case 'numero': case 'avaliacao': return v == null || v === '' || !Number.isFinite(Number(v)) ? null : Number(v) / (c.config?.x10 ? 10 : 1);
     case 'data': return typeof v === 'string' && /^\d{4}-\d{2}-\d{2}/.test(v) ? dataExcel(v) : null;
     case 'periodo': return v?.inicio || v?.fim ? `${dataBR(v.inicio ?? v.fim)} - ${dataBR(v.fim ?? v.inicio)}` : null;
     case 'caixa': return v ? 'Sim' : null;

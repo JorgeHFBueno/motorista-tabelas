@@ -5,7 +5,9 @@ import {
 import { httpsCallable } from 'firebase/functions';
 import { db } from '../../firebase';
 import { functions } from './funcoes.ts';
-import { CORES } from './util.ts';
+import { CORES, fmtNumeroColuna } from './util.ts';
+import { converterColuna, nomeDoAlvo, type Alvo } from './quadro/mudarTipo.ts';
+import type { Coluna } from './quadro/tipos.ts';
 
 // Camada de dados do Friday. As telas chamam req()/api como se houvesse um servidor (/api/...); aqui cada
 // chamada é atendida direto no Firestore, nas coleções "friday-<recurso>". O login é o do sistema (Firebase
@@ -274,7 +276,7 @@ async function idsPorUid(): Promise<Map<string, number>> {
 // Valor oficial → valor da célula no Friday (status/lista por código; pessoas por UID).
 function valorDoOficial(c: CampoOficial, v: unknown, idDe: Map<string, number>): unknown {
   if (v == null) return undefined;
-  if (c.escala && typeof v === 'number') return v / c.escala;
+  if (c.escala && typeof v === 'number') { const r = v / c.escala; return Math.abs(r - Math.round(r)) < 1e-6 ? Math.round(r) : r; }
   switch (c.tipo) {
     case 'caixa': return v === true ? true : undefined;
     case 'status': return c.rotulos?.find(r => r.codigo === v)?.friday_id;
@@ -462,6 +464,7 @@ async function formatarValor(tipo: string, config: Record<string, any>, valor: u
     case 'lista': return (valor as string[]).map(id => config.opcoes?.find((o: { id: string }) => o.id === id)?.texto ?? id).join(', ');
     case 'periodo': { const v = valor as { inicio?: string; fim?: string }; return `${v.inicio ?? '?'} → ${v.fim ?? '?'}`; }
     case 'caixa': return valor ? 'marcado' : null;
+    case 'numero': return fmtNumeroColuna(config, valor) || null;
     case 'arquivos': return (valor as { nome: string }[]).map(a => a.nome).join(', ') || null;
     case 'link': { const v = valor as { url?: string; texto?: string } | string; return typeof v === 'string' ? v : v.texto || v.url || null; }
     case 'ligacao': return (await Promise.all((valor as number[]).map(async id => (await buscar('itens', id))?.nome ?? `#${id}`))).join(', ');
@@ -714,6 +717,24 @@ async function duplicarQuadro(id: number, corpo: unknown) {
   }
   await emLotes(copias.map(c => lote => lote.set(ref('itens', c.id), c)));
   return novo;
+}
+
+/**
+ * Muda o tipo de uma coluna convertendo os valores de todos os itens (inclusive arquivados e na lixeira). Sem `aplicar`,
+ * só calcula a prévia (quantos convertem e quais ficam vazios). Campo oficial não muda de tipo.
+ */
+export async function mudarTipoColuna(colunaId: number, alvo: Alvo, aplicar = false) {
+  const coluna = await buscar('colunas', colunaId);
+  if (!coluna) throw new ErroApi(404, 'coluna não encontrada');
+  exigirEscrita();
+  if (await campoOficialDa(coluna)) throw new ErroApi(409, `“${coluna.titulo}” é um campo oficial: o tipo não muda.`);
+  const itens = await consultar('itens', { quadro_id: coluna.quadro_id });
+  const r = converterColuna(coluna as Coluna, alvo, itens.map(i => ({ id: i.id, nome: String(i.nome ?? ''), v: i.valores?.[String(colunaId)] })));
+  if (!aplicar) return r;
+  await emLotes(r.mudancas.map(m => lote => lote.update(ref('itens', m.id), new FieldPath('valores', String(colunaId)), m.valor == null ? deleteField() : m.valor)));
+  await updateDoc(ref('colunas', colunaId), { tipo: alvo.tipo, config: r.config });
+  await registrar({ quadro_id: coluna.quadro_id, acao: 'alterou', coluna_id: colunaId, coluna_titulo: coluna.titulo, de: `tipo ${coluna.tipo}${coluna.config?.x10 ? ' ×10' : ''}`, para: `tipo ${nomeDoAlvo(alvo)}` });
+  return r;
 }
 
 // Altera o valor de uma célula (item x coluna) e registra a atividade.

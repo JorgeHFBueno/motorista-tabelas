@@ -5,7 +5,7 @@ import { useNav } from '../nav.tsx';
 import { calcular, textoResultado } from './formula.ts';
 import { IconeTipo, urlArquivo } from './Atualizacoes.tsx';
 import { Avatar, Popover, usePopover } from '../ui/base.tsx';
-import { CORES, corTexto, diasEntre, fmtData, fmtDataComAno, fmtNumero, hojeISO, somarDias } from '../util.ts';
+import { CORES, corTexto, diasEntre, fmtData, fmtDataComAno, fmtNumeroColuna, hojeISO, somarDias } from '../util.ts';
 import { ehPrazo, itemConcluido, rotuloDe, vazio, type Coluna, type Item, type Rotulo } from './tipos.ts';
 
 export type CelulaProps = {
@@ -49,26 +49,28 @@ export function Celula(p: CelulaProps) {
 function CelulaTexto({ coluna, valor, onMudar, numero }: CelulaProps & { numero?: boolean }) {
   const [editando, setEditando] = useState(false);
   const [texto, setTexto] = useState('');
-  const unidade = coluna.config.unidade ?? '';
+  // Número ×10: digita-se só dígitos (205) e, ao sair, aparece com uma casa decimal (20,5); guarda o inteiro.
+  const x10 = !!numero && !!coluna.config.x10;
   if (editando) {
     return (
       <input
         className={`cel-input${numero ? ' num' : ''}`}
         autoFocus
-        type={numero ? 'number' : coluna.tipo === 'email' ? 'email' : 'text'}
+        type={numero && !x10 ? 'number' : coluna.tipo === 'email' ? 'email' : 'text'}
+        inputMode={x10 ? 'numeric' : undefined}
         step="any"
         value={texto}
-        onChange={e => setTexto(e.target.value)}
+        onChange={e => setTexto(x10 ? e.target.value.replace(/\D/g, '') : e.target.value)}
         onBlur={() => {
           setEditando(false);
-          const novo = numero ? (texto === '' ? null : Number(texto)) : texto.trim() || null;
+          const novo = numero ? (texto === '' ? null : x10 ? Number.parseInt(texto, 10) : Number(texto)) : texto.trim() || null;
           if (String(novo ?? '') !== String(valor ?? '')) onMudar(novo);
         }}
         onKeyDown={e => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); if (e.key === 'Escape') { setTexto(valor ?? ''); setEditando(false); } }}
       />
     );
   }
-  const exib = numero ? fmtNumero(valor, unidade) : valor;
+  const exib = numero ? fmtNumeroColuna(coluna.config, valor) : valor;
   return (
     <div className={`cel cel-texto${numero ? ' cel-centro' : ''}`} onClick={() => { setTexto(valor ?? ''); setEditando(true); }}>
       {coluna.tipo === 'email' && valor ? <a className="cel-valor" href={`mailto:${valor}`} onClick={e => e.stopPropagation()}>{valor}</a> : <span className="cel-valor">{exib}</span>}

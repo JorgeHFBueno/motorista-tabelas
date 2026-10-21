@@ -28,6 +28,31 @@ export function inicioDaSemana(iso: string) {
   return somarDias(iso, -dow);
 }
 
+// Coluna número no formato ×10 (a mesma regra dos medidores do combustível): guarda o inteiro ×10, digita-se só
+// dígitos (205) e, fora da edição, mostra uma casa decimal (20,5). config.x10 = true.
+type ConfigNumero = { x10?: unknown; unidade?: unknown } | undefined;
+export function fmtNumeroColuna(config: ConfigNumero, v: unknown): string {
+  if (v == null || v === '') return '';
+  const n = Number(v);
+  if (!Number.isFinite(n)) return String(v);
+  if (!config?.x10) return fmtNumero(n, String(config?.unidade ?? ''));
+  const s = (n / 10).toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+  return config.unidade ? `${s} ${String(config.unidade)}` : s;
+}
+/** Valor numérico exibido (desfaz o ×10). */
+export const numeroExibido = (config: ConfigNumero, v: unknown) => Number(v) / (config?.x10 ? 10 : 1);
+/** Número escrito em texto: "20", "20,5", "1.234,5", "20 t", "R$ 3,50". null quando não há número. */
+export function lerNumero(v: unknown): number | null {
+  if (typeof v === 'number') return Number.isFinite(v) ? v : null;
+  const m = String(v ?? '').match(/-?\d[\d.]*(?:,\d+)?/);
+  if (!m) return null;
+  let s = m[0];
+  if (s.includes(',')) s = s.replace(/\./g, '').replace(',', '.');
+  else if ((s.match(/\./g) ?? []).length > 1) s = s.replace(/\./g, '');
+  const n = Number(s);
+  return Number.isFinite(n) ? n : null;
+}
+
 export function fmtNumero(v: unknown, unidade = '') {
   if (v == null || v === '') return '';
   const n = Number(v);

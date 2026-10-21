@@ -158,7 +158,7 @@ export function valorDoOficial(campo: CampoOficial, valor: unknown, idDeUid: (ui
   if (valor == null) return undefined;
   // Cadastro existente: números com escala (×10) voltam para a unidade da tela.
   const escala = (campo as CampoOficial & { escala?: number }).escala;
-  if (escala && typeof valor === 'number') return valor / escala;
+  if (escala && typeof valor === 'number') { const r = valor / escala; return Math.abs(r - Math.round(r)) < 1e-6 ? Math.round(r) : r; }
   switch (campo.tipo) {
     case 'caixa': return valor === true ? true : undefined;
     case 'status': return campo.rotulos?.find(r => r.codigo === valor)?.friday_id;

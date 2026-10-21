@@ -53,7 +53,7 @@ function converter(tipo: string, config: Record<string, any>, v: Bruto, usuarios
   if (vazio(v)) return undefined;
   const t = textoDe(v);
   switch (tipo) {
-    case 'numero': case 'avaliacao': return paraNumero(v) ?? undefined;
+    case 'numero': case 'avaliacao': { const n = paraNumero(v); return n == null ? undefined : config.x10 ? Math.round(n * 10) : n; }
     case 'data': return paraISO(v) ?? undefined;
     case 'periodo': {
       if (v instanceof Date) { const d = paraISO(v); return d ? { inicio: d, fim: d } : undefined; }
