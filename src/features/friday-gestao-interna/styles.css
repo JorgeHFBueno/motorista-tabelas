@@ -527,10 +527,6 @@ body.redimensionando .friday-root, body.redimensionando .friday-root * { cursor:
 .friday-root .sino { position: relative; }
 .friday-root .sino-n { position: absolute; top: -2px; right: -4px; background: var(--perigo); color: #fff; font-size: 10px; font-weight: 700; min-width: 17px; height: 17px; border-radius: 9px; display: grid; place-items: center; padding: 0 4px; border: 2px solid var(--fundo-app); }
 /* Sino do Friday no cabeçalho do sistema (components/Header.tsx), fora de .friday-root. */
-.ledur-header-avisos { display: inline-flex; }
-.ledur-header-avisos .sino { position: relative; display: inline-flex; align-items: center; justify-content: center; width: 40px; height: 40px; border: 0; border-radius: 50%; background: none; color: #fff; cursor: pointer; }
-.ledur-header-avisos .sino:hover, .ledur-header-avisos .sino:focus-visible { background: rgb(255 255 255 / 0.12); }
-.ledur-header-avisos .sino-n { position: absolute; top: 3px; right: 1px; background: #d83a52; color: #fff; font-size: 10px; font-weight: 700; min-width: 17px; height: 17px; border-radius: 9px; display: grid; place-items: center; padding: 0 4px; border: 2px solid var(--ledur-primary, #12293b); }
 .friday-root .avisos-cab { display: flex; align-items: center; gap: 12px; padding: 6px 14px 10px; border-bottom: 1px solid var(--borda-suave); }
 .friday-root .avisos-cab .check-form { margin: 0; font-size: 12.5px; color: var(--texto-2); }
 .friday-root .avisos-vazio { padding: 16px; margin: 0; }

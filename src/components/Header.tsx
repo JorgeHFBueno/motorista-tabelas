@@ -41,7 +41,6 @@ export default function Header() {
   const navigate = useNavigate();
   const [menuLateralOpen, setMenuLateralOpen] = useState(false);
   const [menuUsuario, setMenuUsuario] = useState<HTMLElement | null>(null);
-  const noFriday = location.pathname === '/friday' || location.pathname.startsWith('/friday/');
   const comMenuLateral = Boolean(currentUser) && !SEM_MENU_LATERAL.includes(location.pathname);
   const nome = authorizationProfile?.nome || currentUser?.displayName || currentUser?.email || '';
 
@@ -61,10 +60,7 @@ export default function Header() {
           </Navbar.Brand>
           {currentUser ? (
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-              {/* No Friday, o sino é o de avisos dele, colocado aqui pela barra do Friday (layout/Topo.tsx). */}
-              {noFriday
-                ? <span id="ledur-header-avisos" className="ledur-header-avisos" />
-                : <BotaoEmBreve rotulo="Avisos" icone={<Bell size={20} />} mensagem="As notificações do sistema ainda serão implementadas. Por enquanto, os avisos existem apenas no Friday." />}
+              <BotaoEmBreve rotulo="Avisos" icone={<Bell size={20} />} mensagem="As notificações do sistema ainda serão implementadas." />
               <BotaoEmBreve rotulo="Ajuda" icone={<HelpCircle size={20} />} mensagem="A ajuda do sistema ainda será implementada." />
               <Tooltip title="Menu do usuário">
                 <IconButton aria-label="Menu do usuário" onClick={(e) => setMenuUsuario(e.currentTarget)} sx={{ ...botaoIconeSx, ml: 0.5 }}>

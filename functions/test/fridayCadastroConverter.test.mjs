@@ -35,8 +35,8 @@ test('montarCampos valida tipo, chave reservada, repetição e coluna de outro q
 
 test('valores livres viram valores oficiais', () => {
   const { campos } = montarCampos(colunas, [{ coluna_id: 1, chave: 'vao_m' }, { coluna_id: 2, chave: 'status' }, { coluna_id: 3, chave: 'responsavel' }, { coluna_id: 5, chave: 'setores' }]);
-  const uid = { 10: 'uid-ana', 11: 'uid-beto' };
-  const r = camposDoItem(campos, { 1: '24.5', 2: '2', 3: [10, 99, 11], 5: ['8', '7'], 4: 'ignorada' }, id => uid[id]);
+  // Pessoas são UIDs de funcionários; um id numérico antigo fica de fora (e é contado).
+  const r = camposDoItem(campos, { 1: '24.5', 2: '2', 3: ['uid-ana', 99, 'uid-beto'], 5: ['8', '7'], 4: 'ignorada' });
   assert.deepEqual(r.valores, { vao_m: 24.5, status: 'feito', responsavel: ['uid-ana', 'uid-beto'], setores: ['montagem', 'fabrica'] });
   assert.equal(r.pessoasSemFuncionario, 1);
   assert.equal(valorOficial(campos[1], '0', () => undefined), undefined);
@@ -61,22 +61,22 @@ test('rótulos novos do Friday ganham código sem mudar os existentes', async ()
   assert.equal(r.mudou, true);
   assert.deepEqual(r.campo.rotulos.map(x => [x.codigo, x.friday_id]), [['feito', '2'], ['feito_2', '5']]);
   assert.equal(acrescentarRotulos(r.campo, [{ id: '2', texto: 'x' }]).mudou, false);
-  const idx = indicePessoas({ 9: [1, 2], 8: [3] }, new Set(['9']), [{ chave: 'resp', tipo: 'pessoa', situacao: 'ativo' }], { resp: ['u4', 'u-desconhecido'] }, uid => (uid === 'u4' ? 4 : undefined));
-  assert.deepEqual(idx.sort(), [1, 2, 4]);
+  const idx = indicePessoas({ 9: ['u1', 2], 8: ['u3'] }, new Set(['9']), [{ chave: 'resp', tipo: 'pessoa', situacao: 'ativo' }], { resp: ['u4', 'u1'] });
+  assert.deepEqual(idx.sort(), ['u1', 'u4']);
 });
 
 test('C3: valor de volta, rótulos sincronizados e entrada de subitem', async () => {
   const { valorDoOficial, sincronizarRotulos, entradaSubitem } = await import('../lib/fridayCadastroConverter.js');
   const status = { chave: 'status', tipo: 'status', coluna_id: 2, situacao: 'ativo', rotulos: [{ codigo: 'feito', texto: 'Feito', cor: '#0f0', friday_id: '2', concluido: true }] };
-  assert.equal(valorDoOficial(status, 'feito', () => undefined), '2');
-  assert.equal(valorDoOficial(status, 'sumiu', () => undefined), undefined);
-  assert.deepEqual(valorDoOficial({ tipo: 'pessoa' }, ['u1', 'x'], uid => (uid === 'u1' ? 7 : undefined)), [7]);
-  assert.equal(valorDoOficial({ tipo: 'numero' }, 3, () => undefined), 3);
+  assert.equal(valorDoOficial(status, 'feito'), '2');
+  assert.equal(valorDoOficial(status, 'sumiu'), undefined);
+  assert.deepEqual(valorDoOficial({ tipo: 'pessoa' }, ['u1', 7, 'u1']), ['u1']);
+  assert.equal(valorDoOficial({ tipo: 'numero' }, 3), 3);
   const s = sincronizarRotulos(status, [{ id: '2', texto: 'Concluído', cor: '#0a0' }, { id: '9', texto: 'Novo' }]);
   assert.equal(s.mudou, true);
   assert.deepEqual(s.campo.rotulos.map(r => [r.codigo, r.texto, r.cor, !!r.concluido]), [['feito', 'Concluído', '#0a0', false], ['novo', 'Novo', '#c4c4c4', false]]);
   assert.equal(sincronizarRotulos(s.campo, [{ id: '2', texto: 'Concluído', cor: '#0a0' }, { id: '9', texto: 'Novo', cor: '#c4c4c4' }]).mudou, false);
-  const e = entradaSubitem([{ chave: 'status', tipo: 'status', coluna_id: 5, situacao: 'ativo', rotulos: [{ codigo: 'ok', texto: 'Ok', cor: '#0f0', friday_id: '1' }] }], { nome: 'Fundação', posicao: 2, valores: { 5: '1' } }, () => undefined);
+  const e = entradaSubitem([{ chave: 'status', tipo: 'status', coluna_id: 5, situacao: 'ativo', rotulos: [{ codigo: 'ok', texto: 'Ok', cor: '#0f0', friday_id: '1' }] }], { nome: 'Fundação', posicao: 2, valores: { 5: '1' } });
   assert.deepEqual(e.entrada, { posicao: 2, nome: 'Fundação', situacao: 'ativo', status: 'ok' });
 });
 

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { AlertCircle, AlertTriangle, Check, CheckCircle2, Circle, Download, ExternalLink, Lock, Paperclip, Pencil, Plus, Search, Star, Trash2, Upload, UserPlus, X } from 'lucide-react';
-import { api, enviarArquivo, type Row } from '../api.ts';
+import { api, enviarArquivo, type Pessoa, type Row } from '../api.ts';
 import { useNav } from '../nav.tsx';
 import { calcular, textoResultado } from './formula.ts';
 import { IconeTipo, urlArquivo } from './Atualizacoes.tsx';
@@ -13,7 +13,7 @@ export type CelulaProps = {
   valor: any;
   onMudar: (v: unknown) => void;
   onConfig: (config: Record<string, any>) => void;
-  usuarios: Row[];
+  usuarios: Pessoa[];
   modo?: 'tabela' | 'painel';
   // Necessários para fórmulas (que leem outras colunas do item) e arquivos.
   item?: Item;
@@ -158,9 +158,9 @@ export function EditorRotulos({ rotulos, onSalvar, onFechar, comVazio, semCor, c
 function CelulaPessoa({ valor, onMudar, usuarios }: CelulaProps) {
   const pop = usePopover<HTMLDivElement>();
   const [busca, setBusca] = useState('');
-  const ids = (valor ?? []) as number[];
+  const ids = (valor ?? []) as string[];
   const sel = usuarios.filter(u => ids.includes(u.id));
-  const alternar = (id: number) => onMudar(ids.includes(id) ? ids.filter(x => x !== id) : [...ids, id]);
+  const alternar = (id: string) => onMudar(ids.includes(id) ? ids.filter(x => x !== id) : [...ids, id]);
   return (
     <>
       <div ref={pop.ref} className="cel cel-centro cel-pessoa" onClick={pop.alternar}>
@@ -173,8 +173,8 @@ function CelulaPessoa({ valor, onMudar, usuarios }: CelulaProps) {
           <div className="pop-pessoa">
             {sel.length > 0 && <div className="chips">{sel.map(u => <span key={u.id} className="chip"><Avatar nome={u.nome} cor={u.cor} tamanho={18} />{u.nome}<button aria-label={`Remover ${u.nome}`} onClick={() => alternar(u.id)}><X size={12} /></button></span>)}</div>}
             <div className="busca-pop"><Search size={14} /><input autoFocus placeholder="Buscar pessoas" value={busca} onChange={e => setBusca(e.target.value)} /></div>
-            {usuarios.filter(u => !ids.includes(u.id) && u.nome.toLowerCase().includes(busca.toLowerCase())).map(u => (
-              <button key={u.id} className="pop-linha" onClick={() => alternar(u.id)}><Avatar nome={u.nome} cor={u.cor} tamanho={24} />{u.nome}<small>{u.papel}</small></button>
+            {usuarios.filter(u => u.ativo && !ids.includes(u.id) && u.nome.toLowerCase().includes(busca.toLowerCase())).map(u => (
+              <button key={u.id} className="pop-linha" onClick={() => alternar(u.id)}><Avatar nome={u.nome} cor={u.cor} tamanho={24} />{u.nome}</button>
             ))}
           </div>
         </Popover>

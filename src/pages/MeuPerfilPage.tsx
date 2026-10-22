@@ -201,6 +201,7 @@ export default function MeuPerfilPage() {
                 {ordemMotorista !== undefined && <Campo rotulo="Ordem de motorista">{formatarValor(ordemMotorista)}</Campo>}
                 <Campo rotulo="Cadastrado em">{formatarValor(funcionario.createdAt)}</Campo>
                 <Campo rotulo="Atualizado em">{formatarValor(funcionario.updatedAt)}</Campo>
+                <Campo rotulo="Último acesso">{formatarValor(funcionario.ultimoAcesso)}</Campo>
                 {extras.map(([chave, valor]) => <Campo key={chave} rotulo={chave}>{formatarValor(valor)}</Campo>)}
               </Box>
               <Divider />

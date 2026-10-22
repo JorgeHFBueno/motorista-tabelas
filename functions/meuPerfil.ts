@@ -4,7 +4,7 @@ import * as logger from 'firebase-functions/logger';
 import { adminAuth, db } from './firebaseAdmin.js';
 
 // The employee changes their own name and login (phone or e-mail) from the WEB "Meu perfil" page.
-// Every copy is updated together: Firebase Auth, funcionarios/{uid} and friday-usuarios/{uid}.
+// Both copies are updated together: Firebase Auth and funcionarios/{uid} (the Friday reads people from funcionarios).
 // Contract: Manuscript 02_APIS_FUNCTIONS/01_FUNCTIONS_VIGENTES.md.
 type DocumentData = Record<string, unknown>;
 
@@ -106,12 +106,7 @@ const service = createMeuPerfilService({
     await adminAuth.updateUser(uid, data);
   },
   async saveProfile(uid, data) {
-    const fridayRef = db.collection('friday-usuarios').doc(uid);
-    const friday = await fridayRef.get();
-    const batch = db.batch();
-    batch.update(db.collection('funcionarios').doc(uid), { ...data, updatedAt: FieldValue.serverTimestamp() });
-    if (friday.exists) batch.update(fridayRef, data);
-    await batch.commit();
+    await db.collection('funcionarios').doc(uid).update({ ...data, updatedAt: FieldValue.serverTimestamp() });
   },
 });
 

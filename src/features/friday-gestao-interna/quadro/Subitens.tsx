@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Archive, Copy, ListTree, Lock, Maximize2, Shuffle, MessageCircle, MessageCirclePlus, MoreHorizontal, Pencil, Plus, Trash2 } from 'lucide-react';
 import { useAuth } from '../../../contexts/AuthContext';
-import type { Row } from '../api.ts';
+import type { Pessoa } from '../api.ts';
 import { Editavel, Menu, Popover, useConfirmar, usePopover } from '../ui/base.tsx';
 import { Celula } from './Celula.tsx';
 import { MenuTipos } from './MenuTipos.tsx';
@@ -19,7 +19,7 @@ export type OpsItens = { arquivar: (ids: number[]) => void; excluir: (ids: numbe
 // células e "+ Adicionar"), com as colunas do quadro de subitens. Aparece expandida dentro da tabela ("tabela")
 // e no painel do item ("painel").
 export function TabelaSubitens({ pai, sub, acoes, ops, usuarios, modo, focarNovo, selecionados, setSelecionados, abrirItem }: {
-  pai: Item; sub: Sub | null; acoes: Acoes; ops: OpsItens; usuarios: Row[]; modo: 'tabela' | 'painel'; focarNovo?: boolean;
+  pai: Item; sub: Sub | null; acoes: Acoes; ops: OpsItens; usuarios: Pessoa[]; modo: 'tabela' | 'painel'; focarNovo?: boolean;
   selecionados?: Set<number>; setSelecionados?: (s: Set<number>) => void; abrirItem?: (id: number, aba?: string) => void;
 }) {
   const confirmar = useConfirmar();

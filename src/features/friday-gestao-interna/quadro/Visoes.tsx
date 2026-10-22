@@ -1,16 +1,16 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Check, ChevronLeft, ChevronRight, MessageCircle, Plus } from 'lucide-react';
-import type { Row } from '../api.ts';
+import type { Pessoa } from '../api.ts';
 import { Avatar } from '../ui/base.tsx';
 import { corTexto, diasEntre, fmtData, hojeISO, inicioDaSemana, somarDias } from '../util.ts';
 import { itemConcluido, rotuloDe, type Coluna, type Grupo, type Item, type Rotulo } from './tipos.ts';
 import type { Acoes } from './useQuadro.ts';
 
-type Base = { itens: Item[]; colunas: Coluna[]; todasColunas: Coluna[]; grupos: Grupo[]; acoes: Acoes; usuarios: Row[]; abrirItem: (id: number) => void };
+type Base = { itens: Item[]; colunas: Coluna[]; todasColunas: Coluna[]; grupos: Grupo[]; acoes: Acoes; usuarios: Pessoa[]; abrirItem: (id: number) => void };
 
 // Cartão de item usado no Kanban e no calendário.
-function Cartao({ item, colunas, usuarios, ocultar, abrirItem, onDragStart }: { item: Item; colunas: Coluna[]; usuarios: Row[]; ocultar?: number; abrirItem: (id: number) => void; onDragStart?: () => void }) {
-  const pessoas = colunas.filter(c => c.tipo === 'pessoa').flatMap(c => (item.valores[c.id] ?? []) as number[]);
+function Cartao({ item, colunas, usuarios, ocultar, abrirItem, onDragStart }: { item: Item; colunas: Coluna[]; usuarios: Pessoa[]; ocultar?: number; abrirItem: (id: number) => void; onDragStart?: () => void }) {
+  const pessoas = colunas.filter(c => c.tipo === 'pessoa').flatMap(c => (item.valores[c.id] ?? []) as string[]);
   const extras = colunas.filter(c => c.id !== ocultar && ['status', 'data', 'periodo'].includes(c.tipo) && item.valores[c.id] != null).slice(0, 3);
   return (
     <div className="cartao" draggable={!!onDragStart} onDragStart={onDragStart} onClick={() => abrirItem(item.id)}>

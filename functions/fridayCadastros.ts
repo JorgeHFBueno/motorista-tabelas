@@ -3,7 +3,7 @@ import * as logger from 'firebase-functions/logger';
 import { FieldPath, FieldValue, Timestamp } from 'firebase-admin/firestore';
 import { db } from './firebaseAdmin.js';
 import { exigirAdm2 } from './fridayMondayImport.js';
-import { dataLocal, idDoUid, novoId, prefixosBusca } from './fridayMondayConverter.js';
+import { dataLocal, novoId, prefixosBusca } from './fridayMondayConverter.js';
 import {
   acrescentarRotulosDeTexto, analisar, CADASTROS_EXISTENTES, cadastroExistente, caminhoDaMarca, chaveDoExistente, conciliacaoLiberada, gravarCaminho, lerCaminho, montarCamposExistente,
   planejar, valorParaGravarExistente, type CampoExistente, type ChaveConciliacao, type Decisoes, type ItemConciliavel, type PedidoLigacao,
@@ -23,23 +23,6 @@ import {
 type AnyRecord = Record<string, any>;
 const REGIAO = 'southamerica-east1';
 const ITENS_POR_LOTE = 200; // 2 escritas por item (registro + vínculo), abaixo do limite de 500 por lote
-
-/** Pessoas: id numérico de friday-usuarios ↔ UID de funcionários (cadastros "monday-<id>" não são funcionários). */
-async function mapasDePessoas() {
-  const [usuarios, funcionarios] = await Promise.all([db.collection('friday-usuarios').get(), db.collection('funcionarios').get()]);
-  const funcionario = new Set(funcionarios.docs.map(d => d.id));
-  const uidPorId = new Map<number, string>();
-  const idPorUid = new Map<string, number>();
-  for (const d of usuarios.docs) {
-    if (!funcionario.has(d.id)) continue;
-    uidPorId.set(Number(d.data().id), d.id);
-    idPorUid.set(d.id, Number(d.data().id));
-  }
-  return { uidDe: (id: number) => uidPorId.get(id), idDe: (uid: string) => idPorUid.get(uid) };
-}
-async function mapaDeUids(): Promise<(idFriday: number) => string | undefined> {
-  return (await mapasDePessoas()).uidDe;
-}
 
 /** Nome do grupo do item (grupo oficial); null sem grupo. */
 async function nomeDoGrupo(grupoId: unknown): Promise<string | null> {
@@ -85,7 +68,6 @@ async function promover(uid: string, quadroId: number, chave: string, nome: stri
   }
   // Retomada: usa os campos já gravados no registro (os pedidos da 2ª chamada são ignorados).
   const campos = registro.campos as ReturnType<typeof montarCampos>['campos'];
-  const uidDe = await mapaDeUids();
   const itens = (await db.collection('friday-itens').where('quadro_id', '==', quadroId).get()).docs;
   const grupo = grupoAtivo(registro);
   const grupos = grupo ? await gruposDoQuadro(quadroId) : new Map<number, string>();
@@ -96,14 +78,14 @@ async function promover(uid: string, quadroId: number, chave: string, nome: stri
     for (const d of itens.slice(k, k + ITENS_POR_LOTE)) {
       const item = d.data();
       if (item.vinculo?.cadastro === chave) { jaMigrados++; continue; }
-      const { valores, pessoasSemFuncionario: semFuncionario } = camposDoItem(campos, item.valores, uidDe);
+      const { valores, pessoasSemFuncionario: semFuncionario } = camposDoItem(campos, item.valores);
       pessoasSemFuncionario += semFuncionario;
       const oficialRef = db.collection(colecao).doc();
       const criadoEm = dataDoFriday(item.criado_em), atualizadoEm = dataDoFriday(item.atualizado_em);
       lote.set(oficialRef, {
         nome: String(item.nome ?? ''), ...valores, ...(grupo ? { [grupo]: grupos.get(Number(item.grupo_id)) ?? null } : {}), situacao: situacaoDoItem(item),
         criado_em: criadoEm ? Timestamp.fromDate(criadoEm) : agora, atualizado_em: atualizadoEm ? Timestamp.fromDate(atualizadoEm) : agora,
-        criado_por: item.criado_por != null ? uidDe(Number(item.criado_por)) ?? null : null, atualizado_por: uid,
+        criado_por: typeof item.criado_por === 'string' ? item.criado_por : null, atualizado_por: uid,
         origem: { friday_quadro_id: quadroId, friday_item_id: Number(item.id) },
       });
       // O valor oficial sai do mapa livre do item; atualizado_em do item não muda (é migração, não edição).
@@ -117,7 +99,7 @@ async function promover(uid: string, quadroId: number, chave: string, nome: stri
   await registroRef.update({ situacao: 'ativo', atualizado_em: FieldValue.serverTimestamp() });
   const idAtividade = novoId();
   await db.collection('friday-atividades').doc(String(idAtividade)).set({
-    id: idAtividade, quadro_id: quadroId, item_id: null, item_nome: null, usuario_id: idDoUid(uid), automacao_id: null, acao: 'oficializou',
+    id: idAtividade, quadro_id: quadroId, item_id: null, item_nome: null, usuario_id: uid, automacao_id: null, acao: 'oficializou',
     coluna_id: null, coluna_titulo: null, de: null, para: `cadastro oficial "${nome}" (${campos.length} campos, ${migrados + jaMigrados} itens)`, criado_em: dataLocal(),
   });
   return { chave, colecao, campos: campos.length, itens_migrados: migrados, itens_ja_migrados: jaMigrados, pessoas_sem_funcionario: pessoasSemFuncionario };
@@ -158,8 +140,7 @@ async function exigirFuncionarioAtivo(uid: string | undefined): Promise<string> 
 async function atualizarIndicePessoas(itemRef: FirebaseFirestore.DocumentReference, item: AnyRecord, campos: CampoOficial[], oficial: AnyRecord | undefined) {
   const livres = new Set((await db.collection('friday-colunas').where('quadro_id', '==', item.quadro_id).where('tipo', '==', 'pessoa').get()).docs.map(d => String(d.data().id)));
   for (const c of campos) livres.delete(String(c.coluna_id));
-  const { idDe } = await mapasDePessoas();
-  await itemRef.update({ pessoas: indicePessoas(item.valores, livres, campos, oficial, idDe) });
+  await itemRef.update({ pessoas: indicePessoas(item.valores, livres, campos, oficial) });
 }
 
 // Escopo de gravação: o quadro principal (campos na raiz do registro oficial) ou o quadro de subitens dele
@@ -206,12 +187,11 @@ async function gravar(uid: string, itemId: number, op: Operacao, colunaId: numbe
   if (op === 'vincular') {
     // Item ou subitem criado (ou duplicado) num quadro oficial: os valores das colunas oficiais vão para o registro oficial.
     if (item.vinculo?.cadastro === e.chave) return { id: item.vinculo.id };
-    const { uidDe } = await mapasDePessoas();
     const livres = { ...(item.valores ?? {}) };
     for (const c of ativos) delete livres[String(c.coluna_id)];
     const lote = db.batch();
     if (!e.sub) {
-      const { valores } = camposDoItem(ativos, item.valores, uidDe);
+      const { valores } = camposDoItem(ativos, item.valores);
       const oficialRef = db.collection(colecao).doc();
       const grupo = grupoAtivo(e.registro);
       lote.set(oficialRef, {
@@ -225,7 +205,7 @@ async function gravar(uid: string, itemId: number, op: Operacao, colunaId: numbe
     }
     const pai = item.item_pai_id != null ? (await db.collection('friday-itens').doc(String(item.item_pai_id)).get()).data() : undefined;
     if (pai?.vinculo?.cadastro !== e.chave) throw new HttpsError('failed-precondition', 'O item pai ainda não está vinculado ao cadastro oficial.');
-    const { entrada } = entradaSubitem(ativos, item, uidDe);
+    const { entrada } = entradaSubitem(ativos, item);
     const paiRef = db.collection(colecao).doc(String(pai.vinculo.id));
     lote.update(paiRef, new FieldPath(e.subChave!, String(item.id)), entrada, 'atualizado_em', FieldValue.serverTimestamp(), 'atualizado_por', uid);
     lote.update(itemRef, 'vinculo', { cadastro: e.chave, id: pai.vinculo.id, sub: String(item.id) }, ...apagarValores(ativos));
@@ -264,8 +244,7 @@ async function gravar(uid: string, itemId: number, op: Operacao, colunaId: numbe
       await e.salvarCampos(novos);
     }
   }
-  const { uidDe } = await mapasDePessoas();
-  const v = valorOficial(campo, valor, uidDe);
+  const v = valorOficial(campo, valor);
   await oficialRef.update(caminho(campo.chave), v === undefined ? FieldValue.delete() : v, ...meta);
   if (campo.tipo === 'pessoa') {
     const doc = (await oficialRef.get()).data();
@@ -385,14 +364,13 @@ async function mudarCampos(uid: string, quadroId: number, op: OperacaoCampos, co
     const { campos: [campo], erros } = montarCampos([coluna as { id: number; titulo: string; tipo: string; config?: AnyRecord }], [{ coluna_id: Number(coluna.id), chave }]);
     if (erros.length) throw new HttpsError('invalid-argument', erros.join(' '));
     // Migra primeiro e só então registra o campo: repetir a operação continua de onde parou.
-    const { uidDe } = await mapasDePessoas();
     let migrados = 0;
     for (let k = 0; k < vinculados.length; k += LOTE) {
       const lote = db.batch();
       for (const v of vinculados.slice(k, k + LOTE)) {
         const bruto = v.item.valores?.[String(coluna.id)];
         if (bruto === undefined) continue;
-        const valor = valorOficial(campo, bruto, uidDe);
+        const valor = valorOficial(campo, bruto);
         if (valor !== undefined) lote.update(v.oficialRef, v.sub ? new FieldPath(e.subChave!, v.sub, campo.chave) : new FieldPath(campo.chave), valor);
         lote.update(v.ref, new FieldPath('valores', String(coluna.id)), FieldValue.delete());
         migrados++;
@@ -407,7 +385,6 @@ async function mudarCampos(uid: string, quadroId: number, op: OperacaoCampos, co
   // mantém os dados antigos e deixa de receber gravações nesse campo.
   if (indice < 0) throw new HttpsError('failed-precondition', `“${coluna.titulo}” não é um campo oficial ativo.`);
   const campo = e.campos[indice];
-  const { idDe } = await mapasDePessoas();
   const docs = new Map<string, AnyRecord | undefined>();
   for (const v of vinculados) if (!docs.has(v.oficialRef.id)) docs.set(v.oficialRef.id, undefined);
   const ids = [...docs.keys()];
@@ -422,7 +399,7 @@ async function mudarCampos(uid: string, quadroId: number, op: OperacaoCampos, co
     for (const v of vinculados.slice(k, k + LOTE)) {
       const doc = docs.get(v.oficialRef.id);
       const origem = v.sub ? doc?.[e.subChave!]?.[v.sub] : doc;
-      const valor = valorDoOficial(campo, origem?.[campo.chave], idDe);
+      const valor = valorDoOficial(campo, origem?.[campo.chave]);
       if (valor === undefined) continue;
       lote.update(v.ref, new FieldPath('valores', String(coluna.id)), valor);
       n++;
@@ -463,7 +440,6 @@ async function promoverSubitens(uid: string, quadroId: number, chave: string, pe
   const pais = new Map((await db.collection('friday-itens').where('quadro_id', '==', quadroId).get()).docs
     .filter(d => d.data().vinculo?.cadastro === e.chave).map(d => [Number(d.data().id), String(d.data().vinculo.id)]));
   const subitens = (await db.collection('friday-itens').where('quadro_id', '==', Number(subQuadro.id)).get()).docs;
-  const { uidDe } = await mapasDePessoas();
   let migrados = 0, jaMigrados = 0, semPai = 0, pessoasSemFuncionario = 0;
   for (let k = 0; k < subitens.length; k += 200) {
     const lote = db.batch();
@@ -472,7 +448,7 @@ async function promoverSubitens(uid: string, quadroId: number, chave: string, pe
       if (s.vinculo?.cadastro === e.chave) { jaMigrados++; continue; }
       const paiId = pais.get(Number(s.item_pai_id));
       if (!paiId) { semPai++; continue; }
-      const r = entradaSubitem(campos, s, uidDe);
+      const r = entradaSubitem(campos, s);
       pessoasSemFuncionario += r.pessoasSemFuncionario;
       lote.update(db.collection(String(e.registro.colecao)).doc(paiId), new FieldPath(subChave, String(s.id)), r.entrada);
       lote.update(d.ref, 'vinculo', { cadastro: e.chave, id: paiId, sub: String(s.id) }, ...apagarValores(campos));
@@ -502,7 +478,6 @@ async function desfazer(uid: string, quadroId: number) {
   const colecao = String(registro.colecao);
   const ativos = (lista: unknown) => ((lista ?? []) as CampoOficial[]).filter(c => c.situacao === 'ativo' && !(c as CampoExistente).secundario);
   const sub = registro.subitens as { chave: string; quadro_id: number; campos: CampoOficial[] } | undefined;
-  const { idDe } = await mapasDePessoas();
   // Cadastro existente: a marca `friday.ok` sai dos registros que deixam de estar ligados.
   const existente = registro.modo === 'existente' ? cadastroExistente(colecao) : undefined;
   const marca = existente ? new FieldPath(...caminhoDaMarca(existente).split('.')) : null;
@@ -524,12 +499,12 @@ async function desfazer(uid: string, quadroId: number) {
         const valores = { ...(item.valores ?? {}) };
         const caminhos: unknown[] = [];
         for (const c of campos) {
-          const v = valorDoOficial(c, lerCaminho(origem, c.chave), idDe);
+          const v = valorDoOficial(c, lerCaminho(origem, c.chave));
           if (v === undefined) continue;
           valores[String(c.coluna_id)] = v;
           caminhos.push(new FieldPath('valores', String(c.coluna_id)), v);
         }
-        lote.update(d.ref, 'vinculo', FieldValue.delete(), 'pessoas', indicePessoas(valores, colunasPessoa, [], undefined, idDe), ...caminhos);
+        lote.update(d.ref, 'vinculo', FieldValue.delete(), 'pessoas', indicePessoas(valores, colunasPessoa, [], undefined), ...caminhos);
         if (tirarMarca && marca && docs.get(String(item.vinculo.id))) lote.update(db.collection(colecao).doc(String(item.vinculo.id)), marca, FieldValue.delete());
       }
       await lote.commit();
@@ -694,8 +669,7 @@ async function conciliar(uid: string, op: OperacaoConciliar, d: AnyRecord) {
     campos = m.campos;
   }
   const decisoes = (d.decisoes ?? {}) as Decisoes;
-  const { uidDe } = await mapasDePessoas();
-  const plano = planejar(x.cadastro, campos, analise, x.itens, x.registros, decisoes, chave, uidDe);
+  const plano = planejar(x.cadastro, campos, analise, x.itens, x.registros, decisoes, chave);
   const relatorio = {
     vinculados: plano.vincular.length, registros_atualizados: plano.vincular.filter(v => v.gravar.length).length, criados: plano.criar.length,
     trazidos: plano.trazer.length, deixados_fora: plano.deixadosFora, ambiguos_pendentes: plano.ambiguosPendentes, fora_do_quadro: plano.foraDoQuadro,
@@ -758,7 +732,7 @@ async function conciliar(uid: string, op: OperacaoConciliar, d: AnyRecord) {
       const id = novoId();
       posicao += 1;
       const item = {
-        id, quadro_id: quadroId, grupo_id: grupoId, item_pai_id: null, nome: t.nome, posicao, valores: {}, criado_por: idDoUid(uid), criado_em: agora,
+        id, quadro_id: quadroId, grupo_id: grupoId, item_pai_id: null, nome: t.nome, posicao, valores: {}, criado_por: uid, criado_em: agora,
         atualizado_em: agora, origem_id: null, arquivado_em: null, excluido_em: null, pessoas: [], busca: prefixosBusca(t.nome),
         importado_em: null, monday_atualizado_em: null, ligacoes_pendentes: null, vinculo: { cadastro: registroChave, id: t.registroId },
       };
@@ -779,7 +753,7 @@ async function conciliar(uid: string, op: OperacaoConciliar, d: AnyRecord) {
   await x.quadroRef.update({ cadastro: registroChave });
   const idAtividade = novoId();
   await db.collection('friday-atividades').doc(String(idAtividade)).set({
-    id: idAtividade, quadro_id: quadroId, item_id: null, item_nome: null, usuario_id: idDoUid(uid), automacao_id: null, acao: 'oficializou',
+    id: idAtividade, quadro_id: quadroId, item_id: null, item_nome: null, usuario_id: uid, automacao_id: null, acao: 'oficializou',
     coluna_id: null, coluna_titulo: null, de: null, para: `conciliado com ${x.cadastro.nome} (${relatorio.vinculados} vinculados, ${relatorio.criados} criados, ${relatorio.trazidos} trazidos)`,
     criado_em: dataLocal(),
   });

@@ -68,11 +68,13 @@ export function montarCampos(colunas: Coluna[], pedidos: PedidoCampo[]): { campo
 
 const vazio = (v: unknown) => v == null || v === '' || (Array.isArray(v) && v.length === 0);
 
-/**
- * Valor livre do Friday → valor oficial. `undefined` = sem valor (o campo não é gravado).
- * `uidDe` converte o id numérico de friday-usuarios no UID de funcionarios (pessoas sem funcionário ficam de fora).
- */
-export function valorOficial(campo: CampoOficial, valor: unknown, uidDe: (idFriday: number) => string | undefined): unknown {
+/** Pessoas no Friday e no registro oficial: UIDs de funcionarios (outros valores, como ids numéricos antigos, ficam de fora). */
+export function uidsDe(valor: unknown): string[] {
+  return [...new Set((Array.isArray(valor) ? valor : [valor]).filter((x): x is string => typeof x === 'string' && x.length > 0))];
+}
+
+/** Valor livre do Friday → valor oficial. `undefined` = sem valor (o campo não é gravado). */
+export function valorOficial(campo: CampoOficial, valor: unknown): unknown {
   if (vazio(valor)) return undefined;
   switch (campo.tipo) {
     case 'texto': case 'texto_longo': case 'telefone': case 'email': return String(valor);
@@ -88,7 +90,7 @@ export function valorOficial(campo: CampoOficial, valor: unknown, uidDe: (idFrid
       return codigos.length ? codigos : undefined;
     }
     case 'pessoa': {
-      const uids = [...new Set((Array.isArray(valor) ? valor : [valor]).map(id => uidDe(Number(id))).filter((x): x is string => !!x))];
+      const uids = uidsDe(valor);
       return uids.length ? uids : undefined;
     }
     case 'caixa': return valor === true || valor === 1 || valor === '1' ? true : undefined;
@@ -112,14 +114,14 @@ export function dataDoFriday(texto: unknown): Date | null {
   return Number.isNaN(d.getTime()) ? null : d;
 }
 
-/** Campos oficiais de um item: os valores convertidos e quantas pessoas ficaram de fora por não serem funcionários. */
-export function camposDoItem(campos: CampoOficial[], valores: AnyRecord | undefined, uidDe: (idFriday: number) => string | undefined) {
+/** Campos oficiais de um item: os valores convertidos e quantas pessoas ficaram de fora por não serem UIDs de funcionário. */
+export function camposDoItem(campos: CampoOficial[], valores: AnyRecord | undefined) {
   const out: AnyRecord = {};
   let pessoasSemFuncionario = 0;
   for (const c of campos) {
     const bruto = valores?.[String(c.coluna_id)];
-    const v = valorOficial(c, bruto, uidDe);
-    if (c.tipo === 'pessoa' && Array.isArray(bruto)) pessoasSemFuncionario += bruto.filter(id => !uidDe(Number(id))).length;
+    const v = valorOficial(c, bruto);
+    if (c.tipo === 'pessoa' && Array.isArray(bruto)) pessoasSemFuncionario += bruto.length - uidsDe(bruto).length;
     if (v !== undefined) out[c.chave] = v;
   }
   return { valores: out, pessoasSemFuncionario };
@@ -145,16 +147,16 @@ export function acrescentarRotulos(campo: CampoOficial, rotulosFriday: AnyRecord
   return acrescentados.length ? { campo: { ...campo, rotulos: [...atuais, ...acrescentados] }, mudou: true } : { campo, mudou: false };
 }
 
-/** Índice `pessoas` de um item de quadro oficial: pessoas das colunas livres + das colunas oficiais (UID → id do Friday). */
-export function indicePessoas(valoresLivres: AnyRecord | undefined, colunasPessoaLivres: Set<string>, campos: CampoOficial[], oficial: AnyRecord | undefined, idDeUid: (uid: string) => number | undefined): number[] {
-  const ids = new Set<number>();
-  for (const [k, v] of Object.entries(valoresLivres ?? {})) if (colunasPessoaLivres.has(k) && Array.isArray(v)) v.forEach(x => { if (Number.isFinite(Number(x))) ids.add(Number(x)); });
-  for (const c of campos) if (c.tipo === 'pessoa' && c.situacao === 'ativo' && Array.isArray(oficial?.[c.chave])) for (const uid of oficial![c.chave]) { const id = idDeUid(String(uid)); if (id != null) ids.add(id); }
-  return [...ids];
+/** Índice `pessoas` (UIDs) de um item de quadro oficial: pessoas das colunas livres + das colunas oficiais. */
+export function indicePessoas(valoresLivres: AnyRecord | undefined, colunasPessoaLivres: Set<string>, campos: CampoOficial[], oficial: AnyRecord | undefined): string[] {
+  const uids = new Set<string>();
+  for (const [k, v] of Object.entries(valoresLivres ?? {})) if (colunasPessoaLivres.has(k)) uidsDe(v).forEach(u => uids.add(u));
+  for (const c of campos) if (c.tipo === 'pessoa' && c.situacao === 'ativo' && Array.isArray(oficial?.[c.chave])) uidsDe(oficial![c.chave]).forEach(u => uids.add(u));
+  return [...uids];
 }
 
 /** Valor oficial → valor da célula no Friday (o inverso de valorOficial). Usado ao descontinuar um campo. */
-export function valorDoOficial(campo: CampoOficial, valor: unknown, idDeUid: (uid: string) => number | undefined): unknown {
+export function valorDoOficial(campo: CampoOficial, valor: unknown): unknown {
   if (valor == null) return undefined;
   // Cadastro existente: números com escala (×10) voltam para a unidade da tela.
   const escala = (campo as CampoOficial & { escala?: number }).escala;
@@ -167,8 +169,8 @@ export function valorDoOficial(campo: CampoOficial, valor: unknown, idDeUid: (ui
       return ids.length ? ids : undefined;
     }
     case 'pessoa': {
-      const ids = (Array.isArray(valor) ? valor : []).map(u => idDeUid(String(u))).filter((x): x is number => x != null);
-      return ids.length ? ids : undefined;
+      const uids = Array.isArray(valor) ? uidsDe(valor) : [];
+      return uids.length ? uids : undefined;
     }
     default: return valor;
   }
@@ -198,8 +200,8 @@ export function sincronizarRotulos(campo: CampoOficial, rotulosFriday: AnyRecord
 }
 
 /** Entrada de um subitem no mapa do registro pai (subitens oficiais). */
-export function entradaSubitem(campos: CampoOficial[], subitem: AnyRecord, uidDe: (idFriday: number) => string | undefined) {
-  const { valores, pessoasSemFuncionario } = camposDoItem(campos, subitem.valores, uidDe);
+export function entradaSubitem(campos: CampoOficial[], subitem: AnyRecord) {
+  const { valores, pessoasSemFuncionario } = camposDoItem(campos, subitem.valores);
   return { entrada: { posicao: Number(subitem.posicao) || 0, nome: String(subitem.nome ?? ''), situacao: situacaoDoItem(subitem), ...valores }, pessoasSemFuncionario };
 }
 

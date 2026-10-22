@@ -250,16 +250,14 @@ export function montarCamposExistente(cadastro: CadastroExistente, colunas: Colu
 }
 
 const vazio = (v: unknown) => v == null || v === '' || (Array.isArray(v) && v.length === 0);
-type UidDe = (idFriday: number) => string | undefined;
-const semUid: UidDe = () => undefined;
 
 /**
  * Valor da célula do Friday → valor do documento. `vazio: true` quando a célula não tem valor (o que gravar fica a
  * cargo de quem chama); `erro` quando o valor não cabe no contrato.
  */
-export function valorParaContrato(campo: CampoExistente, valor: unknown, uidDe: UidDe = semUid): { valor?: unknown; vazio?: true; erro?: string } {
+export function valorParaContrato(campo: CampoExistente, valor: unknown): { valor?: unknown; vazio?: true; erro?: string } {
   if (!campo.tipo_contrato) {
-    const v = valorOficial(campo, valor, uidDe);
+    const v = valorOficial(campo, valor);
     return v === undefined ? { vazio: true } : { valor: v };
   }
   if (campo.tipo_contrato === 'caixa') return { valor: valor === true || valor === 1 || valor === '1' };
@@ -289,9 +287,9 @@ export function derivados(campo: CampoExistente, valor: unknown): [string, unkno
 }
 
 /** Valor para gravar a partir da tela (com os campos calculados): vazio vira null (se o contrato aceita) ou é recusado. */
-export function valorParaGravarExistente(campo: CampoExistente, valor: unknown, uidDe: UidDe = semUid): { gravar: [string, unknown][] } | { erro: string } {
+export function valorParaGravarExistente(campo: CampoExistente, valor: unknown): { gravar: [string, unknown][] } | { erro: string } {
   if (campo.somente_leitura) return { erro: `"${campo.titulo}" é só leitura: o valor vem do cadastro.` };
-  const r = valorParaContrato(campo, valor, uidDe);
+  const r = valorParaContrato(campo, valor);
   if (r.erro) return { erro: r.erro };
   if (r.vazio) return campo.nulo ? { gravar: [[campo.chave, null]] } : { erro: `"${campo.titulo}" é obrigatório no cadastro.` };
   return { gravar: [[campo.chave, r.valor], ...derivados(campo, r.valor)] };
@@ -301,7 +299,7 @@ export function valorParaGravarExistente(campo: CampoExistente, valor: unknown, 
  * Documento novo do cadastro a partir de um item: fixos + padrões + valores do item (e calculados). Com a chave
  * "começa com" no nome do item, a 1ª palavra vira o identificador e o resto, o nome (se o nome não estiver ligado).
  */
-export function novoRegistro(cadastro: CadastroExistente, campos: CampoExistente[], item: ItemConciliavel, chave: ChaveConciliacao, uidDe: UidDe = semUid) {
+export function novoRegistro(cadastro: CadastroExistente, campos: CampoExistente[], item: ItemConciliavel, chave: ChaveConciliacao) {
   const doc: AnyRecord = structuredClone(cadastro.fixos);
   const erros: string[] = [];
   for (const c of cadastro.campos) if (c.obrigatorio || c.padrao !== undefined) gravarCaminho(doc, c.caminho, c.padrao !== undefined ? c.padrao : c.nulo ? null : undefined);
@@ -315,7 +313,7 @@ export function novoRegistro(cadastro: CadastroExistente, campos: CampoExistente
   }
   for (const c of campos) {
     if (c.somente_leitura) continue;
-    const r = valorParaContrato(c, item.valores?.[String(c.coluna_id)], uidDe);
+    const r = valorParaContrato(c, item.valores?.[String(c.coluna_id)]);
     if (r.erro) erros.push(r.erro);
     else if (!r.vazio) { gravarCaminho(doc, c.chave, r.valor); for (const [k, v] of derivados(c, r.valor)) gravarCaminho(doc, k, v); }
   }
@@ -358,7 +356,7 @@ const igual = (a: unknown, b: unknown) => JSON.stringify(a ?? null) === JSON.str
  * criar e o que trazer para o quadro. Itens sem par e não marcados para criar ficam fora; ambíguos sem escolha também.
  */
 export function planejar(cadastro: CadastroExistente, campos: CampoExistente[], analise: Analise, itens: ItemConciliavel[],
-  registros: RegistroExistente[], decisoes: Decisoes, chave: ChaveConciliacao, uidDe: UidDe = semUid): Plano {
+  registros: RegistroExistente[], decisoes: Decisoes, chave: ChaveConciliacao): Plano {
   const porItem = new Map(itens.map(i => [i.id, i]));
   const porRegistro = new Map(registros.map(r => [r.id, r]));
   const plano: Plano = { vincular: [], criar: [], trazer: [], rotulosNovos: [], arquivar: [], manuais: 0, desfeitos: 0, foraDoQuadro: 0, deixadosFora: 0, ambiguosPendentes: 0, campos: [], erros: [] };
@@ -396,7 +394,7 @@ export function planejar(cadastro: CadastroExistente, campos: CampoExistente[], 
     for (const c of campos) {
       const r = rel.get(c.chave)!;
       if (c.somente_leitura) continue;
-      const v = valorParaContrato(c, item.valores?.[String(c.coluna_id)], uidDe);
+      const v = valorParaContrato(c, item.valores?.[String(c.coluna_id)]);
       if (v.erro) { r.erros++; plano.erros.push(`${item.nome}: ${v.erro}`); continue; }
       if (v.vazio) continue;
       const atual = lerCaminho(doc, c.chave);
@@ -414,7 +412,7 @@ export function planejar(cadastro: CadastroExistente, campos: CampoExistente[], 
     if (ligadosAMao.has(s.itemId)) continue;
     if (!criar.has(s.itemId)) { plano.deixadosFora++; continue; }
     const item = porItem.get(s.itemId)!;
-    const r = novoRegistro(cadastro, campos, item, chave, uidDe);
+    const r = novoRegistro(cadastro, campos, item, chave);
     if (r.erros.length) { plano.erros.push(...r.erros.map(e => `${item.nome}: ${e}`)); plano.deixadosFora++; continue; }
     plano.criar.push({ itemId: s.itemId, doc: r.doc });
   }

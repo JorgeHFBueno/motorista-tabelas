@@ -4,7 +4,7 @@ import { useNavigate } from '../rotas.tsx';
 import {
   AlertTriangle, ArrowLeft, CheckCircle2, Copy, History, MoreHorizontal, Pencil, Plus, Search, Trash2, X, Zap,
 } from 'lucide-react';
-import { api, req, type Row } from '../api.ts';
+import { api, req, type Pessoa, type Row } from '../api.ts';
 import { useNav } from '../nav.tsx';
 import { Avatar, Menu, Modal, Popover, useConfirmar, usePopover } from '../ui/base.tsx';
 import { corTexto } from '../util.ts';
@@ -18,10 +18,10 @@ type Condicao = { alvo: number | 'grupo'; op: string; valor?: unknown };
 type Acao = {
   tipo: 'definir' | 'mover' | 'notificar' | 'subitem' | 'arquivar' | 'criar_item' | 'webhook';
   coluna_id?: number; valor?: unknown; modo?: 'substituir' | 'adicionar'; grupo_id?: number | null; quadro_id?: number;
-  para?: number[]; coluna_pessoa?: number | null; texto?: string; nome?: string; url?: string;
+  para?: string[]; coluna_pessoa?: number | null; texto?: string; nome?: string; url?: string;
 };
 type Automacao = { id?: number; quadro_id: number; nome?: string | null; ativa?: number; modo: 'todas' | 'qualquer'; gatilho: Gatilho; condicoes: Condicao[]; acoes: Acao[] } & Partial<Row>;
-type Ctx = { colunas: Coluna[]; grupos: Grupo[]; usuarios: Row[]; quadros: Row[] };
+type Ctx = { colunas: Coluna[]; grupos: Grupo[]; usuarios: Pessoa[]; quadros: Row[] };
 
 const GATILHOS: { tipo: Gatilho['tipo']; rotulo: string }[] = [
   { tipo: 'coluna_muda', rotulo: 'uma coluna mudar (ex.: Status)' },
@@ -32,7 +32,6 @@ const GATILHOS: { tipo: Gatilho['tipo']; rotulo: string }[] = [
 const ACOES: { tipo: Acao['tipo']; rotulo: string }[] = [
   { tipo: 'definir', rotulo: 'Mudar o valor de uma coluna' },
   { tipo: 'mover', rotulo: 'Mover o item para um grupo' },
-  { tipo: 'notificar', rotulo: 'Avisar pessoas (sino)' },
   { tipo: 'subitem', rotulo: 'Criar um subitem' },
   { tipo: 'criar_item', rotulo: 'Criar um item em outro quadro' },
   { tipo: 'arquivar', rotulo: 'Arquivar o item' },
@@ -65,7 +64,7 @@ function opcoesDe(c: Coluna | undefined, ctx: Ctx, comCriador = false): { id: st
     return [...rs.filter(r => r.id !== '0'), ...rs.filter(r => r.id === '0')].map(r => ({ id: r.id, texto: r.texto || 'Sem rótulo', cor: r.id === '0' ? '#c4c4c4' : r.cor }));
   }
   if (c.tipo === 'lista') return ((c.config.opcoes ?? []) as Rotulo[]).map(o => ({ id: o.id, texto: o.texto }));
-  if (c.tipo === 'pessoa') return [...(comCriador ? [{ id: '0', texto: 'Quem criou o item' }] : []), ...ctx.usuarios.map(u => ({ id: String(u.id), texto: String(u.nome), cor: u.cor }))];
+  if (c.tipo === 'pessoa') return [...(comCriador ? [{ id: '0', texto: 'Quem criou o item' }] : []), ...ctx.usuarios.filter(u => u.ativo).map(u => ({ id: u.id, texto: u.nome, cor: u.cor }))];
   if (c.tipo === 'caixa') return [{ id: '1', texto: 'Marcada' }, { id: '0', texto: 'Desmarcada' }];
   return [];
 }
@@ -149,14 +148,11 @@ function modelos(ctx: Ctx, quadroId: number): { titulo: string; a: Automacao }[]
   const st = statusPrincipal(ctx.colunas);
   const feitos = ((st?.config.rotulos ?? []) as Rotulo[]).filter(r => r.concluido).map(r => r.id);
   const pessoaCol = ctx.colunas.find(c => c.tipo === 'pessoa');
-  const prazo = ctx.colunas.find(c => c.tipo === 'data' && ehPrazo(c)) ?? ctx.colunas.find(c => c.tipo === 'periodo');
   const base = (gatilho: Gatilho, acoes: Acao[]): Automacao => ({ quadro_id: quadroId, modo: 'todas', gatilho, condicoes: [], acoes });
   return [
     { titulo: 'Quando o status mudar, mover o item para um grupo', a: base({ tipo: 'coluna_muda', coluna_id: st?.id, para: [] }, [{ tipo: 'mover' }]) },
-    { titulo: 'Quando o status mudar, avisar alguém', a: base({ tipo: 'coluna_muda', coluna_id: st?.id, para: [] }, [{ tipo: 'notificar', para: [], coluna_pessoa: pessoaCol?.id ?? null, texto: '“{nome}” mudou de status' }]) },
     { titulo: 'Quando ficar concluído, arquivar o item', a: base({ tipo: 'coluna_muda', coluna_id: st?.id, para: feitos }, [{ tipo: 'arquivar' }]) },
-    { titulo: 'Quando um item for criado, atribuir quem criou', a: base({ tipo: 'item_criado' }, [{ tipo: 'definir', coluna_id: pessoaCol?.id, valor: [0], modo: 'adicionar' }]) },
-    { titulo: 'Um dia antes do prazo, avisar o responsável', a: base({ tipo: 'data_chega', coluna_id: prazo?.id, dias: -1, ponta: 'fim' }, [{ tipo: 'notificar', para: [], coluna_pessoa: pessoaCol?.id ?? null, texto: 'O prazo de “{nome}” é amanhã' }]) },
+    { titulo: 'Quando um item for criado, atribuir quem criou', a: base({ tipo: 'item_criado' }, [{ tipo: 'definir', coluna_id: pessoaCol?.id, valor: ['0'], modo: 'adicionar' }]) },
     { titulo: 'Quando um item for criado, criar subitens de etapas', a: base({ tipo: 'item_criado' }, [{ tipo: 'subitem', nome: 'Etapa 1' }]) },
   ];
 }
@@ -424,7 +420,7 @@ function EditorAutomacao({ inicial, ctx, onSalvar, onFechar }: { inicial: Automa
               )}
               {x.tipo === 'notificar' && (
                 <div className="auto-sub">
-                  <Escolha opcoes={ctx.usuarios.map(u => ({ id: String(u.id), texto: String(u.nome), cor: u.cor }))} valor={(x.para ?? []).map(String)} onMudar={v => setAcao(k, { para: v.map(Number) })} vazio="ninguém fixo" />
+                  <Escolha opcoes={ctx.usuarios.filter(u => u.ativo).map(u => ({ id: u.id, texto: u.nome, cor: u.cor }))} valor={x.para ?? []} onMudar={v => setAcao(k, { para: v })} vazio="ninguém fixo" />
                   <select value={x.coluna_pessoa ?? ''} onChange={e => setAcao(k, { coluna_pessoa: Number(e.target.value) || null })}>
                     <option value="">e mais ninguém</option>
                     {colsDe(['pessoa']).map(c => <option key={c.id} value={c.id}>e as pessoas de {c.titulo}</option>)}
@@ -463,7 +459,7 @@ function ValorAcao({ col, acao, ctx, onMudar }: { col: Coluna; acao: Acao; ctx: 
         <select value={acao.modo ?? 'substituir'} onChange={e => onMudar({ modo: e.target.value as 'substituir' | 'adicionar' })}>
           <option value="substituir">trocar por</option><option value="adicionar">adicionar</option>
         </select>
-        <Escolha opcoes={opcoesDe(col, ctx, col.tipo === 'pessoa')} valor={((acao.valor ?? []) as unknown[]).map(String)} onMudar={v => onMudar({ valor: col.tipo === 'pessoa' ? v.map(Number) : v })} />
+        <Escolha opcoes={opcoesDe(col, ctx, col.tipo === 'pessoa')} valor={((acao.valor ?? []) as unknown[]).map(String)} onMudar={v => onMudar({ valor: v })} />
       </div>
     );
   }

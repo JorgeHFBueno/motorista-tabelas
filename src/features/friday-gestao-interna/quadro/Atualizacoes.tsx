@@ -3,7 +3,7 @@ import {
   AtSign, Download, ExternalLink, File as IconeArquivo, FileArchive, FileImage, FileSpreadsheet, FileText, FileVideo,
   MessageCircle, MoreHorizontal, Paperclip, Reply, Trash2, Upload, X,
 } from 'lucide-react';
-import { api, enviarArquivo, type Row } from '../api.ts';
+import { api, enviarArquivo, type Pessoa, type Row } from '../api.ts';
 import { useNav } from '../nav.tsx';
 import { Avatar, Menu, Popover, useConfirmar, usePopover } from '../ui/base.tsx';
 import type { Item } from './tipos.ts';
@@ -44,15 +44,15 @@ export function tempoRelativo(data: string) {
   return `${d.toLocaleDateString('pt-BR', { day: 'numeric', month: 'short', year: d.getFullYear() !== hoje.getFullYear() ? 'numeric' : undefined }).replace('.', '')} ${hora}`;
 }
 
-// Texto da atualização: @{id} vira a menção destacada; endereços viram links.
+// Texto da atualização: @{uid} vira a menção destacada; endereços viram links.
 function TextoAtualizacao({ texto }: { texto: string }) {
   const nav = useNav();
-  const partes = texto.trim().split(/(@\{\d+\}|https?:\/\/[^\s]+)/g);
+  const partes = texto.trim().split(/(@\{[^{}\s]+\}|https?:\/\/[^\s]+)/g);
   return (
     <p className="at-texto">
       {partes.map((p, i) => {
-        const m = p.match(/^@\{(\d+)\}$/);
-        if (m) return <span key={i} className={`mencao${Number(m[1]) === nav.usuario?.id ? ' eu' : ''}`}>@{nav.nomeUsuario(Number(m[1]))}</span>;
+        const m = p.match(/^@\{([^{}\s]+)\}$/);
+        if (m) return <span key={i} className={`mencao${m[1] === nav.usuario?.id ? ' eu' : ''}`}>@{nav.nomeUsuario(m[1])}</span>;
         if (/^https?:\/\//.test(p)) return <a key={i} href={p} target="_blank" rel="noreferrer">{p}</a>;
         return <Fragment key={i}>{p}</Fragment>;
       })}
@@ -71,20 +71,20 @@ export function Composer({ item, respostaDe, compacto, onPublicado, onCancelar }
   const seletor = useRef<HTMLInputElement>(null);
   const [texto, setTexto] = useState('');
   const [arquivos, setArquivos] = useState<File[]>([]);
-  const [mencoes, setMencoes] = useState<{ id: number; nome: string }[]>([]);
+  const [mencoes, setMencoes] = useState<{ id: string; nome: string }[]>([]);
   const [busca, setBusca] = useState<{ termo: string; inicio: number } | null>(null);
   const [indice, setIndice] = useState(0);
   const [enviando, setEnviando] = useState<string | null>(null);
   const [arrastando, setArrastando] = useState(false);
 
-  const candidatos = useMemo(() => !busca ? [] : nav.usuarios.filter(u => semAcento(u.nome).includes(semAcento(busca.termo))).slice(0, 8), [busca, nav.usuarios]);
+  const candidatos = useMemo(() => !busca ? [] : nav.usuarios.filter(u => u.ativo && semAcento(u.nome).includes(semAcento(busca.termo))).slice(0, 8), [busca, nav.usuarios]);
 
   const detectar = (valor: string, cursor: number) => {
     const antes = valor.slice(0, cursor);
     const m = antes.match(/(^|\s)@([^\s@]{0,30})$/);
     if (m) { setBusca({ termo: m[2], inicio: cursor - m[2].length - 1 }); setIndice(0); } else setBusca(null);
   };
-  const escolher = (u: Row) => {
+  const escolher = (u: Pessoa) => {
     if (!busca || !area.current) return;
     const cursor = area.current.selectionStart;
     const novo = `${texto.slice(0, busca.inicio)}@${u.nome} ${texto.slice(cursor)}`;
@@ -109,9 +109,9 @@ export function Composer({ item, respostaDe, compacto, onPublicado, onCancelar }
 
   const publicar = async () => {
     if (enviando || (!texto.trim() && !arquivos.length)) return;
-    // "@Nome" das pessoas escolhidas vira a marca @{id} guardada no banco.
+    // "@Nome" das pessoas escolhidas vira a marca @{uid} guardada no banco.
     let final = texto.trim();
-    const ids: number[] = [];
+    const ids: string[] = [];
     for (const m of [...mencoes].sort((a, b) => b.nome.length - a.nome.length)) {
       if (final.includes(`@${m.nome}`)) { final = final.split(`@${m.nome}`).join(`@{${m.id}}`); ids.push(m.id); }
     }
@@ -144,7 +144,7 @@ export function Composer({ item, respostaDe, compacto, onPublicado, onCancelar }
         <div className="mencao-lista" role="listbox">
           {candidatos.map((u, i) => (
             <button key={u.id} role="option" aria-selected={i === indice} className={i === indice ? 'on' : ''} onMouseDown={e => { e.preventDefault(); escolher(u); }}>
-              <Avatar nome={u.nome} cor={u.cor} tamanho={24} /><span>{u.nome}</span><small>{u.papel}</small>
+              <Avatar nome={u.nome} cor={u.cor} tamanho={24} /><span>{u.nome}</span>
             </button>
           ))}
         </div>

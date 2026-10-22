@@ -14,8 +14,11 @@ import type { Coluna } from './quadro/tipos.ts';
 // Auth + funcionarios); quem pode ler e gravar é decidido pelas regras do Firestore.
 //
 // Os registros mantêm o id numérico do protótipo (campo "id", também usado como id do documento), porque as
-// telas comparam e guardam ids como números (valores das células, @menções, ordenação).
+// telas comparam e guardam ids como números (ordenação, ligações). Pessoas são a exceção: são os funcionários do
+// sistema (funcionarios/{uid}) e aparecem nos registros pelo UID (células de pessoa, criado por, autor, @menções).
 export type Row = Record<string, any> & { id: number };
+// Pessoa do Friday = funcionário do sistema; o id é o próprio UID.
+export type Pessoa = { id: string; uid: string; nome: string; email: string | null; cor: string; ativo: boolean };
 
 // Disparado quando a sessão acaba (as telas voltam a pedir login).
 export const SEM_SESSAO = 'ledur:sem-sessao';
@@ -26,12 +29,11 @@ class ErroApi extends Error {
 }
 
 // ------------------------------------------------------------------ recursos e campos
-const RECURSOS = ['usuarios', 'areas', 'pastas', 'quadros', 'grupos', 'colunas', 'itens', 'visoes', 'atualizacoes', 'atividades', 'anexos', 'notificacoes', 'automacoes', 'execucoes'] as const;
+const RECURSOS = ['areas', 'pastas', 'quadros', 'grupos', 'colunas', 'itens', 'visoes', 'atualizacoes', 'atividades', 'anexos', 'notificacoes', 'automacoes', 'execucoes'] as const;
 type Recurso = (typeof RECURSOS)[number];
 
 // Campos gravados de cada recurso (o que não estiver aqui é ignorado, como no esquema do protótipo).
 const CAMPOS: Record<Recurso, string[]> = {
-  usuarios: ['id', 'uid', 'nome', 'papel', 'email', 'cor', 'origem_id', 'acesso', 'ativo', 'ultimo_acesso'],
   areas: ['id', 'nome', 'cor', 'posicao', 'origem_id', 'restrito'],
   pastas: ['id', 'area_id', 'pasta_pai_id', 'nome', 'cor', 'posicao', 'aberta', 'origem_id', 'restrito'],
   // cadastro: chave do cadastro oficial do quadro (friday-cadastros/{chave}), gravada pela Function fridayCadastroPromover.
@@ -55,7 +57,7 @@ const CAMPOS: Record<Recurso, string[]> = {
 const JSON_COLS: Partial<Record<Recurso, string[]>> = { colunas: ['config'], itens: ['valores'], visoes: ['config'], atualizacoes: ['mencoes'], automacoes: ['gatilho', 'condicoes', 'acoes'] };
 // Campos que a API genérica não grava (têm rotas próprias).
 const PROTEGIDOS: Partial<Record<Recurso, string[]>> = {
-  usuarios: ['uid', 'acesso', 'ativo', 'ultimo_acesso'], areas: ['restrito'], pastas: ['restrito'], quadros: ['restrito', 'cadastro'],
+  areas: ['restrito'], pastas: ['restrito'], quadros: ['restrito', 'cadastro'],
   atualizacoes: ['quadro_id'], anexos: ['quadro_id'], notificacoes: ['usuario_uid'],
   // vinculo: { cadastro, id } do registro oficial do item (cadastros oficiais).
   itens: ['pessoas', 'busca', 'importado_em', 'monday_atualizado_em', 'ligacoes_pendentes', 'vinculo'],
@@ -93,8 +95,8 @@ function novoId(): number {
   return ultimoId;
 }
 
-// Id numérico estável de uma pessoa a partir do UID do Firebase (hash cyrb53, 53 bits).
-export function idDoUid(uid: string): number {
+// Número estável a partir do UID do Firebase (hash cyrb53, 53 bits): escolhe a cor da pessoa.
+function hashDoUid(uid: string): number {
   let h1 = 0xdeadbeef, h2 = 0x41c6ce57;
   for (let i = 0; i < uid.length; i++) {
     const c = uid.charCodeAt(i);
@@ -118,8 +120,6 @@ const igual = (a: unknown, b: unknown) => JSON.stringify(a ?? null) === JSON.str
 
 const colecao = (r: Recurso) => collection(db, `friday-${r}`);
 const ref = (r: Recurso, id: unknown) => doc(db, `friday-${r}`, String(id));
-// Pessoas usam o UID do Firebase como id do documento; o resto usa o id numérico.
-const refDe = (r: Recurso, row: Row) => (r === 'usuarios' ? doc(db, 'friday-usuarios', String(row.uid)) : ref(r, row.id));
 
 // Valores vindos de query string chegam como texto: números voltam a ser números.
 const normalizar = (v: unknown) => (typeof v === 'string' && /^-?\d+(\.\d+)?$/.test(v) ? Number(v) : v);
@@ -139,7 +139,6 @@ function ordenar(r: Recurso, rows: Row[]): Row[] {
 
 async function buscar(r: Recurso, id: unknown): Promise<Row | undefined> {
   if (id == null || id === '' || !Number.isFinite(Number(id))) return undefined;
-  if (r === 'usuarios') return (await consultar('usuarios', { id: Number(id) }))[0];
   const s = await getDoc(ref(r, Number(id)));
   return s.exists() ? (s.data() as Row) : undefined;
 }
@@ -158,7 +157,6 @@ function memoria() {
 function padrao(r: Recurso): Record<string, unknown> {
   const t = agora();
   const extra: Record<Recurso, Record<string, unknown>> = {
-    usuarios: { acesso: 'membro', ativo: 1 },
     areas: { cor: '#1f4e8c', posicao: 0, restrito: 0 },
     pastas: { posicao: 0, aberta: 1, restrito: 0 },
     quadros: { posicao: 0, favorito: 0, nome_item: 'Item', criado_em: t, tipo: 'quadro', restrito: 0 },
@@ -209,7 +207,7 @@ async function inserir(r: Recurso, dados: Record<string, unknown>): Promise<Row>
 
 // ------------------------------------------------------------------ índices dos itens
 // O Firestore não busca por trecho de texto nem dentro dos valores das células. Cada item guarda:
-// - pessoas: ids que aparecem em colunas "pessoa" (o Meu trabalho consulta com array-contains);
+// - pessoas: UIDs que aparecem em colunas "pessoa" (o Meu trabalho consulta com array-contains);
 // - busca: prefixos das palavras do nome, sem acento e em minúsculas (a busca consulta a 1ª palavra digitada).
 // A mesma regra existe na Function de importação do monday (functions/fridayMondayConverter.ts).
 const semAcento = (t: string) => t.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
@@ -221,10 +219,10 @@ export function prefixosBusca(nome: unknown): string[] {
   }
   return [...prefixos].slice(0, 300);
 }
-function pessoasDosValores(valores: Record<string, unknown> | undefined, colunasPessoa: Set<string>): number[] {
-  const ids = new Set<number>();
-  for (const [k, v] of Object.entries(valores ?? {})) if (colunasPessoa.has(k) && Array.isArray(v)) v.forEach(x => { if (Number.isFinite(Number(x))) ids.add(Number(x)); });
-  return [...ids];
+function pessoasDosValores(valores: Record<string, unknown> | undefined, colunasPessoa: Set<string>): string[] {
+  const uids = new Set<string>();
+  for (const [k, v] of Object.entries(valores ?? {})) if (colunasPessoa.has(k) && Array.isArray(v)) v.forEach(x => { if (typeof x === 'string' && x) uids.add(x); });
+  return [...uids];
 }
 async function colunasPessoaDe(quadroId: unknown): Promise<Set<string>> {
   return new Set((await consultar('colunas', { quadro_id: quadroId, tipo: 'pessoa' })).map(c => String(c.id)));
@@ -270,19 +268,15 @@ async function campoOficialDa(coluna: Row): Promise<(EscopoOficial & { campo: Ca
   const campo = e?.campos.find(c => c.coluna_id === coluna.id);
   return e && campo ? { ...e, campo } : null;
 }
-async function idsPorUid(): Promise<Map<string, number>> {
-  const lista = usuarios.length ? usuarios : await consultar('usuarios');
-  return new Map(lista.map(u => [String(u.uid), u.id]));
-}
-// Valor oficial → valor da célula no Friday (status/lista por código; pessoas por UID).
-function valorDoOficial(c: CampoOficial, v: unknown, idDe: Map<string, number>): unknown {
+// Valor oficial → valor da célula no Friday (status/lista por código; pessoas por UID, como no Friday).
+function valorDoOficial(c: CampoOficial, v: unknown): unknown {
   if (v == null) return undefined;
   if (c.escala && typeof v === 'number') { const r = v / c.escala; return Math.abs(r - Math.round(r)) < 1e-6 ? Math.round(r) : r; }
   switch (c.tipo) {
     case 'caixa': return v === true ? true : undefined;
     case 'status': return c.rotulos?.find(r => r.codigo === v)?.friday_id;
     case 'lista': { const ids = (Array.isArray(v) ? v : []).map(cod => c.rotulos?.find(r => r.codigo === cod)?.friday_id).filter(Boolean); return ids.length ? ids : undefined; }
-    case 'pessoa': { const ids = (Array.isArray(v) ? v : []).map(u => idDe.get(String(u))).filter(x => x != null); return ids.length ? ids : undefined; }
+    case 'pessoa': { const uids = (Array.isArray(v) ? v : []).filter(u => typeof u === 'string' && u); return uids.length ? uids : undefined; }
     default: return v;
   }
 }
@@ -292,11 +286,11 @@ function lerCaminho(doc: Record<string, unknown> | undefined, caminho: string): 
   for (const parte of caminho.split('.')) { if (atual == null || typeof atual !== 'object') return undefined; atual = (atual as Record<string, unknown>)[parte]; }
   return atual;
 }
-function mesclarOficial(item: Row, campos: CampoOficial[], oficial: Record<string, unknown> | undefined, idDe: Map<string, number>): Row {
+function mesclarOficial(item: Row, campos: CampoOficial[], oficial: Record<string, unknown> | undefined): Row {
   if (!oficial) return item;
   const valores = { ...(item.valores ?? {}) };
   for (const c of campos) {
-    const v = valorDoOficial(c, lerCaminho(oficial, c.chave), idDe);
+    const v = valorDoOficial(c, lerCaminho(oficial, c.chave));
     if (v === undefined) delete valores[String(c.coluna_id)]; else valores[String(c.coluna_id)] = v;
   }
   return { ...item, valores };
@@ -307,10 +301,10 @@ async function comOficiais(item: Row): Promise<Row> {
   const registro = await registroDe(item.vinculo.cadastro);
   if (!registro) return item;
   const d = (await getDoc(doc(db, registro.colecao, String(item.vinculo.id)))).data();
-  if (item.vinculo.sub == null) return mesclarOficial(item, camposAtivos(registro), d, await idsPorUid());
+  if (item.vinculo.sub == null) return mesclarOficial(item, camposAtivos(registro), d);
   const s = registro.subitens;
   if (s?.situacao !== 'ativo') return item;
-  return mesclarOficial(item, camposAtivos(s), d?.[s.chave]?.[String(item.vinculo.sub)], await idsPorUid());
+  return mesclarOficial(item, camposAtivos(s), d?.[s.chave]?.[String(item.vinculo.sub)]);
 }
 const chamarGravacaoOficial = httpsCallable<{ itemId: number; op: string; colunaId?: number; valor?: unknown }, unknown>(functions, 'fridayCadastroGravar');
 async function gravarOficial(itemId: number, op: 'valor' | 'nome' | 'situacao' | 'vincular' | 'grupo', extra: { colunaId?: number; valor?: unknown } = {}) {
@@ -344,38 +338,18 @@ async function emLotes(operacoes: ((lote: ReturnType<typeof writeBatch>) => void
 }
 
 // ------------------------------------------------------------------ sessão (login do sistema)
-export type Sessao = { id: number; uid: string; nome: string; email: string | null; cor?: string; papel?: string | null; acesso: 'admin' | 'membro' | 'leitor'; admin: boolean };
+// id = UID. admin (áreas: criar, renomear, excluir) = perfis.adm2.
+export type Sessao = { id: string; uid: string; nome: string; email: string | null; cor: string; admin: boolean };
 let sessao: Sessao | null = null;
 
 function eu(): Sessao {
   if (!sessao) throw new ErroApi(401, 'Sessão encerrada. Entre novamente no sistema.');
   return sessao;
 }
-// Etapa atual: qualquer funcionário ativo usa o Friday e todos administram (credenciais vêm depois).
-function exigirEscrita() {
-  if (eu().acesso === 'leitor') throw new ErroApi(403, 'Você só pode ver.');
-}
-
-// Garante o cadastro da pessoa no Friday (friday-usuarios/{uid}) e abre a sessão.
-// Quem é adm2 também traz os funcionários ativos, para que possam ser marcados em quadros antes do 1º acesso.
-// Nome e e-mail vêm de funcionarios e do login: a cada abertura, a cópia do Friday é atualizada se estiver diferente.
-export async function iniciarSessao(p: { uid: string; nome: string; nomeCadastro: string | null; email: string | null; adm2: boolean }): Promise<Sessao> {
-  const docRef = doc(db, 'friday-usuarios', p.uid);
-  const s = await getDoc(docRef);
-  let row: Row;
-  if (s.exists()) {
-    const mudancas: Record<string, unknown> = { ultimo_acesso: agora() };
-    if (p.nomeCadastro && s.data().nome !== p.nomeCadastro) mudancas.nome = p.nomeCadastro;
-    if (p.email && s.data().email !== p.email) mudancas.email = p.email;
-    await updateDoc(docRef, mudancas);
-    row = { ...s.data(), ...mudancas } as Row;
-  } else {
-    const id = idDoUid(p.uid);
-    row = { ...padrao('usuarios'), id, uid: p.uid, nome: p.nome, email: p.email, cor: CORES[id % 16], ultimo_acesso: agora() } as Row;
-    await setDoc(docRef, row);
-  }
-  if (p.adm2) await trazerFuncionarios().catch(e => console.warn('[friday] funcionários não sincronizados:', e));
-  sessao = { id: row.id, uid: p.uid, nome: row.nome, email: row.email ?? null, cor: row.cor, papel: row.papel, acesso: row.acesso ?? 'membro', admin: true };
+// Abre a sessão com o funcionário logado. O Friday não guarda pessoas próprias: nome e e-mail vêm de funcionarios
+// e do login (o último acesso é gravado pela WEB, em funcionarios). Todo funcionário ativo lê e edita.
+export async function iniciarSessao(p: { uid: string; nome: string; email: string | null; adm2: boolean }): Promise<Sessao> {
+  sessao = { id: p.uid, uid: p.uid, nome: p.nome, email: p.email, cor: corDaPessoa(p.uid), admin: p.adm2 };
   await prepararPrimeiroUso();
   return sessao;
 }
@@ -413,25 +387,21 @@ async function criarPrimeiroUso() {
 }
 export function encerrarSessao() { sessao = null; }
 
-async function trazerFuncionarios() {
-  const [funcionarios, jaTem] = await Promise.all([
-    getDocs(query(collection(db, 'funcionarios'), where('ativo', '==', true))),
-    getDocs(collection(db, 'friday-usuarios')),
-  ]);
-  const existentes = new Set(jaTem.docs.map(d => d.id));
-  const novos = funcionarios.docs.filter(f => !existentes.has(f.id) && typeof f.data().nome === 'string' && f.data().nome.trim());
-  await emLotes(novos.map(f => lote => {
-    const id = idDoUid(f.id);
-    const email = typeof f.data().email === 'string' ? f.data().email.trim().toLowerCase() : null;
-    lote.set(doc(db, 'friday-usuarios', f.id), { ...padrao('usuarios'), id, uid: f.id, nome: String(f.data().nome).trim(), email, cor: CORES[id % 16] });
-  }));
-}
-
-// Pessoas em memória (nomes para avisos e registro de atividade).
-let usuarios: Row[] = [];
-const nomeUsuario = (id: unknown) => usuarios.find(u => u.id === Number(id))?.nome ?? `#${id}`;
-async function usuarioPorId(id: number): Promise<Row | undefined> {
-  return usuarios.find(u => u.id === id) ?? (await buscar('usuarios', id));
+// ------------------------------------------------------------------ pessoas (funcionarios)
+const corDaPessoa = (uid: string) => CORES[hashDoUid(uid) % 16];
+// Pessoas em memória (nomes no registro de atividade).
+let usuarios: Pessoa[] = [];
+const nomeUsuario = (id: unknown) => usuarios.find(u => u.id === String(id))?.nome ?? '?';
+/** Todos os funcionários (ativos e inativos, para os nomes em itens antigos), por nome. */
+export async function listarPessoas(): Promise<Pessoa[]> {
+  const snap = await getDocs(collection(db, 'funcionarios'));
+  usuarios = snap.docs.map(d => {
+    const f = d.data();
+    const email = typeof f.email === 'string' && f.email.trim() ? f.email.trim().toLowerCase() : null;
+    const nome = typeof f.nome === 'string' && f.nome.trim() ? f.nome.trim() : email ?? d.id;
+    return { id: d.id, uid: d.id, nome, email, cor: corDaPessoa(d.id), ativo: f.ativo === true };
+  }).sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'));
+  return usuarios;
 }
 
 // ------------------------------------------------------------------ colunas: padrões e textos
@@ -485,27 +455,7 @@ async function registrar(a: { quadro_id: unknown; item_id?: unknown; item_nome?:
   });
 }
 
-async function avisar(a: { para: number[]; tipo: string; quadro_id: unknown; item_id: unknown; atualizacao_id?: unknown; texto: string }) {
-  const de = eu().id;
-  for (const u of new Set(a.para)) {
-    if (!u || u === de) continue;
-    const destino = await usuarioPorId(Number(u));
-    if (!destino) continue;
-    await inserir('notificacoes', {
-      usuario_id: destino.id, usuario_uid: destino.uid, de_usuario_id: de, tipo: a.tipo, quadro_id: Number(a.quadro_id), item_id: Number(a.item_id),
-      atualizacao_id: a.atualizacao_id ?? null, texto: a.texto.slice(0, 300),
-    });
-  }
-}
-
-// Quadro onde o item aparece (subitem aparece no quadro principal, dentro do item pai).
-async function ondeAbrir(itemId: unknown): Promise<{ quadro_id: unknown; item_id: unknown }> {
-  const item = await buscar('itens', itemId);
-  if (!item) return { quadro_id: null, item_id: itemId };
-  const quadro = await buscar('quadros', item.quadro_id);
-  return quadro?.tipo === 'subitens' ? { quadro_id: quadro.quadro_pai_id, item_id: item.item_pai_id } : { quadro_id: item.quadro_id, item_id: item.id };
-}
-const textoSemMarcas = (t: string) => t.replace(/@\{(\d+)\}/g, (_m, id) => `@${usuarios.find(u => u.id === Number(id))?.nome ?? 'alguém'}`);
+// Avisos (atribuição, menção, resposta) estão desligados até serem refeitos.
 
 // ------------------------------------------------------------------ quadros e subitens
 // Quadro novo já utilizável: um grupo, colunas básicas e a visão de tabela.
@@ -556,20 +506,16 @@ async function completo(id: number) {
     } } : c;
   };
   const oficiais = new Map<string, Record<string, unknown>>();
-  let idDe = new Map<string, number>();
   if (registro) {
     if (registro.modo === 'existente') {
       // Coleção existente: os documentos não guardam a origem; lê pelos vínculos dos itens (30 por consulta).
       const ids = [...new Set(itensTodos.filter(i => i.vinculo?.cadastro === registro.chave).map(i => String(i.vinculo.id)))];
       const lotes = [];
       for (let k = 0; k < ids.length; k += 30) lotes.push(getDocs(query(collection(db, registro.colecao), where(documentId(), 'in', ids.slice(k, k + 30)))));
-      const [snaps, mapa] = await Promise.all([Promise.all(lotes), idsPorUid()]);
-      for (const s of snaps) for (const d of s.docs) oficiais.set(d.id, d.data());
-      idDe = mapa;
+      for (const s of await Promise.all(lotes)) for (const d of s.docs) oficiais.set(d.id, d.data());
     } else {
-      const [snap, mapa] = await Promise.all([getDocs(query(collection(db, registro.colecao), where('origem.friday_quadro_id', '==', id))), idsPorUid()]);
+      const snap = await getDocs(query(collection(db, registro.colecao), where('origem.friday_quadro_id', '==', id)));
       for (const d of snap.docs) oficiais.set(d.id, d.data());
-      idDe = mapa;
     }
   }
   const contar = (lista: Row[]) => { const m = new Map<number, number>(); for (const x of lista) m.set(Number(x.item_id), (m.get(Number(x.item_id)) ?? 0) + 1); return m; };
@@ -589,7 +535,7 @@ async function completo(id: number) {
     const subItens = ordenar('itens', subItensTodos.filter(s => visivel(s) && idsItens.has(Number(s.item_pai_id))))
       .map(s => {
         const base = subOf && s.vinculo?.sub != null
-          ? mesclarOficial(s, camposAtivos(subOf), (oficiais.get(String(s.vinculo.id))?.[subOf.chave] as Record<string, Record<string, unknown>> | undefined)?.[String(s.vinculo.sub)], idDe) : s;
+          ? mesclarOficial(s, camposAtivos(subOf), (oficiais.get(String(s.vinculo.id))?.[subOf.chave] as Record<string, Record<string, unknown>> | undefined)?.[String(s.vinculo.sub)]) : s;
         return { ...base, n_atualizacoes: nAt.get(s.id) ?? 0, n_anexos: nAn.get(s.id) ?? 0 } as Row;
       });
     for (const s of subItens) nSub.set(Number(s.item_pai_id), (nSub.get(Number(s.item_pai_id)) ?? 0) + 1);
@@ -598,7 +544,7 @@ async function completo(id: number) {
   const nAt = contar(atualizacoes), nAn = contar(anexos);
   return {
     quadro: {
-      ...quadro, subquadro_id: sub?.id ?? null, permissao: eu().acesso === 'leitor' ? 'ver' : 'editar', n_automacoes: automacoes.length,
+      ...quadro, subquadro_id: sub?.id ?? null, permissao: 'editar', n_automacoes: automacoes.length,
       // subitens: situação dos subitens oficiais (null = livres; "migrando" = promoção interrompida, pode ser retomada).
       oficial: registro ? {
         chave: registro.chave, nome: registro.nome, subitens: registro.subitens?.situacao ?? null, sub_chave: registro.subitens?.chave ?? null,
@@ -608,7 +554,7 @@ async function completo(id: number) {
     grupos: gruposVisiveis, visoes: ordenar('visoes', visoes),
     colunas: ordenar('colunas', colunas).map(c => marcar(c, camposAtivos(registro))),
     itens: itensVisiveis.map(i => {
-      const base = registro && i.vinculo ? mesclarOficial(i, camposAtivos(registro), oficiais.get(String(i.vinculo.id)), idDe) : i;
+      const base = registro && i.vinculo ? mesclarOficial(i, camposAtivos(registro), oficiais.get(String(i.vinculo.id))) : i;
       return { ...base, n_atualizacoes: nAt.get(i.id) ?? 0, n_subitens: nSub.get(i.id) ?? 0, n_anexos: nAn.get(i.id) ?? 0 };
     }),
     sub: subDados,
@@ -618,7 +564,6 @@ async function completo(id: number) {
 async function criarSubitens(paiId: number) {
   const pai = await buscar('quadros', paiId);
   if (!pai) throw new ErroApi(404, 'quadro não encontrado');
-  exigirEscrita();
   const subId = await garantirSubquadro(pai);
   const [sub, colunas, grupoId] = await Promise.all([buscar('quadros', subId), consultar('colunas', { quadro_id: subId }), grupoDoSubquadro(subId)]);
   return { ...sub, grupo_id: grupoId, colunas: ordenar('colunas', colunas) };
@@ -629,7 +574,6 @@ type ItemImportado = { grupo_id?: number; grupo_nome?: string; nome: string; val
 async function importar(quadroId: number, corpo: unknown) {
   const quadro = await buscar('quadros', quadroId);
   if (!quadro) throw new ErroApi(404, 'quadro não encontrado');
-  exigirEscrita();
   if (quadro.cadastro) throw new ErroApi(409, 'Importar do Excel num quadro oficial ainda não é suportado.');
   const lista = ((corpo as { itens?: ItemImportado[] })?.itens ?? []) as ItemImportado[];
   const CORES_GRUPO = ['#579bfc', '#00a36c', '#a25ddc', '#fdab3d', '#e2445c', '#0086c0', '#ff642e', '#037f4c'];
@@ -674,7 +618,6 @@ async function importar(quadroId: number, corpo: unknown) {
 async function duplicarItem(id: number) {
   const item = await buscar('itens', id);
   if (!item) throw new ErroApi(404, 'item não encontrado');
-  exigirEscrita();
   const nome = `${item.nome} (cópia)`;
   const completoItem = await comOficiais(item);
   const novo = await inserir('itens', { quadro_id: item.quadro_id, grupo_id: item.grupo_id, item_pai_id: item.item_pai_id, nome, posicao: Number(item.posicao) + 0.5, valores: completoItem.valores ?? {}, criado_por: eu().id });
@@ -688,7 +631,6 @@ async function duplicarItem(id: number) {
 async function duplicarQuadro(id: number, corpo: unknown) {
   const orig = await buscar('quadros', id);
   if (!orig) throw new ErroApi(404, 'quadro não encontrado');
-  exigirEscrita();
   const b = (corpo ?? {}) as { nome?: string; area_id?: number; pasta_id?: number | null; com_itens?: boolean };
   if (orig.cadastro && b.com_itens) throw new ErroApi(409, 'Quadro oficial: só dá para duplicar a estrutura (sem itens).');
   const novo = await inserir('quadros', {
@@ -731,7 +673,6 @@ async function duplicarQuadro(id: number, corpo: unknown) {
 export async function mudarTipoColuna(colunaId: number, alvo: Alvo, aplicar = false) {
   const coluna = await buscar('colunas', colunaId);
   if (!coluna) throw new ErroApi(404, 'coluna não encontrada');
-  exigirEscrita();
   if (await campoOficialDa(coluna)) throw new ErroApi(409, `“${coluna.titulo}” é um campo oficial: o tipo não muda.`);
   const itens = await consultar('itens', { quadro_id: coluna.quadro_id });
   const r = converterColuna(coluna as Coluna, alvo, itens.map(i => ({ id: i.id, nome: String(i.nome ?? ''), v: i.valores?.[String(colunaId)] })));
@@ -748,7 +689,6 @@ async function definirValor(itemId: number, corpo: unknown) {
   const [item, coluna] = await Promise.all([buscar('itens', itemId), buscar('colunas', coluna_id)]);
   if (!item || !coluna) throw new ErroApi(404, 'item ou coluna não encontrado');
   if (coluna.quadro_id !== item.quadro_id) throw new ErroApi(400, 'a coluna não pertence ao quadro do item');
-  exigirEscrita();
   const chave = String(coluna.id);
   const oficial = item.vinculo ? await campoOficialDa(coluna) : null;
   if (oficial?.campo.somente_leitura) throw new ErroApi(409, `“${coluna.titulo}” é só leitura: o valor vem do cadastro ${oficial.registro.nome}.`);
@@ -772,10 +712,6 @@ async function definirValor(itemId: number, corpo: unknown) {
   const [de, para] = await Promise.all([formatarValor(coluna.tipo, config, antes), formatarValor(coluna.tipo, config, valor)]);
   if (de !== para) {
     await registrar({ quadro_id: item.quadro_id, item_id: item.id, item_nome: item.nome, acao: 'alterou', coluna_id: coluna.id, coluna_titulo: coluna.titulo, de, para });
-    if (coluna.tipo === 'pessoa' && Array.isArray(valor)) {
-      const novos = (valor as number[]).filter(u => !(Array.isArray(antes) ? antes : []).includes(u));
-      if (novos.length) await avisar({ para: novos, tipo: 'atribuicao', ...(await ondeAbrir(item.id)), texto: `atribuiu você em “${item.nome}” (${coluna.titulo})` });
-    }
   }
   // Automações ainda não rodam nesta etapa (virão em Cloud Functions): nenhuma disparou.
   return { ...atual, valores, atualizado_em, pessoas, _automacoes: 0 };
@@ -786,7 +722,6 @@ async function mudarEstado(r: Recurso, id: number, acao: 'arquivar' | 'restaurar
   if (!COM_ESTADO.has(r)) throw new ErroApi(400, acao === 'arquivar' ? 'não pode ser arquivado' : 'não pode ser restaurado');
   const antes = await buscar(r, id);
   if (!antes) throw new ErroApi(404, 'não encontrado');
-  exigirEscrita();
   const campos = acao === 'arquivar' ? { arquivado_em: agora() } : { arquivado_em: null, excluido_em: null };
   await updateDoc(ref(r, id), campos as DocumentData);
   if (r === 'itens' && antes.vinculo) await gravarOficial(id, 'situacao');
@@ -798,7 +733,7 @@ async function mudarEstado(r: Recurso, id: number, acao: 'arquivar' | 'restaurar
 async function coletarExclusao(r: Recurso, row: Row, apagar: Map<string, DocumentReference>, soltar: Map<string, DocumentReference>) {
   const chave = `${r}/${row.id}`;
   if (apagar.has(chave)) return;
-  apagar.set(chave, refDe(r, row));
+  apagar.set(chave, ref(r, row.id));
   const filhos = (rr: Recurso, campo: string) => consultar(rr, { [campo]: row.id });
   const cada = async (rr: Recurso, campo: string) => { for (const x of await filhos(rr, campo)) await coletarExclusao(rr, x, apagar, soltar); };
   switch (r) {
@@ -869,7 +804,9 @@ async function arquivo(estado: string | undefined, quadroId: number | null) {
 // ------------------------------------------------------------------ meu trabalho, busca e avisos
 // Índices dos itens já existentes: gravados uma vez (marcador friday-meta/indices). Se não for possível gravar
 // (ex.: regras de produção), Meu trabalho e busca voltam a ler todos os itens, como antes.
-const VERSAO_INDICES = 1;
+// Versão 2 (pessoas por UID, 2026-10-22): as células de pessoa perdem os ids numéricos antigos (de friday-usuarios,
+// que deixou de existir) e o índice `pessoas` passa a ter só UIDs.
+const VERSAO_INDICES = 2;
 let indicesProntos: Promise<boolean> | null = null;
 function garantirIndices(): Promise<boolean> {
   indicesProntos ??= criarIndices().catch(e => { console.warn('[friday] índices indisponíveis, lendo tudo:', e); indicesProntos = null; return false; });
@@ -884,9 +821,18 @@ async function criarIndices(): Promise<boolean> {
     if (!pessoaPorQuadro.has(Number(c.quadro_id))) pessoaPorQuadro.set(Number(c.quadro_id), new Set());
     pessoaPorQuadro.get(Number(c.quadro_id))!.add(String(c.id));
   }
-  await emLotes(itens.map(i => lote => lote.update(ref('itens', i.id), {
-    busca: prefixosBusca(i.nome), pessoas: pessoasDosValores(i.valores, pessoaPorQuadro.get(Number(i.quadro_id)) ?? new Set()),
-  })));
+  await emLotes(itens.map(i => lote => {
+    const colunasPessoa = pessoaPorQuadro.get(Number(i.quadro_id)) ?? new Set<string>();
+    const campos: unknown[] = ['busca', prefixosBusca(i.nome), 'pessoas', pessoasDosValores(i.valores, colunasPessoa)];
+    for (const k of colunasPessoa) {
+      const v = i.valores?.[k];
+      if (!Array.isArray(v)) continue;
+      const uids = v.filter(x => typeof x === 'string' && x);
+      if (uids.length !== v.length) campos.push(new FieldPath('valores', k), uids.length ? uids : deleteField());
+    }
+    const [primeiro, valor, ...resto] = campos;
+    lote.update(ref('itens', i.id), primeiro as string, valor, ...resto);
+  }));
   await setDoc(marcador, { versao: VERSAO_INDICES, gravado_em: agora(), itens: itens.length });
   return true;
 }
@@ -919,7 +865,7 @@ async function meuTrabalho() {
   });
 }
 
-async function montarMeuTrabalho(uid: number, itens: Row[], c: Consulta) {
+async function montarMeuTrabalho(uid: string, itens: Row[], c: Consulta) {
   const out = [];
   for (const bruto of itens) {
     const i = bruto.vinculo ? await comOficiais(bruto) : bruto;
@@ -986,18 +932,6 @@ async function busca(termo: string | undefined) {
   };
 }
 
-// Avisos da pessoa, com nomes do item e do quadro.
-async function notificacoesMinhas() {
-  const lista = ordenar('notificacoes', await consultar('notificacoes', { usuario_uid: eu().uid })).slice(0, 50);
-  const achar = memoria();
-  return Promise.all(lista.map(async n => ({ ...n, item_nome: (await achar('itens', n.item_id))?.nome ?? null, quadro_nome: (await achar('quadros', n.quadro_id))?.nome ?? null })));
-}
-async function notificacoesLidas() {
-  const minhas = await consultar('notificacoes', { usuario_uid: eu().uid, lida: 0 });
-  await emLotes(minhas.map(n => lote => lote.update(ref('notificacoes', n.id), { lida: 1 })));
-  return { ok: true };
-}
-
 // Lista do quadro com quantas vezes cada automação rodou e quando foi a última.
 async function automacoesDoQuadro(quadroId: number) {
   const [automacoes, execucoes] = await Promise.all([consultar('automacoes', { quadro_id: quadroId }), consultar('execucoes', { quadro_id: quadroId })]);
@@ -1021,9 +955,7 @@ async function listar(r: Recurso, q: Record<string, string>) {
     else if (e === 'lixeira') rows = rows.filter(x => x.excluido_em != null);
     else if (e !== 'todos') rows = rows.filter(visivel);
   }
-  rows = ordenar(r, rows).slice(0, Math.min(Number(q._limite) || 2000, 10000));
-  if (r === 'usuarios') usuarios = rows;
-  return rows;
+  return ordenar(r, rows).slice(0, Math.min(Number(q._limite) || 2000, 10000));
 }
 
 async function obter(r: Recurso, id: number) {
@@ -1033,8 +965,7 @@ async function obter(r: Recurso, id: number) {
 }
 
 async function criar(r: Recurso, corpo: unknown) {
-  if (SOMENTE_LEITURA.has(r) || r === 'anexos' || r === 'notificacoes' || r === 'usuarios') throw new ErroApi(405, 'use a rota própria');
-  exigirEscrita();
+  if (SOMENTE_LEITURA.has(r) || r === 'anexos' || r === 'notificacoes') throw new ErroApi(405, 'use a rota própria');
   const b = { ...((corpo ?? {}) as Record<string, unknown>) };
   if (r === 'colunas' && !b.config) b.config = configPadrao(String(b.tipo));
   if (r === 'colunas' && !b.largura) b.largura = LARGURA_PADRAO[String(b.tipo)] ?? 140;
@@ -1048,27 +979,16 @@ async function criar(r: Recurso, corpo: unknown) {
   // Num cadastro existente, o item novo fica sem vínculo até a próxima conciliação (não cria registro sozinho).
   if (r === 'itens') { const e = await escopoOficial(row.quadro_id); if (e && e.registro.modo !== 'existente') await gravarOficial(row.id, 'vincular'); }
   if (r === 'itens') await registrar({ quadro_id: row.quadro_id, item_id: row.id, item_nome: row.nome, acao: 'criou' });
-  if (r === 'atualizacoes') {
-    const onde = await ondeAbrir(row.item_id);
-    const resumo = textoSemMarcas(String(row.texto));
-    const mencoes = (row.mencoes ?? []) as number[];
-    await avisar({ para: mencoes, tipo: 'mencao', ...onde, atualizacao_id: row.id, texto: `mencionou você: ${resumo}` });
-    if (row.resposta_de) {
-      const orig = await buscar('atualizacoes', row.resposta_de);
-      if (orig && !mencoes.includes(Number(orig.usuario_id))) await avisar({ para: [Number(orig.usuario_id)], tipo: 'resposta', ...onde, atualizacao_id: row.id, texto: `respondeu sua atualização: ${resumo}` });
-    }
-  }
   return row;
 }
 
 async function atualizar(r: Recurso, id: number, corpo: unknown) {
   if (SOMENTE_LEITURA.has(r)) throw new ErroApi(405, 'somente leitura');
-  if (r === 'usuarios') throw new ErroApi(501, 'Pessoas e acessos chegam na etapa de credenciais.');
   const antes = await buscar(r, id);
   if (!antes) throw new ErroApi(404, 'não encontrado');
-  if (r === 'notificacoes') { if (antes.usuario_uid !== eu().uid) throw new ErroApi(404, 'não encontrado'); } else exigirEscrita();
+  if (r === 'notificacoes' && antes.usuario_uid !== eu().uid) throw new ErroApi(404, 'não encontrado');
   // Atualização já publicada: só quem escreveu altera.
-  if (r === 'atualizacoes' && Number(antes.usuario_id) !== eu().id) throw new ErroApi(403, 'Só quem escreveu pode alterar esta atualização.');
+  if (r === 'atualizacoes' && String(antes.usuario_id) !== eu().id) throw new ErroApi(403, 'Só quem escreveu pode alterar esta atualização.');
   const dados = limpar(r, corpo);
   const mudou = Object.keys(dados).filter(k => !igual(antes[k], dados[k]));
   if (!mudou.length) return antes;
@@ -1109,11 +1029,11 @@ async function atualizar(r: Recurso, id: number, corpo: unknown) {
 }
 
 async function excluir(r: Recurso, id: number, definitivo: boolean) {
-  if (SOMENTE_LEITURA.has(r) || r === 'usuarios') throw new ErroApi(405, 'não pode ser excluído');
+  if (SOMENTE_LEITURA.has(r)) throw new ErroApi(405, 'não pode ser excluído');
   const antes = await buscar(r, id);
   if (!antes) throw new ErroApi(404, 'não encontrado');
-  if (r === 'notificacoes') { if (antes.usuario_uid !== eu().uid) throw new ErroApi(404, 'não encontrado'); } else exigirEscrita();
-  if (r === 'atualizacoes' && Number(antes.usuario_id) !== eu().id) throw new ErroApi(403, 'Só quem escreveu pode apagar esta atualização.');
+  if (r === 'notificacoes' && antes.usuario_uid !== eu().uid) throw new ErroApi(404, 'não encontrado');
+  if (r === 'atualizacoes' && String(antes.usuario_id) !== eu().id) throw new ErroApi(403, 'Só quem escreveu pode apagar esta atualização.');
   if (r === 'colunas' && await campoOficialDa(antes)) throw new ErroApi(409, `“${antes.titulo}” é um campo oficial e não pode ser excluído.`);
   // Itens, grupos e quadros vão para a lixeira (restauráveis por 30 dias).
   if (COM_ESTADO.has(r) && !definitivo) {
@@ -1142,8 +1062,6 @@ async function rotear(metodo: string, url: string, corpo?: unknown): Promise<unk
   if (p[0] === 'busca' && metodo === 'GET') return busca(q.q);
   if (p[0] === 'meu-trabalho' && metodo === 'GET') return meuTrabalho();
   if (p[0] === 'arquivo' && metodo === 'GET') return arquivo(q.estado, Number(q.quadro_id) || null);
-  if (p[0] === 'notificacoes' && p[1] === 'minhas' && metodo === 'GET') return notificacoesMinhas();
-  if (p[0] === 'notificacoes' && p[1] === 'lidas' && metodo === 'POST') return notificacoesLidas();
   if (p[0] === 'quadros' && p.length === 3) {
     const id = Number(p[1]);
     if (p[2] === 'completo' && metodo === 'GET') return completo(id);

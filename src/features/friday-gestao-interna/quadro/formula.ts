@@ -305,7 +305,7 @@ function valorReferencia(c: Coluna, item: Item, mod: string, ctx: Contexto, pilh
       return (c.config.rotulos as Rotulo[] | undefined)?.find(r => r.id === String(v))?.texto ?? '';
     }
     case 'lista': return ((v ?? []) as string[]).map(id => (c.config.opcoes as Rotulo[] | undefined)?.find(o => o.id === id)?.texto ?? '').filter(Boolean).join(', ');
-    case 'pessoa': return ((v ?? []) as number[]).map(ctx.nomeUsuario).join(', ');
+    case 'pessoa': return ((v ?? []) as unknown[]).map(ctx.nomeUsuario).join(', ');
     case 'periodo': {
       const p = (v ?? {}) as { inicio?: string; fim?: string };
       if (mod === 'start' || mod === 'inicio' || mod === 'início') return p.inicio ?? '';

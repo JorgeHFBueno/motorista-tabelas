@@ -4,7 +4,7 @@ import type { Query } from 'firebase-admin/firestore';
 import { db } from './firebaseAdmin.js';
 import { mondayApiToken, MONDAY_API_VERSION } from './mondayClient.js';
 import {
-  configDe, converterFormulaMonday, dataLocal, decidirItem, idDoUid, json, LARGURA_PADRAO, mesclarOpcoesLista, mesclarRotulosStatus,
+  configDe, converterFormulaMonday, dataLocal, decidirItem, json, LARGURA_PADRAO, mesclarOpcoesLista, mesclarRotulosStatus,
   mesclarValores, novoId, ordenarGrupos, pessoasDosValores, prefixosBusca, quadrosDeSubitens, resolverLigacoes, tipoFriday, tituloColuna,
   valoresDoItem, type Alvo, type ColunaImportada, type MCol, type MItem,
 } from './fridayMondayConverter.js';
@@ -123,43 +123,6 @@ function tokenMonday(): string {
   return token;
 }
 
-// ---------------------------------------------------------------- pessoas
-/** Pessoas do monday → friday-usuarios: pelo id já importado, pelo e-mail, por um funcionário com o mesmo e-mail, ou um cadastro "monday-<id>". */
-async function mapearPessoas(token: string) {
-  const { users } = await gql(token, 'query { users(limit: 1000) { id name email enabled is_guest } }');
-  const [fridaySnap, funcionariosSnap] = await Promise.all([colecao('usuarios').get(), db.collection('funcionarios').where('ativo', '==', true).get()]);
-  const friday = fridaySnap.docs.map(d => d.data() as Row);
-  const porOrigem = new Map(friday.filter(u => u.origem_id).map(u => [String(u.origem_id), u]));
-  const porEmail = new Map(friday.filter(u => u.email).map(u => [String(u.email).trim().toLowerCase(), u]));
-  const funcionarioPorEmail = new Map(funcionariosSnap.docs.filter(d => typeof d.data().email === 'string').map(d => [String(d.data().email).trim().toLowerCase(), d]));
-  const porMonday = new Map<string, number>();
-  const escrita = db.bulkWriter();
-  let criadas = 0;
-  for (const u of users as AnyRecord[]) {
-    const idMonday = String(u.id);
-    const email = typeof u.email === 'string' && u.email.trim() ? u.email.trim().toLowerCase() : null;
-    const existente = porOrigem.get(idMonday) ?? (email ? porEmail.get(email) : undefined);
-    if (existente) {
-      if (!existente.origem_id) void escrita.update(colecao('usuarios').doc(String(existente.uid)), { origem_id: idMonday });
-      porMonday.set(idMonday, existente.id);
-      continue;
-    }
-    const funcionario = email ? funcionarioPorEmail.get(email) : undefined;
-    const uid = funcionario ? funcionario.id : `monday-${idMonday}`;
-    const id = idDoUid(uid);
-    void escrita.set(colecao('usuarios').doc(uid), {
-      ...padrao('usuarios'), id, uid, email, cor: CORES[id % 16], origem_id: idMonday,
-      nome: funcionario && typeof funcionario.data().nome === 'string' ? funcionario.data().nome : String(u.name ?? 'Sem nome'),
-      papel: funcionario ? null : u.is_guest ? 'Convidado (monday)' : 'Importado do monday',
-      ativo: u.enabled === false ? 0 : 1,
-    });
-    porMonday.set(idMonday, id);
-    criadas++;
-  }
-  await escrita.close();
-  return { porMonday, criadas };
-}
-
 // ---------------------------------------------------------------- área, pastas e quadro
 async function garantirArea(ws: { id: string | null; name: string } | null): Promise<number> {
   const origem = ws?.id ? String(ws.id) : 'principal';
@@ -255,7 +218,7 @@ async function acharItensPorOrigem(ids: string[], cache: Map<string, number>) {
 type Contagem = { criados: number; atualizados: number; iguais: number; preservados: number; ignorados: number };
 async function sincronizarItens(p: {
   quadroId: number; itens: MItem[]; grupos: Map<string, number>; grupoPadrao: () => Promise<number>;
-  colunas: Map<string, ColunaImportada>; colunasPessoa: Set<string>; pessoas: Map<string, number>;
+  colunas: Map<string, ColunaImportada>; colunasPessoa: Set<string>;
   itemPorOrigem: Map<string, number>; subitens: boolean;
 }): Promise<Contagem> {
   const c: Contagem = { criados: 0, atualizados: 0, iguais: 0, preservados: 0, ignorados: 0 };
@@ -289,7 +252,7 @@ async function sincronizarItens(p: {
     if (decisao === 'preservar') { c.preservados++; continue; }
     const itemPaiId = p.subitens ? p.itemPorOrigem.get(String(it.parent_item?.id ?? '')) ?? null : null;
     if (p.subitens && itemPaiId == null) { c.ignorados++; continue; } // subitem de item não importado
-    const conv = valoresDoItem(it, p.colunas, { pessoa: id => p.pessoas.get(id), tag });
+    const conv = valoresDoItem(it, p.colunas, { tag });
     const lig = resolverLigacoes(conv.ligacoes, id => p.itemPorOrigem.get(id));
     const marca = dataLocal(it.updated_at);
     const grupoId = (it.group && p.grupos.get(it.group.id)) ?? await p.grupoPadrao();
@@ -353,7 +316,6 @@ async function importarQuadro(token: string, boardId: string, uid: string) {
   if (!board) throw new HttpsError('not-found', 'Quadro não encontrado no monday (ou sem acesso pelo token).');
   if (board.type !== 'board') throw new HttpsError('invalid-argument', 'Só quadros comuns podem ser importados.');
 
-  const { porMonday: pessoas, criadas: pessoasCriadas } = await mapearPessoas(token);
   const areaId = await garantirArea(board.workspace ?? null);
   const pastaId = await garantirPasta(token, board.board_folder_id ? String(board.board_folder_id) : null, areaId);
   const { quadro, criado } = await garantirQuadro(board, { area_id: areaId, pasta_id: pastaId, tipo: 'quadro', nome_item: 'Item' });
@@ -373,7 +335,7 @@ async function importarQuadro(token: string, boardId: string, uid: string) {
   };
   const itemPorOrigem = new Map<string, number>();
   const itens = await itensDoQuadro(token, boardId);
-  const principal = await sincronizarItens({ quadroId: quadro.id, itens, grupos, grupoPadrao: primeiroGrupo, colunas, colunasPessoa, pessoas, itemPorOrigem, subitens: false });
+  const principal = await sincronizarItens({ quadroId: quadro.id, itens, grupos, grupoPadrao: primeiroGrupo, colunas, colunasPessoa, itemPorOrigem, subitens: false });
 
   // Subitens: quadro interno "subitens" com colunas próprias e um grupo só.
   const sub: Contagem = { criados: 0, atualizados: 0, iguais: 0, preservados: 0, ignorados: 0 };
@@ -389,17 +351,17 @@ async function importarQuadro(token: string, boardId: string, uid: string) {
     };
     const c = await sincronizarItens({
       quadroId: subQuadro.id, itens: await itensDoQuadro(token, subId), grupos: new Map(), grupoPadrao: grupoSub,
-      colunas: subColunas.importadas, colunasPessoa: subColunas.colunasPessoa, pessoas, itemPorOrigem, subitens: true,
+      colunas: subColunas.importadas, colunasPessoa: subColunas.colunasPessoa, itemPorOrigem, subitens: true,
     });
     for (const k of Object.keys(sub) as (keyof Contagem)[]) sub[k] += c[k];
   }
   const ligacoesResolvidas = await resolverPendentes(itemPorOrigem);
   const resultado = {
     board_id: String(board.id), nome: board.name, quadro_id: quadro.id, quadro_criado: criado, itens_monday: itens.length,
-    ...principal, subitens: sub, colunas_ignoradas: ignoradas, pessoas_criadas: pessoasCriadas, ligacoes_resolvidas: ligacoesResolvidas,
+    ...principal, subitens: sub, colunas_ignoradas: ignoradas, ligacoes_resolvidas: ligacoesResolvidas,
   };
   await inserir('atividades', {
-    quadro_id: quadro.id, usuario_id: idDoUid(uid), acao: 'importou',
+    quadro_id: quadro.id, usuario_id: uid, acao: 'importou',
     para: `do monday: ${principal.criados} novos, ${principal.atualizados} atualizados, ${principal.preservados} preservados (editados no Friday)`,
   });
   await colecao('importacoes').doc(String(board.id)).set({ ...resultado, situacao: 'ok', mensagem: null, importado_em: dataLocal(), monday_atualizado_em: board.updated_at ?? null, por_uid: uid });

@@ -13,15 +13,15 @@ export function Permissoes({ recurso, id, nome, onFechar }: { recurso: Recurso; 
   const nav = useNav();
   const avisar = useAvisoRapido();
   const [restrito, setRestrito] = useState(false);
-  const [lista, setLista] = useState<{ usuario_id: number; nivel: string }[] | null>(null);
+  const [lista, setLista] = useState<{ usuario_id: string; nivel: string }[] | null>(null);
   const [erro, setErro] = useState('');
   useEffect(() => {
     req<{ restrito: boolean; lista: Row[] }>('GET', `permissoes/${recurso}/${id}`)
-      .then(r => { setRestrito(r.restrito); setLista(r.lista.map(x => ({ usuario_id: Number(x.usuario_id), nivel: String(x.nivel) }))); })
+      .then(r => { setRestrito(r.restrito); setLista(r.lista.map(x => ({ usuario_id: String(x.usuario_id), nivel: String(x.nivel) }))); })
       .catch(e => setErro((e as Error).message));
   }, [recurso, id]);
-  const pessoa = (uid: number) => nav.usuarios.find(u => u.id === uid);
-  const fora = nav.usuarios.filter(u => u.ativo !== 0 && !lista?.some(x => x.usuario_id === u.id));
+  const pessoa = (uid: string) => nav.usuarios.find(u => u.id === uid);
+  const fora = nav.usuarios.filter(u => u.ativo && !lista?.some(x => x.usuario_id === u.id));
   const salvar = async () => {
     try {
       await req('PUT', `permissoes/${recurso}/${id}`, { restrito, lista: restrito ? lista : [] });
@@ -53,7 +53,7 @@ export function Permissoes({ recurso, id, nome, onFechar }: { recurso: Recurso; 
                 return (
                   <div key={x.usuario_id} className="perm-linha">
                     <Avatar nome={String(u?.nome ?? '?')} cor={u?.cor} tamanho={26} />
-                    <span className="perm-nome">{u?.nome ?? '?'}{u?.acesso === 'leitor' && <small className="muted"> · só leitura no sistema</small>}</span>
+                    <span className="perm-nome">{u?.nome ?? '?'}</span>
                     <select value={x.nivel} onChange={e => setLista(l => l!.map(y => (y.usuario_id === x.usuario_id ? { ...y, nivel: e.target.value } : y)))}>
                       <option value="editar">Pode editar</option><option value="ver">Só ver</option>
                     </select>
@@ -62,7 +62,7 @@ export function Permissoes({ recurso, id, nome, onFechar }: { recurso: Recurso; 
                 );
               })}
               {!lista.length && <p className="muted fr-small">Ninguém na lista ainda: só os administradores vão ver.</p>}
-              <select className="perm-adicionar" value="" onChange={e => { const v = Number(e.target.value); if (v) setLista(l => [...l!, { usuario_id: v, nivel: 'editar' }]); }}>
+              <select className="perm-adicionar" value="" onChange={e => { const v = e.target.value; if (v) setLista(l => [...l!, { usuario_id: v, nivel: 'editar' }]); }}>
                 <option value="">+ Adicionar pessoa…</option>
                 {fora.map(u => <option key={u.id} value={u.id}>{u.nome}</option>)}
               </select>

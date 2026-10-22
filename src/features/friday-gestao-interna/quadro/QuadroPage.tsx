@@ -65,7 +65,7 @@ export default function QuadroPage() {
   const alterado = !mesmoEstado(estado, salvo);
   const mudarEstado = (m: Partial<EstadoVisao>) => setRascunho({ visaoId: visao.id, e: { ...estado, ...m } });
 
-  const ctx: Contexto = useMemo(() => ({ colunas, nomeUsuario: nav.nomeUsuario, eu: Number(nav.usuario?.id) || null }), [colunas, nav.nomeUsuario, nav.usuario]);
+  const ctx: Contexto = useMemo(() => ({ colunas, nomeUsuario: nav.nomeUsuario, eu: nav.usuario?.id ?? null }), [colunas, nav.nomeUsuario, nav.usuario]);
   const colunasVisiveis = useMemo(() => colunas.filter(c => !estado.ocultas.includes(c.id)), [colunas, estado.ocultas]);
 
   const itensFiltrados = useMemo(() => {
@@ -161,7 +161,7 @@ export default function QuadroPage() {
             <Star size={18} />
           </button>
           <span className="espaco" />
-          <span className="avatares qc-pessoas">{nav.usuarios.slice(0, 4).map(u => <Avatar key={u.id} nome={u.nome} cor={u.cor} tamanho={28} />)}</span>
+          <span className="avatares qc-pessoas">{nav.usuarios.filter(u => u.ativo).slice(0, 4).map(u => <Avatar key={u.id} nome={u.nome} cor={u.cor} tamanho={28} />)}</span>
           <button className="fr-btn" onClick={() => navigate(`/quadros/${quadroId}/automacoes`)} title="Regras automáticas do quadro">
             <Zap size={15} className="ic-auto" /> Automações{quadro.n_automacoes ? ` / ${quadro.n_automacoes}` : ''}
           </button>
@@ -328,7 +328,7 @@ function NovoMenu({ onGrupo, onImportar }: { onGrupo: () => void; onImportar: ()
   );
 }
 
-function FiltroPessoa({ pessoa, setPessoa }: { pessoa: number | null; setPessoa: (id: number | null) => void }) {
+function FiltroPessoa({ pessoa, setPessoa }: { pessoa: string | null; setPessoa: (id: string | null) => void }) {
   const nav = useNav();
   const pop = usePopover<HTMLButtonElement>();
   const u = nav.usuarios.find(x => x.id === pessoa);
@@ -341,7 +341,7 @@ function FiltroPessoa({ pessoa, setPessoa }: { pessoa: number | null; setPessoa:
         <Popover ancora={pop.ref.current} onClose={pop.fechar} largura={260}>
           <div className="menu-titulo">Filtrar por pessoa</div>
           <div className="filtro-pessoas">
-            {nav.usuarios.map(x => (
+            {nav.usuarios.filter(x => x.ativo).map(x => (
               <button key={x.id} className={x.id === pessoa ? 'on' : ''} title={x.nome} onClick={() => { setPessoa(x.id === pessoa ? null : x.id); pop.fechar(); }}>
                 <Avatar nome={x.nome} cor={x.cor} tamanho={32} />
               </button>

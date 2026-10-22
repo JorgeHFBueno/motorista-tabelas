@@ -36,7 +36,7 @@ test('profile page lists only true perfis, known ones first', () => {
 });
 
 test('profile page shows funcionarios fields beyond the known ones', () => {
-  const extras = camposExtrasFuncionario({ nome: 'A', email: 'a@x.com', ativo: true, perfis: {}, motorista: { ordem: 1 }, createdAt: 1, updatedAt: 2, telefone: '51', cpf: '1' });
+  const extras = camposExtrasFuncionario({ nome: 'A', email: 'a@x.com', ativo: true, perfis: {}, motorista: { ordem: 1 }, createdAt: 1, updatedAt: 2, ultimoAcesso: 3, telefone: '51', cpf: '1' });
   assert.deepEqual(extras, [['cpf', '1'], ['telefone', '51']]);
 });
 

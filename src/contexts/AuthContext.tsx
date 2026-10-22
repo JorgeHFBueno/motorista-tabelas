@@ -8,7 +8,7 @@ import {
   signOut as firebaseSignOut,
   type User,
 } from 'firebase/auth';
-import { getAuthorizationProfile, type AuthorizationProfile } from '../services/authorizationProfile';
+import { getAuthorizationProfile, registrarUltimoAcesso, type AuthorizationProfile } from '../services/authorizationProfile';
 import {
   pendingAuthorization,
   resolveAuthorizationSession,
@@ -77,6 +77,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     void getAuthorizationProfile(uid)
       .then((profile) => {
         if (!cancelled) setAuthorizationState({ uid, loading: false, profile, error: null });
+        if (profile.exists && profile.ativo) {
+          registrarUltimoAcesso(uid).catch((error: unknown) => console.warn('[auth] último acesso não gravado', error));
+        }
       })
       .catch((error: unknown) => {
         if (!cancelled) {

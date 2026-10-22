@@ -13,7 +13,7 @@ export type Item = Row & { quadro_id: number; grupo_id: number; item_pai_id: num
 export type Ordenacao = { colunaId: number; dir: 1 | -1 } | null;
 export type Agrupar = { coluna_id: number; ordem: 1 | -1; vazios: boolean };
 // O que fica salvo em cada visão: filtros, pessoa, ordem, agrupamento e colunas ocultas.
-export type EstadoVisao = { filtros: Record<string, string[]>; pessoa: number | null; ordenacao: Ordenacao; agrupar: Agrupar | null; ocultas: number[] };
+export type EstadoVisao = { filtros: Record<string, string[]>; pessoa: string | null; ordenacao: Ordenacao; agrupar: Agrupar | null; ocultas: number[] };
 export type Visao = Row & { quadro_id: number; nome: string; tipo: 'tabela' | 'kanban' | 'calendario' | 'cronograma'; config: { coluna_id?: number } & Partial<EstadoVisao> };
 // nome_item: como chamar os subitens (ex.: "Escopo da obra"); editável no cabeçalho da tabela de subitens.
 export type Sub = { quadro_id: number; grupo_id: number | null; nome_item?: string; colunas: Coluna[]; itens: Item[] };
@@ -64,7 +64,7 @@ export function textoDoValor(c: Coluna, v: any, nomeUsuario: (id: unknown) => st
   if (v == null) return '';
   switch (c.tipo) {
     case 'status': return rotuloDe(c, v)?.texto ?? '';
-    case 'pessoa': return (v as number[]).map(nomeUsuario).join(', ');
+    case 'pessoa': return (v as unknown[]).map(nomeUsuario).join(', ');
     case 'lista': return (v as string[]).map(id => (c.config.opcoes as Rotulo[] | undefined)?.find(o => o.id === id)?.texto ?? '').join(', ');
     case 'periodo': return `${v.inicio ?? ''} ${v.fim ?? ''}`;
     case 'link': return typeof v === 'string' ? v : v.texto || v.url || '';

@@ -1,19 +1,16 @@
 import { useEffect, useState } from 'react';
-import { createPortal } from 'react-dom';
 import { useNavigate } from '../rotas.tsx';
 import { ChevronsRight, LayoutGrid, Search } from 'lucide-react';
 import { req, type Row } from '../api.ts';
 import { Popover, usePopover } from '../ui/base.tsx';
-import { Avisos } from './Avisos.tsx';
 
-// Barra superior: busca global. Ajuda e menu do usuário ficam no cabeçalho do sistema (components/Header.tsx),
-// e o sino de avisos do Friday é colocado lá, no espaço que o cabeçalho reserva enquanto o Friday está aberto.
+// Barra superior: busca global. Ajuda e menu do usuário ficam no cabeçalho do sistema (components/Header.tsx).
+// Os avisos do Friday estão desligados até serem refeitos.
 export function Topo({ lateralRecolhida, onExpandir }: { lateralRecolhida: boolean; onExpandir: () => void }) {
   const navigate = useNavigate();
   const [busca, setBusca] = useState('');
   const [res, setRes] = useState<{ quadros: Row[]; itens: Row[] } | null>(null);
   const caixa = usePopover<HTMLLabelElement>();
-  const [slotAvisos] = useState(() => document.getElementById('ledur-header-avisos'));
 
   useEffect(() => {
     const t = busca.trim();
@@ -42,7 +39,6 @@ export function Topo({ lateralRecolhida, onExpandir }: { lateralRecolhida: boole
           </div>
         </Popover>
       )}
-      {slotAvisos ? createPortal(<Avisos />, slotAvisos) : <><span className="espaco" /><Avisos /></>}
     </header>
   );
 }

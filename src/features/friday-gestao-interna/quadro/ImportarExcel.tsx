@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { FileSpreadsheet, Upload } from 'lucide-react';
-import { req, type Row } from '../api.ts';
+import { req, type Pessoa, type Row } from '../api.ts';
 import { Modal } from '../ui/base.tsx';
 import { CORES, fmtData, hojeISO } from '../util.ts';
 import { lerPlanilhas, type Bruto, type Planilha } from './excel.ts';
@@ -49,7 +49,7 @@ const novoId = (lista: Rotulo[]) => String(Math.max(0, ...lista.map(r => Number(
 
 type Avisos = { pessoas: Set<string> };
 // Converte o valor da planilha para o formato da coluna. Rótulos e opções que não existem são criados em "config".
-function converter(tipo: string, config: Record<string, any>, v: Bruto, usuarios: Row[], avisos: Avisos): unknown {
+function converter(tipo: string, config: Record<string, any>, v: Bruto, usuarios: Pessoa[], avisos: Avisos): unknown {
   if (vazio(v)) return undefined;
   const t = textoDe(v);
   switch (tipo) {
@@ -82,10 +82,11 @@ function converter(tipo: string, config: Record<string, any>, v: Bruto, usuarios
     case 'pessoa': {
       const ids = t.split(/[,;]/).map(x => x.trim()).filter(Boolean).map(nome => {
         const n = normal(nome);
-        const u = usuarios.find(x => normal(x.nome) === n) ?? usuarios.find(x => normal(x.nome).startsWith(n) || n.startsWith(normal(x.nome)));
+        const ativos = usuarios.filter(x => x.ativo);
+        const u = ativos.find(x => normal(x.nome) === n) ?? ativos.find(x => normal(x.nome).startsWith(n) || n.startsWith(normal(x.nome)));
         if (!u) avisos.pessoas.add(nome);
-        return u?.id as number | undefined;
-      }).filter((x): x is number => x != null);
+        return u?.id;
+      }).filter((x): x is string => x != null);
       return ids.length ? [...new Set(ids)] : undefined;
     }
     default: return t || undefined;
@@ -94,7 +95,7 @@ function converter(tipo: string, config: Record<string, any>, v: Bruto, usuarios
 
 // Importar itens de uma planilha: escolher a aba, dizer para onde vai cada coluna e enviar.
 export function ImportarExcel({ quadroId, nomeItem, colunas, grupos, sub, acoes, usuarios, onFechar }: {
-  quadroId: number; nomeItem: string; colunas: Coluna[]; grupos: Grupo[]; sub: Sub | null; acoes: Acoes; usuarios: Row[]; onFechar: () => void;
+  quadroId: number; nomeItem: string; colunas: Coluna[]; grupos: Grupo[]; sub: Sub | null; acoes: Acoes; usuarios: Pessoa[]; onFechar: () => void;
 }) {
   const [planilhas, setPlanilhas] = useState<Planilha[] | null>(null);
   const [arquivo, setArquivo] = useState('');

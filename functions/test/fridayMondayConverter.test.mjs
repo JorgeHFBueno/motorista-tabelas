@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  configDe, converterFormulaMonday, dataLocal, decidirItem, idDoUid, mesclarOpcoesLista, mesclarRotulosStatus, mesclarValores,
+  configDe, converterFormulaMonday, dataLocal, decidirItem, mesclarOpcoesLista, mesclarRotulosStatus, mesclarValores,
   pessoasDosValores, prefixosBusca, quadrosDeSubitens, resolverLigacoes, tipoFriday, valorDe, valoresDoItem,
 } from '../lib/fridayMondayConverter.js';
 
@@ -15,8 +15,8 @@ test('status: índices do monday viram ids do Friday, com rótulo concluído e v
   assert.deepEqual(cfg.rotulos.map(r => [r.id, r.texto, !!r.concluido]), [['1', 'Em andamento', false], ['2', 'Feito', true], ['3', 'Parado', false], ['0', '', false]]);
   assert.deepEqual(cfg.origem_rotulos, { 0: '1', 1: '2', 2: '3', 5: null });
   const col = { id: 10, tipoMonday: 'status', config: cfg };
-  assert.equal(valorDe(col, { id: 'status', type: 'status', text: 'Feito', value: '{"index":1}' }, { pessoa: () => undefined }), '2');
-  assert.equal(valorDe(col, { id: 'status', type: 'status', text: '', value: '{"index":5}' }, { pessoa: () => undefined }), null);
+  assert.equal(valorDe(col, { id: 'status', type: 'status', text: 'Feito', value: '{"index":1}' }, {}), '2');
+  assert.equal(valorDe(col, { id: 'status', type: 'status', text: '', value: '{"index":5}' }, {}), null);
 });
 
 test('status: reimportação acrescenta rótulos novos sem mexer nos existentes', () => {
@@ -62,9 +62,9 @@ test('valores: pessoas, período, número, link, caixa e ligações', () => {
       { id: 'ignorada', type: 'text', text: 'x', value: null },
     ],
   };
-  const pessoas = { 11: 1001, 12: 1002 };
-  const r = valoresDoItem(item, cols, { pessoa: id => pessoas[id] });
-  assert.deepEqual(r.valores, { 1: [1001, 1002], 2: { inicio: '2026-10-01', fim: '2026-10-09' }, 3: 1500.5, 4: { url: 'https://ledur.com.br', texto: 'Site' }, 5: true });
+  // Pessoas do monday não são importadas: a coluna de pessoa chega vazia.
+  const r = valoresDoItem(item, cols, {});
+  assert.deepEqual(r.valores, { 2: { inicio: '2026-10-01', fim: '2026-10-09' }, 3: 1500.5, 4: { url: 'https://ledur.com.br', texto: 'Site' }, 5: true });
   assert.deepEqual(r.ligacoes, { 6: ['501', '502'] });
   const lig = resolverLigacoes(r.ligacoes, id => (id === '501' ? 77 : undefined));
   assert.deepEqual(lig.valores, { 6: [77] });
@@ -91,9 +91,7 @@ test('reimportação: colunas criadas no Friday sobrevivem, as do monday são su
 test('índices e datas seguem as mesmas regras da WEB', () => {
   assert.deepEqual(prefixosBusca('Pó Ç'), ['p', 'po', 'c']);
   assert.ok(prefixosBusca('Viagem Obra Ponte').includes('pon'));
-  assert.deepEqual(pessoasDosValores({ 1: [5, 6], 2: [7], 3: 'x' }, new Set(['1', '3'])), [5, 6]);
-  assert.equal(idDoUid('abc'), idDoUid('abc'));
-  assert.ok(Number.isSafeInteger(idDoUid('JemlHBCPN6Qo9WmshdbT9vJzRsUW')));
+  assert.deepEqual(pessoasDosValores({ 1: ['uidA', 'uidB', 5], 2: ['uidC'], 3: 'x' }, new Set(['1', '3'])), ['uidA', 'uidB']);
   assert.equal(dataLocal('2026-10-19T17:30:00Z'), '2026-10-19 14:30:00');
 });
 

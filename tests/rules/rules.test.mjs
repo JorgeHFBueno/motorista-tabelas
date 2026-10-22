@@ -8,6 +8,7 @@ import {
 } from '@firebase/rules-unit-testing';
 import {
   Timestamp,
+  serverTimestamp,
   collection,
   deleteDoc,
   doc,
@@ -684,23 +685,18 @@ test('[firestore] Friday: official registries are readable, never writable by cl
   await assertFails(updateDoc(doc(dbAs('canonicalAdm2'), 'cadastro-pontes', 'abc'), { nome: 'X' }));
   await assertFails(getDoc(doc(dbAs('missing'), 'cadastro-pontes', 'abc')));
 });
-test('[firestore] Friday: a person enters as "membro" and cannot self-elevate', async () => {
-  await assertSucceeds(setDoc(doc(dbAs('canonicalAdm1'), 'friday-usuarios', 'uid-canonical-adm1'), { id: 1, uid: 'uid-canonical-adm1', nome: 'A', acesso: 'membro', ativo: 1 }));
-  await assertFails(setDoc(doc(dbAs('canonicalUser'), 'friday-usuarios', 'uid-canonical-user'), { id: 2, uid: 'uid-canonical-user', nome: 'U', acesso: 'admin', ativo: 1 }));
-  await assertFails(updateDoc(doc(dbAs('canonicalAdm1'), 'friday-usuarios', 'uid-canonical-adm1'), { acesso: 'admin' }));
+test('[firestore] funcionarios: an active person writes only their own last access, with the server time', async () => {
+  const proprio = doc(dbAs('canonicalAdm1'), 'funcionarios', 'uid-canonical-adm1');
+  await assertSucceeds(updateDoc(proprio, { ultimoAcesso: serverTimestamp() }));
+  await assertFails(updateDoc(proprio, { ultimoAcesso: Timestamp.fromMillis(5) }));
+  await assertFails(updateDoc(proprio, { ultimoAcesso: serverTimestamp(), nome: 'Outro nome' }));
+  await assertFails(updateDoc(proprio, { perfis: { adm1: true, adm2: true, user: false, motorista: false } }));
+  await assertFails(updateDoc(doc(dbAs('canonicalAdm1'), 'funcionarios', 'uid-canonical-adm2'), { ultimoAcesso: serverTimestamp() }));
+  await assertFails(updateDoc(doc(dbAs('canonicalInactive'), 'funcionarios', 'uid-canonical-inactive'), { ultimoAcesso: serverTimestamp() }));
 });
-
-test('[firestore] Friday: a person refreshes their own name and e-mail only from funcionarios and the login', async () => {
-  await env.withSecurityRulesDisabled(async (ctx) => {
-    await setDoc(doc(ctx.firestore(), 'friday-usuarios', 'uid-canonical-adm2'), { id: 7, uid: 'uid-canonical-adm2', nome: 'Nome antigo', email: 'antigo@example.com', acesso: 'membro', ativo: 1 });
-  });
-  const ref = doc(dbAs('canonicalAdm2'), 'friday-usuarios', 'uid-canonical-adm2');
-  await assertFails(updateDoc(ref, { nome: 'Outro nome' }));
-  await assertFails(updateDoc(ref, { email: 'outro@example.com' }));
-  await assertFails(updateDoc(ref, { nome: 'uid-canonical-adm2', acesso: 'admin' }));
-  await assertSucceeds(updateDoc(ref, { ultimo_acesso: 1, nome: 'uid-canonical-adm2', email: 'canonical-adm2@example.com' }));
-  await assertSucceeds(updateDoc(ref, { ultimo_acesso: 2 }));
-  await assertFails(updateDoc(doc(dbAs('canonicalAdm1'), 'friday-usuarios', 'uid-canonical-adm2'), { ultimo_acesso: 3 }));
+test('[firestore] Friday: friday-usuarios no longer exists in the rules', async () => {
+  await assertFails(getDoc(doc(dbAs('canonicalAdm1'), 'friday-usuarios', 'uid-canonical-adm1')));
+  await assertFails(setDoc(doc(dbAs('canonicalAdm1'), 'friday-usuarios', 'uid-canonical-adm1'), { id: 1, uid: 'uid-canonical-adm1', nome: 'A', acesso: 'membro', ativo: 1 }));
 });
 
 // ------------------------------------------------------------------ revisão das Rules (2026-10-21)

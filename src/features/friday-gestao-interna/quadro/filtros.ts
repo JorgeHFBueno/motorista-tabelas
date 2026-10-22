@@ -2,7 +2,7 @@
 import { CORES, fmtNumeroColuna, hojeISO, inicioDaSemana, somarDias } from '../util.ts';
 import { itemConcluido, rotuloDe, textoCelula, vazio, type Agrupar, type Coluna, type EstadoVisao, type Grupo, type Item, type Rotulo, type Visao } from './tipos.ts';
 
-export type Contexto = { colunas: Coluna[]; nomeUsuario: (id: unknown) => string; eu: number | null; hoje?: string };
+export type Contexto = { colunas: Coluna[]; nomeUsuario: (id: unknown) => string; eu: string | null; hoje?: string };
 
 // ---------------------------------------------------------------- estado salvo na visão
 export function normalizar(e: EstadoVisao): EstadoVisao {
@@ -52,7 +52,7 @@ function noPeriodo(chave: string, [a, b]: [string, string], hoje: string, feito:
 }
 
 // ---------------------------------------------------------------- opções do filtro por coluna
-export type Opcao = { chave: string; rotulo: string; n: number; cor?: string; usuario?: number; especial?: boolean };
+export type Opcao = { chave: string; rotulo: string; n: number; cor?: string; usuario?: string; especial?: boolean };
 const COM_VAZIO_OU_NAO = new Set(['texto_longo', 'arquivos', 'ligacao']);
 export const filtravel = (c: Coluna) => c.tipo !== 'formula' || !!c.config.formula;
 
@@ -70,8 +70,8 @@ export function opcoesFiltro(c: Coluna, itens: Item[], ctx: Contexto): Opcao[] {
     }
     case 'lista': return [...((c.config.opcoes ?? []) as Rotulo[]).map(o => ({ chave: o.id, rotulo: o.texto, n: conta(o.id) })), { chave: '__vazio', rotulo: 'Vazio', n: conta('__vazio'), especial: true }];
     case 'pessoa': {
-      const cont = new Map<number, number>();
-      for (const i of itens) for (const u of (i.valores[c.id] ?? []) as number[]) cont.set(u, (cont.get(u) ?? 0) + 1);
+      const cont = new Map<string, number>();
+      for (const i of itens) for (const u of (i.valores[c.id] ?? []) as string[]) cont.set(u, (cont.get(u) ?? 0) + 1);
       return [
         { chave: '__eu', rotulo: 'Eu (quem está usando)', n: conta('__eu'), especial: true },
         ...[...cont.entries()].sort((a, b) => b[1] - a[1]).map(([u, n]) => ({ chave: String(u), rotulo: ctx.nomeUsuario(u), n, usuario: u })),
@@ -102,7 +102,7 @@ function casa(c: Coluna, i: Item, k: string, ctx: Contexto): boolean {
       if (k === '__pendentes') return !rotuloDe(c, v)?.concluido;
       return String(v ?? '0') === k;
     case 'lista': return ((v ?? []) as string[]).includes(k);
-    case 'pessoa': return ((v ?? []) as number[]).includes(k === '__eu' ? (ctx.eu ?? -1) : Number(k));
+    case 'pessoa': return ((v ?? []) as string[]).includes(k === '__eu' ? (ctx.eu ?? '') : k);
     case 'data': case 'periodo': { const r = intervalo(c, v); return !!r && noPeriodo(k, r, hoje, itemConcluido(i, ctx.colunas)); }
     case 'caixa': return k === '1' ? !!v : !v;
     default: return k.startsWith('t:') && textoCelula(c, i, ctx.colunas, ctx.nomeUsuario) === k.slice(2);
@@ -115,7 +115,7 @@ export function aplicarFiltros(itens: Item[], e: EstadoVisao, ctx: Contexto): It
   if (!ativos.length && !e.pessoa) return itens;
   const regras = ativos.map(([k, chaves]) => ({ k, chaves, c: ctx.colunas.find(x => String(x.id) === k) }));
   return itens.filter(i => {
-    if (e.pessoa && !ctx.colunas.some(c => c.tipo === 'pessoa' && ((i.valores[c.id] ?? []) as number[]).includes(e.pessoa!))) return false;
+    if (e.pessoa && !ctx.colunas.some(c => c.tipo === 'pessoa' && ((i.valores[c.id] ?? []) as string[]).includes(e.pessoa!))) return false;
     for (const r of regras) {
       if (r.k === 'grupo') { if (!r.chaves.includes(String(i.grupo_id))) return false; continue; }
       if (r.c && !r.chaves.some(k => casa(r.c!, i, k, ctx))) return false;
@@ -131,7 +131,7 @@ type Balde = { chave: string; nome: string; cor: string; ordem: string | number;
 const MESES = ['janeiro', 'fevereiro', 'março', 'abril', 'maio', 'junho', 'julho', 'agosto', 'setembro', 'outubro', 'novembro', 'dezembro'];
 
 // Grupos "virtuais" (um por valor da coluna). Em lista e pessoa o item aparece em cada valor que tiver.
-export function agruparItens(itens: Item[], ag: Agrupar, ctx: Contexto & { usuarios: { id: number; nome: string; cor?: string }[] }): { grupos: GrupoVirtual[]; grupoDe: Map<number, number[]> } | null {
+export function agruparItens(itens: Item[], ag: Agrupar, ctx: Contexto & { usuarios: { id: string; nome: string; cor?: string; ativo: boolean }[] }): { grupos: GrupoVirtual[]; grupoDe: Map<number, number[]> } | null {
   const c = ctx.colunas.find(x => x.id === ag.coluna_id);
   if (!c) return null;
   const baldes = new Map<string, Balde>();
@@ -157,7 +157,7 @@ export function agruparItens(itens: Item[], ag: Agrupar, ctx: Contexto & { usuar
   } else if (c.tipo === 'lista') {
     ((c.config.opcoes ?? []) as Rotulo[]).forEach((o, k) => add({ chave: o.id, nome: o.texto, cor: CORES[(k * 3) % CORES.length], ordem: k, valoresNovo: { [c.id]: [o.id] } }));
   } else if (c.tipo === 'pessoa' && ag.vazios) {
-    ctx.usuarios.forEach(u => add({ chave: String(u.id), nome: u.nome, cor: u.cor ?? '#579bfc', ordem: u.nome.toLowerCase(), valoresNovo: { [c.id]: [u.id] } }));
+    ctx.usuarios.filter(u => u.ativo).forEach(u => add({ chave: u.id, nome: u.nome, cor: u.cor ?? '#579bfc', ordem: u.nome.toLowerCase(), valoresNovo: { [c.id]: [u.id] } }));
   } else if (c.tipo === 'caixa') {
     add({ chave: '1', nome: 'Marcado', cor: '#00a36c', ordem: 0, valoresNovo: { [c.id]: true } });
     add({ chave: '__vazio', nome: 'Desmarcado', cor: '#c4c4c4', ordem: 1, valoresNovo: {} });
@@ -170,7 +170,7 @@ export function agruparItens(itens: Item[], ag: Agrupar, ctx: Contexto & { usuar
     for (const k of ks) {
       if (baldes.has(k)) continue;
       if (k === '__vazio') { add(vazioB); continue; }
-      if (c.tipo === 'pessoa') { const u = ctx.usuarios.find(x => x.id === Number(k)); add({ chave: k, nome: u?.nome ?? ctx.nomeUsuario(k), cor: u?.cor ?? '#579bfc', ordem: (u?.nome ?? '').toLowerCase(), valoresNovo: { [c.id]: [Number(k)] } }); }
+      if (c.tipo === 'pessoa') { const u = ctx.usuarios.find(x => x.id === k); add({ chave: k, nome: u?.nome ?? ctx.nomeUsuario(k), cor: u?.cor ?? '#579bfc', ordem: (u?.nome ?? '').toLowerCase(), valoresNovo: { [c.id]: [k] } }); }
       else if (c.tipo === 'data' || c.tipo === 'periodo') { const [a, m] = k.split('-').map(Number); add({ chave: k, nome: `${MESES[m - 1]} de ${a}`, cor: CORES[(m * 5) % CORES.length], ordem: k, valoresNovo: {} }); }
       else if (c.tipo === 'numero' || c.tipo === 'avaliacao') add({ chave: k, nome: c.tipo === 'numero' ? fmtNumeroColuna({ ...c.config, unidade: '' }, k) : k.replace('.', ','), cor: '#579bfc', ordem: Number(k), valoresNovo: { [c.id]: Number(k) } });
       else { const t = k.slice(2); add({ chave: k, nome: t, cor: '#579bfc', ordem: t.toLowerCase(), valoresNovo: ['texto', 'telefone', 'email'].includes(c.tipo) ? { [c.id]: t } : {} }); }

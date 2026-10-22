@@ -24,19 +24,6 @@ export function novoId(): number {
   return ultimoId;
 }
 
-/** Id numérico estável de uma pessoa a partir do UID (cyrb53), igual ao `idDoUid` da WEB. */
-export function idDoUid(uid: string): number {
-  let h1 = 0xdeadbeef, h2 = 0x41c6ce57;
-  for (let i = 0; i < uid.length; i++) {
-    const c = uid.charCodeAt(i);
-    h1 = Math.imul(h1 ^ c, 2654435761);
-    h2 = Math.imul(h2 ^ c, 1597334677);
-  }
-  h1 = Math.imul(h1 ^ (h1 >>> 16), 2246822507) ^ Math.imul(h2 ^ (h2 >>> 13), 3266489909);
-  h2 = Math.imul(h2 ^ (h2 >>> 16), 2246822507) ^ Math.imul(h1 ^ (h1 >>> 13), 3266489909);
-  return 4294967296 * (2097151 & h2) + (h1 >>> 0);
-}
-
 const semAcento = (t: string) => t.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
 /** Prefixos das palavras do nome (índice `busca` dos itens), igual ao `prefixosBusca` da WEB. */
 export function prefixosBusca(nome: unknown): string[] {
@@ -47,11 +34,11 @@ export function prefixosBusca(nome: unknown): string[] {
   }
   return [...prefixos].slice(0, 300);
 }
-/** Ids de pessoas nas colunas "pessoa" (índice `pessoas` dos itens). */
-export function pessoasDosValores(valores: AnyRecord | undefined, colunasPessoa: Set<string>): number[] {
-  const ids = new Set<number>();
-  for (const [k, v] of Object.entries(valores ?? {})) if (colunasPessoa.has(k) && Array.isArray(v)) v.forEach(x => { if (Number.isFinite(Number(x))) ids.add(Number(x)); });
-  return [...ids];
+/** UIDs de pessoas nas colunas "pessoa" (índice `pessoas` dos itens), igual ao `pessoasDosValores` da WEB. */
+export function pessoasDosValores(valores: AnyRecord | undefined, colunasPessoa: Set<string>): string[] {
+  const uids = new Set<string>();
+  for (const [k, v] of Object.entries(valores ?? {})) if (colunasPessoa.has(k) && Array.isArray(v)) v.forEach(x => { if (typeof x === 'string' && x) uids.add(x); });
+  return [...uids];
 }
 
 // ---------------------------------------------------------------- tipos de coluna
@@ -175,8 +162,6 @@ export function converterFormulaMonday(formula: string, mapa: Map<string, Alvo>)
 // ---------------------------------------------------------------- valores das células
 export type ColunaImportada = { id: number; tipoMonday: string; config: AnyRecord };
 export type ContextoValor = {
-  /** id da pessoa no monday → id numérico em friday-usuarios */
-  pessoa: (idMonday: string) => number | undefined;
   /** Opção de "tags" pelo nome (cria na config se não existir); devolve o id da opção. */
   tag?: (col: ColunaImportada, nome: string) => string;
 };
@@ -198,11 +183,8 @@ export function valorDe(col: ColunaImportada, cv: MValor, ctx: ContextoValor): u
     case 'vote': case 'auto_number': { const n = Number(cv.text); return cv.text && Number.isFinite(n) ? n : null; }
     case 'date': return v?.date ?? null;
     case 'timeline': return v?.from || v?.to ? { inicio: v.from ?? v.to, fim: v.to ?? v.from } : null;
-    case 'people': case 'person': {
-      const lista = (v?.personsAndTeams ?? (v?.id ? [{ id: v.id, kind: 'person' }] : [])) as { id: number; kind: string }[];
-      const ids = lista.filter(p => p.kind === 'person').map(p => ctx.pessoa(String(p.id))).filter((x): x is number => x != null);
-      return ids.length ? [...new Set(ids)] : null;
-    }
+    // Pessoas do monday não são importadas: as pessoas do Friday são os funcionários do sistema (a coluna chega vazia).
+    case 'people': case 'person': return null;
     case 'phone': return v?.phone || cv.text || null;
     case 'email': return v?.email || cv.text || null;
     case 'link': return v?.url ? (v.text && v.text !== v.url ? { url: v.url, texto: v.text } : { url: v.url }) : null;

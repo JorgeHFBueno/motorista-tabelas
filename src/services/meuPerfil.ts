@@ -8,7 +8,7 @@ if (import.meta.env.VITE_USE_FIREBASE_EMULATORS === 'true') {
 
 export type AtualizarMeuPerfilEntrada = { nome?: string; login?: { tipo: TipoLogin; valor: string } };
 
-// Troca o próprio nome e/ou login (Function atualizarMeuPerfil): atualiza Firebase Auth, funcionarios e friday-usuarios.
+// Troca o próprio nome e/ou login (Function atualizarMeuPerfil): atualiza Firebase Auth e funcionarios.
 export async function atualizarMeuPerfil(entrada: AtualizarMeuPerfilEntrada) {
   const callable = httpsCallable<AtualizarMeuPerfilEntrada, { nome: string; email: string }>(functions, 'atualizarMeuPerfil');
   return (await callable(entrada)).data;

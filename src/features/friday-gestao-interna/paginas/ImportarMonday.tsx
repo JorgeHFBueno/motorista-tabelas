@@ -15,7 +15,7 @@ type QuadroMonday = {
   monday_atualizado_em: string | null; importado_em: string | null; quadro_id: number | null; mensagem: string | null;
 };
 type Contagem = { criados: number; atualizados: number; iguais: number; preservados: number; ignorados: number };
-type Resultado = Contagem & { quadro_id: number; itens_monday: number; subitens: Contagem; colunas_ignoradas: number; pessoas_criadas: number };
+type Resultado = Contagem & { quadro_id: number; itens_monday: number; subitens: Contagem; colunas_ignoradas: number };
 type Execucao = { id: string; estado: 'fila' | 'importando' | 'ok' | 'erro'; resultado?: Resultado; erro?: string };
 
 const ROTULO: Record<Situacao, string> = { novo: 'Novo', importado: 'Importado', atualizar: 'Com novidades', erro: 'Erro' };

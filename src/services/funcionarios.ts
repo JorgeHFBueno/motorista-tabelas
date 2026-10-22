@@ -51,7 +51,7 @@ export function perfisMarcados(perfis: unknown): string[] {
   return [...conhecidos, ...outros];
 }
 
-const CAMPOS_CONHECIDOS = new Set(['nome', 'email', 'ativo', 'perfis', 'motorista', 'createdAt', 'updatedAt']);
+const CAMPOS_CONHECIDOS = new Set(['nome', 'email', 'ativo', 'perfis', 'motorista', 'createdAt', 'updatedAt', 'ultimoAcesso']);
 
 // Campos de funcionarios/{uid} que a tela de perfil não exibe em destaque, para mostrá-los também.
 export function camposExtrasFuncionario(data: Record<string, unknown>) {

@@ -4,7 +4,7 @@ import {
   Lock, LockOpen, MessageCircle, Shuffle, MessageCirclePlus, Sigma, MoreHorizontal, Palette, Pencil, Plus, Trash2,
 } from 'lucide-react';
 import { useAuth } from '../../../contexts/AuthContext';
-import type { Row } from '../api.ts';
+import type { Pessoa } from '../api.ts';
 import { Menu, Popover, useConfirmar, usePopover, Editavel, type ItemMenu } from '../ui/base.tsx';
 import { CORES, fmtData, fmtNumeroColuna, posEntre } from '../util.ts';
 import { Celula } from './Celula.tsx';
@@ -33,7 +33,7 @@ export function Tabela({ grupos: gruposReais, colunas, todasColunas, itens, sub,
   sub: Sub | null;
   acoes: Acoes;
   ops: OpsItens;
-  usuarios: Row[];
+  usuarios: Pessoa[];
   nomeItem: string;
   selecionados: Set<number>;
   setSelecionados: (s: Set<number>) => void;
