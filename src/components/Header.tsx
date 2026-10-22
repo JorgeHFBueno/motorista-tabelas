@@ -13,7 +13,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { iniciais } from '../services/funcionarios';
 
 // Páginas sem menu lateral: a Home já é o menu; as demais são de quem ainda não entrou.
-const SEM_MENU_LATERAL = ['/', '/login', '/signup', '/acesso-negado'];
+const SEM_MENU_LATERAL = ['/', '/login', '/acesso-negado'];
 
 const botaoIconeSx = { color: '#fff', width: 40, height: 40, '&:hover': { bgcolor: 'rgb(255 255 255 / 0.12)' } };
 
@@ -87,9 +87,6 @@ export default function Header() {
             <Nav>
               <Nav.Link as={Link} to="/login">
                 Login
-              </Nav.Link>
-              <Nav.Link as={Link} to="/signup">
-                Cadastro
               </Nav.Link>
             </Nav>
           )}

@@ -15,7 +15,6 @@ const TabelaCombustivel = lazy(() => import('./components/TabelaCombustivel'));
 const CombustivelNovoPage = lazy(() => import('./pages/CombustivelNovoPage'));
 const PortifolioPage = lazy(() => import('./components/PortifolioPage'));
 const LoginPage = lazy(() => import('./pages/LoginPage'));
-const SignupPage = lazy(() => import('./pages/SignupPage'));
 const CadastrosPage = lazy(() => import('./pages/CadastrosPage'));
 const CadastroVeiculoNovoPage = lazy(() => import('./pages/CadastroVeiculoNovoPage'));
 const CadastroUsuarioNovoPage = lazy(() => import('./pages/CadastroUsuarioNovoPage'));
@@ -58,7 +57,8 @@ export default function App() {
       <Suspense fallback={<LoadingFallback />}>
         <Routes>
           <Route path="login" element={<LoginPage />} />
-          <Route path="signup" element={<SignupPage />} />
+          {/* Cadastro aberto retirado (2026-10-22): usuários nascem só em Cadastros. Endereço antigo leva ao login. */}
+          <Route path="signup" element={<Navigate to="/login" replace />} />
           <Route path="acesso-negado" element={<AccessDeniedPage />} />
           <Route element={<EmployeeRoute />}>
             <Route path="the-manuscript/*" element={<TheManuscriptPage />} />

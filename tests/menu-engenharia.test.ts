@@ -35,7 +35,7 @@ test('menu lateral abre pelo cabeçalho fora da Home e preserva acessibilidade',
   const header = source('src/components/Header.tsx');
   const lateral = source('src/components/MenuLateral.tsx');
 
-  assert.match(header, /const SEM_MENU_LATERAL = \['\/', '\/login', '\/signup', '\/acesso-negado'\]/);
+  assert.match(header, /const SEM_MENU_LATERAL = \['\/', '\/login', '\/acesso-negado'\]/);
   assert.match(header, /aria-label="Abrir menu"/);
   assert.match(lateral, /<Drawer anchor="left" open=\{open\}/);
   assert.match(lateral, /aria-label="Menu principal"/);
@@ -50,8 +50,10 @@ test('header usa sino, ajuda e avatar no lugar dos links Usuário/Logout', () =>
 
   assert.doesNotMatch(header, /<Nav\.Link onClick/);
   assert.match(header, /aria-label="Menu do usuário"/);
-  assert.match(header, /id="ledur-header-avisos"/);
-  assert.match(topo, /getElementById\('ledur-header-avisos'\)/);
+  // Avisos do Friday desligados (2026-10-22): o sino do cabeçalho é o aviso padrão do sistema.
+  assert.match(header, /rotulo="Avisos"/);
+  assert.doesNotMatch(header, /ledur-header-avisos/);
+  assert.doesNotMatch(topo, /ledur-header-avisos/);
   assert.doesNotMatch(topo, /LogoMarca|Avatar/);
   assert.doesNotMatch(header, /to="\/engenharia\/obras"/);
   assert.doesNotMatch(header, /to="\/registros"/);

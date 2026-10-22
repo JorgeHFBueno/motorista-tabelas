@@ -4,7 +4,6 @@ import {
   getAuth,
   onAuthStateChanged,
   signInWithEmailAndPassword,
-  createUserWithEmailAndPassword,
   signOut as firebaseSignOut,
   type User,
 } from 'firebase/auth';
@@ -24,7 +23,6 @@ interface AuthContextType {
   authorizationError: Error | null;
   isAdmin: boolean;
   signIn: (email: string, password: string) => Promise<void>;
-  signUp: (email: string, password: string) => Promise<void>;
   signOut: () => Promise<void>;
   // Lê de novo funcionarios/{uid} (ex.: depois de trocar o nome em Meu perfil).
   refreshAuthorizationProfile: () => Promise<void>;
@@ -38,7 +36,6 @@ const AuthContext = createContext<AuthContextType>({
   authorizationError: null,
   isAdmin: false,
   signIn: async () => {},
-  signUp: async () => {},
   signOut: async () => {},
   refreshAuthorizationProfile: async () => {},
 });
@@ -119,9 +116,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     isAdmin: isAdm2Authorized(resolvedAuthorization.profile),
     signIn: async (email, password) => {
       await signInWithEmailAndPassword(auth, email, password);
-    },
-    signUp: async (email, password) => {
-      await createUserWithEmailAndPassword(auth, email, password);
     },
     signOut: async () => {
       setAuthorizationState({ uid: null, loading: false, profile: null, error: null });

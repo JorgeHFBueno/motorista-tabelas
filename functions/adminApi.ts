@@ -205,7 +205,7 @@ adminApp.post('/api/admin/users/register', async (req: AdminRequest, res) => {
       createdUid = userRecord.uid;
     } catch (createError: any) {
       if (createError?.code !== 'auth/email-already-exists') throw createError;
-      // Existing Auth accounts are provisioned by UID; the supplied password is never changed.
+      // Existing Auth account without an employee: it is provisioned by UID (below).
       userRecord = await adminAuth.getUserByEmail(normalizedEmail);
       reusedExistingAuth = true;
     }
@@ -215,7 +215,12 @@ adminApp.post('/api/admin/users/register', async (req: AdminRequest, res) => {
       res.status(409).json({ error: 'employee_already_exists' });
       return;
     }
-    if (reusedExistingAuth) await adminAuth.updateUser(userRecord.uid, { displayName: authorization.payload.nome });
+    if (reusedExistingAuth) {
+      // Whoever created the account before (for example, through the old open sign-up) may know its password:
+      // the administrator's password replaces it, the account is enabled and every open session ends.
+      await adminAuth.updateUser(userRecord.uid, { displayName: authorization.payload.nome, password: passwordValue, disabled: false });
+      await adminAuth.revokeRefreshTokens(userRecord.uid);
+    }
     await employeesCollection.doc(userRecord.uid).set({
       ...canonicalEmployee(authorization.payload.nome, normalizedEmail, true, {
         adm1: authorization.payload.adm1 === true,
@@ -234,6 +239,7 @@ adminApp.post('/api/admin/users/register', async (req: AdminRequest, res) => {
         displayName: userRecord.displayName,
       },
       funcionarioDocumentId: userRecord.uid,
+      contaExistente: reusedExistingAuth,
     });
   } catch (err: any) {
     if (createdUid) {

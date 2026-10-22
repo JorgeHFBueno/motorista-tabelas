@@ -208,7 +208,10 @@ function mapRegisterError(errorCode: string) {
   }
 }
 
-export async function registerAuthorizedUser(input: RegisterAuthorizedUserInput) {
+// contaExistente: já havia conta com esse login (sem funcionário); a senha dela passou a ser a informada.
+export type RegisterAuthorizedUserResponse = { funcionarioDocumentId: string; contaExistente?: boolean };
+
+export async function registerAuthorizedUser(input: RegisterAuthorizedUserInput): Promise<RegisterAuthorizedUserResponse> {
   const response = await fetch(`${API_BASE}/register`, {
     method: 'POST',
     headers: await getAuthHeaders(),

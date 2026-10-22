@@ -91,6 +91,7 @@ export default function CadastroUsuarioNovoPage() {
   const [errors, setErrors] = useState<UsuarioFormErrors>({});
   const [saving, setSaving] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
+  const [contaExistente, setContaExistente] = useState<string | null>(null);
 
   const normalizedEmail = useMemo(
     () => normalizeEmailInput(form.email, form.celular),
@@ -101,6 +102,7 @@ export default function CadastroUsuarioNovoPage() {
     const nextErrors = validateForm(form);
     setErrors(nextErrors);
     setSubmitError(null);
+    setContaExistente(null);
 
     if (Object.keys(nextErrors).length > 0 || !normalizedEmail) {
       return;
@@ -108,13 +110,19 @@ export default function CadastroUsuarioNovoPage() {
 
     try {
       setSaving(true);
-      await registerAuthorizedUser({
+      const resultado = await registerAuthorizedUser({
         nome: form.nome.trim(),
         email: form.email.trim(),
         password: form.password.trim(),
         perfil: form.perfil as PerfilUsuario,
         celular: form.celular,
       });
+      // Conta que já existia: a tela fica aberta com o aviso, para a administração avisar a pessoa da senha.
+      if (resultado.contaExistente) {
+        setContaExistente(form.nome.trim());
+        setForm(DEFAULT_FORM);
+        return;
+      }
       navigate('/cadastros', { state: { userCreated: true } });
     } catch (error) {
       setSubmitError(error instanceof Error ? error.message : 'Erro ao cadastrar usuario.');
@@ -241,6 +249,16 @@ export default function CadastroUsuarioNovoPage() {
             </Alert>
 
             {submitError && <Alert severity="error">{submitError}</Alert>}
+
+            {contaExistente && (
+              <Alert
+                severity="warning"
+                action={<Button color="inherit" size="small" component={RouterLink} to="/cadastros">Concluir</Button>}
+              >
+                {contaExistente} foi cadastrado(a). Já existia uma conta com este login; a senha foi trocada pela informada
+                e as sessões abertas nessa conta foram encerradas. Avise a pessoa da nova senha.
+              </Alert>
+            )}
 
             <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} justifyContent="flex-end">
               <Button variant="outlined" component={RouterLink} to="/cadastros" disabled={saving}>
