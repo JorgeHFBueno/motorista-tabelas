@@ -8,13 +8,15 @@ export function isValidEmailIdentifier(value: string) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
 }
 
-export function prepareLoginIdentifier(value: string, enterWithPhone: boolean) {
+// Campo único "Celular ou e-mail": com "@" é e-mail; sem "@" é celular (só os dígitos + domínio legado).
+// Vazio quando não há o que usar. Mesma regra do app e da Function atualizarMeuPerfil.
+export function prepareLoginIdentifier(value: string) {
   const trimmedValue = value.trim();
 
-  if (!enterWithPhone) return trimmedValue;
-  if (trimmedValue.endsWith(PHONE_LOGIN_DOMAIN)) return trimmedValue;
+  if (trimmedValue.includes('@')) return trimmedValue.toLowerCase();
 
-  return `${normalizePhoneIdentifier(trimmedValue)}${PHONE_LOGIN_DOMAIN}`;
+  const digits = normalizePhoneIdentifier(trimmedValue);
+  return digits ? `${digits}${PHONE_LOGIN_DOMAIN}` : '';
 }
 
 export type TipoLogin = 'celular' | 'email';

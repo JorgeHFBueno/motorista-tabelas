@@ -8,17 +8,17 @@ import {
   prepareLoginIdentifier,
 } from '../src/services/loginIdentifier';
 
-test('prepara celular normalizado com o domínio legado', () => {
+test('sem @ é celular: só os dígitos com o domínio legado', () => {
   assert.equal(normalizePhoneIdentifier('(51) 99999-9999'), '51999999999');
-  assert.equal(prepareLoginIdentifier('51999999999', true), '51999999999@example.com');
+  assert.equal(prepareLoginIdentifier('51999999999'), '51999999999@example.com');
+  assert.equal(prepareLoginIdentifier(' (51) 99999-9999 '), '51999999999@example.com');
+  assert.equal(prepareLoginIdentifier('   '), '');
+  assert.equal(prepareLoginIdentifier('abc'), '');
 });
 
-test('não duplica o domínio legado no modo celular', () => {
-  assert.equal(prepareLoginIdentifier('51999999999@example.com', true), '51999999999@example.com');
-});
-
-test('mantém e-mail completo e remove espaços externos', () => {
-  assert.equal(prepareLoginIdentifier(' usuario@empresa.com.br ', false), 'usuario@empresa.com.br');
+test('com @ é e-mail: sem espaços externos e em minúsculas', () => {
+  assert.equal(prepareLoginIdentifier(' Usuario@Empresa.com.br '), 'usuario@empresa.com.br');
+  assert.equal(prepareLoginIdentifier('51999999999@example.com'), '51999999999@example.com');
 });
 
 test('valida formato de e-mail antes da autenticação', () => {

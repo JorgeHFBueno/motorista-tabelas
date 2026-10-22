@@ -5,40 +5,31 @@ import {
   Alert,
   Box,
   Button,
-  Checkbox,
-  FormControlLabel,
   Paper,
   Stack,
   TextField,
   Typography,
 } from '@mui/material';
-import { isValidEmailIdentifier, normalizePhoneIdentifier, prepareLoginIdentifier } from '../services/loginIdentifier';
+import { isValidEmailIdentifier, prepareLoginIdentifier } from '../services/loginIdentifier';
 
 export default function LoginPage() {
   const { signIn } = useAuth();
   const navigate = useNavigate();
   const [identifier, setIdentifier] = useState('');
-  const [enterWithPhone, setEnterWithPhone] = useState(true);
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
-
-  const handleLoginModeChange = (checked: boolean) => {
-    setEnterWithPhone(checked);
-    setIdentifier('');
-    setError(null);
-  };
 
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
     if (isSubmitting) return;
 
-    const preparedIdentifier = prepareLoginIdentifier(identifier, enterWithPhone);
-    if (!preparedIdentifier || (enterWithPhone && !normalizePhoneIdentifier(identifier))) {
-      setError(enterWithPhone ? 'Digite seu celular' : 'Digite seu e-mail');
+    const preparedIdentifier = prepareLoginIdentifier(identifier);
+    if (!preparedIdentifier) {
+      setError('Digite seu celular ou e-mail');
       return;
     }
-    if (!enterWithPhone && !isValidEmailIdentifier(preparedIdentifier)) {
+    if (identifier.includes('@') && !isValidEmailIdentifier(preparedIdentifier)) {
       setError('Digite um e-mail válido');
       return;
     }
@@ -70,26 +61,19 @@ export default function LoginPage() {
         <Stack spacing={2}>
           <Typography variant="h4">Login</Typography>
           {error && <Alert severity="error">{error}</Alert>}
-          <FormControlLabel
-            control={<Checkbox checked={enterWithPhone} onChange={event => handleLoginModeChange(event.target.checked)} />}
-            label="Entrar com celular"
-          />
           <TextField
-            label={enterWithPhone ? 'Celular' : 'E-mail'}
-            type={enterWithPhone ? 'tel' : 'email'}
-            placeholder={enterWithPhone ? 'Somente números' : 'usuario@empresa.com.br'}
+            label="Celular ou e-mail"
+            placeholder="51999999999 ou nome@empresa.com.br"
+            autoComplete="username"
             value={identifier}
             onChange={event => {
-              setIdentifier(enterWithPhone ? normalizePhoneIdentifier(event.target.value) : event.target.value);
+              setIdentifier(event.target.value);
               setError(null);
             }}
             required
-            inputProps={enterWithPhone ? {
-              inputMode: 'numeric',
-              pattern: '[0-9]*',
-            } : undefined}
+            inputProps={{ autoCapitalize: 'none', spellCheck: false }}
           />
-          <TextField label="Senha" type="password" value={password} onChange={event => setPassword(event.target.value)} required />
+          <TextField label="Senha" type="password" autoComplete="current-password" value={password} onChange={event => setPassword(event.target.value)} required />
           <Button type="submit" variant="contained" disabled={isSubmitting}>
             {isSubmitting ? 'Entrando...' : 'Entrar'}
           </Button>
