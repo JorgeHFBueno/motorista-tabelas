@@ -690,6 +690,19 @@ test('[firestore] Friday: a person enters as "membro" and cannot self-elevate', 
   await assertFails(updateDoc(doc(dbAs('canonicalAdm1'), 'friday-usuarios', 'uid-canonical-adm1'), { acesso: 'admin' }));
 });
 
+test('[firestore] Friday: a person refreshes their own name and e-mail only from funcionarios and the login', async () => {
+  await env.withSecurityRulesDisabled(async (ctx) => {
+    await setDoc(doc(ctx.firestore(), 'friday-usuarios', 'uid-canonical-adm2'), { id: 7, uid: 'uid-canonical-adm2', nome: 'Nome antigo', email: 'antigo@example.com', acesso: 'membro', ativo: 1 });
+  });
+  const ref = doc(dbAs('canonicalAdm2'), 'friday-usuarios', 'uid-canonical-adm2');
+  await assertFails(updateDoc(ref, { nome: 'Outro nome' }));
+  await assertFails(updateDoc(ref, { email: 'outro@example.com' }));
+  await assertFails(updateDoc(ref, { nome: 'uid-canonical-adm2', acesso: 'admin' }));
+  await assertSucceeds(updateDoc(ref, { ultimo_acesso: 1, nome: 'uid-canonical-adm2', email: 'canonical-adm2@example.com' }));
+  await assertSucceeds(updateDoc(ref, { ultimo_acesso: 2 }));
+  await assertFails(updateDoc(doc(dbAs('canonicalAdm1'), 'friday-usuarios', 'uid-canonical-adm2'), { ultimo_acesso: 3 }));
+});
+
 // ------------------------------------------------------------------ revisão das Rules (2026-10-21)
 // Item de frota inativo: o cliente decide o que oferece; as Rules aceitam medidor, combustível e Saída nele.
 test('[firestore] inactive fleet item: meter update, fuel V2 output and V2 activity are accepted', async () => {

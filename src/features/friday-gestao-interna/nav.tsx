@@ -55,6 +55,7 @@ export function NavProvider({ children }: { children: ReactNode }) {
     iniciarSessao({
       uid,
       nome: authorizationProfile?.nome || currentUser?.displayName || currentUser?.email || 'Sem nome',
+      nomeCadastro: authorizationProfile?.nome ?? null,
       email: currentUser?.email?.toLowerCase() ?? null,
       adm2: authorizationProfile?.ativo === true && authorizationProfile.adm2 === true,
     })

@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useMemo, useState } from 'react';
+import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import { app } from '../firebase';
 import {
   getAuth,
@@ -26,6 +26,8 @@ interface AuthContextType {
   signIn: (email: string, password: string) => Promise<void>;
   signUp: (email: string, password: string) => Promise<void>;
   signOut: () => Promise<void>;
+  // Lê de novo funcionarios/{uid} (ex.: depois de trocar o nome em Meu perfil).
+  refreshAuthorizationProfile: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType>({
@@ -38,6 +40,7 @@ const AuthContext = createContext<AuthContextType>({
   signIn: async () => {},
   signUp: async () => {},
   signOut: async () => {},
+  refreshAuthorizationProfile: async () => {},
 });
 
 export const useAuth = () => useContext(AuthContext);
@@ -91,6 +94,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     };
   }, [currentUser?.uid, loading]);
 
+  const refreshAuthorizationProfile = useCallback(async () => {
+    const uid = currentUser?.uid;
+    if (!uid) return;
+    const profile = await getAuthorizationProfile(uid);
+    setAuthorizationState((state) => (state.uid === uid ? { uid, loading: false, profile, error: null } : state));
+  }, [currentUser?.uid]);
+
   const resolvedAuthorization = resolveAuthorizationSession(
     currentUser?.uid ?? null,
     loading,
@@ -114,7 +124,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setAuthorizationState({ uid: null, loading: false, profile: null, error: null });
       await firebaseSignOut(auth);
     },
-  }), [auth, currentUser, loading, resolvedAuthorization]);
+    refreshAuthorizationProfile,
+  }), [auth, currentUser, loading, resolvedAuthorization, refreshAuthorizationProfile]);
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }

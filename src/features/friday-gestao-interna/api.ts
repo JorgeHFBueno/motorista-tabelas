@@ -358,13 +358,17 @@ function exigirEscrita() {
 
 // Garante o cadastro da pessoa no Friday (friday-usuarios/{uid}) e abre a sessão.
 // Quem é adm2 também traz os funcionários ativos, para que possam ser marcados em quadros antes do 1º acesso.
-export async function iniciarSessao(p: { uid: string; nome: string; email: string | null; adm2: boolean }): Promise<Sessao> {
+// Nome e e-mail vêm de funcionarios e do login: a cada abertura, a cópia do Friday é atualizada se estiver diferente.
+export async function iniciarSessao(p: { uid: string; nome: string; nomeCadastro: string | null; email: string | null; adm2: boolean }): Promise<Sessao> {
   const docRef = doc(db, 'friday-usuarios', p.uid);
   const s = await getDoc(docRef);
   let row: Row;
   if (s.exists()) {
-    row = s.data() as Row;
-    await updateDoc(docRef, { ultimo_acesso: agora() });
+    const mudancas: Record<string, unknown> = { ultimo_acesso: agora() };
+    if (p.nomeCadastro && s.data().nome !== p.nomeCadastro) mudancas.nome = p.nomeCadastro;
+    if (p.email && s.data().email !== p.email) mudancas.email = p.email;
+    await updateDoc(docRef, mudancas);
+    row = { ...s.data(), ...mudancas } as Row;
   } else {
     const id = idDoUid(p.uid);
     row = { ...padrao('usuarios'), id, uid: p.uid, nome: p.nome, email: p.email, cor: CORES[id % 16], ultimo_acesso: agora() } as Row;

@@ -770,7 +770,8 @@ service cloud.firestore {
     }
 
     // Cadastro da pessoa no Friday (id do documento = UID). Cada um cria o próprio no 1º acesso; adm2 também traz os
-    // funcionários ativos para poderem ser marcados em quadros. O nível de acesso nasce "membro".
+    // funcionários ativos para poderem ser marcados em quadros. O nível de acesso nasce "membro". Ao abrir o Friday,
+    // a pessoa atualiza o próprio nome e e-mail, que só podem receber o nome de funcionarios e o e-mail do login.
     match /friday-usuarios/{uid} {
       allow read: if fridayAccess();
       allow create: if fridayAccess()
@@ -780,7 +781,11 @@ service cloud.firestore {
         && request.resource.data.get('acesso', 'membro') == 'membro';
       allow update: if fridayAccess()
         && request.auth.uid == uid
-        && changedOnly(['ultimo_acesso']);
+        && changedOnly(['ultimo_acesso', 'nome', 'email'])
+        && (request.resource.data.get('nome', null) == resource.data.get('nome', null)
+          || request.resource.data.get('nome', null) == employee().get('nome', ''))
+        && (request.resource.data.get('email', null) == resource.data.get('email', null)
+          || request.resource.data.get('email', null) == authEmail());
       allow delete: if false;
     }
 
