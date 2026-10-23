@@ -8,8 +8,10 @@ import ConstructionIcon from '@mui/icons-material/Construction';
 import CalendarMonthIcon from '@mui/icons-material/CalendarMonth';
 import EventBusyIcon from '@mui/icons-material/EventBusy';
 import MenuBookRoundedIcon from '@mui/icons-material/MenuBookRounded';
+import ViewKanbanOutlinedIcon from '@mui/icons-material/ViewKanbanOutlined';
+import PersonOutlineRoundedIcon from '@mui/icons-material/PersonOutlineRounded';
 import type { AuthorizationProfile } from '../services/authorizationProfile';
-import { isWebAdminAuthorized } from '../services/webAuthorization';
+import { temAlgumaCredencial, temCredencial, type Credencial } from '../services/credenciais';
 
 // Áreas do sistema: cards da Home e menu lateral aberto pelo cabeçalho nas demais páginas.
 export type MenuPrincipalItem = {
@@ -18,8 +20,8 @@ export type MenuPrincipalItem = {
   color: string;
   accent: string;
   to?: string;
-  requiresAdm2?: boolean;
-  visibleToAll?: boolean;
+  // Quem vê: 'qualquer' credencial, só 'adm2', ou uma credencial (o adm2 vê tudo).
+  acesso: 'qualquer' | 'adm2' | Exclude<Credencial, 'adm2'>;
   children?: Array<{ label: string; to: string; icon: ReactNode }>;
 };
 
@@ -30,7 +32,15 @@ export const menuPrincipal: MenuPrincipalItem[] = [
     color: '#EDF3F7',
     accent: '#174F76',
     to: '/the-manuscript',
-    visibleToAll: true,
+    acesso: 'adm2',
+  },
+  {
+    label: 'Friday',
+    icon: <ViewKanbanOutlinedIcon fontSize="large" />,
+    color: '#EAF4FF',
+    accent: '#1F4E8C',
+    to: '/friday',
+    acesso: 'escritorio',
   },
   {
     label: 'Cadastros',
@@ -38,6 +48,7 @@ export const menuPrincipal: MenuPrincipalItem[] = [
     color: '#EAF2F8',
     accent: '#2F6B98',
     to: '/cadastros',
+    acesso: 'adm2',
   },
   {
     label: 'Registros',
@@ -45,6 +56,7 @@ export const menuPrincipal: MenuPrincipalItem[] = [
     color: '#F6F7F8',
     accent: '#5B5D5B',
     to: '/registros',
+    acesso: 'adm2',
   },
   {
     label: 'Frota',
@@ -52,40 +64,44 @@ export const menuPrincipal: MenuPrincipalItem[] = [
     color: '#EEF5F1',
     accent: '#2E9D6F',
     to: '/frota',
+    acesso: 'adm2',
   },
   {
     label: 'Combustível',
     icon: <LocalGasStationIcon fontSize="large" />,
     color: '#FFF6E8',
     accent: '#E79A25',
-    to: '/combustivel/novo',
+    to: '/combustivel',
+    acesso: 'adm2',
   },
   {
     label: 'Engenharia',
     icon: <EngineeringIcon fontSize="large" />,
     color: '#F2F0FA',
     accent: '#6B5CA5',
-    requiresAdm2: true,
+    acesso: 'engenharia',
     children: [
       { label: 'Obras', to: '/engenharia/obras', icon: <ConstructionIcon /> },
       { label: 'Cronograma', to: '/engenharia/cronograma', icon: <CalendarMonthIcon /> },
       { label: 'Prazos contratuais', to: '/engenharia/prazos', icon: <EventBusyIcon /> },
     ],
   },
+  {
+    label: 'Meu perfil',
+    icon: <PersonOutlineRoundedIcon fontSize="large" />,
+    color: '#F3F6F9',
+    accent: '#3D5A73',
+    to: '/perfil',
+    acesso: 'qualquer',
+  },
 ];
 
-// adm1 vê só Combustível e o que é de todos; Engenharia é de adm2. Quem não é admin web
-// (ex.: funcionário que só usa Friday/The Manuscript) vê apenas o que é de todos.
+// Cada área aparece para quem tem a sua credencial; o adm2 vê tudo. Quem só tem credenciais do app
+// (motorista, frentista, mecânico) vê o Meu perfil.
 export function filtrarMenuPrincipal(profile: AuthorizationProfile | null): MenuPrincipalItem[] {
-  const isAdm1 = profile?.adm1 === true;
-  const isAdm2 = profile?.adm2 === true;
-  const isAdmin = isWebAdminAuthorized(profile);
-  return menuPrincipal.filter((action) => {
-    if (!isAdmin) return action.visibleToAll === true;
-    if (action.requiresAdm2) return isAdm2;
-    return !isAdm1 || action.label === 'Combustível' || action.visibleToAll;
+  return menuPrincipal.filter((item) => {
+    if (item.acesso === 'qualquer') return temAlgumaCredencial(profile);
+    if (item.acesso === 'adm2') return temCredencial(profile);
+    return temCredencial(profile, item.acesso);
   });
 }
-
-// adm2 abre o histórico; os demais vão direto ao lançamento (adm1 confirma o montante antes).
-export const destinoCombustivel = (isAdm2: boolean) => (isAdm2 ? '/combustivel' : '/combustivel/novo');

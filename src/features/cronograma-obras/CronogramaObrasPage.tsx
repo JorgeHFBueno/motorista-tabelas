@@ -77,7 +77,7 @@ import {
   type RecreateResult,
   MondayWebhookProvisionError,
 } from "../../services/mondayWebhookProvisionService";
-import { useAdm2Authorization } from "../../hooks/useAdm2Authorization";
+import { useCredencialAuthorization } from "../../hooks/useCredencialAuthorization";
 import { useAuth } from "../../contexts/AuthContext";
 import {
   beginCronogramaPerf,
@@ -291,7 +291,7 @@ function withOptimisticAlocacao(
 
 export default function CronogramaObrasPage() {
   countCronogramaRender("CronogramaObrasPage");
-  const { authorized: canSyncMonday } = useAdm2Authorization();
+  const { authorized: canSyncMonday } = useCredencialAuthorization('engenharia');
   const { currentUser, authorizationLoading, authorizationProfile } = useAuth();
   const [view, setView] = useState<"obras" | "mestres">("obras");
   const [sectionViews, setSectionViews] = useState<WorkSectionViews>(

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Alert, Box, Button, CircularProgress, Dialog, DialogActions, DialogContent, DialogTitle, Paper, Stack, Tab, Tabs, TextField, Typography } from '@mui/material';
-import { useAdm2Authorization } from '../hooks/useAdm2Authorization';
+import { useCredencialAuthorization } from '../hooks/useCredencialAuthorization';
 import { createAndLinkMondayObra, linkMondayObra, listMondayObras, type MondayObraRow, type ObraV2Row } from '../services/mondayObrasReconciliation';
 import { engenhariaObrasRenderState, filterMondayObras, filterObrasV2, normalizeEngenhariaObrasCollections, type ReconciliationFilter } from './engenhariaObrasPageState';
 
@@ -14,7 +14,7 @@ const nameFor = (row: MondayObraRow) => {
 };
 
 export default function EngenhariaObrasPage() {
-  const { loading: authLoading, authorized } = useAdm2Authorization();
+  const { loading: authLoading, authorized } = useCredencialAuthorization('engenharia');
   const [monday, setMonday] = useState<MondayObraRow[]>([]); const [obras, setObras] = useState<ObraV2Row[]>([]);
   const [loading, setLoading] = useState(true); const [error, setError] = useState<string | null>(null); const [message, setMessage] = useState<string | null>(null);
   const [mondayQuery, setMondayQuery] = useState(''); const [obraQuery, setObraQuery] = useState('');
@@ -52,7 +52,7 @@ export default function EngenhariaObrasPage() {
   }
   const state = engenhariaObrasRenderState({ authLoading, loading, authorized, error });
   if (state === 'loading') return <Stack alignItems="center" p={5}><CircularProgress /><Typography mt={2}>Carregando conciliação...</Typography></Stack>;
-  if (state === 'unauthorized') return <Box p={3}><Alert severity="error">Esta ferramenta exige funcionário ativo com perfil adm2.</Alert></Box>;
+  if (state === 'unauthorized') return <Box p={3}><Alert severity="error">Esta ferramenta exige funcionário ativo com a credencial de engenharia (ou adm2).</Alert></Box>;
   if (state === 'error') return <Box p={3}><Alert severity="error" action={<Button onClick={() => void refresh()}>Tentar novamente</Button>}>{error}</Alert></Box>;
   return <Box sx={{ p: { xs: 2, md: 3 }, maxWidth: 1600, mx: 'auto' }}>
     <Stack direction="row" justifyContent="space-between" mb={2}><Box><Typography variant="h4">Conciliação de Obras</Typography><Typography color="text.secondary">monday-obras ↔ obras-v2 · vínculo manual 1:1</Typography></Box><Button onClick={() => void refresh()}>Atualizar</Button></Stack>

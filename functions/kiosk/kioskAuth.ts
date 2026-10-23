@@ -1,4 +1,5 @@
 import { FieldValue } from 'firebase-admin/firestore';
+import { temCredencial } from '../credenciais.js';
 import { HttpsError, onCall } from 'firebase-functions/v2/https';
 import { db } from '../firebaseAdmin.js';
 import { hashQrToken, isValidPin, verifyPin } from './kioskSecurity.js';
@@ -119,10 +120,10 @@ function createRateLimiter(store: KioskAuthStore, now: () => number) {
 export function createKioskAuthService({ store, createCustomToken, now = Date.now }: KioskAuthDependencies) {
   const rateLimit = createRateLimiter(store, now);
 
-  // Active employee only; the custom token carries the kiosk claim.
+  // Active employee with frentista (or adm2); the custom token carries the kiosk claim.
   async function startSession(uid: string, method: 'PIN' | 'QR', rateKey: string, terminalId: string): Promise<KioskAuthResult> {
     const employee = await store.getEmployee(uid);
-    if (!employee || employee.ativo !== true) genericCredentialError();
+    if (!temCredencial(employee, 'frentista')) genericCredentialError();
     const customToken = await createCustomToken(uid, { kiosk: true });
     await rateLimit.reset(rateKey);
     const auditData = { uid, terminalId };

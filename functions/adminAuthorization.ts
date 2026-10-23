@@ -1,8 +1,9 @@
+import { credenciaisDe, type Credenciais } from './credenciais.js';
+
 export type AdminAuthorization = {
   exists: boolean;
   ativo: boolean;
-  adm1: boolean;
-  adm2: boolean;
+  credenciais: Credenciais;
 };
 
 type Employee = Record<string, any> | undefined;
@@ -14,8 +15,7 @@ export function createAdminAuthorizationReader(readEmployee: ReadEmployee) {
     return {
       exists: employee !== undefined,
       ativo: employee?.ativo === true,
-      adm1: employee?.perfis?.adm1 === true,
-      adm2: employee?.perfis?.adm2 === true,
+      credenciais: credenciaisDe(employee?.perfis),
     };
   };
 }

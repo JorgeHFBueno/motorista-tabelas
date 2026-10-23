@@ -1,140 +1,101 @@
 import { useMemo } from 'react';
 import { DataGrid, type GridColDef } from '@mui/x-data-grid';
-import { Chip, IconButton, Stack, Tooltip } from '@mui/material';
+import { Chip, IconButton, Stack, Tooltip, Typography } from '@mui/material';
 import EditOutlinedIcon from '@mui/icons-material/EditOutlined';
-import type { AdminUser } from '../services/adminUsersApi';
+import KeyOutlinedIcon from '@mui/icons-material/KeyOutlined';
+import DeleteOutlineRoundedIcon from '@mui/icons-material/DeleteOutlineRounded';
+import { loginDoUsuario, nomeDoUsuario, type AdminUser } from '../services/adminUsersApi';
+import { CREDENCIAIS } from '../services/credenciais';
 
 interface AdminUsersEditTableProps {
   rows: AdminUser[];
   loading: boolean;
   onEdit: (row: AdminUser) => void;
+  onSenha: (row: AdminUser) => void;
+  onExcluir: (row: AdminUser) => void;
   dateFormatter: Intl.DateTimeFormat;
 }
 
-function getDisplayName(user: AdminUser) {
-  const displayName = user.displayName?.trim();
-  if (displayName) {
-    return displayName;
-  }
-
-  const authorizationName = user.authorization.nome?.trim();
-  if (authorizationName) {
-    return authorizationName;
-  }
-
-  const email = user.email?.trim().toLowerCase();
-  if (email) {
-    return email.split('@')[0];
-  }
-
-  return user.uid;
-}
-
-function getProfileLabel(user: AdminUser) {
-  if (!user.authorization.exists) {
-    return 'Sem autorizacao cadastrada';
-  }
-
-  return user.authorization.profile;
-}
-
-function formatDate(value: string | undefined, dateFormatter: Intl.DateTimeFormat) {
-  if (!value) {
-    return '-';
-  }
-
+function formatDate(value: string | null | undefined, dateFormatter: Intl.DateTimeFormat) {
+  if (!value) return '—';
   const date = new Date(value);
-  return Number.isNaN(date.getTime()) ? '-' : dateFormatter.format(date);
+  return Number.isNaN(date.getTime()) ? '—' : dateFormatter.format(date);
 }
 
-export default function AdminUsersEditTable({
-  rows,
-  loading,
-  onEdit,
-  dateFormatter,
-}: AdminUsersEditTableProps) {
+export default function AdminUsersEditTable({ rows, loading, onEdit, onSenha, onExcluir, dateFormatter }: AdminUsersEditTableProps) {
   const columns = useMemo<GridColDef<AdminUser>[]>(() => [
+    { field: 'nome', headerName: 'Nome', minWidth: 200, flex: 1, valueGetter: (_v, row) => nomeDoUsuario(row) },
+    { field: 'login', headerName: 'Login', minWidth: 210, flex: 1, valueGetter: (_v, row) => loginDoUsuario(row) },
     {
-      field: 'displayName',
-      headerName: 'Nome',
-      minWidth: 220,
-      flex: 1,
-      renderCell: (params) => getDisplayName(params.row),
-    },
-    {
-      field: 'email',
-      headerName: 'Email',
-      minWidth: 240,
-      flex: 1.2,
-      renderCell: (params) => params.row.email ?? '-',
-    },
-    {
-      field: 'status',
-      headerName: 'Status',
-      minWidth: 130,
-      flex: 0.5,
+      field: 'credenciais',
+      headerName: 'Credenciais',
+      minWidth: 260,
+      flex: 1.4,
       sortable: false,
-      renderCell: (params) => (
-        <Chip
-          size="small"
-          label={params.row.disabled ? 'Inativo' : 'Ativo'}
-          color={params.row.disabled ? 'default' : 'success'}
-          variant={params.row.disabled ? 'outlined' : 'filled'}
-        />
-      ),
+      valueGetter: (_v, row) => CREDENCIAIS.filter((c) => row.funcionario?.credenciais[c.chave]).map((c) => c.rotulo).join(', '),
+      renderCell: ({ row }) => {
+        if (!row.funcionario) return <Chip size="small" color="warning" variant="outlined" label="Sem funcionário" />;
+        const marcadas = CREDENCIAIS.filter((c) => row.funcionario?.credenciais[c.chave]);
+        return marcadas.length
+          ? <Stack direction="row" spacing={0.5} useFlexGap flexWrap="wrap" sx={{ py: 0.5 }}>{marcadas.map((c) => <Chip key={c.chave} size="small" label={c.rotulo} />)}</Stack>
+          : <Typography variant="body2" color="text.secondary">Nenhuma</Typography>;
+      },
     },
     {
-      field: 'profile',
-      headerName: 'Perfil',
-      minWidth: 220,
-      flex: 0.9,
-      sortable: false,
-      renderCell: (params) => getProfileLabel(params.row),
+      field: 'situacao',
+      headerName: 'Situação',
+      minWidth: 120,
+      valueGetter: (_v, row) => (!row.funcionario ? 'Sem funcionário' : row.funcionario.ativo ? 'Ativo' : 'Inativo'),
+      renderCell: ({ row }) => (!row.funcionario
+        ? <Typography variant="body2" color="text.secondary">—</Typography>
+        : <Chip size="small" color={row.funcionario.ativo ? 'success' : 'default'} label={row.funcionario.ativo ? 'Ativo' : 'Inativo'} />),
     },
     {
-      field: 'lastLoginAt',
-      headerName: 'Ultimo acesso',
-      minWidth: 170,
-      flex: 0.8,
-      renderCell: (params) => formatDate(params.row.lastLoginAt, dateFormatter),
-    },
-    {
-      field: 'createdAt',
-      headerName: 'Criado em',
-      minWidth: 170,
-      flex: 0.8,
-      renderCell: (params) => formatDate(params.row.createdAt, dateFormatter),
+      field: 'ultimoAcesso',
+      headerName: 'Último acesso',
+      minWidth: 150,
+      valueGetter: (_v, row) => row.funcionario?.ultimoAcesso ?? row.lastLoginAt ?? '',
+      renderCell: ({ row }) => formatDate(row.funcionario?.ultimoAcesso ?? row.lastLoginAt, dateFormatter),
     },
     {
       field: 'acoes',
-      headerName: 'Acoes',
-      minWidth: 110,
+      headerName: 'Ações',
+      minWidth: 140,
       sortable: false,
       filterable: false,
-      renderCell: (params) => (
-        <Stack direction="row" spacing={1}>
-          <Tooltip title="Editar">
-            <IconButton size="small" onClick={() => onEdit(params.row)}>
-              <EditOutlinedIcon fontSize="small" />
-            </IconButton>
+      renderCell: ({ row }) => (
+        <Stack direction="row" spacing={0.5}>
+          {row.funcionario && (
+            <Tooltip title="Editar credenciais e situação">
+              <IconButton aria-label={`Editar ${nomeDoUsuario(row)}`} onClick={() => onEdit(row)}><EditOutlinedIcon fontSize="small" /></IconButton>
+            </Tooltip>
+          )}
+          <Tooltip title="Definir senha nova">
+            <IconButton aria-label={`Definir senha de ${nomeDoUsuario(row)}`} onClick={() => onSenha(row)}><KeyOutlinedIcon fontSize="small" /></IconButton>
           </Tooltip>
+          {!row.funcionario && (
+            <Tooltip title="Excluir a conta (sem funcionário)">
+              <IconButton aria-label={`Excluir a conta de ${nomeDoUsuario(row)}`} color="error" onClick={() => onExcluir(row)}><DeleteOutlineRoundedIcon fontSize="small" /></IconButton>
+            </Tooltip>
+          )}
         </Stack>
       ),
     },
-  ], [dateFormatter, onEdit]);
+  ], [dateFormatter, onEdit, onExcluir, onSenha]);
 
   return (
-    <DataGrid
-      autoHeight
-      rows={rows}
-      columns={columns}
-      loading={loading}
-      getRowId={(row) => row.uid}
-      pageSizeOptions={[10, 25, 50]}
-      initialState={{
-        pagination: { paginationModel: { pageSize: 10, page: 0 } },
-      }}
-      disableRowSelectionOnClick
-    />
+    <div style={{ width: '100%' }}>
+      <DataGrid
+        rows={rows}
+        columns={columns}
+        getRowId={(row) => row.uid}
+        loading={loading}
+        getRowHeight={() => 'auto'}
+        disableRowSelectionOnClick
+        autoHeight
+        initialState={{ pagination: { paginationModel: { pageSize: 25 } }, sorting: { sortModel: [{ field: 'nome', sort: 'asc' }] } }}
+        pageSizeOptions={[25, 50, 100]}
+      />
+    </div>
   );
 }

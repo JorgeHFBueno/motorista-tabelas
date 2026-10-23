@@ -6,8 +6,8 @@ import { MONDAY_OAUTH_START_ENDPOINT, MondayOAuthStartError, startMondayOAuth } 
 const page = readFileSync('src/features/cronograma-obras/CronogramaObrasPage.tsx', 'utf8');
 const fakeUser = { getIdToken: async () => 'firebase-id-token' } as any;
 
-test('button is visible only through the existing adm2 authorization gate', () => {
-  assert.match(page, /useAdm2Authorization/);
+test('button is visible only through the engenharia credential gate (adm2 enters everything)', () => {
+  assert.match(page, /useCredencialAuthorization\('engenharia'\)/);
   assert.match(page, /\{canSyncMonday && \([\s\S]*className="co-dev-menu" hidden/);
   assert.match(page, /Autorizar Monday/);
   assert.match(page, /runViewTransition\(next, view, \(\) => setView\(next\)\)/);

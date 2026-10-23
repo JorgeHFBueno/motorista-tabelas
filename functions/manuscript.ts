@@ -1,4 +1,5 @@
 import { createSign } from 'node:crypto';
+import { temCredencial } from './credenciais.js';
 import { HttpsError, onCall } from 'firebase-functions/v2/https';
 import { defineSecret } from 'firebase-functions/params';
 import { db } from './firebaseAdmin.js';
@@ -266,7 +267,7 @@ const service = new ManuscriptService(new ManuscriptGitHubClient(() => ({ appId:
 async function assertReader(uid: string | undefined) {
   if (!uid) throw new HttpsError('unauthenticated', 'Autenticação obrigatória.');
   const employee = await db.collection('funcionarios').doc(uid).get();
-  if (!employee.exists || employee.data()?.ativo !== true) throw new HttpsError('permission-denied', 'Acesso não autorizado.');
+  if (!temCredencial(employee.data())) throw new HttpsError('permission-denied', 'Acesso não autorizado.'); // adm2 only
 }
 const callableOptions = { region: 'southamerica-east1', secrets: [manuscriptGithubAppId, manuscriptGithubInstallationId, manuscriptGithubPrivateKey], timeoutSeconds: 60 };
 export const manuscriptListTree = onCall(callableOptions, async (request) => { try { await assertReader(request.auth?.uid); return await service.listTree(); } catch (error) { throw cleanError(error); } });

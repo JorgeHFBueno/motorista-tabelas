@@ -1,11 +1,15 @@
+// Credenciais independentes de funcionarios/{uid}.perfis (The Manuscript, funcionarios.md, "Credenciais").
+// adm1 (substituído por frentista) e user não são mais lidos.
 export interface AuthorizationProfile {
   exists: boolean;
   source: 'funcionarios' | null;
   ativo: boolean;
-  adm1: boolean;
   adm2: boolean;
-  user: boolean;
   motorista: boolean;
+  frentista: boolean;
+  mecanico: boolean;
+  escritorio: boolean;
+  engenharia: boolean;
   id: string | null;
   nome: string | null;
 }
@@ -23,10 +27,12 @@ export function emptyAuthorizationProfile(): AuthorizationProfile {
     exists: false,
     source: null,
     ativo: false,
-    adm1: false,
     adm2: false,
-    user: false,
     motorista: false,
+    frentista: false,
+    mecanico: false,
+    escritorio: false,
+    engenharia: false,
     id: null,
     nome: null,
   };
@@ -48,10 +54,12 @@ export function createAuthorizationProfileReader(readFuncionario: ReadFuncionari
       exists: true,
       source: 'funcionarios',
       ativo: data.ativo === true,
-      adm1: profiles.adm1 === true,
       adm2: profiles.adm2 === true,
-      user: profiles.user === true,
       motorista: profiles.motorista === true,
+      frentista: profiles.frentista === true,
+      mecanico: profiles.mecanico === true,
+      escritorio: profiles.escritorio === true,
+      engenharia: profiles.engenharia === true,
       id: employeeDoc.id,
       nome: typeof data.nome === 'string' && data.nome.trim() ? data.nome.trim() : null,
     };

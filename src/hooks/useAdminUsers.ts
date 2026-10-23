@@ -1,12 +1,11 @@
 import { useCallback, useEffect, useState } from 'react';
 import {
-  createUser as apiCreateUser,
+  definirSenha as apiDefinirSenha,
   deleteUser as apiDeleteUser,
   listUsers,
   registerAuthorizedUser as apiRegisterAuthorizedUser,
   updateUser as apiUpdateUser,
   type AdminUser,
-  type CreateAdminUserInput,
   type RegisterAuthorizedUserInput,
   type UpdateAdminUserInput,
 } from '../services/adminUsersApi';
@@ -26,8 +25,7 @@ export default function useAdminUsers(options: UseAdminUsersOptions = {}) {
     setLoading(true);
     setError(null);
     try {
-      const data = await listUsers();
-      setUsers(data);
+      setUsers(await listUsers());
     } catch (err) {
       setError(err as Error);
     } finally {
@@ -40,59 +38,27 @@ export default function useAdminUsers(options: UseAdminUsersOptions = {}) {
     void loadUsers();
   }, [loadOnMount, loadUsers]);
 
-  const createUser = useCallback(
-    async (input: CreateAdminUserInput) => {
-      const created = await apiCreateUser(input);
-      if (refreshOnChange) {
-        await loadUsers();
-      }
-      return created;
-    },
-    [loadUsers, refreshOnChange],
-  );
+  const depois = useCallback(async () => { if (refreshOnChange) await loadUsers(); }, [loadUsers, refreshOnChange]);
 
-  const deleteUser = useCallback(
-    async (uid: string) => {
-      await apiDeleteUser(uid);
-      if (refreshOnChange) {
-        await loadUsers();
-      }
-    },
-    [loadUsers, refreshOnChange],
-  );
+  const registerAuthorizedUser = useCallback(async (input: RegisterAuthorizedUserInput) => {
+    const created = await apiRegisterAuthorizedUser(input);
+    await depois();
+    return created;
+  }, [depois]);
 
-  const registerAuthorizedUser = useCallback(
-    async (input: RegisterAuthorizedUserInput) => {
-      const created = await apiRegisterAuthorizedUser(input);
-      if (refreshOnChange) {
-        await loadUsers();
-      }
-      return created;
-    },
-    [loadUsers, refreshOnChange],
-  );
+  const updateUser = useCallback(async (input: UpdateAdminUserInput) => {
+    const updated = await apiUpdateUser(input);
+    if (refreshOnChange) await loadUsers();
+    else setUsers((current) => current.map((user) => (user.uid === updated.uid ? updated : user)));
+    return updated;
+  }, [loadUsers, refreshOnChange]);
 
-  const updateUser = useCallback(
-    async (input: UpdateAdminUserInput) => {
-      const updated = await apiUpdateUser(input);
-      if (refreshOnChange) {
-        await loadUsers();
-      } else {
-        setUsers((current) => current.map((user) => (user.uid === updated.uid ? updated : user)));
-      }
-      return updated;
-    },
-    [loadUsers, refreshOnChange],
-  );
+  const deleteUser = useCallback(async (uid: string) => {
+    await apiDeleteUser(uid);
+    await depois();
+  }, [depois]);
 
-  return {
-    users,
-    loading,
-    error,
-    createUser,
-    deleteUser,
-    registerAuthorizedUser,
-    updateUser,
-    reload: loadUsers,
-  } as const;
+  const definirSenha = useCallback((uid: string, password: string) => apiDefinirSenha(uid, password), []);
+
+  return { users, loading, error, reload: loadUsers, registerAuthorizedUser, updateUser, deleteUser, definirSenha };
 }

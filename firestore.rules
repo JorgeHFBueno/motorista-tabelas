@@ -40,20 +40,32 @@ service cloud.firestore {
         && employee().get('perfis', {}).get(perfil, false) == true;
     }
 
-    function isAdm1() {
-      return hasPerfil('adm1');
-    }
-
+    // Independent credentials (Manuscript funcionarios.md, "Credenciais"): each flow checks its own; adm2 enters all.
     function isAdm2() {
       return hasPerfil('adm2');
+    }
+
+    function isFrentista() {
+      return hasPerfil('frentista');
     }
 
     function isMecanico() {
       return hasPerfil('mecanico');
     }
 
-    function isAdmin() {
-      return isAdm1() || isAdm2();
+    // The signed-in employee holds one of two credentials (one read of the profile; keeps big rules under the limits).
+    function hasEitherPerfil(a, b) {
+      let perfis = isAuthorized() ? employee().get('perfis', {}) : {};
+      return perfis.get(a, false) == true || perfis.get(b, false) == true;
+    }
+
+    // Another active employee holding a credential (e.g. the driver chosen for someone else's Saída).
+    function employeeHasCredential(uid, credencial) {
+      let outro = nonEmptyString(uid) && exists(/databases/$(database)/documents/funcionarios/$(uid))
+        ? get(/databases/$(database)/documents/funcionarios/$(uid)).data
+        : {};
+      return outro.get('ativo', false) == true
+        && outro.get('perfis', {}).get(credencial, false) == true;
     }
 
     function hasAdminClaim() {
@@ -154,31 +166,37 @@ service cloud.firestore {
         || request.resource.data.keys().hasAny(['criadoPorUid']);
     }
 
-    function activityDriverIsSelfOrAdmin() {
-      return isAdmin()
-        || request.resource.data.get('motorista', {}).get('uid', '') == request.auth.uid;
+    // Saída/Chegada: the driver (motorista) registers their own; mecanico and adm2 register for someone who has motorista.
+    function activityDriverAllowed() {
+      let motoristaUid = request.resource.data.get('motorista', {}).get('uid', '');
+      return (hasEitherPerfil('motorista', 'adm2') && motoristaUid == request.auth.uid)
+        || (hasEitherPerfil('mecanico', 'adm2') && employeeHasCredential(motoristaUid, 'motorista'));
     }
 
     // ---------------------------------------------------------------- fuel V2 (contract: Manuscript 02_PROCESSOS)
     // Snapshot { uid, nome } of an active employee whose name matches funcionarios/{uid}. The app picks the frentista
-    // and the motorista/operador from the active adm1|adm2 list; the Kiosk uses its own employee as frentista.
-    function activeEmployeeSnapshot(value) {
+    // from the frentista list and the motorista/operador from the motorista list (a typed name has uid null); the Kiosk
+    // uses its own employee as frentista.
+    // The snapshot's employee must also hold credential a or b.
+    function activeEmployeeSnapshot(value, a, b) {
       let uid = value is map ? value.get('uid', '') : '';
       let funcionario = nonEmptyString(uid) && exists(/databases/$(database)/documents/funcionarios/$(uid))
         ? get(/databases/$(database)/documents/funcionarios/$(uid)).data
         : {};
+      let perfis = funcionario.get('perfis', {});
       return value is map
         && nonEmptyString(uid)
         && funcionario.get('ativo', false) == true
         && nonEmptyString(value.get('nome', ''))
-        && value.get('nome', '') == funcionario.get('nome', '');
+        && value.get('nome', '') == funcionario.get('nome', '')
+        && (perfis.get(a, false) == true || perfis.get(b, false) == true);
     }
 
     function validFuelMotoristaOperador(data) {
       let motorista = data.get('motoristaOperador', {});
       return motorista is map
         && nonEmptyString(motorista.get('nome', ''))
-        && (motorista.get('uid', null) == null || activeEmployeeSnapshot(motorista));
+        && (motorista.get('uid', null) == null || activeEmployeeSnapshot(motorista, 'motorista', 'motorista'));
     }
 
     function validFuelCriadoPor(data) {
@@ -231,13 +249,14 @@ service cloud.firestore {
         && snapshot.get('local', null) == obra.get('local', null);
     }
 
-    // Saída V2 (any active employee, Kiosk included).
+    // Saída V2 (frentista or adm2, Kiosk included); the frentista snapshot holds frentista or adm2.
     function validFuelV2Create() {
       let data = request.resource.data;
-      return validFuelCriadoPor(data)
+      return hasEitherPerfil('frentista', 'adm2')
+        && validFuelCriadoPor(data)
         && validFuelItemFrotaSnapshot(data)
         && validFuelMotoristaOperador(data)
-        && activeEmployeeSnapshot(data.get('frentista', null))
+        && activeEmployeeSnapshot(data.get('frentista', null), 'frentista', 'adm2')
         && data.get('tipo', '') == 'saida'
         && data.get('schemaVersion', 0) == 2
         && data.get('data', null) is timestamp
@@ -292,7 +311,7 @@ service cloud.firestore {
         && (data.get('motivo', '') != 'Abastecimento de Diesel' || isAdm2())
         && data.get('uid', request.auth.uid) == request.auth.uid
         && data.get('criadoPorUid', request.auth.uid) == request.auth.uid
-        && (isAdmin() || data.get('motoristaUid', request.auth.uid) == request.auth.uid);
+        && (hasEitherPerfil('frentista', 'adm2') || data.get('motoristaUid', request.auth.uid) == request.auth.uid);
     }
 
     function isV2PumpUpdate() {
@@ -327,7 +346,7 @@ service cloud.firestore {
     // profile on adm2 screens and registers FCM tokens under it; close when the app stops.
     match /00-autorizados/{email} {
       allow get: if isSelfEmail(email) || isAdm2();
-      allow list: if isAdm1() || isAdm2();
+      allow list: if isAdm2();
       allow create, update, delete: if false;
 
       match /fcmTokens/{tokenId} {
@@ -412,7 +431,7 @@ service cloud.firestore {
     // Master builders used by the CronoObra planning (document id normalized from the name).
     match /monday-mestres/{mestreId} {
       allow read: if isAuthorized();
-      allow create, update: if isAdm2()
+      allow create, update: if hasEitherPerfil('engenharia', 'adm2')
         && request.resource.data.keys().hasOnly(['nome', 'cor'])
         && nonEmptyString(request.resource.data.nome)
         && request.resource.data.get('cor', '') is string;
@@ -554,7 +573,7 @@ service cloud.firestore {
       // Both clients perform broad administrative/operational listings.
       allow read: if isAuthorized();
 
-      // V2 and migrated activities carry driver and author snapshots; only admins register for another driver.
+      // V2 and migrated activities carry driver and author snapshots; mecanico/adm2 register for another driver.
       allow create: if
         isAuthorized()
         && request.resource.data.get('criadoPorUid', request.auth.uid) == request.auth.uid
@@ -564,20 +583,20 @@ service cloud.firestore {
             && validItemFrotaSnapshot()
             && hasMigratedDriverSnapshot()
             && hasMigratedAuthorSnapshot()
-            && activityDriverIsSelfOrAdmin()
+            && activityDriverAllowed()
           )
           || (
             !isV2VehicleActivity()
             && isMigratedVehicleActivity()
             && hasMigratedDriverSnapshot()
             && hasMigratedAuthorSnapshot()
-            && activityDriverIsSelfOrAdmin()
+            && activityDriverAllowed()
           )
           || (
             !isMigratedVehicleActivity()
             && hasLegacyActivityDriver()
             && hasLegacyActivityShape()
-            && (isAdmin() || legacyActivityTargetsCurrentUser())
+            && (hasEitherPerfil('mecanico', 'adm2') || legacyActivityTargetsCurrentUser())
           )
         );
 
@@ -654,11 +673,11 @@ service cloud.firestore {
     match /bombas/{bombaId} {
       allow read: if isAuthorized();
 
-      // Operational users modify only the shared fuel state.
+      // The frentista modifies only the shared fuel state.
       allow update: if
         isAdm2()
         || (
-          isAuthorized()
+          isFrentista()
           && changedOnly([
             'montanteAtual',
             'estoqueAtual',
@@ -682,7 +701,7 @@ service cloud.firestore {
         isAuthorized()
         && request.resource.data.get('criadoPorUid', request.auth.uid) == request.auth.uid
         && (
-          isAdmin()
+          hasEitherPerfil('frentista', 'adm2')
           || request.resource.data.get('motoristaUid', request.auth.uid) == request.auth.uid
         );
 
@@ -768,10 +787,9 @@ service cloud.firestore {
 
 
     // ================================================================ Friday (/friday)
-    // Gestão interna em quadros. Etapa atual: todo funcionário ativo lê e edita; permissões por área/pasta/quadro
-    // chegam na etapa de credenciais.
+    // Gestão interna em quadros: credencial escritorio (ou adm2). Permissões por área/pasta/quadro chegam depois.
     function fridayAccess() {
-      return employeeExists() && employee().get('ativo', false) == true;
+      return hasEitherPerfil('escritorio', 'adm2');
     }
 
     // Pessoas do Friday: são os funcionários do sistema (funcionarios/{uid}); não há coleção própria.

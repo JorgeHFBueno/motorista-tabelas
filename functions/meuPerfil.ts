@@ -2,6 +2,7 @@ import { FieldValue } from 'firebase-admin/firestore';
 import { HttpsError, onCall } from 'firebase-functions/v2/https';
 import * as logger from 'firebase-functions/logger';
 import { adminAuth, db } from './firebaseAdmin.js';
+import { temAlgumaCredencial } from './credenciais.js';
 
 // The employee changes their own name and login (phone or e-mail) from the WEB "Meu perfil" page.
 // Both copies are updated together: Firebase Auth and funcionarios/{uid} (the Friday reads people from funcionarios).
@@ -49,7 +50,7 @@ export function createMeuPerfilService(store: MeuPerfilStore, agoraSegundos: () 
     const uid = auth.uid;
     if (!uid) throw new HttpsError('unauthenticated', 'Autenticação obrigatória.');
     const funcionario = await store.getEmployee(uid);
-    if (funcionario?.ativo !== true) throw new HttpsError('permission-denied', 'Acesso não autorizado.');
+    if (!temAlgumaCredencial(funcionario)) throw new HttpsError('permission-denied', 'Acesso não autorizado.');
     if (!data || typeof data !== 'object' || Array.isArray(data)) throw new HttpsError('invalid-argument', 'Dados inválidos.');
 
     const input = data as { nome?: unknown; login?: unknown };

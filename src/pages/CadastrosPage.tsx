@@ -93,10 +93,7 @@ export default function CadastrosPage() {
                   Cadastrar
                 </Button>
                 <Button variant="outlined" component={RouterLink} to="/cadastros/editar/usuarios">
-                  Editar
-                </Button>
-                <Button variant="outlined" component={RouterLink} to="/cadastros/usuarios/conciliacao">
-                  Conciliação
+                  Usuários
                 </Button>
                 <Button variant="outlined" component={RouterLink} to="/cadastros/usuarios/kiosk">
                   Credenciais Kiosk

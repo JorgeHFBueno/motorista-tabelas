@@ -1,46 +1,70 @@
 import { getAuth } from 'firebase/auth';
 import { app } from '../firebase';
-import type { Funcionario } from './funcionarios';
+import type { Credenciais } from './credenciais';
+import { descreverLogin, formatarCelular } from './loginIdentifier';
+
+// Usuários da WEB (Cadastros, só adm2), pela Function adminApi. Contrato: The Manuscript, funcionarios.md.
+export type FuncionarioResumo = {
+  nome: string | null;
+  email: string | null;
+  ativo: boolean;
+  credenciais: Credenciais;
+  ultimoAcesso: string | null;
+};
 
 export type AdminUser = {
   uid: string;
   email?: string;
   displayName?: string;
-  providerId?: string;
   createdAt?: string;
   lastLoginAt?: string;
   disabled: boolean;
-  authorization: {
-    exists: boolean;
-    nome?: string | null;
-    adm1: boolean;
-    adm2: boolean;
-    profile: 'Motorista' | 'Adm1' | 'Adm2';
-  };
-  funcionario?: Funcionario | null;
-};
-
-export type CreateAdminUserInput = {
-  email: string;
-  password: string;
-  displayName?: string;
+  // null = conta do login sem funcionário (por exemplo, criada pelo antigo cadastro aberto).
+  funcionario: FuncionarioResumo | null;
 };
 
 export type RegisterAuthorizedUserInput = {
   nome: string;
   email: string;
   password: string;
-  perfil: 'Motorista' | 'Adm1' | 'Adm2';
+  credenciais: Credenciais;
   celular: boolean;
 };
 
 export type UpdateAdminUserInput = {
   uid: string;
-  disabled: boolean;
-  perfil: 'Motorista' | 'Adm1' | 'Adm2';
+  ativo: boolean;
+  credenciais: Credenciais;
 };
 
-const API_BASE = '/api/admin/users';
+// contaExistente: já havia conta com esse login (sem funcionário); a senha dela passou a ser a informada.
+export type RegisterAuthorizedUserResponse = { funcionarioDocumentId: string; contaExistente?: boolean };
+
+export type MigracaoCredenciais = { executado: boolean; funcionarios: number; alterados: number; frentistas: number };
+
+const API_BASE = '/api/admin';
+
+const MENSAGENS: Record<string, string> = {
+  missing_authorization: 'Sua sessão expirou. Faça login novamente.',
+  invalid_token: 'Sua sessão expirou. Faça login novamente.',
+  expired_token: 'Sua sessão expirou. Faça login novamente.',
+  authorization_unavailable: 'Não foi possível verificar sua autorização agora. Tente novamente.',
+  forbidden: 'Seu usuário não tem a credencial adm2 ativa para administrar usuários.',
+  missing_nome: 'Informe o nome.',
+  missing_email: 'Informe um login válido.',
+  missing_password: 'Informe a senha inicial.',
+  invalid_password: 'A senha precisa ter ao menos 6 caracteres.',
+  invalid_credenciais: 'Marque ao menos uma credencial.',
+  invalid_ativo: 'Informe a situação do usuário.',
+  cannot_remove_own_adm2: 'Você não pode tirar a sua própria credencial adm2 nem se desativar.',
+  employee_already_exists: 'Já existe um funcionário com este login.',
+  employee_not_found: 'Esta conta não tem funcionário: cadastre em Novo usuário ou exclua a conta.',
+  employee_exists: 'Funcionário não se exclui: desative-o.',
+  'auth/user-not-found': 'Usuário não encontrado no login do sistema.',
+  'auth/invalid-email': 'O login informado é inválido.',
+  'auth/invalid-password': 'A senha não atende aos requisitos do Firebase.',
+  migration_failed: 'A migração das credenciais falhou. Nada foi confirmado; tente de novo.',
+};
 
 class AdminApiError extends Error {
   status: number;
@@ -54,173 +78,64 @@ class AdminApiError extends Error {
   }
 }
 
-async function getAuthHeaders() {
+async function requestAdminApi<T>(path: string, options: RequestInit = {}, fallback = 'Erro ao processar a solicitação.'): Promise<T> {
   const currentUser = getAuth(app).currentUser;
-
-  if (!currentUser) {
-    throw new Error('Usuario nao autenticado.');
-  }
-
-  const token = await currentUser.getIdToken();
-
-  return {
-    'Content-Type': 'application/json',
-    Authorization: `Bearer ${token}`,
-  };
-}
-
-async function parseErrorCode(response: Response, fallback: string) {
-  try {
-    const data = await response.json();
-    if (typeof data?.error === 'string' && data.error) {
-      return data.error;
-    }
-  } catch {
-    // ignore
-  }
-
-  return fallback;
-}
-
-function mapAdminApiError(code: string, fallback: string) {
-  switch (code) {
-    case 'missing_authorization':
-    case 'invalid_token':
-    case 'expired_token':
-      return 'Sua sessao expirou ou o token de autenticacao e invalido. Faca login novamente.';
-    case 'requester_missing_email':
-      return 'Seu usuario autenticado nao possui email valido para validar permissao.';
-    case 'authorization_unavailable':
-      return 'Não foi possível verificar sua autorização agora. Tente novamente.';
-    case 'forbidden':
-      return 'Seu usuário não possui permissão adm2 ativa em Funcionários para administrar usuários.';
-    default:
-      return fallback;
-  }
-}
-
-async function requestAdminApi(path: string, options: RequestInit = {}, fallback = 'Erro ao processar solicitacao.') {
+  if (!currentUser) throw new Error('Usuário não autenticado.');
   const response = await fetch(`${API_BASE}${path}`, {
     ...options,
-    headers: await getAuthHeaders(),
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${await currentUser.getIdToken()}` },
   });
-
   if (!response.ok) {
-    const code = await parseErrorCode(response, 'request_failed');
-    throw new AdminApiError(response.status, code, mapAdminApiError(code, fallback));
+    let code = 'request_failed';
+    try {
+      const data = await response.json();
+      if (typeof data?.error === 'string' && data.error) code = data.error;
+    } catch {
+      // resposta sem corpo
+    }
+    throw new AdminApiError(response.status, code, MENSAGENS[code] ?? fallback);
   }
-
-  return response;
+  return response.json() as Promise<T>;
 }
 
 export async function listUsers(): Promise<AdminUser[]> {
-  const response = await requestAdminApi('', {}, 'Nao foi possivel carregar usuarios.');
-  const data = await response.json();
-  return data.users ?? data;
+  const data = await requestAdminApi<{ users: AdminUser[] }>('/users', {}, 'Não foi possível carregar os usuários.');
+  return data.users ?? [];
 }
 
-export async function createUser(input: CreateAdminUserInput): Promise<AdminUser> {
-  const response = await requestAdminApi('', {
-    method: 'POST',
-    body: JSON.stringify(input),
-  }, 'Erro ao criar usuario.');
-  const data = await response.json();
-  return data.user ?? data;
-}
-
-export async function deleteUser(uid: string): Promise<void> {
-  await requestAdminApi(`/${uid}`, {
-    method: 'DELETE',
-  }, 'Erro ao excluir usuario.');
-}
-
-function mapUpdateError(errorCode: string) {
-  switch (errorCode) {
-    case 'missing_authorization':
-    case 'invalid_token':
-    case 'expired_token':
-      return 'Sua sessao expirou ou o token de autenticacao e invalido. Faca login novamente.';
-    case 'requester_missing_email':
-      return 'Seu usuario autenticado nao possui email valido para validar permissao.';
-    case 'authorization_unavailable':
-      return 'Não foi possível verificar sua autorização agora. Tente novamente.';
-    case 'missing_email':
-      return 'O usuario precisa ter um email para sincronizar a autorizacao.';
-    case 'invalid_disabled':
-      return 'Informe um status valido para o usuario.';
-    case 'invalid_perfil':
-      return 'Selecione um perfil valido.';
-    case 'auth/user-not-found':
-      return 'Usuario nao encontrado no Firebase Authentication.';
-    case 'forbidden':
-      return 'Voce nao tem permissao para editar usuarios.';
-    default:
-      return 'Erro ao atualizar usuario.';
-  }
+export function registerAuthorizedUser(input: RegisterAuthorizedUserInput) {
+  return requestAdminApi<RegisterAuthorizedUserResponse>('/users/register', { method: 'POST', body: JSON.stringify(input) }, 'Erro ao cadastrar o usuário.');
 }
 
 export async function updateUser(input: UpdateAdminUserInput): Promise<AdminUser> {
-  const response = await fetch(`${API_BASE}/${input.uid}`, {
+  const data = await requestAdminApi<{ user: AdminUser }>(`/users/${encodeURIComponent(input.uid)}`, {
     method: 'PATCH',
-    headers: await getAuthHeaders(),
-    body: JSON.stringify({
-      disabled: input.disabled,
-      perfil: input.perfil,
-    }),
-  });
-
-  if (!response.ok) {
-    throw new Error(mapUpdateError(await parseErrorCode(response, 'update_user_failed')));
-  }
-
-  const data = await response.json();
-  return data.user ?? data;
+    body: JSON.stringify({ ativo: input.ativo, credenciais: input.credenciais }),
+  }, 'Erro ao atualizar o usuário.');
+  return data.user;
 }
 
-function mapRegisterError(errorCode: string) {
-  switch (errorCode) {
-    case 'missing_authorization':
-    case 'invalid_token':
-    case 'expired_token':
-      return 'Sua sessao expirou ou o token de autenticacao e invalido. Faca login novamente.';
-    case 'requester_missing_email':
-      return 'Seu usuario autenticado nao possui email valido para validar permissao.';
-    case 'authorization_unavailable':
-      return 'Não foi possível verificar sua autorização agora. Tente novamente.';
-    case 'missing_nome':
-      return 'Informe o nome.';
-    case 'missing_email':
-      return 'Informe um email valido.';
-    case 'missing_password':
-      return 'Informe a senha inicial.';
-    case 'invalid_perfil':
-      return 'Selecione um perfil valido.';
-    case 'auth/email-already-exists':
-      return 'Ja existe um usuario com este email.';
-    case 'auth/invalid-email':
-      return 'O email informado e invalido.';
-    case 'auth/invalid-password':
-      return 'A senha inicial nao atende aos requisitos do Firebase.';
-    case 'forbidden':
-      return 'Voce nao tem permissao para cadastrar usuarios.';
-    default:
-      return 'Erro ao cadastrar usuario.';
-  }
+/** Senha nova definida pelo adm2; as sessões abertas da conta são encerradas. */
+export async function definirSenha(uid: string, password: string): Promise<void> {
+  await requestAdminApi(`/users/${encodeURIComponent(uid)}/senha`, { method: 'POST', body: JSON.stringify({ password }) }, 'Erro ao definir a senha.');
 }
 
-// contaExistente: já havia conta com esse login (sem funcionário); a senha dela passou a ser a informada.
-export type RegisterAuthorizedUserResponse = { funcionarioDocumentId: string; contaExistente?: boolean };
+/** Só contas sem funcionário (funcionário se desativa). */
+export async function deleteUser(uid: string): Promise<void> {
+  await requestAdminApi(`/users/${encodeURIComponent(uid)}`, { method: 'DELETE' }, 'Erro ao excluir a conta.');
+}
 
-export async function registerAuthorizedUser(input: RegisterAuthorizedUserInput): Promise<RegisterAuthorizedUserResponse> {
-  const response = await fetch(`${API_BASE}/register`, {
-    method: 'POST',
-    headers: await getAuthHeaders(),
-    body: JSON.stringify(input),
-  });
+/** Migração da troca: frentista a partir de adm1; adm1 e user saem. executar=false só conta. */
+export function migrarCredenciais(executar: boolean) {
+  return requestAdminApi<MigracaoCredenciais>('/manutencao/credenciais', { method: 'POST', body: JSON.stringify({ executar }) }, 'Erro na migração das credenciais.');
+}
 
-  if (!response.ok) {
-    throw new Error(mapRegisterError(await parseErrorCode(response, 'register_user_failed')));
-  }
+export function nomeDoUsuario(user: AdminUser) {
+  return user.funcionario?.nome?.trim() || user.displayName?.trim() || user.email?.split('@')[0] || user.uid;
+}
 
-  return response.json();
+/** Login em texto: celular formatado ou o e-mail. */
+export function loginDoUsuario(user: AdminUser) {
+  const login = descreverLogin(user.email);
+  return login.tipo === 'celular' ? `Celular ${formatarCelular(login.valor)}` : login.valor || '—';
 }

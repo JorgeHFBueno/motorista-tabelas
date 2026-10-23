@@ -3,6 +3,8 @@ import { useLocation, useNavigate } from 'react-router-dom';
 
 const reasonMessages: Record<string, string> = {
   'missing-admin': 'Seu usuário não possui um perfil administrativo ativo em Funcionários para acessar esta área.',
+  'sem-credencial': 'Seu cadastro não tem nenhuma credencial. Peça à administração para liberar o seu acesso.',
+  'sem-acesso-area': 'Sua credencial não dá acesso a esta área. Use o menu para ver o que está liberado para você.',
   'missing-funcionario': 'Seu usuário não possui cadastro em Funcionários.',
   inactive: 'Seu cadastro em Funcionários está inativo.',
   'firestore-error':

@@ -4,15 +4,15 @@ import test from 'node:test';
 
 const source = (path: string) => readFileSync(path, 'utf8');
 
-test('menu Engenharia disponibiliza Obras e Cronograma apenas para adm2', () => {
+test('menu Engenharia disponibiliza Obras e Cronograma para a credencial engenharia (adm2 entra em tudo)', () => {
   const menu = source('src/components/menuPrincipal.tsx');
   const home = source('src/pages/HomeDashboard.tsx');
 
   assert.match(menu, /label: 'Engenharia'/);
-  assert.match(menu, /requiresAdm2: true/);
+  assert.match(menu, /acesso: 'engenharia'/);
   assert.match(menu, /label: 'Obras', to: '\/engenharia\/obras'/);
   assert.match(menu, /label: 'Cronograma', to: '\/engenharia\/cronograma'/);
-  assert.match(menu, /if \(action\.requiresAdm2\) return isAdm2/);
+  assert.match(menu, /return temCredencial\(profile, item\.acesso\)/);
   assert.match(menu, /CalendarMonthIcon/);
   assert.match(menu, /ConstructionIcon/);
   assert.match(home, /<Collapse in=\{expandedGroup === action\.label\}/);
@@ -40,7 +40,7 @@ test('menu lateral abre pelo cabeçalho fora da Home e preserva acessibilidade',
   assert.match(lateral, /<Drawer anchor="left" open=\{open\}/);
   assert.match(lateral, /aria-label="Menu principal"/);
   assert.match(lateral, /aria-expanded=\{hasChildren \? expanded : undefined\}/);
-  assert.match(lateral, /destinoCombustivel\(isAdm2\)/);
+  assert.match(lateral, /filtrarMenuPrincipal\(profile\)/);
   assert.match(lateral, /aria-current=\{isActiveRoute\(child\.to\) \? 'page' : undefined\}/);
 });
 

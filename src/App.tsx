@@ -3,8 +3,7 @@ import { Suspense, lazy } from 'react';
 import './App.css';
 import Header from './components/Header';
 import PrivateRoute from './components/PrivateRoute';
-import EmployeeRoute from './components/EmployeeRoute';
-import CombustivelRouteGuard from './components/CombustivelRouteGuard';
+import { temCredencial } from './services/credenciais';
 import NetworkStatusBanner from './components/NetworkStatusBanner';
 import PwaUpdateBanner from './components/PwaUpdateBanner';
 import PwaUpdateOverlay from './components/PwaUpdateOverlay';
@@ -18,7 +17,6 @@ const LoginPage = lazy(() => import('./pages/LoginPage'));
 const CadastrosPage = lazy(() => import('./pages/CadastrosPage'));
 const CadastroVeiculoNovoPage = lazy(() => import('./pages/CadastroVeiculoNovoPage'));
 const CadastroUsuarioNovoPage = lazy(() => import('./pages/CadastroUsuarioNovoPage'));
-const CadastroUsuariosConciliacaoPage = lazy(() => import('./pages/CadastroUsuariosConciliacaoPage'));
 const KioskCredentialsPage = lazy(() => import('./pages/KioskCredentialsPage'));
 const CadastrosEditarPage = lazy(() => import('./pages/CadastrosEditarPage'));
 const RegistrosPage = lazy(() => import('./pages/RegistrosPage'));
@@ -60,21 +58,29 @@ export default function App() {
           {/* Cadastro aberto retirado (2026-10-22): usuários nascem só em Cadastros. Endereço antigo leva ao login. */}
           <Route path="signup" element={<Navigate to="/login" replace />} />
           <Route path="acesso-negado" element={<AccessDeniedPage />} />
-          <Route element={<EmployeeRoute />}>
-            <Route path="the-manuscript/*" element={<TheManuscriptPage />} />
-            <Route path="friday/*" element={<FridayApp />} />
+          {/* Credenciais (The Manuscript, funcionarios.md): qualquer credencial entra na Home reduzida e no Meu perfil;
+              cada área confere a sua; o resto é só adm2. */}
+          <Route element={<PrivateRoute permite={() => true} />}>
+            <Route index element={<HomeDashboard />} />
             <Route path="perfil" element={<MeuPerfilPage />} />
           </Route>
+          <Route element={<PrivateRoute permite={(p) => temCredencial(p, 'escritorio')} />}>
+            <Route path="friday/*" element={<FridayApp />} />
+          </Route>
+          <Route element={<PrivateRoute permite={(p) => temCredencial(p, 'engenharia')} />}>
+            <Route path="engenharia/cronograma" element={<CronogramaObrasPage />} />
+            <Route path="engenharia/obras" element={<EngenhariaObrasPage />} />
+            <Route path="engenharia/prazos" element={<PrazosContratuaisPage />} />
+          </Route>
           <Route element={<PrivateRoute />}>
-            <Route index element={<HomeDashboard />} />
-            <Route element={<CombustivelRouteGuard />}>
-              <Route path="combustivel" element={<TabelaCombustivel />} />
-              <Route path="combustivel/novo" element={<CombustivelNovoPage />} />
-              <Route path="combustivel/*" element={<Navigate to="/combustivel" replace />} />
-            </Route>
+            <Route path="the-manuscript/*" element={<TheManuscriptPage />} />
+            <Route path="combustivel" element={<TabelaCombustivel />} />
+            <Route path="combustivel/novo" element={<CombustivelNovoPage />} />
+            <Route path="combustivel/*" element={<Navigate to="/combustivel" replace />} />
             <Route path="cadastros" element={<CadastrosPage />} />
             <Route path="cadastros/usuarios/novo" element={<CadastroUsuarioNovoPage />} />
-            <Route path="cadastros/usuarios/conciliacao" element={<CadastroUsuariosConciliacaoPage />} />
+            {/* Conciliação com motoristas retirada (credenciais, 2026-10-23); contas sem funcionário ficam em Usuários. */}
+            <Route path="cadastros/usuarios/conciliacao" element={<Navigate to="/cadastros/editar/usuarios" replace />} />
             <Route path="cadastros/usuarios/kiosk" element={<KioskCredentialsPage />} />
             <Route path="cadastros/veiculos/novo" element={<CadastroVeiculoNovoPage />} />
             <Route path="cadastros/editar/:tipo" element={<CadastrosEditarPage />} />
@@ -85,9 +91,6 @@ export default function App() {
             <Route path="frota/:placa" element={<FrotaVeiculoDetalhesPage />} />
             <Route path="bombas" element={<BombasPage />} />
             <Route path="portfolio" element={<PortifolioPage />} />
-            <Route path="engenharia/cronograma" element={<CronogramaObrasPage />} />
-            <Route path="engenharia/obras" element={<EngenhariaObrasPage />} />
-            <Route path="engenharia/prazos" element={<PrazosContratuaisPage />} />
           </Route>
         </Routes>
       </Suspense>

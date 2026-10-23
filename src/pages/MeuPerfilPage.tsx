@@ -208,13 +208,13 @@ export default function MeuPerfilPage() {
               <Box>
                 <Stack direction="row" spacing={0.75} alignItems="center">
                   <LockOutlinedIcon fontSize="small" color="action" />
-                  <Typography variant="caption" color="text.secondary">Nível administrativo</Typography>
+                  <Typography variant="caption" color="text.secondary">Credenciais</Typography>
                 </Stack>
                 <Stack direction="row" spacing={1} useFlexGap flexWrap="wrap" sx={{ mt: 0.75 }}>
                   {perfis.length ? perfis.map((perfil) => <Chip key={perfil} label={perfil} />) : <Typography>Nenhum perfil</Typography>}
                 </Stack>
               </Box>
-              <Alert severity="info">Situação, nível administrativo e os demais dados são mantidos pela administração, em Cadastros.</Alert>
+              <Alert severity="info">Situação, credenciais e os demais dados são mantidos pela administração, em Cadastros.</Alert>
             </Stack>
           )}
         </Paper>

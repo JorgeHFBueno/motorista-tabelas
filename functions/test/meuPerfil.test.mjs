@@ -10,7 +10,8 @@ function rejectsCode(action, code) {
 
 function fixture({ saveFails = false, emailInUse = false } = {}) {
   const employees = new Map([
-    ['ativo', { ativo: true, nome: 'Jorge Bueno', email: '991662971@example.com' }],
+    ['ativo', { ativo: true, perfis: { motorista: true }, nome: 'Jorge Bueno', email: '991662971@example.com' }],
+    ['semCredencial', { ativo: true, perfis: { adm1: true, user: true }, nome: 'Sem credencial' }],
     ['inativo', { ativo: false, nome: 'Fulano' }],
   ]);
   const authUsers = new Map([['ativo', { email: '991662971@example.com', displayName: 'Jorge Bueno' }]]);
@@ -78,6 +79,7 @@ test('refuses missing, inactive or invalid requests', async () => {
   const { service, authUpdates } = fixture();
   await rejectsCode(service({}, { nome: 'Jorge' }), 'unauthenticated');
   await rejectsCode(service({ uid: 'inativo' }, { nome: 'Jorge' }), 'permission-denied');
+  await rejectsCode(service({ uid: 'semCredencial' }, { nome: 'Jorge' }), 'permission-denied');
   await rejectsCode(service({ uid: 'ausente' }, { nome: 'Jorge' }), 'permission-denied');
   for (const data of [null, [], 'x', { nome: 'Jo' }, { login: { tipo: 'email', valor: 'x' } }]) {
     await rejectsCode(service(recente, data), 'invalid-argument');

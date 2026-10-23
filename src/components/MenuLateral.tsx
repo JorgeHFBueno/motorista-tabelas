@@ -4,16 +4,13 @@ import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import { useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useAuthorizationProfile } from '../hooks/useAuthorizationProfile';
-import { useAdm1MontanteGate } from '../hooks/useAdm1MontanteGate';
-import { destinoCombustivel, filtrarMenuPrincipal } from './menuPrincipal';
+import { filtrarMenuPrincipal } from './menuPrincipal';
 
 // Menu lateral das páginas internas, aberto pelo botão de menu do cabeçalho.
 export default function MenuLateral({ open, onClose }: { open: boolean; onClose: () => void }) {
   const navigate = useNavigate();
   const location = useLocation();
   const { profile } = useAuthorizationProfile();
-  const isAdm2 = profile?.adm2 === true;
-  const { requestAccess, dialog } = useAdm1MontanteGate(profile?.adm1 === true);
   const [expandedGroup, setExpandedGroup] = useState<string | null>(null);
   const actions = filtrarMenuPrincipal(profile);
 
@@ -39,16 +36,11 @@ export default function MenuLateral({ open, onClose }: { open: boolean; onClose:
             {actions.map((action) => {
               const hasChildren = Boolean(action.children);
               const childIsActive = action.children?.some((child) => isActiveRoute(child.to)) ?? false;
-              const destino = action.label === 'Combustível' ? destinoCombustivel(isAdm2) : action.to!;
+              const destino = action.to ?? '';
               const expanded = expandedGroup === action.label || childIsActive;
               const selecionar = () => {
                 if (hasChildren) {
                   setExpandedGroup((current) => (current === action.label ? null : action.label));
-                  return;
-                }
-                if (destino === '/combustivel/novo') {
-                  onClose();
-                  requestAccess(() => navigate(destino));
                   return;
                 }
                 ir(destino);
@@ -79,7 +71,6 @@ export default function MenuLateral({ open, onClose }: { open: boolean; onClose:
           </List>
         </Box>
       </Drawer>
-      {dialog}
     </>
   );
 }

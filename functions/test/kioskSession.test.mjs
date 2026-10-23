@@ -9,7 +9,7 @@ function rejectsCode(action, code) {
 }
 
 function sessionFixture() {
-  const employees = new Map([['active', { ativo: true }], ['inactive', { ativo: false }]]);
+  const employees = new Map([['active', { ativo: true, perfis: { frentista: true } }], ['inactive', { ativo: false, perfis: { frentista: true } }], ['motorista', { ativo: true, perfis: { motorista: true } }]]);
   const audits = [];
   const service = createKioskSessionService({
     async getEmployee(uid) { return employees.get(uid); },
@@ -33,6 +33,7 @@ test('kioskSessionEvent requires an active employee and a known event', async ()
   const { service, audits } = sessionFixture();
   await rejectsCode(service(undefined, { event: 'KIOSK_SESSION_COMPLETED' }), 'unauthenticated');
   await rejectsCode(service('inactive', { event: 'KIOSK_SESSION_COMPLETED' }), 'unauthenticated');
+  await rejectsCode(service('motorista', { event: 'KIOSK_SESSION_COMPLETED' }), 'unauthenticated');
   await rejectsCode(service('missing', { event: 'KIOSK_SESSION_COMPLETED' }), 'unauthenticated');
   for (const data of [null, [], 'x', { event: 'KIOSK_SESSION_STARTED' }, {}]) {
     await rejectsCode(service('active', data), 'invalid-argument');
@@ -44,7 +45,7 @@ function adminPinFixture() {
   const employees = new Map([
     ['adm2', { ativo: true, perfis: { adm2: true } }],
     ['inactiveAdm2', { ativo: false, perfis: { adm2: true } }],
-    ['common', { ativo: true, perfis: { adm1: true } }],
+    ['common', { ativo: true, perfis: { frentista: true } }],
   ]);
   const credentials = [];
   const audits = [];

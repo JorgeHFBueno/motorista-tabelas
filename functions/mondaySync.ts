@@ -1,7 +1,7 @@
 import express from 'express';
 import cors from 'cors';
 import { db } from './firebaseAdmin.js';
-import { adminAuthMiddleware, type AdminRequest } from './adminAuth.js';
+import { adminAuthMiddleware, credencialAuthMiddleware, type AdminRequest } from './adminAuth.js';
 import { mondayApiToken, MONDAY_API_VERSION, queryMonday } from './mondayClient.js';
 import { buildMondayManagedPatch, normalizeMondayParent, projectMondayParentToFirestore } from './mondayProjector.js';
 
@@ -110,7 +110,7 @@ export function createMondaySyncApp(options: { authMiddleware?: SyncAuthMiddlewa
   const app = express();
   app.use(cors({ origin: true }));
   app.use(express.json());
-  app.use(options.authMiddleware ?? adminAuthMiddleware);
+  app.use(options.authMiddleware ?? credencialAuthMiddleware('engenharia'));
   const handler = async (req: AdminRequest, res: express.Response) => {
     const mode = req.body?.mode === 'apply' ? 'apply' : req.body?.mode === 'dry-run' ? 'dry-run' : null;
     if (!mode) { res.status(400).json({ error: 'invalid_mode' }); return; }

@@ -12,12 +12,13 @@ function fixture() {
     ['admin', { ativo: true, perfis: { adm2: true }, nome: 'Admin' }],
     ['common', { ativo: true, perfis: {}, nome: 'Common' }],
     ['inactiveAdmin', { ativo: false, perfis: { adm2: true } }],
-    ['target', { ativo: true, nome: 'Target' }],
-    ['inactiveTarget', { ativo: false, nome: 'Inactive' }],
-    ['JEFERSON_O.M', { ativo: true, nome: 'Jeferson' }],
-    ['JORGE_H.F.B', { ativo: true, nome: 'Jorge' }],
-    ['ALINE_B.S', { ativo: true, nome: 'Aline' }],
-    ['Mixed_Case.Uid', { ativo: true, nome: 'Mixed case' }],
+    ['target', { ativo: true, perfis: { frentista: true }, nome: 'Target' }],
+    ['inactiveTarget', { ativo: false, perfis: { frentista: true }, nome: 'Inactive' }],
+    ['motoristaOnly', { ativo: true, perfis: { motorista: true }, nome: 'Motorista' }],
+    ['JEFERSON_O.M', { ativo: true, perfis: { frentista: true }, nome: 'Jeferson' }],
+    ['JORGE_H.F.B', { ativo: true, perfis: { frentista: true }, nome: 'Jorge' }],
+    ['ALINE_B.S', { ativo: true, perfis: { frentista: true }, nome: 'Aline' }],
+    ['Mixed_Case.Uid', { ativo: true, perfis: { frentista: true }, nome: 'Mixed case' }],
   ]);
   const credentials = new Map();
   const audits = [];
@@ -46,6 +47,7 @@ test('provision validates targets, creates a 256-bit payload, hashes only its to
   credentials.set('target', { pinHash: 'existing-pin', pinEnabled: true, extra: 'kept' });
   await errorCode(() => service.provision('admin', { uid: 'missing' }));
   await errorCode(() => service.provision('admin', { uid: 'inactiveTarget' }));
+  await errorCode(() => service.provision('admin', { uid: 'motoristaOnly' }));
   const first = await service.provision('admin', { uid: 'target' });
   const token = first.qrPayload.slice('LEDUR-KIOSK:1:'.length);
   const stored = credentials.get('target');

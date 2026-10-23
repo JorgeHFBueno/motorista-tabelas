@@ -6,8 +6,9 @@ import {
   type FuncionarioDocument,
 } from '../src/services/authorizationProfileCore';
 import { resolveAuthorizationSession } from '../src/services/authorizationSession';
-import { isAdm1Only, isAdm2Authorized, isWebAdminAuthorized } from '../src/services/webAuthorization';
-import { isAdm1RouteRestricted } from '../src/services/adm1RouteAuthorization';
+import { isAdm2Authorized } from '../src/services/webAuthorization';
+import { temAlgumaCredencial, temCredencial } from '../src/services/credenciais';
+import { isKioskCredentialEligible } from '../src/services/kioskCredentialEligibility';
 
 function document(id: string, data?: Record<string, unknown>): FuncionarioDocument {
   return {
@@ -17,62 +18,55 @@ function document(id: string, data?: Record<string, unknown>): FuncionarioDocume
   };
 }
 
-function canonicalData(input: {
-  ativo?: boolean;
-  adm1?: boolean;
-  adm2?: boolean;
-  user?: boolean;
-  motorista?: boolean;
-} = {}) {
-  return {
-    nome: 'Funcionário',
-    ativo: input.ativo === true,
-    perfis: {
-      adm1: input.adm1 === true,
-      adm2: input.adm2 === true,
-      user: input.user === true,
-      motorista: input.motorista === true,
-    },
-  };
+function canonicalData(ativo: boolean, perfis: Record<string, unknown> = {}) {
+  return { nome: 'Funcionário', ativo, perfis };
 }
 
 async function load(data?: Record<string, unknown>) {
   return createAuthorizationProfileReader(async (uid) => document(uid, data))('uid');
 }
 
-test('canonical active adm1 and adm2 profiles follow existing Web route rules', async () => {
-  const adm1 = await load(canonicalData({ ativo: true, adm1: true }));
-  const adm2 = await load(canonicalData({ ativo: true, adm2: true }));
+test('credentials: each WEB area checks its own and adm2 enters everything (credenciais 2026-10-23)', async () => {
+  const adm2 = await load(canonicalData(true, { adm2: true }));
+  const escritorio = await load(canonicalData(true, { escritorio: true }));
+  const engenharia = await load(canonicalData(true, { engenharia: true }));
+  const motorista = await load(canonicalData(true, { motorista: true }));
 
-  assert.equal(isWebAdminAuthorized(adm1), true);
-  assert.equal(isAdm1Only(adm1), true);
-  assert.equal(isAdm1RouteRestricted('/', isAdm1Only(adm1)), false);
-  assert.equal(isAdm1RouteRestricted('/combustivel/novo', isAdm1Only(adm1)), false);
-  assert.equal(isAdm1RouteRestricted('/cadastros', isAdm1Only(adm1)), true);
-
-  assert.equal(isWebAdminAuthorized(adm2), true);
   assert.equal(isAdm2Authorized(adm2), true);
-  assert.equal(isAdm1RouteRestricted('/cadastros', isAdm1Only(adm2)), false);
+  assert.equal(temCredencial(adm2, 'escritorio'), true);
+  assert.equal(temCredencial(adm2, 'engenharia'), true);
+
+  assert.equal(temCredencial(escritorio, 'escritorio'), true);
+  assert.equal(temCredencial(escritorio, 'engenharia'), false);
+  assert.equal(temCredencial(escritorio), false, 'without accepted credentials, only adm2');
+  assert.equal(isAdm2Authorized(escritorio), false);
+
+  assert.equal(temCredencial(engenharia, 'engenharia'), true);
+  assert.equal(temCredencial(engenharia, 'escritorio'), false);
+
+  // App-only credentials still enter the WEB (Meu perfil), but no area.
+  assert.equal(temAlgumaCredencial(motorista), true);
+  assert.equal(temCredencial(motorista, 'escritorio', 'engenharia'), false);
 });
 
-test('user-only, motorista-only, inactive, and missing funcionarios are denied', async () => {
-  const user = await load(canonicalData({ ativo: true, user: true }));
-  const motorista = await load(canonicalData({ ativo: true, motorista: true }));
-  const inactive = await load(canonicalData({ adm2: true }));
+test('adm1, user, inactive and missing funcionarios have no WEB entry', async () => {
+  const adm1 = await load(canonicalData(true, { adm1: true, user: true }));
+  const inactive = await load(canonicalData(false, { adm2: true }));
   const missing = await load();
 
-  assert.equal(isWebAdminAuthorized(user), false);
-  assert.equal(isWebAdminAuthorized(motorista), false);
-  assert.equal(isWebAdminAuthorized(inactive), false);
-  assert.equal(isWebAdminAuthorized(missing), false);
+  assert.equal(temAlgumaCredencial(adm1), false, 'adm1 and user are no longer read');
+  assert.equal(isAdm2Authorized(adm1), false);
+  assert.equal(temAlgumaCredencial(inactive), false);
+  assert.equal(isAdm2Authorized(inactive), false);
+  assert.equal(temAlgumaCredencial(missing), false);
   assert.equal(missing.exists, false);
 });
 
 test('legacy authorization never grants or overrides canonical permission', async () => {
   const legacy = { ativo: true, adm2: true };
   const noFuncionario = await load();
-  const canonicalDenied = await load(canonicalData({ ativo: true, adm2: false }));
-  const canonicalAllowed = await load(canonicalData({ ativo: true, adm2: true }));
+  const canonicalDenied = await load(canonicalData(true, { adm2: false }));
+  const canonicalAllowed = await load(canonicalData(true, { adm2: true }));
 
   assert.equal(legacy.adm2, true);
   assert.equal(isAdm2Authorized(noFuncionario), false);
@@ -84,7 +78,7 @@ test('reader uses Firebase Auth UID literally and preserves dots, underscores, a
   const calls: string[] = [];
   const reader = createAuthorizationProfileReader(async (uid) => {
     calls.push(uid);
-    return document(uid, canonicalData({ ativo: true, adm2: true }));
+    return document(uid, canonicalData(true, { adm2: true }));
   });
   const uid = 'JORGE_H.F.B';
   const profile = await reader(uid);
@@ -100,7 +94,7 @@ test('funcionarios read errors remain technical errors', async () => {
 });
 
 test('authorization loading does not expose denial or a previous user profile', async () => {
-  const profileA = await load(canonicalData({ ativo: true, adm2: true }));
+  const profileA = await load(canonicalData(true, { adm2: true }));
   const stateA = { uid: 'user-A', loading: false, profile: profileA, error: null };
 
   const whileAuthLoads = resolveAuthorizationSession('user-A', true, stateA);
@@ -115,27 +109,24 @@ test('authorization loading does not expose denial or a previous user profile', 
   assert.deepEqual(loggedOut, { uid: null, loading: false, profile: null, error: null });
 });
 
-test('/cadastros follows adm2 policy and Kiosk requires active adm2', async () => {
-  const adm1 = await load(canonicalData({ ativo: true, adm1: true }));
-  const adm2 = await load(canonicalData({ ativo: true, adm2: true }));
-  const both = await load(canonicalData({ ativo: true, adm1: true, adm2: true }));
-
-  assert.equal(isAdm1RouteRestricted('/cadastros', isAdm1Only(adm1)), true);
-  assert.equal(isAdm1RouteRestricted('/cadastros', isAdm1Only(adm2)), false);
-  assert.equal(isAdm2Authorized(adm1), false);
-  assert.equal(isAdm2Authorized(adm2), true);
-  assert.equal(isAdm2Authorized(both), true);
+test('Kiosk credentials are for active frentista or adm2', () => {
+  const user = (ativo: boolean, credenciais: Record<string, boolean>) => ({ uid: 'u', funcionario: { ativo, credenciais } });
+  assert.equal(isKioskCredentialEligible(user(true, { frentista: true })), true);
+  assert.equal(isKioskCredentialEligible(user(true, { adm2: true })), true);
+  assert.equal(isKioskCredentialEligible(user(true, { motorista: true })), false);
+  assert.equal(isKioskCredentialEligible(user(false, { frentista: true })), false);
+  assert.equal(isKioskCredentialEligible({ uid: 'u', funcionario: null }), false);
 });
 
 test('profile fields are interpreted strictly as boolean true', async () => {
   const profile = await load({
     nome: 'Strict',
     ativo: 1,
-    perfis: { adm1: 'true', adm2: 1, user: true, motorista: false },
+    perfis: { adm2: 1, frentista: 'true', motorista: true, escritorio: true },
   });
   assert.deepEqual(
-    { ativo: profile.ativo, adm1: profile.adm1, adm2: profile.adm2, user: profile.user, motorista: profile.motorista },
-    { ativo: false, adm1: false, adm2: false, user: true, motorista: false },
+    { ativo: profile.ativo, adm2: profile.adm2, frentista: profile.frentista, motorista: profile.motorista, escritorio: profile.escritorio },
+    { ativo: false, adm2: false, frentista: false, motorista: true, escritorio: true },
   );
 });
 

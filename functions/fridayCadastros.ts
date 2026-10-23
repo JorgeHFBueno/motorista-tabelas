@@ -3,6 +3,7 @@ import * as logger from 'firebase-functions/logger';
 import { FieldPath, FieldValue, Timestamp } from 'firebase-admin/firestore';
 import { db } from './firebaseAdmin.js';
 import { exigirAdm2 } from './fridayMondayImport.js';
+import { temCredencial } from './credenciais.js';
 import { dataLocal, novoId, prefixosBusca } from './fridayMondayConverter.js';
 import {
   acrescentarRotulosDeTexto, analisar, CADASTROS_EXISTENTES, cadastroExistente, caminhoDaMarca, chaveDoExistente, conciliacaoLiberada, gravarCaminho, lerCaminho, montarCamposExistente,
@@ -128,11 +129,11 @@ export const fridayCadastroPromover = onCall({ region: REGIAO, timeoutSeconds: 5
 });
 
 // ---------------------------------------------------------------- C2: gravação do quadro oficial
-/** Funcionário ativo (mesma política do restante do Friday até a etapa de credenciais). */
+/** Quem usa o Friday: credencial escritorio (ou adm2), como nas Rules `friday-*`. */
 async function exigirFuncionarioAtivo(uid: string | undefined): Promise<string> {
   if (!uid) throw new HttpsError('unauthenticated', 'Autenticação obrigatória.');
   const f = await db.collection('funcionarios').doc(uid).get();
-  if (!f.exists || f.data()?.ativo !== true) throw new HttpsError('permission-denied', 'Acesso não autorizado.');
+  if (!temCredencial(f.data(), 'escritorio')) throw new HttpsError('permission-denied', 'Acesso não autorizado.');
   return uid;
 }
 

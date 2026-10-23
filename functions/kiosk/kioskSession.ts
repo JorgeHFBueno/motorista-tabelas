@@ -1,4 +1,5 @@
 import { FieldValue } from 'firebase-admin/firestore';
+import { temCredencial } from '../credenciais.js';
 import { HttpsError, onCall } from 'firebase-functions/v2/https';
 import { db } from '../firebaseAdmin.js';
 
@@ -15,7 +16,7 @@ export interface KioskSessionStore {
 export function createKioskSessionService(store: KioskSessionStore) {
   return async (authUid: string | undefined, data: unknown): Promise<{ ok: true }> => {
     const employee = authUid ? await store.getEmployee(authUid) : undefined;
-    if (!authUid || !employee || employee.ativo !== true) {
+    if (!authUid || !temCredencial(employee, 'frentista')) {
       throw new HttpsError('unauthenticated', 'Sessão inválida.');
     }
     if (!data || typeof data !== 'object' || Array.isArray(data)) {

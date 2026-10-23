@@ -8,31 +8,30 @@ import {
   Container,
   FormControl,
   FormControlLabel,
+  FormGroup,
+  FormHelperText,
   FormLabel,
   Paper,
-  Radio,
-  RadioGroup,
   Stack,
   TextField,
   Typography,
 } from '@mui/material';
 import useAdminUsers from '../hooks/useAdminUsers';
-
-type PerfilUsuario = 'Motorista' | 'Adm1' | 'Adm2';
+import { CREDENCIAIS, semCredenciais, type Credencial, type Credenciais } from '../services/credenciais';
 
 type UsuarioFormState = {
   nome: string;
   email: string;
   celular: boolean;
   password: string;
-  perfil: PerfilUsuario | '';
+  credenciais: Credenciais;
 };
 
 type UsuarioFormErrors = {
   nome?: string;
   email?: string;
   password?: string;
-  perfil?: string;
+  credenciais?: string;
 };
 
 const DEFAULT_FORM: UsuarioFormState = {
@@ -40,7 +39,7 @@ const DEFAULT_FORM: UsuarioFormState = {
   email: '',
   celular: false,
   password: '',
-  perfil: '',
+  credenciais: semCredenciais(),
 };
 
 function normalizeEmailInput(value: string, celular: boolean) {
@@ -77,8 +76,8 @@ function validateForm(form: UsuarioFormState) {
     errors.password = 'Informe a senha inicial.';
   }
 
-  if (!form.perfil) {
-    errors.perfil = 'Selecione um perfil.';
+  if (!Object.values(form.credenciais).some(Boolean)) {
+    errors.credenciais = 'Marque ao menos uma credencial.';
   }
 
   return errors;
@@ -114,7 +113,7 @@ export default function CadastroUsuarioNovoPage() {
         nome: form.nome.trim(),
         email: form.email.trim(),
         password: form.password.trim(),
-        perfil: form.perfil as PerfilUsuario,
+        credenciais: form.credenciais,
         celular: form.celular,
       });
       // Conta que já existia: a tela fica aberta com o aviso, para a administração avisar a pessoa da senha.
@@ -221,32 +220,29 @@ export default function CadastroUsuarioNovoPage() {
               helperText={errors.password}
             />
 
-            <FormControl error={Boolean(errors.perfil)}>
-              <FormLabel id="perfil-usuario-label">Perfil</FormLabel>
-              <RadioGroup
-                row
-                aria-labelledby="perfil-usuario-label"
-                value={form.perfil}
-                onChange={(_event, value) => {
-                  setForm((prev) => ({ ...prev, perfil: value as PerfilUsuario }));
-                  setErrors((prev) => ({ ...prev, perfil: undefined }));
-                  setSubmitError(null);
-                }}
-              >
-                <FormControlLabel value="Motorista" control={<Radio />} label="Motorista" />
-                <FormControlLabel value="Adm1" control={<Radio />} label="Adm1" />
-                <FormControlLabel value="Adm2" control={<Radio />} label="Adm2" />
-              </RadioGroup>
-              {errors.perfil && (
-                <Typography variant="caption" color="error">
-                  {errors.perfil}
-                </Typography>
-              )}
+            <FormControl error={Boolean(errors.credenciais)} component="fieldset">
+              <FormLabel component="legend">Credenciais</FormLabel>
+              <FormGroup>
+                {CREDENCIAIS.map((c) => (
+                  <FormControlLabel
+                    key={c.chave}
+                    control={(
+                      <Checkbox
+                        checked={form.credenciais[c.chave]}
+                        onChange={(event) => {
+                          const marcada = event.target.checked;
+                          setForm((prev) => ({ ...prev, credenciais: { ...prev.credenciais, [c.chave as Credencial]: marcada } }));
+                          setErrors((prev) => ({ ...prev, credenciais: undefined }));
+                          setSubmitError(null);
+                        }}
+                      />
+                    )}
+                    label={<><strong>{c.rotulo}</strong> — {c.descricao}</>}
+                  />
+                ))}
+              </FormGroup>
+              <FormHelperText>{errors.credenciais ?? 'Cada credencial libera as suas telas; a pessoa pode ter várias. O adm2 entra em tudo.'}</FormHelperText>
             </FormControl>
-
-            <Alert severity="info">
-              Motorista: apenas para entrada e saída. Adm1: Anterior e Combustível, Adm2: Anterior e Cadastros/Area Administrativa (Aqui).
-            </Alert>
 
             {submitError && <Alert severity="error">{submitError}</Alert>}
 

@@ -1,4 +1,5 @@
 import { HttpsError, onCall } from 'firebase-functions/v2/https';
+import { temCredencial } from './credenciais.js';
 import { defineSecret } from 'firebase-functions/params';
 import { db } from './firebaseAdmin.js';
 
@@ -35,11 +36,10 @@ async function queryErp(queryId: typeof VEHICLE_ERP_QUERY_ALLOWLIST[number], bod
   } finally { clearTimeout(timer); }
 }
 
-/** Mirrors the effective /frota policy: funcionarios/{uid}, active, and adm1 or adm2. */
+/** Mirrors the /frota policy: active employee with adm2 (the WEB administrative screens are adm2-only). */
 async function assertFrotaAuthorization(uid: string) {
   const employee = await db.collection('funcionarios').doc(uid).get();
-  const profiles = employee.data()?.perfis;
-  if (!employee.exists || employee.data()?.ativo !== true || (profiles?.adm1 !== true && profiles?.adm2 !== true)) {
+  if (!temCredencial(employee.data())) {
     throw new HttpsError('permission-denied', 'Acesso não autorizado.');
   }
 }

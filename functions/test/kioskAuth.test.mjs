@@ -8,7 +8,7 @@ const QR_CREDENTIAL = `LEDUR-KIOSK:1:${QR_TOKEN}`;
 
 function fixture({ uid = 'employee.uid', active = true, enabled = true } = {}) {
   const credentials = enabled ? [{ uid, data: { pinHash: null, pinEnabled: true, qrTokenHash: hashQrToken(QR_TOKEN), qrRevoked: false } }] : [];
-  const employees = new Map([[uid, { ativo: active }]]);
+  const employees = new Map([[uid, { ativo: active, perfis: { frentista: true } }]]);
   const audits = [];
   const rates = new Map();
   let adminPin;
@@ -163,4 +163,14 @@ test('QR failures lock only that token, not the PIN bucket', async () => {
   await rejectsCredential(() => value.service.authenticateQr({ credential: QR_CREDENTIAL, terminalId: 'A' }));
   assert.equal(value.getRate(), undefined);
   assert.equal((await value.service.authenticatePin({ pin: '123456', terminalId: 'A' })).mode, 'user');
+});
+
+test('the Kiosk opens sessions only for frentista or adm2 (credentials 2026-10-23)', async () => {
+  const semCredencial = await configuredFixture();
+  semCredencial.employees.set('employee.uid', { ativo: true, perfis: { motorista: true } });
+  await rejectsCredential(() => semCredencial.service.authenticatePin({ pin: '123456', terminalId: 'T1' }));
+  const adm2 = await configuredFixture();
+  adm2.employees.set('employee.uid', { ativo: true, perfis: { adm2: true } });
+  const result = await adm2.service.authenticatePin({ pin: '123456', terminalId: 'T1' });
+  assert.equal(result.mode, 'user');
 });

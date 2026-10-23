@@ -1,23 +1,15 @@
 import express from 'express';
 import cors from 'cors';
 import type { UserRecord } from 'firebase-admin/auth';
-import {
-  type DocumentData,
-  FieldValue,
-} from 'firebase-admin/firestore';
+import { FieldValue, Timestamp } from 'firebase-admin/firestore';
 
 import { adminAuth, db } from './firebaseAdmin.js';
 import { adminAuthMiddleware, AdminRequest } from './adminAuth.js';
-import {
-  buildFuncionario,
-  classifyConciliation,
-  normalizeName,
-} from './conciliation.js';
+import { CREDENCIAIS, credenciaisDe, lerCredenciais, migrarPerfis, type Credenciais } from './credenciais.js';
 
+// Users administration of the WEB (Cadastros), adm2 only. Contract: Manuscript funcionarios.md ("Credenciais",
+// "Usuários na WEB"). Users are born only here; each one is an Auth account plus funcionarios/{uid}.
 const adminApp = express();
-// Historical input used only by the explicit reconciliation inventory below.
-const authorizedCollection = db.collection('00-autorizados');
-const motoristsCollection = db.collection('motoristas');
 const employeesCollection = db.collection('funcionarios');
 
 // TODO: restrict origin once hosting domain is finalized.
@@ -27,53 +19,48 @@ adminApp.use(express.json());
 // Protect all admin routes with Firebase Auth plus funcionarios/{uid}.perfis.adm2.
 adminApp.use('/api/admin', adminAuthMiddleware);
 
-type EmployeeProfiles = { adm1: boolean; adm2: boolean; user: boolean; motorista: boolean };
-
-function canonicalEmployee(nome: string, email: string, ativo: boolean, profiles: EmployeeProfiles, ordem?: number) {
-  return {
-    nome: nome.trim(),
-    email: email.trim().toLowerCase(),
-    ativo,
-    perfis: profiles,
-    ...(profiles.motorista ? { motorista: { ordem: typeof ordem === 'number' ? ordem : 0 } } : {}),
-  };
-}
+const PHONE_LOGIN_DOMAIN = '@example.com';
 
 function normalizeEmail(rawEmail: unknown) {
   return typeof rawEmail === 'string' ? rawEmail.trim().toLowerCase() : '';
 }
 
+function normalizeAuthorizedEmail(rawEmail: unknown, celular: unknown) {
+  const baseEmail = normalizeEmail(rawEmail);
+  if (!baseEmail || celular !== true) return baseEmail;
+  return baseEmail.endsWith(PHONE_LOGIN_DOMAIN) ? baseEmail : `${baseEmail}${PHONE_LOGIN_DOMAIN}`;
+}
+
+const algumaCredencial = (c: Credenciais) => CREDENCIAIS.some((k) => c[k]);
+
+const isoDe = (valor: unknown) => (valor instanceof Timestamp ? valor.toDate().toISOString() : null);
+
 async function formatAdminUser(user: UserRecord) {
   const employeeDoc = await employeesCollection.doc(user.uid).get();
-  const employeeData = employeeDoc.exists ? employeeDoc.data() : null;
-  const canonicalProfiles = employeeData?.perfis;
-  const canonicalProfile = canonicalProfiles?.adm2 === true ? 'Adm2' : canonicalProfiles?.adm1 === true ? 'Adm1' : 'Motorista';
+  const f = employeeDoc.exists ? employeeDoc.data() : undefined;
   return {
     uid: user.uid,
     email: user.email,
     displayName: user.displayName,
-    providerId: user.providerData[0]?.providerId ?? 'password',
     createdAt: user.metadata.creationTime,
     lastLoginAt: user.metadata.lastSignInTime,
     disabled: user.disabled,
-    authorization: {
-      exists: employeeDoc.exists,
-      nome: employeeData?.nome ?? null,
-      adm1: canonicalProfiles?.adm1 === true,
-      adm2: canonicalProfiles?.adm2 === true,
-      profile: canonicalProfile,
-    },
-    funcionario: employeeData,
+    // null = account without an employee (for example, created by the old open sign-up).
+    funcionario: f ? {
+      nome: typeof f.nome === 'string' ? f.nome : null,
+      email: typeof f.email === 'string' ? f.email : null,
+      ativo: f.ativo === true,
+      credenciais: credenciaisDe(f.perfis),
+      ultimoAcesso: isoDe(f.ultimoAcesso),
+    } : null,
   };
 }
 
-// GET /api/admin/users - list up to 1000 users for admin UI
+// GET /api/admin/users - every Auth account (up to 1000), with its employee
 adminApp.get('/api/admin/users', async (_req, res) => {
   try {
     const list = await adminAuth.listUsers(1000);
-
     const users = await Promise.all(list.users.map((user) => formatAdminUser(user)));
-
     res.json({ users });
   } catch (err) {
     console.error('Failed to list users', err);
@@ -81,115 +68,18 @@ adminApp.get('/api/admin/users', async (_req, res) => {
   }
 });
 
-// POST /api/admin/users - create new Auth user with optional UID override
-adminApp.post('/api/admin/users', async (req: AdminRequest, res) => {
-  const { email, password, displayName, uid } = req.body ?? {};
-
-  if (!email || !password) {
-    res.status(400).json({ error: 'missing_email_or_password' });
-    return;
-  }
-
-  try {
-    const userRecord = await adminAuth.createUser({
-      uid,
-      email,
-      password,
-      displayName,
-    });
-
-    res.status(201).json({
-      user: {
-        uid: userRecord.uid,
-        email: userRecord.email,
-        displayName: userRecord.displayName,
-        providerId: userRecord.providerData[0]?.providerId ?? 'password',
-        createdAt: userRecord.metadata.creationTime,
-        lastLoginAt: userRecord.metadata.lastSignInTime,
-      },
-    });
-  } catch (err: any) {
-    console.error('Failed to create user', err);
-    res.status(400).json({ error: err?.code ?? 'create_user_failed' });
-  }
-});
-
-function normalizeAuthorizedEmail(rawEmail: unknown, celular: unknown) {
-  const baseEmail = typeof rawEmail === 'string' ? rawEmail.trim().toLowerCase() : '';
-  const useCelular = celular === true;
-
-  if (!baseEmail) {
-    return '';
-  }
-
-  if (!useCelular) {
-    return baseEmail;
-  }
-
-  return baseEmail.endsWith('@example.com') ? baseEmail : `${baseEmail}@example.com`;
-}
-
-function buildAuthorizationPayload(nome: unknown, perfil: unknown) {
-  const normalizedNome = typeof nome === 'string' ? nome.trim() : '';
-
-  if (!normalizedNome) {
-    return { error: 'missing_nome' as const };
-  }
-
-  if (perfil === 'Motorista') {
-    return { payload: { nome: normalizedNome, adm1: false } };
-  }
-
-  if (perfil === 'Adm1') {
-    return { payload: { nome: normalizedNome, adm1: true } };
-  }
-
-  if (perfil === 'Adm2') {
-    return { payload: { nome: normalizedNome, adm2: true } };
-  }
-
-  return { error: 'invalid_perfil' as const };
-}
-
-function resolveAuthorizationName(
-  userRecord: UserRecord,
-) {
-  const authDisplayName = typeof userRecord.displayName === 'string'
-    ? userRecord.displayName.trim()
-    : '';
-
-  if (authDisplayName) {
-    return authDisplayName;
-  }
-
-  const normalizedEmail = normalizeEmail(userRecord.email);
-  if (normalizedEmail) {
-    return normalizedEmail.split('@')[0];
-  }
-
-  return userRecord.uid;
-}
-
+// POST /api/admin/users/register - Auth account + funcionarios/{uid} with the credentials
 adminApp.post('/api/admin/users/register', async (req: AdminRequest, res) => {
-  const { nome, email, password, perfil, celular } = req.body ?? {};
+  const { nome, email, password, credenciais, celular } = req.body ?? {};
+  const normalizedNome = typeof nome === 'string' ? nome.trim() : '';
   const normalizedEmail = normalizeAuthorizedEmail(email, celular);
   const passwordValue = typeof password === 'string' ? password.trim() : '';
-  const authorization = buildAuthorizationPayload(nome, perfil);
+  const perfis = lerCredenciais(credenciais);
 
-  if (!normalizedEmail) {
-    res.status(400).json({ error: 'missing_email' });
-    return;
-  }
-
-  if (!passwordValue) {
-    res.status(400).json({ error: 'missing_password' });
-    return;
-  }
-
-  if ('error' in authorization) {
-    res.status(400).json({ error: authorization.error });
-    return;
-  }
+  if (!normalizedNome) { res.status(400).json({ error: 'missing_nome' }); return; }
+  if (!normalizedEmail) { res.status(400).json({ error: 'missing_email' }); return; }
+  if (!passwordValue) { res.status(400).json({ error: 'missing_password' }); return; }
+  if (!perfis || !algumaCredencial(perfis)) { res.status(400).json({ error: 'invalid_credenciais' }); return; }
 
   let createdUid: string | null = null;
   let reusedExistingAuth = false;
@@ -197,11 +87,7 @@ adminApp.post('/api/admin/users/register', async (req: AdminRequest, res) => {
   try {
     let userRecord: UserRecord;
     try {
-      userRecord = await adminAuth.createUser({
-        email: normalizedEmail,
-        password: passwordValue,
-        displayName: authorization.payload.nome,
-      });
+      userRecord = await adminAuth.createUser({ email: normalizedEmail, password: passwordValue, displayName: normalizedNome });
       createdUid = userRecord.uid;
     } catch (createError: any) {
       if (createError?.code !== 'auth/email-already-exists') throw createError;
@@ -218,26 +104,21 @@ adminApp.post('/api/admin/users/register', async (req: AdminRequest, res) => {
     if (reusedExistingAuth) {
       // Whoever created the account before (for example, through the old open sign-up) may know its password:
       // the administrator's password replaces it, the account is enabled and every open session ends.
-      await adminAuth.updateUser(userRecord.uid, { displayName: authorization.payload.nome, password: passwordValue, disabled: false });
+      await adminAuth.updateUser(userRecord.uid, { displayName: normalizedNome, password: passwordValue, disabled: false });
       await adminAuth.revokeRefreshTokens(userRecord.uid);
     }
     await employeesCollection.doc(userRecord.uid).set({
-      ...canonicalEmployee(authorization.payload.nome, normalizedEmail, true, {
-        adm1: authorization.payload.adm1 === true,
-        adm2: authorization.payload.adm2 === true,
-        user: false,
-        motorista: perfil === 'Motorista',
-      }),
+      nome: normalizedNome,
+      email: normalizedEmail,
+      ativo: true,
+      perfis,
+      ...(perfis.motorista ? { motorista: { ordem: 0 } } : {}),
       createdAt: FieldValue.serverTimestamp(),
       updatedAt: FieldValue.serverTimestamp(),
     });
 
     res.status(201).json({
-      user: {
-        uid: userRecord.uid,
-        email: userRecord.email,
-        displayName: userRecord.displayName,
-      },
+      user: { uid: userRecord.uid, email: userRecord.email, displayName: userRecord.displayName },
       funcionarioDocumentId: userRecord.uid,
       contaExistente: reusedExistingAuth,
     });
@@ -249,149 +130,92 @@ adminApp.post('/api/admin/users/register', async (req: AdminRequest, res) => {
         console.error('Failed to rollback user creation after authorization write error', rollbackError);
       }
     }
-
     console.error('Failed to register authorized user', err);
     res.status(400).json({ error: err?.code ?? err?.message ?? 'register_user_failed' });
   }
 });
 
+// PATCH /api/admin/users/:uid - credentials and situation of an employee. Name and login are not edited here:
+// each person changes their own in Meu perfil.
 adminApp.patch('/api/admin/users/:uid', async (req: AdminRequest, res) => {
   const { uid } = req.params;
-  const { disabled, perfil } = req.body ?? {};
-
-  if (typeof disabled !== 'boolean') {
-    res.status(400).json({ error: 'invalid_disabled' });
-    return;
-  }
-
-  if (perfil !== 'Motorista' && perfil !== 'Adm1' && perfil !== 'Adm2') {
-    res.status(400).json({ error: 'invalid_perfil' });
-    return;
-  }
+  const { ativo, credenciais } = req.body ?? {};
+  const perfis = lerCredenciais(credenciais);
+  if (typeof ativo !== 'boolean') { res.status(400).json({ error: 'invalid_ativo' }); return; }
+  if (!perfis) { res.status(400).json({ error: 'invalid_credenciais' }); return; }
+  if (uid === req.user?.uid && (!ativo || !perfis.adm2)) { res.status(400).json({ error: 'cannot_remove_own_adm2' }); return; }
 
   try {
-    const userRecord = await adminAuth.getUser(uid);
-    const normalizedEmail = normalizeEmail(userRecord.email);
-    if (!normalizedEmail) { res.status(400).json({ error: 'missing_email' }); return; }
     const employeeRef = employeesCollection.doc(uid);
-    const existingEmployeeDoc = await employeeRef.get();
-    const existingEmployee = existingEmployeeDoc.exists ? existingEmployeeDoc.data() : null;
-    const currentName = typeof existingEmployee?.nome === 'string' && existingEmployee.nome.trim()
-      ? existingEmployee.nome.trim() : resolveAuthorizationName(userRecord);
-    const profiles = {
-      adm1: perfil === 'Adm1', adm2: perfil === 'Adm2', user: false, motorista: perfil === 'Motorista',
-    };
-    await adminAuth.updateUser(uid, { disabled, displayName: currentName });
-    await employeeRef.set({
-      ...canonicalEmployee(currentName, normalizedEmail, !disabled, profiles, existingEmployee?.motorista?.ordem),
-      createdAt: existingEmployee?.createdAt ?? FieldValue.serverTimestamp(),
+    const employee = await employeeRef.get();
+    if (!employee.exists) { res.status(404).json({ error: 'employee_not_found' }); return; }
+    await adminAuth.updateUser(uid, { disabled: !ativo });
+    await employeeRef.update({
+      ativo,
+      perfis,
+      ...(perfis.motorista && employee.get('motorista') == null ? { motorista: { ordem: 0 } } : {}),
       updatedAt: FieldValue.serverTimestamp(),
     });
-
-    const updatedUser = await adminAuth.getUser(uid);
-    res.json({
-      user: await formatAdminUser(updatedUser),
-    });
+    res.json({ user: await formatAdminUser(await adminAuth.getUser(uid)) });
   } catch (err: any) {
     console.error('Failed to update user', err);
-    const status = err?.code === 'auth/user-not-found' ? 404 : 400;
-    res.status(status).json({ error: err?.code ?? err?.message ?? 'update_user_failed' });
+    res.status(err?.code === 'auth/user-not-found' ? 404 : 400).json({ error: err?.code ?? err?.message ?? 'update_user_failed' });
   }
 });
 
-// Read-only inventory for manual reconciliation. It never writes legacy collections or Auth.
-adminApp.get('/api/admin/conciliation', async (_req, res) => {
-  try {
-    const authUsers = (await adminAuth.listUsers(1000)).users;
-    const authorizedRefs = authUsers.map((user) => normalizeEmail(user.email) ? authorizedCollection.doc(normalizeEmail(user.email)) : null);
-    const authorizedSnapshots = await Promise.all(authorizedRefs.map((ref) => ref ? ref.get() : Promise.resolve(null)));
-    const motoristSnapshots = await motoristsCollection.get();
-    const employeeSnapshots = await db.getAll(...authUsers.map((user) => employeesCollection.doc(user.uid)));
-    const rows: Array<Record<string, any>> = authUsers.map((user, index) => {
-      const authorized = authorizedSnapshots[index];
-      const authName = user.displayName ?? authorized?.data()?.nome ?? user.email ?? user.uid;
-      const suggestions = motoristSnapshots.docs.filter((motorist) => normalizeName(motorist.data().nome) === normalizeName(authName));
-      const motorista = suggestions.length === 1 ? suggestions[0] : null;
-      const employee = employeeSnapshots[index];
-      return {
-        auth: { uid: user.uid, email: user.email ?? '', nome: authName, disabled: user.disabled },
-        autorizado: authorized?.exists ? { id: authorized.id, ...authorized.data() } : null,
-        motorista: motorista ? { id: motorista.id, ...motorista.data() } : null,
-        sugestoesMotorista: suggestions.map((item) => ({ id: item.id, ...item.data() })),
-        funcionario: employee.exists ? employee.data() : null,
-        status: classifyConciliation({
-          auth: true,
-          authorized: Boolean(authorized?.exists),
-          motorist: Boolean(motorista),
-          motoristCandidates: suggestions.length,
-          employee: employee.exists,
-        }),
-      };
-    });
-    const matchedMotorists = new Set(rows.flatMap((row) => (row.sugestoesMotorista as Array<{ id: string }>).map((item) => item.id)));
-    for (const motorist of motoristSnapshots.docs) {
-      if (!matchedMotorists.has(motorist.id)) rows.push({ auth: null, autorizado: null, motorista: { id: motorist.id, ...motorist.data() }, sugestoesMotorista: [], funcionario: null, status: 'SEM_AUTH' });
-    }
-    res.json({ rows });
-  } catch (err) {
-    console.error('Failed to list reconciliation candidates', err);
-    res.status(500).json({ error: 'conciliation_list_failed' });
-  }
-});
-
-adminApp.post('/api/admin/conciliation/:uid', async (req: AdminRequest, res) => {
+// POST /api/admin/users/:uid/senha - new password set by adm2 (there is no "forgot my password"); ends every session.
+adminApp.post('/api/admin/users/:uid/senha', async (req: AdminRequest, res) => {
   const { uid } = req.params;
-  const { motoristaId, nome, ativo, perfis, allowExisting } = req.body ?? {};
-  if (!uid || typeof nome !== 'string' || !nome.trim() || typeof ativo !== 'boolean' || !perfis || typeof perfis !== 'object') { res.status(400).json({ error: 'invalid_employee' }); return; }
+  const password = typeof req.body?.password === 'string' ? req.body.password.trim() : '';
+  if (password.length < 6) { res.status(400).json({ error: 'invalid_password' }); return; }
   try {
-    const authUser = await adminAuth.getUser(uid);
-    const email = normalizeEmail(authUser.email);
-    if (!email) { res.status(400).json({ error: 'missing_email' }); return; }
-    const employeeRef = employeesCollection.doc(uid);
-    const existing = await employeeRef.get();
-    if (existing.exists && allowExisting !== true) { res.status(409).json({ error: 'employee_already_exists' }); return; }
-    let motoristaData: DocumentData | null = null;
-    if (motoristaId) {
-      const motorista = await motoristsCollection.doc(motoristaId).get();
-      if (!motorista.exists) { res.status(400).json({ error: 'motorist_not_found' }); return; }
-      motoristaData = motorista.data() ?? null;
-    }
-    const safeProfiles = { adm1: perfis.adm1 === true, adm2: perfis.adm2 === true, user: false, motorista: Boolean(motoristaData) };
-    const funcionario = buildFuncionario({
-      nome,
-      email,
-      authDisabled: authUser.disabled,
-      autorizado: { adm1: perfis.adm1 === true, adm2: perfis.adm2 === true },
-      motorista: motoristaData,
-      requestedAtivo: ativo,
-    });
-    await employeeRef.set({
-      ...funcionario,
-      perfis: { ...safeProfiles, motorista: funcionario.perfis.motorista },
-      createdAt: existing.get('createdAt') ?? FieldValue.serverTimestamp(),
-      updatedAt: FieldValue.serverTimestamp(),
-    });
-    res.json({ uid, funcionario: (await employeeRef.get()).data() });
+    await adminAuth.updateUser(uid, { password });
+    await adminAuth.revokeRefreshTokens(uid);
+    res.json({ ok: true });
   } catch (err: any) {
-    console.error('Failed to reconcile employee', err);
-    res.status(err?.code === 'auth/user-not-found' ? 404 : 400).json({ error: err?.code ?? 'conciliation_failed' });
+    console.error('Failed to set password', err);
+    res.status(err?.code === 'auth/user-not-found' ? 404 : 400).json({ error: err?.code ?? 'set_password_failed' });
   }
 });
 
-// DELETE /api/admin/users/:uid - destructive admin-only action
+// DELETE /api/admin/users/:uid - only accounts without an employee; an employee is deactivated, never deleted.
 adminApp.delete('/api/admin/users/:uid', async (req, res) => {
   const { uid } = req.params;
-
   try {
+    if ((await employeesCollection.doc(uid).get()).exists) { res.status(409).json({ error: 'employee_exists' }); return; }
     await adminAuth.deleteUser(uid);
     res.json({ success: true });
   } catch (err: any) {
     console.error('Failed to delete user', err);
-    const status = err?.code === 'auth/user-not-found' ? 404 : 400;
-    res.status(status).json({ error: err?.code ?? 'delete_user_failed' });
+    res.status(err?.code === 'auth/user-not-found' ? 404 : 400).json({ error: err?.code ?? 'delete_user_failed' });
   }
 });
 
-// Quick manual-test tip: deploy with "firebase deploy --only functions,hosting" and
-// use the Cadastros page while logged in as an adm2 user to verify list/create/delete.
+// POST /api/admin/manutencao/credenciais - data migration of the switch: frentista = frentista || adm1; adm1 and user
+// leave the documents. { executar: false } only counts (simulation); { executar: true } writes.
+adminApp.post('/api/admin/manutencao/credenciais', async (req: AdminRequest, res) => {
+  const executar = req.body?.executar === true;
+  try {
+    const snap = await employeesCollection.get();
+    const mudancas = snap.docs.map((d) => ({ ref: d.ref, ...migrarPerfis(d.get('perfis')) })).filter((m) => m.mudou);
+    if (executar) {
+      for (let k = 0; k < mudancas.length; k += 400) {
+        const lote = db.batch();
+        for (const m of mudancas.slice(k, k + 400)) lote.update(m.ref, { perfis: m.perfis, updatedAt: FieldValue.serverTimestamp() });
+        await lote.commit();
+      }
+      console.info('credenciais:migracao', { por: req.user?.uid, alterados: mudancas.length });
+    }
+    res.json({
+      executado: executar,
+      funcionarios: snap.size,
+      alterados: mudancas.length,
+      frentistas: mudancas.filter((m) => m.perfis.frentista).length,
+    });
+  } catch (err) {
+    console.error('Failed to migrate credentials', err);
+    res.status(500).json({ error: 'migration_failed' });
+  }
+});
+
 export default adminApp;

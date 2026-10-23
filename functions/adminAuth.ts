@@ -5,6 +5,7 @@ import {
   createAdminAuthorizationReader,
   type AdminAuthorization,
 } from './adminAuthorization.js';
+import type { Credencial } from './credenciais.js';
 
 const employeesCollection = db.collection('funcionarios');
 const readAdminAuthorization = createAdminAuthorizationReader(async (uid) => {
@@ -17,11 +18,22 @@ export interface AdminRequest extends Request {
   authorization?: AdminAuthorization;
 }
 
-// Firebase Auth proves identity; funcionarios/{auth.uid} grants adm2 access.
-export async function adminAuthMiddleware(
+// Firebase Auth proves identity; funcionarios/{auth.uid} grants access: an active employee with adm2 or one of the
+// accepted credentials (e.g. engenharia for the Monday endpoints of the Engineering screens).
+export function credencialAuthMiddleware(...aceitas: Credencial[]) {
+  return (req: AdminRequest, res: Response, next: NextFunction) => autorizar(req, res, next, aceitas);
+}
+
+// Administrative endpoints: adm2 only.
+export function adminAuthMiddleware(req: AdminRequest, res: Response, next: NextFunction) {
+  return autorizar(req, res, next, []);
+}
+
+async function autorizar(
   req: AdminRequest,
   res: Response,
   next: NextFunction,
+  aceitas: Credencial[],
 ) {
   const authHeader = req.headers.authorization || '';
   const match = authHeader.match(/^Bearer (.*)$/);
@@ -42,7 +54,7 @@ export async function adminAuthMiddleware(
 
   try {
     const authorization = await readAdminAuthorization(decoded.uid);
-    if (!authorization.ativo || !authorization.adm2) {
+    if (!authorization.ativo || !(authorization.credenciais.adm2 || aceitas.some((c) => authorization.credenciais[c]))) {
       res.status(403).json({ error: 'forbidden' });
       return;
     }

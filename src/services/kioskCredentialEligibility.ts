@@ -2,21 +2,18 @@ export type KioskCredentialUser = {
   uid: string;
   funcionario?: {
     ativo?: unknown;
-    perfis?: {
-      adm1?: unknown;
-      adm2?: unknown;
-    } | null;
+    credenciais?: { frentista?: unknown; adm2?: unknown } | null;
   } | null;
 };
 
 /**
- * Limits Kiosk credential management to active employees with an admin profile.
+ * Kiosk credentials (QR/PIN) are for active employees with frentista (or adm2), as the Kiosk Functions require.
  * This is a display/operational filter only; it does not change credentials.
  */
 export function isKioskCredentialEligible(user: KioskCredentialUser) {
   const funcionario = user.funcionario;
   return funcionario?.ativo === true
-    && (funcionario.perfis?.adm1 === true || funcionario.perfis?.adm2 === true);
+    && (funcionario.credenciais?.frentista === true || funcionario.credenciais?.adm2 === true);
 }
 
 export function kioskCredentialEligibleUsers<T extends KioskCredentialUser>(users: T[]) {

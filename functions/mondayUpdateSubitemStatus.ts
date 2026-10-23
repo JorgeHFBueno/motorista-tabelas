@@ -1,6 +1,6 @@
 import express from 'express';
 import cors from 'cors';
-import { adminAuthMiddleware, type AdminRequest } from './adminAuth.js';
+import { adminAuthMiddleware, credencialAuthMiddleware, type AdminRequest } from './adminAuth.js';
 import { mondayApiToken, queryMonday } from './mondayClient.js';
 import { db } from './firebaseAdmin.js';
 import { syncMondayParentToFirestore, type FirestoreProjector, type ParentSyncResult } from './mondayProjector.js';
@@ -120,7 +120,7 @@ export async function updateSubitemStatus(token: string, request: UpdateRequest,
 
 type UpdateOptions = { authMiddleware?: typeof adminAuthMiddleware; token?: () => string | undefined; updater?: typeof updateSubitemStatus; firestore?: FirestoreLike };
 export function createMondayUpdateSubitemStatusApp(options: UpdateOptions = {}) {
-  const app = express(); app.use(cors({ origin: true })); app.use(express.json()); app.use(options.authMiddleware ?? adminAuthMiddleware);
+  const app = express(); app.use(cors({ origin: true })); app.use(express.json()); app.use(options.authMiddleware ?? credencialAuthMiddleware('engenharia'));
   const handler = async (req: AdminRequest, res: express.Response) => {
     let input: UpdateRequest;
     try { input = parseUpdateRequest(req.body); } catch (error) { res.status(error instanceof UpdateStatusError ? error.httpStatus : 400).json({ error: 'invalid_request' }); return; }

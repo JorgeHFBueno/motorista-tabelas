@@ -171,7 +171,7 @@ test('apply is one batch, does not commit an empty plan, and blocks preflight er
 test('the public sync surface keeps authorization, server secret, dry-run and token isolation contracts', async () => {
   const [{ readFile }, source] = await Promise.all([import('node:fs/promises'), import('node:fs/promises').then(({ readFile }) => readFile(new URL('../mondaySync.ts', import.meta.url), 'utf8'))]);
   const client = await readFile(new URL('../mondayClient.ts', import.meta.url), 'utf8');
-  assert.match(source, /app\.use\(options\.authMiddleware \?\? adminAuthMiddleware\)/); assert.match(client, /defineSecret\('MONDAY_API_TOKEN'\)/); assert.match(source, /req\.body\?\.mode/); assert.match(source, /app\.post\(\['\/', '\/api\/monday-sync'\]/);
+  assert.match(source, /app\.use\(options\.authMiddleware \?\? credencialAuthMiddleware\('engenharia'\)\)/); assert.match(client, /defineSecret\('MONDAY_API_TOKEN'\)/); assert.match(source, /req\.body\?\.mode/); assert.match(source, /app\.post\(\['\/', '\/api\/monday-sync'\]/);
   assert.doesNotMatch(source, /req\.body\?\.token|MONDAY_API_TOKEN.*res\./); assert.match(source, /mode === 'apply' \? await applyPlan\(plan\) : 0/);
   assert.match(source, /f_rmula_mknbt1hr/); assert.match(source, /\.\.\. on FormulaValue \{ display_value \}/); assert.doesNotMatch(source, /status: columnText\(columns, 'color_mm7da26y'\)/);
   assert.match(source, /text_mm847yy0/);

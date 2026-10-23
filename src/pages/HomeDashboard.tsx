@@ -1,30 +1,15 @@
 import { Box, Card, CardActionArea, CardContent, Collapse, Stack, Typography } from '@mui/material';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import ChevronRightRoundedIcon from '@mui/icons-material/ChevronRightRounded';
-import { useCallback, useState } from 'react';
+import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuthorizationProfile } from '../hooks/useAuthorizationProfile';
-import { useAdm1MontanteGate } from '../hooks/useAdm1MontanteGate';
-import { destinoCombustivel, filtrarMenuPrincipal } from '../components/menuPrincipal';
+import { filtrarMenuPrincipal } from '../components/menuPrincipal';
 
 export default function HomeDashboard() {
   const navigate = useNavigate();
   const { loading: authorizationLoading, profile } = useAuthorizationProfile();
-  const isAdm1 = profile?.adm1 === true;
-  const isAdm2 = profile?.adm2 === true;
   const [expandedGroup, setExpandedGroup] = useState<string | null>(null);
-  const { requestAccess, dialog } = useAdm1MontanteGate(isAdm1);
-
-  const handleCombustivelClick = useCallback(() => {
-    const combustivelDestino = destinoCombustivel(isAdm2);
-
-    if (combustivelDestino === '/combustivel/novo') {
-      requestAccess(() => navigate(combustivelDestino));
-      return;
-    }
-
-    navigate(combustivelDestino);
-  }, [isAdm2, navigate, requestAccess]);
 
   if (authorizationLoading || !profile) {
     return null;
@@ -68,9 +53,7 @@ export default function HomeDashboard() {
               <CardActionArea
                 onClick={action.children
                   ? () => setExpandedGroup((current) => current === action.label ? null : action.label)
-                  : action.label === 'Combustível'
-                    ? handleCombustivelClick
-                    : () => navigate(action.to!)}
+                  : () => navigate(action.to!)}
                 aria-expanded={action.children ? expandedGroup === action.label : undefined}
                 sx={{
                   height: { xs: 68, sm: 76 },
@@ -126,7 +109,6 @@ export default function HomeDashboard() {
           ))}
         </Box>
       </Box>
-      {dialog}
     </Box>
   );
 }

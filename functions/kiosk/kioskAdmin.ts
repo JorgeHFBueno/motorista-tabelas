@@ -1,4 +1,5 @@
 import { FieldValue } from 'firebase-admin/firestore';
+import { temCredencial } from '../credenciais.js';
 import { HttpsError, onCall } from 'firebase-functions/v2/https';
 import { db } from '../firebaseAdmin.js';
 import { createQrToken, formatQrPayload, hashPin, hashQrToken, isValidPin, isValidPinHash } from './kioskSecurity.js';
@@ -82,7 +83,7 @@ export function createKioskAdminService(store: KioskAdminStore) {
       const adminUid = await requireAdmin(authUid);
       const uid = requireProvisionInput(data);
       const employee = await store.getEmployee(uid);
-      if (!employee || employee.ativo !== true) invalidArgument();
+      if (!temCredencial(employee, 'frentista')) invalidArgument();
 
       const previous = await store.getCredential(uid);
       const token = createQrToken();
@@ -141,6 +142,7 @@ export function createKioskAdminService(store: KioskAdminStore) {
       const target = await store.getEmployee(uid);
       if (!target) throw new HttpsError('not-found', 'Funcionário não encontrado.');
       if (target.ativo !== true) throw new HttpsError('failed-precondition', 'Este funcionário não está ativo.');
+      if (!temCredencial(target, 'frentista')) throw new HttpsError('failed-precondition', 'Este funcionário não tem a credencial de frentista.');
       const previous = await store.getCredential(uid);
       const pinHash = await hashPin(input.pin);
       await store.setCredential(uid, {
@@ -164,6 +166,7 @@ export function createKioskAdminService(store: KioskAdminStore) {
       const credential = await store.getCredential(uid);
       if (input.enabled === true) {
         if (target.ativo !== true) throw new HttpsError('failed-precondition', 'Este funcionário não está ativo.');
+        if (!temCredencial(target, 'frentista')) throw new HttpsError('failed-precondition', 'Este funcionário não tem a credencial de frentista.');
         if (!isValidPinHash(credential?.pinHash)) throw new HttpsError('failed-precondition', 'Nenhum PIN configurado.');
       }
       await store.setCredential(uid, {

@@ -28,8 +28,8 @@ function dbAs(identity) {
 async function seed() {
   await env.withSecurityRulesDisabled(async (context) => {
     const db = context.firestore();
-    await setDoc(doc(db, 'funcionarios', adm2.uid), { nome: 'Operador ADM2', email: adm2.email, ativo: true, perfis: { adm1: false, adm2: true, user: false, motorista: false } });
-    await setDoc(doc(db, 'funcionarios', regular.uid), { nome: 'Operador comum', email: regular.email, ativo: true, perfis: { adm1: false, adm2: false, user: true, motorista: true } });
+    await setDoc(doc(db, 'funcionarios', adm2.uid), { nome: 'Operador ADM2', email: adm2.email, ativo: true, perfis: { frentista: false, adm2: true, motorista: false } });
+    await setDoc(doc(db, 'funcionarios', regular.uid), { nome: 'Operador comum', email: regular.email, ativo: true, perfis: { frentista: true, adm2: false, motorista: false } }); // operador comum = frentista (credenciais 2026-10-23)
     await setDoc(doc(db, 'bombas', 'diesel_patio_entrada'), {
       nomeBomba: 'Diesel patio', montanteAtual: 123_500, estoqueAtual: 34_000, ultimoFrentista: 'anterior', ultimoAbastecimento: Timestamp.fromMillis(0),
     });

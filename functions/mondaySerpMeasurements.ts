@@ -1,4 +1,5 @@
 import { HttpsError, onCall } from 'firebase-functions/v2/https';
+import { temCredencial } from './credenciais.js';
 import { defineSecret } from 'firebase-functions/params';
 import * as logger from 'firebase-functions/logger';
 import { Timestamp } from 'firebase-admin/firestore';
@@ -28,10 +29,10 @@ export function consolidateMeasurements(rows: ErpRow[]): { qtd_notas: number; va
   }, { qtd_notas: 0, valor_bruto_servico: 0 });
 }
 
-// Active employee in funcionarios/{uid}; 00-autorizados (legacy) no longer authorizes.
+// Engineering screens: active employee with engenharia (or adm2) in funcionarios/{uid}.
 async function assertCronoObraAuthorization(uid: string) {
   const employee = await db.collection('funcionarios').doc(uid).get();
-  if (employee.exists && employee.data()?.ativo === true) return;
+  if (temCredencial(employee.data(), 'engenharia')) return;
   throw new HttpsError('permission-denied', 'Acesso não autorizado.');
 }
 

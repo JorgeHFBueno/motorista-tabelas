@@ -2,143 +2,72 @@ import { useEffect, useState } from 'react';
 import {
   Alert,
   Button,
+  Checkbox,
   Dialog,
   DialogActions,
   DialogContent,
   DialogTitle,
-  FormControl,
   FormControlLabel,
+  FormGroup,
   FormLabel,
-  Radio,
-  RadioGroup,
   Stack,
   Switch,
   TextField,
 } from '@mui/material';
-import type { AdminUser } from '../services/adminUsersApi';
+import { loginDoUsuario, nomeDoUsuario, type AdminUser } from '../services/adminUsersApi';
+import { CREDENCIAIS, semCredenciais, type Credencial, type Credenciais } from '../services/credenciais';
 
-type PerfilUsuario = 'Motorista' | 'Adm1' | 'Adm2';
-
-export type AdminUserEditValues = {
-  disabled: boolean;
-  perfil: PerfilUsuario;
-};
+export type AdminUserEditValues = { ativo: boolean; credenciais: Credenciais };
 
 interface AdminUserEditModalProps {
   open: boolean;
   user: AdminUser | null;
   onClose: () => void;
   onSave: (values: AdminUserEditValues) => Promise<void>;
-  saving?: boolean;
-  submitError?: string | null;
+  saving: boolean;
+  submitError: string | null;
 }
 
-function getDisplayName(user: AdminUser | null) {
-  if (!user) {
-    return '';
-  }
-
-  const displayName = user.displayName?.trim();
-  if (displayName) {
-    return displayName;
-  }
-
-  const authorizationName = user.authorization.nome?.trim();
-  if (authorizationName) {
-    return authorizationName;
-  }
-
-  const email = user.email?.trim().toLowerCase();
-  if (email) {
-    return email.split('@')[0];
-  }
-
-  return user.uid;
-}
-
-export default function AdminUserEditModal({
-  open,
-  user,
-  onClose,
-  onSave,
-  saving = false,
-  submitError = null,
-}: AdminUserEditModalProps) {
-  const [disabled, setDisabled] = useState(false);
-  const [perfil, setPerfil] = useState<PerfilUsuario>('Motorista');
+// Credenciais e situação de um funcionário. Nome e login não se editam aqui: cada pessoa troca os seus no Meu perfil.
+export default function AdminUserEditModal({ open, user, onClose, onSave, saving, submitError }: AdminUserEditModalProps) {
+  const [ativo, setAtivo] = useState(true);
+  const [credenciais, setCredenciais] = useState<Credenciais>(semCredenciais());
 
   useEffect(() => {
-    if (!open || !user) {
-      return;
-    }
+    setAtivo(user?.funcionario?.ativo ?? true);
+    setCredenciais(user?.funcionario?.credenciais ?? semCredenciais());
+  }, [user]);
 
-    setDisabled(user.disabled);
-    setPerfil(user.authorization.profile);
-  }, [open, user]);
-
-  const handleSave = async () => {
-    await onSave({ disabled, perfil });
-  };
+  const nenhuma = !Object.values(credenciais).some(Boolean);
 
   return (
     <Dialog open={open} onClose={saving ? undefined : onClose} fullWidth maxWidth="sm">
-      <DialogTitle>Editar usuario</DialogTitle>
-      <DialogContent dividers>
-        <Stack spacing={2} mt={1}>
+      <DialogTitle>Editar usuário</DialogTitle>
+      <DialogContent>
+        <Stack spacing={2} sx={{ pt: 1 }}>
           {submitError && <Alert severity="error">{submitError}</Alert>}
-
-          {!user?.funcionario && (
-            <Alert severity="info">
-              Este usuario ainda nao possui documento em <strong>funcionarios/{'{uid}'}</strong>. O documento sera criado ao salvar.
-            </Alert>
-          )}
-
-          <TextField
-            label="Nome"
-            value={getDisplayName(user)}
-            fullWidth
-            InputProps={{ readOnly: true }}
-          />
-
-          <TextField
-            label="Email"
-            value={user?.email ?? '-'}
-            fullWidth
-            InputProps={{ readOnly: true }}
-          />
-
-          <FormControlLabel
-            control={(
-              <Switch
-                checked={!disabled}
-                onChange={(event) => setDisabled(!event.target.checked)}
-                disabled={saving}
-              />
-            )}
-            label={!disabled ? 'Usuario ativo' : 'Usuario inativo'}
-          />
-
-          <FormControl>
-            <FormLabel id="perfil-usuario-edicao-label">Perfil</FormLabel>
-            <RadioGroup
-              aria-labelledby="perfil-usuario-edicao-label"
-              value={perfil}
-              onChange={(_event, value) => setPerfil(value as PerfilUsuario)}
-            >
-              <FormControlLabel value="Motorista" control={<Radio />} label="Motorista" />
-              <FormControlLabel value="Adm1" control={<Radio />} label="Adm1" />
-              <FormControlLabel value="Adm2" control={<Radio />} label="Adm2" />
-            </RadioGroup>
-          </FormControl>
+          <TextField label="Nome" value={user ? nomeDoUsuario(user) : ''} fullWidth InputProps={{ readOnly: true }} />
+          <TextField label="Login" value={user ? loginDoUsuario(user) : ''} fullWidth InputProps={{ readOnly: true }}
+            helperText="Nome e login são trocados pela própria pessoa, no Meu perfil." />
+          <FormControlLabel control={<Switch checked={ativo} onChange={(e) => setAtivo(e.target.checked)} />} label={ativo ? 'Ativo' : 'Inativo'} />
+          <div>
+            <FormLabel component="legend">Credenciais</FormLabel>
+            <FormGroup>
+              {CREDENCIAIS.map((c) => (
+                <FormControlLabel
+                  key={c.chave}
+                  control={<Checkbox checked={credenciais[c.chave]} onChange={(e) => setCredenciais((prev) => ({ ...prev, [c.chave as Credencial]: e.target.checked }))} />}
+                  label={<><strong>{c.rotulo}</strong> — {c.descricao}</>}
+                />
+              ))}
+            </FormGroup>
+          </div>
+          {nenhuma && <Alert severity="warning">Sem nenhuma credencial, a pessoa não entra no app nem na WEB.</Alert>}
         </Stack>
       </DialogContent>
       <DialogActions>
-        <Button onClick={onClose} disabled={saving}>
-          Cancelar
-        </Button>
-        <Button onClick={handleSave} variant="contained" disabled={saving || !user?.email}>
-          Salvar
-        </Button>
+        <Button onClick={onClose} disabled={saving}>Cancelar</Button>
+        <Button variant="contained" onClick={() => void onSave({ ativo, credenciais })} disabled={saving}>Salvar</Button>
       </DialogActions>
     </Dialog>
   );

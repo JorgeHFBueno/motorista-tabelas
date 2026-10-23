@@ -1,7 +1,7 @@
 import express from 'express';
 import cors from 'cors';
 import { onRequest } from 'firebase-functions/v2/https';
-import { adminAuthMiddleware, type AdminRequest } from './adminAuth.js';
+import { adminAuthMiddleware, credencialAuthMiddleware, type AdminRequest } from './adminAuth.js';
 import { db } from './firebaseAdmin.js';
 
 type AnyRecord = Record<string, any>;
@@ -108,7 +108,7 @@ export function createMondayLinkObraV2App(options: { authMiddleware?: typeof adm
   const app = express();
   app.use(cors({ origin: true }));
   app.use(express.json());
-  app.use(options.authMiddleware ?? adminAuthMiddleware);
+  app.use(options.authMiddleware ?? credencialAuthMiddleware('engenharia'));
   const firestore = options.firestore ?? db;
 
   app.get(['/', '/api/monday-link-obra-v2'], async (_req, res) => {

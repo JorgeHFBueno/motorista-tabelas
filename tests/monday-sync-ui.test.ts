@@ -8,8 +8,8 @@ const page = readFileSync(resolve(root, 'src/features/cronograma-obras/Cronogram
 const service = readFileSync(resolve(root, 'src/services/mondaySync.ts'), 'utf8');
 const firebaseConfig = JSON.parse(readFileSync(resolve(root, 'firebase.json'), 'utf8')) as { hosting?: { rewrites?: Array<{ source?: string; function?: string; destination?: string }> } };
 
-test('Monday sync button follows the existing adm2 UI authorization contract', () => {
-  assert.match(page, /useAdm2Authorization/); assert.match(page, /const \{ authorized: canSyncMonday \} = useAdm2Authorization\(\)/); assert.match(page, /\{canSyncMonday && \([\s\S]*?Sincronizar Monday/);
+test('Monday sync button follows the engenharia credential contract', () => {
+  assert.match(page, /const \{ authorized: canSyncMonday \} = useCredencialAuthorization\('engenharia'\)/); assert.match(page, /\{canSyncMonday && \([\s\S]*?Sincronizar Monday/);
   assert.match(page, /void runSync\("dry-run"\)/);
 });
 
