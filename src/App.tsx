@@ -1,4 +1,4 @@
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import { Suspense, lazy } from 'react';
 import './App.css';
 import Header from './components/Header';
@@ -19,7 +19,6 @@ const CadastroUsuarioNovoPage = lazy(() => import('./pages/CadastroUsuarioNovoPa
 const KioskCredentialsPage = lazy(() => import('./pages/KioskCredentialsPage'));
 const CadastrosEditarPage = lazy(() => import('./pages/CadastrosEditarPage'));
 const RegistrosPage = lazy(() => import('./pages/RegistrosPage'));
-const ChecklistLegadoRedirect = lazy(() => import('./pages/ChecklistLegadoRedirect'));
 const ChecklistsPage = lazy(() => import('./pages/ChecklistsPage'));
 const ChecklistDetalhePage = lazy(() => import('./pages/ChecklistDetalhePage'));
 const FrotaVeiculosPage = lazy(() => import('./pages/FrotaVeiculosPage'));
@@ -56,8 +55,6 @@ export default function App() {
       <Suspense fallback={<LoadingFallback />}>
         <Routes>
           <Route path="login" element={<LoginPage />} />
-          {/* Cadastro aberto retirado (2026-10-22): usuários nascem só em Cadastros. Endereço antigo leva ao login. */}
-          <Route path="signup" element={<Navigate to="/login" replace />} />
           <Route path="acesso-negado" element={<AccessDeniedPage />} />
           {/* Credenciais (The Manuscript, funcionarios.md): qualquer credencial entra na Home reduzida e no Meu perfil;
               cada área confere a sua; o resto é só adm2. */}
@@ -77,15 +74,11 @@ export default function App() {
             <Route path="the-manuscript/*" element={<TheManuscriptPage />} />
             <Route path="combustivel" element={<TabelaCombustivel />} />
             <Route path="combustivel/novo" element={<CombustivelNovoPage />} />
-            <Route path="combustivel/*" element={<Navigate to="/combustivel" replace />} />
             <Route path="cadastros" element={<CadastrosPage />} />
             <Route path="cadastros/usuarios/novo" element={<CadastroUsuarioNovoPage />} />
-            {/* Conciliação com motoristas retirada (credenciais, 2026-10-23); contas sem funcionário ficam em Usuários. */}
-            <Route path="cadastros/usuarios/conciliacao" element={<Navigate to="/cadastros/editar/usuarios" replace />} />
             <Route path="cadastros/usuarios/kiosk" element={<KioskCredentialsPage />} />
             <Route path="cadastros/editar/:tipo" element={<CadastrosEditarPage />} />
             <Route path="registros" element={<RegistrosPage />} />
-            <Route path="registros/:atividadeId/checklist" element={<ChecklistLegadoRedirect />} />
             <Route path="checklists" element={<ChecklistsPage />} />
             <Route path="checklists/:id" element={<ChecklistDetalhePage />} />
             <Route path="frota" element={<FrotaVeiculosPage />} />

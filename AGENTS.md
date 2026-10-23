@@ -31,6 +31,8 @@ Prefer simple, focused changes and patterns already used in the affected area. D
 
 Do not refactor unrelated code, rename unrelated symbols, reformat unrelated files, change existing behavior without a task-related reason, or implement unrequested features.
 
+When a route, page, or link is removed or replaced, delete it. Do not keep old routes only to redirect to the new ones (owner's rule, 2026-10-23).
+
 Existing conventions take precedence over personal preferences. Preserve the TypeScript/ESM layout: frontend code lives under `src/`; Functions compile from `functions/` to `functions/lib/` and use `.js` specifiers for local ESM imports.
 
 Do not manually edit generated build or test artifacts such as `dist/`, `dev-dist/`, `functions/lib/`, `.firebase/`, or `.tmp-*`; change their source and regenerate them with the relevant command.

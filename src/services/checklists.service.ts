@@ -1,4 +1,4 @@
-import { collection, doc, getDoc, getDocs, limit, query, where } from 'firebase/firestore';
+import { collection, doc, getDoc, getDocs } from 'firebase/firestore';
 import { getDownloadURL, ref } from 'firebase/storage';
 import { db, storage } from '../firebase';
 
@@ -14,12 +14,6 @@ export async function listarChecklists(): Promise<Checklist[]> {
 export async function obterChecklist(id: string): Promise<Checklist | null> {
   const snapshot = await getDoc(doc(db, 'checklists-v2', id));
   return snapshot.exists() ? normalizarChecklist(snapshot.data(), snapshot.id) : null;
-}
-
-/** The converted legacy checklist of an activity (old link /registros/:atividadeId/checklist). */
-export async function checklistIdDaAtividade(atividadeId: string): Promise<string | null> {
-  const snapshot = await getDocs(query(collection(db, 'checklists-v2'), where('atividadeOrigemId', '==', atividadeId), limit(1)));
-  return snapshot.docs[0]?.id ?? null;
 }
 
 const urlCache = new Map<string, Promise<string>>();
