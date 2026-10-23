@@ -15,7 +15,6 @@ const CombustivelNovoPage = lazy(() => import('./pages/CombustivelNovoPage'));
 const PortifolioPage = lazy(() => import('./components/PortifolioPage'));
 const LoginPage = lazy(() => import('./pages/LoginPage'));
 const CadastrosPage = lazy(() => import('./pages/CadastrosPage'));
-const CadastroVeiculoNovoPage = lazy(() => import('./pages/CadastroVeiculoNovoPage'));
 const CadastroUsuarioNovoPage = lazy(() => import('./pages/CadastroUsuarioNovoPage'));
 const KioskCredentialsPage = lazy(() => import('./pages/KioskCredentialsPage'));
 const CadastrosEditarPage = lazy(() => import('./pages/CadastrosEditarPage'));
@@ -84,7 +83,6 @@ export default function App() {
             {/* Conciliação com motoristas retirada (credenciais, 2026-10-23); contas sem funcionário ficam em Usuários. */}
             <Route path="cadastros/usuarios/conciliacao" element={<Navigate to="/cadastros/editar/usuarios" replace />} />
             <Route path="cadastros/usuarios/kiosk" element={<KioskCredentialsPage />} />
-            <Route path="cadastros/veiculos/novo" element={<CadastroVeiculoNovoPage />} />
             <Route path="cadastros/editar/:tipo" element={<CadastrosEditarPage />} />
             <Route path="registros" element={<RegistrosPage />} />
             <Route path="registros/:atividadeId/checklist" element={<ChecklistLegadoRedirect />} />
@@ -92,7 +90,7 @@ export default function App() {
             <Route path="checklists/:id" element={<ChecklistDetalhePage />} />
             <Route path="frota" element={<FrotaVeiculosPage />} />
             <Route path="frota/analytics" element={<FrotaAnalyticsPage />} />
-            <Route path="frota/:placa" element={<FrotaVeiculoDetalhesPage />} />
+            <Route path="frota/:id" element={<FrotaVeiculoDetalhesPage />} />
             <Route path="bombas" element={<BombasPage />} />
             <Route path="portfolio" element={<PortifolioPage />} />
           </Route>

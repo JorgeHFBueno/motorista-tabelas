@@ -9,13 +9,10 @@ import {
   Stack,
   TextField,
 } from '@mui/material';
-import LocalAutocomplete from './LocalAutocomplete';
 
 export type CadastroEditFormValues = {
   nome: string;
   descricao: string;
-  local: string;
-  aka: string;
   numero?: string;
 };
 
@@ -27,7 +24,6 @@ interface CadastroEditModalProps {
   onSave: (values: CadastroEditFormValues) => Promise<void>;
   saving?: boolean;
   showNumero?: boolean;
-  showObraFields?: boolean;
   submitError?: string | null;
 }
 
@@ -39,13 +35,10 @@ export default function CadastroEditModal({
   onSave,
   saving = false,
   showNumero = false,
-  showObraFields = false,
   submitError = null,
 }: CadastroEditModalProps) {
   const [nome, setNome] = useState('');
   const [descricao, setDescricao] = useState('');
-  const [local, setLocal] = useState('');
-  const [aka, setAka] = useState('');
   const [numero, setNumero] = useState('');
   const [formError, setFormError] = useState<string | null>(null);
 
@@ -53,8 +46,6 @@ export default function CadastroEditModal({
     if (!open) return;
     setNome(initialValues?.nome ?? '');
     setDescricao(initialValues?.descricao ?? '');
-    setLocal(initialValues?.local ?? '');
-    setAka(initialValues?.aka ?? '');
     setNumero(initialValues?.numero ?? '');
     setFormError(null);
   }, [open, initialValues]);
@@ -66,11 +57,6 @@ export default function CadastroEditModal({
       return;
     }
 
-    if (showObraFields && !local.trim()) {
-      setFormError('Informe o local da obra.');
-      return;
-    }
-
     if (showNumero && (!/^\d+$/.test(numero.trim()) || Number(numero.trim()) <= 0)) {
       setFormError('Informe um numero inteiro positivo.');
       return;
@@ -79,8 +65,6 @@ export default function CadastroEditModal({
     await onSave({
       nome: nomeTrim,
       descricao: descricao.trim(),
-      local: local.trim(),
-      aka: aka.trim(),
       numero: numero.trim(),
     });
   };
@@ -112,33 +96,13 @@ export default function CadastroEditModal({
             helperText={Boolean(formError) && !nome.trim() ? formError : undefined}
             fullWidth
           />
-          {showObraFields ? (
-            <>
-              <LocalAutocomplete
-                value={local}
-                onChange={setLocal}
-                required
-                error={Boolean(formError) && !local.trim()}
-                helperText={Boolean(formError) && !local.trim() ? formError : undefined}
-                placeholder="Local da obra"
-              />
-              <TextField
-                label="Sinônimo"
-                value={aka}
-                onChange={(event) => setAka(event.target.value)}
-                placeholder="Nome alternativo da obra"
-                fullWidth
-              />
-            </>
-          ) : (
-            <TextField
-              label="Descrição (opcional)"
-              value={descricao}
-              onChange={(event) => setDescricao(event.target.value)}
-              fullWidth
-              multiline
-            />
-          )}
+          <TextField
+            label="Descrição (opcional)"
+            value={descricao}
+            onChange={(event) => setDescricao(event.target.value)}
+            fullWidth
+            multiline
+          />
         </Stack>
       </DialogContent>
       <DialogActions>

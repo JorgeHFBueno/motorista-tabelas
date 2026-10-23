@@ -8,7 +8,7 @@ export const PILOT_PERIOD = { start: PILOT_START, end: PILOT_END };
 export type AnalyticsPeriod = { start?: Date; end?: Date };
 export type ActivityAnalyticsRecord = { id: string; tipo?: unknown; data?: unknown; veiculoId?: unknown; placa?: unknown; obraId?: unknown };
 export type FuelAnalyticsRecord = { id: string; data?: unknown; placa?: unknown; km?: unknown; semKm?: unknown; motivo?: unknown; quantidadeAbastecida?: unknown; isFuelOutput?: boolean; schema?: string; itemFrotaUid?: unknown; itemFrotaTipo?: unknown; identificadorSnapshot?: unknown };
-export type MaintenanceAnalyticsRecord = { id: string; data?: unknown; identificador?: unknown; valor?: unknown };
+export type MaintenanceAnalyticsRecord = { id: string; data?: unknown; item_frota_id?: unknown; identificador?: unknown; valor?: unknown };
 export type VehicleAnalyticsIdentity = { id: string; placa?: string; identificador?: string; extra?: string };
 
 export type FleetMetrics = {
@@ -61,7 +61,8 @@ export function vehicleMatches(activity: ActivityAnalyticsRecord, vehicle: Vehic
 
 function fuelMatchesVehicle(item: FuelAnalyticsRecord, vehicle: VehicleAnalyticsIdentity): boolean {
   if (item.isFuelOutput === false) return false;
-  if (item.itemFrotaUid === vehicle.id) return true;
+  // Ligado por ID: só o ID decide. A placa vale apenas para registro sem item_frota_id.
+  if (typeof item.itemFrotaUid === 'string' && item.itemFrotaUid) return item.itemFrotaUid === vehicle.id;
   const normalize = (value: unknown) => typeof value === 'string' ? value.toUpperCase().replace(/[^A-Z0-9]/g, '') : '';
   const candidate = normalize(item.identificadorSnapshot ?? item.placa);
   return Boolean(candidate && [vehicle.placa, vehicle.identificador, vehicle.extra].some((value) => normalize(value) === candidate));
@@ -90,8 +91,17 @@ export function estimatedKm(fuel: FuelAnalyticsRecord[], period?: AnalyticsPerio
   return { value: readings[readings.length - 1].km - readings[0].km, quality: 'PARTIAL' };
 }
 
+// Manutenção liga o veículo por item_frota_id (veiculos-v2). Registros antigos, ainda só com a placa em
+// `identificador`, entram pela placa até a migração de manutencoes.
+export function maintenanceMatchesVehicle(item: MaintenanceAnalyticsRecord, vehicle: VehicleAnalyticsIdentity): boolean {
+  if (typeof item.item_frota_id === 'string' && item.item_frota_id) return item.item_frota_id === vehicle.id;
+  const normalize = (value: unknown) => typeof value === 'string' ? value.toUpperCase().replace(/[^A-Z0-9]/g, '') : '';
+  const candidate = normalize(item.identificador);
+  return Boolean(candidate && [vehicle.placa, vehicle.identificador, vehicle.extra, vehicle.id].some((value) => normalize(value) === candidate));
+}
+
 export function maintenanceCost(records: MaintenanceAnalyticsRecord[], period?: AnalyticsPeriod, vehicle?: VehicleAnalyticsIdentity): number {
-  return records.filter((item) => inPeriod(item.data, period) && (!vehicle || item.identificador === vehicle.id)).reduce((total, item) => total + (numberValue(item.valor) ?? 0), 0);
+  return records.filter((item) => inPeriod(item.data, period) && (!vehicle || maintenanceMatchesVehicle(item, vehicle))).reduce((total, item) => total + (numberValue(item.valor) ?? 0), 0);
 }
 
 export function fleetMetrics(activities: ActivityAnalyticsRecord[], fuel: FuelAnalyticsRecord[], maintenance: MaintenanceAnalyticsRecord[], period?: AnalyticsPeriod, vehicle?: VehicleAnalyticsIdentity): FleetMetrics {

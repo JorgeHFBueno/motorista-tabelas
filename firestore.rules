@@ -277,6 +277,50 @@ service cloud.firestore {
         && !data.keys().hasAny(['paraQuem', 'autorLancamento', 'obra', 'itemFrota']);
     }
 
+    // { uid: null, nome: "ERRO" }: the person of an automatic adjustment is unknown.
+    function fuelErrorPerson(value) {
+      return value is map
+        && value.keys().hasOnly(['uid', 'nome'])
+        && value.get('uid', '') == null
+        && value.get('nome', '') == 'ERRO';
+    }
+
+    // Saída V2 of the app's automatic adjustment ("Ajuste de montante", contract: Manuscript
+    // 02_PROCESSOS/combustivel-saida-v2.md): covers the totalizer jump, so people, item and obra are unknown (null).
+    function validFuelAjusteV2Create() {
+      let data = request.resource.data;
+      let preco = data.get('origemPreco', {});
+      return hasEitherPerfil('frentista', 'adm2')
+        && validFuelCriadoPor(data)
+        && data.get('schemaVersion', 0) == 2
+        && data.get('tipo', '') == 'saida'
+        && data.get('motivo', '') == 'Ajuste de montante'
+        && data.get('modalidadeAbastecimento', '') == 'direto'
+        && data.get('semKm', null) == 'Sem Odometro'
+        && data.get('data', null) is timestamp
+        && data.get('arla', null) == 0
+        && data.get('quantidadeAbastecida', null) is int
+        && data.get('quantidadeAbastecida', 0) > 0
+        && data.get('estoqueAntes', null) is int
+        && data.get('estoqueAposMovimento', null) is int
+        && data.get('estoqueAposMovimento', 0) == data.get('estoqueAntes', 0) - data.get('quantidadeAbastecida', 0)
+        && data.get('montanteAntes', null) is int
+        && data.get('montanteAposMovimento', null) is int
+        && data.get('montanteAposMovimento', 0) == data.get('montanteAntes', 0) + data.get('quantidadeAbastecida', 0)
+        && data.get('valorAbastecimento', null) is int
+        && data.get('valorAbastecimento', 0) >= 0
+        && preco is map
+        && preco.get('precoLitro', null) is int
+        && preco.get('precoLitro', 0) >= 0
+        && fuelErrorPerson(data.get('frentista', null))
+        && fuelErrorPerson(data.get('motoristaOperador', null))
+        && data.get('item_frota_id', 'ausente') == null
+        && data.get('item_frota_snapshot', 'ausente') == null
+        && data.get('id_obra', 'ausente') == null
+        && data.get('id_obra_snap', 'ausente') == null
+        && !data.keys().hasAny(['quilometragem', 'horimetro', 'paraQuem', 'autorLancamento', 'obra', 'itemFrota']);
+    }
+
     // Entrada V2 (adm2). The contract requires montanteSnapshot as int; the app currently writes null, which is
     // accepted until the app is fixed (divergence recorded in the Manuscript).
     function validFuelEntradaV2Create() {
@@ -662,6 +706,7 @@ service cloud.firestore {
         isAuthorized()
         && (
           validFuelV2Create()
+          || validFuelAjusteV2Create()
           || (isAdm2() && validFuelEntradaV2Create())
           || validLegacyFuelCreate()
         );

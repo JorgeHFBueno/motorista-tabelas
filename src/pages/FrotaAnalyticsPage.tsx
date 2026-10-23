@@ -1,9 +1,8 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Alert, Box, Button, CircularProgress, Container, Stack, Typography } from '@mui/material';
-import { collection, getDocs } from 'firebase/firestore';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import FrotaAnalyticsPanel from '../components/FrotaAnalyticsPanel';
-import { db } from '../firebase';
+import { listItensFrota } from '../services/veiculos.service';
 import type { VehicleAnalyticsIdentity } from '../services/frota-analytics.service';
 
 export default function FrotaAnalyticsPage() {
@@ -21,9 +20,13 @@ export default function FrotaAnalyticsPage() {
       setLoading(true);
       setError(null);
       try {
-        const snapshot = await getDocs(collection(db, 'veiculos'));
+        const items = await listItensFrota();
         if (!active) return;
-        setVehicles(snapshot.docs.map(item => ({ id: item.id, ...item.data() })));
+        setVehicles(items.map(item => ({
+          id: item.id,
+          identificador: item.identificador,
+          ...(item.categoria === 'PLACA' ? { placa: item.identificador } : { extra: item.identificador }),
+        })));
       } catch (loadError) {
         console.error('Erro ao carregar veículos para Analytics', loadError);
         if (active) setError('Não foi possível carregar os veículos para Analytics.');

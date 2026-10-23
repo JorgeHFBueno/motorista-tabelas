@@ -77,6 +77,7 @@ const maintenanceFieldOrder = [
     'descricao',
     'nota',
     'status',
+    'item_frota_snapshot',
     'identificador',
 ];
 
@@ -94,6 +95,10 @@ const maintenanceFieldLabels: Record<string, string> = {
     nota: 'Nota',
     status: 'Status',
     identificador: 'Veículo',
+    'item_frota_snapshot.identificador': 'Veículo',
+    'item_frota_snapshot.nome': 'Veículo (nome)',
+    'item_frota_snapshot.categoria': 'Veículo (categoria)',
+    'motorista.nome': 'Motorista',
 };
 
 const maintenanceHiddenFields = new Set([
@@ -102,7 +107,11 @@ const maintenanceHiddenFields = new Set([
     'categoriaLegado',
     'fornecedorId',
     'tipoVeiculo',
+    'item_frota_id',
 ]);
+
+// IDs ficam ocultos; o painel mostra os snapshots ao lado deles.
+const maintenanceHiddenPaths = new Set(['motorista.uid']);
 
 const humanizeFieldLabel = (path: string) => {
     const root = path.split('.').pop() ?? path;
@@ -119,7 +128,7 @@ const getMaintenanceDisplayFields = (data: Record<string, unknown>): DisplayFiel
     return flattened
         .filter((field) => {
             const root = field.path.split('.')[0];
-            if (maintenanceHiddenFields.has(root)) return false;
+            if (maintenanceHiddenFields.has(root) || maintenanceHiddenPaths.has(field.path)) return false;
             if (!hasUsefulValue(field.value)) return false;
             if (root === 'categoria' && hasUsefulValue(directValues.get('categoriaNomeSnapshot'))) return false;
             if (root === 'fornecedor' && hasUsefulValue(directValues.get('fornecedorNomeSnapshot'))) return false;
@@ -127,7 +136,7 @@ const getMaintenanceDisplayFields = (data: Record<string, unknown>): DisplayFiel
         })
         .map((field) => {
             const root = field.path.split('.')[0];
-            const label = maintenanceFieldLabels[root] ?? humanizeFieldLabel(field.path);
+            const label = maintenanceFieldLabels[field.path] ?? maintenanceFieldLabels[root] ?? humanizeFieldLabel(field.path);
             const order = maintenanceFieldOrder.indexOf(root);
             return {
                 ...field,

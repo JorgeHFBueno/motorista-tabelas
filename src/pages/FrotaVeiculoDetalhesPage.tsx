@@ -3,16 +3,14 @@ import {
     Alert,
     Box,
     Button,
-    Checkbox,
     CircularProgress,
     Container,
     Divider,
-    FormControlLabel,
     Menu,
     MenuItem,
+    Paper,
     Snackbar,
     Stack,
-    TextField,
     Typography,
 } from '@mui/material';
 import {
@@ -27,7 +25,6 @@ import {
     getDocs,
     orderBy,
     query,
-    serverTimestamp,
     updateDoc,
     where,
 } from 'firebase/firestore';
@@ -43,11 +40,13 @@ import ManutencoesList, {
     type TipoEvento,
 } from '../components/ManutencoesList';
 import {
+    buildManutencaoPayload,
     type CategoriaManutencao,
     DEFAULT_MANUTENCAO_FORM,
     type Fornecedor,
     getManutencaoValidationError,
     type ManutencaoForm,
+    motoristaNome,
 } from '../components/manutencaoFormShared';
 import { useAuth } from '../contexts/AuthContext';
 import { db } from '../firebase';
@@ -56,30 +55,16 @@ import { normalizarMovimentoCombustivel } from '../services/combustivel-normaliz
 import { buildVehicleReport } from '../services/vehicle-report.service';
 import { createVehicleReportPdf } from '../services/vehicle-report-pdf';
 import { resolveVehicleReportPeriod, type VehicleReportPeriod } from '../services/vehicle-report-core';
+import { listFuncionariosAtivos } from '../services/funcionarios-selecao.service';
+import { getItemFrota } from '../services/veiculos.service';
+import type { ItemFrotaV2, PessoaV2 } from '../utils/cadastrosV2';
 
 const FrotaCharts = lazy(() => import('../components/FrotaCharts'));
-type Veiculo = {
-    id: string;
-    ativo?: boolean;
-    categoria?: string;
-    placa?: string;
-    extra?: string;
-    quilometragemInicial?: number;
-    quilometragemUltima?: number;
-    dataUltimaAtualizacao?: unknown;
-};
-
-type VeiculoForm = {
-    ativo: boolean;
-    placa: string;
-    extra: string;
-    quilometragemInicial: string;
-    quilometragemUltima: string;
-};
-
 type Manutencao = {
     id: string;
+    item_frota_id?: string;
     identificador?: string;
+    motorista?: unknown;
     tipoVeiculo?: 'PLACA' | 'EXTRA';
     categoria?: string;
     categoriaId?: string;
@@ -133,14 +118,6 @@ type LinhaEvento = {
     descricao?: string | null;
     nota?: string | null;
     status?: string | null;
-};
-
-const DEFAULT_FORM: VeiculoForm = {
-    ativo: false,
-    placa: '',
-    extra: '',
-    quilometragemInicial: '',
-    quilometragemUltima: '',
 };
 
 function toDate(raw: unknown): Date | null {
@@ -204,29 +181,30 @@ const deleteDeepValue = (target: Record<string, unknown>, path: string) => {
     });
 };
 
+// manutencoes liga o veículo por item_frota_id; os registros ainda não migrados, e todo o manutencoes-legado, só
+// têm a placa em texto (`identificador`).
+async function queryManutencoes(collectionName: FonteEvento, field: string, value: string) {
+    const baseQuery = query(collection(db, collectionName), where(field, '==', value));
+    try {
+        return (await getDocs(query(baseQuery, orderBy('data', 'desc')))).docs;
+    } catch (err) {
+        console.warn(`Falha ao ordenar manutenções por data, carregando sem orderBy. Índice sugerido: ${field} ASC, data DESC.`, err);
+        return (await getDocs(baseQuery)).docs;
+    }
+}
+
 async function fetchManutencoes(
     collectionName: FonteEvento,
-    vehicleId: string,
+    item: ItemFrotaV2,
     origem: TipoEvento,
 ): Promise<LinhaEvento[]> {
-    console.debug('[FrotaVeiculosDetalhes] loadManutencoes query:', {
-        collection: collectionName,
-        identificador: vehicleId,
-    });
-    const baseQuery = query(collection(db, collectionName), where('identificador', '==', vehicleId));
-    let snapshot;
+    const porPlaca = await queryManutencoes(collectionName, 'identificador', item.identificador);
+    const porId = collectionName === 'manutencoes' ? await queryManutencoes(collectionName, 'item_frota_id', item.id) : [];
+    const vistos = new Set<string>();
+    const docs = [...porId, ...porPlaca.filter((docSnap) => !docSnap.data().item_frota_id)]
+        .filter((docSnap) => !vistos.has(docSnap.id) && Boolean(vistos.add(docSnap.id)));
 
-    try {
-        snapshot = await getDocs(query(baseQuery, orderBy('data', 'desc')));
-    } catch (err) {
-        console.warn(
-            'Falha ao ordenar manutenções por data, carregando sem orderBy. Índice sugerido: identificador ASC, data DESC.',
-            err,
-        );
-        snapshot = await getDocs(baseQuery);
-    }
-
-    return snapshot.docs.map(
+    return docs.map(
         (docSnap): LinhaEvento => {
             const manutencao = docSnap.data() as Omit<Manutencao, 'id'>;
             return {
@@ -245,7 +223,7 @@ async function fetchManutencoes(
                 fornecedor: manutencao.fornecedor ?? null,
                 fornecedorId: manutencao.fornecedorId ?? null,
                 fornecedorNomeSnapshot: manutencao.fornecedorNomeSnapshot ?? null,
-                motorista: manutencao.motorista ?? null,
+                motorista: motoristaNome(manutencao.motorista),
                 descricao: manutencao.descricao ?? null,
                 nota: manutencao.nota ?? null,
                 status: manutencao.status ?? null,
@@ -255,18 +233,17 @@ async function fetchManutencoes(
 }
 
 export default function FrotaVeiculoDetalhesPage() {
-    const { placa } = useParams();
+    const { id } = useParams();
     const navigate = useNavigate();
     const { isAdmin } = useAuth();
 
-    const [veiculo, setVeiculo] = useState<Veiculo | null>(null);
+    const [veiculo, setVeiculo] = useState<ItemFrotaV2 | null>(null);
+    const [pessoas, setPessoas] = useState<PessoaV2[]>([]);
     const [generatingReport, setGeneratingReport] = useState(false);
     const [reportMenuAnchor, setReportMenuAnchor] = useState<HTMLElement | null>(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
 
-    const [form, setForm] = useState<VeiculoForm>(DEFAULT_FORM);
-    const [saving, setSaving] = useState(false);
 
     const [showAbastecimento, setShowAbastecimento] = useState(false);
     const [showManutencoes2026, setShowManutencoes2026] = useState(true);
@@ -475,44 +452,18 @@ export default function FrotaVeiculoDetalhesPage() {
         let active = true;
 
         async function loadVeiculo() {
-            if (!placa) {
+            if (!id) {
                 setError('Veículo não encontrado.');
                 setLoading(false);
                 return;
             }
-
             setLoading(true);
             setError(null);
-
             try {
-                const veiculosRef = collection(db, 'veiculos');
-                let snapshot = await getDocs(query(veiculosRef, where('placa', '==', placa)));
+                const item = await getItemFrota(id);
                 if (!active) return;
-
-                if (snapshot.empty) {
-                    snapshot = await getDocs(query(veiculosRef, where('extra', '==', placa)));
-                }
-                if (!active) return;
-
-                if (snapshot.empty) {
-                    setError('Veículo não encontrado.');
-                    setVeiculo(null);
-                    return;
-                }
-
-
-                const snap = snapshot.docs[0];
-                const data = { id: snap.id, ...(snap.data() as Omit<Veiculo, 'id'>) };
-                setVeiculo(data);
-                setForm({
-                    ativo: Boolean(data.ativo),
-                    placa: data.placa ?? '',
-                    extra: data.extra ?? '',
-                    quilometragemInicial:
-                        data.quilometragemInicial !== undefined ? String(data.quilometragemInicial) : '',
-                    quilometragemUltima:
-                        data.quilometragemUltima !== undefined ? String(data.quilometragemUltima) : '',
-                });
+                setVeiculo(item);
+                if (!item) setError('Veículo não encontrado.');
             } catch (err) {
                 console.error('Erro ao carregar veículo', err);
                 if (active) setError('Erro ao carregar veículo.');
@@ -521,12 +472,16 @@ export default function FrotaVeiculoDetalhesPage() {
             }
         }
 
-        console.debug('[FrotaVeiculosDetalhes] route placa:', placa);
         loadVeiculo();
         return () => {
             active = false;
         };
-    }, [placa]);
+    }, [id]);
+
+    useEffect(() => {
+        if (!manutencaoOpen || pessoas.length) return;
+        listFuncionariosAtivos().then(setPessoas).catch((err) => console.error('Erro ao carregar funcionários', err));
+    }, [manutencaoOpen, pessoas.length]);
 
     useEffect(() => {
         let active = true;
@@ -582,98 +537,14 @@ export default function FrotaVeiculoDetalhesPage() {
         };
     }, []);
 
-    const tipoVeiculo = useMemo<'PLACA' | 'EXTRA'>(() => {
-        if (veiculo?.categoria === 'EXTRA') return 'EXTRA';
-        if (veiculo?.categoria === 'PLACA') return 'PLACA';
-        if (veiculo?.extra && !veiculo?.placa) return 'EXTRA';
-        return 'PLACA';
-    }, [veiculo?.categoria, veiculo?.extra, veiculo?.placa]);
-
-    const tituloVeiculo = tipoVeiculo === 'EXTRA' ? veiculo?.extra ?? 'Extra' : veiculo?.placa ?? 'Placa';
-
-    async function handleSave() {
-        if (!veiculo) return;
-
-        const placa = form.placa.trim();
-        const extra = form.extra.trim();
-
-        if (tipoVeiculo === 'PLACA' && !placa) {
-            setSnackbar({ open: true, severity: 'error', message: 'Informe a placa.' });
-            return;
-        }
-        if (tipoVeiculo === 'EXTRA' && !extra) {
-            setSnackbar({ open: true, severity: 'error', message: 'Informe o código extra.' });
-            return;
-        }
-
-        if (!form.quilometragemInicial.trim() || !form.quilometragemUltima.trim()) {
-            setSnackbar({
-                open: true,
-                severity: 'error',
-                message: 'Informe as quilometragens inicial e última.',
-            });
-            return;
-        }
-
-        const kmInicial = Number(form.quilometragemInicial);
-        const kmUltima = Number(form.quilometragemUltima);
-
-        if (!Number.isInteger(kmInicial) || !Number.isInteger(kmUltima)) {
-            setSnackbar({
-                open: true,
-                severity: 'error',
-                message: 'Quilometragens devem ser números inteiros.',
-            });
-            return;
-        }
-
-        setSaving(true);
-        try {
-            const updateData: Partial<Veiculo> = {
-                ativo: form.ativo,
-                quilometragemInicial: kmInicial,
-                quilometragemUltima: kmUltima,
-            };
-
-            if (tipoVeiculo === 'PLACA') {
-                updateData.placa = placa;
-            } else {
-                updateData.extra = extra;
-            }
-
-            await updateDoc(doc(db, 'veiculos', veiculo.id), {
-                ...updateData,
-                dataUltimaAtualizacao: serverTimestamp(),
-            });
-
-            setVeiculo((prev) =>
-                prev
-                    ? {
-                        ...prev,
-                        ...updateData,
-                        dataUltimaAtualizacao: new Date(),
-                    }
-                    : prev,
-            );
-            setSnackbar({ open: true, severity: 'success', message: 'Veículo atualizado com sucesso.' });
-        } catch (err) {
-            console.error('Erro ao atualizar veículo', err);
-            setSnackbar({ open: true, severity: 'error', message: 'Erro ao atualizar veículo.' });
-        } finally {
-            setSaving(false);
-        }
-    }
-
-    const manutencaoVeiculoSelecionado = useMemo(
-        () => (veiculo ? { id: veiculo.id, categoria: tipoVeiculo, placa: veiculo.placa, extra: veiculo.extra } : null),
-        [tipoVeiculo, veiculo],
-    );
+    const tipoVeiculo = veiculo?.categoria ?? 'PLACA';
+    const tituloVeiculo = veiculo ? (veiculo.nome && veiculo.nome !== veiculo.identificador ? `${veiculo.identificador} — ${veiculo.nome}` : veiculo.identificador) : '';
 
     function openManutencaoDialog() {
         if (!veiculo) return;
         setManutencaoForm({
             ...DEFAULT_MANUTENCAO_FORM,
-            identificador: veiculo.id,
+            itemFrotaId: veiculo.id,
             tipoVeiculo,
         });
         setManutencaoOpen(true);
@@ -687,8 +558,8 @@ export default function FrotaVeiculoDetalhesPage() {
 
     async function handleSaveManutencao() {
         const validationError = getManutencaoValidationError(manutencaoForm);
-        if (validationError) {
-            setSnackbar({ open: true, severity: 'error', message: validationError });
+        if (validationError || !veiculo) {
+            setSnackbar({ open: true, severity: 'error', message: validationError ?? 'Veículo não encontrado.' });
             return;
         }
 
@@ -698,29 +569,13 @@ export default function FrotaVeiculoDetalhesPage() {
                 manutencaoForm.dataModo === 'MANUAL'
                     ? Timestamp.fromDate(new Date(manutencaoForm.dataManual))
                     : Timestamp.fromDate(new Date());
-            const valor = Number(manutencaoForm.valor);
-            const quantidade = Number(manutencaoForm.quantidade);
-            const kmValue = manutencaoForm.km.trim();
-            const km = kmValue ? Number(kmValue) : undefined;
-            const nota = manutencaoForm.nota.trim();
-            const fornecedorNomeSnapshot = manutencaoForm.fornecedorNomeSnapshot.trim();
-            const categoriaNomeSnapshot = manutencaoForm.categoriaNomeSnapshot.trim();
-            const payload = {
-                identificador: manutencaoForm.identificador,
-                tipoVeiculo: manutencaoForm.tipoVeiculo,
-                categoriaId: manutencaoForm.categoriaId,
-                categoriaNomeSnapshot,
-                valor,
-                quantidade,
-                ...(kmValue ? { km } : {}),
-                fornecedorId: manutencaoForm.fornecedorId,
-                fornecedorNomeSnapshot,
-                motorista: manutencaoForm.motorista.trim(),
-                descricao: manutencaoForm.descricao.trim(),
-                nota,
-                status: manutencaoForm.status,
-                data,
-            };
+            const payload = buildManutencaoPayload(manutencaoForm, veiculo, data);
+            const valor = payload.valor as number;
+            const quantidade = payload.quantidade as number;
+            const km = payload.km as number | undefined;
+            const nota = payload.nota as string;
+            const fornecedorNomeSnapshot = payload.fornecedorNomeSnapshot as string;
+            const categoriaNomeSnapshot = payload.categoriaNomeSnapshot as string;
 
             const docRef = await addDoc(collection(db, 'manutencoes'), payload);
 
@@ -740,7 +595,7 @@ export default function FrotaVeiculoDetalhesPage() {
                 fornecedor: fornecedorNomeSnapshot || null,
                 fornecedorId: manutencaoForm.fornecedorId || null,
                 fornecedorNomeSnapshot: fornecedorNomeSnapshot || null,
-                motorista: manutencaoForm.motorista.trim() || null,
+                motorista: motoristaNome(payload.motorista),
                 descricao: manutencaoForm.descricao.trim() || null,
                 nota: nota || null,
                 status: manutencaoForm.status,
@@ -774,12 +629,11 @@ export default function FrotaVeiculoDetalhesPage() {
     useEffect(() => {
         let active = true;
 
-        async function loadCombustivel(placa: string) {
+        async function loadCombustivel(itemId: string, identificador: string) {
             setCombustivelLoading(true);
             setCombustivelError(null);
 
             try {
-                console.debug('[FrotaVeiculosDetalhes] loadCombustivel query:', { placa });
                 const snapshot = await getDocs(collection(db, '03-combustivel'));
 
                 if (!active) return;
@@ -787,7 +641,7 @@ export default function FrotaVeiculoDetalhesPage() {
                 const data: LinhaEvento[] = snapshot.docs.map(
                     (docSnap): LinhaEvento => {
                         const registro = normalizarMovimentoCombustivel(docSnap.data(), docSnap.id) as Combustivel;
-                        const matches = registro.itemFrotaUid === veiculo?.id || registro.identificadorSnapshot === placa;
+                        const matches = registro.itemFrotaUid === itemId || (!registro.itemFrotaUid && registro.identificadorSnapshot === identificador);
                         if (!matches || registro.isFuelOutput === false) return null as unknown as LinhaEvento;
                         const categoria = registro.motivo ? registro.motivo : 'ABASTECIMENTO';
                         return {
@@ -818,26 +672,26 @@ export default function FrotaVeiculoDetalhesPage() {
         }
 
         if (!showAbastecimento) return;
-        if (!veiculo?.placa) {
+        if (!veiculo) {
             setCombustivelRows([]);
             return;
         }
 
-        loadCombustivel(veiculo.placa);
+        loadCombustivel(veiculo.id, veiculo.identificador);
         return () => {
             active = false;
         };
-    }, [showAbastecimento, veiculo?.placa]);
+    }, [showAbastecimento, veiculo]);
 
     useEffect(() => {
         let active = true;
 
-        async function loadManutencoes2026(vehicleId: string) {
+        async function loadManutencoes2026(item: ItemFrotaV2) {
             setManutencoes2026Loading(true);
             setManutencoes2026Error(null);
 
             try {
-                const data = await fetchManutencoes('manutencoes', vehicleId, 'manutencao2026');
+                const data = await fetchManutencoes('manutencoes', item, 'manutencao2026');
                 if (!active) return;
                 console.debug('[FrotaVeiculosDetalhes] manutencoes 2026 carregadas:', data.length);
                 setManutencoes2026Rows(data);
@@ -851,26 +705,26 @@ export default function FrotaVeiculoDetalhesPage() {
             }
         }
         if (!showManutencoes2026) return;
-        if (!veiculo?.id) {
+        if (!veiculo) {
             setManutencoes2026Rows([]);
             return;
         }
 
-        loadManutencoes2026(veiculo.id);
+        loadManutencoes2026(veiculo);
         return () => {
             active = false;
         };
-    }, [showManutencoes2026, veiculo?.id]);
+    }, [showManutencoes2026, veiculo]);
 
     useEffect(() => {
         let active = true;
 
-        async function loadManutencoesLegado(vehicleId: string) {
+        async function loadManutencoesLegado(item: ItemFrotaV2) {
             setManutencoesLegadoLoading(true);
             setManutencoesLegadoError(null);
 
             try {
-                const data = await fetchManutencoes('manutencoes-legado', vehicleId, 'manutencaoLegado');
+                const data = await fetchManutencoes('manutencoes-legado', item, 'manutencaoLegado');
                 if (!active) return;
                 console.debug('[FrotaVeiculosDetalhes] manutencoes legado carregadas:', data.length);
                 setManutencoesLegadoRows(data);
@@ -885,16 +739,16 @@ export default function FrotaVeiculoDetalhesPage() {
         }
 
         if (!showManutencoesLegado) return;
-        if (!veiculo?.id) {
+        if (!veiculo) {
             setManutencoesLegadoRows([]);
             return;
         }
 
-        loadManutencoesLegado(veiculo.id);
+        loadManutencoesLegado(veiculo);
         return () => {
             active = false;
         };
-    }, [showManutencoesLegado, veiculo?.id]);
+    }, [showManutencoesLegado, veiculo]);
 
     const fornecedoresById = useMemo(() => {
         return new Map(fornecedores.map((item) => [item.id, item.nome]));
@@ -1089,7 +943,7 @@ export default function FrotaVeiculoDetalhesPage() {
     const handleGenerateReport = async (option: VehicleReportPeriod) => {
         if (!veiculo || generatingReport) return;
         setReportMenuAnchor(null);
-        const vehiclePlate = veiculo.placa ?? placa ?? '';
+        const vehiclePlate = veiculo.identificador;
         if (!vehiclePlate) {
             setSnackbar({ open: true, severity: 'error', message: 'A placa do veículo não está disponível.' });
             return;
@@ -1160,69 +1014,29 @@ export default function FrotaVeiculoDetalhesPage() {
                             </Menu>
                         </>
                     )}
-                    <Button variant="contained" onClick={handleSave} disabled={saving}>
-                        {saving ? 'Salvando...' : 'Salvar'}
-                    </Button>
                 </Stack>
             </Stack>
 
-            <Box mt={3}>
-                <Stack spacing={2}>
-                    <FormControlLabel
-                        control={
-                            <Checkbox
-                                checked={form.ativo}
-                                onChange={(event) => setForm((prev) => ({ ...prev, ativo: event.target.checked }))}
-                            />
-                        }
-                        label="Ativo"
-                    />
-
-                    {tipoVeiculo === 'PLACA' ? (
-                        <TextField
-                            label="Placa"
-                            value={form.placa}
-                            onChange={(event) => setForm((prev) => ({ ...prev, placa: event.target.value }))}
-                            fullWidth
-                            required
-                        />
-                    ) : (
-                        <TextField
-                            label="Extra"
-                            value={form.extra}
-                            onChange={(event) => setForm((prev) => ({ ...prev, extra: event.target.value }))}
-                            fullWidth
-                            required
-                        />
-                    )}
-
-                    <TextField
-                        label="Quilometragem inicial"
-                        type="number"
-                        value={form.quilometragemInicial}
-                        onChange={(event) => setForm((prev) => ({ ...prev, quilometragemInicial: event.target.value }))}
-                        fullWidth
-                        required
-                    />
-                    <TextField
-                        label="Quilometragem última"
-                        type="number"
-                        value={form.quilometragemUltima}
-                        onChange={(event) => setForm((prev) => ({ ...prev, quilometragemUltima: event.target.value }))}
-                        fullWidth
-                        required
-                    />
-                    <TextField
-                        label="Última atualização"
-                        value={(() => {
-                            const d = toDate(veiculo?.dataUltimaAtualizacao);
-                            return d ? dateFormatter.format(d) : '—';
-                        })()}
-                        fullWidth
-                        disabled
-                    />
-                </Stack>
-            </Box>
+            {veiculo && (
+                <Paper variant="outlined" sx={{ mt: 3, p: 2 }}>
+                    <Stack direction={{ xs: 'column', sm: 'row' }} spacing={3} flexWrap="wrap" useFlexGap>
+                        <Typography variant="body2"><strong>{tipoVeiculo === 'PLACA' ? 'Placa' : 'Extra'}:</strong> {veiculo.identificador}</Typography>
+                        <Typography variant="body2"><strong>Nome:</strong> {veiculo.nome}</Typography>
+                        <Typography variant="body2"><strong>Situação:</strong> {veiculo.situacao ?? (veiculo.ativo ? 'ativo' : 'inativo')}</Typography>
+                        <Typography variant="body2"><strong>{tipoVeiculo === 'PLACA' ? 'KM' : 'Medidor'} inicial:</strong> {veiculo.quilometragemInicial ?? '—'}</Typography>
+                        <Typography variant="body2"><strong>{tipoVeiculo === 'PLACA' ? 'KM' : 'Medidor'} último:</strong> {veiculo.quilometragemUltima ?? '—'}</Typography>
+                        <Typography variant="body2">
+                            <strong>Última atualização:</strong> {(() => {
+                                const d = toDate(veiculo.dataUltimaAtualizacao);
+                                return d ? dateFormatter.format(d) : '—';
+                            })()}
+                        </Typography>
+                    </Stack>
+                    <Typography variant="caption" color="text.secondary">
+                        O cadastro do veículo é feito no Friday (veiculos-v2).
+                    </Typography>
+                </Paper>
+            )}
 
             <Divider sx={{ my: 4 }} />
 
@@ -1295,7 +1109,8 @@ export default function FrotaVeiculoDetalhesPage() {
                 open={manutencaoOpen}
                 saving={manutencaoSaving}
                 form={manutencaoForm}
-                veiculos={manutencaoVeiculoSelecionado ? [manutencaoVeiculoSelecionado] : []}
+                veiculos={veiculo ? [veiculo] : []}
+                pessoas={pessoas}
                 fornecedores={fornecedores}
                 categoriasManutencao={categoriasManutencao}
                 disableVehicleSelection

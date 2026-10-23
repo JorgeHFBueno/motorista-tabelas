@@ -1,66 +1,131 @@
-import { Timestamp, doc, runTransaction } from 'firebase/firestore';
+import { Timestamp, collection, doc, getDoc, getDocs, limit, orderBy, query, runTransaction, where } from 'firebase/firestore';
 import { db } from '../firebase';
-import type { Registro } from '../types';
+import {
+  ajusteRestante,
+  buildSaidaV2,
+  encadearLinhas,
+  leiturasPorItem,
+  planejarLancamento,
+  precoFromEntrada,
+  precoNaData,
+  registroLedgerFrom,
+  totalLinhas,
+  type LinhaLancamento,
+  type PlanoLancamento,
+  type PrecoReferencia,
+  type RegistroLedger,
+} from '../utils/combustivelLancamento';
 
-const COLLECTION_NAME = '03-combustivel';
-export interface FuelSnapshot { uid: string; nomeSnapshot: string }
-export interface FuelItemSnapshot { uid: string; tipo: 'veiculo' | 'maquina'; identificadorSnapshot: string; km?: number; horimetro?: number }
-export interface FuelObraSnapshot { uid: string; nomeSnapshot: string; localSnapshot?: string }
-export interface SaveV2FuelInput {
-  data: Date | string | Timestamp; quantidadeAbastecida: number; montanteAntes: number; montanteAposMovimento: number;
-  frentista: FuelSnapshot; paraQuem: FuelSnapshot; autorLancamento: FuelSnapshot; itemFrota: FuelItemSnapshot;
-  obra: FuelObraSnapshot; motivo: string; arla: number; modalidadeAbastecimento: 'direto' | 'galao'; observacao?: string;
+// Gravação de /combustivel/novo (The Manuscript, 02_PROCESSOS/combustivel-saida-v2.md, "Lançamento pela WEB").
+const COMBUSTIVEL = '03-combustivel';
+const BOMBA_ID = 'diesel_patio';
+
+const ledger = (docs: { id: string; data: () => Record<string, unknown> }[]) => docs
+  .map((item) => registroLedgerFrom(item.id, item.data()))
+  .filter((item): item is RegistroLedger => item !== null);
+
+export interface ContextoLancamento {
+  plano: PlanoLancamento | { erro: string };
+  folgaLitros: unknown;
+  precoAtual: PrecoReferencia | null;
+  precosEntradas: PrecoReferencia[];
 }
 
-function integer(value: unknown, label: string): number {
-  const n = typeof value === 'number' ? value : Number(String(value).replace(',', '.').trim());
-  if (!Number.isFinite(n) || !Number.isInteger(n)) throw new Error(`${label} deve ser um inteiro válido.`);
-  return n;
-}
-function dateValue(value: Date | string | Timestamp): Date {
-  const date = value instanceof Timestamp ? value.toDate() : value instanceof Date ? value : new Date(value);
-  if (Number.isNaN(date.getTime())) throw new Error('Data inválida.');
-  return date;
-}
-export function calculateFuelCostCents(quantityX10: number, priceCents: number, litersX10: number): number {
-  if (![quantityX10, priceCents, litersX10].every(Number.isInteger) || quantityX10 <= 0 || priceCents <= 0 || litersX10 <= 0) throw new Error('Última entrada de diesel V2 inválida.');
-  return Math.round(quantityX10 * priceCents / litersX10);
+/** Lê a bomba e os registros em volta da data para decidir entre lançamento atual e correção de furo. */
+export async function carregarContextoLancamento(data: Date): Promise<ContextoLancamento> {
+  const col = collection(db, COMBUSTIVEL); const ts = Timestamp.fromDate(data);
+  const [bomba, ultimo, antes, depois, entradas] = await Promise.all([
+    getDoc(doc(db, 'bombas', BOMBA_ID)),
+    getDocs(query(col, orderBy('data', 'desc'), limit(1))),
+    getDocs(query(col, where('data', '<', ts), orderBy('data', 'desc'), limit(20))),
+    getDocs(query(col, where('data', '>', ts), orderBy('data', 'asc'), limit(1))),
+    // Só por tipo, como o app: evita índice composto; a ordenação é feita aqui.
+    getDocs(query(col, where('tipo', '==', 'entrada'))),
+  ]);
+  const bombaData = bomba.exists() ? bomba.data() : {};
+  return {
+    plano: bomba.exists()
+      ? planejarLancamento({ data, ultimo: ledger(ultimo.docs)[0] ?? null, antes: ledger(antes.docs), depois: ledger(depois.docs), bomba: { montanteAtual: bombaData.montanteAtual, estoqueAtual: bombaData.estoqueAtual } })
+      : { erro: 'Documento bombas/diesel_patio não encontrado.' },
+    folgaLitros: bombaData.folgaLitros,
+    precoAtual: bombaData.ultimaEntrada ? precoFromEntrada(bombaData.ultimaEntrada as Record<string, unknown>) : null,
+    precosEntradas: entradas.docs.map((item) => precoFromEntrada(item.data(), item.id)).filter((item): item is PrecoReferencia => item !== null),
+  };
 }
 
-export async function saveCombustivelAndUpdateDieselPatio(input: SaveV2FuelInput): Promise<Registro> {
-  const data = Timestamp.fromDate(dateValue(input.data));
-  const quantity = integer(input.quantidadeAbastecida, 'Quantidade');
-  const informedInitialAmount = integer(input.montanteAntes, 'Montante inicial');
-  const informedFinalAmount = integer(input.montanteAposMovimento, 'Montante final');
-  const arla = integer(input.arla, 'ARLA');
-  if (quantity <= 0) throw new Error('Quantidade deve ser maior que zero.');
-  if (!input.motivo.trim()) throw new Error('Informe o motivo.');
-  if (![input.frentista, input.paraQuem, input.autorLancamento].every((v) => v.uid && v.nomeSnapshot)) throw new Error('As identidades devem possuir UID e nome válidos.');
-  if (!input.itemFrota.uid || !input.itemFrota.identificadorSnapshot) throw new Error('Selecione um item de frota válido.');
-  if (input.itemFrota.tipo === 'veiculo' && input.itemFrota.horimetro !== undefined) throw new Error('Veículo não aceita horímetro.');
-  if (input.itemFrota.tipo === 'maquina' && input.itemFrota.km !== undefined) throw new Error('Máquina não aceita KM.');
-  if (input.modalidadeAbastecimento === 'direto' && input.itemFrota.tipo === 'veiculo' && !Number.isInteger(input.itemFrota.km)) throw new Error('Abastecimento direto de veículo requer KM inteiro.');
-  if (input.modalidadeAbastecimento === 'direto' && input.itemFrota.tipo === 'maquina' && !Number.isInteger(input.itemFrota.horimetro)) throw new Error('Abastecimento direto de máquina requer horímetro.');
-  const movementRef = doc(db, COLLECTION_NAME); const pumpRef = doc(db, 'bombas', 'diesel_patio'); const itemRef = doc(db, 'veiculos', input.itemFrota.uid);
+export async function salvarLancamento(input: {
+  plano: PlanoLancamento;
+  linhas: LinhaLancamento[];
+  criadoPor: { uid: string; nome: string };
+  precosEntradas: PrecoReferencia[];
+}): Promise<string[]> {
+  const { plano, linhas, criadoPor } = input;
+  const pumpRef = doc(db, 'bombas', BOMBA_ID);
+  const ajusteRef = plano.modo === 'correcao' && plano.ajuste ? doc(db, COMBUSTIVEL, plano.ajuste.id) : null;
+  const leituras = plano.modo === 'atual' ? leiturasPorItem(linhas) : new Map<string, number>();
+  const encadeadas = encadearLinhas(linhas, plano.montantePartida, plano.estoquePartida);
+  const refs = encadeadas.map(() => doc(collection(db, COMBUSTIVEL)));
+  const total = totalLinhas(linhas);
+
   await runTransaction(db, async (transaction) => {
-    const pumpSnapshot = await transaction.get(pumpRef); const itemSnapshot = await transaction.get(itemRef);
-    if (!pumpSnapshot.exists()) throw new Error('Documento bombas/diesel_patio não encontrado.');
-    if (!itemSnapshot.exists()) throw new Error('Item de frota não encontrado.');
-    const pump = pumpSnapshot.data() as Record<string, unknown>; const estoqueAntes = integer(pump.estoqueAtual, 'Estoque atual'); integer(pump.montanteAtual, 'Montante atual'); const folga = integer(pump.folgaLitros, 'Folga de litros');
-    const entrada = pump.ultimaEntrada as Record<string, unknown> | undefined;
-    if (!entrada || entrada.schemaVersion !== 2) throw new Error('Preço V2 da última entrada não encontrado.');
-    if (Math.abs(quantity) > folga) throw new Error('Quantidade fora da folga permitida.');
-    const valor = calculateFuelCostCents(quantity, integer(entrada.preco, 'Preço da entrada'), integer(entrada.litrosComprados, 'Litros da entrada'));
-    const itemData = itemSnapshot.data() as Record<string, unknown>; const hasReading = input.itemFrota.tipo === 'veiculo' ? input.itemFrota.km !== undefined : input.itemFrota.horimetro !== undefined;
-    if (hasReading) {
-      const previous = input.itemFrota.tipo === 'veiculo' ? itemData.quilometragemUltima : (itemData.horimetro ?? itemData.quilometragemUltima ?? 0); const current = input.itemFrota.tipo === 'veiculo' ? input.itemFrota.km : input.itemFrota.horimetro;
-      if (typeof current !== 'number' || current < (typeof previous === 'number' ? previous : 0)) throw new Error('A leitura do item de frota não pode regredir.');
-      transaction.update(itemRef, input.itemFrota.tipo === 'veiculo' ? { quilometragemUltima: current, dataUltimaAtualizacao: new Date() } : { horimetro: current, dataUltimaAtualizacao: new Date() });
+    const pump = await transaction.get(pumpRef);
+    if (!pump.exists()) throw new Error('Documento bombas/diesel_patio não encontrado.');
+    const pumpData = pump.data();
+    const ajuste = ajusteRef ? await transaction.get(ajusteRef) : null;
+    const itens = await Promise.all([...leituras.keys()].map((id) => transaction.get(doc(db, 'veiculos-v2', id))));
+
+    let preco: (linha: LinhaLancamento) => PrecoReferencia | null;
+    if (plano.modo === 'atual') {
+      if (pumpData.montanteAtual !== plano.montantePartida || pumpData.estoqueAtual !== plano.estoquePartida) {
+        throw new Error('A bomba mudou desde que a tela foi carregada. Confira a data de novo.');
+      }
+      const atual = pumpData.ultimaEntrada ? precoFromEntrada(pumpData.ultimaEntrada as Record<string, unknown>) : null;
+      if (!atual) throw new Error('Preço V2 da última entrada não encontrado na bomba.');
+      preco = () => atual;
+    } else {
+      // Correção: o preço é o da entrada mais recente até a data de cada saída.
+      preco = (linha) => precoNaData(input.precosEntradas, linha.data);
+      if (ajuste) {
+        const data = ajuste.exists() ? ajuste.data() : null;
+        if (!data || data.quantidadeAbastecida !== plano.furo || data.montanteAntes !== plano.montantePartida) {
+          throw new Error('O ajuste automático mudou desde que a tela foi carregada. Confira a data de novo.');
+        }
+      }
     }
-    const payload: Record<string, unknown> = { schemaVersion: 2, tipo: 'saida', data, modalidadeAbastecimento: input.modalidadeAbastecimento, quantidadeAbastecida: quantity, valorAbastecimento: valor, origemPreco: { movimentoId: String(entrada.movimentoId), lote: entrada.lote ?? null, precoLitro: integer(entrada.precoLitro, 'Preço por litro') }, estoqueAntes, estoqueAposMovimento: estoqueAntes - quantity, montanteAntes: informedInitialAmount, montanteAposMovimento: informedFinalAmount, frentista: input.frentista, paraQuem: input.paraQuem, autorLancamento: input.autorLancamento, itemFrota: input.itemFrota, obra: input.obra, motivo: input.motivo.trim(), arla };
-    if (input.observacao?.trim()) payload.observacao = input.observacao.trim();
-    transaction.set(movementRef, payload); transaction.update(pumpRef, { estoqueAtual: estoqueAntes - quantity, montanteAtual: informedFinalAmount, ultimoAbastecimento: data, ultimoFrentista: input.frentista.nomeSnapshot });
+
+    encadeadas.forEach(({ linha, ...encadeado }, index) => {
+      transaction.set(refs[index], buildSaidaV2({ linha, encadeado, preco: preco(linha), criadoPor, dataFirestore: Timestamp.fromDate(linha.data) }));
+    });
+    const ultima = encadeadas[encadeadas.length - 1];
+    const agora = Timestamp.now();
+
+    if (plano.modo === 'atual') {
+      const dataUltima = Timestamp.fromDate(ultima.linha.data);
+      transaction.update(pumpRef, {
+        estoqueAtual: ultima.estoqueAposMovimento,
+        montanteAtual: ultima.montanteAposMovimento,
+        ultimoAbastecimento: dataUltima,
+        ultimoFrentista: ultima.linha.frentista?.nome ?? '',
+        ultimaMovimentacao: { movimentoId: refs[refs.length - 1].id, tipo: 'saida', data: dataUltima },
+        atualizadoEm: agora,
+      });
+      itens.forEach((item) => {
+        const leitura = leituras.get(item.id);
+        if (!item.exists() || leitura === undefined) return;
+        const anterior = (item.data().operacional as { quilometragemUltima?: unknown } | undefined)?.quilometragemUltima;
+        if (typeof anterior === 'number' && leitura < anterior) throw new Error('A leitura do item de frota não pode regredir.');
+        transaction.update(item.ref, { 'operacional.quilometragemUltima': leitura, 'operacional.dataUltimaAtualizacao': agora });
+      });
+    } else if (ajusteRef && ajuste?.exists()) {
+      // O ajuste já tinha descontado o estoque: as saídas tomam o lugar dele, total ou parcialmente.
+      const restante = ajusteRestante(ajuste.data(), total, ultima);
+      if (restante) transaction.update(ajusteRef, restante);
+      else transaction.delete(ajusteRef);
+    } else {
+      // Furo sem ajuste: o diesel saiu do tanque e ninguém tinha descontado.
+      if (typeof pumpData.estoqueAtual !== 'number' || !Number.isInteger(pumpData.estoqueAtual)) throw new Error('A bomba não tem estoque inteiro.');
+      transaction.update(pumpRef, { estoqueAtual: pumpData.estoqueAtual - total, atualizadoEm: agora });
+    }
   });
-  return { id: movementRef.id, schemaVersion: 2, tipo: 'saida', ...input, data } as unknown as Registro;
+  return refs.map((ref) => ref.id);
 }
-export default { saveCombustivelAndUpdateDieselPatio, calculateFuelCostCents };

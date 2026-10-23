@@ -652,6 +652,53 @@ test('[firestore] app automatic adjustment (legacy shape, id = chamado) is accep
     local: '', placa: '', arla: 0, obra: '', motorista: 'ERRO', observacao: 'Ajuste | UID: uid-canonical-user', diesel: 4990,
   }));
 });
+// Ajuste automático do app como saída V2 (Manuscript 04_APP_FLUTTER/06_COMBUSTIVEL.md, "Ajuste automático de divergência").
+function ajusteV2(overrides = {}) {
+  return {
+    schemaVersion: 2, tipo: 'saida', motivo: 'Ajuste de montante', modalidadeAbastecimento: 'direto', semKm: 'Sem Odometro', arla: 0,
+    data: Timestamp.fromMillis(1757000000000), quantidadeAbastecida: 25, valorAbastecimento: 1450,
+    origemPreco: { movimentoId: 'entry-1', lote: '1006', precoLitro: 580 },
+    estoqueAntes: 5000, estoqueAposMovimento: 4975, montanteAntes: 1000, montanteAposMovimento: 1025,
+    frentista: { uid: null, nome: 'ERRO' }, motoristaOperador: { uid: null, nome: 'ERRO' },
+    criadoPor: { uid: 'uid-frentista', nome: 'Frentista' },
+    item_frota_id: null, item_frota_snapshot: null, id_obra: null, id_obra_snap: null,
+    observacao: 'Diferencial no montante, ajuste automático | Chamado: call-existing', ...overrides,
+  };
+}
+test('[firestore] V2 automatic adjustment: movement, pump and chamado in one transaction', async () => {
+  const db = dbAs('frentista'); const pump = doc(db, 'bombas', 'diesel_patio'); const movement = doc(db, '03-combustivel', 'ajuste-v2');
+  await assertSucceeds(runTransaction(db, async (transaction) => {
+    const current = (await transaction.get(pump)).data();
+    const output = ajusteV2({ estoqueAntes: current.estoqueAtual, estoqueAposMovimento: current.estoqueAtual - 25, montanteAntes: current.montanteAtual, montanteAposMovimento: current.montanteAtual + 25 });
+    transaction.set(movement, output);
+    transaction.update(pump, {
+      estoqueAtual: output.estoqueAposMovimento, montanteAtual: output.montanteAposMovimento, ultimoAbastecimento: output.data, ultimoFrentista: 'ERRO',
+      ultimaMovimentacao: { movimentoId: 'ajuste-v2', tipo: 'saida', data: output.data }, atualizadoEm: output.data,
+    });
+    transaction.update(doc(db, '00-chamados', 'call-existing'), { mntntInfrmd: output.montanteAposMovimento, dfrncl: 25, status: 'AJUSTADO' });
+  }));
+});
+test('[firestore] V2 automatic adjustment without price reference and by adm2 is accepted', async () => {
+  await assertSucceeds(setDoc(doc(dbAs('frentista'), '03-combustivel', 'ajuste-v2-sem-preco'), ajusteV2({ valorAbastecimento: 0, origemPreco: { movimentoId: null, lote: null, precoLitro: 0 } })));
+  await assertSucceeds(setDoc(doc(dbAs('adm2'), '03-combustivel', 'ajuste-v2-adm2'), ajusteV2({ criadoPor: { uid: 'uid-adm2', nome: 'Adm2' } })));
+});
+test('[firestore] V2 automatic adjustment rejects known people, item, obra, meters and broken amounts', async () => {
+  const db = dbAs('frentista');
+  const deny = (name, overrides) => assertFails(setDoc(doc(db, '03-combustivel', name),
+    Object.fromEntries(Object.entries(ajusteV2(overrides)).filter(([, v]) => v !== undefined))));
+  await deny('ajuste-v2-frentista-uid', { frentista: { uid: 'uid-frentista', nome: 'ERRO' } });
+  await deny('ajuste-v2-operador-nome', { motoristaOperador: { uid: null, nome: 'Fulano' } });
+  await deny('ajuste-v2-item', { item_frota_id: 'vv1' });
+  await deny('ajuste-v2-sem-chave-obra', { id_obra: undefined });
+  await deny('ajuste-v2-km', { quilometragem: 125000 });
+  await deny('ajuste-v2-montante', { montanteAposMovimento: 1030 });
+  await deny('ajuste-v2-estoque', { estoqueAposMovimento: 5025 });
+  await deny('ajuste-v2-zero', { quantidadeAbastecida: 0, estoqueAposMovimento: 5000, montanteAposMovimento: 1000 });
+  await deny('ajuste-v2-fracao', { quantidadeAbastecida: 25.5, estoqueAposMovimento: 4974.5, montanteAposMovimento: 1025.5 });
+  await deny('ajuste-v2-motivo', { motivo: 'Uso' });
+  await deny('ajuste-v2-autor', { criadoPor: { uid: 'uid-adm2', nome: 'Adm2' } });
+  await assertFails(setDoc(doc(dbAs('user'), '03-combustivel', 'ajuste-v2-motorista'), ajusteV2({ criadoPor: { uid: 'uid-user', nome: 'User' } })));
+});
 test('[firestore] maintenance legacy: adm2 edits and deletes, nobody creates', async () => {
   await assertSucceeds(updateDoc(doc(dbAs('canonicalAdm2'), 'manutencoes-legado', 'legacy1'), { status: 'REVISTO' }));
   await assertFails(setDoc(doc(dbAs('canonicalAdm2'), 'manutencoes-legado', 'legacy2'), { status: 'NOVO' }));

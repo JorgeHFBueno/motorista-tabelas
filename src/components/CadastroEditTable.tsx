@@ -1,6 +1,6 @@
 import { useMemo } from 'react';
 import { DataGrid, type GridColDef } from '@mui/x-data-grid';
-import { Button, Chip, IconButton, Stack, Tooltip } from '@mui/material';
+import { IconButton, Stack, Tooltip } from '@mui/material';
 import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
 import EditOutlinedIcon from '@mui/icons-material/EditOutlined';
 
@@ -8,11 +8,8 @@ export type CadastroRow = {
   id: string;
   numero?: unknown;
   nome: string;
-  local?: string;
-  aka?: string;
   descricao?: string;
   createdAt?: unknown;
-  ativa?: boolean;
 };
 
 interface CadastroEditTableProps {
@@ -20,11 +17,8 @@ interface CadastroEditTableProps {
   loading: boolean;
   onEdit: (row: CadastroRow) => void;
   onDelete?: (row: CadastroRow) => void;
-  onToggleObraStatus?: (row: CadastroRow) => void;
-  updatingStatusId?: string | null;
   dateFormatter: Intl.DateTimeFormat;
   showNumero?: boolean;
-  showObraDetails?: boolean;
 }
 
 const toDate = (raw: unknown): Date | null => {
@@ -41,11 +35,8 @@ export default function CadastroEditTable({
   loading,
   onEdit,
   onDelete,
-  onToggleObraStatus,
-  updatingStatusId = null,
   dateFormatter,
   showNumero = false,
-  showObraDetails = false,
 }: CadastroEditTableProps) {
   const columns = useMemo<GridColDef<CadastroRow>[]>(() => [
     ...(showNumero ? [{
@@ -62,43 +53,13 @@ export default function CadastroEditTable({
       minWidth: 220,
       flex: 1,
     },
-    ...(showObraDetails ? [
-      {
-        field: 'local',
-        headerName: 'Local',
-        minWidth: 220,
-        flex: 1.1,
-        renderCell: (params) => params.value || '-',
-      } satisfies GridColDef<CadastroRow>,
-      {
-        field: 'aka',
-        headerName: 'Sinônimo',
-        minWidth: 180,
-        flex: 0.9,
-        renderCell: (params) => params.value || '-',
-      } satisfies GridColDef<CadastroRow>,
-      {
-        field: 'ativa',
-        headerName: 'Status',
-        minWidth: 130,
-        flex: 0.6,
-        renderCell: (params) => (
-          <Chip
-            label={params.value === true ? 'ATIVA' : params.value === false ? 'FINALIZADA' : 'SEM STATUS'}
-            color={params.value === true ? 'success' : params.value === false ? 'default' : 'warning'}
-            size="small"
-          />
-        ),
-      } satisfies GridColDef<CadastroRow>,
-    ] : [
-      {
-        field: 'descricao',
-        headerName: 'Descrição',
-        minWidth: 260,
-        flex: 1.4,
-        renderCell: (params) => params.value || '—',
-      } satisfies GridColDef<CadastroRow>,
-    ]),
+    {
+      field: 'descricao',
+      headerName: 'Descrição',
+      minWidth: 260,
+      flex: 1.4,
+      renderCell: (params) => params.value || '—',
+    },
     {
       field: 'createdAt',
       headerName: 'Criado em',
@@ -114,7 +75,7 @@ export default function CadastroEditTable({
       headerName: 'Ações',
       sortable: false,
       filterable: false,
-      minWidth: showObraDetails ? 240 : 140,
+      minWidth: 140,
       renderCell: (params) => (
         <Stack direction="row" spacing={1}>
           <Tooltip title="Editar">
@@ -122,17 +83,7 @@ export default function CadastroEditTable({
               <EditOutlinedIcon fontSize="small" />
             </IconButton>
           </Tooltip>
-          {showObraDetails && onToggleObraStatus && typeof params.row.ativa === 'boolean' ? (
-            <Button
-              size="small"
-              variant="outlined"
-              color={params.row.ativa === true ? 'warning' : 'success'}
-              disabled={updatingStatusId === params.row.id}
-              onClick={() => onToggleObraStatus(params.row)}
-            >
-              {params.row.ativa === true ? 'Terminado' : 'Reativar'}
-            </Button>
-          ) : onDelete ? (
+          {onDelete ? (
             <Tooltip title="Excluir">
               <IconButton size="small" color="error" onClick={() => onDelete(params.row)}>
                 <DeleteOutlineIcon fontSize="small" />
@@ -142,7 +93,7 @@ export default function CadastroEditTable({
         </Stack>
       ),
     },
-  ], [dateFormatter, onDelete, onEdit, onToggleObraStatus, showNumero, showObraDetails, updatingStatusId]);
+  ], [dateFormatter, onDelete, onEdit, showNumero]);
 
   return (
     <DataGrid

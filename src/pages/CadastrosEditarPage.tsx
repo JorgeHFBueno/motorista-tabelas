@@ -10,7 +10,6 @@ import {
   DialogContent,
   DialogTitle,
   Paper,
-  MenuItem,
   Snackbar,
   Stack,
   TextField,
@@ -27,13 +26,10 @@ import {
   updateFornecedorCadastro,
 } from '../services/fornecedores.service';
 
-type CadastroTipo = 'usuarios' | 'obras' | 'categorias' | 'fornecedores';
+// Obras saíram (2026-10-23): o cadastro oficial passa a ser o Friday, em obras-v2.
+type CadastroTipo = 'usuarios' | 'categorias' | 'fornecedores';
 
-const CADASTRO_CONFIG: Record<CadastroTipo, { label: string; collectionName: string }> = {
-  obras: {
-    label: 'Obras',
-    collectionName: 'obras',
-  },
+const CADASTRO_CONFIG: Record<Exclude<CadastroTipo, 'usuarios'>, { label: string; collectionName: string }> = {
   categorias: {
     label: 'Categorias',
     collectionName: 'notas-categorias',
@@ -43,10 +39,6 @@ const CADASTRO_CONFIG: Record<CadastroTipo, { label: string; collectionName: str
     collectionName: 'notas-fornecedores',
   },
 };
-
-const normalizeText = (value: string) => value.trim();
-
-const normalizeDuplicateKey = (value: string) => normalizeText(value).replace(/\s+/g, ' ').toLowerCase();
 
 const toLowerText = (value: unknown) => (typeof value === 'string' ? value.toLowerCase() : '');
 
@@ -66,14 +58,11 @@ function GenericCadastrosEditarPage({ cadastroTipo }: { cadastroTipo: Exclude<Ca
   const [rows, setRows] = useState<CadastroRow[]>([]);
   const [loading, setLoading] = useState(false);
   const [search, setSearch] = useState('');
-  const [obraStatus, setObraStatus] = useState<'todas' | 'ativas' | 'finalizadas'>('todas');
   const [snackbar, setSnackbar] = useState<{ message: string; severity: 'success' | 'error' } | null>(null);
   const [editing, setEditing] = useState<CadastroRow | null>(null);
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState<CadastroRow | null>(null);
   const [editError, setEditError] = useState<string | null>(null);
-  const [statusConfirmation, setStatusConfirmation] = useState<CadastroRow | null>(null);
-  const [updatingStatusId, setUpdatingStatusId] = useState<string | null>(null);
 
   const dateFormatter = useMemo(() => new Intl.DateTimeFormat('pt-BR', {
     dateStyle: 'short',
@@ -106,39 +95,13 @@ function GenericCadastrosEditarPage({ cadastroTipo }: { cadastroTipo: Exclude<Ca
   const filteredRows = useMemo(() => {
     const term = search.trim().toLowerCase();
     return rows.filter((row) => {
-      const statusMatch = cadastroTipo !== 'obras'
-        || obraStatus === 'todas'
-        || (obraStatus === 'ativas' ? row.ativa === true : row.ativa === false);
-      if (!statusMatch) return false;
       if (!term) return true;
       const nomeMatch = toLowerText(row.nome).includes(term);
-      const descricaoMatch = cadastroTipo !== 'obras' && toLowerText(row.descricao).includes(term);
-      const localMatch = cadastroTipo === 'obras' && toLowerText(row.local).includes(term);
-      const akaMatch = cadastroTipo === 'obras' && toLowerText(row.aka).includes(term);
+      const descricaoMatch = toLowerText(row.descricao).includes(term);
       const numeroMatch = cadastroTipo === 'fornecedores' && String(row.numero ?? '').includes(term);
-      return nomeMatch || descricaoMatch || localMatch || akaMatch || numeroMatch;
+      return nomeMatch || descricaoMatch || numeroMatch;
     });
-  }, [cadastroTipo, obraStatus, rows, search]);
-
-  const handleToggleObraStatus = async () => {
-    if (!statusConfirmation || typeof statusConfirmation.ativa !== 'boolean') return;
-    const nextStatus = !statusConfirmation.ativa;
-    setUpdatingStatusId(statusConfirmation.id);
-    try {
-      await updateDoc(doc(db, 'obras', statusConfirmation.id), { ativa: nextStatus });
-      setStatusConfirmation(null);
-      setSnackbar({
-        message: nextStatus ? 'Obra reativada com sucesso.' : 'Obra marcada como finalizada.',
-        severity: 'success',
-      });
-      await loadRows();
-    } catch (error) {
-      console.error('Erro ao atualizar status da obra', error);
-      setSnackbar({ message: 'Erro ao atualizar status da obra.', severity: 'error' });
-    } finally {
-      setUpdatingStatusId(null);
-    }
-  };
+  }, [cadastroTipo, rows, search]);
 
   const handleSave = async (values: CadastroEditFormValues) => {
     if (!config || !editing) return;
@@ -152,36 +115,6 @@ function GenericCadastrosEditarPage({ cadastroTipo }: { cadastroTipo: Exclude<Ca
           descricao: values.descricao,
           numero: values.numero,
           numeroAtual: editing.numero,
-        });
-      } else if (cadastroTipo === 'obras') {
-        const trimmedNome = normalizeText(values.nome);
-        const trimmedLocal = normalizeText(values.local);
-        const trimmedAka = normalizeText(values.aka);
-        const akaKey = normalizeDuplicateKey(trimmedAka);
-
-        if (!trimmedLocal) {
-          setEditError('Informe o local da obra.');
-          return;
-        }
-
-        if (akaKey) {
-          const duplicatedAka = rows.some((row) => (
-            row.id !== editing.id &&
-            typeof row.aka === 'string' &&
-            normalizeDuplicateKey(row.aka) === akaKey
-          ));
-
-          if (duplicatedAka) {
-            setEditError('Este sinônimo já está vinculado a outra obra.');
-            return;
-          }
-        }
-
-        await updateDoc(doc(db, config.collectionName, editing.id), {
-          nome: trimmedNome,
-          local: trimmedLocal,
-          aka: trimmedAka,
-          updatedAt: serverTimestamp(),
         });
       } else {
         await updateDoc(doc(db, config.collectionName, editing.id), {
@@ -254,24 +187,11 @@ function GenericCadastrosEditarPage({ cadastroTipo }: { cadastroTipo: Exclude<Ca
         <Paper elevation={1} sx={{ p: 3 }}>
           <Stack spacing={2}>
             <TextField
-              label={cadastroTipo === 'obras' ? 'Filtrar por nome, local ou sinônimo' : 'Filtrar por nome ou descrição'}
+              label="Filtrar por nome ou descrição"
               value={search}
               onChange={(event) => setSearch(event.target.value)}
               fullWidth
             />
-            {cadastroTipo === 'obras' && (
-              <TextField
-                select
-                label="Status"
-                value={obraStatus}
-                onChange={(event) => setObraStatus(event.target.value as typeof obraStatus)}
-                sx={{ width: { xs: '100%', sm: 240 } }}
-              >
-                <MenuItem value="todas">Todas</MenuItem>
-                <MenuItem value="ativas">Ativas</MenuItem>
-                <MenuItem value="finalizadas">Finalizadas</MenuItem>
-              </TextField>
-            )}
             <CadastroEditTable
               rows={filteredRows}
               loading={loading}
@@ -279,12 +199,9 @@ function GenericCadastrosEditarPage({ cadastroTipo }: { cadastroTipo: Exclude<Ca
                 setEditError(null);
                 setEditing(row);
               }}
-              onDelete={cadastroTipo === 'obras' ? undefined : (row) => setDeleting(row)}
-              onToggleObraStatus={cadastroTipo === 'obras' ? (row) => setStatusConfirmation(row) : undefined}
-              updatingStatusId={updatingStatusId}
+              onDelete={(row) => setDeleting(row)}
               dateFormatter={dateFormatter}
               showNumero={cadastroTipo === 'fornecedores'}
-              showObraDetails={cadastroTipo === 'obras'}
             />
           </Stack>
         </Paper>
@@ -296,8 +213,6 @@ function GenericCadastrosEditarPage({ cadastroTipo }: { cadastroTipo: Exclude<Ca
         initialValues={{
           nome: editing?.nome ?? '',
           descricao: editing?.descricao ?? '',
-          local: editing?.local ?? '',
-          aka: editing?.aka ?? '',
           numero: normalizeFornecedorNumero(editing?.numero)?.toString() ?? '',
         }}
         onClose={() => {
@@ -307,7 +222,6 @@ function GenericCadastrosEditarPage({ cadastroTipo }: { cadastroTipo: Exclude<Ca
         onSave={handleSave}
         saving={saving}
         showNumero={cadastroTipo === 'fornecedores'}
-        showObraFields={cadastroTipo === 'obras'}
         submitError={editError}
       />
 
@@ -324,35 +238,6 @@ function GenericCadastrosEditarPage({ cadastroTipo }: { cadastroTipo: Exclude<Ca
           </Button>
           <Button color="error" variant="contained" onClick={handleDelete} disabled={saving}>
             Excluir
-          </Button>
-        </DialogActions>
-      </Dialog>
-
-      <Dialog
-        open={Boolean(statusConfirmation)}
-        onClose={updatingStatusId ? undefined : () => setStatusConfirmation(null)}
-        fullWidth
-        maxWidth="xs"
-      >
-        <DialogTitle>{statusConfirmation?.ativa === true ? 'Finalizar obra' : 'Reativar obra'}</DialogTitle>
-        <DialogContent dividers>
-          <Typography>
-            {statusConfirmation?.ativa === true
-              ? <>A obra <strong>{statusConfirmation?.nome}</strong> será marcada como finalizada, mas não será excluída.</>
-              : <>A obra <strong>{statusConfirmation?.nome}</strong> será reativada mantendo o mesmo cadastro.</>}
-          </Typography>
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setStatusConfirmation(null)} disabled={Boolean(updatingStatusId)}>
-            Cancelar
-          </Button>
-          <Button
-            variant="contained"
-            color={statusConfirmation?.ativa === true ? 'warning' : 'success'}
-            onClick={handleToggleObraStatus}
-            disabled={Boolean(updatingStatusId)}
-          >
-            {statusConfirmation?.ativa === true ? 'Terminado' : 'Reativar'}
           </Button>
         </DialogActions>
       </Dialog>

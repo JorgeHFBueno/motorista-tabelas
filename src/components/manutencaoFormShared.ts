@@ -1,16 +1,13 @@
 import { createFilterOptions } from '@mui/material';
+import { itemFrotaSnapshot, type ItemFrotaV2 } from '../utils/cadastrosV2';
 
+// Manutenção liga o veículo por item_frota_id (veiculos-v2) e a pessoa por UID (funcionarios), com snapshots ao lado
+// (The Manuscript, 01_FIRESTORE/COLECOES/manutencoes.md). `identificador` (placa em texto) e `motorista` em texto são
+// do formato antigo e só são lidos.
 export type TipoVeiculo = 'PLACA' | 'EXTRA';
 
-export type VeiculoOption = {
-    id: string;
-    categoria?: string;
-    placa?: string;
-    extra?: string;
-};
-
 export type ManutencaoForm = {
-    identificador: string;
+    itemFrotaId: string;
     tipoVeiculo: TipoVeiculo | '';
     categoriaId: string;
     categoriaNomeSnapshot: string;
@@ -22,6 +19,7 @@ export type ManutencaoForm = {
     dataManual: string;
     descricao: string;
     km: string;
+    motoristaUid: string | null;
     motorista: string;
     nota: string;
     status: 'NORMAL' | 'SUSPEITO' | 'SUPER_FATURADO';
@@ -39,7 +37,7 @@ export type CategoriaManutencao = {
 };
 
 export const DEFAULT_MANUTENCAO_FORM: ManutencaoForm = {
-    identificador: '',
+    itemFrotaId: '',
     tipoVeiculo: '',
     categoriaId: '',
     categoriaNomeSnapshot: '',
@@ -51,19 +49,13 @@ export const DEFAULT_MANUTENCAO_FORM: ManutencaoForm = {
     dataManual: '',
     descricao: '',
     km: '',
+    motoristaUid: null,
     motorista: '',
     nota: '',
     status: 'NORMAL',
 };
 
 export const ABASTECIMENTO_EXTERNO = 'ABASTECIMENTO EXTERNO';
-
-export function getVeiculoLabel(veiculo: VeiculoOption | null): string {
-    if (!veiculo) return '';
-    if (veiculo.categoria === 'PLACA') return veiculo.placa ?? '';
-    if (veiculo.categoria === 'EXTRA') return veiculo.extra ?? '';
-    return veiculo.placa ?? veiculo.extra ?? '';
-}
 
 export function getFornecedorOptionLabel(fornecedor: Fornecedor | null): string {
     if (!fornecedor) return '';
@@ -80,7 +72,7 @@ export const fornecedorFilterOptions = createFilterOptions<Fornecedor>({
 });
 
 export function getManutencaoValidationError(form: ManutencaoForm): string | null {
-    if (!form.identificador || !form.tipoVeiculo) {
+    if (!form.itemFrotaId || !form.tipoVeiculo) {
         return 'Selecione o veículo da manutenção.';
     }
 
@@ -124,5 +116,54 @@ export function getManutencaoValidationError(form: ManutencaoForm): string | nul
         }
     }
 
+    return null;
+}
+
+/** Documento novo de `manutencoes`. */
+export function buildManutencaoPayload(form: ManutencaoForm, item: ItemFrotaV2, data: unknown): Record<string, unknown> {
+    const kmValue = form.km.trim();
+    const motorista = form.motorista.trim();
+    return {
+        item_frota_id: item.id,
+        item_frota_snapshot: itemFrotaSnapshot(item),
+        tipoVeiculo: item.categoria,
+        categoriaId: form.categoriaId,
+        categoriaNomeSnapshot: form.categoriaNomeSnapshot.trim(),
+        valor: Number(form.valor),
+        quantidade: Number(form.quantidade),
+        ...(kmValue ? { km: Number(kmValue) } : {}),
+        fornecedorId: form.fornecedorId,
+        fornecedorNomeSnapshot: form.fornecedorNomeSnapshot.trim(),
+        motorista: motorista ? { uid: form.motoristaUid, nome: motorista } : null,
+        descricao: form.descricao.trim(),
+        nota: form.nota.trim(),
+        status: form.status,
+        data,
+    };
+}
+
+export function normalizarIdentificador(value: unknown): string {
+    return typeof value === 'string' ? value.toUpperCase().replace(/[^A-Z0-9]/g, '') : '';
+}
+
+/** Veículo da manutenção: o ID gravado ou, no formato antigo, o item cujo identificador é a placa em texto. */
+export function manutencaoItemFrotaId(
+    row: { item_frota_id?: unknown; identificador?: unknown },
+    idPorIdentificador: Map<string, string>,
+): string | null {
+    if (typeof row.item_frota_id === 'string' && row.item_frota_id) return row.item_frota_id;
+    return idPorIdentificador.get(normalizarIdentificador(row.identificador)) ?? null;
+}
+
+export function indexarPorIdentificador(items: Pick<ItemFrotaV2, 'id' | 'identificador'>[]): Map<string, string> {
+    return new Map(items.map((item) => [normalizarIdentificador(item.identificador), item.id]));
+}
+
+/** Nome da pessoa: `{uid, nome}` no formato novo, texto no antigo. */
+export function motoristaNome(value: unknown): string | null {
+    if (typeof value === 'string') return value.trim() || null;
+    if (value && typeof value === 'object' && typeof (value as { nome?: unknown }).nome === 'string') {
+        return (value as { nome: string }).nome.trim() || null;
+    }
     return null;
 }

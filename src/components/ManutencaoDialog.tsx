@@ -21,17 +21,18 @@ import {
     fornecedorFilterOptions,
     type Fornecedor,
     getFornecedorOptionLabel,
-    getVeiculoLabel,
     type ManutencaoForm,
-    type VeiculoOption,
 } from './manutencaoFormShared';
+import { itemFrotaLabel, type ItemFrotaV2, type PessoaV2 } from '../utils/cadastrosV2';
 
 interface ManutencaoDialogProps {
     open: boolean;
     title?: string;
     saving: boolean;
     form: ManutencaoForm;
-    veiculos: VeiculoOption[];
+    veiculos: ItemFrotaV2[];
+    /** Pessoas ativas de funcionarios, para o motorista do abastecimento externo. */
+    pessoas: PessoaV2[];
     fornecedores: Fornecedor[];
     categoriasManutencao: CategoriaManutencao[];
     fornecedoresLoading?: boolean;
@@ -48,6 +49,7 @@ export default function ManutencaoDialog({
     saving,
     form,
     veiculos,
+    pessoas,
     fornecedores,
     categoriasManutencao,
     fornecedoresLoading = false,
@@ -58,8 +60,8 @@ export default function ManutencaoDialog({
     onChange,
 }: ManutencaoDialogProps) {
     const veiculoSelecionado = useMemo(
-        () => veiculos.find((item) => item.id === form.identificador) ?? null,
-        [form.identificador, veiculos],
+        () => veiculos.find((item) => item.id === form.itemFrotaId) ?? null,
+        [form.itemFrotaId, veiculos],
     );
     const fornecedorSelecionado = useMemo(
         () => fornecedores.find((item) => item.id === form.fornecedorId) ?? null,
@@ -79,12 +81,12 @@ export default function ManutencaoDialog({
                     <Autocomplete
                         options={veiculos}
                         value={veiculoSelecionado}
-                        getOptionLabel={getVeiculoLabel}
+                        getOptionLabel={itemFrotaLabel}
                         onChange={(_event, value) =>
                             onChange((prev) => ({
                                 ...prev,
-                                identificador: value?.id ?? '',
-                                tipoVeiculo: (value?.categoria as ManutencaoForm['tipoVeiculo']) ?? '',
+                                itemFrotaId: value?.id ?? '',
+                                tipoVeiculo: value?.categoria ?? '',
                             }))
                         }
                         renderInput={(params) => <TextField {...params} label="Veículo" required />}
@@ -215,12 +217,24 @@ export default function ManutencaoDialog({
                         isOptionEqualToValue={(option, value) => option.id === value.id}
                     />
                     {isAbastecimentoExterno && (
-                        <TextField
-                            label="Motorista"
-                            value={form.motorista}
-                            onChange={(event) => onChange((prev) => ({ ...prev, motorista: event.target.value }))}
-                            fullWidth
-                            required
+                        <Autocomplete
+                            freeSolo
+                            options={pessoas}
+                            value={pessoas.find((item) => item.uid === form.motoristaUid) ?? (form.motorista || null)}
+                            getOptionLabel={(option) => (typeof option === 'string' ? option : option.nome)}
+                            isOptionEqualToValue={(option, value) =>
+                                typeof option !== 'string' && typeof value !== 'string' && option.uid === value.uid}
+                            onChange={(_event, value) =>
+                                onChange((prev) => (typeof value === 'string' || !value
+                                    ? { ...prev, motoristaUid: null, motorista: value ?? '' }
+                                    : { ...prev, motoristaUid: value.uid, motorista: value.nome }))
+                            }
+                            onInputChange={(_event, value, reason) => {
+                                if (reason === 'input') onChange((prev) => ({ ...prev, motoristaUid: null, motorista: value }));
+                            }}
+                            renderInput={(params) => (
+                                <TextField {...params} label="Motorista" helperText="Nome digitado fica sem UID" required />
+                            )}
                         />
                     )}
                     <TextField

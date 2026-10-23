@@ -10,7 +10,6 @@ import {
   Typography,
 } from '@mui/material';
 import { Link as RouterLink, useLocation, useNavigate } from 'react-router-dom';
-import ObrasSection from '../components/ObrasSection';
 import CadastroBasicoForm from '../components/CadastroBasicoForm';
 
 export default function CadastrosPage() {
@@ -19,13 +18,7 @@ export default function CadastrosPage() {
   const [snackbar, setSnackbar] = useState<{ message: string; severity: 'success' | 'error' } | null>(null);
 
   useEffect(() => {
-    const navigationState = location.state as { vehicleCreated?: boolean; userCreated?: boolean } | null;
-
-    if (navigationState?.vehicleCreated) {
-      setSnackbar({ message: 'Veiculo cadastrado com sucesso.', severity: 'success' });
-      navigate(location.pathname, { replace: true });
-      return;
-    }
+    const navigationState = location.state as { userCreated?: boolean } | null;
 
     if (navigationState?.userCreated) {
       setSnackbar({ message: 'Usuario cadastrado com sucesso.', severity: 'success' });
@@ -58,7 +51,7 @@ export default function CadastrosPage() {
             Cadastros
           </Typography>
           <Typography variant="body1" color="text.secondary">
-            Administre usuarios e veiculos do sistema.
+            Administre usuarios, categorias e fornecedores do sistema.
           </Typography>
         </Box>
 
@@ -101,8 +94,6 @@ export default function CadastrosPage() {
               </Stack>
             </Stack>
           </Paper>
-
-          <ObrasSection />
 
           <Paper elevation={1} sx={cardPaperSx}>
             <Stack
@@ -170,17 +161,14 @@ export default function CadastrosPage() {
               alignItems={{ sm: 'center' }}
             >
               <Box>
-                <Typography variant="h6">Veiculos</Typography>
+                <Typography variant="h6">Veiculos e obras</Typography>
                 <Typography variant="body2" color="text.secondary">
-                  Cadastro de veiculos.
+                  O cadastro oficial passa a ser o Friday (veiculos-v2 e obras-v2). Até lá, a WEB não cadastra nem edita veículos e obras.
                 </Typography>
               </Box>
               <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} sx={cardActionStackSx}>
-                <Button variant="contained" component={RouterLink} to="/cadastros/veiculos/novo">
-                  Cadastrar
-                </Button>
                 <Button variant="outlined" component={RouterLink} to="/frota">
-                  Editar
+                  Ver frota
                 </Button>
               </Stack>
             </Stack>
