@@ -17,7 +17,8 @@ export interface Registro {
   km?: number | string | null;
   semKm?: string;
   tipoPlaca?: boolean;
-  schema?: 'entrada-v2' | 'saida-v2' | 'legado';
+  schema?: 'entrada-v2' | 'saida-v2' | 'fora-do-contrato';
+  foraDoContrato?: boolean;
   isFuelOutput?: boolean;
   schemaVersion?: number;
   quantidadeAbastecida?: number;

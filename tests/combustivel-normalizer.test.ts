@@ -3,13 +3,13 @@ import test from 'node:test';
 import { horasFromX10, isSemOdometro, litrosFromX10, normalizarMovimentoCombustivel, reaisFromCentavos } from '../src/services/combustivel-normalizer.ts';
 import { formatarHorimetroX10, formatarKm, formatarLitrosX10, formatarMoedaCentavos, parseDigitosX10 } from '../src/utils/formatters.ts';
 
-const base = {
-  schemaVersion: 2, tipo: 'saida', data: new Date(), quantidadeAbastecida: 873,
-  valorAbastecimento: 50634, montanteAntes: 492539, montanteAposMovimento: 493412,
-  estoqueAntes: 50000, estoqueAposMovimento: 49127, arla: 0, motivo: 'Uso',
-  modalidadeAbastecimento: 'direto', origemPreco: { movimentoId: 'm1', lote: '1006', precoLitro: 580 },
-  frentista: { uid: 'f', nomeSnapshot: 'Frentista' }, paraQuem: { uid: 'p', nomeSnapshot: 'Operador' },
-  autorLancamento: { uid: 'a', nomeSnapshot: 'Autor' }, obra: { uid: 'o', nomeSnapshot: 'Obra', localSnapshot: null },
+const contrato = {
+  schemaVersion: 2, tipo: 'saida', data: new Date(), quantidadeAbastecida: 4444, valorAbastecimento: 257752,
+  montanteAntes: 522417, montanteAposMovimento: 526861, estoqueAntes: 5402, estoqueAposMovimento: 958, arla: 0,
+  motivo: 'Buscar Motorista', modalidadeAbastecimento: 'direto', semKm: 'Sem Odometro',
+  origemPreco: { movimentoId: 'm1', lote: '1006', precoLitro: 580 },
+  criadoPor: { uid: 'c', nome: 'Autor' }, frentista: { uid: 'f', nome: 'Frentista' }, motoristaOperador: { uid: 'p', nome: 'Operador' },
+  id_obra: 'o1', id_obra_snap: { codObra: 89, local: 'Palmeira das Missões - RS', nomeObra: 'FABRICA', siglaObra: 'LEDUR' },
 };
 
 test('aceita somente dígitos na representação de entrada ×10', () => {
@@ -26,33 +26,9 @@ test('aceita somente dígitos na representação de entrada ×10', () => {
   assert.equal(parseDigitosX10('abc123'), 123);
 });
 
-test('normaliza saída V2 de veículo com aliases compatíveis', () => {
-  const result = normalizarMovimentoCombustivel({ ...base, itemFrota: { uid: 'v1', tipo: 'veiculo', identificadorSnapshot: 'ABC1D23', km: 125430 } }, 's1');
-  assert.equal(result.schema, 'saida-v2'); assert.equal(result.isFuelOutput, true);
-  assert.equal(result.qa, 873); assert.equal(result.li, 492539); assert.equal(result.lf, 493412);
-  assert.equal(result.placa, 'ABC1D23'); assert.equal(result.km, 125430); assert.equal(result.horimetro, undefined);
-  assert.equal(result.extra, null);
-  assert.equal(result.motorista, 'Frentista'); assert.equal(result.para_quem, 'Operador');
-});
-
-test('normaliza máquina e galão sem transformar horímetro em KM', () => {
-  const result = normalizarMovimentoCombustivel({ ...base, modalidadeAbastecimento: 'galao', itemFrota: { uid: 'm1', tipo: 'maquina', identificadorSnapshot: 'CARREGADEIRA CASE', horimetro: 8752 } });
-  assert.equal(result.modalidadeAbastecimento, 'galao'); assert.equal(result.itemFrotaTipo, 'maquina');
-  assert.equal(result.identificadorSnapshot, 'CARREGADEIRA CASE'); assert.equal(result.horimetro, 8752); assert.equal(result.km, null);
-  assert.equal(result.placa, null); assert.equal(result.extra, 'CARREGADEIRA CASE');
-});
-
-test('lê a saída V2 no formato do contrato (gravada pelo app)', () => {
-  const contrato = {
-    schemaVersion: 2, tipo: 'saida', data: new Date(), quantidadeAbastecida: 4444, valorAbastecimento: 257752,
-    montanteAntes: 522417, montanteAposMovimento: 526861, estoqueAntes: 5402, estoqueAposMovimento: 958, arla: 0,
-    motivo: 'Buscar Motorista', modalidadeAbastecimento: 'direto', semKm: 'Sem Odometro',
-    origemPreco: { movimentoId: 'm1', lote: '1006', precoLitro: 580 },
-    criadoPor: { uid: 'c', nome: 'Autor' }, frentista: { uid: 'f', nome: 'Frentista' }, motoristaOperador: { uid: 'p', nome: 'Operador' },
-    id_obra: 'o1', id_obra_snap: { codObra: 89, local: 'Palmeira das Missões - RS', nomeObra: 'FABRICA', siglaObra: 'LEDUR' },
-  };
+test('lê a saída V2 do contrato: veículo, máquina e galão', () => {
   const placa = normalizarMovimentoCombustivel({ ...contrato, item_frota_id: 'v1', item_frota_snapshot: { categoria: 'PLACA', identificador: 'ITU-3353', nome: 'Basculante' }, quilometragem: 125430 }, 's1');
-  assert.equal(placa.schema, 'saida-v2');
+  assert.equal(placa.schema, 'saida-v2'); assert.equal(placa.isFuelOutput, true); assert.equal(placa.foraDoContrato, undefined);
   assert.equal(placa.itemFrotaUid, 'v1'); assert.equal(placa.itemFrotaTipo, 'veiculo'); assert.equal(placa.identificadorSnapshot, 'ITU-3353');
   assert.equal(placa.placa, 'ITU-3353'); assert.equal(placa.extra, null); assert.equal(placa.km, 125430);
   assert.equal(placa.frentista, 'Frentista'); assert.equal(placa.motorista, 'Frentista');
@@ -64,18 +40,34 @@ test('lê a saída V2 no formato do contrato (gravada pelo app)', () => {
   assert.equal(extra.itemFrotaTipo, 'maquina'); assert.equal(extra.extra, 'CASE'); assert.equal(extra.placa, null);
   assert.equal(extra.horimetro, 8752); assert.equal(extra.km, null);
 
-  const galao = normalizarMovimentoCombustivel({ ...contrato, modalidadeAbastecimento: 'galao' }, 'g1');
-  assert.equal(galao.modalidadeAbastecimento, 'galao'); assert.equal(galao.itemFrotaTipo, null); assert.equal(galao.placa, null);
+  // Galão also identifies the fleet item that receives the fuel.
+  const galao = normalizarMovimentoCombustivel({ ...contrato, modalidadeAbastecimento: 'galao', item_frota_id: 'v1', item_frota_snapshot: { categoria: 'PLACA', identificador: 'ITU-3353', nome: 'Basculante' } }, 'g1');
+  assert.equal(galao.modalidadeAbastecimento, 'galao'); assert.equal(galao.itemFrotaTipo, 'veiculo'); assert.equal(galao.placa, 'ITU-3353');
+});
+
+test('lê registro migrado do legado com campos nulos', () => {
+  const migrado = normalizarMovimentoCombustivel({ ...contrato, migradoDoLegado: true, frentista: { uid: null, nome: 'ERRO' }, item_frota_id: null, item_frota_snapshot: null, id_obra: null, id_obra_snap: { codObra: null, local: null, nomeObra: 'Ainda não havia sido implementado', siglaObra: null }, estoqueAntes: null, estoqueAposMovimento: null }, 'mig');
+  assert.equal(migrado.schema, 'saida-v2'); assert.equal(migrado.itemFrotaTipo, null); assert.equal(migrado.placa, null);
+  assert.equal(migrado.frentista, 'ERRO'); assert.equal(migrado.obra, 'Ainda não havia sido implementado'); assert.equal(migrado.estoqueAposMovimento, undefined);
 });
 
 test('lê a entrada V2 pelo criadoPor do contrato', () => {
   const entrada = normalizarMovimentoCombustivel({ schemaVersion: 2, tipo: 'entrada', litrosComprados: 50000, preco: 2900000, precoLitro: 580, lote: '1006', criadoPor: { uid: 'u', nome: 'Comprador' } }, 'e1');
-  assert.equal(entrada.responsavel, 'Comprador');
+  assert.equal(entrada.schema, 'entrada-v2'); assert.equal(entrada.isFuelOutput, false);
+  assert.equal(entrada.preco, 2900000); assert.equal(entrada.responsavel, 'Comprador');
 });
 
-test('reconhece "sem odômetro" nas duas grafias', () => {
-  assert.equal(isSemOdometro('Sem Odômetro'), true);
+test('fora do contrato V2 fica marcado e nenhum campo antigo é interpretado', () => {
+  const legado = normalizarMovimentoCombustivel({ placa: 'ABC', tipoPlaca: true, km: 125430, qa: 873, motorista: 'Fulano', para_quem: 'Beltrano', semKm: 'Sem Odômetro' }, 'l1');
+  assert.equal(legado.schema, 'fora-do-contrato'); assert.equal(legado.foraDoContrato, true); assert.equal(legado.isFuelOutput, true);
+  assert.equal(legado.motivo, 'Fora do contrato V2');
+  for (const campo of ['placa', 'km', 'qa', 'motorista', 'para_quem', 'semKm', 'quantidadeAbastecida']) assert.equal((legado as unknown as Record<string, unknown>)[campo], undefined, campo);
+  assert.equal(normalizarMovimentoCombustivel({ schemaVersion: 1, tipo: 'saida', quantidadeAbastecida: 10 }).foraDoContrato, true);
+});
+
+test('"sem odômetro" só na grafia do contrato', () => {
   assert.equal(isSemOdometro('Sem Odometro'), true);
+  assert.equal(isSemOdometro('Sem Odômetro'), false);
   assert.equal(isSemOdometro('Galao'), false);
 });
 
@@ -96,24 +88,7 @@ test('calcula os três campos do abastecimento em unidade interna', () => {
   assert.equal(formatarLitrosX10(montanteAntes + quantidadeAbastecida), '49.341,2 L');
 });
 
-test('preserva entrada V2 e legado sem inferência por magnitude', () => {
-  assert.equal(normalizarMovimentoCombustivel({ schemaVersion: 2, tipo: 'entrada', qa: 873 }).isFuelOutput, false);
-  const legacy = normalizarMovimentoCombustivel({ placa: 'ABC', tipoPlaca: true, km: 125430, qa: 873, semKm: 'Galao' });
-  assert.equal(legacy.schema, 'legado'); assert.equal(legacy.placa, 'ABC'); assert.equal(legacy.semKm, 'Galao'); assert.equal(legacy.isFuelOutput, true);
-});
-
 test('unidades V2 permanecem separadas', () => {
   assert.equal(litrosFromX10(873), 87.3); assert.equal(reaisFromCentavos(50634), 506.34);
-  assert.equal(125430, 125430); assert.equal(horasFromX10(8752), 875.2);
-});
-
-test('normaliza os seis formatos simultaneamente sem maps na camada de consumo', () => {
-  const entrada = normalizarMovimentoCombustivel({ schemaVersion: 2, tipo: 'entrada', data: new Date(), litrosComprados: 50000, preco: 2900000, precoLitro: 580, lote: '1006', responsavel: { id: 'u', nome: 'Comprador' } }, 'e1');
-  const legado = normalizarMovimentoCombustivel({ tipo: 'saida', placa: 'LEG', motorista: 'Motorista', para_quem: 'Pessoa', qa: 10 }, 'l1');
-  const veiculo = normalizarMovimentoCombustivel({ ...base, itemFrota: { uid: 'v', tipo: 'veiculo', identificadorSnapshot: 'ABC1D23', km: 125430 } }, 'v1');
-  const maquina = normalizarMovimentoCombustivel({ ...base, itemFrota: { uid: 'm', tipo: 'maquina', identificadorSnapshot: 'CASE', horimetro: 8752 } }, 'm1');
-  const galaoVeiculo = normalizarMovimentoCombustivel({ ...base, modalidadeAbastecimento: 'galao', itemFrota: { uid: 'v', tipo: 'veiculo', identificadorSnapshot: 'ABC1D23' } }, 'gv');
-  const galaoMaquina = normalizarMovimentoCombustivel({ ...base, modalidadeAbastecimento: 'galao', itemFrota: { uid: 'm', tipo: 'maquina', identificadorSnapshot: 'CASE' } }, 'gm');
-  assert.deepEqual([entrada.schema, legado.schema, veiculo.schema, maquina.schema, galaoVeiculo.schema, galaoMaquina.schema], ['entrada-v2', 'legado', 'saida-v2', 'saida-v2', 'saida-v2', 'saida-v2']);
-  assert.equal(entrada.preco, 2900000); assert.equal(entrada.responsavel, 'Comprador'); assert.equal(maquina.km, null); assert.equal(maquina.horimetro, 8752); assert.equal(galaoVeiculo.identificadorSnapshot, 'ABC1D23'); assert.equal(galaoMaquina.itemFrotaTipo, 'maquina');
+  assert.equal(horasFromX10(8752), 875.2);
 });

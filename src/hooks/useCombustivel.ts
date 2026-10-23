@@ -1,7 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
 import * as api from '../services/combustivelApi';
-import { saveCombustivel } from '../services/combustivelFirestore';
-import { useAuth } from '../contexts/AuthContext';
 import type { Registro } from '../types';
 import { normalizarMovimentoCombustivel } from '../services/combustivel-normalizer';
 
@@ -13,7 +11,6 @@ export default function useCombustivel() {
   const [data, setData] = useState<Registro[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const { currentUser } = useAuth();
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -28,40 +25,7 @@ export default function useCombustivel() {
     }
   }, []);
 
-  const create = useCallback(async (values: Omit<Registro, 'id'>) => {
-    setLoading(true);
-    try {
-      if (!currentUser?.email) {
-        throw new Error('Usuário não autenticado');
-      }
-      const res = await saveCombustivel({ ...values, email: currentUser.email });
-      setData((d) => [...d, mapRegistro(res)]);
-      setError(null);
-      return mapRegistro(res);
-    } catch (err: any) {
-      setError(err.message || 'Erro ao salvar');
-      throw err;
-    } finally {
-      setLoading(false);
-    }
-  }, [currentUser?.email]);
-
-  const update = useCallback(async (id: string, values: Partial<Registro>) => {
-    setLoading(true);
-    try {
-      const res = await api.update(id, values);
-      const mapped = mapRegistro(res);
-      setData(d => d.map(r => (r.id === id ? mapped : r)));
-      setError(null);
-      return mapped;
-    } catch (err: any) {
-      setError(err.message || 'Erro ao atualizar');
-      throw err;
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
+  // No create/update here: the old form wrote legacy fields (li, lf, qa, para_quem) into V2 records.
   const remove = useCallback(async (id: string) => {
     setLoading(true);
     try {
@@ -80,5 +44,5 @@ export default function useCombustivel() {
     load();
   }, [load]);
 
-  return { data, loading, error, load, create, update, remove };
+  return { data, loading, error, load, remove };
 }

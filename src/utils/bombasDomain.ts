@@ -63,6 +63,8 @@ export interface FuelMovement {
   schemaVersion?: number;
   tipo: 'entrada' | 'saida' | 'ajuste';
   motivo?: string;
+  /** Ledger document outside the V2 contract (shown flagged, never interpreted). */
+  foraDoContrato?: boolean;
   litrosComprados?: number;
   quantidadeAbastecida?: number;
   quantidadeMovimentada?: number;
@@ -244,18 +246,18 @@ function finiteNumber(primary: unknown, legacy: unknown): number | undefined {
   return typeof legacy === 'number' && Number.isFinite(legacy) ? legacy : undefined;
 }
 
+/** Reads only the V2 ledger contract. Anything else comes back flagged `foraDoContrato`, with no field interpreted. */
 export function normalizeFuelMovement(source: FuelMovementSource): FuelMovement {
-  const isEntry = source.tipo === 'entrada' || source.motivo === ENTRADA_DIESEL_MOTIVO;
-  const isAdjustment = source.motivo?.toLocaleLowerCase('pt-BR').includes('ajuste') === true;
-  const snapshotName = source.id_motorista_snap?.trim();
-  const legacyName = source.motorista?.trim();
-  // Contract entries carry `criadoPor`; older WEB entries carry `responsavel`. Neither is needed to read the volume.
-  const isCanonicalEntry = source.tipo === 'entrada'
-    && typeof source.litrosComprados === 'number'
-    && typeof source.estoqueAposMovimento === 'number';
-  // V2 saída person: the contract `frentista {uid, nome}` (the pre-contract WEB used `nomeSnapshot`).
-  const person = source.criadoPor ?? (source.schemaVersion === BOMBAS_SCHEMA_VERSION && source.tipo === 'saida' ? source.frentista : undefined);
-  const personName = person?.nome?.trim() || person?.nomeSnapshot?.trim() || '';
+  const isV2 = source.schemaVersion === BOMBAS_SCHEMA_VERSION && (source.tipo === 'entrada' || source.tipo === 'saida');
+  if (!isV2) {
+    return { id: source.id, data: source.data, tipo: 'saida', motivo: 'Fora do contrato V2', foraDoContrato: true, bombaId: source.bombaId };
+  }
+  const isEntry = source.tipo === 'entrada';
+  const isAdjustment = !isEntry && source.motivo?.toLocaleLowerCase('pt-BR').includes('ajuste') === true;
+  // Entry: who registered it (`criadoPor`). Output: who pumped (`frentista`).
+  const person = isEntry ? source.criadoPor : source.frentista;
+  const personName = person?.nome?.trim() || '';
+  const cents = (value: unknown) => (typeof value === 'number' && Number.isFinite(value) ? centavosParaReais(value) : undefined);
 
   return {
     id: source.id,
@@ -263,35 +265,18 @@ export function normalizeFuelMovement(source: FuelMovementSource): FuelMovement 
     schemaVersion: source.schemaVersion,
     tipo: isEntry ? 'entrada' : isAdjustment ? 'ajuste' : 'saida',
     motivo: source.motivo,
-    // Both canonical and legacy volume fields are returned in persisted units.
-    litrosComprados: isCanonicalEntry
-      ? finiteNumber(source.litrosComprados, undefined)
-      : isEntry
-        ? finiteNumber(source.qa, undefined)
-        : finiteNumber(source.quantidadeAbastecida, source.qa),
-    quantidadeMovimentada: isEntry
-      ? (isCanonicalEntry ? finiteNumber(source.litrosComprados, undefined) : finiteNumber(source.qa, undefined))
-      : finiteNumber(source.quantidadeAbastecida, source.qa),
+    // Volumes in persisted units (×10).
+    litrosComprados: isEntry ? finiteNumber(source.litrosComprados, undefined) : finiteNumber(source.quantidadeAbastecida, undefined),
+    quantidadeMovimentada: isEntry ? finiteNumber(source.litrosComprados, undefined) : finiteNumber(source.quantidadeAbastecida, undefined),
     estoqueAntes: finiteNumber(source.estoqueAntes, undefined),
-    estoqueAposMovimento: finiteNumber(source.estoqueAposMovimento, source.diesel),
-    montanteSnapshot: finiteNumber(source.montanteSnapshot, source.lf),
-    // New versioned records are stored as cents; historical records retain reais.
-    preco: source.schemaVersion === BOMBAS_SCHEMA_VERSION
-      ? (typeof source.preco === 'number' && Number.isFinite(source.preco) ? centavosParaReais(source.preco) : undefined)
-      : finiteNumber(source.preco, source.precoTotal),
-    precoLitro: source.schemaVersion === BOMBAS_SCHEMA_VERSION
-      ? (typeof source.precoLitro === 'number' && Number.isFinite(source.precoLitro) ? centavosParaReais(source.precoLitro) : undefined)
-      : finiteNumber(source.precoLitro, source.precoPorLitro),
+    estoqueAposMovimento: finiteNumber(source.estoqueAposMovimento, undefined),
+    montanteSnapshot: finiteNumber(source.montanteSnapshot, undefined),
+    preco: cents(source.preco),
+    precoLitro: cents(source.precoLitro),
     lote: source.lote,
-    placa: source.item_frota_snapshot?.identificador ?? (typeof source.placa === 'string' ? source.placa : undefined),
-    responsavel: personName
-      ? { id: person?.uid?.trim() || '', nome: personName }
-      : source.responsavel
-        ? { id: source.responsavel.id?.trim() || '', nome: source.responsavel.nome?.trim() || '' }
-        : snapshotName || legacyName || source.id_motorista
-          ? { id: source.id_motorista?.trim() || '', nome: snapshotName || legacyName || '' }
-          : undefined,
-    obra: source.id_obra_snap?.nomeObra ?? (typeof source.obra === 'string' ? source.obra : undefined),
+    placa: source.item_frota_snapshot?.identificador,
+    responsavel: personName ? { id: person?.uid?.trim() || '', nome: personName } : undefined,
+    obra: source.id_obra_snap?.nomeObra,
     bombaId: source.bombaId,
   };
 }

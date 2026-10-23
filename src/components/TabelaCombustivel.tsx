@@ -8,7 +8,6 @@ import DeleteIcon from '@mui/icons-material/Delete';
 import { useNavigate } from 'react-router-dom';
 import type { Registro } from '../types';
 import useCombustivel from '../hooks/useCombustivel';
-import CombustivelForm from './CombustivelForm';
 import { useAuth } from '../contexts/AuthContext';
 import * as XLSX from 'xlsx';
 import useOnlineStatus from '../hooks/useOnlineStatus';
@@ -42,9 +41,7 @@ const EXCEL_KNOWN_COLUMNS = [
   { field: 'obra', label: 'Obra' },
   { field: 'motivo', label: 'Motivo' },
   { field: 'observacao', label: 'Observacao' },
-  { field: 'galao', label: 'Galao' },
   { field: 'semKm', label: 'Sem KM' },
-  { field: 'tipoPlaca', label: 'KM flag' },
   { field: 'valorAbastecimento', label: 'Valor abastecimento' },
   { field: 'horimetro', label: 'Horímetro' },
   { field: 'modalidadeAbastecimento', label: 'Modalidade' },
@@ -72,14 +69,13 @@ function parseKmNumber(value: unknown): number | null {
 }
 
 export default function TabelaCombustivel() {
-  const { data: rows, loading, create, update, remove } = useCombustivel();
+  const { data: rows, loading, remove } = useCombustivel();
   const principalGridApiRef = useGridApiRef();
   const navigate = useNavigate();
   const { isAdmin } = useAuth();
   const { isOnline } = useOnlineStatus();
 
   const [view, setView] = useState<View>('principal');
-  const [editing, setEditing] = useState<Registro | null>(null);
   const [snack, setSnack] = useState<string | null>(null);
 
   const brNumberFormatter = new Intl.NumberFormat('pt-BR', {
@@ -96,19 +92,6 @@ export default function TabelaCombustivel() {
   const [fromMonth, setFromMonth] = useState(dayjs().format('YYYY-MM'));
   const [toMonth, setToMonth] = useState(dayjs().format('YYYY-MM'));
   const [selectedMonth, setSelectedMonth] = useState('');
-
-  async function handleSave(values: Partial<Registro>) {
-    try {
-      if (editing?.id) {
-        await update(editing.id, values);
-      } else {
-        await create(values as Omit<Registro, 'id'>);
-      }
-      setSnack('Salvo com sucesso');
-    } catch (err: any) {
-      setSnack(err.message);
-    }
-  }
 
   async function handleDelete(id: string) {
     try {
@@ -176,13 +159,12 @@ export default function TabelaCombustivel() {
     if (field === 'obra') {
       return typeof row.obra === 'string' ? row.obra.trim() : '';
     }
-    if (field === 'placa') return row.identificadorSnapshot ?? row.placa;
-    if (field === 'motorista') return row.frentista ?? row.motorista;
-    if (field === 'para_quem') return row.paraQuem ?? row.para_quem;
-    if (field === 'local') return row.local ?? ((row.obra as Record<string, unknown> | undefined)?.localSnapshot);
-    if (field === 'qa') return row.quantidadeAbastecida ?? row.qa;
-    if (field === 'li') return row.montanteAntes ?? row.li;
-    if (field === 'lf') return row.montanteAposMovimento ?? row.lf;
+    if (field === 'placa') return row.identificadorSnapshot;
+    if (field === 'motorista') return row.frentista;
+    if (field === 'para_quem') return row.paraQuem;
+    if (field === 'qa') return row.quantidadeAbastecida;
+    if (field === 'li') return row.montanteAntes;
+    if (field === 'lf') return row.montanteAposMovimento;
     return row[field];
   }
 
@@ -273,7 +255,7 @@ export default function TabelaCombustivel() {
   });
 
   const colunas: GridColDef[] = [
-    { field: 'tipo', headerName: 'Tipo', minWidth: 90, flex: .6, valueGetter: (_v, row) => row.schema === 'entrada-v2' ? 'Entrada' : row.isFuelOutput ? 'Saída' : 'Legado' },
+    { field: 'tipo', headerName: 'Tipo', minWidth: 90, flex: .6, valueGetter: (_v, row) => row.foraDoContrato ? 'Fora do contrato' : row.schema === 'entrada-v2' ? 'Entrada' : 'Saída' },
     {
       field: 'dataJS',
       headerName: 'Data',
@@ -458,7 +440,7 @@ export default function TabelaCombustivel() {
     }
 
     const custoRows = Object.entries(grouped).map(([placa, registrosPlaca]) => {
-      const semOdometro = registrosPlaca.every((r) => isSemOdometro(r.semKm) || r.tipoPlaca === false);
+      const semOdometro = registrosPlaca.every((r) => isSemOdometro(r.semKm));
       const registrosComKm = registrosPlaca
         .filter((r) => typeof r.km === 'number' && !Number.isNaN(r.km))
         .sort((a, b) => {
@@ -604,10 +586,9 @@ export default function TabelaCombustivel() {
             disableRowSelectionOnClick
             density="compact"
             getRowHeight={() => 'auto'}
-            onRowDoubleClick={(p) => setEditing(p.row as Registro)}
             initialState={{ sorting: { sortModel: [{ field: 'dataJS', sort: 'desc' }] } }}
             getRowClassName={({ row }) =>
-              (row as any).para_quem === 'ERRO' ? 'row-error' : ''
+              (row as any).foraDoContrato || (row as any).para_quem === 'ERRO' ? 'row-error' : ''
             }
             sx={{
               '& .row-error': { bgcolor: 'rgba(255,0,0,0.6)' },
@@ -669,13 +650,6 @@ export default function TabelaCombustivel() {
           Exportar Excel
         </Button>
       </Stack>
-
-      <CombustivelForm
-        open={!!editing}
-        initialData={editing ?? undefined}
-        onClose={() => setEditing(null)}
-        onSave={handleSave}
-      />
 
       <Snackbar
         open={!!snack}

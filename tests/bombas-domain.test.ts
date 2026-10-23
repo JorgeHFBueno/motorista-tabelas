@@ -106,8 +106,8 @@ test('preserva quantidade de entrada zero e converte quantidade de saída', () =
 
 test('filtra movimentos normalizados localmente', () => {
   const movements = [
-    normalizeFuelMovement({ id: 'e', data: new Date(), tipo: 'entrada', litrosComprados: 50_000, estoqueAposMovimento: 50_000 }),
-    normalizeFuelMovement({ id: 's', data: new Date(), tipo: 'saida', quantidadeAbastecida: 873 }),
+    normalizeFuelMovement({ id: 'e', data: new Date(), schemaVersion: 2, tipo: 'entrada', litrosComprados: 50_000, estoqueAposMovimento: 50_000 }),
+    normalizeFuelMovement({ id: 's', data: new Date(), schemaVersion: 2, tipo: 'saida', quantidadeAbastecida: 873 }),
   ];
   assert.deepEqual(filterFuelMovements(movements, 'todos').map((item) => item.id), ['e', 's']);
   assert.deepEqual(filterFuelMovements(movements, 'entrada').map((item) => item.id), ['e']);
@@ -175,33 +175,6 @@ test('grava a entrada no formato do contrato da entrada V2', () => {
   }
 });
 
-test('normaliza uma entrada nova para o histórico e prioriza os campos canônicos', () => {
-  const movement = normalizeFuelMovement({
-    id: 'new-entry',
-    data: new Date(2026, 8, 4),
-    schemaVersion: 2,
-    tipo: 'entrada',
-    litrosComprados: 50_000,
-    qa: 1,
-    preco: 2_000_000,
-    precoTotal: 2,
-    precoLitro: 400,
-    precoPorLitro: 3,
-    responsavel: { id: 'jorge@example.com', nome: 'JORGE H. F. BUENO' },
-    estoqueAposMovimento: 84_000,
-    montanteSnapshot: 491_264,
-    lote: 'LT-2026-09',
-  });
-
-  assert.equal(movement.tipo, 'entrada');
-  assert.equal(movement.litrosComprados, 50_000);
-  assert.equal(movement.preco, 20_000);
-  assert.equal(movement.precoLitro, 4);
-  assert.deepEqual(movement.responsavel, { id: 'jorge@example.com', nome: 'JORGE H. F. BUENO' });
-  assert.equal(movement.estoqueAposMovimento, 84_000);
-  assert.equal(movement.montanteSnapshot, 491_264);
-});
-
 test('lê a entrada e a saída V2 no formato do contrato (gravadas pelo app)', () => {
   const entrada = normalizeFuelMovement({
     id: 'app-entry', data: new Date(2026, 9, 20), schemaVersion: 2, tipo: 'entrada', bombaId: 'diesel_patio',
@@ -234,40 +207,11 @@ test('converte dinheiro do schema v2 para exibição', () => {
   assert.equal(movement.precoLitro, 5.8);
 });
 
-test('preserva dinheiro histórico sem schemaVersion', () => {
-  const movement = normalizeFuelMovement({
-    id: 'intermediate-entry', data: new Date(), tipo: 'entrada',
-    litrosComprados: 50_000, preco: 29_000, precoLitro: 5.8,
-  });
-  assert.equal(movement.preco, 29_000);
-  assert.equal(movement.precoLitro, 5.8);
-});
-
-test('normaliza uma entrada legada sem removê-la do histórico', () => {
-  const movement = normalizeFuelMovement({
-    id: 'legacy-entry',
-    data: new Date(2026, 7, 15),
-    motivo: 'Abastecimento de Diesel',
-    qa: 50_000,
-    precoTotal: 20_000,
-    precoPorLitro: 4,
-    motorista: 'JORGE H. F. BUENO',
-  });
-
-  assert.deepEqual(
-    {
-      tipo: movement.tipo,
-      litrosComprados: movement.litrosComprados,
-      preco: movement.preco,
-      precoLitro: movement.precoLitro,
-      responsavel: movement.responsavel,
-    },
-    {
-      tipo: 'entrada',
-      litrosComprados: 50_000,
-      preco: 20_000,
-      precoLitro: 4,
-      responsavel: { id: '', nome: 'JORGE H. F. BUENO' },
-    },
-  );
+test('registro fora do contrato V2 fica marcado, sem interpretar campos antigos', () => {
+  const legado = normalizeFuelMovement({ id: 'legacy-entry', data: new Date(2026, 7, 15), motivo: 'Abastecimento de Diesel', qa: 50_000, precoTotal: 20_000, precoPorLitro: 4, motorista: 'JORGE H. F. BUENO' });
+  assert.equal(legado.foraDoContrato, true);
+  assert.equal(legado.motivo, 'Fora do contrato V2');
+  for (const campo of ['litrosComprados', 'quantidadeMovimentada', 'preco', 'precoLitro', 'responsavel', 'placa']) assert.equal((legado as unknown as Record<string, unknown>)[campo], undefined, campo);
+  // Without schemaVersion 2 even an entry-shaped document is outside the contract.
+  assert.equal(normalizeFuelMovement({ id: 'x', data: new Date(), tipo: 'entrada', litrosComprados: 50_000, preco: 29_000 }).foraDoContrato, true);
 });

@@ -787,7 +787,7 @@ export default function FrotaVeiculoDetalhesPage() {
                 const data: LinhaEvento[] = snapshot.docs.map(
                     (docSnap): LinhaEvento => {
                         const registro = normalizarMovimentoCombustivel(docSnap.data(), docSnap.id) as Combustivel;
-                        const matches = registro.itemFrotaUid === veiculo?.id || registro.identificadorSnapshot === placa || (registro.itemFrotaUid === undefined && (docSnap.data().placa === placa));
+                        const matches = registro.itemFrotaUid === veiculo?.id || registro.identificadorSnapshot === placa;
                         if (!matches || registro.isFuelOutput === false) return null as unknown as LinhaEvento;
                         const categoria = registro.motivo ? registro.motivo : 'ABASTECIMENTO';
                         return {
@@ -797,7 +797,7 @@ export default function FrotaVeiculoDetalhesPage() {
                             origem: 'abastecimento',
                             tipo: 'ABASTECIMENTO',
                             data: toDate(registro.data),
-                            qntAbastecida: registro.quantidadeAbastecida ?? registro.qa ?? null,
+                            qntAbastecida: registro.quantidadeAbastecida ?? null,
                             arla: registro.arla ?? null,
                             categoria,
                             valor: registro.valor ?? null,

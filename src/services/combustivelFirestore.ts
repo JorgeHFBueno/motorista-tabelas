@@ -1,4 +1,4 @@
-import { Timestamp, doc, runTransaction, setDoc } from 'firebase/firestore';
+import { Timestamp, doc, runTransaction } from 'firebase/firestore';
 import { db } from '../firebase';
 import type { Registro } from '../types';
 
@@ -62,14 +62,5 @@ export async function saveCombustivelAndUpdateDieselPatio(input: SaveV2FuelInput
     transaction.set(movementRef, payload); transaction.update(pumpRef, { estoqueAtual: estoqueAntes - quantity, montanteAtual: informedFinalAmount, ultimoAbastecimento: data, ultimoFrentista: input.frentista.nomeSnapshot });
   });
   return { id: movementRef.id, schemaVersion: 2, tipo: 'saida', ...input, data } as unknown as Registro;
-}
-/** Legacy modal kept for historical/admin compatibility; /combustivel/novo never calls it. */
-export async function saveCombustivel(input: Partial<Registro> & { email: string }): Promise<Registro> {
-  const date = input.data instanceof Timestamp ? input.data : Timestamp.fromDate(input.data instanceof Date ? input.data : new Date());
-  const ref = doc(db, COLLECTION_NAME);
-  const payload = { ...input, email: undefined, data: date } as Record<string, unknown>;
-  delete payload.email;
-  await setDoc(ref, payload);
-  return { id: ref.id, ...payload } as Registro;
 }
 export default { saveCombustivelAndUpdateDieselPatio, calculateFuelCostCents };

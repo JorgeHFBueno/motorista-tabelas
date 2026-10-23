@@ -432,12 +432,12 @@ function HistoryDialog({ open, onClose, movements, loading, dateLabel, litersLab
         <Stack divider={<Divider flexItem />}>
           {visibleMovements.map((movement) => {
             const type = movement.tipo;
-            const label = type === 'entrada' ? 'Entrada de diesel' : type === 'ajuste' ? 'Ajuste' : 'Abastecimento / saída';
+            const label = movement.foraDoContrato ? 'Fora do contrato V2' : type === 'entrada' ? 'Entrada de diesel' : type === 'ajuste' ? 'Ajuste' : 'Abastecimento / saída';
             return (
               <Stack key={movement.id} direction={{ xs: 'column', sm: 'row' }} justifyContent="space-between" gap={2} sx={{ py: 2 }}>
                 <Box>
                   <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap">
-                    <Chip size="small" color={type === 'entrada' ? 'success' : type === 'ajuste' ? 'warning' : 'default'} label={label} />
+                    <Chip size="small" color={movement.foraDoContrato ? 'error' : type === 'entrada' ? 'success' : type === 'ajuste' ? 'warning' : 'default'} label={label} />
                     <Typography variant="subtitle2">{dateLabel(movement.data, true)}</Typography>
                   </Stack>
                   <Typography variant="body2" color="text.secondary" sx={{ mt: 0.75 }}>

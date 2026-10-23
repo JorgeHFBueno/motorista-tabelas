@@ -23,5 +23,5 @@ export async function getInitialLiValue(): Promise<number | null> {
   const lastDoc = lastSnapshot.docs[0];
   if (!lastDoc) return null;
 
-  return toInt((lastDoc.data() as { lf?: unknown }).lf);
+  return toInt((lastDoc.data() as { montanteAposMovimento?: unknown }).montanteAposMovimento);
 }

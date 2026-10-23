@@ -7,7 +7,7 @@ export const PILOT_PERIOD = { start: PILOT_START, end: PILOT_END };
 
 export type AnalyticsPeriod = { start?: Date; end?: Date };
 export type ActivityAnalyticsRecord = { id: string; tipo?: unknown; data?: unknown; veiculoId?: unknown; placa?: unknown; obraId?: unknown };
-export type FuelAnalyticsRecord = { id: string; data?: unknown; placa?: unknown; km?: unknown; semKm?: unknown; tipoPlaca?: unknown; motivo?: unknown; qa?: unknown; quantidadeAbastecida?: unknown; isFuelOutput?: boolean; schema?: string; itemFrotaUid?: unknown; itemFrotaTipo?: unknown; identificadorSnapshot?: unknown };
+export type FuelAnalyticsRecord = { id: string; data?: unknown; placa?: unknown; km?: unknown; semKm?: unknown; motivo?: unknown; quantidadeAbastecida?: unknown; isFuelOutput?: boolean; schema?: string; itemFrotaUid?: unknown; itemFrotaTipo?: unknown; identificadorSnapshot?: unknown };
 export type MaintenanceAnalyticsRecord = { id: string; data?: unknown; identificador?: unknown; valor?: unknown };
 export type VehicleAnalyticsIdentity = { id: string; placa?: string; identificador?: string; extra?: string };
 
@@ -75,7 +75,7 @@ export function obrasVisited(): { value: null; quality: 'UNAVAILABLE' } { return
 
 function validOdometer(item: FuelAnalyticsRecord): { date: Date; km: number } | null {
   if (item.isFuelOutput === false || item.itemFrotaTipo === 'maquina') return null;
-  if (isSemOdometro(item.semKm) || item.tipoPlaca === false) return null;
+  if (isSemOdometro(item.semKm)) return null;
   const motivo = typeof item.motivo === 'string' ? item.motivo.toLowerCase() : '';
   if (motivo.includes('galão') || motivo.includes('galao') || motivo.includes('bomba') || motivo.includes('ajuste') || motivo.includes('estoque')) return null;
   const km = numberValue(item.km);
