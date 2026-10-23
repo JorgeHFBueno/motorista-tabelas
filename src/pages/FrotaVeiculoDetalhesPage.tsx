@@ -181,8 +181,8 @@ const deleteDeepValue = (target: Record<string, unknown>, path: string) => {
     });
 };
 
-// manutencoes liga o veículo por item_frota_id; os registros ainda não migrados, e todo o manutencoes-legado, só
-// têm a placa em texto (`identificador`).
+// manutencoes liga o veículo por item_frota_id (todos os registros desde a migração de 2026-10-23); o histórico
+// manutencoes-legado só tem a placa em texto (`identificador`).
 async function queryManutencoes(collectionName: FonteEvento, field: string, value: string) {
     const baseQuery = query(collection(db, collectionName), where(field, '==', value));
     try {
@@ -198,11 +198,9 @@ async function fetchManutencoes(
     item: ItemFrotaV2,
     origem: TipoEvento,
 ): Promise<LinhaEvento[]> {
-    const porPlaca = await queryManutencoes(collectionName, 'identificador', item.identificador);
-    const porId = collectionName === 'manutencoes' ? await queryManutencoes(collectionName, 'item_frota_id', item.id) : [];
-    const vistos = new Set<string>();
-    const docs = [...porId, ...porPlaca.filter((docSnap) => !docSnap.data().item_frota_id)]
-        .filter((docSnap) => !vistos.has(docSnap.id) && Boolean(vistos.add(docSnap.id)));
+    const docs = collectionName === 'manutencoes'
+        ? await queryManutencoes(collectionName, 'item_frota_id', item.id)
+        : await queryManutencoes(collectionName, 'identificador', item.identificador);
 
     return docs.map(
         (docSnap): LinhaEvento => {

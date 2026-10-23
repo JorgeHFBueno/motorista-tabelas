@@ -25,8 +25,6 @@ import {
     DEFAULT_MANUTENCAO_FORM,
     type Fornecedor,
     getManutencaoValidationError,
-    indexarPorIdentificador,
-    manutencaoItemFrotaId,
     type ManutencaoForm,
     type TipoVeiculo,
 } from '../components/manutencaoFormShared';
@@ -41,7 +39,6 @@ import type { ItemFrotaV2, PessoaV2 } from '../utils/cadastrosV2';
 type ManutencaoRow = {
     id: string;
     item_frota_id?: string;
-    identificador?: string;
     categoria?: string;
     categoriaId?: string;
     categoriaNomeSnapshot?: string;
@@ -229,7 +226,6 @@ export default function FrotaVeiculosPage() {
                     return {
                         id: docSnap.id,
                         item_frota_id: raw.item_frota_id,
-                        identificador: raw.identificador,
                         categoria: raw.categoria,
                         categoriaId: raw.categoriaId,
                         categoriaNomeSnapshot: raw.categoriaNomeSnapshot,
@@ -410,8 +406,6 @@ export default function FrotaVeiculosPage() {
     const emptyLabel =
         tipo === 'PLACA' ? 'Nenhum veículo do tipo PLACA encontrado.' : 'Nenhum veículo do tipo EXTRA encontrado.';
 
-    const idPorIdentificador = useMemo(() => indexarPorIdentificador(veiculos), [veiculos]);
-
     const loadingManutencoes = manutencoes2026Loading;
 
     const categoriasById = useMemo(() => {
@@ -474,7 +468,7 @@ export default function FrotaVeiculosPage() {
         const optionsByKey = new Map<string, CategoriaFiltroOption>();
 
         manutencoesNoPeriodoParaGrafico.forEach((row) => {
-            const vehicleId = manutencaoItemFrotaId(row, idPorIdentificador);
+            const vehicleId = row.item_frota_id;
             if (!vehicleId || !vehicleIds.has(vehicleId)) return;
 
             const key = getCategoriaKey(row);
@@ -495,7 +489,7 @@ export default function FrotaVeiculosPage() {
             if (b.key === SEM_CATEGORIA_KEY) return -1;
             return a.label.localeCompare(b.label, 'pt-BR');
         });
-    }, [categoriasById, idPorIdentificador, manutencoesNoPeriodoParaGrafico, rows]);
+    }, [categoriasById, manutencoesNoPeriodoParaGrafico, rows]);
 
     useEffect(() => {
         if (selectedCategoriasGrafico.length === 0) return;
@@ -529,7 +523,7 @@ export default function FrotaVeiculosPage() {
         const totals = new Map<string, number>();
 
         manutencoesNoPeriodoParaGrafico.forEach((row) => {
-            const vehicleId = manutencaoItemFrotaId(row, idPorIdentificador);
+            const vehicleId = row.item_frota_id;
             if (!vehicleId) return;
             if (selectedCategoriaKeys.size > 0 && !selectedCategoriaKeys.has(getCategoriaKey(row))) return;
 
@@ -545,7 +539,7 @@ export default function FrotaVeiculosPage() {
             })
             .filter((item) => item.value > 0)
             .sort((a, b) => b.value - a.value);
-    }, [idPorIdentificador, manutencoesNoPeriodoParaGrafico, rows, selectedCategoriaKeys]);
+    }, [manutencoesNoPeriodoParaGrafico, rows, selectedCategoriaKeys]);
 
     const hasValorField = useMemo(() => {
         if (rowsManutencoes2026.length === 0) return true;

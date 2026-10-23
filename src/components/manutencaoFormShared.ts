@@ -2,8 +2,8 @@ import { createFilterOptions } from '@mui/material';
 import { itemFrotaSnapshot, type ItemFrotaV2 } from '../utils/cadastrosV2';
 
 // Manutenção liga o veículo por item_frota_id (veiculos-v2) e a pessoa por UID (funcionarios), com snapshots ao lado
-// (The Manuscript, 01_FIRESTORE/COLECOES/manutencoes.md). `identificador` (placa em texto) e `motorista` em texto são
-// do formato antigo e só são lidos.
+// (The Manuscript, 01_FIRESTORE/COLECOES/manutencoes.md). `identificador` (placa em texto) ficou nos registros
+// migrados só como registro do formato antigo; `motorista` em texto ainda aparece em manutencoes-legado.
 export type TipoVeiculo = 'PLACA' | 'EXTRA';
 
 export type ManutencaoForm = {
@@ -140,23 +140,6 @@ export function buildManutencaoPayload(form: ManutencaoForm, item: ItemFrotaV2, 
         status: form.status,
         data,
     };
-}
-
-export function normalizarIdentificador(value: unknown): string {
-    return typeof value === 'string' ? value.toUpperCase().replace(/[^A-Z0-9]/g, '') : '';
-}
-
-/** Veículo da manutenção: o ID gravado ou, no formato antigo, o item cujo identificador é a placa em texto. */
-export function manutencaoItemFrotaId(
-    row: { item_frota_id?: unknown; identificador?: unknown },
-    idPorIdentificador: Map<string, string>,
-): string | null {
-    if (typeof row.item_frota_id === 'string' && row.item_frota_id) return row.item_frota_id;
-    return idPorIdentificador.get(normalizarIdentificador(row.identificador)) ?? null;
-}
-
-export function indexarPorIdentificador(items: Pick<ItemFrotaV2, 'id' | 'identificador'>[]): Map<string, string> {
-    return new Map(items.map((item) => [normalizarIdentificador(item.identificador), item.id]));
 }
 
 /** Nome da pessoa: `{uid, nome}` no formato novo, texto no antigo. */
