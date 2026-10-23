@@ -43,12 +43,10 @@ import ManutencoesList, {
     type TipoEvento,
 } from '../components/ManutencoesList';
 import {
-    ABASTECIMENTO_EXTERNO,
     type CategoriaManutencao,
     DEFAULT_MANUTENCAO_FORM,
     type Fornecedor,
     getManutencaoValidationError,
-    getVeiculoLabel,
     type ManutencaoForm,
 } from '../components/manutencaoFormShared';
 import { useAuth } from '../contexts/AuthContext';
@@ -259,7 +257,7 @@ async function fetchManutencoes(
 export default function FrotaVeiculoDetalhesPage() {
     const { placa } = useParams();
     const navigate = useNavigate();
-    const { isAdmin, currentUser } = useAuth();
+    const { isAdmin } = useAuth();
 
     const [veiculo, setVeiculo] = useState<Veiculo | null>(null);
     const [generatingReport, setGeneratingReport] = useState(false);
@@ -670,9 +668,6 @@ export default function FrotaVeiculoDetalhesPage() {
         () => (veiculo ? { id: veiculo.id, categoria: tipoVeiculo, placa: veiculo.placa, extra: veiculo.extra } : null),
         [tipoVeiculo, veiculo],
     );
-    const motoristaAtual = (currentUser?.displayName || currentUser?.email || '').trim();
-    const veiculoLabelSelecionado = getVeiculoLabel(manutencaoVeiculoSelecionado);
-    const isAbastecimentoExterno = manutencaoForm.categoriaNomeSnapshot === ABASTECIMENTO_EXTERNO;
 
     function openManutencaoDialog() {
         if (!veiculo) return;
@@ -728,19 +723,6 @@ export default function FrotaVeiculoDetalhesPage() {
             };
 
             const docRef = await addDoc(collection(db, 'manutencoes'), payload);
-
-            if (isAbastecimentoExterno) {
-                const qa = Number.isFinite(quantidade) ? quantidade : 0;
-                await addDoc(collection(db, '03-combustivel'), {
-                    data,
-                    observacao: manutencaoForm.descricao.trim(),
-                    fornecedor: motoristaAtual || 'Não informado',
-                    motorista: fornecedorNomeSnapshot || 'Não informado',
-                    para_quem: manutencaoForm.motorista.trim(),
-                    placa: veiculoLabelSelecionado || manutencaoForm.identificador,
-                    qa,
-                });
-            }
 
             const newRow: LinhaEvento = {
                 id: `manutencoes_${docRef.id}`,

@@ -132,12 +132,13 @@ test('gera lote sugerido e ID no padrão exato do Flutter', () => {
   assert.equal(formatFlutterFuelDocumentId(date, 'uid-123'), '15_08_26 - 0907-04 uid-123');
 });
 
-test('mapeia o novo schema e conserva somente a compatibilidade necessária ao histórico Flutter', () => {
+test('grava a entrada no formato do contrato da entrada V2', () => {
   const date = new Date(2026, 7, 15, 9, 7, 4);
   const record = buildDieselEntryRecord({
     date,
     bombaId: 'diesel_patio',
-    responsavelId: 'jorge@example.com',
+    movimentoId: 'mov-1',
+    responsavelId: 'uid-jorge',
     responsavelNome: 'JORGE H. F. BUENO',
     estoqueAntes: 34_000,
     estoqueAposMovimento: 84_000,
@@ -157,7 +158,9 @@ test('mapeia o novo schema e conserva somente a compatibilidade necessária ao h
     preco: 2_000_000,
     precoLitro: 400,
     lote: 'LT-2026-08',
-    responsavel: { id: 'jorge@example.com', nome: 'JORGE H. F. BUENO' },
+    movimentoId: 'mov-1',
+    motivo: 'Abastecimento de Diesel',
+    criadoPor: { uid: 'uid-jorge', nome: 'JORGE H. F. BUENO' },
     estoqueAntes: 34_000,
     estoqueAposMovimento: 84_000,
     montanteSnapshot: 12_345,
@@ -166,7 +169,8 @@ test('mapeia o novo schema e conserva somente a compatibilidade necessária ao h
     assert.equal(Number.isInteger(record[field as keyof typeof record]), true, field);
   }
 
-  for (const field of ['qa', 'diesel', 'lf', 'motorista', 'id_motorista', 'id_motorista_snap', 'motivo', 'obra', 'precoTotal', 'precoPorLitro']) {
+  // `responsavel` is refused by the Rules on the ledger (it stays only in bombas.ultimaEntrada).
+  for (const field of ['responsavel', 'qa', 'diesel', 'lf', 'motorista', 'id_motorista', 'id_motorista_snap', 'obra', 'precoTotal', 'precoPorLitro']) {
     assert.equal(field in record, false, `campo legado ${field}`);
   }
 });
@@ -196,6 +200,29 @@ test('normaliza uma entrada nova para o histórico e prioriza os campos canônic
   assert.deepEqual(movement.responsavel, { id: 'jorge@example.com', nome: 'JORGE H. F. BUENO' });
   assert.equal(movement.estoqueAposMovimento, 84_000);
   assert.equal(movement.montanteSnapshot, 491_264);
+});
+
+test('lê a entrada e a saída V2 no formato do contrato (gravadas pelo app)', () => {
+  const entrada = normalizeFuelMovement({
+    id: 'app-entry', data: new Date(2026, 9, 20), schemaVersion: 2, tipo: 'entrada', bombaId: 'diesel_patio',
+    movimentoId: 'app-entry', motivo: 'Abastecimento de Diesel', litrosComprados: 50_000, preco: 2_900_000, precoLitro: 580,
+    lote: '1006', estoqueAntes: 5_000, estoqueAposMovimento: 55_000, criadoPor: { uid: 'uid-s', nome: 'Sergio Ledur' },
+  } as never);
+  assert.equal(entrada.litrosComprados, 50_000);
+  assert.equal(entrada.quantidadeMovimentada, 50_000);
+  assert.deepEqual(entrada.responsavel, { id: 'uid-s', nome: 'Sergio Ledur' });
+
+  const saida = normalizeFuelMovement({
+    id: 'app-out', data: new Date(2026, 9, 20), schemaVersion: 2, tipo: 'saida', motivo: 'Buscar Motorista',
+    quantidadeAbastecida: 4_444, estoqueAntes: 5_402, estoqueAposMovimento: 958,
+    frentista: { uid: 'uid-s', nome: 'Sergio Ledur' }, criadoPor: undefined,
+    item_frota_snapshot: { identificador: 'ITU-3353' }, id_obra_snap: { nomeObra: 'FABRICA' },
+  } as never);
+  assert.equal(saida.tipo, 'saida');
+  assert.equal(saida.quantidadeMovimentada, 4_444);
+  assert.equal(saida.placa, 'ITU-3353');
+  assert.equal(saida.obra, 'FABRICA');
+  assert.deepEqual(saida.responsavel, { id: 'uid-s', nome: 'Sergio Ledur' });
 });
 
 test('converte dinheiro do schema v2 para exibição', () => {

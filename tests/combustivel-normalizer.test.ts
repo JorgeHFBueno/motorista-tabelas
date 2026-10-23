@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { horasFromX10, litrosFromX10, normalizarMovimentoCombustivel, reaisFromCentavos } from '../src/services/combustivel-normalizer.ts';
+import { horasFromX10, isSemOdometro, litrosFromX10, normalizarMovimentoCombustivel, reaisFromCentavos } from '../src/services/combustivel-normalizer.ts';
 import { formatarHorimetroX10, formatarKm, formatarLitrosX10, formatarMoedaCentavos, parseDigitosX10 } from '../src/utils/formatters.ts';
 
 const base = {
@@ -40,6 +40,43 @@ test('normaliza máquina e galão sem transformar horímetro em KM', () => {
   assert.equal(result.modalidadeAbastecimento, 'galao'); assert.equal(result.itemFrotaTipo, 'maquina');
   assert.equal(result.identificadorSnapshot, 'CARREGADEIRA CASE'); assert.equal(result.horimetro, 8752); assert.equal(result.km, null);
   assert.equal(result.placa, null); assert.equal(result.extra, 'CARREGADEIRA CASE');
+});
+
+test('lê a saída V2 no formato do contrato (gravada pelo app)', () => {
+  const contrato = {
+    schemaVersion: 2, tipo: 'saida', data: new Date(), quantidadeAbastecida: 4444, valorAbastecimento: 257752,
+    montanteAntes: 522417, montanteAposMovimento: 526861, estoqueAntes: 5402, estoqueAposMovimento: 958, arla: 0,
+    motivo: 'Buscar Motorista', modalidadeAbastecimento: 'direto', semKm: 'Sem Odometro',
+    origemPreco: { movimentoId: 'm1', lote: '1006', precoLitro: 580 },
+    criadoPor: { uid: 'c', nome: 'Autor' }, frentista: { uid: 'f', nome: 'Frentista' }, motoristaOperador: { uid: 'p', nome: 'Operador' },
+    id_obra: 'o1', id_obra_snap: { codObra: 89, local: 'Palmeira das Missões - RS', nomeObra: 'FABRICA', siglaObra: 'LEDUR' },
+  };
+  const placa = normalizarMovimentoCombustivel({ ...contrato, item_frota_id: 'v1', item_frota_snapshot: { categoria: 'PLACA', identificador: 'ITU-3353', nome: 'Basculante' }, quilometragem: 125430 }, 's1');
+  assert.equal(placa.schema, 'saida-v2');
+  assert.equal(placa.itemFrotaUid, 'v1'); assert.equal(placa.itemFrotaTipo, 'veiculo'); assert.equal(placa.identificadorSnapshot, 'ITU-3353');
+  assert.equal(placa.placa, 'ITU-3353'); assert.equal(placa.extra, null); assert.equal(placa.km, 125430);
+  assert.equal(placa.frentista, 'Frentista'); assert.equal(placa.motorista, 'Frentista');
+  assert.equal(placa.paraQuem, 'Operador'); assert.equal(placa.para_quem, 'Operador'); assert.equal(placa.autorLancamento, 'Autor');
+  assert.equal(placa.obraUid, 'o1'); assert.equal(placa.obra, 'FABRICA'); assert.equal(placa.local, 'Palmeira das Missões - RS');
+  assert.equal(placa.qa, 4444); assert.equal(placa.li, 522417); assert.equal(placa.lf, 526861);
+
+  const extra = normalizarMovimentoCombustivel({ ...contrato, item_frota_id: 'm1', item_frota_snapshot: { categoria: 'EXTRA', identificador: 'CASE', nome: 'Carregadeira' }, horimetro: 8752 }, 'm1');
+  assert.equal(extra.itemFrotaTipo, 'maquina'); assert.equal(extra.extra, 'CASE'); assert.equal(extra.placa, null);
+  assert.equal(extra.horimetro, 8752); assert.equal(extra.km, null);
+
+  const galao = normalizarMovimentoCombustivel({ ...contrato, modalidadeAbastecimento: 'galao' }, 'g1');
+  assert.equal(galao.modalidadeAbastecimento, 'galao'); assert.equal(galao.itemFrotaTipo, null); assert.equal(galao.placa, null);
+});
+
+test('lê a entrada V2 pelo criadoPor do contrato', () => {
+  const entrada = normalizarMovimentoCombustivel({ schemaVersion: 2, tipo: 'entrada', litrosComprados: 50000, preco: 2900000, precoLitro: 580, lote: '1006', criadoPor: { uid: 'u', nome: 'Comprador' } }, 'e1');
+  assert.equal(entrada.responsavel, 'Comprador');
+});
+
+test('reconhece "sem odômetro" nas duas grafias', () => {
+  assert.equal(isSemOdometro('Sem Odômetro'), true);
+  assert.equal(isSemOdometro('Sem Odometro'), true);
+  assert.equal(isSemOdometro('Galao'), false);
 });
 
 test('formata unidades internas para a apresentação pt-BR', () => {

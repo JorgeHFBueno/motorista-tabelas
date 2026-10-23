@@ -13,6 +13,7 @@ import { useAuth } from '../contexts/AuthContext';
 import * as XLSX from 'xlsx';
 import useOnlineStatus from '../hooks/useOnlineStatus';
 import { formatarHorimetroX10, formatarKm, formatarLitrosX10 } from '../utils/formatters';
+import { isSemOdometro } from '../services/combustivel-normalizer';
 
 type View = 'principal' | 'porNome' | 'custo';
 
@@ -457,7 +458,7 @@ export default function TabelaCombustivel() {
     }
 
     const custoRows = Object.entries(grouped).map(([placa, registrosPlaca]) => {
-      const semOdometro = registrosPlaca.every((r) => r.semKm === 'Sem Odômetro' || r.tipoPlaca === false);
+      const semOdometro = registrosPlaca.every((r) => isSemOdometro(r.semKm) || r.tipoPlaca === false);
       const registrosComKm = registrosPlaca
         .filter((r) => typeof r.km === 'number' && !Number.isNaN(r.km))
         .sort((a, b) => {

@@ -10,6 +10,8 @@ export type StoredMoneyCents = number;
 export interface DieselEntryRecordInput {
   date: Date;
   bombaId: string;
+  /** ID of the ledger document itself (contract: `movimentoId`). */
+  movimentoId: string;
   responsavelId: string;
   responsavelNome: string;
   estoqueAntes: number;
@@ -40,6 +42,10 @@ export interface FuelMovementSource {
   precoPorLitro?: number;
   lote?: string;
   responsavel?: { id?: string; nome?: string };
+  criadoPor?: { uid?: string; nome?: string; nomeSnapshot?: string };
+  frentista?: { uid?: string; nome?: string; nomeSnapshot?: string };
+  item_frota_snapshot?: { identificador?: string };
+  id_obra_snap?: { nomeObra?: string };
   estoqueAntes?: number;
   estoqueAposMovimento?: number;
   montanteSnapshot?: number;
@@ -199,8 +205,10 @@ export function buildDieselEntryRecord(input: DieselEntryRecordInput) {
     preco,
     precoLitro,
     lote: input.batch.trim(),
-    responsavel: {
-      id: input.responsavelId.trim(),
+    movimentoId: input.movimentoId,
+    motivo: ENTRADA_DIESEL_MOTIVO,
+    criadoPor: {
+      uid: input.responsavelId.trim(),
       nome: input.responsavelNome.trim(),
     },
     estoqueAntes: input.estoqueAntes,
@@ -241,10 +249,13 @@ export function normalizeFuelMovement(source: FuelMovementSource): FuelMovement 
   const isAdjustment = source.motivo?.toLocaleLowerCase('pt-BR').includes('ajuste') === true;
   const snapshotName = source.id_motorista_snap?.trim();
   const legacyName = source.motorista?.trim();
+  // Contract entries carry `criadoPor`; older WEB entries carry `responsavel`. Neither is needed to read the volume.
   const isCanonicalEntry = source.tipo === 'entrada'
     && typeof source.litrosComprados === 'number'
-    && typeof source.responsavel === 'object'
     && typeof source.estoqueAposMovimento === 'number';
+  // V2 saída person: the contract `frentista {uid, nome}` (the pre-contract WEB used `nomeSnapshot`).
+  const person = source.criadoPor ?? (source.schemaVersion === BOMBAS_SCHEMA_VERSION && source.tipo === 'saida' ? source.frentista : undefined);
+  const personName = person?.nome?.trim() || person?.nomeSnapshot?.trim() || '';
 
   return {
     id: source.id,
@@ -272,13 +283,15 @@ export function normalizeFuelMovement(source: FuelMovementSource): FuelMovement 
       ? (typeof source.precoLitro === 'number' && Number.isFinite(source.precoLitro) ? centavosParaReais(source.precoLitro) : undefined)
       : finiteNumber(source.precoLitro, source.precoPorLitro),
     lote: source.lote,
-    placa: source.placa,
-    responsavel: source.responsavel
-      ? { id: source.responsavel.id?.trim() || '', nome: source.responsavel.nome?.trim() || '' }
-      : snapshotName || legacyName || source.id_motorista
-        ? { id: source.id_motorista?.trim() || '', nome: snapshotName || legacyName || '' }
-        : undefined,
-    obra: source.obra,
+    placa: source.item_frota_snapshot?.identificador ?? (typeof source.placa === 'string' ? source.placa : undefined),
+    responsavel: personName
+      ? { id: person?.uid?.trim() || '', nome: personName }
+      : source.responsavel
+        ? { id: source.responsavel.id?.trim() || '', nome: source.responsavel.nome?.trim() || '' }
+        : snapshotName || legacyName || source.id_motorista
+          ? { id: source.id_motorista?.trim() || '', nome: snapshotName || legacyName || '' }
+          : undefined,
+    obra: source.id_obra_snap?.nomeObra ?? (typeof source.obra === 'string' ? source.obra : undefined),
     bombaId: source.bombaId,
   };
 }

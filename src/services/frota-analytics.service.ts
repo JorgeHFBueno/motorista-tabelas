@@ -1,3 +1,5 @@
+import { isSemOdometro } from './combustivel-normalizer';
+
 export type DataQuality = 'AVAILABLE' | 'PARTIAL' | 'UNAVAILABLE';
 export const PILOT_START = new Date(2026, 0, 1);
 export const PILOT_END = new Date(2026, 7, 31, 23, 59, 59, 999);
@@ -73,7 +75,7 @@ export function obrasVisited(): { value: null; quality: 'UNAVAILABLE' } { return
 
 function validOdometer(item: FuelAnalyticsRecord): { date: Date; km: number } | null {
   if (item.isFuelOutput === false || item.itemFrotaTipo === 'maquina') return null;
-  if (item.semKm === 'Sem Odômetro' || item.tipoPlaca === false) return null;
+  if (isSemOdometro(item.semKm) || item.tipoPlaca === false) return null;
   const motivo = typeof item.motivo === 'string' ? item.motivo.toLowerCase() : '';
   if (motivo.includes('galão') || motivo.includes('galao') || motivo.includes('bomba') || motivo.includes('ajuste') || motivo.includes('estoque')) return null;
   const km = numberValue(item.km);

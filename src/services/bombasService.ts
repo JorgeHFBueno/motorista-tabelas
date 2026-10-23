@@ -122,6 +122,7 @@ export async function registerDieselEntry(input: DieselEntryInput): Promise<void
       ...buildDieselEntryRecord({
         date: input.purchaseDate,
         bombaId: DIESEL_PATIO_ID,
+        movimentoId: movementRef.id,
         responsavelId: funcionarioDocumentId,
         responsavelNome: funcionarioName,
         estoqueAntes: currentStock,

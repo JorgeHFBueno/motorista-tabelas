@@ -36,7 +36,6 @@ import {
     type ManutencaoForm,
     type TipoVeiculo,
 } from '../components/manutencaoFormShared';
-import { useAuth } from '../contexts/AuthContext';
 import { db } from '../firebase';
 import { normalizeFornecedorNumero } from '../services/fornecedores.service';
 
@@ -178,7 +177,6 @@ function getCategoriaKey(row: ManutencaoRow): string {
 
 export default function FrotaVeiculosPage() {
     const navigate = useNavigate();
-    const { currentUser } = useAuth();
     const [tipo, setTipo] = useState<TipoVeiculo>('PLACA');
     const [veiculos, setVeiculos] = useState<Veiculo[]>([]);
     const [loading, setLoading] = useState(false);
@@ -829,10 +827,8 @@ export default function FrotaVeiculosPage() {
         ? `Gastos gerais por veículo (${periodoGrafico.label})`
         : 'Gastos gerais por veículo';
 
-    const motoristaAtual = (currentUser?.displayName || currentUser?.email || '').trim();
-
+    // External fuelling lives only in `manutencoes` (decision of 2026-10-23: no copy in 03-combustivel).
     const isAbastecimentoExterno = manutencaoForm.categoriaNomeSnapshot === ABASTECIMENTO_EXTERNO;
-    const veiculoLabelSelecionado = getVeiculoLabel(manutencaoVeiculoSelecionado);
     const fornecedorSelecionado = useMemo(
         () => fornecedores.find((item) => item.id === manutencaoForm.fornecedorId) ?? null,
         [fornecedores, manutencaoForm.fornecedorId],
@@ -938,19 +934,6 @@ export default function FrotaVeiculosPage() {
                 status: manutencaoForm.status,
                 data,
             });
-
-            if (isAbastecimentoExterno) {
-                const qa = Number.isFinite(quantidade) ? quantidade : 0;
-                await addDoc(collection(db, '03-combustivel'), {
-                    data,
-                    observacao: manutencaoForm.descricao.trim(),
-                    fornecedor: motoristaAtual || 'Não informado',
-                    motorista: fornecedorNomeSnapshot || 'Não informado',
-                    para_quem: manutencaoForm.motorista.trim(),
-                    placa: veiculoLabelSelecionado || manutencaoForm.identificador,
-                    qa,
-                });
-            }
 
             setManutencoes2026Rows((prev) => {
                 const next = [
