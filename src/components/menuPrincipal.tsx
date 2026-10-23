@@ -2,6 +2,7 @@ import type { ReactNode } from 'react';
 import AssignmentIndIcon from '@mui/icons-material/AssignmentInd';
 import ListAltIcon from '@mui/icons-material/ListAlt';
 import DirectionsCarFilledIcon from '@mui/icons-material/DirectionsCarFilled';
+import FactCheckOutlinedIcon from '@mui/icons-material/FactCheckOutlined';
 import LocalGasStationIcon from '@mui/icons-material/LocalGasStation';
 import EngineeringIcon from '@mui/icons-material/Engineering';
 import ConstructionIcon from '@mui/icons-material/Construction';
@@ -64,6 +65,14 @@ export const menuPrincipal: MenuPrincipalItem[] = [
     color: '#EEF5F1',
     accent: '#2E9D6F',
     to: '/frota',
+    acesso: 'adm2',
+  },
+  {
+    label: 'Checklists',
+    icon: <FactCheckOutlinedIcon fontSize="large" />,
+    color: '#FDF1EE',
+    accent: '#B5533C',
+    to: '/checklists',
     acesso: 'adm2',
   },
   {

@@ -5,6 +5,7 @@ import type { Data } from 'plotly.js';
 import Plot from 'react-plotly.js';
 import { db } from '../firebase';
 import { normalizarMovimentoCombustivel } from '../services/combustivel-normalizer';
+import { normalizarAtividade } from '../services/atividade-normalizer';
 import { fleetMetrics, fleetMetricsForVehicles, monthlyFleetMetrics, monthlyMetrics, PILOT_PERIOD, type ActivityAnalyticsRecord, type AnalyticsPeriod, type FuelAnalyticsRecord, type MaintenanceAnalyticsRecord, type VehicleAnalyticsIdentity } from '../services/frota-analytics.service';
 
 type Props = { vehicles: VehicleAnalyticsIdentity[]; vehicle?: VehicleAnalyticsIdentity };
@@ -57,7 +58,7 @@ export default function FrotaAnalyticsPanel({ vehicles, vehicle }: Props) {
       getDocs(collection(db, '03-combustivel')),
       getDocs(collection(db, 'manutencoes')),
     ]).then(([activities, fuel, maintenance]) => {
-      if (active) setData({ activities: activities.docs.map(item => ({ id: item.id, ...item.data() })), fuel: fuel.docs.map(item => normalizarMovimentoCombustivel(item.data(), item.id)), maintenance: maintenance.docs.map(item => ({ id: item.id, ...item.data() })) });
+      if (active) setData({ activities: activities.docs.map(item => normalizarAtividade(item.data(), item.id)), fuel: fuel.docs.map(item => normalizarMovimentoCombustivel(item.data(), item.id)), maintenance: maintenance.docs.map(item => ({ id: item.id, ...item.data() })) });
     }).catch(() => active && setLoadError('Não foi possível carregar os KPIs.'));
     return () => { active = false; };
   }, []);

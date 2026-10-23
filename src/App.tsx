@@ -20,7 +20,9 @@ const CadastroUsuarioNovoPage = lazy(() => import('./pages/CadastroUsuarioNovoPa
 const KioskCredentialsPage = lazy(() => import('./pages/KioskCredentialsPage'));
 const CadastrosEditarPage = lazy(() => import('./pages/CadastrosEditarPage'));
 const RegistrosPage = lazy(() => import('./pages/RegistrosPage'));
-const ChecklistSaidaPage = lazy(() => import('./pages/ChecklistSaidaPage'));
+const ChecklistLegadoRedirect = lazy(() => import('./pages/ChecklistLegadoRedirect'));
+const ChecklistsPage = lazy(() => import('./pages/ChecklistsPage'));
+const ChecklistDetalhePage = lazy(() => import('./pages/ChecklistDetalhePage'));
 const FrotaVeiculosPage = lazy(() => import('./pages/FrotaVeiculosPage'));
 const FrotaVeiculoDetalhesPage = lazy(() => import('./pages/FrotaVeiculoDetalhesPage'));
 const FrotaAnalyticsPage = lazy(() => import('./pages/FrotaAnalyticsPage'));
@@ -85,7 +87,9 @@ export default function App() {
             <Route path="cadastros/veiculos/novo" element={<CadastroVeiculoNovoPage />} />
             <Route path="cadastros/editar/:tipo" element={<CadastrosEditarPage />} />
             <Route path="registros" element={<RegistrosPage />} />
-            <Route path="registros/:atividadeId/checklist" element={<ChecklistSaidaPage />} />
+            <Route path="registros/:atividadeId/checklist" element={<ChecklistLegadoRedirect />} />
+            <Route path="checklists" element={<ChecklistsPage />} />
+            <Route path="checklists/:id" element={<ChecklistDetalhePage />} />
             <Route path="frota" element={<FrotaVeiculosPage />} />
             <Route path="frota/analytics" element={<FrotaAnalyticsPage />} />
             <Route path="frota/:placa" element={<FrotaVeiculoDetalhesPage />} />

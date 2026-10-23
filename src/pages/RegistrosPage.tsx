@@ -1,7 +1,6 @@
 import { Suspense, lazy, useEffect, useMemo, useState, type ReactNode, type SyntheticEvent } from 'react';
 import { Alert, Box, Button, Container, MenuItem, Paper, Stack, Tab, Tabs, TextField, Typography } from '@mui/material';
-import PhotoCameraIcon from '@mui/icons-material/PhotoCamera';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useSearchParams } from 'react-router-dom';
 import { DataGrid, type GridColDef } from '@mui/x-data-grid';
 import useAtividade, { type Atividade } from '../hooks/useAtividade';
 import useOnlineStatus from '../hooks/useOnlineStatus';
@@ -139,7 +138,6 @@ function getEmptyRowsMessage(tipoFiltro: RegistroTipoFiltro) {
 }
 
 export default function RegistrosPage() {
-  const navigate = useNavigate();
   const { isOnline } = useOnlineStatus();
   const [searchParams, setSearchParams] = useSearchParams();
   const [tab, setTab] = useState<TabKey>(() => getValidTab(searchParams.get('tab')));
@@ -201,46 +199,24 @@ export default function RegistrosPage() {
       { field: 'motorista', headerName: 'Motorista', minWidth: 150, flex: 1.2 },
       { field: 'placa', headerName: 'Placa', minWidth: 120, flex: 1 },
       { field: 'destino', headerName: 'Destino', minWidth: 180, flex: 1.4 },
+      { field: 'obra', headerName: 'Obra', minWidth: 180, flex: 1.4 },
       { field: 'motivo', headerName: 'Motivo', minWidth: 200, flex: 1.4 },
-      { field: 'tipo', headerName: 'Tipo', minWidth: 140, flex: 1 },
+      {
+        field: 'tipo',
+        headerName: 'Tipo',
+        minWidth: 140,
+        flex: 1,
+        valueGetter: (_value, row) => (row.foraDoContrato ? 'Fora do contrato' : row.tipo === 'saida' ? 'Saída' : 'Chegada'),
+      },
       {
         field: 'km',
         headerName: 'KM',
         minWidth: 120,
         flex: 1,
-        renderCell: ({ value }) => (Number.isNaN(Number(value)) ? '—' : kmFormatter.format(Number(value))),
-      },
-      {
-        field: 'checklistSaida',
-        headerName: 'Checklist',
-        minWidth: 150,
-        sortable: false,
-        filterable: false,
-        renderCell: (params) => {
-          const isSaida = normalizarTipoRegistro(params.row.tipo) === 'saida';
-          const hasChecklist =
-            params.row.checklistSaidaConcluido === true ||
-            Number(params.row.checklistSaidaTotalItens ?? 0) > 0 ||
-            Number(params.row.checklistSaidaItensComAvaria ?? 0) > 0;
-
-          if (!isSaida || !hasChecklist) {
-            return null;
-          }
-
-          return (
-            <Button
-              size="small"
-              variant="outlined"
-              startIcon={<PhotoCameraIcon fontSize="small" />}
-              onClick={() => navigate(`/registros/${encodeURIComponent(String(params.row.id))}/checklist`)}
-            >
-              Ver checklist
-            </Button>
-          );
-        },
+        renderCell: ({ value }) => (typeof value === 'number' ? kmFormatter.format(value) : '—'),
       },
     ],
-    [dateFmt, kmFormatter, navigate],
+    [dateFmt, kmFormatter],
   );
 
   useEffect(() => {
@@ -473,6 +449,8 @@ export default function RegistrosPage() {
                 noResultsOverlayLabel: getEmptyRowsMessage(tipoMovimentacao),
               }}
               initialState={{ sorting: { sortModel: [{ field: 'dataJS', sort: 'desc' }] } }}
+              getRowClassName={({ row }) => (row.foraDoContrato ? 'row-error' : '')}
+              sx={{ '& .row-error': { bgcolor: 'rgba(255,0,0,0.6)' } }}
             />
           </div>
         </Stack>
