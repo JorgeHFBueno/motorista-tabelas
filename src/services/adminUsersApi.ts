@@ -40,8 +40,6 @@ export type UpdateAdminUserInput = {
 // contaExistente: já havia conta com esse login (sem funcionário); a senha dela passou a ser a informada.
 export type RegisterAuthorizedUserResponse = { funcionarioDocumentId: string; contaExistente?: boolean };
 
-export type MigracaoCredenciais = { executado: boolean; funcionarios: number; alterados: number; frentistas: number };
-
 const API_BASE = '/api/admin';
 
 const MENSAGENS: Record<string, string> = {
@@ -63,7 +61,6 @@ const MENSAGENS: Record<string, string> = {
   'auth/user-not-found': 'Usuário não encontrado no login do sistema.',
   'auth/invalid-email': 'O login informado é inválido.',
   'auth/invalid-password': 'A senha não atende aos requisitos do Firebase.',
-  migration_failed: 'A migração das credenciais falhou. Nada foi confirmado; tente de novo.',
 };
 
 class AdminApiError extends Error {
@@ -123,11 +120,6 @@ export async function definirSenha(uid: string, password: string): Promise<void>
 /** Só contas sem funcionário (funcionário se desativa). */
 export async function deleteUser(uid: string): Promise<void> {
   await requestAdminApi(`/users/${encodeURIComponent(uid)}`, { method: 'DELETE' }, 'Erro ao excluir a conta.');
-}
-
-/** Migração da troca: frentista a partir de adm1; adm1 e user saem. executar=false só conta. */
-export function migrarCredenciais(executar: boolean) {
-  return requestAdminApi<MigracaoCredenciais>('/manutencao/credenciais', { method: 'POST', body: JSON.stringify({ executar }) }, 'Erro na migração das credenciais.');
 }
 
 export function nomeDoUsuario(user: AdminUser) {
