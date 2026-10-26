@@ -42,4 +42,6 @@ const service = createKioskSessionService({
   },
 });
 
-export const kioskSessionEvent = onCall({ region: 'us-central1' }, (request) => service(request.auth?.uid, request.data));
+// The Cloud Run service was created without the public invoker, so the tablet's calls stopped at Google's IAM (403)
+// and never reached kioskAudit. invoker 'public' makes the deploy grant it; the Function itself checks the session.
+export const kioskSessionEvent = onCall({ region: 'us-central1', invoker: 'public' }, (request) => service(request.auth?.uid, request.data));

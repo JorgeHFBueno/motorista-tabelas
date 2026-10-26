@@ -442,6 +442,20 @@ service cloud.firestore {
         && changedOnly(['ultimoAcesso'])
         && request.resource.data.ultimoAcesso == request.time;
       allow create, delete: if false;
+
+      // Push tokens of the devices where the person is signed in to the app (one document per device, id = token).
+      // The app writes its own on login and deletes it on sign-out, also when the person became inactive; only the
+      // Functions (Admin SDK) read them.
+      match /fcmTokens/{tokenId} {
+        allow read: if false;
+        allow create, update: if isAuthorized()
+          && request.auth.uid == uid
+          && request.resource.data.keys().hasOnly(['token', 'plataforma', 'atualizadoEm'])
+          && request.resource.data.get('token', '') == tokenId
+          && request.resource.data.get('plataforma', '') is string
+          && request.resource.data.get('atualizadoEm', null) == request.time;
+        allow delete: if signedIn() && request.auth.uid == uid;
+      }
     }
 
     // Kiosk credentials, rate limits, admin config and audit: Admin SDK only.

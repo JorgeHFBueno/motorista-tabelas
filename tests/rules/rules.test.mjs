@@ -761,6 +761,23 @@ test('[firestore] funcionarios: an active person writes only their own last acce
   await assertFails(updateDoc(doc(dbAs('canonicalFrentista'), 'funcionarios', 'uid-canonical-adm2'), { ultimoAcesso: serverTimestamp() }));
   await assertFails(updateDoc(doc(dbAs('canonicalInactive'), 'funcionarios', 'uid-canonical-inactive'), { ultimoAcesso: serverTimestamp() }));
 });
+// App (notification_service.dart): set on login and on token refresh, delete on sign-out (also when inactive).
+test('[firestore] funcionarios/fcmTokens: the person writes and deletes only their own device token', async () => {
+  const token = (identity, uid, id) => doc(dbAs(identity), 'funcionarios', uid, 'fcmTokens', id);
+  const dados = (id) => ({ token: id, plataforma: 'android', atualizadoEm: serverTimestamp() });
+  await assertSucceeds(setDoc(token('canonicalFrentista', 'uid-canonical-frentista', 'tok-1'), dados('tok-1')));
+  await assertSucceeds(setDoc(token('canonicalFrentista', 'uid-canonical-frentista', 'tok-1'), dados('tok-1')));
+  await assertFails(getDoc(token('canonicalFrentista', 'uid-canonical-frentista', 'tok-1')));
+  await assertFails(setDoc(token('canonicalFrentista', 'uid-canonical-frentista', 'tok-2'), dados('outro')));
+  await assertFails(setDoc(token('canonicalFrentista', 'uid-canonical-frentista', 'tok-3'), { ...dados('tok-3'), atualizadoEm: Timestamp.fromMillis(1) }));
+  await assertFails(setDoc(token('canonicalFrentista', 'uid-canonical-frentista', 'tok-4'), { ...dados('tok-4'), extra: true }));
+  await assertFails(setDoc(token('canonicalFrentista', 'uid-canonical-adm2', 'tok-5'), dados('tok-5')));
+  await assertFails(setDoc(token('canonicalInactive', 'uid-canonical-inactive', 'tok-6'), dados('tok-6')));
+  await assertFails(setDoc(token('legacyOnly', 'uid-legacy-only', 'tok-7'), dados('tok-7')));
+  await assertFails(deleteDoc(token('canonicalAdm2', 'uid-canonical-frentista', 'tok-1')));
+  await assertSucceeds(deleteDoc(token('canonicalFrentista', 'uid-canonical-frentista', 'tok-1')));
+  await assertSucceeds(deleteDoc(token('canonicalInactive', 'uid-canonical-inactive', 'tok-sair')));
+});
 test('[firestore] Friday: friday-usuarios no longer exists in the rules', async () => {
   await assertFails(getDoc(doc(dbAs('canonicalFrentista'), 'friday-usuarios', 'uid-canonical-frentista')));
   await assertFails(setDoc(doc(dbAs('canonicalFrentista'), 'friday-usuarios', 'uid-canonical-frentista'), { id: 1, uid: 'uid-canonical-frentista', nome: 'A', acesso: 'membro', ativo: 1 }));
