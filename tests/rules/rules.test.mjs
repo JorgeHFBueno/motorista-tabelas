@@ -290,19 +290,20 @@ test('[firestore] adm2 registers the contract diesel entry (montanteSnapshot int
   await assertSucceeds(setDoc(doc(dbAs('canonicalAdm2'), '03-combustivel', 'fuel-entrada-v2-null'), entradaV2()));
   await assertSucceeds(setDoc(doc(dbAs('canonicalAdm2'), '03-combustivel', 'fuel-entrada-v2-int'), entradaV2({ montanteSnapshot: 491264 })));
 });
-test('[firestore] diesel entry volume and money fields must be integers', async () => {
+test('[firestore] diesel entry volume and money fields must be integers; the stock sum is not checked', async () => {
   await assertFails(setDoc(doc(dbAs('canonicalAdm2'), '03-combustivel', 'fuel-entrada-v2-decimal'), entradaV2({ litrosComprados: 50000.5, estoqueAposMovimento: 84000.5 })));
   await assertFails(setDoc(doc(dbAs('canonicalAdm2'), '03-combustivel', 'fuel-entrada-v2-price-decimal'), entradaV2({ preco: 29000.5 })));
   await assertFails(setDoc(doc(dbAs('canonicalAdm2'), '03-combustivel', 'fuel-entrada-v2-unit-decimal'), entradaV2({ precoLitro: 5.8 })));
-  await assertFails(setDoc(doc(dbAs('canonicalAdm2'), '03-combustivel', 'fuel-entrada-v2-bad-stock'), entradaV2({ estoqueAposMovimento: 1 })));
+  await assertSucceeds(setDoc(doc(dbAs('canonicalAdm2'), '03-combustivel', 'fuel-entrada-v2-other-stock'), entradaV2({ estoqueAposMovimento: 1 })));
+  await assertSucceeds(setDoc(doc(dbAs('canonicalAdm2'), '03-combustivel', 'fuel-entrada-v2-negative-stock'), entradaV2({ estoqueAntes: -3000, estoqueAposMovimento: 47000 })));
 });
 test('[firestore] only adm2 registers the diesel entry', async () => {
   await assertFails(setDoc(doc(dbAs('canonicalUser'), '03-combustivel', 'fuel-entrada-v2-user'), entradaV2({ criadoPor: { uid: 'uid-canonical-user', nome: 'uid-canonical-user' } })));
   await assertFails(setDoc(doc(dbAs('canonicalFrentista'), '03-combustivel', 'fuel-entrada-v2-adm1'), entradaV2({ criadoPor: { uid: 'uid-canonical-frentista', nome: 'uid-canonical-frentista' } })));
 });
-test('[firestore] diesel entry cannot forge its author', async () => {
+test('[firestore] diesel entry cannot forge its author uid; the name is not compared', async () => {
   await assertFails(setDoc(doc(dbAs('canonicalAdm2'), '03-combustivel', 'fuel-entrada-v2-forged-uid'), entradaV2({ criadoPor: { uid: 'uid-user', nome: 'User' } })));
-  await assertFails(setDoc(doc(dbAs('canonicalAdm2'), '03-combustivel', 'fuel-entrada-v2-forged-name'), entradaV2({ criadoPor: { uid: 'uid-canonical-adm2', nome: 'Outra pessoa' } })));
+  await assertSucceeds(setDoc(doc(dbAs('canonicalAdm2'), '03-combustivel', 'fuel-entrada-v2-other-name'), entradaV2({ criadoPor: { uid: 'uid-canonical-adm2', nome: 'Outra pessoa' } })));
 });
 test('[firestore] old WEB diesel entry shape (responsavel) is denied', async () => assertFails(setDoc(doc(dbAs('canonicalAdm2'), '03-combustivel', 'fuel-entrada-web-antiga'), {
   data: Timestamp.fromDate(new Date('2026-09-04T12:00:00Z')), schemaVersion: 2, tipo: 'entrada', bombaId: 'diesel_patio', litrosComprados: 50000,
@@ -370,20 +371,33 @@ test('[firestore] V2 output needs frentista or adm2; motorista/operador with uid
   await assertFails(setDoc(doc(dbAs('frentista'), '03-combustivel', 'fuel-v2-operador-sem-credencial'), v2Output({ motoristaOperador: { uid: 'uid-mecanico', nome: 'Mecanico' } })));
   await assertSucceeds(setDoc(doc(dbAs('adm2'), '03-combustivel', 'fuel-v2-adm2'), v2Output({ criadoPor: { uid: 'uid-adm2', nome: 'Adm2' } })));
 });
-test('[firestore] V2 rejects incompatible meters, fractional numbers and forged author', async () => {
-  await assertFails(setDoc(doc(dbAs('frentista'), '03-combustivel', 'fuel-v2-bad-machine-km'), v2Output({ item_frota_id: 'vm1', item_frota_snapshot: { categoria: 'EXTRA', identificador: 'CARREGADEIRA', nome: 'Carregadeira Case' } })));
+test('[firestore] V2 rejects fractional numbers and a forged author uid; meters and names are not compared', async () => {
   await assertFails(setDoc(doc(dbAs('frentista'), '03-combustivel', 'fuel-v2-bad-km'), v2Output({ quilometragem: 10.5 })));
+  await assertFails(setDoc(doc(dbAs('frentista'), '03-combustivel', 'fuel-v2-bad-amount'), v2Output({ quantidadeAbastecida: 10.5 })));
+  await assertFails(setDoc(doc(dbAs('frentista'), '03-combustivel', 'fuel-v2-bad-arla'), v2Output({ arla: 0.5 })));
   await assertFails(setDoc(doc(dbAs('frentista'), '03-combustivel', 'fuel-v2-bad-author'), v2Output({ criadoPor: { uid: 'uid-other', nome: 'Other' } })));
-  await assertFails(setDoc(doc(dbAs('frentista'), '03-combustivel', 'fuel-v2-bad-author-name'), v2Output({ criadoPor: { uid: 'uid-frentista', nome: 'Outro nome' } })));
+  await assertSucceeds(setDoc(doc(dbAs('frentista'), '03-combustivel', 'fuel-v2-machine-km'), v2Output({ item_frota_id: 'vm1', item_frota_snapshot: { categoria: 'EXTRA', identificador: 'CARREGADEIRA', nome: 'Carregadeira Case' } })));
+  await assertSucceeds(setDoc(doc(dbAs('frentista'), '03-combustivel', 'fuel-v2-author-name'), v2Output({ criadoPor: { uid: 'uid-frentista', nome: 'Outro nome' } })));
+  await assertSucceeds(setDoc(doc(dbAs('frentista'), '03-combustivel', 'fuel-v2-null-meter'), v2Output({ quilometragem: null, modalidadeAbastecimento: 'galao', motivo: 'Motivo novo' })));
 });
-test('[firestore] V2 requires a real item, obra, active frentista and consistent stock', async () => {
+test('[firestore] V2 requires a real item, obra and active frentista by ID; snapshots, names and stock sums are not compared', async () => {
   await assertFails(setDoc(doc(dbAs('frentista'), '03-combustivel', 'fuel-v2-no-item'), v2Output({ item_frota_id: 'nao-existe' })));
-  await assertFails(setDoc(doc(dbAs('frentista'), '03-combustivel', 'fuel-v2-wrong-snapshot'), v2Output({ item_frota_snapshot: { categoria: 'PLACA', identificador: 'XYZ', nome: 'Caminhão 1' } })));
   await assertFails(setDoc(doc(dbAs('frentista'), '03-combustivel', 'fuel-v2-no-obra'), v2Output({ id_obra: 'nao-existe' })));
   await assertFails(setDoc(doc(dbAs('frentista'), '03-combustivel', 'fuel-v2-no-frentista'), v2Output({ frentista: null })));
   await assertFails(setDoc(doc(dbAs('frentista'), '03-combustivel', 'fuel-v2-inactive-frentista'), v2Output({ frentista: { uid: 'uid-canonical-inactive', nome: 'uid-canonical-inactive' } })));
-  await assertFails(setDoc(doc(dbAs('frentista'), '03-combustivel', 'fuel-v2-frentista-name'), v2Output({ frentista: { uid: 'uid-canonical-frentista', nome: 'Outro' } })));
-  await assertFails(setDoc(doc(dbAs('frentista'), '03-combustivel', 'fuel-v2-bad-stock'), v2Output({ estoqueAposMovimento: 1 })));
+  await assertSucceeds(setDoc(doc(dbAs('frentista'), '03-combustivel', 'fuel-v2-wrong-snapshot'), v2Output({ item_frota_snapshot: { categoria: 'PLACA', identificador: 'XYZ', nome: 'Caminhão 1' } })));
+  await assertSucceeds(setDoc(doc(dbAs('frentista'), '03-combustivel', 'fuel-v2-frentista-name'), v2Output({ frentista: { uid: 'uid-canonical-frentista', nome: 'Outro' } })));
+  await assertSucceeds(setDoc(doc(dbAs('frentista'), '03-combustivel', 'fuel-v2-other-stock'), v2Output({ estoqueAposMovimento: 1 })));
+});
+// Purchases are not always registered before the outputs, so the pump stock can go below zero.
+test('[firestore] negative stock is accepted in the V2 output and in the pump', async () => {
+  const db = dbAs('frentista'); const pump = doc(db, 'bombas', 'diesel_patio');
+  await assertSucceeds(runTransaction(db, async (transaction) => {
+    const current = (await transaction.get(pump)).data();
+    transaction.set(doc(db, '03-combustivel', 'fuel-v2-negativo'), v2Output({ estoqueAntes: -200, estoqueAposMovimento: -210, montanteAntes: current.montanteAtual }));
+    transaction.update(pump, { estoqueAtual: -210, montanteAtual: current.montanteAtual + 10, atualizadoEm: Timestamp.fromMillis(9) });
+  }));
+  await assertFails(updateDoc(pump, { estoqueAtual: -210.5, atualizadoEm: Timestamp.fromMillis(10) }));
 });
 test('[firestore] old WEB V2 output shape is denied', async () => assertFails(setDoc(doc(dbAs('frentista'), '03-combustivel', 'fuel-v2-web-antiga'), {
   schemaVersion: 2, tipo: 'saida', data: Timestamp.fromMillis(1757000000000), modalidadeAbastecimento: 'direto',
@@ -636,15 +650,16 @@ test('[firestore] V2 activity: own Saída with fleet km update in one transactio
     transaction.update(doc(db, 'veiculos-v2', 'vv1'), { 'operacional.quilometragemUltima': 125600, 'operacional.dataUltimaAtualizacao': Timestamp.fromMillis(3) });
   }));
 });
-test('[firestore] V2 activity: mecanico/adm2 register for someone with motorista; snapshots must match', async () => {
+test('[firestore] V2 activity: mecanico/adm2 register for someone with motorista; the item is checked by ID only', async () => {
   await assertFails(setDoc(doc(dbAs('canonicalUser'), 'atividades', 'v2-forjada'), atividadeV2({ criadoPor: { uid: 'uid-canonical-user', nome: 'uid-canonical-user' } })));
   await assertFails(setDoc(doc(dbAs('canonicalFrentista'), 'atividades', 'v2-frentista-outro'), atividadeV2({ criadoPor: { uid: 'uid-canonical-frentista', nome: 'uid-canonical-frentista' } })));
   await assertSucceeds(setDoc(doc(dbAs('mecanico'), 'atividades', 'v2-mecanico-outro'), atividadeV2({ criadoPor: { uid: 'uid-mecanico', nome: 'Mecanico' } })));
   await assertFails(setDoc(doc(dbAs('mecanico'), 'atividades', 'v2-mecanico-sem-motorista'), atividadeV2({ motorista: { uid: 'uid-frentista', nome: 'Frentista' }, criadoPor: { uid: 'uid-mecanico', nome: 'Mecanico' } })));
   await assertFails(setDoc(doc(dbAs('frentista'), 'atividades', 'v2-propria-sem-motorista'), atividadeV2({ motorista: { uid: 'uid-frentista', nome: 'Frentista' }, criadoPor: { uid: 'uid-frentista', nome: 'Frentista' } })));
   await assertFails(setDoc(doc(dbAs('user'), 'atividades', 'v2-autor-forjado'), atividadeV2({ criadoPor: { uid: 'uid-canonical-frentista', nome: 'X' } })));
-  await assertFails(setDoc(doc(dbAs('user'), 'atividades', 'v2-snapshot-errado'), atividadeV2({ item_frota_snapshot: { categoria: 'PLACA', identificador: 'ZZZ', nome: 'Caminhão 1' } })));
-  await assertFails(setDoc(doc(dbAs('user'), 'atividades', 'v2-extra'), atividadeV2({ item_frota_id: 'vm1', item_frota_snapshot: { categoria: 'EXTRA', identificador: 'CARREGADEIRA', nome: 'Carregadeira Case' } })));
+  await assertFails(setDoc(doc(dbAs('user'), 'atividades', 'v2-sem-item'), atividadeV2({ item_frota_id: 'nao-existe' })));
+  await assertSucceeds(setDoc(doc(dbAs('user'), 'atividades', 'v2-snapshot-diferente'), atividadeV2({ item_frota_snapshot: { categoria: 'PLACA', identificador: 'ZZZ', nome: 'Caminhão 1' } })));
+  await assertSucceeds(setDoc(doc(dbAs('user'), 'atividades', 'v2-extra'), atividadeV2({ item_frota_id: 'vm1', item_frota_snapshot: { categoria: 'EXTRA', identificador: 'CARREGADEIRA', nome: 'Carregadeira Case' } })));
 });
 test('[firestore] app automatic adjustment (legacy shape, id = chamado) is accepted', async () => {
   await assertSucceeds(setDoc(doc(dbAs('canonicalUser'), '03-combustivel', 'chamado-ajuste-1'), {
@@ -682,22 +697,19 @@ test('[firestore] V2 automatic adjustment without price reference and by adm2 is
   await assertSucceeds(setDoc(doc(dbAs('frentista'), '03-combustivel', 'ajuste-v2-sem-preco'), ajusteV2({ valorAbastecimento: 0, origemPreco: { movimentoId: null, lote: null, precoLitro: 0 } })));
   await assertSucceeds(setDoc(doc(dbAs('adm2'), '03-combustivel', 'ajuste-v2-adm2'), ajusteV2({ criadoPor: { uid: 'uid-adm2', nome: 'Adm2' } })));
 });
-test('[firestore] V2 automatic adjustment rejects known people, item, obra, meters and broken amounts', async () => {
+test('[firestore] V2 automatic adjustment keeps integers, author uid and credential; values and sums are not compared', async () => {
   const db = dbAs('frentista');
-  const deny = (name, overrides) => assertFails(setDoc(doc(db, '03-combustivel', name),
-    Object.fromEntries(Object.entries(ajusteV2(overrides)).filter(([, v]) => v !== undefined))));
-  await deny('ajuste-v2-frentista-uid', { frentista: { uid: 'uid-frentista', nome: 'ERRO' } });
-  await deny('ajuste-v2-operador-nome', { motoristaOperador: { uid: null, nome: 'Fulano' } });
-  await deny('ajuste-v2-item', { item_frota_id: 'vv1' });
-  await deny('ajuste-v2-sem-chave-obra', { id_obra: undefined });
-  await deny('ajuste-v2-km', { quilometragem: 125000 });
-  await deny('ajuste-v2-montante', { montanteAposMovimento: 1030 });
-  await deny('ajuste-v2-estoque', { estoqueAposMovimento: 5025 });
-  await deny('ajuste-v2-zero', { quantidadeAbastecida: 0, estoqueAposMovimento: 5000, montanteAposMovimento: 1000 });
-  await deny('ajuste-v2-fracao', { quantidadeAbastecida: 25.5, estoqueAposMovimento: 4974.5, montanteAposMovimento: 1025.5 });
-  await deny('ajuste-v2-motivo', { motivo: 'Uso' });
-  await deny('ajuste-v2-autor', { criadoPor: { uid: 'uid-adm2', nome: 'Adm2' } });
+  const write = (name, overrides) => setDoc(doc(db, '03-combustivel', name),
+    Object.fromEntries(Object.entries(ajusteV2(overrides)).filter(([, v]) => v !== undefined)));
+  await assertFails(write('ajuste-v2-fracao', { quantidadeAbastecida: 25.5, estoqueAposMovimento: 4974.5, montanteAposMovimento: 1025.5 }));
+  await assertFails(write('ajuste-v2-autor', { criadoPor: { uid: 'uid-adm2', nome: 'Adm2' } }));
+  await assertFails(write('ajuste-v2-motivo', { motivo: 'Uso' }));
   await assertFails(setDoc(doc(dbAs('user'), '03-combustivel', 'ajuste-v2-motorista'), ajusteV2({ criadoPor: { uid: 'uid-user', nome: 'User' } })));
+  await assertSucceeds(write('ajuste-v2-frentista-uid', { frentista: { uid: 'uid-frentista', nome: 'ERRO' } }));
+  await assertSucceeds(write('ajuste-v2-sem-chave-obra', { id_obra: undefined }));
+  await assertSucceeds(write('ajuste-v2-km', { quilometragem: 125000 }));
+  await assertSucceeds(write('ajuste-v2-montante', { montanteAposMovimento: 1030 }));
+  await assertSucceeds(write('ajuste-v2-negativo', { estoqueAntes: -100, estoqueAposMovimento: -125 }));
 });
 test('[firestore] maintenance legacy: adm2 edits and deletes, nobody creates', async () => {
   await assertSucceeds(updateDoc(doc(dbAs('canonicalAdm2'), 'manutencoes-legado', 'legacy1'), { status: 'REVISTO' }));
@@ -769,8 +781,8 @@ test('[firestore] funcionarios/fcmTokens: the person writes and deletes only the
   await assertSucceeds(setDoc(token('canonicalFrentista', 'uid-canonical-frentista', 'tok-1'), dados('tok-1')));
   await assertFails(getDoc(token('canonicalFrentista', 'uid-canonical-frentista', 'tok-1')));
   await assertFails(setDoc(token('canonicalFrentista', 'uid-canonical-frentista', 'tok-2'), dados('outro')));
-  await assertFails(setDoc(token('canonicalFrentista', 'uid-canonical-frentista', 'tok-3'), { ...dados('tok-3'), atualizadoEm: Timestamp.fromMillis(1) }));
-  await assertFails(setDoc(token('canonicalFrentista', 'uid-canonical-frentista', 'tok-4'), { ...dados('tok-4'), extra: true }));
+  await assertSucceeds(setDoc(token('canonicalFrentista', 'uid-canonical-frentista', 'tok-3'), { ...dados('tok-3'), atualizadoEm: Timestamp.fromMillis(1) }));
+  await assertSucceeds(setDoc(token('canonicalFrentista', 'uid-canonical-frentista', 'tok-4'), { ...dados('tok-4'), extra: true }));
   await assertFails(setDoc(token('canonicalFrentista', 'uid-canonical-adm2', 'tok-5'), dados('tok-5')));
   await assertFails(setDoc(token('canonicalInactive', 'uid-canonical-inactive', 'tok-6'), dados('tok-6')));
   await assertFails(setDoc(token('legacyOnly', 'uid-legacy-only', 'tok-7'), dados('tok-7')));
@@ -832,22 +844,26 @@ test('[firestore] checklists-v2: adm2 creates; plain employee cannot', async () 
   await assertSucceeds(setDoc(doc(dbAs('canonicalAdm2'), 'checklists-v2', 'adm2-checklist'), checklistV2({ criadoPor: { uid: 'uid-canonical-adm2', nome: 'uid-canonical-adm2' }, criadoPorUid: 'uid-canonical-adm2' })));
   await assertFails(setDoc(doc(dbAs('canonicalUser'), 'checklists-v2', 'user-checklist'), checklistV2({ criadoPor: { uid: 'uid-canonical-user', nome: 'x' }, criadoPorUid: 'uid-canonical-user' })));
 });
-test('[firestore] checklists-v2: rejects forged author and invalid shape', async () => {
+test('[firestore] checklists-v2: rejects forged author, missing vehicle and non-integer meter; values are not compared', async () => {
   const db = dbAs('mecanico');
   const bad = {
     'forged-uid': { criadoPorUid: 'uid-other' },
     'forged-snapshot': { criadoPor: { uid: 'uid-other', nome: 'Mecanico' } },
-    schema: { schemaVersion: 2 },
-    tipo: { tipo: 'outro' },
-    catalogo: { catalogo: 'outros' },
     'no-vehicle': { item_frota_id: 'nao-existe' },
     'fractional-meter': { medidor: { tipo: 'km', valor: 10.5, anterior: null } },
-    'negative-meter': { medidor: { tipo: 'km', valor: -1, anterior: null } },
     'no-meter': { medidor: null },
     'itens-map': { itens: { a: 1 } },
   };
   for (const [id, change] of Object.entries(bad)) {
     await assertFails(setDoc(doc(db, 'checklists-v2', `bad-${id}`), checklistV2(change)));
+  }
+  const accepted = {
+    schema: { schemaVersion: 2 },
+    tipo: { tipo: 'outro' },
+    catalogo: { catalogo: 'outros' },
+  };
+  for (const [id, change] of Object.entries(accepted)) {
+    await assertSucceeds(setDoc(doc(db, 'checklists-v2', `ok-${id}`), checklistV2(change)));
   }
 });
 test('[firestore] checklists-v2: immutable', async () => {

@@ -80,11 +80,13 @@ test('[firestore] regular user cannot submit the diesel entry', async () => {
   await assertFails(setDoc(doc(dbAs(regular), '03-combustivel', 'regular-entry'), entrada(timestamp, regular)));
 });
 
-test('[firestore] malformed price and forged author name are denied', async () => {
+// Policy of 2026-10-26: the Rules check integers and the author's uid, not values or names.
+test('[firestore] fractional price is denied; zero price and a different author name are accepted', async () => {
   const db = dbAs(adm2);
   const timestamp = Timestamp.fromDate(new Date('2026-09-04T14:00:00Z'));
-  await assertFails(setDoc(doc(db, '03-combustivel', 'zero-price'), entrada(timestamp, adm2, { preco: 0 })));
-  await assertFails(setDoc(doc(db, '03-combustivel', 'forged-name'), entrada(timestamp, adm2, { criadoPor: { uid: adm2.uid, nome: 'Outra pessoa' } })));
+  await assertFails(setDoc(doc(db, '03-combustivel', 'fractional-price'), entrada(timestamp, adm2, { preco: 2_000_000.5 })));
+  await assertSucceeds(setDoc(doc(db, '03-combustivel', 'zero-price'), entrada(timestamp, adm2, { preco: 0 })));
+  await assertSucceeds(setDoc(doc(db, '03-combustivel', 'other-name'), entrada(timestamp, adm2, { criadoPor: { uid: adm2.uid, nome: 'Outra pessoa' } })));
 });
 
 // Lacuna conhecida (registrada no Manuscript): o registro sem tipo, com o motivo escrito de outro jeito, passa pelo

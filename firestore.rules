@@ -118,27 +118,23 @@ service cloud.firestore {
         && request.resource.data.get('criadoPor', {}).get('uid', '') == request.auth.uid;
     }
 
-    // Saída/Chegada V2 references a PLACA item of veiculos-v2 and copies its identification. Whether the item is
-    // active is a client concern (the pickers list only active items).
-    function validItemFrotaSnapshot() {
-      let itemId = request.resource.data.get('item_frota_id', '');
-      let snapshot = request.resource.data.get('item_frota_snapshot', {});
-      let itemPath = /databases/$(database)/documents/veiculos-v2/$(itemId);
-      let item = nonEmptyString(itemId) && exists(itemPath) ? get(itemPath).data : {};
+    // Policy (2026-10-26): the Rules check who may write, authorship and the IDs that are referenced, and keep numbers
+    // as integers. The document format (versions, fixed values, names copied from the registries, sums) is the
+    // contract in the Manuscript, checked by the app and flagged by the WEB, so app changes do not need Rules changes.
+
+    // An existing veiculos-v2 item, by ID (the snapshot copied next to it is not compared).
+    function fleetItemExists(itemId) {
       return nonEmptyString(itemId)
-        && request.resource.data.get('item_frota_snapshot', null) is map
-        && snapshot.get('categoria', '') == 'PLACA'
-        && nonEmptyString(snapshot.get('identificador', ''))
-        && nonEmptyString(snapshot.get('nome', ''))
-        && item.get('schemaVersion', 0) == 2
-        && item.get('identificacao', {}).get('categoria', '') == 'PLACA'
-        && snapshot.get('identificador', '') == item.get('identificacao', {}).get('identificador', '')
-        && snapshot.get('nome', '') == item.get('identificacao', {}).get('nome', '');
+        && exists(/databases/$(database)/documents/veiculos-v2/$(itemId));
+    }
+
+    // Saída/Chegada V2 references an existing veiculos-v2 item.
+    function validItemFrotaSnapshot() {
+      return fleetItemExists(request.resource.data.get('item_frota_id', ''));
     }
 
     function isV2VehicleActivity() {
-      return request.resource.data.get('schemaVersion', 0) == 2
-        && (request.resource.data.get('tipo', '') == 'saida'
+      return (request.resource.data.get('tipo', '') == 'saida'
           || request.resource.data.get('tipo', '') == 'chegada')
         && request.resource.data.get('item_frota_id', null) is string;
     }
@@ -174,10 +170,9 @@ service cloud.firestore {
     }
 
     // ---------------------------------------------------------------- fuel V2 (contract: Manuscript 02_PROCESSOS)
-    // Snapshot { uid, nome } of an active employee whose name matches funcionarios/{uid}. The app picks the frentista
+    // Snapshot { uid, nome } of an active employee (by uid) holding credential a or b. The app picks the frentista
     // from the frentista list and the motorista/operador from the motorista list (a typed name has uid null); the Kiosk
-    // uses its own employee as frentista.
-    // The snapshot's employee must also hold credential a or b.
+    // uses its own employee as frentista. The name is not compared with the registry (a rename must not break writes).
     function activeEmployeeSnapshot(value, a, b) {
       let uid = value is map ? value.get('uid', '') : '';
       let funcionario = nonEmptyString(uid) && exists(/databases/$(database)/documents/funcionarios/$(uid))
@@ -187,163 +182,94 @@ service cloud.firestore {
       return value is map
         && nonEmptyString(uid)
         && funcionario.get('ativo', false) == true
-        && nonEmptyString(value.get('nome', ''))
-        && value.get('nome', '') == funcionario.get('nome', '')
         && (perfis.get(a, false) == true || perfis.get(b, false) == true);
     }
 
     function validFuelMotoristaOperador(data) {
       let motorista = data.get('motoristaOperador', {});
       return motorista is map
-        && nonEmptyString(motorista.get('nome', ''))
         && (motorista.get('uid', null) == null || activeEmployeeSnapshot(motorista, 'motorista', 'motorista'));
     }
 
+    // The author is the signed-in person (by uid; the name is not compared).
     function validFuelCriadoPor(data) {
       let criadoPor = data.get('criadoPor', {});
       return criadoPor is map
-        && criadoPor.get('uid', '') == request.auth.uid
-        && nonEmptyString(criadoPor.get('nome', ''))
-        && criadoPor.get('nome', '') == employee().get('nome', '');
+        && criadoPor.get('uid', '') == request.auth.uid;
     }
 
-    // Fuel accepts both operational fleet categories (Saída/Chegada accepts only PLACA).
-    function validFuelItemFrotaSnapshot(data) {
-      let itemId = data.get('item_frota_id', '');
-      let snapshot = data.get('item_frota_snapshot', {});
-      let itemPath = /databases/$(database)/documents/veiculos-v2/$(itemId);
-      let item = nonEmptyString(itemId) && exists(itemPath) ? get(itemPath).data : {};
-      return nonEmptyString(itemId)
-        && data.get('item_frota_snapshot', null) is map
-        && snapshot.get('categoria', '') in ['PLACA', 'EXTRA']
-        && nonEmptyString(snapshot.get('identificador', ''))
-        && nonEmptyString(snapshot.get('nome', ''))
-        && item.get('schemaVersion', 0) == 2
-        && snapshot.get('categoria', '') == item.get('identificacao', {}).get('categoria', '')
-        && snapshot.get('identificador', '') == item.get('identificacao', {}).get('identificador', '')
-        && snapshot.get('nome', '') == item.get('identificacao', {}).get('nome', '');
+    // Optional number: absent, null or an integer.
+    function intOrNull(value) {
+      return value == null || value is int;
     }
 
+    // Kilometre or hour meter, when given, is an integer.
     function validFuelMedidor(data) {
-      let categoria = data.get('item_frota_snapshot', {}).get('categoria', '');
-      let semOdometro = data.get('semKm', null) == 'Sem Odometro';
-      let hasKm = data.keys().hasAny(['quilometragem']);
-      let hasHorimetro = data.keys().hasAny(['horimetro']);
-      return (semOdometro && !hasKm && !hasHorimetro)
-        || (!semOdometro && data.get('modalidadeAbastecimento', '') == 'galao')
-        || (!semOdometro && categoria == 'PLACA' && data.get('quilometragem', null) is int && !hasHorimetro)
-        || (!semOdometro && categoria == 'EXTRA' && data.get('horimetro', null) is int && !hasKm);
+      return intOrNull(data.get('quilometragem', null))
+        && intOrNull(data.get('horimetro', null));
     }
 
+    // An existing obras-v2 work, by ID.
     function validFuelV2Obra(data) {
       let obraId = data.get('id_obra', '');
-      let snapshot = data.get('id_obra_snap', {});
-      let obraPath = /databases/$(database)/documents/obras-v2/$(obraId);
-      let obraExiste = nonEmptyString(obraId) && exists(obraPath);
-      let obra = obraExiste ? get(obraPath).data : {};
-      return obraExiste
-        && data.get('id_obra_snap', null) is map
-        && (snapshot.get('codObra', null) is string || snapshot.get('codObra', null) is int)
-        && snapshot.get('siglaObra', null) is string
-        && snapshot.get('nomeObra', '') == obra.get('nomeObra', '')
-        && snapshot.get('local', null) == obra.get('local', null);
+      return nonEmptyString(obraId)
+        && exists(/databases/$(database)/documents/obras-v2/$(obraId));
     }
 
-    // Saída V2 (frentista or adm2, Kiosk included); the frentista snapshot holds frentista or adm2.
+    // Volumes and amounts of a fuel movement are integers (negative stock is allowed: purchases are not always
+    // registered before the outputs).
+    function fuelMovementIntegers(data) {
+      let preco = data.get('origemPreco', null);
+      return data.get('quantidadeAbastecida', null) is int
+        && data.get('valorAbastecimento', null) is int
+        && data.get('estoqueAntes', null) is int
+        && data.get('estoqueAposMovimento', null) is int
+        && data.get('montanteAntes', null) is int
+        && data.get('montanteAposMovimento', null) is int
+        && intOrNull(data.get('arla', null))
+        && (!(preco is map) || intOrNull(preco.get('precoLitro', null)));
+    }
+
+    // Saída V2 (frentista or adm2, Kiosk included): item, obra and people by ID; the frentista holds frentista or adm2.
     function validFuelV2Create() {
       let data = request.resource.data;
       return hasEitherPerfil('frentista', 'adm2')
+        && data.get('tipo', '') == 'saida'
+        && data.get('data', null) is timestamp
         && validFuelCriadoPor(data)
-        && validFuelItemFrotaSnapshot(data)
+        && fleetItemExists(data.get('item_frota_id', ''))
+        && validFuelV2Obra(data)
         && validFuelMotoristaOperador(data)
         && activeEmployeeSnapshot(data.get('frentista', null), 'frentista', 'adm2')
-        && data.get('tipo', '') == 'saida'
-        && data.get('schemaVersion', 0) == 2
-        && data.get('data', null) is timestamp
-        && data.get('modalidadeAbastecimento', '') in ['direto', 'galao']
-        && data.get('quantidadeAbastecida', null) is int
-        && data.get('quantidadeAbastecida', 0) > 0
-        && data.get('valorAbastecimento', null) is int
-        && data.get('valorAbastecimento', 0) >= 0
-        && data.get('estoqueAntes', null) is int
-        && data.get('estoqueAposMovimento', null) is int
-        && data.get('estoqueAposMovimento', 0) == data.get('estoqueAntes', 0) - data.get('quantidadeAbastecida', 0)
-        && data.get('montanteAntes', null) is int
-        && data.get('montanteAposMovimento', null) is int
-        && nonEmptyString(data.get('motivo', ''))
-        && data.get('arla', null) is int
-        && validFuelV2Obra(data)
-        && validFuelMedidor(data)
-        && !data.keys().hasAny(['paraQuem', 'autorLancamento', 'obra', 'itemFrota']);
-    }
-
-    // { uid: null, nome: "ERRO" }: the person of an automatic adjustment is unknown.
-    function fuelErrorPerson(value) {
-      return value is map
-        && value.keys().hasOnly(['uid', 'nome'])
-        && value.get('uid', '') == null
-        && value.get('nome', '') == 'ERRO';
+        && fuelMovementIntegers(data)
+        && validFuelMedidor(data);
     }
 
     // Saída V2 of the app's automatic adjustment ("Ajuste de montante", contract: Manuscript
-    // 02_PROCESSOS/combustivel-saida-v2.md): covers the totalizer jump, so people, item and obra are unknown (null).
+    // 02_PROCESSOS/combustivel-saida-v2.md): covers the totalizer jump, so people, item and obra may be unknown.
     function validFuelAjusteV2Create() {
       let data = request.resource.data;
-      let preco = data.get('origemPreco', {});
       return hasEitherPerfil('frentista', 'adm2')
-        && validFuelCriadoPor(data)
-        && data.get('schemaVersion', 0) == 2
         && data.get('tipo', '') == 'saida'
         && data.get('motivo', '') == 'Ajuste de montante'
-        && data.get('modalidadeAbastecimento', '') == 'direto'
-        && data.get('semKm', null) == 'Sem Odometro'
         && data.get('data', null) is timestamp
-        && data.get('arla', null) == 0
-        && data.get('quantidadeAbastecida', null) is int
-        && data.get('quantidadeAbastecida', 0) > 0
-        && data.get('estoqueAntes', null) is int
-        && data.get('estoqueAposMovimento', null) is int
-        && data.get('estoqueAposMovimento', 0) == data.get('estoqueAntes', 0) - data.get('quantidadeAbastecida', 0)
-        && data.get('montanteAntes', null) is int
-        && data.get('montanteAposMovimento', null) is int
-        && data.get('montanteAposMovimento', 0) == data.get('montanteAntes', 0) + data.get('quantidadeAbastecida', 0)
-        && data.get('valorAbastecimento', null) is int
-        && data.get('valorAbastecimento', 0) >= 0
-        && preco is map
-        && preco.get('precoLitro', null) is int
-        && preco.get('precoLitro', 0) >= 0
-        && fuelErrorPerson(data.get('frentista', null))
-        && fuelErrorPerson(data.get('motoristaOperador', null))
-        && data.get('item_frota_id', 'ausente') == null
-        && data.get('item_frota_snapshot', 'ausente') == null
-        && data.get('id_obra', 'ausente') == null
-        && data.get('id_obra_snap', 'ausente') == null
-        && !data.keys().hasAny(['quilometragem', 'horimetro', 'paraQuem', 'autorLancamento', 'obra', 'itemFrota']);
+        && validFuelCriadoPor(data)
+        && fuelMovementIntegers(data)
+        && validFuelMedidor(data);
     }
 
-    // Entrada V2 (adm2). The contract requires montanteSnapshot as int; the app currently writes null, which is
-    // accepted until the app is fixed (divergence recorded in the Manuscript).
+    // Entrada V2 (adm2). montanteSnapshot is an integer or null (the app writes null).
     function validFuelEntradaV2Create() {
       let data = request.resource.data;
       return data.get('tipo', '') == 'entrada'
-        && data.get('schemaVersion', 0) == 2
         && data.get('data', null) is timestamp
-        && data.get('bombaId', '') == 'diesel_patio'
-        && nonEmptyString(data.get('movimentoId', ''))
+        && validFuelCriadoPor(data)
         && data.get('litrosComprados', null) is int
-        && data.get('litrosComprados', 0) > 0
         && data.get('preco', null) is int
-        && data.get('preco', 0) > 0
         && data.get('precoLitro', null) is int
-        && data.get('precoLitro', 0) > 0
-        && nonEmptyString(data.get('lote', ''))
         && data.get('estoqueAntes', null) is int
         && data.get('estoqueAposMovimento', null) is int
-        && data.get('estoqueAposMovimento', 0) == data.get('estoqueAntes', 0) + data.get('litrosComprados', 0)
-        && (data.get('montanteSnapshot', null) == null || data.get('montanteSnapshot', null) is int)
-        && validFuelCriadoPor(data)
-        && nonEmptyString(data.get('motivo', ''))
-        && !data.keys().hasAny(['quantidadeEntrada', 'obra', 'responsavel']);
+        && (data.get('montanteSnapshot', null) == null || data.get('montanteSnapshot', null) is int);
     }
 
     // Untyped legacy record (automatic divergence adjustment of the app, external fuelling registered with a
@@ -373,12 +299,9 @@ service cloud.firestore {
           !request.resource.data.diff(resource.data).affectedKeys().hasAny(['ultimaEntrada'])
           || (
             request.resource.data.get('ultimaEntrada', null) is map
-            && request.resource.data.get('ultimaEntrada', {}).get('schemaVersion', 0) == 2
-            && request.resource.data.get('ultimaEntrada', {}).get('movimentoId', '') is string
             && request.resource.data.get('ultimaEntrada', {}).get('litrosComprados', null) is int
             && request.resource.data.get('ultimaEntrada', {}).get('preco', null) is int
             && request.resource.data.get('ultimaEntrada', {}).get('precoLitro', null) is int
-            && request.resource.data.get('ultimaEntrada', {}).get('lote', '') is string
           )
         );
     }
@@ -450,10 +373,7 @@ service cloud.firestore {
         allow read: if false;
         allow create, update: if isAuthorized()
           && request.auth.uid == uid
-          && request.resource.data.keys().hasOnly(['token', 'plataforma', 'atualizadoEm'])
-          && request.resource.data.get('token', '') == tokenId
-          && request.resource.data.get('plataforma', '') is string
-          && request.resource.data.get('atualizadoEm', null) == request.time;
+          && request.resource.data.get('token', '') == tokenId;
         allow delete: if signedIn() && request.auth.uid == uid;
       }
     }
@@ -570,8 +490,6 @@ service cloud.firestore {
           && changedOnly(['operacional'])
           && request.resource.data.operacional.diff(resource.data.get('operacional', {}))
             .affectedKeys().hasOnly(['quilometragemUltima', 'dataUltimaAtualizacao'])
-          && request.resource.data.get('schemaVersion', 0) == 2
-          && request.resource.data.get('identificacao', {}).get('categoria', '') in ['PLACA', 'EXTRA']
           && request.resource.data.operacional.quilometragemUltima is int
           && (
             resource.data.get('operacional', {}).get('quilometragemUltima', null) == null
@@ -692,14 +610,9 @@ service cloud.firestore {
       return data.get('criadoPorUid', '') == request.auth.uid
         && data.get('criadoPor', null) is map
         && data.get('criadoPor', {}).get('uid', '') == request.auth.uid
-        && data.get('schemaVersion', 0) == 1
-        && data.get('tipo', '') in ['saida', 'chegada']
-        && data.get('catalogo', '') in ['veiculos', 'maquinas']
-        && nonEmptyString(itemId)
-        && exists(/databases/$(database)/documents/veiculos-v2/$(itemId))
+        && fleetItemExists(itemId)
         && medidor is map
         && medidor.get('valor', null) is int
-        && medidor.get('valor', -1) >= 0
         && data.get('itens', null) is list;
     }
 
