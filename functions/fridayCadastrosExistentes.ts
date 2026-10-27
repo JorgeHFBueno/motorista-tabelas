@@ -40,6 +40,9 @@ export type CadastroExistente = {
   // Campo calculado por uma fórmula do quadro (Function fridayObrasSituacao): `caminho` guarda o resultado e
   // `status.caminho` vira `sim` quando o resultado é `quando`, senão `nao`. A coluna fica no registro (formula_situacao).
   situacao_por_formula?: { caminho: string; status: { caminho: string; quando: string; sim: string; nao: string } };
+  // Item novo (criado ou duplicado) no quadro já conciliado vira registro na hora, com os padrões do contrato (sem esperar
+  // outra conciliação). Item arquivado ou na lixeira deixa `status` em `situacao_por_formula.status.sim` (sai do app).
+  cria_registro?: boolean;
 };
 
 // veiculos-v2 (Manuscript 01_FIRESTORE/COLECOES/veiculos-v2.md). A quilometragem é do app (só leitura no quadro).
@@ -89,6 +92,7 @@ const OBRAS_V2: CadastroExistente = {
   nome_item: 'nomeObra',
   grupo_livre: 'friday',
   fixos: {},
+  cria_registro: true, // decisão de 2026-10-27: contrato novo no Friday chega ao app, ao CronoObra e aos Prazos na hora
   campos: [
     { caminho: 'nomeObra', titulo: 'Nome do contrato', tipo: 'texto', obrigatorio: true, nulo: false },
     { caminho: 'siglaObra', titulo: 'Sigla', tipo: 'texto', obrigatorio: true, nulo: false, padrao: '' },
@@ -302,11 +306,12 @@ export function montarCamposSubitens(cadastro: CadastroExistente, colunas: Colun
 }
 
 /** Resultado da fórmula → campos calculados (ex.: "Obra Finalizada" → situacao e status FINALIZADA). */
-export function camposDaFormula(cadastro: CadastroExistente, resultado: unknown): [string, unknown][] {
+/** `ativo = false` (item arquivado ou na lixeira no Friday): o status fica em `sim` qualquer que seja o resultado. */
+export function camposDaFormula(cadastro: CadastroExistente, resultado: unknown, ativo = true): [string, unknown][] {
   const f = cadastro.situacao_por_formula;
   if (!f) return [];
   const texto = String(resultado ?? '').trim();
-  return [[f.caminho, texto || null], [f.status.caminho, texto === f.status.quando ? f.status.sim : f.status.nao]];
+  return [[f.caminho, texto || null], [f.status.caminho, !ativo || texto === f.status.quando ? f.status.sim : f.status.nao]];
 }
 
 /**

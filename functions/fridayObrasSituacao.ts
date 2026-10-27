@@ -1,6 +1,7 @@
 // Situação calculada por uma fórmula do quadro do Friday num cadastro existente (hoje: obras-v2).
 // O quadro GESTÃO DE OBRAS tem a coluna fórmula "Status"; o resultado vai para `obras-v2.situacao` e define o `status`
-// (FINALIZADA quando "Obra Finalizada", senão CONTRATADA), que o app e o CronoObra usam para esconder as obras.
+// (FINALIZADA quando "Obra Finalizada" ou quando o item está arquivado ou na lixeira, senão CONTRATADA), que o app e o
+// CronoObra usam para esconder as obras.
 // A fórmula continua sendo editada no Friday: aqui ela é lida da coluna (friday-cadastros/{chave}.formula_situacao.coluna_id)
 // e calculada com a mesma rotina da tela (fridayFormula.ts). Roda quando um item do quadro muda e uma vez por dia,
 // porque a fórmula usa a data de hoje ("Solicitar Aditivo de Prazo" 7 dias antes do Fim).
@@ -10,7 +11,7 @@ import { onSchedule } from 'firebase-functions/v2/scheduler';
 import * as logger from 'firebase-functions/logger';
 import { FieldPath } from 'firebase-admin/firestore';
 import { db } from './firebaseAdmin.js';
-import { valorDoOficial, type CampoOficial } from './fridayCadastroConverter.js';
+import { situacaoDoItem, valorDoOficial, type CampoOficial } from './fridayCadastroConverter.js';
 import { cadastroExistente, camposDaFormula, lerCaminho, type CadastroExistente } from './fridayCadastrosExistentes.js';
 import { calcular, type Coluna } from './fridayFormula.js';
 
@@ -38,7 +39,8 @@ export function calcularSituacao(cadastro: CadastroExistente | undefined, regist
   }
   const r = calcular(formula as Coluna, { ...item, valores }, { colunas: colunas as Coluna[], nomeUsuario: () => '', hoje });
   if (r.erro) return { gravar: [], resultado: '', erro: r.erro };
-  const campos = camposDaFormula(cadastro, r.valor);
+  // Contrato arquivado ou na lixeira no Friday sai do app e do CronoObra (decisão de 2026-10-27).
+  const campos = camposDaFormula(cadastro, r.valor, situacaoDoItem(item) === 'ativo');
   return { gravar: campos.filter(([k, v]) => (lerCaminho(doc, k) ?? null) !== v), resultado: String(r.valor) };
 }
 

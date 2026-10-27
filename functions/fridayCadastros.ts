@@ -7,7 +7,7 @@ import { temCredencial, type Credencial } from './credenciais.js';
 import { dataLocal, novoId, prefixosBusca } from './fridayMondayConverter.js';
 import {
   acrescentarRotulosDeTexto, analisar, CADASTROS_EXISTENTES, cadastroExistente, caminhoDaMarca, chaveDoExistente, conciliacaoLiberada, gravarCaminho, itemDoRegistro, lerCaminho,
-  montarCamposExistente, planejar, valorParaContrato, valorParaGravarExistente, valorPeloTexto, type CampoExistente, type ChaveConciliacao, type Decisoes, type ItemConciliavel, type PedidoLigacao,
+  montarCamposExistente, novoRegistro, planejar, valorParaContrato, valorParaGravarExistente, valorPeloTexto, type CampoExistente, type ChaveConciliacao, type Decisoes, type ItemConciliavel, type PedidoLigacao,
   type RegistroExistente,
 } from './fridayCadastrosExistentes.js';
 import {
@@ -256,13 +256,17 @@ async function gravar(uid: string, itemId: number, op: Operacao, colunaId: numbe
 
 /**
  * Quadro ligado a um cadastro existente (C5): grava só os campos ligados, no caminho do contrato, sem metadados do
- * Friday no documento (só a marca `friday.ok`, gravada pela conciliação). Itens novos não criam registro (ficam sem vínculo até a próxima conciliação); arquivar ou excluir
- * o item não mexe no registro; o nome do item só é gravado quando ele é a chave de conciliação.
+ * Friday no documento (só a marca `friday.ok`). Itens novos ficam sem vínculo até a próxima conciliação, a não ser que o
+ * cadastro crie registros (`cria_registro`, ex.: obras-v2: o item vira registro na hora); arquivar ou excluir o item não
+ * mexe no registro (em obras-v2 o status muda pela fórmula); o nome do item só é gravado quando ele é a chave de conciliação.
  */
 async function gravarExistente(uid: string, item: AnyRecord, e: Escopo, op: Operacao, colunaId: number | null, valor: unknown) {
   void uid;
   // Subitens (ex.: LOTEs de obras-v2): cada subitem é a entrada `<mapa>.<vinculo.sub>` do documento do item pai.
-  if (op === 'vincular') return e.sub ? vincularSubitemExistente(item, e) : { ok: true, livre: true };
+  if (op === 'vincular') {
+    if (e.sub) return vincularSubitemExistente(item, e);
+    return cadastroExistente(String(e.registro.colecao))?.cria_registro ? criarRegistroDoItem(item, e) : { ok: true, livre: true };
+  }
   if (op === 'grupo' || (op === 'situacao' && !e.sub)) return { ok: true, livre: false };
   if (item.vinculo?.cadastro !== e.chave) throw new HttpsError('failed-precondition', 'O item não está vinculado ao cadastro.');
   const ref = db.collection(String(e.registro.colecao)).doc(String(item.vinculo.id));
@@ -329,22 +333,62 @@ async function vincularSubitemExistente(item: AnyRecord, e: Escopo) {
     const doc = (await t.get(paiRef)).data();
     if (!doc) throw new HttpsError('failed-precondition', 'O registro do item pai não existe mais.');
     const mapa = (doc[e.subChave!] ?? {}) as AnyRecord;
-    const entrada: AnyRecord = {};
-    if (sub.nome_caminho) gravarCaminho(entrada, sub.nome_caminho, String(item.nome ?? '').trim());
-    if (sub.ordem_caminho) {
-      const ordens = Object.values(mapa).map(x => Number(lerCaminho(x as AnyRecord, sub.ordem_caminho!))).filter(Number.isFinite);
-      gravarCaminho(entrada, sub.ordem_caminho, Math.max(-1, ...ordens) + 1);
-    }
-    for (const c of ativos) {
-      const r = valorParaContrato(c, item.valores?.[String(c.coluna_id)]);
-      if (r.erro) throw new HttpsError('invalid-argument', r.erro);
-      gravarCaminho(entrada, c.chave, r.vazio ? null : r.valor);
-    }
-    if (situacaoDoItem(item) !== 'ativo') entrada.situacao = situacaoDoItem(item);
-    t.update(paiRef, new FieldPath(e.subChave!, chaveSub), entrada);
+    const ordens = sub.ordem_caminho ? Object.values(mapa).map(x => Number(lerCaminho(x as AnyRecord, sub.ordem_caminho!))).filter(Number.isFinite) : [];
+    t.update(paiRef, new FieldPath(e.subChave!, chaveSub), entradaDeSubitem(item, sub, ativos, Math.max(-1, ...ordens) + 1));
     t.update(itemRef, 'vinculo', { cadastro: e.chave, id: pai.vinculo.id, sub: chaveSub }, ...apagarValores(ativos));
   });
   return { id: pai.vinculo.id, sub: chaveSub };
+}
+
+/** Entrada do mapa de subitens do registro (ex.: um LOTE): nome, ordem, campos ligados e situação (só quando não ativo). */
+function entradaDeSubitem(subitem: AnyRecord, sub: { nome_caminho?: string; ordem_caminho?: string }, campos: CampoExistente[], ordem: number) {
+  const entrada: AnyRecord = {};
+  if (sub.nome_caminho) gravarCaminho(entrada, sub.nome_caminho, String(subitem.nome ?? '').trim());
+  if (sub.ordem_caminho) gravarCaminho(entrada, sub.ordem_caminho, ordem);
+  for (const c of campos) {
+    const r = valorParaContrato(c, subitem.valores?.[String(c.coluna_id)]);
+    if (r.erro) throw new HttpsError('invalid-argument', r.erro);
+    gravarCaminho(entrada, c.chave, r.vazio ? null : r.valor);
+  }
+  if (situacaoDoItem(subitem) !== 'ativo') entrada.situacao = situacaoDoItem(subitem);
+  return entrada;
+}
+
+/**
+ * Item novo (criado ou duplicado) num quadro ligado a um cadastro que cria registros (`cria_registro`, ex.: obras-v2):
+ * vira um registro novo na hora, com os padrões do contrato, os valores das colunas ligadas, o nome e a marca
+ * `friday.ok`, como o registro criado pela conciliação. Subitens dele ainda soltos entram no mapa do registro (ex.: LOTEs).
+ * A situação e o status vêm logo depois, pelo gatilho da fórmula (fridayObrasSituacaoItem), quando o vínculo é gravado.
+ */
+async function criarRegistroDoItem(item: AnyRecord, e: Escopo) {
+  if (item.vinculo?.cadastro === e.chave) return { id: item.vinculo.id };
+  if (item.vinculo) throw new HttpsError('failed-precondition', 'O item já está vinculado a outro cadastro.');
+  const cadastro = cadastroExistente(String(e.registro.colecao))!;
+  const ativos = (e.campos as CampoExistente[]).filter(c => c.situacao === 'ativo' && !c.secundario);
+  const novo = novoRegistro(cadastro, ativos, item as ItemConciliavel, e.registro.conciliacao as ChaveConciliacao);
+  if (novo.erros.length) throw new HttpsError('invalid-argument', novo.erros.join(' '));
+  gravarCaminho(novo.doc, caminhoDaMarca(cadastro), true);
+  // Subitens do item ainda soltos (ex.: criados antes de o item virar registro).
+  const s = e.registro.subitens as AnyRecord | undefined;
+  const subAtivos = s?.situacao === 'ativo' ? ((s.campos ?? []) as CampoExistente[]).filter(c => c.situacao === 'ativo' && !c.secundario) : null;
+  const subitens = subAtivos ? (await db.collection('friday-itens').where('item_pai_id', '==', Number(item.id)).get()).docs
+    .filter(d => !d.data().vinculo && Number(d.data().quadro_id) === Number(s!.quadro_id))
+    .sort((a, b) => Number(a.data().posicao) - Number(b.data().posicao) || Number(a.data().id) - Number(b.data().id)) : [];
+  const registroRef = db.collection(String(e.registro.colecao)).doc();
+  const itemRef = db.collection('friday-itens').doc(String(item.id));
+  let id = registroRef.id;
+  await db.runTransaction(async t => {
+    const atual = (await t.get(itemRef)).data();
+    if (!atual) throw new HttpsError('not-found', 'Item não encontrado.');
+    if (atual.vinculo?.cadastro === e.chave) { id = String(atual.vinculo.id); return; } // outra chamada já criou
+    const doc = structuredClone(novo.doc);
+    if (s?.chave && doc[s.chave] === undefined) doc[s.chave] = {}; // o mapa existe mesmo sem subitens (ex.: `lotes`)
+    subitens.forEach((d, ordem) => gravarCaminho(doc, `${s!.chave}.${d.id}`, entradaDeSubitem(d.data(), s!, subAtivos!, ordem)));
+    t.create(registroRef, doc);
+    t.update(itemRef, 'vinculo', { cadastro: e.chave, id: registroRef.id }, ...apagarValores(ativos));
+    for (const d of subitens) t.update(d.ref, 'vinculo', { cadastro: e.chave, id: registroRef.id, sub: d.id }, ...apagarValores(subAtivos!));
+  });
+  return { id };
 }
 
 /**

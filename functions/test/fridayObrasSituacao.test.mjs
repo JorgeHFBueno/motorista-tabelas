@@ -62,3 +62,26 @@ test('hoje em Brasília: 02:00 UTC ainda é o dia anterior', () => {
   const d = hojeEmBrasilia(Date.UTC(2026, 9, 27, 2, 0));
   assert.deepEqual([d.getFullYear(), d.getMonth(), d.getDate(), d.getHours()], [2026, 9, 26, 23]);
 });
+
+test('contrato arquivado ou na lixeira no Friday → FINALIZADA (sai do app); restaurado → volta pela fórmula', () => {
+  const valores = { [id('Situação')]: opcao('Situação', 'Parada') };
+  const doc = { tipoObra: 'Pública', situacao: 'Obra Parada', status: 'CONTRATADA' };
+  const arquivado = calcularSituacao(obras, registro, colunas, { id: 3, nome: 'X', valores, arquivado_em: '2026-10-27 17:00:00' }, doc, hoje);
+  assert.deepEqual(arquivado.gravar, [['status', 'FINALIZADA']]); // a situação (resultado da fórmula) fica
+  const lixeira = calcularSituacao(obras, registro, colunas, { id: 3, nome: 'X', valores, excluido_em: '2026-10-27 17:00:00' }, doc, hoje);
+  assert.deepEqual(lixeira.gravar, [['status', 'FINALIZADA']]);
+  const restaurado = calcularSituacao(obras, registro, colunas, { id: 3, nome: 'X', valores, arquivado_em: null }, { ...doc, status: 'FINALIZADA' }, hoje);
+  assert.deepEqual(restaurado.gravar, [['status', 'CONTRATADA']]);
+});
+
+test('contrato novo criado no Friday: obras-v2 cria o registro com os padrões, o nome do item e os campos ligados', () => {
+  assert.equal(obras.cria_registro, true);
+  assert.equal(m.cadastroExistente('veiculos-v2').cria_registro, undefined);
+  const item = { id: 9, nome: '  NOVO CONTRATO 12/2026 ', valores: { [id('Empresa')]: [col('Empresa').config.rotulos.find(r => r.texto === 'LEDUR').id][0], [id('Fim')]: '2026-12-20' } };
+  const { doc, erros: e } = m.novoRegistro(obras, campos, item, { coluna_id: null, caminho: 'nomeObra' });
+  assert.deepEqual(e, []);
+  assert.equal(doc.nomeObra, 'NOVO CONTRATO 12/2026');
+  assert.equal(doc.siglaObra, ''); assert.equal(doc.codObra, 0); assert.equal(doc.local, 'CORRIGIR'); assert.equal(doc.status, 'CONTRATADA');
+  assert.equal(doc.empresa, 'LEDUR'); assert.equal(doc.dataFinal, '2026-12-20');
+  assert.equal(m.caminhoDaMarca(obras), 'friday.ok');
+});
