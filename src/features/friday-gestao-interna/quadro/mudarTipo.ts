@@ -1,9 +1,10 @@
-// Mudar o tipo de uma coluna (ex.: "Cap. de Carga Liq." importada como texto → número ×10). Funções puras: calculam
-// os alvos possíveis e a conversão dos valores; quem grava é api.ts (mudarTipoColuna).
+// Mudar o tipo de uma coluna (ex.: "Cap. de Carga Liq." importada como texto → número ×10; "Empresa" importada como lista
+// → status; "Ano" → número sem separador de milhar). Funções puras: calculam os alvos possíveis e a conversão dos valores;
+// quem grava é api.ts (mudarTipoColuna).
 import { CORES, fmtNumeroColuna, lerNumero } from '../util.ts';
 import type { Coluna, Rotulo, TipoColuna } from './tipos.ts';
 
-export type Alvo = { tipo: TipoColuna; x10?: boolean };
+export type Alvo = { tipo: TipoColuna; x10?: boolean; semMilhar?: boolean };
 export type OpcaoAlvo = { chave: string; rotulo: string; alvo: Alvo };
 type Valor = { id: number; nome: string; v: unknown };
 export type Conversao = {
@@ -22,9 +23,15 @@ export function alvosPara(c: Coluna): OpcaoAlvo[] {
   const textos = (excluir?: string) => TEXTOS.filter(t => t !== excluir).map(t => ({ chave: t, rotulo: ROTULO_TEXTO[t], alvo: { tipo: t } }));
   const numero = { chave: 'numero', rotulo: 'Número', alvo: { tipo: 'numero' as TipoColuna } };
   const numeroX10 = { chave: 'numero_x10', rotulo: 'Número ×10 (uma casa decimal, digitado sem vírgula)', alvo: { tipo: 'numero' as TipoColuna, x10: true } };
+  const numeroSemMilhar = { chave: 'numero_sem_milhar', rotulo: 'Número sem separador de milhar (ano, código)', alvo: { tipo: 'numero' as TipoColuna, semMilhar: true } };
   const status = { chave: 'status', rotulo: 'Status (um rótulo por valor)', alvo: { tipo: 'status' as TipoColuna } };
-  if (TEXTOS.includes(c.tipo)) return [...textos(c.tipo), numero, numeroX10, status];
-  if (c.tipo === 'numero') return [...textos(), c.config.x10 ? numero : numeroX10];
+  if (TEXTOS.includes(c.tipo)) return [...textos(c.tipo), numero, numeroX10, numeroSemMilhar, status];
+  if (c.tipo === 'numero') {
+    if (c.config.x10) return [...textos(), numero];
+    return [...textos(), numeroX10, c.config.milhar === false ? numero : numeroSemMilhar];
+  }
+  // Lista de uma opção por célula: as opções viram os rótulos (mesmo id, texto e cor).
+  if (c.tipo === 'lista') return [{ chave: 'status', rotulo: 'Status (cada opção vira um rótulo)', alvo: { tipo: 'status' as TipoColuna } }];
   if (c.tipo === 'status') return [...textos(), numero, numeroX10];
   if (c.tipo === 'avaliacao') return [numero, numeroX10];
   return [];
@@ -35,8 +42,13 @@ function textoDe(c: Coluna, v: unknown): string | null {
   if (vazio(v)) return null;
   if (c.tipo === 'status') return ((c.config.rotulos ?? []) as Rotulo[]).find(r => r.id === String(v))?.texto?.trim() || null;
   if (c.tipo === 'numero') return fmtNumeroColuna({ ...c.config, unidade: '' }, v) || null;
+  if (c.tipo === 'lista') return opcoesDaLista(c, v).map(o => o.texto).filter(Boolean).join(', ') || null;
   return String(v).trim() || null;
 }
+const opcoesDaLista = (c: Coluna, v: unknown) => {
+  const opcoes = (c.config.opcoes ?? []) as Rotulo[];
+  return (Array.isArray(v) ? v : [v]).map(id => opcoes.find(o => o.id === String(id))).filter((o): o is Rotulo => !!o);
+};
 /** Número exibido de uma célula (sem a escala ×10), para converter para número. */
 function numeroDe(c: Coluna, v: unknown): number | null {
   if (vazio(v)) return null;
@@ -58,8 +70,24 @@ export function converterColuna(c: Coluna, alvo: Alvo, valores: Valor[]): Conver
   };
   if (alvo.tipo === 'numero') {
     for (const x of valores) { const n = numeroDe(c, x.v); registrar(x, n == null ? null : alvo.x10 ? Math.round(n * 10) : n); }
-    const config = { unidade: c.config.unidade ?? '', resumo: c.config.resumo ?? 'soma', ...(alvo.x10 ? { x10: true } : {}) };
+    // Sem separador de milhar (ano, código): somar não faz sentido, o rodapé fica sem resumo.
+    const config = alvo.semMilhar
+      ? { unidade: c.config.unidade ?? '', resumo: 'nenhum', milhar: false }
+      : { unidade: c.config.unidade ?? '', resumo: c.config.resumo ?? 'soma', ...(alvo.x10 ? { x10: true } : {}) };
     return { config, mudancas, falhas, convertidos };
+  }
+  if (alvo.tipo === 'status' && c.tipo === 'lista') {
+    // As opções viram rótulos com o mesmo id, texto e cor (as não usadas também ficam). O id "0" é o rótulo vazio do
+    // Friday: uma opção com esse id ganha um id novo. Célula com mais de uma opção não cabe num status: fica vazia.
+    const opcoes = (c.config.opcoes ?? []) as Rotulo[];
+    let proximo = Math.max(0, ...opcoes.map(o => Number(o.id)).filter(Number.isFinite)) + 1;
+    const idNovo = new Map(opcoes.map(o => [o.id, o.id === '0' ? String(proximo++) : o.id]));
+    for (const x of valores) {
+      const escolhidas = opcoesDaLista(c, x.v);
+      registrar(x, escolhidas.length === 1 ? idNovo.get(escolhidas[0].id)! : null);
+    }
+    const rotulos = opcoes.map(o => ({ id: idNovo.get(o.id)!, texto: o.texto, cor: o.cor }));
+    return { config: { rotulos: [...rotulos, { id: '0', texto: '', cor: '#c4c4c4' }] }, mudancas, falhas, convertidos };
   }
   if (alvo.tipo === 'status') {
     // Um rótulo por texto diferente, na ordem em que aparecem; o rótulo vazio do Friday fica no fim.
@@ -78,4 +106,4 @@ export function converterColuna(c: Coluna, alvo: Alvo, valores: Valor[]): Conver
   return { config: {}, mudancas, falhas, convertidos };
 }
 
-export const nomeDoAlvo = (alvo: Alvo) => (alvo.tipo === 'numero' ? (alvo.x10 ? 'Número ×10' : 'Número') : alvo.tipo === 'status' ? 'Status' : ROTULO_TEXTO[alvo.tipo] ?? alvo.tipo);
+export const nomeDoAlvo = (alvo: Alvo) => (alvo.tipo === 'numero' ? (alvo.x10 ? 'Número ×10' : alvo.semMilhar ? 'Número sem separador' : 'Número') : alvo.tipo === 'status' ? 'Status' : ROTULO_TEXTO[alvo.tipo] ?? alvo.tipo);

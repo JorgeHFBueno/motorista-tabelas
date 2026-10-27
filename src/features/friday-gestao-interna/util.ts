@@ -30,11 +30,12 @@ export function inicioDaSemana(iso: string) {
 
 // Coluna número no formato ×10 (a mesma regra dos medidores do combustível): guarda o inteiro ×10, digita-se só
 // dígitos (205) e, fora da edição, mostra uma casa decimal (20,5). config.x10 = true.
-type ConfigNumero = { x10?: unknown; unidade?: unknown } | undefined;
+type ConfigNumero = { x10?: unknown; unidade?: unknown; milhar?: unknown } | undefined;
 export function fmtNumeroColuna(config: ConfigNumero, v: unknown): string {
   if (v == null || v === '') return '';
   const n = Number(v);
   if (!Number.isFinite(n)) return String(v);
+  if (config?.milhar === false) { const s = n.toLocaleString('pt-BR', { useGrouping: false, maximumFractionDigits: 2 }); return config.unidade ? `${s} ${String(config.unidade)}` : s; }
   if (!config?.x10) return fmtNumero(n, String(config?.unidade ?? ''));
   const s = (n / 10).toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 1 });
   return config.unidade ? `${s} ${String(config.unidade)}` : s;

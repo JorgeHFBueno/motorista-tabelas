@@ -41,7 +41,7 @@ export function MudarTipoDialogo({ coluna, onFechar, onPronto }: { coluna: Colun
   // Exemplo de como o valor convertido vai aparecer.
   const mostrar = (valor: unknown) => {
     if (valor == null) return '—';
-    if (opcao?.alvo.tipo === 'numero') return fmtNumeroColuna({ x10: opcao.alvo.x10, unidade: coluna.config.unidade }, valor);
+    if (opcao?.alvo.tipo === 'numero') return fmtNumeroColuna({ x10: opcao.alvo.x10, unidade: coluna.config.unidade, ...(opcao.alvo.semMilhar ? { milhar: false } : {}) }, valor);
     if (opcao?.alvo.tipo === 'status') return ((previa?.config.rotulos ?? []) as Rotulo[]).find(r => r.id === String(valor))?.texto ?? String(valor);
     return String(valor);
   };
@@ -57,6 +57,8 @@ export function MudarTipoDialogo({ coluna, onFechar, onPronto }: { coluna: Colun
         </select>
       </label>
       {opcao?.alvo.x10 && <p className="muted fr-small">Número ×10: digite só os números, sem vírgula (205); ao sair da célula aparece 20,5. Guarda o inteiro, como os medidores do combustível e as capacidades da frota.</p>}
+      {opcao?.alvo.semMilhar && <p className="muted fr-small">Sem separador de milhar: 2025 aparece como 2025 (não 2.025). Para anos e códigos; o rodapé do grupo deixa de somar a coluna.</p>}
+      {coluna.tipo === 'lista' && opcao?.alvo.tipo === 'status' && <p className="muted fr-small">Cada opção da lista vira um rótulo, com o mesmo texto e cor. Uma célula com mais de uma opção marcada não cabe num status e fica vazia (aparece abaixo).</p>}
       {!previa && !erro && <p className="muted fr-small">Calculando a prévia…</p>}
       {previa && (
         <div className="conc-secao">
