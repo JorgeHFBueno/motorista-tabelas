@@ -907,3 +907,67 @@ test('[storage] checklists-v2: read by mechanic and adm2; never overwritten or d
   await assertFails(uploadBytes(ref(storageAs('mecanico'), path), image, { contentType: 'image/jpeg' }));
   await assertFails(deleteObject(ref(storageAs('canonicalAdm2'), path)));
 });
+
+// ------------------------------------------------------------------ bateria do tablet Kiosk (2026-10-27)
+// App docs/KIOSK_BATERIA.md: o Kiosk grava deslogado; formato fechado; só o adm2 lê.
+function bateria(medidoEm, overrides = {}) {
+  return { medidoEm, motivo: 'hora', nivel: 57, carregando: false, fonte: 'nenhuma', temperaturaC: 27.5, tensaoMv: 3850, saude: 'boa', ...overrides };
+}
+function terminalBateria(medidoEm, overrides = {}) {
+  return { ...bateria(medidoEm), recebidoEm: serverTimestamp(), semEconomiaBateria: true, modelo: 'SM-T820', android: '9', versaoApp: '1.0.0+1', pendentes: 0, ...overrides };
+}
+const leituraRef = (db, medidoEm, terminal = 'BOMBA-FABRICA-01') => doc(db, 'kioskBateria', terminal, 'leituras', String(medidoEm.toMillis()));
+
+test('[firestore] kioskBateria: the logged-out tablet writes terminal and readings; a resend overwrites the same reading', async () => {
+  const db = env.unauthenticatedContext().firestore();
+  const agora = Timestamp.fromMillis(Date.now() - 60_000);
+  const atrasada = Timestamp.fromMillis(Date.now() - 3 * 86_400_000);
+  await assertSucceeds(setDoc(doc(db, 'kioskBateria', 'BOMBA-FABRICA-01'), terminalBateria(agora)));
+  await assertSucceeds(setDoc(doc(db, 'kioskBateria', 'BOMBA-FABRICA-01'), terminalBateria(agora, { pendentes: 12, nivel: 56 })));
+  await assertSucceeds(setDoc(leituraRef(db, agora), bateria(agora)));
+  await assertSucceeds(setDoc(leituraRef(db, agora), bateria(agora)));
+  await assertSucceeds(setDoc(leituraRef(db, atrasada), bateria(atrasada, { motivo: 'tomada_ligada', carregando: true, fonte: 'tomada', nivel: 100, temperaturaC: 31 })));
+});
+test('[firestore] kioskBateria: readings out of format, out of range or with a mismatched ID are refused', async () => {
+  const db = env.unauthenticatedContext().firestore();
+  const agora = Timestamp.fromMillis(Date.now() - 120_000);
+  const recusada = (overrides) => assertFails(setDoc(leituraRef(db, agora), bateria(agora, overrides)));
+  await recusada({ nivel: 101 });
+  await recusada({ nivel: 50.5 });
+  await recusada({ motivo: 'outro' });
+  await recusada({ fonte: 'gerador' });
+  await recusada({ saude: 'otima' });
+  await recusada({ temperaturaC: 200 });
+  await recusada({ tensaoMv: -1 });
+  await recusada({ carregando: 'sim' });
+  await recusada({ extra: true });
+  const { saude, ...semSaude } = bateria(agora);
+  void saude;
+  await assertFails(setDoc(leituraRef(db, agora), semSaude));
+  await assertFails(setDoc(doc(db, 'kioskBateria', 'BOMBA-FABRICA-01', 'leituras', String(agora.toMillis() + 1)), bateria(agora)));
+  await assertFails(setDoc(doc(db, 'kioskBateria', 'BOMBA-FABRICA-01', 'leituras', 'abc'), bateria(agora)));
+  const velha = Timestamp.fromMillis(Date.now() - 8 * 86_400_000);
+  await assertFails(setDoc(leituraRef(db, velha), bateria(velha)));
+  const futura = Timestamp.fromMillis(Date.now() + 60 * 60_000);
+  await assertFails(setDoc(leituraRef(db, futura), bateria(futura)));
+});
+test('[firestore] kioskBateria: terminal document needs the server time, bounded extras and a valid terminal ID', async () => {
+  const db = env.unauthenticatedContext().firestore();
+  const agora = Timestamp.fromMillis(Date.now() - 60_000);
+  await assertFails(setDoc(doc(db, 'kioskBateria', 'BOMBA-FABRICA-01'), terminalBateria(agora, { recebidoEm: agora })));
+  await assertFails(setDoc(doc(db, 'kioskBateria', 'BOMBA-FABRICA-01'), terminalBateria(agora, { pendentes: 97 })));
+  await assertFails(setDoc(doc(db, 'kioskBateria', 'BOMBA-FABRICA-01'), terminalBateria(agora, { modelo: 'x'.repeat(81) })));
+  await assertFails(setDoc(doc(db, 'kioskBateria', 'BOMBA-FABRICA-01'), terminalBateria(agora, { outro: 1 })));
+  await assertFails(setDoc(doc(db, 'kioskBateria', 'bomba-fabrica'), terminalBateria(agora)));
+});
+test('[firestore] kioskBateria: only adm2 reads; nobody deletes', async () => {
+  const agora = Timestamp.fromMillis(Date.now() - 60_000);
+  await setDoc(doc(env.unauthenticatedContext().firestore(), 'kioskBateria', 'BOMBA-FABRICA-01'), terminalBateria(agora));
+  await setDoc(leituraRef(env.unauthenticatedContext().firestore(), agora), bateria(agora));
+  await assertSucceeds(getDoc(doc(dbAs('canonicalAdm2'), 'kioskBateria', 'BOMBA-FABRICA-01')));
+  await assertSucceeds(getDocs(collection(dbAs('canonicalAdm2'), 'kioskBateria', 'BOMBA-FABRICA-01', 'leituras')));
+  await assertFails(getDoc(doc(env.unauthenticatedContext().firestore(), 'kioskBateria', 'BOMBA-FABRICA-01')));
+  await assertFails(getDocs(collection(dbAs('canonicalFrentista'), 'kioskBateria', 'BOMBA-FABRICA-01', 'leituras')));
+  await assertFails(deleteDoc(doc(dbAs('canonicalAdm2'), 'kioskBateria', 'BOMBA-FABRICA-01')));
+  await assertFails(deleteDoc(leituraRef(env.unauthenticatedContext().firestore(), agora)));
+});

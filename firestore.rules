@@ -841,6 +841,53 @@ service cloud.firestore {
     }
 
 
+    // ================================================================ Kiosk tablet battery
+    // Bateria do tablet Kiosk (MotoristaV2, docs/KIOSK_BATERIA.md). O Kiosk fica deslogado entre um abastecimento e outro,
+    // então grava sem login; sem identidade, o formato é a única proteção: fechado, com valores e horário limitados, e só
+    // o adm2 lê. Risco aceito: quem tiver a configuração do projeto pode gravar medições falsas, que só alimentam a tela
+    // Dev → Bateria do Kiosk.
+    function kioskBateriaCampos() {
+      return ['medidoEm', 'motivo', 'nivel', 'carregando', 'fonte', 'temperaturaC', 'tensaoMv', 'saude'];
+    }
+    function validKioskBateria(data) {
+      return data.keys().hasAll(kioskBateriaCampos())
+        && data.medidoEm is timestamp
+        && data.medidoEm < request.time + duration.value(10, 'm')
+        && data.medidoEm > request.time - duration.value(7, 'd')
+        && data.motivo in ['inicio', 'hora', 'tomada_ligada', 'tomada_desligada']
+        && data.nivel is int && data.nivel >= 0 && data.nivel <= 100
+        && data.carregando is bool
+        && data.fonte in ['tomada', 'usb', 'sem_fio', 'nenhuma']
+        && data.temperaturaC is number && data.temperaturaC > -40 && data.temperaturaC < 120
+        && data.tensaoMv is int && data.tensaoMv >= 0 && data.tensaoMv < 10000
+        && data.saude in ['boa', 'superaquecida', 'morta', 'sobretensao', 'falha', 'fria', 'desconhecida'];
+    }
+    match /kioskBateria/{terminalId} {
+      allow read: if isAdm2();
+      allow create, update: if terminalId.matches('^[A-Z0-9-]{1,40}$')
+        && request.resource.data.keys().hasOnly(kioskBateriaCampos().concat(
+          ['recebidoEm', 'semEconomiaBateria', 'modelo', 'android', 'versaoApp', 'pendentes']))
+        && validKioskBateria(request.resource.data)
+        && request.resource.data.recebidoEm == request.time
+        && request.resource.data.semEconomiaBateria is bool
+        && request.resource.data.modelo is string && request.resource.data.modelo.size() <= 80
+        && request.resource.data.android is string && request.resource.data.android.size() <= 20
+        && request.resource.data.versaoApp is string && request.resource.data.versaoApp.size() <= 40
+        && request.resource.data.pendentes is int
+        && request.resource.data.pendentes >= 0 && request.resource.data.pendentes <= 96;
+      allow delete: if false;
+
+      match /leituras/{leituraId} {
+        allow read: if isAdm2();
+        allow create, update: if leituraId.matches('^[0-9]{13}$')
+          && request.resource.data.keys().hasOnly(kioskBateriaCampos())
+          && validKioskBateria(request.resource.data)
+          && leituraId == string(request.resource.data.medidoEm.toMillis());
+        allow delete: if false;
+      }
+    }
+
+
     // Default deny for every undeclared collection and subcollection.
     match /{document=**} {
       allow read, write: if false;
