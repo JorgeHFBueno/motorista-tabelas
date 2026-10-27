@@ -9,7 +9,6 @@ import {
   montarPrazos, posicaoHoje, trechosBarra, type Escala, type LinhaPrazo, type Limites, type ObraPrazo, type SituacaoPrazo,
 } from './domain/prazos';
 import { carregarPrazos } from './data/prazosDataSource';
-import { MONDAY_BOARD_ID } from './data/mondayPrazosSchema';
 import './styles/prazos-contratuais.css';
 
 const COLUNAS_FIXAS = [
@@ -115,7 +114,7 @@ export default function PrazosContratuaisPage() {
           <p className="pz-sub">Ordem: menor prazo até o vencimento primeiro · <span className="pz-ref">Data de referência: {formatDate(hoje, true)}</span></p>
         </div>
         <div className="pz-header-actions">
-          <span className="pz-fonte pz-fonte--firestore" title="Coleção monday-obras do Firestore">Firestore · monday-obras</span>
+          <span className="pz-fonte pz-fonte--firestore" title="Coleção obras-v2 do Firestore">Firestore · obras-v2</span>
           <Button size="small" variant="outlined" startIcon={<RefreshIcon />} onClick={() => void carregar()} disabled={carregando}>Recarregar</Button>
         </div>
       </header>
@@ -150,14 +149,14 @@ export default function PrazosContratuaisPage() {
 
       {conferir.length > 0 && (
         <Alert severity="warning" className="pz-conferir">
-          <strong>Conferir no Monday</strong> (fora da tela por estarem encerradas):{' '}
+          <strong>Conferir no Friday</strong> (fora da tela por estarem encerradas):{' '}
           {conferir.map(({ obra, motivo }, i) => <span key={obra.id}>{i > 0 && ' · '}<a href={obra.url} target="_blank" rel="noreferrer">{obra.nome}</a> — {motivo}</span>)}
         </Alert>
       )}
       {erro && <Alert severity="error" action={<Button color="inherit" size="small" onClick={() => void carregar()}>Tentar de novo</Button>}>Não foi possível carregar as obras: {erro}</Alert>}
 
       <div className="pz-scroll" ref={scrollRef}>
-        {carregando && <div className="pz-loading"><CircularProgress size={22} /> Carregando obras do Monday…</div>}
+        {carregando && <div className="pz-loading"><CircularProgress size={22} /> Carregando obras…</div>}
         <div className="pz-grade">
           <div className="pz-row pz-row--head">
             <div className="pz-fixo pz-fixo--head">{COLUNAS_CONGELADAS.map((c) => <div key={c.key} className={`pz-th pz-th--${c.key}`}>{c.titulo}</div>)}</div>
@@ -175,7 +174,7 @@ export default function PrazosContratuaisPage() {
                 <div className="pz-fixo">
                   <div className="pz-td pz-td--n">{linha.posicao}</div>
                   <div className="pz-td pz-td--obra">
-                    <a href={linha.obra.url} target="_blank" rel="noreferrer" title="Abrir no Monday">{linha.obra.nome}<OpenInNewIcon /></a>
+                    <a href={linha.obra.url} target="_blank" rel="noreferrer" title="Abrir no Friday">{linha.obra.nome}<OpenInNewIcon /></a>
                     {linha.alertas.length > 0 && <Tooltip title={linha.alertas.join(' ')}><WarningAmberRoundedIcon className="pz-alerta" aria-label={linha.alertas.join(' ')} /></Tooltip>}
                   </div>
                 </div>
@@ -227,7 +226,7 @@ export default function PrazosContratuaisPage() {
           })}
         </ul>
         <p>A coluna com borda preta marca a semana atual; a linha vermelha marca o dia de hoje. Dias calculados no fuso de Brasília a partir de Início e Fim.</p>
-        <p>Fonte: Monday, quadro GESTÃO DE OBRAS ({MONDAY_BOARD_ID}), obras com Tipo de Obra Pública — sem obras com Status Solicitar termo Definitivo (entregue) ou Obra Finalizada.</p>
+        <p>Fonte: obras-v2 (quadro GESTÃO DE OBRAS do Friday), obras com Tipo de Obra Pública — sem obras com Status Solicitar termo Definitivo (entregue) ou Obra Finalizada.</p>
       </footer>
     </div>
   );

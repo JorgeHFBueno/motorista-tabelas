@@ -27,9 +27,9 @@ import {
   type MestreFirestore,
 } from "./data/mestresFirestore";
 import {
-  applyMondayObrasChanges,
-  RawFirestoreCronogramaDataSource,
-} from "./data/source/rawFirestoreCronogramaDataSource";
+  applyContratosChanges,
+  ObrasV2CronogramaDataSource,
+} from "./data/source/obrasV2CronogramaDataSource";
 import {
   allMasters,
   buildWorkloads,
@@ -54,30 +54,16 @@ import type {
   ObraCronograma,
   ZoomCronograma,
 } from "./domain/models";
-import { contractPlanningRowFor } from "./data/source/rawCronogramaAdapter";
+import { contractPlanningRowFor } from "./data/source/obrasV2CronogramaAdapter";
 import {
   sameObraExceptMasters,
-  updateObraStatusByMondaySubitemId,
+  updateObraStatusByLoteId,
 } from "./application/localPlanner";
 import { todayCivil } from "./domain/temporal";
 import {
   separarObrasPorSituacao,
   statusLoteConhecido,
 } from "./domain/contractStatus";
-import {
-  synchronizeMonday,
-  type MondaySyncResult,
-} from "../../services/mondaySync";
-import { startMondayOAuth } from "../../services/mondayOAuth";
-import {
-  provisionMondayWebhook,
-  type AuditResult,
-  type CleanupResult,
-  type EnsureResult,
-  type RecreateResult,
-  MondayWebhookProvisionError,
-} from "../../services/mondayWebhookProvisionService";
-import { useCredencialAuthorization } from "../../hooks/useCredencialAuthorization";
 import { useAuth } from "../../contexts/AuthContext";
 import {
   beginCronogramaPerf,
@@ -91,7 +77,7 @@ import {
 } from "./debug/cronogramaPerf";
 import "./styles/cronograma-obras.css";
 
-const source = new RawFirestoreCronogramaDataSource();
+const source = new ObrasV2CronogramaDataSource();
 const mestresSource = new FirestoreMestresDataSource();
 const alocacoesSource = new CronogramaFirestoreRepository();
 const INITIAL_FILTERS: CronogramaFilters = {
@@ -220,7 +206,7 @@ function hydrateFirestoreAlocacoes(
       },
     );
     const prior = previousById.get(obra.id);
-    // Reuse only when the Monday projection of the LOTE did not change either.
+    // Reuse only when the obras-v2 data of the LOTE did not change either.
     return prior &&
       sameObraExceptMasters(prior, obra) &&
       sameMasters(prior.mestresPlanejados, mestresPlanejados)
@@ -291,7 +277,6 @@ function withOptimisticAlocacao(
 
 export default function CronogramaObrasPage() {
   countCronogramaRender("CronogramaObrasPage");
-  const { authorized: canSyncMonday } = useCredencialAuthorization('engenharia');
   const { currentUser, authorizationLoading, authorizationProfile } = useAuth();
   const [view, setView] = useState<"obras" | "mestres">("obras");
   const [sectionViews, setSectionViews] = useState<WorkSectionViews>(
@@ -314,7 +299,6 @@ export default function CronogramaObrasPage() {
     useState<CronogramaViewTransition>(null);
   const [filters, setFilters] = useState(INITIAL_FILTERS);
   const [filtersOpen, setFiltersOpen] = useState(false);
-  const [devOpen, setDevOpen] = useState(false);
   const [display, setDisplay] = useState<CalendarDisplayOptions>(
     DEFAULT_CALENDAR_DISPLAY,
   );
@@ -326,9 +310,9 @@ export default function CronogramaObrasPage() {
     useState<ContratoCronograma | null>(null);
   const confirmedObras = useRef<ObraCronograma[]>([]);
   const contratosRef = useRef<ContratoCronograma[]>([]);
-  const mondayObrasParents = useRef(new Map<string, ContratoCronograma>());
-  // Kept only until the Firestore projection confirms the status returned by Monday.
-  const pendingMondayStatuses = useRef(new Map<string, string>());
+  const contratosPorId = useRef(new Map<string, ContratoCronograma>());
+  // Kept only until the obras-v2 snapshot shows the status the Function confirmed (key: contrato/LOTE).
+  const pendingLoteStatuses = useRef(new Map<string, { contratoId: string; loteId: string; status: string }>());
   const mestresRef = useRef<MestreFirestore[]>([]);
   const alocacoesRef = useRef<AlocacaoFirestore[]>([]);
   const resizeDrafts = useRef(
@@ -351,21 +335,6 @@ export default function CronogramaObrasPage() {
     key: string;
   } | null>(null);
   const [draggingMaster, setDraggingMaster] = useState<string | null>(null);
-  const [syncResult, setSyncResult] = useState<MondaySyncResult | null>(null);
-  const [syncing, setSyncing] = useState(false);
-  const [syncError, setSyncError] = useState<string | null>(null);
-  const [authorizingMonday, setAuthorizingMonday] = useState(false);
-  const [provisioningMode, setProvisioningMode] = useState<
-    | "AUDIT"
-    | "ENSURE_CANARY"
-    | "CLEANUP_CANARY_DUPLICATES"
-    | "RECREATE_CANARY"
-    | null
-  >(null);
-  const [provisionResult, setProvisionResult] = useState<
-    AuditResult | EnsureResult | CleanupResult | RecreateResult | null
-  >(null);
-  const [provisionError, setProvisionError] = useState<string | null>(null);
   const [addingMaster, setMasterDialog] = useState(false);
   const [newMasterName, setNewMasterName] = useState("");
   const [newMasterError, setNewMasterError] = useState<string | null>(null);
@@ -457,30 +426,32 @@ export default function CronogramaObrasPage() {
         const guarded = changes.map((change) => {
           if (!change.contrato) return change;
           let contrato = change.contrato;
-          pendingMondayStatuses.current.forEach((status, mondaySubitemId) => {
+          pendingLoteStatuses.current.forEach(({ contratoId, loteId, status }, key) => {
+            if (contratoId !== contrato.id) return;
             const projected = contrato.obras.find(
-              (obra) => obra.mondaySubitemId === mondaySubitemId,
+              (obra) => obra.loteId === loteId,
             );
             if (!projected) return;
             if (projected.status === status)
-              pendingMondayStatuses.current.delete(mondaySubitemId);
+              pendingLoteStatuses.current.delete(key);
             else
               contrato = {
                 ...contrato,
-                obras: updateObraStatusByMondaySubitemId(
+                obras: updateObraStatusByLoteId(
                   contrato.obras,
-                  mondaySubitemId,
+                  contratoId,
+                  loteId,
                   status,
                 ),
               };
           });
           return { ...change, contrato };
         });
-        mondayObrasParents.current = applyMondayObrasChanges(
-          mondayObrasParents.current,
+        contratosPorId.current = applyContratosChanges(
+          contratosPorId.current,
           guarded,
         );
-        const nextContracts = [...mondayObrasParents.current.values()].sort(
+        const nextContracts = [...contratosPorId.current.values()].sort(
           (a, b) => a.nome.localeCompare(b.nome, "pt-BR"),
         );
         contratosRef.current = nextContracts;
@@ -956,100 +927,32 @@ export default function CronogramaObrasPage() {
       setSavingMaster(false);
     }
   };
-  const runSync = async (mode: "dry-run" | "apply") => {
-    try {
-      setSyncing(true);
-      setSyncError(null);
-      setSyncResult(await synchronizeMonday(mode));
-    } catch (cause) {
-      setSyncError(
-        cause instanceof Error ? cause.message : "Falha na sincronização.",
-      );
-    } finally {
-      setSyncing(false);
-    }
-  };
-  const authorizeMonday = async () => {
-    if (authorizingMonday) return;
-    setAuthorizingMonday(true);
-    try {
-      await startMondayOAuth({ currentUser });
-    } catch (cause) {
-      setWriteError(
-        cause instanceof Error
-          ? cause.message
-          : "Não foi possível iniciar a autorização do Monday.",
-      );
-      setAuthorizingMonday(false);
-    }
-  };
-  const runWebhookProvision = async (
-    mode:
-      | "AUDIT"
-      | "ENSURE_CANARY"
-      | "CLEANUP_CANARY_DUPLICATES"
-      | "RECREATE_CANARY",
-  ) => {
-    if (provisioningMode) return;
-    if (
-      mode === "ENSURE_CANARY" &&
-      !window.confirm(
-        "Criar/garantir webhook canário change_subitem_column_value?",
-      )
-    )
-      return;
-    if (
-      mode === "CLEANUP_CANARY_DUPLICATES" &&
-      !window.confirm(
-        "Remover subscriptions canário duplicadas e preservar somente uma?",
-      )
-    )
-      return;
-    if (
-      mode === "RECREATE_CANARY" &&
-      !window.confirm(
-        "Excluir o webhook canário atual e criar uma nova subscription?",
-      )
-    )
-      return;
-    setProvisioningMode(mode);
-    setProvisionError(null);
-    setProvisionResult(null);
-    try {
-      setProvisionResult(await provisionMondayWebhook(mode, { currentUser }));
-    } catch (cause) {
-      setProvisionError(
-        cause instanceof MondayWebhookProvisionError
-          ? cause.message
-          : "Não foi possível consultar/criar o webhook.",
-      );
-    } finally {
-      setProvisioningMode(null);
-    }
-  };
-  const applyConfirmedMondayStatus = (
-    mondaySubitemId: string,
+  const applyConfirmedLoteStatus = (
+    contratoId: string,
+    loteId: string,
     status: { label: string },
   ) => {
     // The same state feeds filters and separarObrasPorSituacao; no DOM regrouping is needed.
-    confirmedObras.current = updateObraStatusByMondaySubitemId(
+    confirmedObras.current = updateObraStatusByLoteId(
       confirmedObras.current,
-      mondaySubitemId,
+      contratoId,
+      loteId,
       status.label,
     );
-    pendingMondayStatuses.current.set(mondaySubitemId, status.label);
+    pendingLoteStatuses.current.set(`${contratoId}/${loteId}`, { contratoId, loteId, status: status.label });
     lastHydratedObras = confirmedObras.current;
     setObras(withResizeDrafts(confirmedObras.current, resizeDrafts.current));
     const nextContratos = contratosRef.current.map((contrato) => ({
       ...contrato,
-      obras: updateObraStatusByMondaySubitemId(
+      obras: updateObraStatusByLoteId(
         contrato.obras,
-        mondaySubitemId,
+        contratoId,
+        loteId,
         status.label,
       ),
     }));
     contratosRef.current = nextContratos;
-    mondayObrasParents.current = new Map(
+    contratosPorId.current = new Map(
       nextContratos.map((contrato) => [contrato.id, contrato]),
     );
     setContratos(nextContratos);
@@ -1103,51 +1006,6 @@ export default function CronogramaObrasPage() {
         </div>
       </header>
       {/* operational controls are part of the indicators bar below */}
-      {false && (provisionResult || provisionError) && (
-        <div
-          className="co-master-modal"
-          role="dialog"
-          aria-modal="true"
-          aria-label="Provisionamento de webhooks Monday"
-        >
-          <section>
-            <h2>
-              {provisionError ? "Falha no provisionamento" : "Webhooks Monday"}
-            </h2>
-            {provisionError ? (
-              <p role="alert">{provisionError}</p>
-            ) : (
-              provisionResult && (
-                <>
-                  {"webhooks" in provisionResult && (
-                    <>
-                      <p>
-                        Webhooks encontrados: {provisionResult.webhooks.length}
-                      </p>
-                      <ul>
-                        {provisionResult.webhooks.map((webhook) => (
-                          <li
-                            key={
-                              webhook.id ??
-                              `${webhook.event}-${webhook.boardId}`
-                            }
-                          >
-                            {webhook.event} — {webhook.boardId}
-                          </li>
-                        ))}
-                      </ul>
-                    </>
-                  )}
-                  {"message" in provisionResult && <p>{provisionResult.message}</p>}
-                </>
-              )
-            )}
-            <button type="button" onClick={() => { setProvisionResult(null); setProvisionError(null); }}>
-              Fechar
-            </button>
-          </section>
-        </div>
-      )}
       {false && filtersOpen && (
         <aside className="co-filters-panel">
           <FiltersBar
@@ -1184,93 +1042,6 @@ export default function CronogramaObrasPage() {
           </div>
           </div>
           <div className="co-operational-controls">
-          {canSyncMonday && (
-            <div className="co-dev-menu">
-              <button
-                className="co-button co-button--secondary"
-                type="button"
-                aria-expanded={devOpen}
-                aria-haspopup="menu"
-                onClick={() => setDevOpen((open) => !open)}
-              >
-                DEV
-              </button>
-              {devOpen && (
-                <div className="co-dev-popover" role="menu">
-                  <button
-                    type="button"
-                    disabled={syncing}
-                    onClick={() => {
-                      setDevOpen(false);
-                      void runSync("dry-run");
-                    }}
-                  >
-                    {syncing ? "Consultando Monday…" : "Sincronizar Monday"}
-                  </button>
-                  <button
-                    type="button"
-                    disabled={authorizingMonday}
-                    onClick={() => {
-                      setDevOpen(false);
-                      void authorizeMonday();
-                    }}
-                  >
-                    {authorizingMonday
-                      ? "Preparando autorização…"
-                      : "Autorizar Monday"}
-                  </button>
-                  <button
-                    type="button"
-                    disabled={Boolean(provisioningMode)}
-                    onClick={() => {
-                      setDevOpen(false);
-                      void runWebhookProvision("AUDIT");
-                    }}
-                  >
-                    {provisioningMode === "AUDIT"
-                      ? "Auditando…"
-                      : "Auditar webhooks"}
-                  </button>
-                  <button
-                    type="button"
-                    disabled={Boolean(provisioningMode)}
-                    onClick={() => {
-                      setDevOpen(false);
-                      void runWebhookProvision("ENSURE_CANARY");
-                    }}
-                  >
-                    {provisioningMode === "ENSURE_CANARY"
-                      ? "Criando webhook…"
-                      : "Criar webhook canário"}
-                  </button>
-                  <button
-                    type="button"
-                    disabled={Boolean(provisioningMode)}
-                    onClick={() => {
-                      setDevOpen(false);
-                      void runWebhookProvision("CLEANUP_CANARY_DUPLICATES");
-                    }}
-                  >
-                    {provisioningMode === "CLEANUP_CANARY_DUPLICATES"
-                      ? "Limpando webhooks…"
-                      : "Limpar webhooks duplicados"}
-                  </button>
-                  <button
-                    type="button"
-                    disabled={Boolean(provisioningMode)}
-                    onClick={() => {
-                      setDevOpen(false);
-                      void runWebhookProvision("RECREATE_CANARY");
-                    }}
-                  >
-                    {provisioningMode === "RECREATE_CANARY"
-                      ? "Recriando webhook…"
-                      : "Recriar webhook canário"}
-                  </button>
-                </div>
-              )}
-            </div>
-          )}
           <div className="co-section-views-control">
             <button
               ref={visualizationTriggerRef}
@@ -1342,165 +1113,6 @@ export default function CronogramaObrasPage() {
           <CalendarToggles options={display} onChange={setDisplay} />
         </div>
       </section>
-      {(provisionResult || provisionError) && (
-        <div
-          className="co-master-modal"
-          role="dialog"
-          aria-modal="true"
-          aria-label="Provisionamento de webhooks Monday"
-        >
-          <section>
-            <h2>
-              {provisionError ? "Falha no provisionamento" : "Webhooks Monday"}
-            </h2>
-            {provisionError ? (
-              <p role="alert">{provisionError}</p>
-            ) : (
-              provisionResult && (
-                <>
-                  {"webhooks" in provisionResult && (
-                    <>
-                      <p>
-                        Webhooks encontrados: {provisionResult.webhooks.length}
-                      </p>
-                      <ul>
-                        {provisionResult.webhooks.map((webhook) => (
-                          <li
-                            key={
-                              webhook.id ??
-                              `${webhook.event}-${webhook.boardId}`
-                            }
-                          >
-                            ID {webhook.id ?? "—"} · {webhook.event ?? "—"} ·
-                            board {webhook.boardId ?? "—"}
-                            {webhook.config.url
-                              ? ` · ${webhook.config.url}`
-                              : ""}
-                          </li>
-                        ))}
-                      </ul>
-                    </>
-                  )}
-                  {"result" in provisionResult && (
-                    <p>
-                      Resultado: {provisionResult.result}
-                      {"webhookId" in provisionResult &&
-                      provisionResult.webhookId
-                        ? ` · webhook ID ${provisionResult.webhookId}`
-                        : ""}
-                      {"keptWebhookId" in provisionResult &&
-                      provisionResult.keptWebhookId
-                        ? ` · preservado ${provisionResult.keptWebhookId}`
-                        : ""}
-                      {"deletedWebhookIds" in provisionResult &&
-                      provisionResult.deletedWebhookIds?.length
-                        ? ` · removidos ${provisionResult.deletedWebhookIds.join(", ")}`
-                        : ""}
-                      {"remainingCount" in provisionResult
-                        ? ` · restantes ${provisionResult.remainingCount}`
-                        : ""}
-                    </p>
-                  )}
-                </>
-              )
-            )}
-            <div>
-              <button
-                type="button"
-                onClick={() => {
-                  setProvisionResult(null);
-                  setProvisionError(null);
-                }}
-              >
-                Fechar
-              </button>
-            </div>
-          </section>
-        </div>
-      )}
-      {(syncResult || syncError) && (
-        <div
-          className="co-master-modal"
-          role="dialog"
-          aria-modal="true"
-          aria-label="Sincronização Monday"
-        >
-          <section>
-            <h2>
-              {syncError
-                ? "Falha na sincronização"
-                : syncResult?.mode === "apply"
-                  ? "Sincronização concluída"
-                  : "Sincronização Monday"}
-            </h2>
-            {syncError ? (
-              <p role="alert">{syncError}</p>
-            ) : (
-              syncResult && (
-                <>
-                  <p>
-                    Itens: {syncResult.itemsMonday} · Novos contratos:{" "}
-                    {syncResult.itemsCriar} · Alterados:{" "}
-                    {syncResult.itemsAtualizar} · Sem alteração:{" "}
-                    {syncResult.itemsSemAlteracao}
-                  </p>
-                  <p>
-                    Novos lotes: {syncResult.subitemsAdicionar} · Lotes
-                    alterados: {syncResult.subitemsAtualizar} · Ausentes no
-                    Monday: {syncResult.subitemsAusentesMonday} · Obras a
-                    finalizar: {syncResult.obrasFinalizar}
-                  </p>
-                  <details>
-                    <summary>
-                      Ver detalhes ({syncResult.details.length})
-                    </summary>
-                    {syncResult.details.map((detail) => (
-                      <p key={detail.itemId}>
-                        <strong>{detail.nome ?? detail.itemId}</strong>:{" "}
-                        {detail.changes
-                          ?.map(
-                            (change) =>
-                              `${change.type}${change.subitemId ? ` (${change.subitemId})` : ""}`,
-                          )
-                          .join(", ") || "alteração de item"}
-                      </p>
-                    ))}
-                  </details>
-                </>
-              )
-            )}
-            <div>
-              <button
-                type="button"
-                disabled={syncing}
-                onClick={() => {
-                  setSyncResult(null);
-                  setSyncError(null);
-                }}
-              >
-                Cancelar
-              </button>
-              {syncResult?.mode === "dry-run" && !syncResult.erros.length && (
-                <button
-                  className="co-button co-button--primary"
-                  disabled={syncing}
-                  type="button"
-                  onClick={() => {
-                    if (
-                      window.confirm(
-                        "Aplicar a sincronização recalculada pelo servidor?",
-                      )
-                    )
-                      void runSync("apply");
-                  }}
-                >
-                  Aplicar sincronização
-                </button>
-              )}
-            </div>
-          </section>
-        </div>
-      )}
       {filtersOpen && (
         <aside className="co-filters-panel">
           <FiltersBar
@@ -1621,7 +1233,7 @@ export default function CronogramaObrasPage() {
               centerRequest={centerRequest}
               focusDate={focusDate}
               onFocusDate={setFocusDate}
-              onStatusConfirmed={applyConfirmedMondayStatus}
+              onStatusConfirmed={applyConfirmedLoteStatus}
               onSelect={(obra) => {
                 setMasterPanel(null);
                 setMastersPanelId(null);
@@ -1666,7 +1278,7 @@ export default function CronogramaObrasPage() {
               setSelectedId(null);
               setMastersPanelId(null);
             }}
-            onStatusConfirmed={applyConfirmedMondayStatus}
+            onStatusConfirmed={applyConfirmedLoteStatus}
           /></CronogramaProfiler>
           </section>
           <section>
@@ -1694,7 +1306,7 @@ export default function CronogramaObrasPage() {
                 setSelectedId(null);
                 setMastersPanelId(obra.id);
               }}
-              onStatusConfirmed={applyConfirmedMondayStatus}
+              onStatusConfirmed={applyConfirmedLoteStatus}
             /></CronogramaProfiler>
           </section>
           {statusDesconhecidos.length > 0 && (

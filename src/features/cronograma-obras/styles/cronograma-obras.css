@@ -27,11 +27,6 @@
 .co-zoom--day { --co-day-width: 24px; --co-timeline-width: 8760px; }
 .co-zoom--year { --co-timeline-width: calc(100% - var(--co-left-width)); }
 .co-header-actions { align-items: center; display: flex; gap: 10px; }
-.co-dev-menu { position: relative; }
-.co-dev-popover { background: #fff; border: 1px solid var(--co-line); border-radius: 7px; box-shadow: 0 8px 22px rgb(19 43 58 / .16); display: grid; gap: 2px; min-width: 230px; padding: 6px; position: absolute; right: 0; top: calc(100% + 6px); z-index: 20; }
-.co-dev-popover button { background: transparent; border: 0; border-radius: 5px; color: #294659; cursor: pointer; font: inherit; font-size: .73rem; padding: 8px 10px; text-align: left; white-space: nowrap; }
-.co-dev-popover button:hover { background: #f1f6f8; }
-.co-dev-popover button:disabled { cursor: wait; opacity: .58; }
 .co-button--primary { background: #2f6b98; border-color: #285d85; color: #fff; }
 .co-button--primary:hover { background: #245b83; }
 

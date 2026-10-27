@@ -6,17 +6,17 @@ import { formatDateShort, inclusiveCivilDays, todayCivil } from "../domain/tempo
 import { startedMasterPeriods } from "../domain/masterPlanningDetails";
 import { getMestreColor, normalizeMestreKey } from "../domain/mestres";
 import { clampColumnWidth, OBRA_COLUMN_WIDTH, notStartedPanelLayout, obraPanelLayout, type ObraPanelColumn, type ObraColumnWidths } from "../domain/obraGridColumns";
-import { MondaySubitemStatusControl } from "./MondaySubitemStatusControl";
+import { LoteStatusControl } from "./LoteStatusControl";
 import { ContractAnalysisRequest } from "./ContractAnalysisRequest";
 import { ContractRowControls } from "./ContractRowControls";
 import { WorkHoverActions, WorkHoverTrigger } from "./WorkHoverActions";
-import type { MondaySubitemStatus } from "../../../services/mondaySubitemStatusService";
+import type { LoteStatus } from "../../../services/loteStatusService";
 import {
   buildFlatWorkGroupsByWorkType,
   groupContractGroupsByWorkType,
   groupObrasByContract,
 } from "../domain/contractGroups";
-import { requiresContractReview } from "../data/source/rawCronogramaAdapter";
+import { requiresContractReview } from "../data/source/obrasV2CronogramaAdapter";
 import { countCronogramaRender, measureCronogramaCompute } from "../debug/cronogramaPerf";
 
 const missing = "\u2014";
@@ -50,7 +50,7 @@ type Props = {
   onOpenContract: (contrato: ContratoCronograma) => void;
   onSelect: (obra: ObraCronograma) => void;
   onSelectMasters: (obra: ObraCronograma) => void;
-  onStatusConfirmed: (mondaySubitemId: string, status: MondaySubitemStatus) => void;
+  onStatusConfirmed: (contratoId: string, loteId: string, status: LoteStatus) => void;
   sectionTitle: string;
   sectionCount: number;
   sectionExpanded: boolean;
@@ -151,7 +151,7 @@ export const ContractTextTable = memo(function ContractTextTable({
       <span title={contrato?.nome ?? missing}>{contrato?.nome ?? missing}</span>
       <span className="co-work-name" title={obra.nomeObra}>{contrato ? <WorkHoverTrigger id={obra.id} contractId={contrato.id} idObra={contrato.idObra} contractName={contrato.nome} subcentroErp={contrato.subcentroErp} onMore={() => onOpenContract(contrato)}>{needsContractReview ? <ContractAnalysisRequest contrato={contrato} variant="alert" /> : obra.nomeObra}</WorkHoverTrigger> : needsContractReview && contrato ? <ContractAnalysisRequest contrato={contrato} variant="alert" /> : obra.nomeObra}</span>
       <span>{obra.empresa || missing}</span>
-      <span><MondaySubitemStatusControl obra={obra} canStart={notStarted} onStatusConfirmed={onStatusConfirmed} /></span>
+      <span><LoteStatusControl obra={obra} canStart={notStarted} onStatusConfirmed={onStatusConfirmed} /></span>
       <span>{displayOptionalValue(contrato?.ordemInicio)}</span>
       <span>{displayOptionalValue(contrato?.confirmacaoRecurso)}</span>
       <span>{formatDateShort(obra.inicioPlanejado ?? contrato?.inicio ?? null)}</span>
@@ -163,7 +163,7 @@ export const ContractTextTable = memo(function ContractTextTable({
       <span className="co-work-name" title={obra.nomeObra}>{contrato ? <WorkHoverTrigger id={obra.id} contractId={contrato.id} idObra={contrato.idObra} contractName={contrato.nome} subcentroErp={contrato.subcentroErp} onMore={() => onOpenContract(contrato)}>{obra.nomeObra}{review && <WarningAmberRounded className="co-review-icon" fontSize="inherit" titleAccess="Contrato sem LOTEs/subitems. Revisar no Monday." />}</WorkHoverTrigger> : <>{obra.nomeObra}{review && <WarningAmberRounded className="co-review-icon" fontSize="inherit" titleAccess="Contrato sem LOTEs/subitems. Revisar no Monday." />}</>}</span>
       <span>{displayRawValue(contrato?.numeroContrato)}</span>
       <MastersCell obras={[obra]} onSelectMasters={onSelectMasters} />
-      <span><MondaySubitemStatusControl obra={obra} canStart={notStarted} onStatusConfirmed={onStatusConfirmed} /></span>
+      <span><LoteStatusControl obra={obra} canStart={notStarted} onStatusConfirmed={onStatusConfirmed} /></span>
       <span>{obra.empresa || missing}</span>
       <span>{formatDateShort(obra.inicioPlanejado ?? contrato?.inicio ?? null)}</span>
       <span>{obra.tempoPlanejado ?? inclusiveCivilDays(contrato?.inicio, contrato?.fim) ?? missing}</span>
@@ -176,8 +176,8 @@ export const ContractTextTable = memo(function ContractTextTable({
     return <>
       <span className="co-work-name" title={obra.nomeObra}>{contrato ? <WorkHoverTrigger id={obra.id} contractId={contrato.id} idObra={contrato.idObra} contractName={contrato.nome} subcentroErp={contrato.subcentroErp} onMore={() => onOpenContract(contrato)}>{needsContractReview ? <ContractAnalysisRequest contrato={contrato} variant="alert" /> : obra.nomeObra}</WorkHoverTrigger> : needsContractReview && contrato ? <ContractAnalysisRequest contrato={contrato} variant="alert" /> : obra.nomeObra}</span>
       <span>{obra.empresa || missing}</span>
-      <span>{obra.targetType === "obra" && obra.mondaySubitemId
-        ? <MondaySubitemStatusControl obra={obra} canStart={notStarted} onStatusConfirmed={onStatusConfirmed} />
+      <span>{obra.targetType === "obra" && obra.loteId
+        ? <LoteStatusControl obra={obra} canStart={notStarted} onStatusConfirmed={onStatusConfirmed} />
         : missing}</span>
       <span>{displayOptionalValue(contrato?.ordemInicio)}</span>
       <span>{displayOptionalValue(contrato?.confirmacaoRecurso)}</span>

@@ -8,7 +8,7 @@ type Props = { contrato: ContratoCronograma; variant?: 'default' | 'alert' | 'in
 export function ContractAnalysisRequest({ contrato, variant = 'default' }: Props) {
   const [open, setOpen] = useState(false);
   const [copyFeedback, setCopyFeedback] = useState<string | null>(null);
-  const request = buildContractAnalysisRequest(contrato.rawDocument);
+  const request = buildContractAnalysisRequest(contrato);
 
   const close = () => { setOpen(false); setCopyFeedback(null); };
   const copy = async () => {

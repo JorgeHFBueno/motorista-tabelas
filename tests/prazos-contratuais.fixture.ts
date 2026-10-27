@@ -1,21 +1,17 @@
-import { MONDAY_BOARD_ID } from '../src/features/prazos-contratuais/data/mondayPrazosSchema';
-
 /**
- * Documentos `monday-obras/{itemId}` no formato que a projeção grava hoje, com os dados da
+ * Contratos `obras-v2/{id}` ligados ao Friday, no formato do contrato (The Manuscript, obras-v2.md), com os dados da
  * planilha "Cronograma Prazos Contratos - Gantt.xlsx" de 19/10/2026 (entrega do Brayan).
- * IDs de item/subitem são inventados (prefixo 91.../92...). Situação vem pelo Status (fórmula, com os valores reais)
- * e Pública/Privada pelo Tipo de Obra, como na projeção real.
+ * IDs de contrato/LOTE são inventados (prefixo 91.../92...). A situação vem da fórmula "Status" (com os valores reais)
+ * e Pública/Privada pelo Tipo de Obra.
  */
 export type FixtureSubitem = { id: string; nome: string; status: string };
 export type FixtureDocument = {
   id: string;
   data: {
-    raw: {
-      id: string; nome: string; empresa: string | null; inicio: string | null; fim: string | null;
-      tipoObra: string | null; status: string | null; ordemInicio: string | null;
-      numeroContrato: string | null; ano: number | null; subitems: FixtureSubitem[];
-    };
-    sincronizacao: { itemId: string; boardId: string; apiVersion: string; mondayUpdatedAt: string };
+    nomeObra: string; empresa: string | null; dataInicial: string | null; dataFinal: string | null;
+    tipoObra: string | null; situacao: string | null; ordemInicio: string | null;
+    numeroContrato: string | null; ano: number | null; lotes: Record<string, { nome: string; status: string; ordem: number }>;
+    friday: { ok: true };
   };
 };
 
@@ -35,15 +31,13 @@ function obra(spec: ObraSpec): FixtureDocument {
   return {
     id,
     data: {
-      raw: {
-        id, nome: spec.nome, empresa: spec.empresa, inicio: spec.inicio ?? null, fim: spec.fim ?? null,
-        tipoObra: spec.tipoObra ?? 'Pública',
-        status: spec.status ?? (spec.inicio && spec.fim ? 'Obra em Andamento' : 'Confirmar Recurso'),
-        ordemInicio: spec.ordemInicio !== undefined ? spec.ordemInicio : (spec.inicio ? 'Ok' : null),
-        numeroContrato: contrato?.[1] ?? null, ano: contrato ? Number(contrato[2]) : null,
-        subitems: spec.subitems ?? [],
-      },
-      sincronizacao: { itemId: id, boardId: MONDAY_BOARD_ID, apiVersion: '2025-04', mondayUpdatedAt: '2026-10-19T09:00:00Z' },
+      nomeObra: spec.nome, empresa: spec.empresa, dataInicial: spec.inicio ?? null, dataFinal: spec.fim ?? null,
+      tipoObra: spec.tipoObra ?? 'Pública',
+      situacao: spec.status ?? (spec.inicio && spec.fim ? 'Obra em Andamento' : 'Confirmar Recurso'),
+      ordemInicio: spec.ordemInicio !== undefined ? spec.ordemInicio : (spec.inicio ? 'Ok' : null),
+      numeroContrato: contrato?.[1] ?? null, ano: contrato ? Number(contrato[2]) : null,
+      lotes: Object.fromEntries((spec.subitems ?? []).map((s, ordem) => [s.id, { nome: s.nome, status: s.status, ordem }])),
+      friday: { ok: true },
     },
   };
 }

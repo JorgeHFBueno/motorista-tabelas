@@ -2,16 +2,6 @@ import { onRequest } from 'firebase-functions/v2/https';
 import app from './api.js';
 import './firebaseAdmin.js';
 import adminApp from './adminApi.js';
-import mondaySyncApp from './mondaySync.js';
-import { mondayApiToken } from './mondayClient.js';
-import { mondayStatusAuditApp } from './mondayStatusAudit.js';
-import { mondayUpdateSubitemStatusApp } from './mondayUpdateSubitemStatus.js';
-import { mondayWebhookApp, mondayWebhookSigningSecret } from './mondayWebhook.js';
-import { mondayWebhookProvisionApp } from './mondayWebhookProvision.js';
-import { mondayOAuthStartApp, mondayOAuthCallbackApp, mondayOAuthClientSecret } from './mondayOAuth.js';
-import { mondayRefreshTokenSecret } from './mondayOAuthTokenStore.js';
-export { mondayLinkObraV2 } from './mondayLinkObraV2.js';
-export { mondayReconcileScheduled } from './mondayReconcileScheduled.js';
 export { getKioskCredentialStatus, provisionKioskCredential, revokeKioskQr, setKioskPin, setKioskPinEnabled } from './kiosk/kioskAdmin.js';
 export { kioskAuthenticatePin, kioskAuthenticateQr } from './kiosk/kioskAuth.js';
 export { kioskSessionEvent } from './kiosk/kioskSession.js';
@@ -26,10 +16,3 @@ export { manuscriptListTree, manuscriptGetDocument, manuscriptSearch, manuscript
 
 export const api = onRequest(app);
 export const adminApi = onRequest(adminApp);
-export const mondaySync = onRequest({ region: 'southamerica-east1', secrets: [mondayApiToken] }, mondaySyncApp);
-export const mondayStatusAudit = onRequest({ region: 'southamerica-east1', secrets: [mondayApiToken] }, mondayStatusAuditApp);
-export const mondayUpdateSubitemStatus = onRequest({ region: 'southamerica-east1', secrets: [mondayApiToken], invoker: 'public' }, mondayUpdateSubitemStatusApp);
-export const mondayWebhook = onRequest({ region: 'southamerica-east1', secrets: [mondayApiToken, mondayWebhookSigningSecret], invoker: 'public' }, mondayWebhookApp);
-export const mondayWebhookProvision = onRequest({ region: 'southamerica-east1', secrets: [mondayOAuthClientSecret, mondayRefreshTokenSecret] }, mondayWebhookProvisionApp);
-export const mondayOAuthStart = onRequest({ region: 'southamerica-east1' }, mondayOAuthStartApp);
-export const mondayOAuthCallback = onRequest({ region: 'southamerica-east1', secrets: [mondayOAuthClientSecret] }, mondayOAuthCallbackApp);

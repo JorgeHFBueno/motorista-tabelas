@@ -1,4 +1,4 @@
-import { SITUACOES_EXCLUIDAS, mondayItemUrl } from '../data/mondayPrazosSchema';
+import { SITUACOES_EXCLUIDAS, fridayItemUrl } from '../data/prazosSchema';
 
 export type CivilDate = string; // YYYY-MM-DD
 export type Lote = { id: string; nome: string; status: string };
@@ -41,12 +41,12 @@ export function hojeBrasilia(now = new Date()): CivilDate {
   return new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo', year: 'numeric', month: '2-digit', day: '2-digit' }).format(now);
 }
 
-// ---------- adaptação do documento `monday-obras` ----------
+// ---------- adaptação do documento `obras-v2` ----------
 const text = (value: unknown): string | null => (typeof value === 'string' && value.trim() ? value.trim() : null);
 const normalizar = (value: string) => value.normalize('NFD').replace(/[̀-ͯ]/g, '').trim().toLowerCase();
 
 /**
- * `monday-obras` não projeta a coluna Situação; o Status (fórmula) é o equivalente disponível.
+ * A situação vem do resultado da fórmula "Status" do quadro GESTÃO DE OBRAS (`obras-v2.situacao`).
  * Nos dados reais, as obras Entregues da especificação (ACIEPP, Sobradinho 01/2025) estão em "Solicitar termo Definitivo".
  */
 export function situacaoPeloStatus(status: string | null): string | null {
@@ -57,17 +57,24 @@ export function situacaoPeloStatus(status: string | null): string | null {
   return null;
 }
 
-export function adaptarDocumento(id: string, data: unknown): ObraPrazo | null {
-  const raw = data && typeof data === 'object' ? (data as { raw?: Record<string, unknown> }).raw : undefined;
-  if (!raw || typeof raw !== 'object') return null;
-  const subitems = Array.isArray(raw.subitems) ? raw.subitems as Array<Record<string, unknown>> : [];
-  const statusFluxo = text(raw.status);
+type LoteV2 = { nome?: unknown; status?: unknown; ordem?: unknown; situacao?: unknown };
+const ordemDoLote = (lote: LoteV2) => (typeof lote.ordem === 'number' && Number.isFinite(lote.ordem) ? lote.ordem : Number.MAX_SAFE_INTEGER);
+
+/** Contrato de obras-v2 ligado ao Friday; `fridayItemId` é o item dele no quadro (para o link), quando conhecido. */
+export function adaptarDocumento(id: string, data: unknown, fridayItemId?: number | null): ObraPrazo | null {
+  const doc = data && typeof data === 'object' ? data as Record<string, unknown> : undefined;
+  if (!doc || (doc.friday as { ok?: unknown } | undefined)?.ok !== true) return null;
+  const mapa = doc.lotes && typeof doc.lotes === 'object' && !Array.isArray(doc.lotes) ? doc.lotes as Record<string, LoteV2> : {};
+  // LOTE arquivado ou na lixeira no Friday fica no documento, marcado em `situacao`, e não entra.
+  const lotes = Object.entries(mapa).filter(([, l]) => l && typeof l === 'object' && l.situacao == null)
+    .sort(([a, x], [b, y]) => ordemDoLote(x) - ordemDoLote(y) || a.localeCompare(b));
+  const statusFluxo = text(doc.situacao);
   return {
-    id, nome: text(raw.nome) ?? id, empresa: text(raw.empresa) ?? '—',
-    inicio: isCivilDate(raw.inicio) ? raw.inicio : null, fim: isCivilDate(raw.fim) ? raw.fim : null,
-    situacao: situacaoPeloStatus(statusFluxo), tipoObra: text(raw.tipoObra), statusFluxo, ordemInicio: text(raw.ordemInicio),
-    url: mondayItemUrl(id),
-    lotes: subitems.map((s, i) => ({ id: text(s?.id) ?? `${id}-${i}`, nome: text(s?.nome) ?? 'Lote', status: text(s?.status) ?? 'Sem status' })),
+    id, nome: text(doc.nomeObra) ?? id, empresa: text(doc.empresa) ?? '—',
+    inicio: isCivilDate(doc.dataInicial) ? doc.dataInicial : null, fim: isCivilDate(doc.dataFinal) ? doc.dataFinal : null,
+    situacao: situacaoPeloStatus(statusFluxo), tipoObra: text(doc.tipoObra), statusFluxo, ordemInicio: text(doc.ordemInicio),
+    url: fridayItemUrl(fridayItemId),
+    lotes: lotes.map(([chave, l]) => ({ id: chave, nome: text(l.nome) ?? 'Lote', status: text(l.status) ?? 'Sem status' })),
   };
 }
 
@@ -120,11 +127,11 @@ export function situacaoPorDias(diasRestantes: number, limites: Limites = LIMITE
 export function calcularLinha(obra: ObraPrazo, hoje: CivilDate, limites: Limites = LIMITES_PADRAO): Omit<LinhaPrazo, 'posicao'> {
   const alertas: string[] = [];
   if (!obra.inicio || !obra.fim) {
-    if (obra.ordemInicio?.toLowerCase() === 'ok') alertas.push('Ordem de início "Ok", mas sem Início/Fim no Monday: provável erro de cadastro.');
+    if (obra.ordemInicio?.toLowerCase() === 'ok') alertas.push('Ordem de início "Ok", mas sem Início/Fim no Friday: provável erro de cadastro.');
     return { obra, duracao: null, diasRestantes: null, pctDecorrido: null, situacaoPrazo: 'sem-data', observacao: observacao(obra, true), alertas };
   }
   const duracao = diffDays(obra.fim, obra.inicio);
-  if (duracao < 0) alertas.push('Fim anterior ao Início: conferir datas no Monday.');
+  if (duracao < 0) alertas.push('Fim anterior ao Início: conferir datas no Friday.');
   const diasRestantes = diffDays(obra.fim, hoje);
   const pctDecorrido = duracao <= 0 ? 100 : Math.min(100, Math.max(0, (diffDays(hoje, obra.inicio) / duracao) * 100));
   return { obra, duracao, diasRestantes, pctDecorrido, situacaoPrazo: situacaoPorDias(diasRestantes, limites), observacao: observacao(obra, false), alertas };

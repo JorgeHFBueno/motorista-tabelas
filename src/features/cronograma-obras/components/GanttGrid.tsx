@@ -13,11 +13,11 @@ import {
 import type { CalendarDisplayOptions } from "./CalendarToggles";
 import { TimelineHeader } from "./TimelineHeader";
 import { StatusBadge } from "./StatusBadge";
-import { MondaySubitemStatusControl } from "./MondaySubitemStatusControl";
+import { LoteStatusControl } from "./LoteStatusControl";
 import { ContractAnalysisRequest } from "./ContractAnalysisRequest";
 import { ContractRowControls } from "./ContractRowControls";
 import { WorkHoverActions, WorkHoverTrigger } from "./WorkHoverActions";
-import type { MondaySubitemStatus } from "../../../services/mondaySubitemStatusService";
+import type { LoteStatus } from "../../../services/loteStatusService";
 import type {
   ContratoCronograma,
   MestrePlanejado,
@@ -37,7 +37,7 @@ import {
   weeklyTimelineCells,
 } from "../domain/temporal";
 import { getDirectMasterDropInterval } from "../domain/dropPlanning";
-import { requiresContractReview } from "../data/source/rawCronogramaAdapter";
+import { requiresContractReview } from "../data/source/obrasV2CronogramaAdapter";
 import {
   resizeMasterPlanning,
   type MasterResizeEdge,
@@ -109,7 +109,7 @@ interface Props {
   onResizeMasterCommit: (obraId: string, mestre: MestrePlanejado) => void;
   onResizeMasterCancel: (id: string) => void;
   onFocusDate: (date: string) => void;
-  onStatusConfirmed?: (mondaySubitemId: string, status: MondaySubitemStatus) => void;
+  onStatusConfirmed?: (contratoId: string, loteId: string, status: LoteStatus) => void;
   /** Allows the initial contract expansion state to be supplied by an embedding view. */
   initialExpandedContractIds?: readonly string[];
 }
@@ -1264,7 +1264,7 @@ export const GanttGrid = memo(function GanttGrid({
     if (notStarted) {
       const contrato = contratos.get(obra.contratoId ?? "");
       const review = obra.targetType === "contrato";
-      const status = review ? flat ? displayRawValue(contrato?.status) : "â€”" : <MondaySubitemStatusControl obra={obra} canStart onStatusConfirmed={onStatusConfirmed} />;
+      const status = review ? flat ? displayRawValue(contrato?.status) : "â€”" : <LoteStatusControl obra={obra} canStart onStatusConfirmed={onStatusConfirmed} />;
       const workName = review && contrato
         ? <ContractAnalysisRequest contrato={contrato} variant="alert" />
         : obra.nomeObra;
@@ -1304,7 +1304,7 @@ export const GanttGrid = memo(function GanttGrid({
           {flat && <span className="co-contract-name-flat" title={contrato?.nome ?? "—"}>{contrato?.nome ?? "—"}</span>}
           <span className="co-work-name" title={obra.nomeObra}>{contrato ? <WorkHoverTrigger id={obra.id} contractId={contrato.id} idObra={contrato.idObra} contractName={contrato.nome} subcentroErp={contrato.subcentroErp} onMore={() => onOpenContract(contrato)}>{obra.nomeObra}</WorkHoverTrigger> : obra.nomeObra}</span>
           {detailsVisible && <span>{obra.empresa}</span>}
-          {detailsVisible && <span><MondaySubitemStatusControl obra={obra} canStart={false} canFinish onStatusConfirmed={onStatusConfirmed} /></span>}
+          {detailsVisible && <span><LoteStatusControl obra={obra} canStart={false} canFinish onStatusConfirmed={onStatusConfirmed} /></span>}
           <span
             className="co-masters-cell"
             onClick={(event) => {

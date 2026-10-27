@@ -5,7 +5,6 @@ import DirectionsCarFilledIcon from '@mui/icons-material/DirectionsCarFilled';
 import FactCheckOutlinedIcon from '@mui/icons-material/FactCheckOutlined';
 import LocalGasStationIcon from '@mui/icons-material/LocalGasStation';
 import EngineeringIcon from '@mui/icons-material/Engineering';
-import ConstructionIcon from '@mui/icons-material/Construction';
 import CalendarMonthIcon from '@mui/icons-material/CalendarMonth';
 import EventBusyIcon from '@mui/icons-material/EventBusy';
 import MenuBookRoundedIcon from '@mui/icons-material/MenuBookRounded';
@@ -90,7 +89,6 @@ export const menuPrincipal: MenuPrincipalItem[] = [
     accent: '#6B5CA5',
     acesso: 'engenharia',
     children: [
-      { label: 'Obras', to: '/engenharia/obras', icon: <ConstructionIcon /> },
       { label: 'Cronograma', to: '/engenharia/cronograma', icon: <CalendarMonthIcon /> },
       { label: 'Prazos contratuais', to: '/engenharia/prazos', icon: <EventBusyIcon /> },
     ],

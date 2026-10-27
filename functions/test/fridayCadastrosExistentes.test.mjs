@@ -317,3 +317,28 @@ test('obras-v2: contrato novo criado pela conciliação nasce com os padrões do
   assert.equal(r.doc.nomeObra, 'NOVO CONTRATO 12/2026');
   assert.deepEqual([r.doc.siglaObra, r.doc.codObra, r.doc.local, r.doc.status, r.doc.situacao, r.doc.dataFinal], ['', 0, 'CORRIGIR', 'CONTRATADA', null, null]);
 });
+
+test('gravação pelo registro: escolhe o item do LOTE certo, só nos cadastros ativos da coleção', () => {
+  const itens = [
+    { id: 1, vinculo: { cadastro: 'obras_v2_q', id: 'V1' } },
+    { id: 2, vinculo: { cadastro: 'obras_v2_q', id: 'V1', sub: 'L1' } },
+    { id: 3, vinculo: { cadastro: 'obras_v2_q', id: 'V1', sub: 'L2' } },
+    { id: 4, vinculo: { cadastro: 'outro', id: 'V1', sub: 'L1' } },
+  ];
+  const chaves = new Set(['obras_v2_q']);
+  assert.equal(m.itemDoRegistro(itens, chaves, 'L1').item.id, 2);
+  assert.equal(m.itemDoRegistro(itens, chaves, null).item.id, 1);
+  assert.match(m.itemDoRegistro(itens, chaves, 'L9').erro, /não está ligado/);
+  assert.match(m.itemDoRegistro(itens, new Set(), 'L1').erro, /não está ligado/);
+  assert.match(m.itemDoRegistro([...itens, { id: 5, vinculo: { cadastro: 'obras_v2_q', id: 'V1', sub: 'L1' } }], chaves, 'L1').erro, /Mais de um/);
+});
+
+test('gravação pelo registro: o texto do rótulo vira o id do rótulo no Friday', () => {
+  const status = { chave: 'status', titulo: 'Status', tipo: 'status', coluna_id: 9, situacao: 'ativo', rotulos: [
+    { codigo: 'Finalizado', texto: 'Finalizado', cor: '#0c7', friday_id: '2' }, { codigo: 'Não iniciada', texto: 'Não iniciada', cor: '#ccc', friday_id: '6' }] };
+  assert.deepEqual(m.valorPeloTexto(status, 'Finalizado'), { valor: '2' });
+  assert.match(m.valorPeloTexto(status, 'Concluído').erro, /não é um valor/);
+  assert.match(m.valorPeloTexto({ ...status, situacao: 'descontinuado' }, 'Finalizado').erro, /não é um campo oficial ativo/);
+  assert.match(m.valorPeloTexto({ ...status, tipo: 'texto' }, 'Finalizado').erro, /não é um campo de rótulo/);
+  assert.match(m.valorPeloTexto(undefined, 'Finalizado').erro, /não é um campo oficial ativo/);
+});

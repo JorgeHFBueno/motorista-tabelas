@@ -3,11 +3,11 @@ import * as logger from 'firebase-functions/logger';
 import { FieldPath, FieldValue, Timestamp } from 'firebase-admin/firestore';
 import { db } from './firebaseAdmin.js';
 import { exigirAdm2 } from './fridayMondayImport.js';
-import { temCredencial } from './credenciais.js';
+import { temCredencial, type Credencial } from './credenciais.js';
 import { dataLocal, novoId, prefixosBusca } from './fridayMondayConverter.js';
 import {
-  acrescentarRotulosDeTexto, analisar, CADASTROS_EXISTENTES, cadastroExistente, caminhoDaMarca, chaveDoExistente, conciliacaoLiberada, gravarCaminho, lerCaminho, montarCamposExistente,
-  planejar, valorParaContrato, valorParaGravarExistente, type CampoExistente, type ChaveConciliacao, type Decisoes, type ItemConciliavel, type PedidoLigacao,
+  acrescentarRotulosDeTexto, analisar, CADASTROS_EXISTENTES, cadastroExistente, caminhoDaMarca, chaveDoExistente, conciliacaoLiberada, gravarCaminho, itemDoRegistro, lerCaminho,
+  montarCamposExistente, planejar, valorParaContrato, valorParaGravarExistente, valorPeloTexto, type CampoExistente, type ChaveConciliacao, type Decisoes, type ItemConciliavel, type PedidoLigacao,
   type RegistroExistente,
 } from './fridayCadastrosExistentes.js';
 import {
@@ -129,11 +129,11 @@ export const fridayCadastroPromover = onCall({ region: REGIAO, timeoutSeconds: 5
 });
 
 // ---------------------------------------------------------------- C2: gravação do quadro oficial
-/** Quem usa o Friday: credencial escritorio (ou adm2), como nas Rules `friday-*`. */
-async function exigirFuncionarioAtivo(uid: string | undefined): Promise<string> {
+/** Quem usa o Friday: credencial escritorio (ou adm2), como nas Rules `friday-*`; a gravação aceita também engenharia (CronoObra). */
+async function exigirFuncionarioAtivo(uid: string | undefined, ...aceitas: Credencial[]): Promise<string> {
   if (!uid) throw new HttpsError('unauthenticated', 'Autenticação obrigatória.');
   const f = await db.collection('funcionarios').doc(uid).get();
-  if (!temCredencial(f.data(), 'escritorio')) throw new HttpsError('permission-denied', 'Acesso não autorizado.');
+  if (!temCredencial(f.data(), ...(aceitas.length ? aceitas : ['escritorio' as const]))) throw new HttpsError('permission-denied', 'Acesso não autorizado.');
   return uid;
 }
 
@@ -347,17 +347,44 @@ async function vincularSubitemExistente(item: AnyRecord, e: Escopo) {
   return { id: pai.vinculo.id, sub: chaveSub };
 }
 
-/** Gravação nos cadastros oficiais a partir do quadro do Friday: valor de campo, nome, situação ou vínculo de item novo. */
+/**
+ * Item, coluna e valor a partir do registro oficial: `{ colecao, id, sub? }`, a chave do campo e o texto do rótulo.
+ * É o caminho de quem não lê as coleções do Friday (CronoObra: Status do LOTE em obras-v2/{id}.lotes.{sub}).
+ */
+async function alvoPeloRegistro(registro: unknown, campoChave: unknown, texto: unknown) {
+  const r = (registro ?? {}) as { colecao?: unknown; id?: unknown; sub?: unknown };
+  if (typeof r.colecao !== 'string' || !r.colecao || typeof r.id !== 'string' || !r.id || (r.sub != null && typeof r.sub !== 'string') || typeof campoChave !== 'string') {
+    throw new HttpsError('invalid-argument', 'Registro inválido.');
+  }
+  const chaves = new Set((await db.collection('friday-cadastros').where('colecao', '==', r.colecao).get()).docs
+    .map(d => d.data()).filter(x => x.modo === 'existente' && x.situacao === 'ativo').map(x => String(x.chave)));
+  const itens = (await db.collection('friday-itens').where('vinculo.id', '==', r.id).get()).docs.map(d => d.data());
+  const achado = itemDoRegistro(itens, chaves, (r.sub as string | undefined) ?? null);
+  if ('erro' in achado) throw new HttpsError('failed-precondition', achado.erro);
+  const e = await escopoDoQuadro(Number(achado.item.quadro_id));
+  const campo = (e.campos as CampoExistente[]).find(c => c.chave === campoChave);
+  const v = valorPeloTexto(campo, texto);
+  if ('erro' in v) throw new HttpsError('invalid-argument', v.erro);
+  return { itemId: Number(achado.item.id), colunaId: campo!.coluna_id, valor: v.valor };
+}
+
+/**
+ * Gravação nos cadastros oficiais a partir do quadro do Friday: valor de campo, nome, situação ou vínculo de item novo.
+ * Sem `itemId`, o valor pode vir pelo registro oficial (`registro`, `campo`, `texto`; só `op: 'valor'`).
+ */
 export const fridayCadastroGravar = onCall({ region: REGIAO, timeoutSeconds: 60, memory: '512MiB' }, async (request) => {
-  const uid = await exigirFuncionarioAtivo(request.auth?.uid);
-  const d = (request.data ?? {}) as { itemId?: unknown; op?: unknown; colunaId?: unknown; valor?: unknown };
-  const itemId = Number(d.itemId);
+  const uid = await exigirFuncionarioAtivo(request.auth?.uid, 'escritorio', 'engenharia');
+  const d = (request.data ?? {}) as { itemId?: unknown; op?: unknown; colunaId?: unknown; valor?: unknown; registro?: unknown; campo?: unknown; texto?: unknown };
   const op = String(d.op ?? '') as Operacao;
-  if (!Number.isSafeInteger(itemId)) throw new HttpsError('invalid-argument', 'itemId inválido.');
   if (!OPERACOES.includes(op)) throw new HttpsError('invalid-argument', 'Operação inválida.');
-  const colunaId = d.colunaId == null ? null : Number(d.colunaId);
+  if (d.registro != null && op !== 'valor') throw new HttpsError('invalid-argument', 'Pelo registro, só a operação valor.');
+  let itemId = Number(d.itemId);
   try {
-    return await gravar(uid, itemId, op, colunaId, d.valor);
+    let colunaId = d.colunaId == null ? null : Number(d.colunaId);
+    let valor = d.valor;
+    if (d.registro != null) ({ itemId, colunaId, valor } = await alvoPeloRegistro(d.registro, d.campo, d.texto));
+    if (!Number.isSafeInteger(itemId)) throw new HttpsError('invalid-argument', 'itemId inválido.');
+    return await gravar(uid, itemId, op, colunaId, valor);
   } catch (e) {
     if (e instanceof HttpsError) throw e;
     const mensagem = e instanceof Error ? e.message : String(e);

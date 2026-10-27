@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { PRAZOS_FIXTURE } from "./prazos-contratuais.fixture";
-import { MONDAY_BOARD_ID } from "../src/features/prazos-contratuais/data/mondayPrazosSchema";
+import { FRIDAY_QUADRO_OBRAS } from "../src/features/prazos-contratuais/data/prazosSchema";
 import {
   adaptarDocumento, calcularLinha, colunasTempo, hojeBrasilia, montarPrazos, posicaoHoje, resumoLotes, situacaoPeloStatus, situacaoPorDias, trechosBarra,
   type ObraPrazo,
@@ -92,14 +92,24 @@ test("Situação comes from the projected Status formula", () => {
     ["Finalizada", "Entregue", "Parada", null, null, null]);
 });
 
-test("adapter reads the current monday-obras projection and links to the Monday item", () => {
-  const atual = adaptarDocumento("123", { raw: { nome: "X", tipoObra: "Pública", inicio: "2026-01-01", fim: "bad", subitems: null } }) as ObraPrazo;
+test("adapter reads the obras-v2 contract linked to Friday and links to its Friday item", () => {
+  const atual = adaptarDocumento("123", { nomeObra: "X", tipoObra: "Pública", dataInicial: "2026-01-01", dataFinal: "bad", lotes: null, friday: { ok: true } }, 77) as ObraPrazo;
   assert.equal(atual.fim, null);
   assert.deepEqual(atual.lotes, []);
-  assert.equal(atual.url, `https://ledur.monday.com/boards/${MONDAY_BOARD_ID}/pulses/123`);
+  assert.equal(atual.url, `/friday/quadros/${FRIDAY_QUADRO_OBRAS}?item=77`);
+  assert.equal(adaptarDocumento("123", { nomeObra: "X", friday: { ok: true } })?.url, `/friday/quadros/${FRIDAY_QUADRO_OBRAS}`);
   assert.equal(montarPrazos([atual], HOJE, todas).linhas.length, 1);
   assert.equal(montarPrazos([{ ...atual, tipoObra: null }], HOJE, todas).linhas.length, 0);
   assert.equal(adaptarDocumento("x", { foo: 1 }), null);
+  assert.equal(adaptarDocumento("x", { nomeObra: "Fora do Friday" }), null);
+});
+
+test("adapter keeps LOTEs in Friday order and leaves out archived or trashed ones", () => {
+  const obra = adaptarDocumento("c", { nomeObra: "C", friday: { ok: true }, lotes: {
+    b: { nome: "Segundo", status: "Em andamento", ordem: 1 }, a: { nome: "Primeiro", status: "Finalizado", ordem: 0 },
+    x: { nome: "Arquivado", status: "Parada", ordem: 2, situacao: "arquivado" }, y: { nome: "Lixeira", status: "Parada", ordem: 3, situacao: "excluido" },
+  } })!;
+  assert.deepEqual(obra.lotes.map((l) => [l.id, l.nome, l.status]), [["a", "Primeiro", "Finalizado"], ["b", "Segundo", "Em andamento"]]);
 });
 
 // ---------- Linha de Base do Cronograma: mesmas regras ----------

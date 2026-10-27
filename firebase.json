@@ -32,19 +32,8 @@
     ],
     "rewrites": [
       {
-        "source": "/api/monday-link-obra-v2",
-        "function": {
-          "functionId": "mondayLinkObraV2",
-          "region": "southamerica-east1"
-        }
-      },
-      {
         "source": "/api/admin/**",
         "function": "adminApi"
-      },
-      {
-        "source": "/api/monday-sync",
-        "function": "mondaySync"
       },
       {
         "source": "/api/**",

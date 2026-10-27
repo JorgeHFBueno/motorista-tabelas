@@ -506,3 +506,24 @@ export function acrescentarRotulosDeTexto(config: AnyRecord | undefined, campo: 
   }
   return { config: { ...(config ?? {}), rotulos }, campo: { ...campo, rotulos: [...(campo.rotulos ?? []), ...novosCampo] } };
 }
+
+// ---------------------------------------------------------------- gravação pelo registro (CronoObra)
+/**
+ * Quem não lê as coleções do Friday (credencial engenharia, no CronoObra) grava pelo registro oficial: documento e,
+ * nos subitens, a chave da entrada (ex.: obras-v2/{id}, LOTE `lotes.{sub}`). Aqui se escolhe o item do Friday
+ * vinculado a ele, entre os itens que apontam para o documento, só nos cadastros ativos da coleção.
+ */
+export function itemDoRegistro(itens: AnyRecord[], chaves: Set<string>, sub: string | null): { item: AnyRecord } | { erro: string } {
+  const achados = itens.filter(i => chaves.has(String(i.vinculo?.cadastro)) && String(i.vinculo?.sub ?? '') === String(sub ?? ''));
+  if (achados.length === 1) return { item: achados[0] };
+  return { erro: achados.length ? 'Mais de um item do Friday ligado a este registro.' : 'Este registro não está ligado a um item do Friday.' };
+}
+
+/** Valor da célula a partir do texto do rótulo (o id do rótulo no Friday). Só campos de rótulo. */
+export function valorPeloTexto(campo: CampoExistente | undefined, texto: unknown): { valor: string } | { erro: string } {
+  if (!campo || campo.situacao !== 'ativo' || campo.secundario) return { erro: 'Este campo não é um campo oficial ativo.' };
+  if (campo.tipo !== 'status') return { erro: `"${campo.titulo}" não é um campo de rótulo.` };
+  const rotulo = (campo.rotulos ?? []).find(r => r.texto === texto);
+  if (!rotulo?.friday_id) return { erro: `"${String(texto)}" não é um valor de "${campo.titulo}".` };
+  return { valor: String(rotulo.friday_id) };
+}
