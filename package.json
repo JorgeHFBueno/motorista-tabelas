@@ -21,6 +21,7 @@
     "test:obras": "esbuild tests/monday-obras-reconciliation-ui.test.ts --bundle --platform=node --format=esm --outfile=.tmp-monday-obras-ui.test.mjs && node --test .tmp-monday-obras-ui.test.mjs",
     "test:engenharia-obras": "esbuild tests/engenharia-obras-page-state.test.ts --bundle --platform=node --format=esm --outfile=.tmp-engenharia-obras-page-state.test.mjs && node --test .tmp-engenharia-obras-page-state.test.mjs",
     "test:friday-mudar-tipo": "esbuild tests/friday-mudar-tipo.test.ts --bundle --platform=node --format=esm --outfile=.tmp-friday-mudar-tipo.test.mjs && node --test .tmp-friday-mudar-tipo.test.mjs",
+    "test:friday-formula": "esbuild tests/friday-formula-servidor.test.ts --bundle --platform=node --format=esm --outfile=.tmp-friday-formula.test.mjs && node --test .tmp-friday-formula.test.mjs",
     "test:prazos": "esbuild tests/prazos-contratuais.test.ts --bundle --platform=node --format=esm --outfile=.tmp-prazos-contratuais.test.mjs && node --test .tmp-prazos-contratuais.test.mjs",
     "test:rules": "firebase emulators:exec --only firestore,storage --project demo-firebase-rules \"node --test tests/rules/*.test.mjs\"",
     "test:rules:firestore": "firebase emulators:exec --only firestore --project demo-firebase-rules \"node --test --test-name-pattern=^\\[firestore\\] tests/rules/*.test.mjs\"",

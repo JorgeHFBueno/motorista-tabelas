@@ -20,6 +20,7 @@ export const COLUNAS_COMPATIVEIS: Record<TipoContrato, string[]> = {
 export type CampoContrato = {
   caminho: string; titulo: string; tipo: TipoContrato; obrigatorio: boolean; nulo: boolean;
   inteiro?: boolean; escala?: number; somente_leitura?: boolean; padrao?: unknown;
+  exato?: boolean;            // texto guardado como veio (sem tirar espaços), ex.: identificador do ERP
   opcoes?: string[];          // opções fixas do contrato (o adm2 liga cada rótulo a uma)
   opcoes_abertas?: boolean;   // opções vêm dos rótulos do quadro, com código estável ("Disponível" → "disponivel")
   derivado?: boolean;         // calculado a partir de outro campo; não é ligado a coluna
@@ -34,6 +35,11 @@ export type CadastroExistente = {
   grupo_livre: string;     // demais colunas viram campos oficiais em `<grupo_livre>.<chave>`
   campos: CampoContrato[];
   fixos: AnyRecord;        // campos gravados em todo registro criado pelo Friday
+  // Subitens do quadro ligados a um mapa do documento (`<chave>.<id>.<campo>`), ex.: os LOTEs de um contrato.
+  subitens?: { chave: string; nome_caminho: string; ordem_caminho: string; campos: CampoContrato[] };
+  // Campo calculado por uma fórmula do quadro (Function fridayObrasSituacao): `caminho` guarda o resultado e
+  // `status.caminho` vira `sim` quando o resultado é `quando`, senão `nao`. A coluna fica no registro (formula_situacao).
+  situacao_por_formula?: { caminho: string; status: { caminho: string; quando: string; sim: string; nao: string } };
 };
 
 // veiculos-v2 (Manuscript 01_FIRESTORE/COLECOES/veiculos-v2.md). A quilometragem é do app (só leitura no quadro).
@@ -70,7 +76,44 @@ const VEICULOS_V2: CadastroExistente = {
   ],
 };
 
-export const CADASTROS_EXISTENTES: CadastroExistente[] = [VEICULOS_V2];
+// obras-v2 (Manuscript 01_FIRESTORE/COLECOES/obras-v2.md): um documento por contrato, LOTEs em `lotes.{id}`.
+// O nome do item é o `nomeObra` (nome do contrato). `situacao` e `status` vêm da fórmula "Status" do quadro.
+// Código, sigla e local ficam no documento; só entram no quadro se forem ligados a uma coluna.
+const opcional = (caminho: string, titulo: string, tipo: TipoContrato, extra: Partial<CampoContrato> = {}): CampoContrato =>
+  ({ caminho, titulo, tipo, obrigatorio: true, nulo: true, ...extra });
+const OBRAS_V2: CadastroExistente = {
+  colecao: 'obras-v2',
+  nome: 'Obras (contratos)',
+  descricao: 'Cadastro canônico de obras: um contrato por documento, com os LOTEs; usado no combustível, nas atividades do app e no CronoObra.',
+  chaves: ['nomeObra'],
+  nome_item: 'nomeObra',
+  grupo_livre: 'friday',
+  fixos: {},
+  campos: [
+    { caminho: 'nomeObra', titulo: 'Nome do contrato', tipo: 'texto', obrigatorio: true, nulo: false },
+    { caminho: 'siglaObra', titulo: 'Sigla', tipo: 'texto', obrigatorio: true, nulo: false, padrao: '' },
+    { caminho: 'codObra', titulo: 'Código (Plannix)', tipo: 'numero', obrigatorio: true, nulo: false, inteiro: true, padrao: 0 },
+    { caminho: 'local', titulo: 'Local', tipo: 'texto', obrigatorio: true, nulo: false, padrao: 'CORRIGIR' },
+    { caminho: 'status', titulo: 'Status (calculado da fórmula)', tipo: 'opcao', obrigatorio: true, nulo: false, opcoes: ['CONTRATADA', 'FINALIZADA'], padrao: 'CONTRATADA', derivado: true },
+    opcional('situacao', 'Situação (resultado da fórmula)', 'texto', { derivado: true }),
+    opcional('numeroContrato', 'Nº do contrato', 'texto'),
+    opcional('ano', 'Ano', 'numero', { inteiro: true }),
+    opcional('empresa', 'Empresa', 'texto'),
+    opcional('tipoObra', 'Tipo de obra', 'texto'),
+    opcional('subcentroErp', 'Subcentro ERP', 'texto', { exato: true }),
+    opcional('ordemInicio', 'Ordem de início', 'texto'),
+    opcional('confirmacaoRecurso', 'Confirmação de recurso', 'texto'),
+    opcional('dataInicial', 'Início', 'data'),
+    opcional('dataFinal', 'Fim', 'data'),
+  ],
+  subitens: {
+    chave: 'lotes', nome_caminho: 'nome', ordem_caminho: 'ordem',
+    campos: [{ caminho: 'status', titulo: 'Status do LOTE', tipo: 'texto', obrigatorio: false, nulo: true }],
+  },
+  situacao_por_formula: { caminho: 'situacao', status: { caminho: 'status', quando: 'Obra Finalizada', sim: 'FINALIZADA', nao: 'CONTRATADA' } },
+};
+
+export const CADASTROS_EXISTENTES: CadastroExistente[] = [VEICULOS_V2, OBRAS_V2];
 export const cadastroExistente = (colecao: unknown) => CADASTROS_EXISTENTES.find(c => c.colecao === colecao);
 
 /**
@@ -166,7 +209,7 @@ export type Prioridade = 'cadastro' | 'quadro';
  */
 export type CampoExistente = CampoOficial & {
   tipo_contrato?: TipoContrato; obrigatorio: boolean; nulo: boolean; inteiro?: boolean; escala?: number; somente_leitura?: boolean;
-  opcoes_abertas?: boolean; deriva?: { caminho: string; verdadeiro_quando: string }; prioridade: Prioridade;
+  opcoes_abertas?: boolean; deriva?: { caminho: string; verdadeiro_quando: string }; prioridade: Prioridade; exato?: boolean;
   // Secundário: a coluna já é de outro campo (o principal, que ela mostra); este só é gravado a partir dela.
   secundario?: boolean;
 };
@@ -182,14 +225,15 @@ const rotulosDaColuna = (col: ColunaQuadro) => ((col.config?.rotulos ?? []) as A
  * estar ligada ao campo-chave. Em opções fixas, cada rótulo usado no Friday precisa de uma opção do contrato.
  */
 export function montarCamposExistente(cadastro: CadastroExistente, colunas: ColunaQuadro[], pedidos: PedidoLigacao[],
-  chave: ChaveConciliacao): { campos: CampoExistente[]; erros: string[] } {
+  chave: ChaveConciliacao | null): { campos: CampoExistente[]; erros: string[] } {
   const erros: string[] = [];
   const campos: CampoExistente[] = [];
   const porId = new Map(colunas.map(c => [Number(c.id), c]));
   const caminhos = new Set<string>(), usadas = new Set<number>();
   const livre = `${cadastro.grupo_livre}.`;
-  if (!cadastro.chaves.includes(chave.caminho)) erros.push(`"${chave.caminho}" não é um campo-chave de ${cadastro.colecao}.`);
-  if (chave.coluna_id != null && !pedidos.some(p => p.caminho === chave.caminho && Number(p.coluna_id) === chave.coluna_id)) {
+  // Sem chave: campos dos subitens (o vínculo de cada subitem vem do item pai).
+  if (chave && !cadastro.chaves.includes(chave.caminho)) erros.push(`"${chave.caminho}" não é um campo-chave de ${cadastro.colecao}.`);
+  if (chave && chave.coluna_id != null && !pedidos.some(p => p.caminho === chave.caminho && Number(p.coluna_id) === chave.coluna_id)) {
     erros.push('A coluna-chave precisa estar ligada ao campo-chave.');
   }
   for (const p of pedidos) {
@@ -241,7 +285,7 @@ export function montarCamposExistente(cadastro: CadastroExistente, colunas: Colu
       tipo_contrato: contrato.tipo, obrigatorio: contrato.obrigatorio, nulo: contrato.nulo,
       ...(contrato.inteiro ? { inteiro: true } : {}), ...(escalaEfetiva(contrato, col) !== 1 ? { escala: escalaEfetiva(contrato, col) } : {}),
       ...(contrato.somente_leitura ? { somente_leitura: true } : {}), ...(contrato.opcoes_abertas ? { opcoes_abertas: true } : {}),
-      ...(contrato.deriva ? { deriva: contrato.deriva } : {}),
+      ...(contrato.deriva ? { deriva: contrato.deriva } : {}), ...(contrato.exato ? { exato: true } : {}),
       prioridade: contrato.somente_leitura ? 'cadastro' : p.prioridade === 'quadro' ? 'quadro' : 'cadastro',
     });
   }
@@ -250,6 +294,20 @@ export function montarCamposExistente(cadastro: CadastroExistente, colunas: Colu
 }
 
 const vazio = (v: unknown) => v == null || v === '' || (Array.isArray(v) && v.length === 0);
+
+/** Campos dos subitens de um cadastro existente (ex.: Status do LOTE → `lotes.{id}.status`), ligados como os do item. */
+export function montarCamposSubitens(cadastro: CadastroExistente, colunas: ColunaQuadro[], pedidos: PedidoLigacao[]) {
+  if (!cadastro.subitens) return { campos: [] as CampoExistente[], erros: [`${cadastro.colecao} não tem subitens oficiais.`] };
+  return montarCamposExistente({ ...cadastro, campos: cadastro.subitens.campos, chaves: [] }, colunas, pedidos, null);
+}
+
+/** Resultado da fórmula → campos calculados (ex.: "Obra Finalizada" → situacao e status FINALIZADA). */
+export function camposDaFormula(cadastro: CadastroExistente, resultado: unknown): [string, unknown][] {
+  const f = cadastro.situacao_por_formula;
+  if (!f) return [];
+  const texto = String(resultado ?? '').trim();
+  return [[f.caminho, texto || null], [f.status.caminho, texto === f.status.quando ? f.status.sim : f.status.nao]];
+}
 
 /**
  * Valor da célula do Friday → valor do documento. `vazio: true` quando a célula não tem valor (o que gravar fica a
@@ -267,7 +325,7 @@ export function valorParaContrato(campo: CampoExistente, valor: unknown): { valo
     return r ? { valor: r.codigo } : { erro: `O rótulo escolhido em "${campo.titulo}" não tem opção correspondente no cadastro.` };
   }
   switch (campo.tipo_contrato) {
-    case 'texto': return { valor: String(valor).trim() };
+    case 'texto': return campo.exato ? (String(valor).trim() ? { valor: String(valor) } : { vazio: true }) : { valor: String(valor).trim() };
     case 'data': return /^\d{4}-\d{2}-\d{2}/.test(String(valor)) ? { valor: String(valor).slice(0, 10) } : { erro: `Data inválida em "${campo.titulo}".` };
     case 'numero': {
       let n = Number(valor);

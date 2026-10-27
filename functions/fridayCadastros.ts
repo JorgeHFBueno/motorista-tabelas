@@ -7,7 +7,7 @@ import { temCredencial } from './credenciais.js';
 import { dataLocal, novoId, prefixosBusca } from './fridayMondayConverter.js';
 import {
   acrescentarRotulosDeTexto, analisar, CADASTROS_EXISTENTES, cadastroExistente, caminhoDaMarca, chaveDoExistente, conciliacaoLiberada, gravarCaminho, lerCaminho, montarCamposExistente,
-  planejar, valorParaGravarExistente, type CampoExistente, type ChaveConciliacao, type Decisoes, type ItemConciliavel, type PedidoLigacao,
+  planejar, valorParaContrato, valorParaGravarExistente, type CampoExistente, type ChaveConciliacao, type Decisoes, type ItemConciliavel, type PedidoLigacao,
   type RegistroExistente,
 } from './fridayCadastrosExistentes.js';
 import {
@@ -261,15 +261,25 @@ async function gravar(uid: string, itemId: number, op: Operacao, colunaId: numbe
  */
 async function gravarExistente(uid: string, item: AnyRecord, e: Escopo, op: Operacao, colunaId: number | null, valor: unknown) {
   void uid;
-  if (op === 'vincular' || op === 'situacao' || op === 'grupo') return { ok: true, livre: op === 'vincular' };
+  // Subitens (ex.: LOTEs de obras-v2): cada subitem é a entrada `<mapa>.<vinculo.sub>` do documento do item pai.
+  if (op === 'vincular') return e.sub ? vincularSubitemExistente(item, e) : { ok: true, livre: true };
+  if (op === 'grupo' || (op === 'situacao' && !e.sub)) return { ok: true, livre: false };
   if (item.vinculo?.cadastro !== e.chave) throw new HttpsError('failed-precondition', 'O item não está vinculado ao cadastro.');
   const ref = db.collection(String(e.registro.colecao)).doc(String(item.vinculo.id));
+  const prefixo = e.sub ? [e.subChave!, String(item.vinculo.sub)] : [];
+  const caminhoNoDoc = (k: string) => new FieldPath(...prefixo, ...k.split('.'));
+  if (op === 'situacao') {
+    // Subitem arquivado ou na lixeira: a entrada fica, marcada (ativo = sem o campo).
+    const s = situacaoDoItem(item);
+    await ref.update(caminhoNoDoc('situacao'), s === 'ativo' ? FieldValue.delete() : s);
+    return { ok: true };
+  }
   if (op === 'nome') {
-    const caminho = e.registro.nome_caminho as string | null;
+    const caminho = (e.sub ? e.registro.subitens?.nome_caminho : e.registro.nome_caminho) as string | null | undefined;
     if (!caminho) return { ok: true };
     const nome = String(item.nome ?? '').trim();
-    if (!nome) throw new HttpsError('invalid-argument', 'O nome do item é a chave do cadastro e não pode ficar vazio.');
-    await ref.update(new FieldPath(...caminho.split('.')), nome);
+    if (!nome) throw new HttpsError('invalid-argument', 'O nome do item é gravado no cadastro e não pode ficar vazio.');
+    await ref.update(caminhoNoDoc(caminho), nome);
     return { ok: true };
   }
   const indice = e.campos.findIndex(c => c.coluna_id === colunaId && c.situacao === 'ativo' && !(c as CampoExistente).secundario);
@@ -296,8 +306,45 @@ async function gravarExistente(uid: string, item: AnyRecord, e: Escopo, op: Oper
   const extras = (e.campos as CampoExistente[]).filter(c => c.coluna_id === colunaId && c.situacao === 'ativo' && c.secundario)
     .flatMap(c => { const x = valorParaGravarExistente(c, valor); return 'erro' in x || valor == null ? [] : x.gravar; });
   const gravar = [...r.gravar, ...extras];
-  await ref.update(...(gravar.flatMap(([caminho, v]) => [new FieldPath(...caminho.split('.')), v]) as [FieldPath, unknown]));
+  await ref.update(...(gravar.flatMap(([caminho, v]) => [caminhoNoDoc(caminho), v]) as [FieldPath, unknown]));
   return { ok: true, valor: r.gravar[0][1] };
+}
+
+/**
+ * Subitem novo (ou duplicado) num cadastro existente com subitens oficiais: vira uma entrada nova no mapa do registro
+ * do item pai, com a chave = id do subitem, o nome, a ordem (depois da última) e os campos ligados. Subitem de item
+ * ainda sem vínculo fica livre, como o próprio item. Entradas que já existiam (ex.: LOTEs vindos do monday) mantêm a
+ * chave delas: o vínculo do subitem guarda essa chave em `sub`.
+ */
+async function vincularSubitemExistente(item: AnyRecord, e: Escopo) {
+  if (item.vinculo?.cadastro === e.chave) return { id: item.vinculo.id, sub: item.vinculo.sub };
+  const pai = item.item_pai_id != null ? (await db.collection('friday-itens').doc(String(item.item_pai_id)).get()).data() : undefined;
+  if (pai?.vinculo?.cadastro !== e.chave) return { ok: true, livre: true };
+  const sub = (e.registro.subitens ?? {}) as { nome_caminho?: string; ordem_caminho?: string };
+  const ativos = (e.campos as CampoExistente[]).filter(c => c.situacao === 'ativo' && !c.secundario);
+  const paiRef = db.collection(String(e.registro.colecao)).doc(String(pai.vinculo.id));
+  const itemRef = db.collection('friday-itens').doc(String(item.id));
+  const chaveSub = String(item.id);
+  await db.runTransaction(async t => {
+    const doc = (await t.get(paiRef)).data();
+    if (!doc) throw new HttpsError('failed-precondition', 'O registro do item pai não existe mais.');
+    const mapa = (doc[e.subChave!] ?? {}) as AnyRecord;
+    const entrada: AnyRecord = {};
+    if (sub.nome_caminho) gravarCaminho(entrada, sub.nome_caminho, String(item.nome ?? '').trim());
+    if (sub.ordem_caminho) {
+      const ordens = Object.values(mapa).map(x => Number(lerCaminho(x as AnyRecord, sub.ordem_caminho!))).filter(Number.isFinite);
+      gravarCaminho(entrada, sub.ordem_caminho, Math.max(-1, ...ordens) + 1);
+    }
+    for (const c of ativos) {
+      const r = valorParaContrato(c, item.valores?.[String(c.coluna_id)]);
+      if (r.erro) throw new HttpsError('invalid-argument', r.erro);
+      gravarCaminho(entrada, c.chave, r.vazio ? null : r.valor);
+    }
+    if (situacaoDoItem(item) !== 'ativo') entrada.situacao = situacaoDoItem(item);
+    t.update(paiRef, new FieldPath(e.subChave!, chaveSub), entrada);
+    t.update(itemRef, 'vinculo', { cadastro: e.chave, id: pai.vinculo.id, sub: chaveSub }, ...apagarValores(ativos));
+  });
+  return { id: pai.vinculo.id, sub: chaveSub };
 }
 
 /** Gravação nos cadastros oficiais a partir do quadro do Friday: valor de campo, nome, situação ou vínculo de item novo. */

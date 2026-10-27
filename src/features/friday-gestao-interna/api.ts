@@ -621,8 +621,9 @@ async function duplicarItem(id: number) {
   const nome = `${item.nome} (cópia)`;
   const completoItem = await comOficiais(item);
   const novo = await inserir('itens', { quadro_id: item.quadro_id, grupo_id: item.grupo_id, item_pai_id: item.item_pai_id, nome, posicao: Number(item.posicao) + 0.5, valores: completoItem.valores ?? {}, criado_por: eu().id });
-  // Num cadastro existente, a cópia nasce sem vínculo (vira registro só pela conciliação).
-  if (item.vinculo && (await registroDe(item.vinculo.cadastro))?.modo !== 'existente') await gravarOficial(novo.id, 'vincular');
+  // Num cadastro existente, a cópia de um item nasce sem vínculo (vira registro só pela conciliação); a de um subitem
+  // vira uma entrada nova no registro do item pai (ex.: LOTE de obras-v2).
+  if (item.vinculo && ((await registroDe(item.vinculo.cadastro))?.modo !== 'existente' || item.vinculo.sub != null)) await gravarOficial(novo.id, 'vincular');
   await registrar({ quadro_id: item.quadro_id, item_id: novo.id, item_nome: nome, acao: 'duplicou' });
   return novo;
 }
@@ -976,8 +977,9 @@ async function criar(r: Recurso, corpo: unknown) {
   const row = await inserir(r, dados);
   if (r === 'quadros' && !b.vazio) await prepararQuadro(row.id);
   // Item (ou subitem, quando os subitens são oficiais) criado num quadro oficial: vincula ao cadastro.
-  // Num cadastro existente, o item novo fica sem vínculo até a próxima conciliação (não cria registro sozinho).
-  if (r === 'itens') { const e = await escopoOficial(row.quadro_id); if (e && e.registro.modo !== 'existente') await gravarOficial(row.id, 'vincular'); }
+  // Num cadastro existente, o item novo fica sem vínculo até a próxima conciliação (não cria registro sozinho); o subitem
+  // novo vira uma entrada no registro do item pai, se o pai estiver vinculado (ex.: LOTE de obras-v2).
+  if (r === 'itens') { const e = await escopoOficial(row.quadro_id); if (e && (e.registro.modo !== 'existente' || e.subChave)) await gravarOficial(row.id, 'vincular'); }
   if (r === 'itens') await registrar({ quadro_id: row.quadro_id, item_id: row.id, item_nome: row.nome, acao: 'criou' });
   return row;
 }

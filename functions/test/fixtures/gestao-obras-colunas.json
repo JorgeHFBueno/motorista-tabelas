@@ -1,0 +1,484 @@
+{
+ "quadro_id": 1792498933823587,
+ "nota": "Colunas do quadro GESTÃO DE OBRAS (Friday) em 2026-10-27, depois da troca de tipo de Empresa, Tipo de Obra, Ordem de Início, Confir. Recurso e Ano; sem itens.",
+ "colunas": [
+  {
+   "id": 1792498934018574,
+   "titulo": "Status",
+   "tipo": "formula",
+   "config": {
+    "formula": "IF({@1792498934044675#Labels}=\"Finalizada\", \"Obra Finalizada\", \r\nIF({@1792498934044675#Labels}=\"Parada\", \"Obra Parada\", \r\nIF({@1792498934044675#Labels}=\"Entregue\", \r\n\tIF({@1792498934643518#Labels}=\"Pública\",\r\n    IF(TRIM({@1792498934573944#Labels})=\"\", \"Solicitar termo de Recebimento\",\r\n\tIF(AND({@1792498934555833#Labels}=\"\", {@1792498934573944#Labels}=\"Provisório\") , \"Solicitar CND\",\r\n\tIF({@1792498934555833#Labels}=\"\" ,\"Solicitar CND\",\r\n\tIF({@1792498934590652#Labels}=\"\",\"Verificar Pagamento\" ,\r\n\tIF({@1792498934573944#Labels}=\"Provisório\", \"Solicitar termo Definitivo\" ,\r\n        IF(AND({@1792498934555833#Labels}=\"OK\", {@1792498934590652#Labels}=\"OK\"), \"Obra Finalizada\", \"Verificar CND ou Pagamento\"\r\n    )))))),\r\n\tIF({@1792498934643518#Labels}=\"Privada\",\r\n\tIF(TRIM({@1792498934573944#Labels})=\"\", \"Solicitar termo de Recebimento\",\r\n\tIF({@1792498934590652#Labels}=\"\",\"Verificar Pagamento\",\r\n\tIF(AND({@1792498934573944#Labels}=\"Definitivo\", {@1792498934590652#Labels}=\"OK\"), \"Obra Finalizada\", \"Verificar termo de Recebimento - Definitivo\"))))),\r\nIF({@1792498934643518#Labels}=\"\",\"Obra Pública ou Privada?\",\r\nIF({@1792498934643518#Labels}=\"Privada\",\r\nIF(TRIM({@1792498934135009#Labels})=\"\",\"Aguardando Assinatura do contrato\",\r\nIF(TRIM({@1792498934209360})=\"\", \"Qual o número do contrato?\",\r\nIF(TRIM({@1792498934230704})=\"\", \"Qual o ano do contrato?\",\r\nIF(TRIM({@1792498934258802#Labels})=\"\", \"Qual a empresa?\",\r\nIF({@1792498934427656#Labels}=\"\",\"Solicitar/Emitir ART\", \r\nIF(TRIM({@1792498934466841#Labels})=\"\",\"Solicitar CNO\",\r\nIF(TRIM({@1792498934485264})=\"\", \"Qual a data de Início?\", \r\nIF(TRIM({@1792498934504825})=\"\", \"Qual a data de Fim?\", \r\nIF(AND(TRIM({@1792498934504825})<>\"\", FORMAT_DATE(TODAY(), \"YYYY-MM-DD\") >= FORMAT_DATE(SUBTRACT_DAYS({@1792498934504825}, 7), \"YYYY-MM-DD\")), \"Solicitar Aditivo de Prazo\", \"Obra em Andamento\"))))))))),\r\nIF({@1792498934643518#Labels}=\"Pública\",\r\nIF({@1792498934079889#Labels}=\"\",\"Seguro é Condicional para Assinar o Contrato?\" ,\r\nIF(AND({@1792498934079889#Labels}=\"Sim\",{@1792498934379401#Labels}=\"\"),\"Aguardando Seguro\",\r\nIF({@1792498934100628}=\"\",\"Aguardando Número do Empenho\" ,\r\nIF(TRIM({@1792498934135009#Labels})=\"\", \"Aguardando Assinatura do contrato\",    \r\nIF(TRIM({@1792498934209360})=\"\", \"Qual o número do contrato?\", \r\nIF(TRIM({@1792498934230704})=\"\", \"Qual o ano do contrato?\", \r\nIF(TRIM({@1792498934258802#Labels})=\"\", \"Qual a empresa?\", \r\nIF(TRIM({@1792498934314384#Labels})=\"\", \"Qual a origem do recurso?\",\r\nIF({@1792498934410113#Labels}=\"\", \"ART é Condicional para Confirmar Recurso?\",\r\nIF(AND({@1792498934410113#Labels}= \"Sim\",{@1792498934427656#Labels}=\"\"), \"Solicitar ART\",\r\nIF(AND({@1792498934333283#Labels}=\"\",{@1792498934410113#Labels}=\"Não\"),\"Confirmar Recurso\" ,\r\nIF(AND({@1792498934314384#Labels}=\"Próprio\", TRIM({@1792498934333283#Labels})=\"\"), \"Confirmar Recurso\", \r\nIF(TRIM({@1792498934333283#Labels})=\"\", \"Aguardando Confirmação do Recurso\", \r\nIF({@1792498934351052#Labels}=\"\",\"Verificar Escopo da Obra\", \r\nIF({@1792498934379401#Labels}=\"\", \"Verificar Seguro\", \r\nIF({@1792498934427656#Labels}=\"\",\"Solicitar ART\",\r\nIF({@1792498934445218#Labels}=\"\",\t\r\nIF({@1792498934427656#Labels}=\"OK\",\"Solicitar Ordem de Início\",\r\nIF({@1792498934410113#Labels}=\"\", \"ART é condicional para ordem de início?\",\r\nIF({@1792498934410113#Labels}=\"Sim\", \"Aguardando ART\",\r\nIF({@1792498934410113#Labels}=\"Não\", \"Solicitar Ordem de Início\")))), \r\nIF({@1792498934427656#Labels}=\"\"; \"Aguardando ART\" ,\r\nIF(TRIM({@1792498934466841#Labels})=\"\", \"Solicitar CNO\",\r\nIF(TRIM({@1792498934485264})=\"\", \"Qual a data de Início?\", \r\nIF(TRIM({@1792498934504825})=\"\", \"Qual a data de Fim?\", \r\nIF(AND(TRIM({@1792498934504825})<>\"\", FORMAT_DATE(TODAY(), \"YYYY-MM-DD\") >= FORMAT_DATE(SUBTRACT_DAYS({@1792498934504825}, 7), \"YYYY-MM-DD\")), \"Solicitar Aditivo de Prazo\", \"Obra em Andamento\" , \r\nIF({@1792498934427656#Labels}=\"OK\",\"Solicitar Ordem de Início\"\r\n)))))))))))))))))))))))))))))",
+    "formula_monday": "IF({situa__o_mknbb3ts#Labels}=\"Finalizada\", \"Obra Finalizada\", \r\nIF({situa__o_mknbb3ts#Labels}=\"Parada\", \"Obra Parada\", \r\nIF({situa__o_mknbb3ts#Labels}=\"Entregue\", \r\n\tIF({dropdown_mkvc6z6r#Labels}=\"Pública\",\r\n    IF(TRIM({lista_suspensa_mknafpp8#Labels})=\"\", \"Solicitar termo de Recebimento\",\r\n\tIF(AND({lista_suspensa_mknap7ef#Labels}=\"\", {lista_suspensa_mknafpp8#Labels.}=\"Provisório\") , \"Solicitar CND\",\r\n\tIF({lista_suspensa_mknap7ef#Labels}=\"\" ,\"Solicitar CND\",\r\n\tIF({lista_suspensa_mknbxrk7#Labels}=\"\",\"Verificar Pagamento\" ,\r\n\tIF({lista_suspensa_mknafpp8#Labels}=\"Provisório\", \"Solicitar termo Definitivo\" ,\r\n        IF(AND({lista_suspensa_mknap7ef#Labels}=\"OK\", {lista_suspensa_mknbxrk7#Labels}=\"OK\"), \"Obra Finalizada\", \"Verificar CND ou Pagamento\"\r\n    )))))),\r\n\tIF({dropdown_mkvc6z6r#Labels}=\"Privada\",\r\n\tIF(TRIM({lista_suspensa_mknafpp8#Labels})=\"\", \"Solicitar termo de Recebimento\",\r\n\tIF({lista_suspensa_mknbxrk7#Labels}=\"\",\"Verificar Pagamento\",\r\n\tIF(AND({lista_suspensa_mknafpp8#Labels}=\"Definitivo\", {lista_suspensa_mknbxrk7#Labels}=\"OK\"), \"Obra Finalizada\", \"Verificar termo de Recebimento - Definitivo\"))))),\r\nIF({dropdown_mkvc6z6r#Labels}=\"\",\"Obra Pública ou Privada?\",\r\nIF({dropdown_mkvc6z6r#Labels}=\"Privada\",\r\nIF(TRIM({cont__assinado_mknbn15b#Labels})=\"\",\"Aguardando Assinatura do contrato\",\r\nIF(TRIM({texto_mknarg02})=\"\", \"Qual o número do contrato?\",\r\nIF(TRIM({text_mkntryg9})=\"\", \"Qual o ano do contrato?\",\r\nIF(TRIM({empresa_mknb1cwy#Labels})=\"\", \"Qual a empresa?\",\r\nIF({lista_suspensa_mknavb10#Labels}=\"\",\"Solicitar/Emitir ART\", \r\nIF(TRIM({lista_suspensa_mkna5dcb#Labels})=\"\",\"Solicitar CNO\",\r\nIF(TRIM({data_mknaqn4f})=\"\", \"Qual a data de Início?\", \r\nIF(TRIM({fim_mknaarxc})=\"\", \"Qual a data de Fim?\", \r\nIF(AND(TRIM({fim_mknaarxc})<>\"\", FORMAT_DATE(TODAY(), \"YYYY-MM-DD\") >= FORMAT_DATE(SUBTRACT_DAYS({fim_mknaarxc}, 7), \"YYYY-MM-DD\")), \"Solicitar Aditivo de Prazo\", \"Obra em Andamento\"))))))))),\r\nIF({dropdown_mkvc6z6r#Labels}=\"Pública\",\r\nIF({dropdown_mknr86t2#Labels}=\"\",\"Seguro é Condicional para Assinar o Contrato?\" ,\r\nIF(AND({dropdown_mknr86t2#Labels}=\"Sim\",{lista_suspensa_mknaq1v7#Labels}=\"\"),\"Aguardando Seguro\",\r\nIF({text_mknrafrb}=\"\",\"Aguardando Número do Empenho\" ,\r\nIF(TRIM({cont__assinado_mknbn15b#Labels})=\"\", \"Aguardando Assinatura do contrato\",    \r\nIF(TRIM({texto_mknarg02})=\"\", \"Qual o número do contrato?\", \r\nIF(TRIM({text_mkntryg9})=\"\", \"Qual o ano do contrato?\", \r\nIF(TRIM({empresa_mknb1cwy#Labels})=\"\", \"Qual a empresa?\", \r\nIF(TRIM({dropdown_mknqn4hr#Labels})=\"\", \"Qual a origem do recurso?\",\r\nIF({dropdown_mknrew12#Labels}=\"\", \"ART é Condicional para Confirmar Recurso?\",\r\nIF(AND({dropdown_mknrew12#Labels}= \"Sim\",{lista_suspensa_mknavb10#Labels}=\"\"), \"Solicitar ART\",\r\nIF(AND({dropdown_mknqe4hf#Labels}=\"\",{dropdown_mknrew12#Labels}=\"Não\"),\"Confirmar Recurso\" ,\r\nIF(AND({dropdown_mknqn4hr#Labels}=\"Próprio\", TRIM({dropdown_mknqe4hf#Labels})=\"\"), \"Confirmar Recurso\", \r\nIF(TRIM({dropdown_mknqe4hf#Labels})=\"\", \"Aguardando Confirmação do Recurso\", \r\nIF({dropdown_mknqyjr5#Labels}=\"\",\"Verificar Escopo da Obra\", \r\nIF({lista_suspensa_mknaq1v7#Labels}=\"\", \"Verificar Seguro\", \r\nIF({lista_suspensa_mknavb10#Labels}=\"\",\"Solicitar ART\",\r\nIF({dropdown_mknrvr7q#Labels}=\"\",\t\r\nIF({lista_suspensa_mknavb10#Labels}=\"OK\",\"Solicitar Ordem de Início\",\r\nIF({dropdown_mknrew12#Labels}=\"\", \"ART é condicional para ordem de início?\",\r\nIF({dropdown_mknrew12#Labels}=\"Sim\", \"Aguardando ART\",\r\nIF({dropdown_mknrew12#Labels}=\"Não\", \"Solicitar Ordem de Início\")))), \r\nIF({lista_suspensa_mknavb10#Labels}=\"\"; \"Aguardando ART\" ,\r\nIF(TRIM({lista_suspensa_mkna5dcb#Labels})=\"\", \"Solicitar CNO\",\r\nIF(TRIM({data_mknaqn4f})=\"\", \"Qual a data de Início?\", \r\nIF(TRIM({fim_mknaarxc})=\"\", \"Qual a data de Fim?\", \r\nIF(AND(TRIM({fim_mknaarxc})<>\"\", FORMAT_DATE(TODAY(), \"YYYY-MM-DD\") >= FORMAT_DATE(SUBTRACT_DAYS({fim_mknaarxc}, 7), \"YYYY-MM-DD\")), \"Solicitar Aditivo de Prazo\", \"Obra em Andamento\" , \r\nIF({lista_suspensa_mknavb10#Labels}=\"OK\",\"Solicitar Ordem de Início\"\r\n)))))))))))))))))))))))))))))"
+   }
+  },
+  {
+   "id": 1792498934044675,
+   "titulo": "Situação",
+   "tipo": "lista",
+   "config": {
+    "opcoes": [
+     {
+      "id": "1",
+      "texto": "Finalizada",
+      "cor": "#c4c4c4"
+     },
+     {
+      "id": "2",
+      "texto": "Entregue",
+      "cor": "#c4c4c4"
+     },
+     {
+      "id": "3",
+      "texto": "Parada",
+      "cor": "#c4c4c4"
+     },
+     {
+      "id": "4",
+      "texto": "Aguardando Restante Recurso",
+      "cor": "#c4c4c4"
+     },
+     {
+      "id": "5",
+      "texto": "Aguardando restante do Recurso",
+      "cor": "#c4c4c4"
+     }
+    ]
+   }
+  },
+  {
+   "id": 1792498934079889,
+   "titulo": "Seguro Condicional",
+   "tipo": "lista",
+   "config": {
+    "opcoes": [
+     {
+      "id": "1",
+      "texto": "Sim",
+      "cor": "#c4c4c4"
+     },
+     {
+      "id": "2",
+      "texto": "Não",
+      "cor": "#c4c4c4"
+     }
+    ]
+   }
+  },
+  {
+   "id": 1792498934100628,
+   "titulo": "Nº Empenho",
+   "tipo": "texto",
+   "config": {}
+  },
+  {
+   "id": 1792498934135009,
+   "titulo": "Cont. Assinado",
+   "tipo": "lista",
+   "config": {
+    "opcoes": [
+     {
+      "id": "1",
+      "texto": "OK",
+      "cor": "#c4c4c4"
+     }
+    ]
+   }
+  },
+  {
+   "id": 1792498934164542,
+   "titulo": "Nº da Licitação",
+   "tipo": "texto",
+   "config": {}
+  },
+  {
+   "id": 1792498934209360,
+   "titulo": "Nº Contrato",
+   "tipo": "texto",
+   "config": {}
+  },
+  {
+   "id": 1792498934230704,
+   "titulo": "Ano",
+   "tipo": "numero",
+   "config": {
+    "unidade": "",
+    "resumo": "nenhum",
+    "milhar": false
+   }
+  },
+  {
+   "id": 1792498934258802,
+   "titulo": "Empresa",
+   "tipo": "status",
+   "config": {
+    "rotulos": [
+     {
+      "id": "1",
+      "texto": "LEDUR",
+      "cor": "#c4c4c4"
+     },
+     {
+      "id": "2",
+      "texto": "ARTEBASE",
+      "cor": "#c4c4c4"
+     },
+     {
+      "id": "0",
+      "texto": "",
+      "cor": "#c4c4c4"
+     }
+    ]
+   }
+  },
+  {
+   "id": 1792498934314384,
+   "titulo": "Origem Recurso",
+   "tipo": "lista",
+   "config": {
+    "opcoes": [
+     {
+      "id": "2",
+      "texto": "Próprio",
+      "cor": "#c4c4c4"
+     },
+     {
+      "id": "3",
+      "texto": "Federal",
+      "cor": "#c4c4c4"
+     },
+     {
+      "id": "4",
+      "texto": "Estadual",
+      "cor": "#c4c4c4"
+     }
+    ]
+   }
+  },
+  {
+   "id": 1792498934333283,
+   "titulo": "Confir. Recurso",
+   "tipo": "status",
+   "config": {
+    "rotulos": [
+     {
+      "id": "1",
+      "texto": "Ok",
+      "cor": "#c4c4c4"
+     },
+     {
+      "id": "0",
+      "texto": "",
+      "cor": "#c4c4c4"
+     }
+    ]
+   }
+  },
+  {
+   "id": 1792498934351052,
+   "titulo": "Verif. Escopo da Obra",
+   "tipo": "lista",
+   "config": {
+    "opcoes": [
+     {
+      "id": "1",
+      "texto": "Ok",
+      "cor": "#c4c4c4"
+     }
+    ]
+   }
+  },
+  {
+   "id": 1792498934379401,
+   "titulo": "Seguro",
+   "tipo": "lista",
+   "config": {
+    "opcoes": [
+     {
+      "id": "1",
+      "texto": "OK",
+      "cor": "#c4c4c4"
+     },
+     {
+      "id": "2",
+      "texto": "DEP.",
+      "cor": "#c4c4c4"
+     },
+     {
+      "id": "3",
+      "texto": "Não tem",
+      "cor": "#c4c4c4"
+     }
+    ]
+   }
+  },
+  {
+   "id": 1792498934410113,
+   "titulo": "ART Condicional",
+   "tipo": "lista",
+   "config": {
+    "opcoes": [
+     {
+      "id": "1",
+      "texto": "Sim",
+      "cor": "#c4c4c4"
+     },
+     {
+      "id": "2",
+      "texto": "Não",
+      "cor": "#c4c4c4"
+     }
+    ]
+   }
+  },
+  {
+   "id": 1792498934427656,
+   "titulo": "ART",
+   "tipo": "lista",
+   "config": {
+    "opcoes": [
+     {
+      "id": "1",
+      "texto": "OK",
+      "cor": "#c4c4c4"
+     }
+    ]
+   }
+  },
+  {
+   "id": 1792498934445218,
+   "titulo": "Ordem de Início",
+   "tipo": "status",
+   "config": {
+    "rotulos": [
+     {
+      "id": "1",
+      "texto": "Ok",
+      "cor": "#c4c4c4"
+     },
+     {
+      "id": "0",
+      "texto": "",
+      "cor": "#c4c4c4"
+     }
+    ]
+   }
+  },
+  {
+   "id": 1792498934466841,
+   "titulo": "CNO",
+   "tipo": "lista",
+   "config": {
+    "opcoes": [
+     {
+      "id": "1",
+      "texto": "OK",
+      "cor": "#c4c4c4"
+     }
+    ]
+   }
+  },
+  {
+   "id": 1792498934485264,
+   "titulo": "Início",
+   "tipo": "data",
+   "config": {
+    "com_ano": true
+   }
+  },
+  {
+   "id": 1792498934504825,
+   "titulo": "Fim",
+   "tipo": "data",
+   "config": {
+    "com_ano": true
+   }
+  },
+  {
+   "id": 1792498934526509,
+   "titulo": "Dias Faltantes",
+   "tipo": "formula",
+   "config": {
+    "formula": "IF({@1792498934044675}= \"Entregue\" ,\"\",IF({@1792498934504825}=\"\" , \"\",  ROUND(DAYS({@1792498934504825}, TODAY()), 0)))",
+    "formula_monday": "IF({situa__o_mknbb3ts}= \"Entregue\" ,\"\",IF({fim_mknaarxc}=\"\" , \"\",  ROUND(DAYS({fim_mknaarxc}, TODAY()), 0)))"
+   }
+  },
+  {
+   "id": 1792498934555833,
+   "titulo": "CND",
+   "tipo": "lista",
+   "config": {
+    "opcoes": [
+     {
+      "id": "1",
+      "texto": "OK",
+      "cor": "#c4c4c4"
+     }
+    ]
+   }
+  },
+  {
+   "id": 1792498934573944,
+   "titulo": "Termo de Receb.",
+   "tipo": "lista",
+   "config": {
+    "opcoes": [
+     {
+      "id": "1",
+      "texto": "Definitivo",
+      "cor": "#c4c4c4"
+     },
+     {
+      "id": "2",
+      "texto": "Provisório",
+      "cor": "#c4c4c4"
+     }
+    ]
+   }
+  },
+  {
+   "id": 1792498934590652,
+   "titulo": "Pagamento",
+   "tipo": "lista",
+   "config": {
+    "opcoes": [
+     {
+      "id": "1",
+      "texto": "OK",
+      "cor": "#c4c4c4"
+     }
+    ]
+   }
+  },
+  {
+   "id": 1792498934612670,
+   "titulo": "Arquivo",
+   "tipo": "status",
+   "config": {
+    "rotulos": [
+     {
+      "id": "6",
+      "texto": "Em Aberto",
+      "cor": "#c4c4c4"
+     },
+     {
+      "id": "2",
+      "texto": "Arquivar",
+      "cor": "#00c875"
+     },
+     {
+      "id": "1",
+      "texto": "Conferir Documentação",
+      "cor": "#bb3354"
+     },
+     {
+      "id": "0",
+      "texto": "",
+      "cor": "#c4c4c4"
+     }
+    ],
+    "origem_rotulos": {
+     "0": "1",
+     "1": "2",
+     "5": "6"
+    }
+   }
+  },
+  {
+   "id": 1792498934643518,
+   "titulo": "Tipo de Obra",
+   "tipo": "status",
+   "config": {
+    "rotulos": [
+     {
+      "id": "1",
+      "texto": "Privada",
+      "cor": "#c4c4c4"
+     },
+     {
+      "id": "2",
+      "texto": "Pública",
+      "cor": "#c4c4c4"
+     },
+     {
+      "id": "0",
+      "texto": "",
+      "cor": "#c4c4c4"
+     }
+    ]
+   }
+  },
+  {
+   "id": 1792498934683982,
+   "titulo": "Status 1",
+   "tipo": "status",
+   "config": {
+    "rotulos": [
+     {
+      "id": "1",
+      "texto": "Em andamento",
+      "cor": "#fdab3d"
+     },
+     {
+      "id": "2",
+      "texto": "Feito",
+      "cor": "#00c875",
+      "concluido": true
+     },
+     {
+      "id": "3",
+      "texto": "Parado",
+      "cor": "#df2f4a"
+     },
+     {
+      "id": "6",
+      "texto": "Não iniciada",
+      "cor": "#c4c4c4"
+     },
+     {
+      "id": "0",
+      "texto": "",
+      "cor": "#c4c4c4"
+     }
+    ],
+    "origem_rotulos": {
+     "0": "1",
+     "1": "2",
+     "2": "3",
+     "5": "6"
+    }
+   }
+  },
+  {
+   "id": 1792498934716212,
+   "titulo": "Subcentro ERP",
+   "tipo": "texto",
+   "config": {}
+  },
+  {
+   "id": 1792498934746333,
+   "titulo": "Pasta Servidor",
+   "tipo": "texto",
+   "config": {}
+  },
+  {
+   "id": 1792498934762904,
+   "titulo": "CNPJ/CPF Cliente",
+   "tipo": "texto",
+   "config": {}
+  },
+  {
+   "id": 1793103774867828,
+   "titulo": "Solicitar CNO?",
+   "tipo": "lista",
+   "config": {
+    "opcoes": [
+     {
+      "id": "1",
+      "texto": "Sim",
+      "cor": "#c4c4c4"
+     }
+    ]
+   }
+  }
+ ]
+}

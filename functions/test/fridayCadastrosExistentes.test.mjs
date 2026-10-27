@@ -260,3 +260,60 @@ test('campo secundário: Tipo do Veículo também alimenta a Categoria', () => {
   assert.deepEqual(r.erros, []);
   assert.deepEqual([r.doc.identificacao.categoria, r.doc.cadastro.tipoVeiculo], ['EXTRA', 'Máquinas']);
 });
+
+// ---------------------------------------------------------------- obras-v2 (contratos com LOTEs)
+const obras = m.cadastroExistente('obras-v2');
+
+test('catálogo: obras-v2 casa pelo nome do contrato, com LOTEs e situação pela fórmula', () => {
+  assert.ok(obras);
+  assert.deepEqual(obras.chaves, ['nomeObra']);
+  assert.deepEqual({ chave: obras.subitens.chave, nome: obras.subitens.nome_caminho, ordem: obras.subitens.ordem_caminho }, { chave: 'lotes', nome: 'nome', ordem: 'ordem' });
+  assert.deepEqual(obras.situacao_por_formula.status, { caminho: 'status', quando: 'Obra Finalizada', sim: 'FINALIZADA', nao: 'CONTRATADA' });
+  assert.equal(m.conciliacaoLiberada('obras-v2', undefined), false);
+});
+
+test('obras-v2: rótulo vira texto; lista ainda não liga; status e situação são calculados', () => {
+  const cols = [
+    { id: 10, titulo: 'Empresa', tipo: 'status', config: { rotulos: [{ id: '1', texto: 'LEDUR' }, { id: '2', texto: 'ARTEBASE' }, { id: '0', texto: '' }] } },
+    { id: 11, titulo: 'Situação', tipo: 'lista', config: { opcoes: [{ id: '1', texto: 'Finalizada' }] } },
+    { id: 12, titulo: 'Fim', tipo: 'data' },
+    { id: 13, titulo: 'Status', tipo: 'status', config: { rotulos: [{ id: '1', texto: 'X' }] } },
+  ];
+  const chave = { coluna_id: null, caminho: 'nomeObra' };
+  const ok = m.montarCamposExistente(obras, cols, [{ caminho: 'empresa', coluna_id: 10 }, { caminho: 'dataFinal', coluna_id: 12 }], chave);
+  assert.deepEqual(ok.erros, []);
+  const empresa = ok.campos.find(c => c.chave === 'empresa');
+  assert.deepEqual(m.valorParaContrato(empresa, '2'), { valor: 'ARTEBASE' });
+  assert.deepEqual(m.valorParaContrato(ok.campos.find(c => c.chave === 'dataFinal'), '2026-09-25'), { valor: '2026-09-25' });
+  assert.match(m.montarCamposExistente(obras, cols, [{ caminho: 'tipoObra', coluna_id: 11 }], chave).erros.join(), /não combina/);
+  assert.match(m.montarCamposExistente(obras, cols, [{ caminho: 'status', coluna_id: 13 }], chave).erros.join(), /calculado/);
+  assert.match(m.montarCamposExistente(obras, cols, [{ caminho: 'situacao', coluna_id: 13 }], chave).erros.join(), /calculado/);
+});
+
+test('obras-v2: subcentro ERP guardado exatamente como veio', () => {
+  const [campo] = m.montarCamposExistente(obras, [{ id: 20, titulo: 'Subcentro ERP', tipo: 'texto' }], [{ caminho: 'subcentroErp', coluna_id: 20 }], { coluna_id: null, caminho: 'nomeObra' }).campos;
+  assert.deepEqual(m.valorParaContrato(campo, ' 0012 '), { valor: ' 0012 ' });
+  assert.deepEqual(m.valorParaContrato(campo, '   '), { vazio: true });
+});
+
+test('obras-v2: campos dos LOTEs (Status do subitem → lotes.{id}.status como texto)', () => {
+  const cols = [{ id: 30, titulo: 'Status', tipo: 'status', config: { rotulos: [{ id: '1', texto: 'Em andamento' }, { id: '2', texto: 'Finalizado' }, { id: '0', texto: '' }] } }];
+  const r = m.montarCamposSubitens(obras, cols, [{ caminho: 'status', coluna_id: 30 }]);
+  assert.deepEqual(r.erros, []);
+  assert.deepEqual(m.valorParaContrato(r.campos[0], '2'), { valor: 'Finalizado' });
+  assert.match(m.montarCamposSubitens(veiculos, cols, []).erros.join(), /não tem subitens/);
+});
+
+test('obras-v2: resultado da fórmula → situacao e status', () => {
+  assert.deepEqual(m.camposDaFormula(obras, 'Obra Finalizada'), [['situacao', 'Obra Finalizada'], ['status', 'FINALIZADA']]);
+  assert.deepEqual(m.camposDaFormula(obras, 'Solicitar Aditivo de Prazo'), [['situacao', 'Solicitar Aditivo de Prazo'], ['status', 'CONTRATADA']]);
+  assert.deepEqual(m.camposDaFormula(obras, ''), [['situacao', null], ['status', 'CONTRATADA']]);
+  assert.deepEqual(m.camposDaFormula(veiculos, 'x'), []);
+});
+
+test('obras-v2: contrato novo criado pela conciliação nasce com os padrões do contrato', () => {
+  const r = m.novoRegistro(obras, [], { id: 1, nome: 'NOVO CONTRATO 12/2026', valores: {} }, { coluna_id: null, caminho: 'nomeObra' });
+  assert.deepEqual(r.erros, []);
+  assert.equal(r.doc.nomeObra, 'NOVO CONTRATO 12/2026');
+  assert.deepEqual([r.doc.siglaObra, r.doc.codObra, r.doc.local, r.doc.status, r.doc.situacao, r.doc.dataFinal], ['', 0, 'CORRIGIR', 'CONTRATADA', null, null]);
+});
