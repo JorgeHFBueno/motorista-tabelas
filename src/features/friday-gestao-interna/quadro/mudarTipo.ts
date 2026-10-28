@@ -25,6 +25,8 @@ export function alvosPara(c: Coluna): OpcaoAlvo[] {
   const numeroX10 = { chave: 'numero_x10', rotulo: 'Número ×10 (uma casa decimal, digitado sem vírgula)', alvo: { tipo: 'numero' as TipoColuna, x10: true } };
   const numeroSemMilhar = { chave: 'numero_sem_milhar', rotulo: 'Número sem separador de milhar (ano, código)', alvo: { tipo: 'numero' as TipoColuna, semMilhar: true } };
   const status = { chave: 'status', rotulo: 'Status (um rótulo por valor)', alvo: { tipo: 'status' as TipoColuna } };
+  // Campo oficial: tipo e valores são do cadastro; só o separador de milhar de um número muda (apenas a exibição).
+  if (c.oficial) return c.tipo === 'numero' && !c.config.x10 ? [c.config.milhar === false ? numero : numeroSemMilhar] : [];
   if (TEXTOS.includes(c.tipo)) return [...textos(c.tipo), numero, numeroX10, numeroSemMilhar, status];
   if (c.tipo === 'numero') {
     if (c.config.x10) return [...textos(), numero];

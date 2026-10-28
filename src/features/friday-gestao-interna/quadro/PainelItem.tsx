@@ -4,6 +4,7 @@ import { Activity, Archive, CornerLeftUp, ListTree, Zap, MessageCircle, Papercli
 import { api, type Row } from '../api.ts';
 import { useNav } from '../nav.tsx';
 import { Avatar, Editavel, raizPortal } from '../ui/base.tsx';
+import { NOME_TRAVADO } from '../util.ts';
 import { Celula } from './Celula.tsx';
 import { Arquivos, Atualizacoes } from './Atualizacoes.tsx';
 import { TabelaSubitens, type OpsItens } from './Subitens.tsx';
@@ -38,7 +39,7 @@ export function PainelItem({ item, grupo, colunas, acoes, ops, sub, pai, onAbrir
             <button className="btn-icone" title="Excluir item (vai para a lixeira)" onClick={() => ops.excluir([item.id], item.nome)}><Trash2 size={16} /></button>
             <button className="btn-icone" onClick={onFechar} aria-label="Fechar"><X size={18} /></button>
           </div>
-          <Editavel valor={item.nome} className="painel-titulo" onSalvar={v => v && acoes.renomearItem(item.id, v)} />
+          <Editavel valor={item.nome} travado={item.nome_travado ? NOME_TRAVADO : undefined} className="painel-titulo" onSalvar={v => v && acoes.renomearItem(item.id, v)} />
           <nav className="painel-abas">
             <button className={aba === 'atualizacoes' ? 'on' : ''} onClick={() => setAba('atualizacoes')}><MessageCircle size={15} /> Atualizações{item.n_atualizacoes ? ` (${item.n_atualizacoes})` : ''}</button>
             <button className={aba === 'arquivos' ? 'on' : ''} onClick={() => setAba('arquivos')}><Paperclip size={15} /> Arquivos{item.n_anexos ? ` (${item.n_anexos})` : ''}</button>

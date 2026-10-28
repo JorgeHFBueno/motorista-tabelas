@@ -50,7 +50,9 @@ export function MudarTipoDialogo({ coluna, onFechar, onPronto }: { coluna: Colun
     <Modal titulo={`Mudar o tipo de “${coluna.titulo}”`} largura={560} onClose={() => { if (!ocupado) onFechar(); }}
       rodape={<div className="form-acoes"><button type="button" className="fr-btn" disabled={ocupado} onClick={onFechar}>Cancelar</button>
         <button className="fr-btn btn-primario" disabled={!previa || ocupado} onClick={() => void aplicar()}>{ocupado ? 'Convertendo…' : 'Mudar tipo'}</button></div>}>
-      <p className="muted fr-small">Hoje: <strong>{infoTipo(coluna.tipo).rotulo}{coluna.config.x10 ? ' ×10' : ''}</strong>. Os valores de todos os itens (inclusive arquivados) são convertidos para o tipo novo.</p>
+      <p className="muted fr-small">Hoje: <strong>{infoTipo(coluna.tipo).rotulo}{coluna.config.x10 ? ' ×10' : ''}</strong>. {coluna.oficial
+        ? 'Campo oficial: só a exibição muda; os valores no cadastro ficam iguais.'
+        : 'Os valores de todos os itens (inclusive arquivados) são convertidos para o tipo novo.'}</p>
       <label className="campo-form">Novo tipo
         <select className="input-cheio" value={chave} disabled={ocupado} onChange={e => setChave(e.target.value)}>
           {opcoes.map(o => <option key={o.chave} value={o.chave}>{o.rotulo}</option>)}
@@ -60,7 +62,7 @@ export function MudarTipoDialogo({ coluna, onFechar, onPronto }: { coluna: Colun
       {opcao?.alvo.semMilhar && <p className="muted fr-small">Sem separador de milhar: 2025 aparece como 2025 (não 2.025). Para anos e códigos; o rodapé do grupo deixa de somar a coluna.</p>}
       {coluna.tipo === 'lista' && opcao?.alvo.tipo === 'status' && <p className="muted fr-small">Cada opção da lista vira um rótulo, com o mesmo texto e cor. Uma célula com mais de uma opção marcada não cabe num status e fica vazia (aparece abaixo).</p>}
       {!previa && !erro && <p className="muted fr-small">Calculando a prévia…</p>}
-      {previa && (
+      {previa && !coluna.oficial && (
         <div className="conc-secao">
           <div className="conc-chips">
             <span className="conc-chip ok">{previa.convertidos} valores convertidos</span>

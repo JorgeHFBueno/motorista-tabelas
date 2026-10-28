@@ -5,7 +5,7 @@ import {
 import { httpsCallable } from 'firebase/functions';
 import { db } from '../../firebase';
 import { functions } from './funcoes.ts';
-import { CORES, fmtNumeroColuna } from './util.ts';
+import { CORES, fmtNumeroColuna, NOME_TRAVADO, nomeEspelhado } from './util.ts';
 import { converterColuna, nomeDoAlvo, type Alvo } from './quadro/mudarTipo.ts';
 import type { Coluna } from './quadro/tipos.ts';
 
@@ -240,7 +240,9 @@ type SubOficial = { chave: string; quadro_id: number; campos: CampoOficial[]; si
 // grupo: grupo oficial (opcional) — o nome do grupo de cada item fica no campo `chave` do documento oficial.
 // modo "existente": o quadro é a tela de uma coleção que já existia (obras-v2, veiculos-v2), ligada a ela por script.
 type Registro = { chave: string; nome: string; colecao: string; campos: CampoOficial[]; situacao: string; subitens?: SubOficial; grupo?: { chave: string; situacao: string };
-  modo?: 'novo' | 'existente'; conciliacao?: { coluna_id: number | null; caminho: string } };
+  modo?: 'novo' | 'existente'; conciliacao?: { coluna_id: number | null; caminho: string };
+  // Cadastro existente cujo nome do item espelha o documento oficial (veículos: identificador e nome); ver nomeEspelhado.
+  nome_espelho?: string[] };
 const registros = new Map<string, Promise<Registro | undefined>>();
 function registroDe(chave: string, recarregar = false): Promise<Registro | undefined> {
   if (recarregar || !registros.has(chave)) registros.set(chave, getDoc(doc(db, 'friday-cadastros', chave)).then(s => (s.exists() ? (s.data() as Registro) : undefined)));
@@ -295,13 +297,18 @@ function mesclarOficial(item: Row, campos: CampoOficial[], oficial: Record<strin
   }
   return { ...item, valores };
 }
+/** Nome espelhado do cadastro (registro.nome_espelho): o nome do item vem do documento oficial e fica travado. */
+function comNomeEspelhado(item: Row, registro: Registro, oficial: Record<string, unknown> | undefined): Row {
+  if (!registro.nome_espelho?.length || item.vinculo?.sub != null || !oficial) return item;
+  return { ...item, nome: nomeEspelhado(registro.nome_espelho, oficial) || item.nome, nome_travado: true };
+}
 /** Item avulso com os valores oficiais encaixados. */
 async function comOficiais(item: Row): Promise<Row> {
   if (!item.vinculo?.cadastro) return item;
   const registro = await registroDe(item.vinculo.cadastro);
   if (!registro) return item;
   const d = (await getDoc(doc(db, registro.colecao, String(item.vinculo.id)))).data();
-  if (item.vinculo.sub == null) return mesclarOficial(item, camposAtivos(registro), d);
+  if (item.vinculo.sub == null) return comNomeEspelhado(mesclarOficial(item, camposAtivos(registro), d), registro, d);
   const s = registro.subitens;
   if (s?.situacao !== 'ativo') return item;
   return mesclarOficial(item, camposAtivos(s), d?.[s.chave]?.[String(item.vinculo.sub)]);
@@ -549,7 +556,8 @@ async function completo(id: number) {
     grupos: gruposVisiveis, visoes: ordenar('visoes', visoes),
     colunas: ordenar('colunas', colunas).map(c => marcar(c, camposAtivos(registro))),
     itens: itensVisiveis.map(i => {
-      const base = registro && i.vinculo ? mesclarOficial(i, camposAtivos(registro), oficiais.get(String(i.vinculo.id))) : i;
+      const oficial = registro && i.vinculo ? oficiais.get(String(i.vinculo.id)) : undefined;
+      const base = registro && i.vinculo ? comNomeEspelhado(mesclarOficial(i, camposAtivos(registro), oficial), registro, oficial) : i;
       return { ...base, n_atualizacoes: nAt.get(i.id) ?? 0, n_subitens: nSub.get(i.id) ?? 0, n_anexos: nAn.get(i.id) ?? 0 };
     }),
     sub: subDados,
@@ -665,13 +673,17 @@ async function duplicarQuadro(id: number, corpo: unknown) {
 
 /**
  * Muda o tipo de uma coluna convertendo os valores de todos os itens (inclusive arquivados e na lixeira). Sem `aplicar`,
- * só calcula a prévia (quantos convertem e quais ficam vazios). Campo oficial não muda de tipo.
+ * só calcula a prévia (quantos convertem e quais ficam vazios). Campo oficial não muda de tipo nem de valores: só o
+ * separador de milhar de um número (ex.: "Ano Fabricação" → número sem separador), que muda apenas a exibição.
  */
 export async function mudarTipoColuna(colunaId: number, alvo: Alvo, aplicar = false) {
   const coluna = await buscar('colunas', colunaId);
   if (!coluna) throw new ErroApi(404, 'coluna não encontrada');
-  if (await campoOficialDa(coluna)) throw new ErroApi(409, `“${coluna.titulo}” é um campo oficial: o tipo não muda.`);
-  const itens = await consultar('itens', { quadro_id: coluna.quadro_id });
+  const oficial = await campoOficialDa(coluna);
+  if (oficial && !(coluna.tipo === 'numero' && !coluna.config?.x10 && alvo.tipo === 'numero' && !alvo.x10)) {
+    throw new ErroApi(409, `“${coluna.titulo}” é um campo oficial: só o separador de milhar pode mudar.`);
+  }
+  const itens = oficial ? [] : await consultar('itens', { quadro_id: coluna.quadro_id });
   const r = converterColuna(coluna as Coluna, alvo, itens.map(i => ({ id: i.id, nome: String(i.nome ?? ''), v: i.valores?.[String(colunaId)] })));
   if (!aplicar) return r;
   await emLotes(r.mudancas.map(m => lote => lote.update(ref('itens', m.id), new FieldPath('valores', String(colunaId)), m.valor == null ? deleteField() : m.valor)));
@@ -1000,6 +1012,9 @@ async function atualizar(r: Recurso, id: number, corpo: unknown) {
   }
   const campos: Record<string, unknown> = Object.fromEntries(mudou.map(k => [k, dados[k]]));
   if (r === 'itens' || r === 'automacoes') campos.atualizado_em = agora();
+  if (r === 'itens' && mudou.includes('nome') && antes.vinculo && antes.vinculo.sub == null && (await registroDe(antes.vinculo.cadastro))?.nome_espelho?.length) {
+    throw new ErroApi(409, NOME_TRAVADO);
+  }
   if (r === 'itens' && mudou.includes('nome')) campos.busca = prefixosBusca(dados.nome);
   await updateDoc(ref(r, id), campos as DocumentData);
   if (r === 'itens' && antes.vinculo && mudou.includes('nome')) await gravarOficial(id, 'nome');

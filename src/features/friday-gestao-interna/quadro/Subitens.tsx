@@ -150,7 +150,7 @@ function CabecalhoSub({ coluna, acoes, confirmar }: { coluna: Coluna; acoes: Aco
           <div className="menu-titulo"><Ic size={14} /> {infoTipo(coluna.tipo).rotulo} (subitens)</div>
           <Menu onEscolher={pop.fechar} itens={[
             { rotulo: 'Renomear', icone: <Pencil size={15} />, onClick: () => setRenomear(true) },
-            ...(!coluna.oficial && alvosPara(coluna).length ? [{ rotulo: 'Mudar tipo…', icone: <Shuffle size={15} />, onClick: () => setMudarTipo(true) }] : []),
+            ...(alvosPara(coluna).length ? [{ rotulo: 'Mudar tipo…', icone: <Shuffle size={15} />, onClick: () => setMudarTipo(true) }] : []),
             ...itensCampoOficial(adm2 && acoes.oficial?.subitens === 'ativo', coluna, setCampoOficial),
             // Campo oficial não pode ser excluído (os dados vivem no cadastro oficial).
             ...(coluna.oficial ? [] : ['separador' as const,

@@ -158,8 +158,9 @@ export function AvisoRapidoProvider({ children }: { children: ReactNode }) {
 export const useAvisoRapido = () => useContext(AvisoRapidoCtx);
 
 // ---------------------------------------------------------------- texto editável no lugar
-export function Editavel({ valor, onSalvar, className = '', placeholder = '', iniciarEditando = false, multilinha = false }: {
+export function Editavel({ valor, onSalvar, className = '', placeholder = '', iniciarEditando = false, multilinha = false, travado }: {
   valor: string;
+  travado?: string; // por que não edita (ex.: nome espelhado do cadastro); mostra só o texto
   onSalvar: (v: string) => void;
   className?: string;
   placeholder?: string;
@@ -175,6 +176,7 @@ export function Editavel({ valor, onSalvar, className = '', placeholder = '', in
     if (t !== valor.trim() && (t || !placeholder)) onSalvar(t);
     else setTexto(valor);
   };
+  if (travado) return <span className={className} title={travado}>{valor}</span>;
   if (!editando) {
     return <span className={`editavel ${className}${valor ? '' : ' vazio'}`} tabIndex={0} onClick={e => { e.stopPropagation(); setEditando(true); }}
       onKeyDown={e => { if (e.key === 'Enter') setEditando(true); }}>{valor || placeholder}</span>;

@@ -40,6 +40,20 @@ export function fmtNumeroColuna(config: ConfigNumero, v: unknown): string {
   const s = (n / 10).toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 1 });
   return config.unidade ? `${s} ${String(config.unidade)}` : s;
 }
+/**
+ * Nome do item espelhado do cadastro (friday-cadastros/{chave}.nome_espelho; veículos: identificador e nome): as partes
+ * juntadas com espaço; parte vazia, ou igual a uma anterior sem contar maiúsculas, fica de fora.
+ */
+export function nomeEspelhado(caminhos: string[], doc: Record<string, unknown> | undefined): string {
+  const partes: string[] = [];
+  for (const caminho of caminhos) {
+    const v = caminho.split('.').reduce<unknown>((o, k) => (o && typeof o === 'object' ? (o as Record<string, unknown>)[k] : undefined), doc);
+    const t = typeof v === 'string' || typeof v === 'number' ? String(v).trim().replace(/\s+/g, ' ') : '';
+    if (t && !partes.some(p => p.toLocaleLowerCase('pt-BR') === t.toLocaleLowerCase('pt-BR'))) partes.push(t);
+  }
+  return partes.join(' ');
+}
+export const NOME_TRAVADO = 'O nome vem do cadastro (identificador e nome) e não muda pelo quadro.';
 /** Valor numérico exibido (desfaz o ×10). */
 export const numeroExibido = (config: ConfigNumero, v: unknown) => Number(v) / (config?.x10 ? 10 : 1);
 /** Número escrito em texto: "20", "20,5", "1.234,5", "20 t", "R$ 3,50". null quando não há número. */

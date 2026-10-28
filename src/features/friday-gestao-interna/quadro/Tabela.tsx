@@ -6,7 +6,7 @@ import {
 import { useAuth } from '../../../contexts/AuthContext';
 import type { Pessoa } from '../api.ts';
 import { Menu, Popover, useConfirmar, usePopover, Editavel, type ItemMenu } from '../ui/base.tsx';
-import { CORES, fmtData, fmtNumeroColuna, posEntre } from '../util.ts';
+import { CORES, fmtData, fmtNumeroColuna, NOME_TRAVADO, posEntre } from '../util.ts';
 import { Celula } from './Celula.tsx';
 import { EditorFormula } from './EditorFormula.tsx';
 import { AGRUPAVEIS, type GrupoVirtual } from './filtros.ts';
@@ -189,7 +189,7 @@ export function Tabela({ grupos: gruposReais, colunas, todasColunas, itens, sub,
                             aria-label={abertos.has(i.id) ? 'Recolher subitens' : 'Mostrar subitens'} title={abertos.has(i.id) ? 'Recolher subitens' : 'Subitens'}>
                             <ChevronRight size={14} />
                           </button>
-                          <Editavel valor={i.nome} onSalvar={v => v && acoes.renomearItem(i.id, v)} className="nome-texto" />
+                          <Editavel valor={i.nome} travado={i.nome_travado ? NOME_TRAVADO : undefined} onSalvar={v => v && acoes.renomearItem(i.id, v)} className="nome-texto" />
                           {nSub.get(i.id) ? <button className={`chip-sub${abertos.has(i.id) ? ' on' : ''}`} onClick={() => alternarSubs(i.id)} title="Mostrar ou recolher os subitens">{nSub.get(i.id)} <ListTree size={13} /></button> : null}
                           <MenuLinha item={i} ops={ops} onAbrir={() => abrirItem(i.id)} onDuplicar={() => acoes.duplicarItens([i.id])}
                             onSubitem={() => { alternarSubs(i.id, true); setFocoSub(i.id); }} />
@@ -351,7 +351,7 @@ function CabecalhoColuna({ coluna, acoes, confirmar, setOrdenacao, anterior, pro
                 ...(coluna.tipo === 'formula' ? [{ rotulo: 'Editar fórmula', icone: <Sigma size={15} />, onClick: () => onFormula(coluna) }] : []),
                 { rotulo: 'Renomear', icone: <Pencil size={15} />, onClick: () => setRenomear(true) },
                 // Campo oficial não muda de tipo; só aparece quando há um tipo compatível para converter.
-                ...(!coluna.oficial && alvosPara(coluna).length ? [{ rotulo: 'Mudar tipo…', icone: <Shuffle size={15} />, onClick: () => setMudarTipo(true) }] : []),
+                ...(alvosPara(coluna).length ? [{ rotulo: 'Mudar tipo…', icone: <Shuffle size={15} />, onClick: () => setMudarTipo(true) }] : []),
                 { rotulo: 'Ordenar crescente', icone: <ArrowDownAZ size={15} />, onClick: () => setOrdenacao({ colunaId: coluna.id, dir: 1 }) },
                 { rotulo: 'Ordenar decrescente', icone: <ArrowUpAZ size={15} />, onClick: () => setOrdenacao({ colunaId: coluna.id, dir: -1 }) },
                 ...(coluna.tipo === 'data' ? [
