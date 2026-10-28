@@ -11,8 +11,9 @@ import {
 } from '@mui/material';
 import { Timestamp } from 'firebase/firestore';
 
-export type FonteEvento = '03-combustivel' | 'manutencoes' | 'manutencoes-legado';
-export type TipoEvento = 'abastecimento' | 'manutencao2026' | 'manutencaoLegado';
+// 'erp' não é coleção: são as linhas da Query 47 do ERP (getVehicleErpCosts), só leitura.
+export type FonteEvento = 'atividades' | '03-combustivel' | 'manutencoes' | 'erp';
+export type TipoEvento = 'atividade' | 'abastecimento' | 'manutencao2026' | 'manutencaoErp';
 
 export interface MasterDetailListItem  {
   id: string;
@@ -21,19 +22,18 @@ export interface MasterDetailListItem  {
   data: Date | null;
   categoria: string | null;
   valor: number | null;
+  /** Texto da última coluna quando o item não tem valor (ex.: km da atividade). */
+  valorTexto?: string | null;
 }
 
 export interface MasterDetailFilters {
+  atividades: boolean;
   abastecimento: boolean;
   manutencoes2026: boolean;
-  manutencoesLegado: boolean;
+  manutencoesErp: boolean;
 }
 
-export interface MasterDetailCounts {
-  abastecimento: number;
-  manutencoes2026: number;
-  manutencoesLegado: number;
-}
+export type MasterDetailCounts = Record<keyof MasterDetailFilters, number>;
 
 interface ManutencoesListProps {
   items: MasterDetailListItem[];
@@ -45,6 +45,28 @@ interface ManutencoesListProps {
   counts: MasterDetailCounts;
   onSelect: (item: MasterDetailListItem) => void;
   onToggleFilter: (key: keyof MasterDetailFilters, value: boolean) => void;
+}
+
+const FILTROS: Array<{ key: keyof MasterDetailFilters; label: string }> = [
+  { key: 'atividades', label: 'Atividades' },
+  { key: 'abastecimento', label: 'Abastecimento' },
+  { key: 'manutencoes2026', label: 'Manutenções FROTA' },
+  { key: 'manutencoesErp', label: 'Manutenções ERP' },
+];
+
+// Fontes do detalhe do veículo, em linha, acima da lista.
+export function RegistrosFiltros({ filters, counts, onToggleFilter }: Pick<ManutencoesListProps, 'filters' | 'counts' | 'onToggleFilter'>) {
+  return (
+    <Stack direction="row" flexWrap="wrap" useFlexGap columnGap={3} rowGap={0.5} aria-label="Fontes dos registros">
+      {FILTROS.map(({ key, label }) => (
+        <FormControlLabel
+          key={key}
+          control={<Checkbox checked={filters[key]} onChange={(event) => onToggleFilter(key, event.target.checked)} />}
+          label={`${label} (${counts[key]})`}
+        />
+      ))}
+    </Stack>
+  );
 }
 
 const formatDate = (value: Date  | null) => {
@@ -77,46 +99,11 @@ export default function ManutencoesList({
   selectedId,
   selectedCollection,
   filters,
-  counts,
   onSelect,
-  onToggleFilter,
-}: ManutencoesListProps) {
-  const hasFilters = filters.abastecimento || filters.manutencoes2026 || filters.manutencoesLegado;
+}: Pick<ManutencoesListProps, 'items' | 'loading' | 'error' | 'selectedId' | 'selectedCollection' | 'filters' | 'onSelect'>) {
+  const hasFilters = Object.values(filters).some(Boolean);
   return (
     <Stack spacing={2} sx={{ height: '100%' }}>
-      <Stack spacing={1}>
-        <Typography variant="h6">Registros</Typography>
-        <Stack spacing={0.5}>
-          <FormControlLabel
-            control={
-              <Checkbox
-                checked={filters.abastecimento}
-                onChange={(event) => onToggleFilter('abastecimento', event.target.checked)}
-              />
-            }
-            label={`Abastecimento (${counts.abastecimento})`}
-          />
-          <FormControlLabel
-            control={
-              <Checkbox
-                checked={filters.manutencoes2026}
-                onChange={(event) => onToggleFilter('manutencoes2026', event.target.checked)}
-              />
-            }
-            label={`Manutenções - 2026 (${counts.manutencoes2026})`}
-          />
-          <FormControlLabel
-            control={
-              <Checkbox
-                checked={filters.manutencoesLegado}
-                onChange={(event) => onToggleFilter('manutencoesLegado', event.target.checked)}
-              />
-            }
-            label={`Manutenções - Legado (${counts.manutencoesLegado})`}
-          />
-        </Stack>      
-      </Stack>
-
       {error && <Alert severity="error">{error}</Alert>}
 
       <Box
@@ -187,7 +174,7 @@ export default function ManutencoesList({
                       {item.categoria || '—'}
                     </Typography>
                     <Typography variant="body2" sx={{ flex: 1, textAlign: 'right' }}>
-                      {formatValor(item.valor)}
+                      {item.valor === null && item.valorTexto ? item.valorTexto : formatValor(item.valor)}
                     </Typography>
                   </Stack>
                 </ListItemButton>

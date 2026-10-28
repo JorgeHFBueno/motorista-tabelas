@@ -10,11 +10,12 @@ import {
 } from '@mui/material';
 import { Timestamp } from 'firebase/firestore';
 import EditableFieldRow from './EditableFieldRow';
+import type { TipoEvento } from './ManutencoesList';
 
 interface ManutencaoDetailPanelProps {
     selectedDocId: string | null;
     selectedDocData: Record<string, unknown> | null;
-    selectedTipo: 'abastecimento' | 'manutencao2026' | 'manutencaoLegado' | null;
+    selectedTipo: TipoEvento | null;
     loading: boolean;
     isAdmin: boolean;
     error: string | null;
@@ -209,7 +210,10 @@ export default function ManutencaoDetailPanel({
         );
     }
 
-    const isMaintenance = selectedTipo === 'manutencao2026' || selectedTipo === 'manutencaoLegado';
+    const isMaintenance = selectedTipo === 'manutencao2026';
+    // Atividades (Rules negam update/delete ao cliente) e linhas do ERP são só leitura.
+    const editable = isAdmin && selectedTipo !== 'atividade' && selectedTipo !== 'manutencaoErp';
+    const idLabel = selectedTipo === 'manutencaoErp' ? 'Linha do ERP (Query 47)' : 'ID do documento';
     const fields = isMaintenance
         ? getMaintenanceDisplayFields(selectedDocData)
         : getDefaultDisplayFields(selectedDocData);
@@ -225,7 +229,7 @@ export default function ManutencaoDetailPanel({
                 >
                     <Box>
                         <Typography variant="subtitle2" color="text.secondary">
-                            ID do documento
+                            {idLabel}
                         </Typography>
                         <Typography variant="h6">{selectedDocId}</Typography>
                     </Box>
@@ -235,10 +239,12 @@ export default function ManutencaoDetailPanel({
                                 Adicionar
                             </Button>
                         )}
-                        <Button variant="outlined" onClick={onReload}>
-                            Recarregar
-                        </Button>
-                        {isAdmin && (
+                        {selectedTipo !== 'manutencaoErp' && (
+                            <Button variant="outlined" onClick={onReload}>
+                                Recarregar
+                            </Button>
+                        )}
+                        {editable && (
                             <Button variant="contained" color="error" onClick={onDeleteDoc}>
                                 Excluir documento
                             </Button>
@@ -258,7 +264,7 @@ export default function ManutencaoDetailPanel({
                                 fieldPath={field.path}
                                 label={field.label}
                                 value={field.value}
-                                isAdmin={isAdmin}
+                                isAdmin={editable}
                                 onSave={onUpdateField}
                                 onDelete={onDeleteField}
                             />

@@ -3,7 +3,7 @@ import { itemFrotaSnapshot, type ItemFrotaV2 } from '../utils/cadastrosV2';
 
 // Manutenção liga o veículo por item_frota_id (veiculos-v2) e a pessoa por UID (funcionarios), com snapshots ao lado
 // (The Manuscript, 01_FIRESTORE/COLECOES/manutencoes.md). `identificador` (placa em texto) ficou nos registros
-// migrados só como registro do formato antigo; `motorista` em texto ainda aparece em manutencoes-legado.
+// migrados só como registro do formato antigo.
 export type TipoVeiculo = 'PLACA' | 'EXTRA';
 
 export type ManutencaoForm = {

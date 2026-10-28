@@ -3,9 +3,9 @@ import {
     Alert,
     Box,
     Button,
+    Chip,
     CircularProgress,
     Container,
-    Divider,
     Menu,
     MenuItem,
     Paper,
@@ -33,6 +33,7 @@ import type { ChartPoint } from '../components/FrotaCharts';
 import ManutencaoDialog from '../components/ManutencaoDialog';
 import ManutencaoDetailPanel from '../components/ManutencaoDetailPanel';
 import ManutencoesList, {
+    RegistrosFiltros,
     type FonteEvento,
     type MasterDetailCounts,
     type MasterDetailFilters,
@@ -52,12 +53,14 @@ import { useAuth } from '../contexts/AuthContext';
 import { db } from '../firebase';
 import { normalizeFornecedorNumero } from '../services/fornecedores.service';
 import { normalizarMovimentoCombustivel } from '../services/combustivel-normalizer';
-import { buildVehicleReport } from '../services/vehicle-report.service';
+import { normalizarAtividade } from '../services/atividade-normalizer';
+import { buildVehicleReport, fetchVehicleErpRows } from '../services/vehicle-report.service';
 import { createVehicleReportPdf } from '../services/vehicle-report-pdf';
-import { resolveVehicleReportPeriod, type VehicleReportPeriod } from '../services/vehicle-report-core';
+import { normalizeCalendarDate, resolveVehicleReportPeriod, type VehicleReportPeriod } from '../services/vehicle-report-core';
 import { listFuncionariosAtivos } from '../services/funcionarios-selecao.service';
 import { getItemFrota } from '../services/veiculos.service';
 import type { ItemFrotaV2, PessoaV2 } from '../utils/cadastrosV2';
+import { atualizacaoInfo, medidorTexto } from '../utils/frotaVeiculosLista';
 
 const FrotaCharts = lazy(() => import('../components/FrotaCharts'));
 type Manutencao = {
@@ -100,7 +103,7 @@ type LinhaEvento = {
     docId: string;
     collection: FonteEvento;
     origem: TipoEvento;
-    tipo: 'ABASTECIMENTO' | 'MANUTENCAO';
+    tipo: 'ATIVIDADE' | 'ABASTECIMENTO' | 'MANUTENCAO';
     data?: Date | null;
     qntAbastecida?: number | null;
     arla?: number | null;
@@ -118,7 +121,14 @@ type LinhaEvento = {
     descricao?: string | null;
     nota?: string | null;
     status?: string | null;
+    valorTexto?: string | null;
+    /** Linha do ERP como veio da Query 47 (não há documento no Firestore). */
+    raw?: Record<string, unknown>;
 };
+
+const numberFormatter = new Intl.NumberFormat('pt-BR');
+const erpNumber = (value: unknown) => typeof value === 'number' && Number.isFinite(value) ? value : Number(String(value ?? '').replace(',', '.')) || 0;
+const erpText = (value: unknown) => String(value ?? '').trim();
 
 function toDate(raw: unknown): Date | null {
     if (!raw) return null;
@@ -181,26 +191,65 @@ const deleteDeepValue = (target: Record<string, unknown>, path: string) => {
     });
 };
 
-// manutencoes liga o veículo por item_frota_id (todos os registros desde a migração de 2026-10-23); o histórico
-// manutencoes-legado só tem a placa em texto (`identificador`).
-async function queryManutencoes(collectionName: FonteEvento, field: string, value: string) {
-    const baseQuery = query(collection(db, collectionName), where(field, '==', value));
+// manutencoes liga o veículo por item_frota_id (todos os registros desde a migração de 2026-10-23).
+async function queryManutencoes(itemId: string) {
+    const baseQuery = query(collection(db, 'manutencoes'), where('item_frota_id', '==', itemId));
     try {
         return (await getDocs(query(baseQuery, orderBy('data', 'desc')))).docs;
     } catch (err) {
-        console.warn(`Falha ao ordenar manutenções por data, carregando sem orderBy. Índice sugerido: ${field} ASC, data DESC.`, err);
+        console.warn('Falha ao ordenar manutenções por data, carregando sem orderBy. Índice sugerido: item_frota_id ASC, data DESC.', err);
         return (await getDocs(baseQuery)).docs;
     }
 }
 
-async function fetchManutencoes(
-    collectionName: FonteEvento,
-    item: ItemFrotaV2,
-    origem: TipoEvento,
-): Promise<LinhaEvento[]> {
-    const docs = collectionName === 'manutencoes'
-        ? await queryManutencoes(collectionName, 'item_frota_id', item.id)
-        : await queryManutencoes(collectionName, 'identificador', item.identificador);
+// Atividades (saída e chegada do app) ligam o veículo por item_frota_id; a WEB só lê.
+async function fetchAtividades(item: ItemFrotaV2): Promise<LinhaEvento[]> {
+    const snapshot = await getDocs(query(collection(db, 'atividades'), where('item_frota_id', '==', item.id)));
+    return snapshot.docs
+        .map((docSnap): LinhaEvento => {
+            const atividade = normalizarAtividade(docSnap.data(), docSnap.id);
+            const tipo = atividade.tipo === 'saida' ? 'Saída' : atividade.tipo === 'chegada' ? 'Chegada' : 'Fora do contrato';
+            return {
+                id: `atividades_${docSnap.id}`,
+                docId: docSnap.id,
+                collection: 'atividades',
+                origem: 'atividade',
+                tipo: 'ATIVIDADE',
+                data: toDate(atividade.data),
+                categoria: atividade.motorista ? `${tipo} — ${atividade.motorista}` : tipo,
+                valor: null,
+                valorTexto: atividade.km != null ? `${numberFormatter.format(atividade.km)} ${item.categoria === 'PLACA' ? 'km' : 'h'}` : null,
+            };
+        })
+        .sort((a, b) => (b.data?.getTime() ?? 0) - (a.data?.getTime() ?? 0));
+}
+
+// Mesmo pedido do "Gerar Relatório" (Query 47 do ERP pela placa), de 01/01/2025 até hoje.
+async function fetchManutencoesErp(item: ItemFrotaV2): Promise<LinhaEvento[]> {
+    const { dataInicial, dataFinal } = resolveVehicleReportPeriod('all');
+    const rows = await fetchVehicleErpRows(item.identificador, dataInicial, dataFinal);
+    return rows
+        .map((row, index): LinhaEvento => {
+            const emissao = normalizeCalendarDate(row.data_emissao);
+            return {
+                id: `erp_${index}`,
+                docId: `erp_${index}`,
+                collection: 'erp',
+                origem: 'manutencaoErp',
+                tipo: 'MANUTENCAO',
+                data: emissao ? toDate(`${emissao}T12:00:00`) : null,
+                categoria: erpText(row.natureza) || erpText(row.conta) || null,
+                valor: erpNumber(row.valor_rateio),
+                raw: row,
+            };
+        })
+        .sort((a, b) => (b.data?.getTime() ?? 0) - (a.data?.getTime() ?? 0));
+}
+
+async function fetchManutencoes(item: ItemFrotaV2): Promise<LinhaEvento[]> {
+    const collectionName: FonteEvento = 'manutencoes';
+    const origem: TipoEvento = 'manutencao2026';
+    const docs = await queryManutencoes(item.id);
 
     return docs.map(
         (docSnap): LinhaEvento => {
@@ -245,7 +294,15 @@ export default function FrotaVeiculoDetalhesPage() {
 
     const [showAbastecimento, setShowAbastecimento] = useState(false);
     const [showManutencoes2026, setShowManutencoes2026] = useState(true);
-    const [showManutencoesLegado, setShowManutencoesLegado] = useState(false);
+    const [showAtividades, setShowAtividades] = useState(false);
+    const [showErp, setShowErp] = useState(false);
+
+    const [atividadesRows, setAtividadesRows] = useState<LinhaEvento[]>([]);
+    const [atividadesLoading, setAtividadesLoading] = useState(false);
+    const [atividadesError, setAtividadesError] = useState<string | null>(null);
+    const [erpRows, setErpRows] = useState<LinhaEvento[]>([]);
+    const [erpLoading, setErpLoading] = useState(false);
+    const [erpError, setErpError] = useState<string | null>(null);
 
     const [combustivelRows, setCombustivelRows] = useState<LinhaEvento[]>([]);
     const [combustivelLoading, setCombustivelLoading] = useState(false);
@@ -254,9 +311,6 @@ export default function FrotaVeiculoDetalhesPage() {
     const [manutencoes2026Rows, setManutencoes2026Rows] = useState<LinhaEvento[]>([]);
     const [manutencoes2026Loading, setManutencoes2026Loading] = useState(false);
     const [manutencoes2026Error, setManutencoes2026Error] = useState<string | null>(null);
-    const [manutencoesLegadoRows, setManutencoesLegadoRows] = useState<LinhaEvento[]>([]);
-    const [manutencoesLegadoLoading, setManutencoesLegadoLoading] = useState(false);
-    const [manutencoesLegadoError, setManutencoesLegadoError] = useState<string | null>(null);    
     const [selectedDocId, setSelectedDocId] = useState<string | null>(null);
     const [selectedCollection, setSelectedCollection] = useState<FonteEvento | null>(null);
     const [selectedTipo, setSelectedTipo] = useState<TipoEvento | null>(null);
@@ -303,6 +357,11 @@ export default function FrotaVeiculoDetalhesPage() {
         setSelectedCollection(item.collection);
         setSelectedTipo(item.tipo);
         setSelectedError(null);
+        if (item.collection === 'erp') {
+            setSelectedDocData(erpRows.find((row) => row.docId === item.id)?.raw ?? null);
+            setSelectedLoading(false);
+            return;
+        }
         const cacheKey = buildCacheKey(item.collection, item.id);
         const cached = cacheRef.current.get(cacheKey);
         if (cached) {
@@ -329,7 +388,7 @@ export default function FrotaVeiculoDetalhesPage() {
         } finally {
             setSelectedLoading(false);
         }
-    }, []);    
+    }, [erpRows]);
 
     const handleReloadSelected = useCallback(async () => {
         if (!selectedDocId || !selectedCollection) return;
@@ -431,8 +490,6 @@ export default function FrotaVeiculoDetalhesPage() {
                 setCombustivelRows((prev) => prev.filter((row) => row.docId !== selectedDocId));
             } else if (selectedCollection === 'manutencoes') {
                 setManutencoes2026Rows((prev) => prev.filter((row) => row.docId !== selectedDocId));
-            } else if (selectedCollection === 'manutencoes-legado') {
-                setManutencoesLegadoRows((prev) => prev.filter((row) => row.docId !== selectedDocId));
             }
             cacheRef.current.delete(buildCacheKey(selectedCollection, selectedDocId));
             setSelectedDocId(null);
@@ -689,7 +746,7 @@ export default function FrotaVeiculoDetalhesPage() {
             setManutencoes2026Error(null);
 
             try {
-                const data = await fetchManutencoes('manutencoes', item, 'manutencao2026');
+                const data = await fetchManutencoes(item);
                 if (!active) return;
                 console.debug('[FrotaVeiculosDetalhes] manutencoes 2026 carregadas:', data.length);
                 setManutencoes2026Rows(data);
@@ -716,37 +773,45 @@ export default function FrotaVeiculoDetalhesPage() {
 
     useEffect(() => {
         let active = true;
-
-        async function loadManutencoesLegado(item: ItemFrotaV2) {
-            setManutencoesLegadoLoading(true);
-            setManutencoesLegadoError(null);
-
-            try {
-                const data = await fetchManutencoes('manutencoes-legado', item, 'manutencaoLegado');
-                if (!active) return;
-                console.debug('[FrotaVeiculosDetalhes] manutencoes legado carregadas:', data.length);
-                setManutencoesLegadoRows(data);
-            } catch (err) {
-                console.error('Erro ao carregar manutenções legado', err);
-                if (active) {
-                    setManutencoesLegadoError('Erro ao carregar manutenções legado.');
-                }
-            } finally {
-                if (active) setManutencoesLegadoLoading(false);
-            }
-        }
-
-        if (!showManutencoesLegado) return;
+        if (!showAtividades) return;
         if (!veiculo) {
-            setManutencoesLegadoRows([]);
+            setAtividadesRows([]);
             return;
         }
-
-        loadManutencoesLegado(veiculo);
+        setAtividadesLoading(true);
+        setAtividadesError(null);
+        fetchAtividades(veiculo)
+            .then((data) => { if (active) setAtividadesRows(data); })
+            .catch((err) => {
+                console.error('Erro ao carregar atividades', err);
+                if (active) setAtividadesError('Erro ao carregar atividades.');
+            })
+            .finally(() => { if (active) setAtividadesLoading(false); });
         return () => {
             active = false;
         };
-    }, [showManutencoesLegado, veiculo]);
+    }, [showAtividades, veiculo]);
+
+    useEffect(() => {
+        let active = true;
+        if (!showErp) return;
+        if (!veiculo) {
+            setErpRows([]);
+            return;
+        }
+        setErpLoading(true);
+        setErpError(null);
+        fetchManutencoesErp(veiculo)
+            .then((data) => { if (active) setErpRows(data); })
+            .catch((err) => {
+                console.error('Erro ao consultar o ERP', err);
+                if (active) setErpError('Não foi possível consultar o ERP agora. Tente de novo.');
+            })
+            .finally(() => { if (active) setErpLoading(false); });
+        return () => {
+            active = false;
+        };
+    }, [showErp, veiculo]);
 
     const fornecedoresById = useMemo(() => {
         return new Map(fornecedores.map((item) => [item.id, item.nome]));
@@ -781,27 +846,36 @@ export default function FrotaVeiculoDetalhesPage() {
         return resolveManutencoes(manutencoes2026Rows);
     }, [manutencoes2026Rows, resolveManutencoes]);
 
-    const rowsManutencoesLegado = useMemo(() => {
-        return resolveManutencoes(manutencoesLegadoRows);
-    }, [manutencoesLegadoRows, resolveManutencoes]);
-
     const rowsByType = useMemo(() => {
         const merged: LinhaEvento[] = [];
         if (showAbastecimento) merged.push(...combustivelRows);
         if (showManutencoes2026) merged.push(...rowsManutencoes2026);
-        if (showManutencoesLegado) merged.push(...rowsManutencoesLegado);
+        if (showErp) merged.push(...erpRows);
         return merged.sort((a, b) => (b.data?.getTime() ?? 0) - (a.data?.getTime() ?? 0));
     }, [
         combustivelRows,
+        erpRows,
         rowsManutencoes2026,
-        rowsManutencoesLegado,
         showAbastecimento,
+        showErp,
         showManutencoes2026,
-        showManutencoesLegado,
     ]);
 
     const masterDetailItems = useMemo<MasterDetailListItem[]>(() => {
         const merged: MasterDetailListItem[] = [];
+        if (showAtividades) {
+            merged.push(
+                ...atividadesRows.map((row) => ({
+                    id: row.docId,
+                    collection: row.collection,
+                    tipo: row.origem,
+                    data: row.data ?? null,
+                    categoria: row.categoria ?? null,
+                    valor: null,
+                    valorTexto: row.valorTexto ?? null,
+                })),
+            );
+        }
         if (showAbastecimento) {
             merged.push(
                 ...combustivelRows.map((row) => ({
@@ -826,9 +900,9 @@ export default function FrotaVeiculoDetalhesPage() {
                 })),
             );
         }
-        if (showManutencoesLegado) {
+        if (showErp) {
             merged.push(
-                ...rowsManutencoesLegado.map((row) => ({
+                ...erpRows.map((row) => ({
                     id: row.docId,
                     collection: row.collection,
                     tipo: row.origem,
@@ -840,54 +914,62 @@ export default function FrotaVeiculoDetalhesPage() {
         }
         return merged.sort((a, b) => (b.data?.getTime() ?? 0) - (a.data?.getTime() ?? 0));
     }, [
+        atividadesRows,
         combustivelRows,
+        erpRows,
         rowsManutencoes2026,
-        rowsManutencoesLegado,
         showAbastecimento,
+        showAtividades,
+        showErp,
         showManutencoes2026,
-        showManutencoesLegado,
     ]);
 
     const masterDetailCounts = useMemo<MasterDetailCounts>(
         () => ({
+            atividades: atividadesRows.length,
             abastecimento: combustivelRows.length,
             manutencoes2026: manutencoes2026Rows.length,
-            manutencoesLegado: manutencoesLegadoRows.length,
+            manutencoesErp: erpRows.length,
         }),
-        [combustivelRows.length, manutencoes2026Rows.length, manutencoesLegadoRows.length],
+        [atividadesRows.length, combustivelRows.length, erpRows.length, manutencoes2026Rows.length],
     );
 
     const masterDetailFilters = useMemo<MasterDetailFilters>(
         () => ({
+            atividades: showAtividades,
             abastecimento: showAbastecimento,
             manutencoes2026: showManutencoes2026,
-            manutencoesLegado: showManutencoesLegado,
+            manutencoesErp: showErp,
         }),
-        [showAbastecimento, showManutencoes2026, showManutencoesLegado],
+        [showAbastecimento, showAtividades, showErp, showManutencoes2026],
     );
 
     const masterDetailLoading =
+        (showAtividades && atividadesLoading) ||
         (showAbastecimento && combustivelLoading) ||
         (showManutencoes2026 && manutencoes2026Loading) ||
-        (showManutencoesLegado && manutencoesLegadoLoading);
+        (showErp && erpLoading);
 
     const masterDetailError = useMemo(() => {
         const errors: string[] = [];
+        if (showAtividades && atividadesError) errors.push(atividadesError);
         if (showAbastecimento && combustivelError) errors.push(combustivelError);
         if (showManutencoes2026 && manutencoes2026Error) errors.push(manutencoes2026Error);
-        if (showManutencoesLegado && manutencoesLegadoError) errors.push(manutencoesLegadoError);
+        if (showErp && erpError) errors.push(erpError);
         if (errors.length === 0) return null;
         return errors.join(' ');
     }, [
+        atividadesError,
         combustivelError,
+        erpError,
         manutencoes2026Error,
-        manutencoesLegadoError,
         showAbastecimento,
+        showAtividades,
+        showErp,
         showManutencoes2026,
-        showManutencoesLegado,
     ]);
 
-    const hasActiveFilters = showAbastecimento || showManutencoes2026 || showManutencoesLegado;
+    const hasActiveFilters = showAtividades || showAbastecimento || showManutencoes2026 || showErp;
 
     useEffect(() => {
         if (!hasActiveFilters) {
@@ -912,14 +994,16 @@ export default function FrotaVeiculoDetalhesPage() {
     }, [hasActiveFilters, masterDetailItems, selectedCollection, selectedDocId]);
 
     const handleToggleFilter = useCallback((key: keyof MasterDetailFilters, value: boolean) => {
-        if (key === 'abastecimento') {
+        if (key === 'atividades') {
+            setShowAtividades(value);
+        } else if (key === 'abastecimento') {
             setShowAbastecimento(value);
         } else if (key === 'manutencoes2026') {
             setShowManutencoes2026(value);
-        } else if (key === 'manutencoesLegado') {
-            setShowManutencoesLegado(value);
+        } else if (key === 'manutencoesErp') {
+            setShowErp(value);
         }
-    }, []);    
+    }, []);
 
     const despesasPorNatureza = useMemo<ChartPoint[]>(() => {
         const acc = new Map<string, number>();
@@ -1015,33 +1099,48 @@ export default function FrotaVeiculoDetalhesPage() {
                 </Stack>
             </Stack>
 
-            {veiculo && (
-                <Paper variant="outlined" sx={{ mt: 3, p: 2 }}>
-                    <Stack direction={{ xs: 'column', sm: 'row' }} spacing={3} flexWrap="wrap" useFlexGap>
-                        <Typography variant="body2"><strong>{tipoVeiculo === 'PLACA' ? 'Placa' : 'Extra'}:</strong> {veiculo.identificador}</Typography>
-                        <Typography variant="body2"><strong>Nome:</strong> {veiculo.nome}</Typography>
-                        <Typography variant="body2"><strong>Situação:</strong> {veiculo.situacao ?? (veiculo.ativo ? 'ativo' : 'inativo')}</Typography>
-                        <Typography variant="body2"><strong>{tipoVeiculo === 'PLACA' ? 'KM' : 'Medidor'} inicial:</strong> {veiculo.quilometragemInicial ?? '—'}</Typography>
-                        <Typography variant="body2"><strong>{tipoVeiculo === 'PLACA' ? 'KM' : 'Medidor'} último:</strong> {veiculo.quilometragemUltima ?? '—'}</Typography>
-                        <Typography variant="body2">
-                            <strong>Última atualização:</strong> {(() => {
-                                const d = toDate(veiculo.dataUltimaAtualizacao);
-                                return d ? dateFormatter.format(d) : '—';
-                            })()}
+            {veiculo && (() => {
+                const atualizacao = atualizacaoInfo(veiculo.dataUltimaAtualizacao);
+                const ultima = toDate(veiculo.dataUltimaAtualizacao);
+                const medidor = tipoVeiculo === 'PLACA' ? 'KM' : 'Horímetro';
+                const corFrescor = { recente: 'text.secondary', atencao: 'warning.dark', antiga: 'error.main', 'sem-dado': 'text.disabled' }[atualizacao.frescor];
+                return (
+                    <Paper variant="outlined" sx={{ mt: 3, p: { xs: 2, sm: 3 } }}>
+                        <Stack direction="row" spacing={1.5} alignItems="center" flexWrap="wrap" useFlexGap>
+                            <Typography sx={{ fontSize: { xs: 26, sm: 32 }, fontWeight: 700, letterSpacing: 0.5 }}>{veiculo.identificador}</Typography>
+                            <Chip label={tipoVeiculo} size="small" variant="outlined" />
+                            <Chip label={veiculo.situacao ?? (veiculo.ativo ? 'ativo' : 'inativo')} size="small" color={veiculo.ativo ? 'success' : 'default'} />
+                        </Stack>
+                        <Typography sx={{ fontSize: { xs: 17, sm: 20 } }} color="text.secondary">{veiculo.nome}</Typography>
+                        <Box sx={{ mt: 2.5, display: 'grid', gap: 2, gridTemplateColumns: { xs: '1fr 1fr', md: 'repeat(3, minmax(0, 1fr))' } }}>
+                            <Box>
+                                <Typography variant="body2" color="text.secondary">{medidor} último</Typography>
+                                <Typography sx={{ fontSize: { xs: 22, sm: 28 }, fontWeight: 700 }}>{medidorTexto(veiculo)}</Typography>
+                            </Box>
+                            <Box>
+                                <Typography variant="body2" color="text.secondary">Última atualização</Typography>
+                                <Typography sx={{ fontSize: { xs: 18, sm: 22 }, fontWeight: 600 }}>{ultima ? dateFormatter.format(ultima) : '—'}</Typography>
+                                <Typography variant="body2" color={corFrescor}>{atualizacao.texto}</Typography>
+                            </Box>
+                            <Box>
+                                <Typography variant="body2" color="text.secondary">{medidor} inicial</Typography>
+                                <Typography sx={{ fontSize: { xs: 18, sm: 22 }, fontWeight: 600 }}>
+                                    {medidorTexto({ categoria: veiculo.categoria, quilometragemUltima: veiculo.quilometragemInicial })}
+                                </Typography>
+                            </Box>
+                        </Box>
+                        <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 2 }}>
+                            O cadastro do veículo é feito no Friday (veiculos-v2).
                         </Typography>
-                    </Stack>
-                    <Typography variant="caption" color="text.secondary">
-                        O cadastro do veículo é feito no Friday (veiculos-v2).
-                    </Typography>
-                </Paper>
-            )}
+                    </Paper>
+                );
+            })()}
 
-            <Divider sx={{ my: 4 }} />
+            <Box mt={3}>
+                <RegistrosFiltros filters={masterDetailFilters} counts={masterDetailCounts} onToggleFilter={handleToggleFilter} />
+            </Box>
 
-            <Box>
-                <Typography variant="h6" gutterBottom>
-                    Manutenções
-                </Typography>
+            <Box mt={2}>
                 <Stack direction={{ xs: 'column', md: 'row' }} spacing={3} alignItems="stretch">
                     <Stack flex={1} sx={{ minWidth: 280, maxWidth: { md: 460 } }}>
                         <ManutencoesList
@@ -1051,9 +1150,7 @@ export default function FrotaVeiculoDetalhesPage() {
                             selectedId={selectedDocId}
                             selectedCollection={selectedCollection}
                             filters={masterDetailFilters}
-                            counts={masterDetailCounts}
                             onSelect={handleSelectDoc}
-                            onToggleFilter={handleToggleFilter}
                         />
                     </Stack>
                     <Stack flex={2} sx={{ minWidth: 280 }}>

@@ -42,6 +42,11 @@ export function composeVehicleReport(input: BuildInput, sources: VehicleReportSo
   const status: VehicleReportStatus = available === 3 ? 'complete' : available === 0 ? 'failed' : 'partial';
   return { veiculo: { placa, nome: vehicleName || placa }, periodo: { dataInicial, dataFinal }, status, sources, firebase: { combustivel: { registrosEncontrados: sources.fuel.status === 'ok' ? fuel.length : null, classificacaoDisponivel: canClassifyFuel, externos: fuelSummary?.externos ?? null, registros: fuelSummary?.internos ?? null, litros: fuelSummary?.litros ?? null, valor: fuelSummary?.valor ?? null, itens: fuelItems, itensBrutos: fuel }, manutencoes: { registros: sources.maintenance.status === 'ok' ? maintenance.length : null, valor: maintenanceValue, itens: maintenance }, total: firebaseTotal }, erp: { query47: q47 }, totais: { firebase: firebaseTotal, erpQ47: erpValue, consolidado: firebaseTotal !== null && erpValue !== null ? firebaseTotal + erpValue : null } };
 }
+/** Linhas da Query 47 do ERP do veículo no período: o mesmo pedido do relatório (detalhe do veículo, "Manutenções ERP"). */
+export async function fetchVehicleErpRows(placa: string, dataInicial: string, dataFinal: string): Promise<Record<string, unknown>[]> {
+  const result = await httpsCallable<any, any>(functions, 'getVehicleErpCosts')({ placa, dataInicial, dataFinal });
+  return filterVehicleReportPeriod(result.data?.query47 ?? [], dataInicial, dataFinal, (r: any) => r.data_emissao);
+}
 export async function buildVehicleReport(input: BuildInput) {
   const settled = await Promise.allSettled([
     getDocs(collection(db, '03-combustivel')).then((snap) => snap.docs.map((doc) => ({ id: doc.id, ...doc.data() }))),
