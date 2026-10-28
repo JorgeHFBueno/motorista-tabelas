@@ -4,11 +4,10 @@ import { FieldPath, FieldValue, Timestamp } from 'firebase-admin/firestore';
 import { db } from './firebaseAdmin.js';
 import { exigirAdm2 } from './fridayMondayImport.js';
 import { temCredencial, type Credencial } from './credenciais.js';
-import { dataLocal, novoId, prefixosBusca } from './fridayMondayConverter.js';
+import { dataLocal, novoId } from './fridayMondayConverter.js';
 import {
-  acrescentarRotulosDeTexto, analisar, CADASTROS_EXISTENTES, cadastroExistente, caminhoDaMarca, chaveDoExistente, conciliacaoLiberada, gravarCaminho, itemDoRegistro, lerCaminho,
-  montarCamposExistente, novoRegistro, planejar, valorParaContrato, valorParaGravarExistente, valorPeloTexto, type CampoExistente, type ChaveConciliacao, type Decisoes, type ItemConciliavel, type PedidoLigacao,
-  type RegistroExistente,
+  cadastroExistente, caminhoDaMarca, gravarCaminho, itemDoRegistro, lerCaminho, novoRegistro, valorDesativado, valorParaContrato, valorParaGravarExistente,
+  valorPeloTexto, type CampoExistente, type ChaveConciliacao, type ItemConciliavel,
 } from './fridayCadastrosExistentes.js';
 import {
   acrescentarRotulos, camposDoItem, CHAVES_RESERVADAS, chaveValida, conflitoDeChave, dataDoFriday, entradaSubitem, indicePessoas, montarCampos, sincronizarRotulos, situacaoDoItem, valorDoOficial,
@@ -267,9 +266,17 @@ async function gravarExistente(uid: string, item: AnyRecord, e: Escopo, op: Oper
     if (e.sub) return vincularSubitemExistente(item, e);
     return cadastroExistente(String(e.registro.colecao))?.cria_registro ? criarRegistroDoItem(item, e) : { ok: true, livre: true };
   }
-  if (op === 'grupo' || (op === 'situacao' && !e.sub)) return { ok: true, livre: false };
+  if (op === 'grupo') return { ok: true, livre: false };
+  const cadastro = cadastroExistente(String(e.registro.colecao));
+  if (op === 'situacao' && !e.sub && (!cadastro?.arquivado_desativa || item.vinculo?.cadastro !== e.chave)) return { ok: true, livre: false };
   if (item.vinculo?.cadastro !== e.chave) throw new HttpsError('failed-precondition', 'O item não está vinculado ao cadastro.');
   const ref = db.collection(String(e.registro.colecao)).doc(String(item.vinculo.id));
+  if (op === 'situacao' && !e.sub) {
+    // Item arquivado ou na lixeira: o campo `arquivado_desativa` (ex.: cadastro.ativo) fica false; restaurado, recalcula.
+    const v = valorDesativado(cadastro!, e.campos as CampoExistente[], (await ref.get()).data(), situacaoDoItem(item) === 'ativo');
+    if (v) await ref.update(new FieldPath(...v[0].split('.')), v[1]);
+    return { ok: true };
+  }
   const prefixo = e.sub ? [e.subChave!, String(item.vinculo.sub)] : [];
   const caminhoNoDoc = (k: string) => new FieldPath(...prefixo, ...k.split('.'));
   if (op === 'situacao') {
@@ -309,7 +316,9 @@ async function gravarExistente(uid: string, item: AnyRecord, e: Escopo, op: Oper
   // Secundários da mesma coluna: gravados junto; rótulo sem opção correspondente não bloqueia o principal.
   const extras = (e.campos as CampoExistente[]).filter(c => c.coluna_id === colunaId && c.situacao === 'ativo' && c.secundario)
     .flatMap(c => { const x = valorParaGravarExistente(c, valor); return 'erro' in x || valor == null ? [] : x.gravar; });
-  const gravar = [...r.gravar, ...extras];
+  let gravar = [...r.gravar, ...extras];
+  // Item arquivado ou na lixeira continua fora do app mesmo se a situação mudar (ex.: cadastro.ativo dos veículos).
+  if (!e.sub && cadastro?.arquivado_desativa && situacaoDoItem(item) !== 'ativo') gravar = gravar.map(([k, v]) => [k, k === cadastro.arquivado_desativa ? false : v]);
   await ref.update(...(gravar.flatMap(([caminho, v]) => [caminhoNoDoc(caminho), v]) as [FieldPath, unknown]));
   return { ok: true, valor: r.gravar[0][1] };
 }
@@ -365,8 +374,14 @@ async function criarRegistroDoItem(item: AnyRecord, e: Escopo) {
   if (item.vinculo) throw new HttpsError('failed-precondition', 'O item já está vinculado a outro cadastro.');
   const cadastro = cadastroExistente(String(e.registro.colecao))!;
   const ativos = (e.campos as CampoExistente[]).filter(c => c.situacao === 'ativo' && !c.secundario);
-  const novo = novoRegistro(cadastro, ativos, item as ItemConciliavel, e.registro.conciliacao as ChaveConciliacao);
+  const chave = e.registro.conciliacao as ChaveConciliacao;
+  const novo = novoRegistro(cadastro, ativos, item as ItemConciliavel, chave);
   if (novo.erros.length) throw new HttpsError('invalid-argument', novo.erros.join(' '));
+  // Um registro por chave (ex.: a placa): item duplicado ou repetido não cria outro.
+  const valorChave = lerCaminho(novo.doc, chave.caminho);
+  if (valorChave != null && valorChave !== '' && !(await db.collection(String(e.registro.colecao)).where(chave.caminho, '==', valorChave).limit(1).get()).empty) {
+    throw new HttpsError('already-exists', `Já existe um registro com ${chave.caminho} = "${String(valorChave)}"; o item ficou sem vínculo.`);
+  }
   gravarCaminho(novo.doc, caminhoDaMarca(cadastro), true);
   // Subitens do item ainda soltos (ex.: criados antes de o item virar registro).
   const s = e.registro.subitens as AnyRecord | undefined;
@@ -713,184 +728,6 @@ export const fridayCadastroCampos = onCall({ region: REGIAO, timeoutSeconds: 540
     if (e instanceof HttpsError) throw e;
     const mensagem = e instanceof Error ? e.message : String(e);
     logger.error('friday-cadastro:campos', { quadroId, op, mensagem });
-    throw new HttpsError('internal', mensagem.slice(0, 300));
-  }
-});
-
-// ---------------------------------------------------------------- C5: modo "existente" e conciliação
-type OperacaoConciliar = 'catalogo' | 'analisar' | 'simular' | 'executar';
-const OPERACOES_CONCILIAR: OperacaoConciliar[] = ['catalogo', 'analisar', 'simular', 'executar'];
-
-/** Estado da conciliação de um quadro com uma coleção existente (registro atual, itens, registros e colunas). */
-async function dadosDaConciliacao(quadroId: number, colecao: string) {
-  const cadastro = cadastroExistente(colecao);
-  if (!cadastro) throw new HttpsError('invalid-argument', 'Cadastro existente não suportado.');
-  const quadroRef = db.collection('friday-quadros').doc(String(quadroId));
-  const quadro = (await quadroRef.get()).data();
-  if (!quadro || quadro.excluido_em) throw new HttpsError('not-found', 'Quadro não encontrado.');
-  if (quadro.tipo === 'subitens') throw new HttpsError('invalid-argument', 'Quadros de subitens não podem ser conciliados sozinhos.');
-  // Uma coleção existente tem uma só tela: nenhum outro quadro pode estar ligado a ela.
-  const ligados = (await db.collection('friday-cadastros').where('colecao', '==', colecao).get()).docs.map(d => d.data())
-    .filter(r => r.situacao === 'ativo' || r.situacao === 'migrando');
-  const outro = ligados.find(r => Number(r.quadro_id) !== quadroId);
-  if (outro) throw new HttpsError('failed-precondition', `${cadastro.nome} já está ligado a outro quadro (cadastro "${outro.chave}").`);
-  let registro = ligados.find(r => Number(r.quadro_id) === quadroId);
-  if (quadro.cadastro && quadro.cadastro !== registro?.chave) throw new HttpsError('failed-precondition', `O quadro já é o cadastro oficial "${quadro.cadastro}".`);
-  if (registro && registro.modo !== 'existente') registro = undefined;
-  const [itensSnap, registrosSnap, colunasSnap] = await Promise.all([
-    db.collection('friday-itens').where('quadro_id', '==', quadroId).get(),
-    db.collection(colecao).get(),
-    db.collection('friday-colunas').where('quadro_id', '==', quadroId).get(),
-  ]);
-  const docsItens = itensSnap.docs.filter(d => !d.data().excluido_em && d.data().item_pai_id == null);
-  // Itens arquivados (ex.: duplicados da conciliação) ficam fora da análise, mas um arquivado vinculado ainda segura o registro.
-  const itens: ItemConciliavel[] = docsItens.filter(d => !d.data().arquivado_em).map(d => {
-    const i = d.data();
-    return { id: Number(i.id), nome: String(i.nome ?? ''), valores: i.valores ?? {}, vinculado: !!registro && i.vinculo?.cadastro === registro.chave };
-  });
-  const vinculados = new Set(docsItens.map(d => d.data()).filter(i => registro && i.vinculo?.cadastro === registro.chave).map(i => String(i.vinculo.id)));
-  const registros: RegistroExistente[] = registrosSnap.docs.map(d => ({ id: d.id, dados: d.data() }));
-  const colunas = colunasSnap.docs.map(d => d.data() as { id: number; titulo: string; tipo: string; config?: AnyRecord });
-  return { cadastro, quadroRef, quadro, registro, itens, docsItens, vinculados, registros, colunas };
-}
-
-async function conciliar(uid: string, op: OperacaoConciliar, d: AnyRecord) {
-  if (op === 'catalogo') {
-    return { cadastros: CADASTROS_EXISTENTES.map(c => ({ ...c, liberado: conciliacaoLiberada(c.colecao) })) };
-  }
-  const quadroId = Number(d.quadroId);
-  if (!Number.isSafeInteger(quadroId)) throw new HttpsError('invalid-argument', 'quadroId inválido.');
-  const x = await dadosDaConciliacao(quadroId, String(d.colecao ?? ''));
-  // Conciliar de novo (quadro já ligado): valem a chave e os campos já registrados.
-  const chave: ChaveConciliacao = x.registro
-    ? { coluna_id: x.registro.conciliacao.coluna_id as number | null, caminho: String(x.registro.conciliacao.caminho), modo: x.registro.conciliacao.modo === 'prefixo' ? 'prefixo' : 'igual' }
-    : { coluna_id: d.colunaChave == null ? null : Number(d.colunaChave), caminho: String(d.caminhoChave ?? ''), modo: d.modoChave === 'prefixo' ? 'prefixo' : 'igual' };
-  if (!x.cadastro.chaves.includes(chave.caminho)) throw new HttpsError('invalid-argument', 'Campo-chave inválido.');
-  if (chave.coluna_id != null && !x.colunas.some(c => Number(c.id) === chave.coluna_id)) throw new HttpsError('invalid-argument', 'A coluna-chave não pertence ao quadro.');
-  const analise = analisar(x.itens, x.registros, chave, x.vinculados, x.cadastro.nome_item);
-  if (op === 'analisar') {
-    // Rótulo legível dos registros disputados (ambíguos): os dois primeiros campos do contrato.
-    const porId = new Map(x.registros.map(r => [r.id, r.dados]));
-    const nomes = Object.fromEntries([...analise.ambiguos.flatMap(a => a.registroIds), ...analise.casados.map(c => c.registroId), ...analise.semItem.map(r => r.registroId)].map(id => [id,
-      x.cadastro.campos.slice(0, 2).map(c => lerCaminho(porId.get(id), c.caminho)).filter(v => v != null && v !== '').join(' · ') || id]));
-    return { analise, nomes, registro: x.registro ? { chave: x.registro.chave, campos: x.registro.campos, conciliacao: x.registro.conciliacao } : null };
-  }
-
-  let campos: CampoExistente[];
-  if (x.registro) campos = (x.registro.campos ?? []).filter((c: CampoExistente) => c.situacao === 'ativo');
-  else {
-    const pedidos: PedidoLigacao[] = Array.isArray(d.campos) ? (d.campos as AnyRecord[]).map(c => ({
-      caminho: String(c?.caminho ?? ''), coluna_id: Number(c?.coluna_id), prioridade: c?.prioridade === 'quadro' ? 'quadro' : 'cadastro', secundario: c?.secundario === true,
-      rotulos: c?.rotulos && typeof c.rotulos === 'object' ? Object.fromEntries(Object.entries(c.rotulos).map(([k, v]) => [String(k), String(v)])) : undefined,
-    })) : [];
-    const m = montarCamposExistente(x.cadastro, x.colunas, pedidos, chave);
-    if (m.erros.length) throw new HttpsError('invalid-argument', m.erros.join(' '));
-    campos = m.campos;
-  }
-  const decisoes = (d.decisoes ?? {}) as Decisoes;
-  const plano = planejar(x.cadastro, campos, analise, x.itens, x.registros, decisoes, chave);
-  const relatorio = {
-    vinculados: plano.vincular.length, registros_atualizados: plano.vincular.filter(v => v.gravar.length).length, criados: plano.criar.length,
-    trazidos: plano.trazer.length, deixados_fora: plano.deixadosFora, ambiguos_pendentes: plano.ambiguosPendentes, fora_do_quadro: plano.foraDoQuadro,
-    ja_vinculados: analise.jaVinculados, campos: plano.campos, erros: plano.erros.slice(0, 50), total_erros: plano.erros.length,
-    rotulos_novos: plano.rotulosNovos.map(r => ({ coluna_id: r.coluna_id, textos: r.textos })),
-    manuais: plano.manuais, desfeitos: plano.desfeitos, arquivados: plano.arquivar.length,
-  };
-  if (op === 'simular') return { simulacao: true, liberado: conciliacaoLiberada(x.cadastro.colecao), relatorio };
-
-  // op === 'executar': travado por cadastro até ser liberado.
-  if (!conciliacaoLiberada(x.cadastro.colecao)) {
-    throw new HttpsError('failed-precondition', `A conciliação com ${x.cadastro.nome} ainda não está liberada: use a simulação.`);
-  }
-  // Textos do cadastro que ainda não são rótulo da coluna (rótulo → texto) entram como rótulos novos, na coluna e no campo.
-  for (const rn of plano.rotulosNovos) {
-    const colRef = db.collection('friday-colunas').doc(String(rn.coluna_id));
-    const indice = campos.findIndex(c => c.chave === rn.chave);
-    const r = acrescentarRotulosDeTexto((await colRef.get()).data()?.config, campos[indice], rn.textos);
-    await colRef.update({ config: r.config });
-    campos = campos.map((c, k) => (k === indice ? r.campo : c));
-  }
-  let registroChave = x.registro?.chave as string | undefined;
-  const registrosRef = db.collection('friday-cadastros');
-  if (!registroChave) {
-    registroChave = chaveDoExistente(x.cadastro.colecao, Date.now().toString(36));
-    await registrosRef.doc(registroChave).create({
-      chave: registroChave, nome: x.cadastro.nome, modo: 'existente', colecao: x.cadastro.colecao, quadro_id: quadroId, campos,
-      conciliacao: chave, nome_caminho: chave.coluna_id == null && chave.modo !== 'prefixo' ? chave.caminho : null, versao: 1, situacao: 'migrando',
-      criado_por: uid, criado_em: FieldValue.serverTimestamp(), atualizado_em: FieldValue.serverTimestamp(),
-    });
-  } else if (plano.rotulosNovos.length) {
-    // Conciliar de novo: os campos do registro (com os rótulos novos) são a referência.
-    const todos = (x.registro!.campos ?? []).map((c: CampoExistente) => campos.find(n => n.chave === c.chave) ?? c);
-    await registrosRef.doc(registroChave).update({ campos: todos, atualizado_em: FieldValue.serverTimestamp() });
-  }
-  const colecaoRef = db.collection(x.cadastro.colecao);
-  const refItem = new Map(x.docsItens.map(doc => [Number(doc.data().id), doc.ref]));
-  const apagar = [...new Set(campos.map(c => c.coluna_id))].flatMap(id => [new FieldPath('valores', String(id)), FieldValue.delete()]); // secundário usa a mesma coluna
-  const operacoes: ((lote: FirebaseFirestore.WriteBatch) => void)[] = [];
-  // Todo registro ligado a um item ganha a marca `friday.ok = true` (a única coisa do Friday no documento).
-  const marca = caminhoDaMarca(x.cadastro);
-  const comMarca = (gravar: [string, unknown][]) => [...gravar, [marca, true]].flatMap(([caminho, valor]) => [new FieldPath(...String(caminho).split('.')), valor]) as [FieldPath, unknown];
-  for (const v of plano.vincular) {
-    operacoes.push(lote => lote.update(colecaoRef.doc(v.registroId), ...comMarca(v.gravar)));
-    operacoes.push(lote => lote.update(refItem.get(v.itemId)!, 'vinculo', { cadastro: registroChave, id: v.registroId }, ...apagar));
-  }
-  for (const c of plano.criar) {
-    const novo = colecaoRef.doc();
-    gravarCaminho(c.doc, marca, true);
-    operacoes.push(lote => lote.set(novo, c.doc));
-    operacoes.push(lote => lote.update(refItem.get(c.itemId)!, 'vinculo', { cadastro: registroChave, id: novo.id }, ...apagar));
-  }
-  if (plano.trazer.length) {
-    const grupos = (await db.collection('friday-grupos').where('quadro_id', '==', quadroId).get()).docs.map(g => g.data())
-      .filter(g => !g.arquivado_em && !g.excluido_em).sort((a, b) => Number(a.posicao) - Number(b.posicao) || Number(a.id) - Number(b.id));
-    const grupoId = grupos[0]?.id ?? null;
-    let posicao = Math.max(0, ...x.docsItens.map(doc => Number(doc.data().posicao) || 0));
-    const agora = dataLocal();
-    for (const t of plano.trazer) {
-      const id = novoId();
-      posicao += 1;
-      const item = {
-        id, quadro_id: quadroId, grupo_id: grupoId, item_pai_id: null, nome: t.nome, posicao, valores: {}, criado_por: uid, criado_em: agora,
-        atualizado_em: agora, origem_id: null, arquivado_em: null, excluido_em: null, pessoas: [], busca: prefixosBusca(t.nome),
-        importado_em: null, monday_atualizado_em: null, ligacoes_pendentes: null, vinculo: { cadastro: registroChave, id: t.registroId },
-      };
-      operacoes.push(lote => lote.set(db.collection('friday-itens').doc(String(id)), item));
-      operacoes.push(lote => lote.update(colecaoRef.doc(t.registroId), ...comMarca([])));
-    }
-  }
-  if (plano.arquivar.length) {
-    const quando = dataLocal();
-    for (const itemId of plano.arquivar) operacoes.push(lote => lote.update(refItem.get(itemId)!, { arquivado_em: quando, atualizado_em: quando }));
-  }
-  for (let k = 0; k < operacoes.length; k += 400) {
-    const lote = db.batch();
-    operacoes.slice(k, k + 400).forEach(f => f(lote));
-    await lote.commit();
-  }
-  await registrosRef.doc(registroChave).update({ situacao: 'ativo', versao: FieldValue.increment(1), atualizado_em: FieldValue.serverTimestamp() });
-  await x.quadroRef.update({ cadastro: registroChave });
-  const idAtividade = novoId();
-  await db.collection('friday-atividades').doc(String(idAtividade)).set({
-    id: idAtividade, quadro_id: quadroId, item_id: null, item_nome: null, usuario_id: uid, automacao_id: null, acao: 'oficializou',
-    coluna_id: null, coluna_titulo: null, de: null, para: `conciliado com ${x.cadastro.nome} (${relatorio.vinculados} vinculados, ${relatorio.criados} criados, ${relatorio.trazidos} trazidos)`,
-    criado_em: dataLocal(),
-  });
-  return { simulacao: false, chave: registroChave, relatorio };
-}
-
-/** Modo "existente": catálogo, análise e simulação da conciliação (só leitura) e a conciliação em si (travada por cadastro). Só adm2. */
-export const fridayCadastroConciliar = onCall({ region: REGIAO, timeoutSeconds: 540, memory: '1GiB' }, async (request) => {
-  const uid = await exigirAdm2(request.auth?.uid, 'conciliar um quadro com um cadastro existente');
-  const d = (request.data ?? {}) as AnyRecord;
-  const op = String(d.op ?? '') as OperacaoConciliar;
-  if (!OPERACOES_CONCILIAR.includes(op)) throw new HttpsError('invalid-argument', 'Operação inválida.');
-  try {
-    return await conciliar(uid, op, d);
-  } catch (e) {
-    if (e instanceof HttpsError) throw e;
-    const mensagem = e instanceof Error ? e.message : String(e);
-    logger.error('friday-cadastro:conciliar', { op, quadroId: d.quadroId, mensagem });
     throw new HttpsError('internal', mensagem.slice(0, 300));
   }
 });

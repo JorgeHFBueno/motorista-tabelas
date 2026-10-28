@@ -238,7 +238,7 @@ type CampoOficial = { chave: string; titulo: string; tipo: string; coluna_id: nu
 // subitens: subitens oficiais (C3) — cada subitem é uma entrada do mapa `chave` no documento oficial do item pai.
 type SubOficial = { chave: string; quadro_id: number; campos: CampoOficial[]; situacao: string };
 // grupo: grupo oficial (opcional) — o nome do grupo de cada item fica no campo `chave` do documento oficial.
-// modo "existente": o quadro é a tela de uma coleção que já existia (veiculos-v2...), conciliada pela Function fridayCadastroConciliar.
+// modo "existente": o quadro é a tela de uma coleção que já existia (obras-v2, veiculos-v2), ligada a ela por script.
 type Registro = { chave: string; nome: string; colecao: string; campos: CampoOficial[]; situacao: string; subitens?: SubOficial; grupo?: { chave: string; situacao: string };
   modo?: 'novo' | 'existente'; conciliacao?: { coluna_id: number | null; caminho: string } };
 const registros = new Map<string, Promise<Registro | undefined>>();
@@ -318,11 +318,6 @@ async function quadroCadastro(quadroId: unknown) { return (await buscar('quadros
  */
 const chamarCampos = httpsCallable<{ quadroId: number; op: string; colunaId?: number; chave?: string; campos?: { coluna_id: number; chave: string }[]; grupoId?: number }, Record<string, unknown>>(
   functions, 'fridayCadastroCampos', { timeout: 560_000 });
-// Modo "existente" (C5): catálogo, análise e simulação (só leitura) e a conciliação, travada por cadastro até ser liberada.
-const chamarConciliar = httpsCallable<Record<string, unknown>, Record<string, unknown>>(functions, 'fridayCadastroConciliar', { timeout: 560_000 });
-export async function conciliarCadastro(dados: Record<string, unknown> & { op: 'catalogo' | 'analisar' | 'simular' | 'executar' }) {
-  try { return (await chamarConciliar(dados)).data; } catch (e) { throw new ErroApi(500, `Conciliação: ${(e as Error).message}`); }
-}
 type OpCampos = 'adicionar' | 'descontinuar' | 'subitens' | 'rotulos' | 'desfazer' | 'grupo' | 'grupo_descontinuar' | 'grupo_nome';
 export async function camposOficiais(dados: { quadroId: number; op: OpCampos; colunaId?: number; chave?: string; campos?: { coluna_id: number; chave: string }[]; grupoId?: number }) {
   try { return (await chamarCampos(dados)).data; } catch (e) { throw new ErroApi(500, `Cadastro oficial: ${(e as Error).message}`); }

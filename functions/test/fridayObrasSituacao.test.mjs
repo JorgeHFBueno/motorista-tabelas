@@ -76,7 +76,7 @@ test('contrato arquivado ou na lixeira no Friday → FINALIZADA (sai do app); re
 
 test('contrato novo criado no Friday: obras-v2 cria o registro com os padrões, o nome do item e os campos ligados', () => {
   assert.equal(obras.cria_registro, true);
-  assert.equal(m.cadastroExistente('veiculos-v2').cria_registro, undefined);
+  assert.equal(m.cadastroExistente('veiculos-v2').cria_registro, true); // veículos também (decisão de 2026-10-28)
   const item = { id: 9, nome: '  NOVO CONTRATO 12/2026 ', valores: { [id('Empresa')]: [col('Empresa').config.rotulos.find(r => r.texto === 'LEDUR').id][0], [id('Fim')]: '2026-12-20' } };
   const { doc, erros: e } = m.novoRegistro(obras, campos, item, { coluna_id: null, caminho: 'nomeObra' });
   assert.deepEqual(e, []);

@@ -798,47 +798,12 @@ body.redimensionando .friday-root, body.redimensionando .friday-root * { cursor:
 .friday-root .oficial-coluna .texto-alerta { grid-column: 2; font-size: 12px; }
 .friday-root .oficial-chave { height: 30px; font-family: Consolas, monospace; font-size: 12.5px; }
 
-/* Cadastros oficiais, modo existente (C5): conciliação */
-.friday-root .oficial-pergunta { display: flex; align-items: center; justify-content: space-between; gap: 12px; background: var(--fundo-suave, #f5f6f8); border-radius: 6px; padding: 8px 12px; margin-bottom: 10px; font-size: 13px; }
+/* Listas e etiquetas do "Mudar tipo…" */
 .friday-root .conc-secao { border-top: 1px solid var(--borda-suave); padding: 10px 0; display: flex; flex-direction: column; gap: 8px; }
-.friday-root .conc-linha { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
-.friday-root .conc-linha .campo-form { margin: 0; }
 .friday-root .conc-chips { display: flex; flex-wrap: wrap; gap: 6px; }
 .friday-root .conc-chip { font-size: 12px; padding: 2px 10px; border-radius: 12px; background: #eef0f4; }
 .friday-root .conc-chip.ok { background: #dcf3e8; color: #0f6b43; }
 .friday-root .conc-chip.atencao { background: #fff1d6; color: #8a5a00; }
 .friday-root .conc-lista { max-height: 200px; overflow-y: auto; display: flex; flex-direction: column; gap: 4px; padding: 6px 0; }
 .friday-root .conc-item { display: grid; grid-template-columns: 1fr 260px; gap: 8px; align-items: center; font-size: 13px; }
-.friday-root .conc-campos { display: flex; flex-direction: column; gap: 6px; max-height: 340px; overflow-y: auto; }
-.friday-root .conc-campo { display: grid; grid-template-columns: 1fr 200px 150px; gap: 8px; align-items: center; font-size: 13px; }
-.friday-root .conc-campo .input-cheio { height: 30px; }
-.friday-root .conc-campo-nome { display: inline-flex; align-items: center; gap: 4px; flex-wrap: wrap; }
-.friday-root .conc-opcoes { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 10px; padding-left: 12px; }
-.friday-root .conc-opcoes select { margin-left: 4px; }
-.friday-root .conc-tabela { border-collapse: collapse; font-size: 12.5px; }
-.friday-root .conc-tabela th, .friday-root .conc-tabela td { border-bottom: 1px solid var(--borda-suave); padding: 4px 8px; text-align: right; }
-.friday-root .conc-tabela th:first-child, .friday-root .conc-tabela td:first-child { text-align: left; }
-.friday-root .conc-riscado { text-decoration: line-through; opacity: .6; }
-/* página da conciliação: parte 1 em 4 colunas, parte 2 em 2 */
-.friday-root .conc-pagina { max-width: 1600px; }
-.friday-root .conc-topo { position: sticky; top: 0; z-index: 5; background: var(--superficie); display: flex; justify-content: space-between; align-items: flex-end; gap: 16px; padding: 4px 0 12px; border-bottom: 1px solid var(--borda-suave); flex-wrap: wrap; }
-.friday-root .conc-topo h1 { margin: 6px 0 4px; font-size: 22px; }
-.friday-root .conc-topo-titulo { min-width: 0; flex: 1 1 420px; }
-.friday-root .conc-topo-acoes { display: flex; gap: 8px; }
-.friday-root .conc-parte { padding: 16px 0 4px; }
-.friday-root .conc-parte h2 { font-size: 16px; margin: 0 0 10px; }
-.friday-root .conc-grade4 { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
-.friday-root .conc-grade2 { display: grid; grid-template-columns: minmax(0, 3fr) minmax(0, 2fr); gap: 12px; }
-.friday-root .conc-cartao { border: 1px solid var(--borda-suave); border-radius: 8px; display: flex; flex-direction: column; min-width: 0; }
-.friday-root .conc-cartao-cab { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; padding: 8px 10px; border-bottom: 1px solid var(--borda-suave); font-weight: 600; font-size: 14px; }
-.friday-root .conc-cartao-cab small { font-weight: 400; flex-basis: 100%; }
-.friday-root .conc-cartao-lista { max-height: 460px; overflow-y: auto; display: flex; flex-direction: column; gap: 8px; padding: 8px 10px; }
-.friday-root .conc-cartao-lista.conc-campos { max-height: 560px; }
-.friday-root .conc-linha-item { display: flex; flex-direction: column; gap: 4px; font-size: 13px; padding-bottom: 8px; border-bottom: 1px dashed var(--borda-suave); }
-.friday-root .conc-linha-item:last-child { border-bottom: 0; }
-.friday-root .conc-linha-item.check-form { flex-direction: row; align-items: flex-start; }
-.friday-root .conc-do-nome { grid-column: 2 / -1; font-style: italic; }
-.friday-root .conc-linha-item .input-cheio { height: 30px; }
-@media (max-width: 1100px) { .friday-root .conc-grade4 { grid-template-columns: repeat(2, minmax(0, 1fr)); } .friday-root .conc-grade2 { grid-template-columns: 1fr; } }
-@media (max-width: 640px) { .friday-root .conc-grade4 { grid-template-columns: 1fr; } .friday-root .conc-campo { grid-template-columns: 1fr; } .friday-root .conc-do-nome { grid-column: auto; } .friday-root .conc-linha { grid-template-columns: 1fr; } }
 .friday-root .cel-so-leitura { color: var(--texto-2, #555); background: repeating-linear-gradient(45deg, transparent, transparent 6px, rgba(0,0,0,.025) 6px, rgba(0,0,0,.025) 12px); cursor: not-allowed; }

@@ -7,7 +7,6 @@ import {
 } from 'lucide-react';
 import { req } from '../api.ts';
 import { useAuth } from '../../../contexts/AuthContext';
-import { Conciliar } from './Conciliar.tsx';
 import { DesfazerOficial, GrupoOficialDialogo, TornarOficial } from './TornarOficial.tsx';
 import { NomeModal } from '../layout/Lateral.tsx';
 import { Permissoes } from '../layout/Permissoes.tsx';
@@ -518,15 +517,14 @@ function MenuQuadro({ quadro, acoes, confirmar, temOcultas, onMostrarOcultas, on
   const pop = usePopover<HTMLButtonElement>();
   const [nomeItem, setNomeItem] = useState(false);
   const [permissoes, setPermissoes] = useState(false);
-  const [oficializar, setOficializar] = useState<'quadro' | 'subitens' | 'desfazer' | 'grupo' | 'grupo_descontinuar' | 'conciliar' | null>(null);
+  const [oficializar, setOficializar] = useState<'quadro' | 'subitens' | 'desfazer' | 'grupo' | 'grupo_descontinuar' | null>(null);
   const existente = quadro.oficial?.modo === 'existente';
   const adm2 = useAuth().authorizationProfile?.adm2 === true;
   const itens: ItemMenu[] = [
     // Cadastros oficiais: só adm2, quadro comum ainda não oficial.
     ...(adm2 && !quadro.oficial && quadro.tipo !== 'subitens' ? [{ rotulo: 'Tornar oficial…', icone: <Lock size={15} />, onClick: () => setOficializar('quadro') }, 'separador' as const] : []),
     // Subitens oficiais: quadro oficial com subitens que ainda não são oficiais (ou promoção interrompida).
-    // Cadastro existente: itens novos ficam sem vínculo até conciliar de novo; subitens e grupo oficiais ainda não valem.
-    ...(adm2 && existente ? [{ rotulo: 'Conciliar de novo…', icone: <Lock size={15} />, onClick: () => navigate(`/quadros/${quadro.id}/conciliar`) }] : []),
+    // Cadastro existente: a ligação com a coleção é feita por script (decisão de 2026-10-28); subitens e grupo oficiais ainda não valem.
     ...(adm2 && quadro.oficial && !existente && quadro.oficial.subitens !== 'ativo' && acoes.dados?.sub
       ? [{ rotulo: quadro.oficial.subitens === 'migrando' ? 'Retomar subitens oficiais…' : 'Tornar subitens oficiais…', icone: <Lock size={15} />, onClick: () => setOficializar('subitens') }, 'separador' as const] : []),
     ...(adm2 && quadro.oficial ? [
@@ -553,9 +551,7 @@ function MenuQuadro({ quadro, acoes, confirmar, temOcultas, onMostrarOcultas, on
       <button ref={pop.ref} className="btn-icone" aria-label="Menu do quadro" onClick={pop.alternar}><MoreHorizontal size={18} /></button>
       {pop.aberto && <Popover ancora={pop.ref.current} onClose={pop.fechar} alinhar="fim" largura={280}><Menu onEscolher={pop.fechar} itens={itens} /></Popover>}
       {permissoes && <Permissoes recurso="quadro" id={Number(quadro.id)} nome={String(quadro.nome)} onFechar={() => { setPermissoes(false); acoes.recarregar(); }} />}
-      {oficializar === 'quadro' && <TornarOficial quadro={quadro} colunas={acoes.dados?.colunas ?? []} onFechar={() => setOficializar(null)} onPronto={() => { setOficializar(null); acoes.recarregar(); }}
-        onConciliar={() => setOficializar('conciliar')} />}
-      {oficializar === 'conciliar' && <Conciliar quadroId={Number(quadro.id)} colunas={acoes.dados?.colunas ?? []} onFechar={() => setOficializar(null)} />}
+      {oficializar === 'quadro' && <TornarOficial quadro={quadro} colunas={acoes.dados?.colunas ?? []} onFechar={() => setOficializar(null)} onPronto={() => { setOficializar(null); acoes.recarregar(); }} />}
       {oficializar === 'subitens' && acoes.dados?.sub && <TornarOficial quadro={quadro} colunas={acoes.dados.sub.colunas}
         subitens={{ nomeItem: String(acoes.dados.sub.nome_item || 'Subitem'), chave: quadro.oficial?.subitens === 'migrando' ? quadro.oficial.sub_chave : null }}
         onFechar={() => setOficializar(null)} onPronto={() => { setOficializar(null); acoes.recarregar(); }} />}
