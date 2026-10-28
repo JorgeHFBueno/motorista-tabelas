@@ -66,7 +66,7 @@ export default function ChecklistsPage() {
           loading={loading}
           density="compact"
           disableRowSelectionOnClick
-          onRowClick={(p) => navigate(`/checklists/${encodeURIComponent(String(p.id))}`)}
+          onRowClick={(p) => navigate(`/frota/checklists/${encodeURIComponent(String(p.id))}`)}
           initialState={{ sorting: { sortModel: [{ field: 'concluidoEm', sort: 'desc' }] } }}
           localeText={{ ...ptBR.components.MuiDataGrid.defaultProps.localeText, noRowsLabel: 'Nenhum checklist encontrado.' }}
           sx={{ '& .MuiDataGrid-row': { cursor: 'pointer' } }}

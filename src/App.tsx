@@ -76,12 +76,13 @@ export default function App() {
             <Route path="cadastros/usuarios/novo" element={<CadastroUsuarioNovoPage />} />
             <Route path="cadastros/usuarios/kiosk" element={<KioskCredentialsPage />} />
             <Route path="cadastros/editar/:tipo" element={<CadastrosEditarPage />} />
-            <Route path="registros" element={<RegistrosPage />} />
-            <Route path="checklists" element={<ChecklistsPage />} />
-            <Route path="checklists/:id" element={<ChecklistDetalhePage />} />
-            <Route path="frota" element={<FrotaVeiculosPage />} />
+            {/* Frota é um grupo, como Engenharia: /frota não tem página própria. */}
+            <Route path="frota/veiculos" element={<FrotaVeiculosPage />} />
+            <Route path="frota/veiculos/:id" element={<FrotaVeiculoDetalhesPage />} />
+            <Route path="frota/registros" element={<RegistrosPage />} />
+            <Route path="frota/checklists" element={<ChecklistsPage />} />
+            <Route path="frota/checklists/:id" element={<ChecklistDetalhePage />} />
             <Route path="frota/analytics" element={<FrotaAnalyticsPage />} />
-            <Route path="frota/:id" element={<FrotaVeiculoDetalhesPage />} />
             <Route path="bombas" element={<BombasPage />} />
             <Route path="portfolio" element={<PortifolioPage />} />
           </Route>

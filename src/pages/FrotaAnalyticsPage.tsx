@@ -2,12 +2,15 @@ import { useEffect, useMemo, useState } from 'react';
 import { Alert, Box, Button, CircularProgress, Container, Stack, Typography } from '@mui/material';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import FrotaAnalyticsPanel from '../components/FrotaAnalyticsPanel';
+import FrotaGastosPorVeiculo from '../components/FrotaGastosPorVeiculo';
 import { listItensFrota } from '../services/veiculos.service';
 import type { VehicleAnalyticsIdentity } from '../services/frota-analytics.service';
+import type { ItemFrotaV2 } from '../utils/cadastrosV2';
 
 export default function FrotaAnalyticsPage() {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
+  const [itens, setItens] = useState<ItemFrotaV2[]>([]);
   const [vehicles, setVehicles] = useState<VehicleAnalyticsIdentity[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -22,6 +25,7 @@ export default function FrotaAnalyticsPage() {
       try {
         const items = await listItensFrota();
         if (!active) return;
+        setItens(items);
         setVehicles(items.map(item => ({
           id: item.id,
           identificador: item.identificador,
@@ -53,13 +57,13 @@ export default function FrotaAnalyticsPage() {
         </Box>
         <Stack direction="row" spacing={1}>
           {selectedVehicle && <Button variant="text" onClick={() => setSearchParams({}, { replace: true })}>Visão geral</Button>}
-          <Button variant="outlined" onClick={() => navigate('/frota')}>Voltar para Frota</Button>
+          <Button variant="outlined" onClick={() => navigate('/frota/veiculos')}>Voltar para Veículos</Button>
         </Stack>
       </Stack>
 
       {error && <Alert severity="error" sx={{ mt: 3 }}>{error}</Alert>}
       {!loading && vehicleId && !selectedVehicle && !error && <Alert severity="warning" sx={{ mt: 3 }}>O veículo informado não foi encontrado. Exibindo a visão geral.</Alert>}
-      {loading ? <Box display="flex" justifyContent="center" py={8}><CircularProgress /></Box> : !error && <Box mt={3}><FrotaAnalyticsPanel vehicles={vehicles} vehicle={selectedVehicle} /></Box>}
+      {loading ? <Box display="flex" justifyContent="center" py={8}><CircularProgress /></Box> : !error && <Box mt={3}><FrotaAnalyticsPanel vehicles={vehicles} vehicle={selectedVehicle} />{!selectedVehicle && <FrotaGastosPorVeiculo veiculos={itens} />}</Box>}
     </Container>
   );
 }

@@ -167,7 +167,7 @@ export default function CadastrosPage() {
                 </Typography>
               </Box>
               <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} sx={cardActionStackSx}>
-                <Button variant="outlined" component={RouterLink} to="/frota">
+                <Button variant="outlined" component={RouterLink} to="/frota/veiculos">
                   Ver frota
                 </Button>
               </Stack>

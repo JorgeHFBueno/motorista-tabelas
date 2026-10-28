@@ -69,7 +69,7 @@ export default function ChecklistDetalhePage() {
     return [...grupos.entries()];
   }, [checklist]);
 
-  const voltar = <Button startIcon={<ArrowBackIcon />} variant="outlined" onClick={() => navigate('/checklists')}>Checklists</Button>;
+  const voltar = <Button startIcon={<ArrowBackIcon />} variant="outlined" onClick={() => navigate('/frota/checklists')}>Checklists</Button>;
   if (estado === 'carregando') return <Container sx={{ py: 4 }}><CircularProgress /></Container>;
   if (estado !== 'ok' || !checklist) {
     return <Container sx={{ py: 3 }}><Stack spacing={2}>{voltar}<Alert severity={estado === 'erro' ? 'error' : 'warning'}>{estado === 'erro' ? 'Não foi possível carregar o checklist.' : 'Checklist não encontrado.'}</Alert></Stack></Container>;

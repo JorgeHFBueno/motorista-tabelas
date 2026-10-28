@@ -3,6 +3,8 @@ import AssignmentIndIcon from '@mui/icons-material/AssignmentInd';
 import ListAltIcon from '@mui/icons-material/ListAlt';
 import DirectionsCarFilledIcon from '@mui/icons-material/DirectionsCarFilled';
 import FactCheckOutlinedIcon from '@mui/icons-material/FactCheckOutlined';
+import InsightsOutlinedIcon from '@mui/icons-material/InsightsOutlined';
+import LocalShippingOutlinedIcon from '@mui/icons-material/LocalShippingOutlined';
 import LocalGasStationIcon from '@mui/icons-material/LocalGasStation';
 import EngineeringIcon from '@mui/icons-material/Engineering';
 import CalendarMonthIcon from '@mui/icons-material/CalendarMonth';
@@ -51,28 +53,18 @@ export const menuPrincipal: MenuPrincipalItem[] = [
     acesso: 'adm2',
   },
   {
-    label: 'Registros',
-    icon: <ListAltIcon fontSize="large" />,
-    color: '#F6F7F8',
-    accent: '#5B5D5B',
-    to: '/registros',
-    acesso: 'adm2',
-  },
-  {
     label: 'Frota',
     icon: <DirectionsCarFilledIcon fontSize="large" />,
     color: '#EEF5F1',
     accent: '#2E9D6F',
-    to: '/frota',
     acesso: 'adm2',
-  },
-  {
-    label: 'Checklists',
-    icon: <FactCheckOutlinedIcon fontSize="large" />,
-    color: '#FDF1EE',
-    accent: '#B5533C',
-    to: '/checklists',
-    acesso: 'adm2',
+    // Ordem em grade de duas colunas: Veículos | Registros, Checklists | KPI.
+    children: [
+      { label: 'Veículos', to: '/frota/veiculos', icon: <LocalShippingOutlinedIcon /> },
+      { label: 'Registros', to: '/frota/registros', icon: <ListAltIcon /> },
+      { label: 'Checklists', to: '/frota/checklists', icon: <FactCheckOutlinedIcon /> },
+      { label: 'KPI', to: '/frota/analytics', icon: <InsightsOutlinedIcon /> },
+    ],
   },
   {
     label: 'Combustível',

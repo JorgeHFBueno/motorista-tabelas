@@ -88,14 +88,14 @@ export default function HomeDashboard() {
                 <Collapse in={expandedGroup === action.label} timeout="auto" unmountOnExit>
                   <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' }, gap: 1.5, p: 1.5 }}>
                     {action.children.map((child) => (
-                      <Card key={child.label} variant="outlined" sx={{ borderColor: 'rgba(107, 92, 165, 0.35)', borderRadius: 2, bgcolor: 'rgba(242, 240, 250, 0.55)' }}>
+                      <Card key={child.label} variant="outlined" sx={{ borderColor: `${action.accent}59`, borderRadius: 2, bgcolor: action.color }}>
                         <CardActionArea
                           onClick={() => navigate(child.to)}
                           aria-label={`Abrir ${child.label}`}
-                          sx={{ minHeight: 120, p: 2, transition: 'transform 0.2s ease, background-color 0.2s ease', '&:hover': { bgcolor: 'rgba(107, 92, 165, 0.1)', transform: 'translateY(-2px)' }, '&:focus-visible': { outline: '3px solid #6B5CA5', outlineOffset: -3 } }}
+                          sx={{ minHeight: 120, p: 2, transition: 'transform 0.2s ease, background-color 0.2s ease', '&:hover': { bgcolor: `${action.accent}1A`, transform: 'translateY(-2px)' }, '&:focus-visible': { outline: `3px solid ${action.accent}`, outlineOffset: -3 } }}
                         >
                           <Stack alignItems="center" justifyContent="center" spacing={0.75} sx={{ height: '100%', color: '#12293B' }}>
-                            <Box sx={{ color: '#6B5CA5', display: 'flex', '& svg': { fontSize: 24 } }}>{child.icon}</Box>
+                            <Box sx={{ color: action.accent, display: 'flex', '& svg': { fontSize: 24 } }}>{child.icon}</Box>
                             <Typography sx={{ fontSize: 18, fontWeight: 700 }}>{child.label}</Typography>
                             <Typography variant="body2" color="text.secondary">{child.to}</Typography>
                           </Stack>
