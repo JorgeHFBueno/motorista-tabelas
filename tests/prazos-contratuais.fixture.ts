@@ -1,8 +1,8 @@
 /**
  * Contratos `obras-v2/{id}` ligados ao Friday, no formato do contrato (The Manuscript, obras-v2.md), com os dados da
  * planilha "Cronograma Prazos Contratos - Gantt.xlsx" de 19/10/2026 (entrega do Brayan).
- * IDs de contrato/LOTE são inventados (prefixo 91.../92...). A situação vem da fórmula "Status" (com os valores reais)
- * e Pública/Privada pelo Tipo de Obra.
+ * IDs de contrato/LOTE são inventados (prefixo 91.../92...). `item` é o item no quadro GESTÃO DE OBRAS com a coluna
+ * "Situação" (vazia = null), que decide quem entra; Pública/Privada pelo Tipo de Obra.
  */
 export type FixtureSubitem = { id: string; nome: string; status: string };
 export type FixtureDocument = {
@@ -13,6 +13,7 @@ export type FixtureDocument = {
     numeroContrato: string | null; ano: number | null; lotes: Record<string, { nome: string; status: string; ordem: number }>;
     friday: { ok: true };
   };
+  item: { id: number; situacao: string | null };
 };
 
 let subitemSeq = 0;
@@ -21,7 +22,7 @@ const lotes = (...specs: LoteSpec[]): FixtureSubitem[] => specs.flatMap(([status
 
 type ObraSpec = {
   nome: string; empresa: 'LEDUR' | 'ARTEBASE'; inicio?: string; fim?: string; status?: string;
-  ordemInicio?: string | null; tipoObra?: 'Pública' | 'Privada'; subitems?: FixtureSubitem[];
+  ordemInicio?: string | null; tipoObra?: 'Pública' | 'Privada'; subitems?: FixtureSubitem[]; situacaoFriday?: string;
 };
 
 let itemSeq = 0;
@@ -39,13 +40,14 @@ function obra(spec: ObraSpec): FixtureDocument {
       lotes: Object.fromEntries((spec.subitems ?? []).map((s, ordem) => [s.id, { nome: s.nome, status: s.status, ordem }])),
       friday: { ok: true },
     },
+    item: { id: Number(id) + 1000, situacao: spec.situacaoFriday ?? null },
   };
 }
 
 export const PRAZOS_FIXTURE: FixtureDocument[] = [
   // --- Obras públicas com prazo -------------------------------------------------------
   obra({ nome: 'FONTOURA XAVIER 122/2024', empresa: 'ARTEBASE', inicio: '2024-12-02', fim: '2026-05-29' }),
-  obra({ nome: 'SINIMBU 029/2025', empresa: 'ARTEBASE', inicio: '2025-06-10', fim: '2026-08-04', status: 'Obra Parada', subitems: lotes(['Não iniciada', ['Terraplenagem', 'Drenagem', 'Pavimentação']]) }),
+  obra({ nome: 'SINIMBU 029/2025', empresa: 'ARTEBASE', inicio: '2025-06-10', fim: '2026-08-04', status: 'Obra Parada', situacaoFriday: 'Parada', subitems: lotes(['Não iniciada', ['Terraplenagem', 'Drenagem', 'Pavimentação']]) }),
   obra({ nome: 'ARROIO DO TIGRE 34/2026 - 45m', empresa: 'ARTEBASE', inicio: '2026-03-16', fim: '2026-09-15' }),
   obra({ nome: 'LAGOA BONITA DO SUL 16/2026', empresa: 'LEDUR', inicio: '2026-06-25', fim: '2026-09-25', subitems: lotes(['Revisar escopo', ['Ponte 12m']]) }),
   obra({ nome: 'ARROIO DO TIGRE 45/2025 - 120m', empresa: 'ARTEBASE', inicio: '2025-06-04', fim: '2026-10-13', subitems: lotes(['Em andamento', ['Ponte 120m']], ['Não iniciada', ['Demolição', 'Terra', 'Guarda-corpo']]) }),
@@ -71,9 +73,9 @@ export const PRAZOS_FIXTURE: FixtureDocument[] = [
   obra({ nome: 'SEGREDO 175/2026', empresa: 'ARTEBASE' }),
   obra({ nome: 'ALEGRIA 147/2026', empresa: 'LEDUR', subitems: lotes(['Revisar escopo', ['Lote 01', 'Lote 02', 'Lote 03']]) }),
   obra({ nome: 'SÃO VENDELINO 64/2026', empresa: 'LEDUR', subitems: lotes(['Revisar escopo', ['Lote 01']]) }),
-  // --- Ficam fora da tela (Entregue / Finalizada) ---------------------------------------
-  obra({ nome: 'ACIEPP PONTE PRETA', empresa: 'LEDUR', inicio: '2025-11-03', fim: '2026-07-31', status: 'Solicitar termo Definitivo', subitems: lotes(['Finalizado', ['Ponte 24m']]) }),
-  obra({ nome: 'SOBRADINHO 01/2025', empresa: 'ARTEBASE', inicio: '2025-04-01', fim: '2026-03-30', status: 'Solicitar termo Definitivo', subitems: lotes(['Finalizado', ['Ponte 20m']], ['Revisar escopo', ['Lote 02', 'Lote 03', 'Lote 04', 'Lote 05']]) }),
+  // --- Ficam fora da tela (Situação preenchida) -----------------------------------------
+  obra({ nome: 'ACIEPP PONTE PRETA', empresa: 'LEDUR', inicio: '2025-11-03', fim: '2026-07-31', status: 'Solicitar termo Definitivo', situacaoFriday: 'Entregue', subitems: lotes(['Finalizado', ['Ponte 24m']]) }),
+  obra({ nome: 'SOBRADINHO 01/2025', empresa: 'ARTEBASE', inicio: '2025-04-01', fim: '2026-03-30', status: 'Solicitar termo Definitivo', situacaoFriday: 'Entregue', subitems: lotes(['Finalizado', ['Ponte 20m']], ['Revisar escopo', ['Lote 02', 'Lote 03', 'Lote 04', 'Lote 05']]) }),
   // --- Obras privadas (só com o filtro "incluir obras privadas") ------------------------
   obra({ nome: 'CONDOMÍNIO VALE VERDE - PONTE 15m', empresa: 'LEDUR', inicio: '2026-08-03', fim: '2026-12-18', tipoObra: 'Privada', subitems: lotes(['Em andamento', ['Ponte 15m']]) }),
   obra({ nome: 'AGROPECUÁRIA SANTA FÉ - BUEIROS', empresa: 'ARTEBASE', inicio: '2026-10-05', fim: '2027-05-28', tipoObra: 'Privada', subitems: lotes(['Próxima a Iniciar', ['Bueiro 01', 'Bueiro 02']]) }),

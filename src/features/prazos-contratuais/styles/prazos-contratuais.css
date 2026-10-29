@@ -34,6 +34,7 @@
 
 .pz-toolbar { align-items: center; background: #fff; border: 1px solid #dde3ea; border-radius: 8px; display: flex; flex-wrap: wrap; gap: 10px; padding: 8px 12px; }
 .pz-sep { background: #dde3ea; height: 28px; width: 1px; }
+.pz-imprimir { margin-left: auto !important; }
 .pz-conferir a, .pz-td--obra a { color: inherit; }
 
 .pz-scroll {
@@ -111,3 +112,16 @@
 .pz-legenda li { align-items: center; display: flex; gap: 6px; }
 .pz-legenda i { border: 1px solid rgb(0 0 0 / .1); display: inline-block; height: 12px; width: 22px; }
 .pz-legenda p { font-style: italic; margin: 2px 0; }
+
+/* Impressão: só a tela de prazos, sem filtros nem o menu do app, com as cores e todas as linhas. */
+@media print {
+  @page { size: A4 landscape; margin: 8mm; }
+  body * { visibility: hidden; }
+  .pz-page, .pz-page * { -webkit-print-color-adjust: exact; print-color-adjust: exact; visibility: visible; }
+  .pz-page { background: #fff; left: 0; min-height: 0; padding: 0; position: absolute; top: 0; width: max-content; zoom: var(--pz-zoom-impressao, 1); }
+  .pz-toolbar, .pz-loading { display: none !important; }
+  .pz-scroll { border: 0; max-height: none; overflow: visible; }
+  .pz-row--head, .pz-fixo { position: static; }
+  .pz-row { break-inside: avoid; }
+  .pz-td--obra a svg { display: none; }
+}

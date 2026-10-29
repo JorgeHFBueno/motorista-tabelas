@@ -1,4 +1,4 @@
-import { SITUACOES_EXCLUIDAS, fridayItemUrl } from '../data/prazosSchema';
+import { fridayItemUrl } from '../data/prazosSchema';
 
 export type CivilDate = string; // YYYY-MM-DD
 export type Lote = { id: string; nome: string; status: string };
@@ -43,25 +43,21 @@ export function hojeBrasilia(now = new Date()): CivilDate {
 
 // ---------- adaptação do documento `obras-v2` ----------
 const text = (value: unknown): string | null => (typeof value === 'string' && value.trim() ? value.trim() : null);
-const normalizar = (value: string) => value.normalize('NFD').replace(/[̀-ͯ]/g, '').trim().toLowerCase();
 
-/**
- * A situação vem do resultado da fórmula "Status" do quadro GESTÃO DE OBRAS (`obras-v2.situacao`).
- * Nos dados reais, as obras Entregues da especificação (ACIEPP, Sobradinho 01/2025) estão em "Solicitar termo Definitivo".
- */
-export function situacaoPeloStatus(status: string | null): string | null {
-  const value = status ? normalizar(status) : '';
-  if (value === 'obra finalizada') return 'Finalizada';
-  if (value === 'solicitar termo definitivo') return 'Entregue';
-  if (value === 'obra parada') return 'Parada';
-  return null;
+/** Item do contrato no quadro GESTÃO DE OBRAS: id (para o link) e o texto da coluna "Situação" (null = vazia). */
+export type ItemFriday = { id: number; situacao: string | null };
+
+/** Valor de uma coluna lista do Friday (ids de opção) em texto; vazia = null. */
+export function textoDaLista(valor: unknown, opcoes: ReadonlyMap<string, string>): string | null {
+  const ids = Array.isArray(valor) ? valor.map(String) : [];
+  return ids.map((id) => opcoes.get(id) ?? id).join(', ') || null;
 }
 
 type LoteV2 = { nome?: unknown; status?: unknown; ordem?: unknown; situacao?: unknown };
 const ordemDoLote = (lote: LoteV2) => (typeof lote.ordem === 'number' && Number.isFinite(lote.ordem) ? lote.ordem : Number.MAX_SAFE_INTEGER);
 
-/** Contrato de obras-v2 ligado ao Friday; `fridayItemId` é o item dele no quadro (para o link), quando conhecido. */
-export function adaptarDocumento(id: string, data: unknown, fridayItemId?: number | null): ObraPrazo | null {
+/** Contrato de obras-v2 ligado ao Friday, com o item dele no quadro quando conhecido. */
+export function adaptarDocumento(id: string, data: unknown, item?: ItemFriday): ObraPrazo | null {
   const doc = data && typeof data === 'object' ? data as Record<string, unknown> : undefined;
   if (!doc || (doc.friday as { ok?: unknown } | undefined)?.ok !== true) return null;
   const mapa = doc.lotes && typeof doc.lotes === 'object' && !Array.isArray(doc.lotes) ? doc.lotes as Record<string, LoteV2> : {};
@@ -72,8 +68,8 @@ export function adaptarDocumento(id: string, data: unknown, fridayItemId?: numbe
   return {
     id, nome: text(doc.nomeObra) ?? id, empresa: text(doc.empresa) ?? '—',
     inicio: isCivilDate(doc.dataInicial) ? doc.dataInicial : null, fim: isCivilDate(doc.dataFinal) ? doc.dataFinal : null,
-    situacao: situacaoPeloStatus(statusFluxo), tipoObra: text(doc.tipoObra), statusFluxo, ordemInicio: text(doc.ordemInicio),
-    url: fridayItemUrl(fridayItemId),
+    situacao: item?.situacao ?? null, tipoObra: text(doc.tipoObra), statusFluxo, ordemInicio: text(doc.ordemInicio),
+    url: fridayItemUrl(item?.id),
     lotes: lotes.map(([chave, l]) => ({ id: chave, nome: text(l.nome) ?? 'Lote', status: text(l.status) ?? 'Sem status' })),
   };
 }
@@ -82,7 +78,8 @@ export function adaptarDocumento(id: string, data: unknown, fridayItemId?: numbe
 /** O grupo do item não é projetado; Tipo de Obra separa públicas e privadas, como no Cronograma. */
 export const isPublica = (obra: ObraPrazo) => obra.tipoObra?.toLowerCase() === 'pública';
 export const isPrivada = (obra: ObraPrazo) => obra.tipoObra?.toLowerCase() === 'privada';
-export const isEncerrada = (obra: ObraPrazo) => (SITUACOES_EXCLUIDAS as readonly string[]).includes(obra.situacao ?? '');
+/** Só entra o contrato com a coluna "Situação" vazia (Entregue, Finalizada, Parada... ficam fora). */
+export const temSituacao = (obra: ObraPrazo) => obra.situacao !== null;
 
 // ---------- observação dos lotes ----------
 const ORDEM_STATUS = ['Finalizado', 'Em andamento', 'Próxima a Iniciar', 'Não iniciada', 'Parada', 'Revisar escopo'];
@@ -108,7 +105,6 @@ export function resumoLotes(lotes: Lote[]): string {
 
 export function observacao(obra: ObraPrazo, semData: boolean): string {
   const partes: string[] = [];
-  if (obra.situacao === 'Parada') partes.push('Obra PARADA');
   if (semData) {
     if (obra.statusFluxo) partes.push(obra.statusFluxo);
     if (obra.lotes.length) partes.push(resumoLotes(obra.lotes));
@@ -149,9 +145,9 @@ export type ResultadoPrazos = { linhas: LinhaPrazo[]; contagem: Record<SituacaoP
 
 /** Aplica as regras da especificação sobre todos os itens do quadro. */
 export function montarPrazos(obras: ObraPrazo[], hoje: CivilDate, filtros: Filtros, limites: Limites = LIMITES_PADRAO): ResultadoPrazos {
-  const conferir = obras.filter((obra) => isEncerrada(obra) && obra.lotes.some((lote) => lote.status === 'Revisar escopo'))
+  const conferir = obras.filter((obra) => temSituacao(obra) && obra.lotes.some((lote) => lote.status === 'Revisar escopo'))
     .map((obra) => ({ obra, motivo: `${obra.situacao}, mas com ${obra.lotes.filter((l) => l.status === 'Revisar escopo').length} lote(s) em "Revisar escopo"` }));
-  const visiveis = obras.filter((obra) => !isEncerrada(obra) && (isPublica(obra) || (filtros.incluirPrivadas && isPrivada(obra))));
+  const visiveis = obras.filter((obra) => !temSituacao(obra) && (isPublica(obra) || (filtros.incluirPrivadas && isPrivada(obra))));
   const porEmpresa = visiveis.filter((obra) => !filtros.empresas.length || filtros.empresas.includes(obra.empresa));
   const calculadas = porEmpresa.map((obra) => calcularLinha(obra, hoje, limites));
   const contagem = Object.fromEntries(SITUACOES_PRAZO.map((s) => [s, calculadas.filter((l) => l.situacaoPrazo === s).length])) as Record<SituacaoPrazo, number>;

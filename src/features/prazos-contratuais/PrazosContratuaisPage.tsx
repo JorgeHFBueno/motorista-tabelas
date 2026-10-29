@@ -1,8 +1,10 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
-import { Alert, Button, Checkbox, CircularProgress, FormControlLabel, TextField, ToggleButton, ToggleButtonGroup, Tooltip } from '@mui/material';
+import { flushSync } from 'react-dom';
+import { Alert, Button, Checkbox, CircularProgress, FormControlLabel, IconButton, TextField, ToggleButton, ToggleButtonGroup, Tooltip } from '@mui/material';
 import TodayIcon from '@mui/icons-material/Today';
 import WarningAmberRoundedIcon from '@mui/icons-material/WarningAmberRounded';
 import OpenInNewIcon from '@mui/icons-material/OpenInNew';
+import PrintIcon from '@mui/icons-material/Print';
 import {
   CORES_SITUACAO, LIMITES_PADRAO, ROTULO_SITUACAO, SITUACOES_PRAZO, colunasTempo, formatDate, gruposCabecalho, hojeBrasilia,
   montarPrazos, posicaoHoje, trechosBarra, type Escala, type LinhaPrazo, type Limites, type ObraPrazo, type SituacaoPrazo,
@@ -33,6 +35,10 @@ const LARGURA_MINIMA_TIMELINE = 360;
 const LARGURA_COLUNA: Record<Escala, number> = { semana: 22, mes: 44 };
 const COLUNAS_ANTES_DE_HOJE: Record<Escala, number> = { semana: 6, mes: 2 };
 const EMPRESAS = ['LEDUR', 'ARTEBASE'];
+/** Largura útil de uma folha A4 deitada (margens de 8 mm), em px CSS. */
+const LARGURA_FOLHA = 1060;
+/** Sem linha do tempo à vista, a impressão leva este número de colunas a partir de pouco antes de hoje. */
+const COLUNAS_IMPRESSAS_PADRAO = 26;
 
 function DicaBarra({ linha }: { linha: LinhaPrazo }) {
   const { obra } = linha;
@@ -62,7 +68,10 @@ export default function PrazosContratuaisPage() {
   const [escala, setEscala] = useState<Escala>('semana');
   const [limites, setLimites] = useState<Limites>(LIMITES_PADRAO);
   const [compacto, setCompacto] = useState(false);
+  /** Na impressão, só as colunas da linha do tempo que estavam à vista (índices de/até em `colunas`). */
+  const [janela, setJanela] = useState<{ de: number; ate: number } | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const rolagemAntesDeImprimir = useRef(0);
 
   const carregar = useCallback(async () => {
     setCarregando(true); setErro(null);
@@ -76,7 +85,8 @@ export default function PrazosContratuaisPage() {
     () => montarPrazos(obras, hoje, { empresas, situacoes, incluirPrivadas }, limites),
     [obras, hoje, empresas, situacoes, incluirPrivadas, limites],
   );
-  const colunas = useMemo(() => colunasTempo(linhas, escala, hoje), [linhas, escala, hoje]);
+  const todasColunas = useMemo(() => colunasTempo(linhas, escala, hoje), [linhas, escala, hoje]);
+  const colunas = useMemo(() => (janela ? todasColunas.slice(janela.de, janela.ate + 1) : todasColunas), [todasColunas, janela]);
   const grupos = useMemo(() => gruposCabecalho(colunas), [colunas]);
   const largura = LARGURA_COLUNA[escala];
   const hojePos = posicaoHoje(colunas, hoje);
@@ -99,10 +109,32 @@ export default function PrazosContratuaisPage() {
   }, [hojePos, hojeCol, escala, largura, compacto]);
   useLayoutEffect(() => { if (!carregando) irParaHoje(); }, [carregando, escala, compacto]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Impressão (botão ou Ctrl+P): todas as obras e o trecho da linha do tempo que está na tela, ajustados à folha.
+  useEffect(() => {
+    const antes = () => {
+      const el = scrollRef.current;
+      if (!el) return;
+      rolagemAntesDeImprimir.current = el.scrollLeft;
+      const congelada = compacto ? LARGURA_CONGELADA : LARGURA_FIXA;
+      const de = Math.floor(Math.max(0, el.scrollLeft + congelada - LARGURA_FIXA) / largura);
+      const ate = Math.min(todasColunas.length, Math.ceil((el.scrollLeft + el.clientWidth - LARGURA_FIXA) / largura)) - 1;
+      const inicio = Math.max(0, Math.floor(posicaoHoje(todasColunas, hoje) ?? 0) - COLUNAS_ANTES_DE_HOJE[escala]);
+      flushSync(() => setJanela(ate >= de ? { de, ate } : { de: inicio, ate: Math.min(todasColunas.length, inicio + COLUNAS_IMPRESSAS_PADRAO) - 1 }));
+    };
+    const depois = () => {
+      flushSync(() => setJanela(null));
+      if (scrollRef.current) scrollRef.current.scrollLeft = rolagemAntesDeImprimir.current;
+    };
+    window.addEventListener('beforeprint', antes);
+    window.addEventListener('afterprint', depois);
+    return () => { window.removeEventListener('beforeprint', antes); window.removeEventListener('afterprint', depois); };
+  }, [compacto, largura, todasColunas, hoje, escala]);
+
   const alternarSituacao = (s: SituacaoPrazo) => setSituacoes((atual) => (atual.includes(s) ? atual.filter((x) => x !== s) : [...atual, s]));
   const cssVars = {
     '--pz-col': `${largura}px`, '--pz-fixo': `${LARGURA_FIXA}px`, '--pz-congelada': `${LARGURA_CONGELADA}px`, '--pz-dados': `${LARGURA_FIXA - LARGURA_CONGELADA}px`,
     '--pz-grid-congelada': grade(COLUNAS_CONGELADAS), '--pz-grid-dados': grade(COLUNAS_DADOS), '--pz-timeline': `${colunas.length * largura}px`,
+    '--pz-zoom-impressao': Math.min(1, LARGURA_FOLHA / (LARGURA_FIXA + colunas.length * largura)),
   } as CSSProperties;
 
   return (
@@ -140,11 +172,14 @@ export default function PrazosContratuaisPage() {
           onChange={(e) => setLimites((l) => ({ ...l, critico: Math.max(0, Number(e.target.value) || 0) }))} />
         <TextField size="small" type="number" label="Atenção até (dias)" value={limites.atencao} sx={{ width: 130 }}
           onChange={(e) => setLimites((l) => ({ ...l, atencao: Math.max(l.critico, Number(e.target.value) || 0) }))} />
+        <Tooltip title="Imprimir ou salvar em PDF">
+          <IconButton className="pz-imprimir" aria-label="Imprimir" onClick={() => window.print()} disabled={carregando}><PrintIcon /></IconButton>
+        </Tooltip>
       </section>
 
       {conferir.length > 0 && (
         <Alert severity="warning" className="pz-conferir">
-          <strong>Conferir no Friday</strong> (fora da tela por estarem encerradas):{' '}
+          <strong>Conferir no Friday</strong> (fora da tela por terem Situação preenchida):{' '}
           {conferir.map(({ obra, motivo }, i) => <span key={obra.id}>{i > 0 && ' · '}<a href={obra.url} target="_blank" rel="noreferrer">{obra.nome}</a> — {motivo}</span>)}
         </Alert>
       )}
@@ -221,7 +256,7 @@ export default function PrazosContratuaisPage() {
           })}
         </ul>
         <p>A coluna com borda preta marca a semana atual; a linha vermelha marca o dia de hoje. Dias calculados no fuso de Brasília a partir de Início e Fim.</p>
-        <p>Fonte: obras-v2 (quadro GESTÃO DE OBRAS do Friday), obras com Tipo de Obra Pública — sem obras com Status Solicitar termo Definitivo (entregue) ou Obra Finalizada.</p>
+        <p>Fonte: obras-v2 (quadro GESTÃO DE OBRAS do Friday), obras com Tipo de Obra Pública e a coluna Situação vazia.</p>
       </footer>
     </div>
   );

@@ -6,9 +6,10 @@
 export const FIRESTORE_COLLECTION = 'obras-v2';
 export const FRIDAY_QUADRO_OBRAS = 1792498933823587;
 
-export const SITUACOES_EXCLUIDAS = ['Entregue', 'Finalizada'] as const;
+/** Coluna "Situação" (lista) do quadro: só entram os contratos com ela vazia. */
+export const FRIDAY_COLUNA_SITUACAO = 1792498934044675;
 
-/** Item no quadro do Friday; sem o item (quem não lê o Friday), abre o quadro. */
+/** Item no quadro do Friday; sem o item, abre o quadro. */
 export function fridayItemUrl(itemId?: number | null): string {
   return `/friday/quadros/${FRIDAY_QUADRO_OBRAS}${itemId != null ? `?item=${itemId}` : ''}`;
 }

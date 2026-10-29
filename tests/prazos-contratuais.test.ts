@@ -3,7 +3,7 @@ import test from "node:test";
 import { PRAZOS_FIXTURE } from "./prazos-contratuais.fixture";
 import { FRIDAY_QUADRO_OBRAS } from "../src/features/prazos-contratuais/data/prazosSchema";
 import {
-  adaptarDocumento, calcularLinha, colunasTempo, hojeBrasilia, montarPrazos, posicaoHoje, resumoLotes, situacaoPeloStatus, situacaoPorDias, trechosBarra,
+  adaptarDocumento, calcularLinha, colunasTempo, hojeBrasilia, montarPrazos, posicaoHoje, resumoLotes, situacaoPorDias, textoDaLista, trechosBarra,
   type ObraPrazo,
 } from "../src/features/prazos-contratuais/domain/prazos";
 import { getObraTemporalSegments, getTemporalStateForDate } from "../src/features/cronograma-obras/domain/obraTemporal";
@@ -11,7 +11,7 @@ import { DEFAULT_CALENDAR_DISPLAY, visibleTemporalState } from "../src/features/
 import type { ObraCronograma } from "../src/features/cronograma-obras/domain/models";
 
 const HOJE = "2026-10-19";
-const obras = PRAZOS_FIXTURE.map((doc) => adaptarDocumento(doc.id, doc.data)!);
+const obras = PRAZOS_FIXTURE.map((doc) => adaptarDocumento(doc.id, doc.data, doc.item)!);
 const todas = { empresas: [], situacoes: [], incluirPrivadas: false };
 const obra = (nome: string) => obras.find((o) => o.nome === nome)!;
 
@@ -34,28 +34,36 @@ test("zero-length contract counts as 100% elapsed", () => {
   assert.equal(calcularLinha({ ...base, inicio: "2026-11-01", fim: "2026-11-01" }, HOJE).pctDecorrido, 100);
 });
 
-test("screen reproduces the 19/10/2026 spreadsheet: counters, order and exclusions", () => {
+test("screen reproduces the 19/10/2026 spreadsheet without the works whose Situação is filled", () => {
   const { linhas, contagem, conferir } = montarPrazos(obras, HOJE, todas);
-  assert.deepEqual(contagem, { vencido: 6, critico: 5, atencao: 5, folgado: 4, "sem-data": 6 });
-  assert.equal(linhas.length, 26);
+  // Sinimbu (Situação Parada) sai: a planilha tinha 6 vencidas.
+  assert.deepEqual(contagem, { vencido: 5, critico: 5, atencao: 5, folgado: 4, "sem-data": 6 });
+  assert.equal(linhas.length, 25);
   assert.equal(linhas[0].obra.nome, "FONTOURA XAVIER 122/2024");
   assert.equal(linhas[0].diasRestantes, -143);
-  assert.equal(linhas[19].obra.nome, "MOSTARDAS 137/2025");
-  assert.equal(linhas[19].diasRestantes, 347);
-  assert.deepEqual(linhas.slice(20).map((l) => l.obra.nome), ["ALEGRIA 147/2026", "BARROS CASSAL 156/2026", "IBIRAPUITÃ 32/2026", "PASSA SETE 032/2026", "SÃO VENDELINO 64/2026", "SEGREDO 175/2026"]);
-  assert.deepEqual(linhas.map((l) => l.posicao), Array.from({ length: 26 }, (_, i) => i + 1));
-  assert.ok(!linhas.some((l) => /ACIEPP|SOBRADINHO|CONDOMÍNIO/.test(l.obra.nome)));
-  assert.deepEqual(conferir.map((c) => c.obra.nome), ["SOBRADINHO 01/2025"]);
+  assert.equal(linhas[18].obra.nome, "MOSTARDAS 137/2025");
+  assert.equal(linhas[18].diasRestantes, 347);
+  assert.deepEqual(linhas.slice(19).map((l) => l.obra.nome), ["ALEGRIA 147/2026", "BARROS CASSAL 156/2026", "IBIRAPUITÃ 32/2026", "PASSA SETE 032/2026", "SÃO VENDELINO 64/2026", "SEGREDO 175/2026"]);
+  assert.deepEqual(linhas.map((l) => l.posicao), Array.from({ length: 25 }, (_, i) => i + 1));
+  assert.ok(!linhas.some((l) => /ACIEPP|SOBRADINHO|SINIMBU|CONDOMÍNIO/.test(l.obra.nome)));
+  assert.deepEqual(conferir.map((c) => [c.obra.nome, c.motivo]), [["SOBRADINHO 01/2025", 'Entregue, mas com 4 lote(s) em "Revisar escopo"']]);
+});
+
+test("only an empty Situação lets a contract in; the Status formula no longer decides", () => {
+  const base = obra("IBIRUBÁ 139/2026");
+  assert.equal(montarPrazos([{ ...base, statusFluxo: "Obra Finalizada" }], HOJE, todas).linhas.length, 1);
+  assert.equal(montarPrazos([{ ...base, situacao: "Aguardando Restante Recurso" }], HOJE, todas).linhas.length, 0);
+  const semItem = adaptarDocumento("sem-item", { nomeObra: "Sem item", tipoObra: "Pública", friday: { ok: true } })!;
+  assert.equal(semItem.situacao, null);
 });
 
 test("filters by company, deadline status and private works", () => {
   assert.ok(montarPrazos(obras, HOJE, { ...todas, empresas: ["ARTEBASE"] }).linhas.every((l) => l.obra.empresa === "ARTEBASE"));
   assert.ok(montarPrazos(obras, HOJE, { ...todas, situacoes: ["vencido"] }).linhas.every((l) => l.situacaoPrazo === "vencido"));
-  assert.equal(montarPrazos(obras, HOJE, { ...todas, incluirPrivadas: true }).linhas.length, 28);
+  assert.equal(montarPrazos(obras, HOJE, { ...todas, incluirPrivadas: true }).linhas.length, 27);
 });
 
-test("special cases: Parada prefix, no lots, no dates, Ok without dates", () => {
-  assert.equal(calcularLinha(obra("SINIMBU 029/2025"), HOJE).observacao, "Obra PARADA; 3 lotes não iniciados");
+test("special cases: no lots, no dates, Ok without dates", () => {
   assert.equal(calcularLinha(obra("FONTOURA XAVIER 122/2024"), HOJE).observacao, "Sem lotes cadastrados");
   const semData = calcularLinha(obra("ALEGRIA 147/2026"), HOJE);
   assert.equal(semData.situacaoPrazo, "sem-data");
@@ -87,13 +95,16 @@ test("today uses America/Sao_Paulo, not the machine time zone", () => {
   assert.equal(hojeBrasilia(new Date("2026-10-20T03:30:00Z")), "2026-10-20");
 });
 
-test("Situação comes from the projected Status formula", () => {
-  assert.deepEqual(["Obra Finalizada", "Solicitar termo Definitivo", "Obra Parada", "Solicitar termo de Recebimento", "Obra em Andamento", null].map(situacaoPeloStatus),
-    ["Finalizada", "Entregue", "Parada", null, null, null]);
+test("Situação is the Friday list column in text; empty means null", () => {
+  const opcoes = new Map([["1", "Finalizada"], ["2", "Entregue"], ["3", "Parada"]]);
+  assert.equal(textoDaLista(["2"], opcoes), "Entregue");
+  assert.equal(textoDaLista(["1", "3"], opcoes), "Finalizada, Parada");
+  assert.equal(textoDaLista(["9"], opcoes), "9");
+  assert.deepEqual([undefined, null, [], "2"].map((v) => textoDaLista(v, opcoes)), [null, null, null, null]);
 });
 
 test("adapter reads the obras-v2 contract linked to Friday and links to its Friday item", () => {
-  const atual = adaptarDocumento("123", { nomeObra: "X", tipoObra: "Pública", dataInicial: "2026-01-01", dataFinal: "bad", lotes: null, friday: { ok: true } }, 77) as ObraPrazo;
+  const atual = adaptarDocumento("123", { nomeObra: "X", tipoObra: "Pública", dataInicial: "2026-01-01", dataFinal: "bad", lotes: null, friday: { ok: true } }, { id: 77, situacao: null }) as ObraPrazo;
   assert.equal(atual.fim, null);
   assert.deepEqual(atual.lotes, []);
   assert.equal(atual.url, `/friday/quadros/${FRIDAY_QUADRO_OBRAS}?item=77`);
