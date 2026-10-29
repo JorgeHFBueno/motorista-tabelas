@@ -1,5 +1,8 @@
+import AddIcon from '@mui/icons-material/Add';
 import {
+    Alert,
     Autocomplete,
+    Box,
     Button,
     CircularProgress,
     Dialog,
@@ -14,15 +17,17 @@ import {
     Stack,
     TextField,
 } from '@mui/material';
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import {
     ABASTECIMENTO_EXTERNO,
     type CategoriaManutencao,
+    formatValorManutencao,
     fornecedorFilterOptions,
     type Fornecedor,
     getFornecedorOptionLabel,
     type ManutencaoForm,
 } from './manutencaoFormShared';
+import { createFornecedorComNumero, getFornecedorNumeroErrorMessage } from '../services/fornecedores.service';
 import { itemFrotaLabel, type ItemFrotaV2, type PessoaV2 } from '../utils/cadastrosV2';
 
 interface ManutencaoDialogProps {
@@ -41,6 +46,89 @@ interface ManutencaoDialogProps {
     onClose: () => void;
     onSave: () => void;
     onChange: (updater: (prev: ManutencaoForm) => ManutencaoForm) => void;
+    /** Fornecedor criado pelo "Novo fornecedor", para a página incluir na lista. */
+    onFornecedorCriado: (fornecedor: Fornecedor) => void;
+}
+
+/**
+ * "Novo fornecedor" sem sair da manutenção: cria em notas-fornecedores com o número automático de Cadastros.
+ * Fica dentro do Dialog, então o estado zera quando ele fecha.
+ */
+function NovoFornecedor({ fornecedores, onCriado }: { fornecedores: Fornecedor[]; onCriado: (fornecedor: Fornecedor) => void }) {
+    const [aberto, setAberto] = useState(false);
+    const [nome, setNome] = useState('');
+    const [erro, setErro] = useState<string | null>(null);
+    const [criando, setCriando] = useState(false);
+
+    function fechar() {
+        setAberto(false);
+        setNome('');
+        setErro(null);
+    }
+
+    async function criar() {
+        const nomeTrim = nome.trim();
+        if (!nomeTrim) {
+            setErro('Informe o nome do fornecedor.');
+            return;
+        }
+        const repetido = fornecedores.find((item) => item.nome.trim().toLowerCase() === nomeTrim.toLowerCase());
+        if (repetido) {
+            setErro(`Já existe: ${getFornecedorOptionLabel(repetido)}. Selecione-o na lista.`);
+            return;
+        }
+        setCriando(true);
+        setErro(null);
+        try {
+            const { id, numero } = await createFornecedorComNumero({ nome: nomeTrim, descricao: '' });
+            onCriado({ id, nome: nomeTrim, numero });
+            fechar();
+        } catch (error) {
+            console.error('Erro ao criar fornecedor', error);
+            setErro(getFornecedorNumeroErrorMessage(error) ?? 'Não foi possível criar o fornecedor.');
+        } finally {
+            setCriando(false);
+        }
+    }
+
+    if (!aberto) {
+        return (
+            <Box mt={-1}>
+                <Button size="small" startIcon={<AddIcon />} onClick={() => setAberto(true)}>
+                    Novo fornecedor
+                </Button>
+            </Box>
+        );
+    }
+
+    return (
+        <Stack spacing={1}>
+            <Stack direction="row" spacing={1} alignItems="center">
+                <TextField
+                    label="Nome do novo fornecedor"
+                    value={nome}
+                    onChange={(event) => setNome(event.target.value)}
+                    onKeyDown={(event) => {
+                        if (event.key === 'Enter') {
+                            event.preventDefault();
+                            void criar();
+                        }
+                    }}
+                    disabled={criando}
+                    size="small"
+                    autoFocus
+                    fullWidth
+                />
+                <Button variant="contained" onClick={() => void criar()} disabled={criando}>
+                    {criando ? 'Criando...' : 'Criar'}
+                </Button>
+                <Button onClick={fechar} disabled={criando}>
+                    Cancelar
+                </Button>
+            </Stack>
+            {erro && <Alert severity="error">{erro}</Alert>}
+        </Stack>
+    );
 }
 
 export default function ManutencaoDialog({
@@ -58,6 +146,7 @@ export default function ManutencaoDialog({
     onClose,
     onSave,
     onChange,
+    onFornecedorCriado,
 }: ManutencaoDialogProps) {
     const veiculoSelecionado = useMemo(
         () => veiculos.find((item) => item.id === form.itemFrotaId) ?? null,
@@ -159,10 +248,12 @@ export default function ManutencaoDialog({
                     </FormControl>
                     <TextField
                         label="Valor"
-                        type="number"
                         value={form.valor}
                         onChange={(event) => onChange((prev) => ({ ...prev, valor: event.target.value }))}
-                        inputProps={{ className: 'no-number-spinner' }}
+                        onBlur={() => onChange((prev) => ({ ...prev, valor: formatValorManutencao(prev.valor) }))}
+                        placeholder="R$ 1.234,56"
+                        helperText="Digite só os números: 123456 vira R$ 1.234,56"
+                        inputProps={{ inputMode: 'decimal' }}
                         fullWidth
                         required
                     />
@@ -215,6 +306,17 @@ export default function ManutencaoDialog({
                             />
                         )}
                         isOptionEqualToValue={(option, value) => option.id === value.id}
+                    />
+                    <NovoFornecedor
+                        fornecedores={fornecedores}
+                        onCriado={(fornecedor) => {
+                            onFornecedorCriado(fornecedor);
+                            onChange((prev) => ({
+                                ...prev,
+                                fornecedorId: fornecedor.id,
+                                fornecedorNomeSnapshot: fornecedor.nome,
+                            }));
+                        }}
                     />
                     {isAbastecimentoExterno && (
                         <Autocomplete

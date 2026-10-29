@@ -1,4 +1,5 @@
 import { createFilterOptions } from '@mui/material';
+import { parsePtBrNumber } from '../utils/bombasDomain';
 import { itemFrotaSnapshot, type ItemFrotaV2 } from '../utils/cadastrosV2';
 
 // Manutenção liga o veículo por item_frota_id (veiculos-v2) e a pessoa por UID (funcionarios), com snapshots ao lado
@@ -71,6 +72,24 @@ export const fornecedorFilterOptions = createFilterOptions<Fornecedor>({
         [getFornecedorOptionLabel(option), option.numero?.toString() ?? '', option.nome].join(' '),
 });
 
+/**
+ * Valor digitado em reais. Sem vírgula, os dígitos são os centavos ("123456" = 1.234,56), porque o valor quase
+ * sempre tem duas casas; com vírgula vale o número pt-BR ("1.234,5" = 1.234,50).
+ */
+export function parseValorManutencao(texto: string): number {
+    if (texto.includes(',')) return parsePtBrNumber(texto);
+    const digitos = texto.replace(/\D/g, '');
+    return digitos ? Number(digitos) / 100 : Number.NaN;
+}
+
+const moeda = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', minimumFractionDigits: 2 });
+
+/** Ao sair do campo, mostra o valor como será gravado ("R$ 1.234,56"); texto inválido fica como está. */
+export function formatValorManutencao(texto: string): string {
+    const valor = parseValorManutencao(texto);
+    return Number.isFinite(valor) && valor > 0 ? moeda.format(Math.round(valor * 100) / 100) : texto;
+}
+
 export function getManutencaoValidationError(form: ManutencaoForm): string | null {
     if (!form.itemFrotaId || !form.tipoVeiculo) {
         return 'Selecione o veículo da manutenção.';
@@ -80,7 +99,7 @@ export function getManutencaoValidationError(form: ManutencaoForm): string | nul
         return 'Selecione a categoria da manutenção.';
     }
 
-    const valor = Number(form.valor);
+    const valor = parseValorManutencao(form.valor);
     if (!Number.isFinite(valor) || valor <= 0) {
         return 'Valor da manutenção deve ser um número válido maior que zero.';
     }
@@ -129,7 +148,7 @@ export function buildManutencaoPayload(form: ManutencaoForm, item: ItemFrotaV2, 
         tipoVeiculo: item.categoria,
         categoriaId: form.categoriaId,
         categoriaNomeSnapshot: form.categoriaNomeSnapshot.trim(),
-        valor: Number(form.valor),
+        valor: Math.round(parseValorManutencao(form.valor) * 100) / 100,
         quantidade: Number(form.quantidade),
         ...(kmValue ? { km: Number(kmValue) } : {}),
         fornecedorId: form.fornecedorId,

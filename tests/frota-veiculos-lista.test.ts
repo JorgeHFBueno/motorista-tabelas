@@ -51,3 +51,16 @@ test('custo total soma só os valores numéricos dos registros listados', () => 
   assert.equal(somarValores([{ valor: 170 }, { valor: null }, { valor: 30.5 }, {}, { valor: Number.NaN }]), 200.5);
   assert.equal(somarValores([]), 0);
 });
+
+test('valor da manutenção: dígitos sem vírgula são centavos; com vírgula vale o número pt-BR', async () => {
+  const { formatValorManutencao, parseValorManutencao } = await import('../src/components/manutencaoFormShared');
+  assert.equal(parseValorManutencao('123456'), 1234.56);
+  assert.equal(parseValorManutencao('5000'), 50);
+  assert.equal(parseValorManutencao('1.234,5'), 1234.5);
+  assert.equal(parseValorManutencao('R$ 1.234,56'), 1234.56);
+  assert.ok(Number.isNaN(parseValorManutencao('')));
+  const formatado = formatValorManutencao('123456');
+  assert.equal(formatado.replace(/\s/g, ' '), 'R$ 1.234,56');
+  assert.equal(parseValorManutencao(formatado), 1234.56);
+  assert.equal(formatValorManutencao('abc'), 'abc');
+});

@@ -1287,6 +1287,8 @@ export default function FrotaVeiculoDetalhesPage() {
                 onClose={closeManutencaoDialog}
                 onSave={handleSaveManutencao}
                 onChange={(updater) => setManutencaoForm((prev) => updater(prev))}
+                onFornecedorCriado={(fornecedor) => setFornecedores((prev) =>
+                    [...prev, fornecedor].sort((a, b) => a.nome.localeCompare(b.nome)))}
             />
 
             <Snackbar
