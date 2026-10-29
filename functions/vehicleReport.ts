@@ -8,14 +8,16 @@ const ERP_BASE = 'https://s15.elevor.cloud/LedurPreFabricados/ERP360';
 const DAY = /^\d{4}-\d{2}-\d{2}$/;
 
 function normalizePlate(value: unknown) { return String(value ?? '').toUpperCase().replace(/[-\s]/g, ''); }
-function rows(payload: unknown) {
+/** Até 500 caracteres do que o ERP respondeu: vai no log e no `details` do erro (a callable só atende adm2). */
+export function erpResponseExcerpt(text: string) { return text.trim().slice(0, 500); }
+function rows(payload: unknown, excerpt: string) {
   if (Array.isArray(payload) && payload.every((row) => row && typeof row === 'object' && !Array.isArray(row))) return payload;
   if (payload && typeof payload === 'object') {
     const record = payload as Record<string, unknown>;
     if (Array.isArray(record.data)) return record.data;
     if (Array.isArray(record.result)) return record.result;
   }
-  throw new HttpsError('internal', 'ERP_RESPONSE_CONTRACT_UNEXPECTED');
+  throw new HttpsError('internal', 'ERP_RESPONSE_CONTRACT_UNEXPECTED', { resposta: excerpt });
 }
 export const VEHICLE_ERP_QUERY_ALLOWLIST = [47] as const;
 
@@ -26,13 +28,18 @@ async function queryErp(queryId: typeof VEHICLE_ERP_QUERY_ALLOWLIST[number], bod
     const response = await fetch(`${ERP_BASE}/api/ConsultaDados/${queryId}`, {
       method: 'POST', headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json', Accept: 'application/json' }, body: JSON.stringify(body), signal: controller.signal,
     });
-    if (response.status === 401 || response.status === 403) throw new HttpsError('permission-denied', 'ERP_AUTH_ERROR');
-    if (response.status === 404) throw new HttpsError('not-found', 'ERP_QUERY_NOT_FOUND');
-    if (!response.ok) throw new HttpsError('internal', 'ERP_HTTP_ERROR');
-    return rows(await response.json());
+    const text = await response.text();
+    const details = { query: queryId, status: response.status, resposta: erpResponseExcerpt(text) };
+    if (response.status === 401 || response.status === 403) throw new HttpsError('permission-denied', 'ERP_AUTH_ERROR', details);
+    if (response.status === 404) throw new HttpsError('not-found', 'ERP_QUERY_NOT_FOUND', details);
+    if (!response.ok) throw new HttpsError('internal', 'ERP_HTTP_ERROR', details);
+    let payload: unknown;
+    try { payload = JSON.parse(text); } catch { throw new HttpsError('internal', 'ERP_RESPONSE_NOT_JSON', details); }
+    return rows(payload, details.resposta);
   } catch (error) {
     if (error instanceof HttpsError) throw error;
-    throw new HttpsError('unavailable', 'ERP_CONNECTION_ERROR');
+    const motivo = (error as Error)?.name === 'AbortError' ? 'tempo esgotado (20 s)' : String((error as Error)?.message ?? error);
+    throw new HttpsError('unavailable', 'ERP_CONNECTION_ERROR', { query: queryId, motivo });
   } finally { clearTimeout(timer); }
 }
 
@@ -55,6 +62,12 @@ export const getVehicleErpCosts = onCall({ region: 'southamerica-east1', secrets
   const token = erpToken.value();
   if (!token?.trim()) throw new HttpsError('failed-precondition', 'ERP_API_TOKEN_MISSING');
   const parameters = { DataInicial: dataInicial, DataFinal: dataFinal, Placa: placa };
-  const query47 = await queryErp(47, parameters, token);
-  return { request: parameters, query47 };
+  try {
+    const query47 = await queryErp(47, parameters, token);
+    return { request: parameters, query47 };
+  } catch (error) {
+    // Sem isto a falha some do log (HttpsError não é registrado): fica o pedido e o que o ERP respondeu.
+    if (error instanceof HttpsError) console.error('getVehicleErpCosts: ERP falhou', { pedido: parameters, codigo: error.code, mensagem: error.message, detalhe: error.details });
+    throw error;
+  }
 });

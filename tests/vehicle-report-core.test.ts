@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { custoDieselInterno, extractCnpj, filterVehicleReportPeriod, fuelReportSupplier, litrosFromQuantidadeRaw, matchExternalFuelToMaintenance, normalizeCalendarDate, normalizeSupplier, normalizeVehiclePlate, reportTotals, resolveVehicleReportPeriod, summarizeInternalFuel, summarizeVehicleReportErp47 } from '../src/services/vehicle-report-core';
+import { custoDieselInterno, extractCnpj, filterVehicleReportPeriod, fuelReportSupplier, litrosFromQuantidadeRaw, matchExternalFuelToMaintenance, normalizeCalendarDate, normalizeSupplier, normalizeVehiclePlate, describeErpCallError, reportTotals, resolveVehicleReportPeriod, summarizeInternalFuel, summarizeVehicleReportErp47 } from '../src/services/vehicle-report-core';
 import { createVehicleReportPdf, formatReportDate, formatVehicleReportHeader, sanitizeErpPresentationText, sanitizePdfText } from '../src/services/vehicle-report-pdf';
 const ok = <T>(data: T) => ({ status: 'ok' as const, data });
 const error = (code = 'unavailable') => ({ status: 'error' as const, error: { code, message: 'segredo que não pode aparecer' } });
@@ -188,4 +188,15 @@ test('cabeçalho do veículo não repete a placa quando a descrição é igual',
 test('data Q47 é compactada sem aplicar conversão de timezone', () => {
   assert.equal(formatReportDate('2025-04-08T00:00:00'), '08/04/2025');
   assert.equal(formatReportDate('2025-04-08T23:59:59-03:00'), '08/04/2025');
+});
+test('diagnóstico do ERP para adm2 traz pedido, horário BRT, código, mensagem e o detalhe da Function', () => {
+  const erro = Object.assign(new Error('ERP_HTTP_ERROR'), { code: 'functions/internal', details: { query: 47, status: 500, resposta: 'Erro interno' } });
+  const texto = describeErpCallError(erro, { placa: 'APG-6A02', dataInicial: '2025-01-01', dataFinal: '2026-10-28' }, new Date('2026-10-29T01:04:32Z'));
+  assert.match(texto, /placa APG-6A02, de 2025-01-01 a 2026-10-28/);
+  assert.match(texto, /Horário: 2026-10-28 22:04:32 \(BRT\)/);
+  assert.match(texto, /Código: functions\/internal/);
+  assert.match(texto, /Mensagem: ERP_HTTP_ERROR/);
+  assert.match(texto, /"status": 500/);
+  assert.match(texto, /"resposta": "Erro interno"/);
+  assert.doesNotMatch(describeErpCallError(new Error('x'), { placa: 'A', dataInicial: '2025-01-01', dataFinal: '2025-01-02' }), /Detalhe/);
 });

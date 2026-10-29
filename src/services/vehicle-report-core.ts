@@ -134,3 +134,19 @@ export function summarizeInternalFuel(fuel: FuelReportCandidate[], maintenances:
 }
 
 export function reportTotals(firebase: number, q47Despesa: number) { return { firebase: cents(firebase), erpQ47: cents(q47Despesa), consolidado: cents(firebase + q47Despesa) }; }
+
+/** Diagnóstico de uma falha de getVehicleErpCosts para adm2: código, mensagem e o `details` que a Function devolve
+ * (status e trecho da resposta do ERP), com o pedido feito e o horário de Brasília. */
+export function describeErpCallError(error: unknown, pedido: { placa: string; dataInicial: string; dataFinal: string }, agora = new Date()) {
+  const e = (error ?? {}) as { code?: unknown; message?: unknown; details?: unknown };
+  const horario = new Date(agora.getTime() - 3 * 3600e3).toISOString().slice(0, 19).replace('T', ' ');
+  const linhas = [
+    `Função: getVehicleErpCosts (Query 47)`,
+    `Pedido: placa ${pedido.placa}, de ${pedido.dataInicial} a ${pedido.dataFinal}`,
+    `Horário: ${horario} (BRT)`,
+    `Código: ${typeof e.code === 'string' ? e.code : '—'}`,
+    `Mensagem: ${typeof e.message === 'string' && e.message ? e.message : String(error)}`,
+  ];
+  if (e.details !== undefined && e.details !== null) linhas.push(`Detalhe: ${typeof e.details === 'string' ? e.details : JSON.stringify(e.details, null, 2)}`);
+  return linhas.join('\n');
+}

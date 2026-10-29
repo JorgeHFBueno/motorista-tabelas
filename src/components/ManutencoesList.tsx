@@ -1,8 +1,7 @@
 import {
   Alert,
-  Box,  
-  Checkbox,
-  FormControlLabel,
+  Box,
+  Button,
   List,
   ListItemButton,
   Skeleton,
@@ -57,13 +56,16 @@ const FILTROS: Array<{ key: keyof MasterDetailFilters; label: string }> = [
 // Fontes do detalhe do veículo, em linha, acima da lista.
 export function RegistrosFiltros({ filters, counts, onToggleFilter }: Pick<ManutencoesListProps, 'filters' | 'counts' | 'onToggleFilter'>) {
   return (
-    <Stack direction="row" flexWrap="wrap" useFlexGap columnGap={3} rowGap={0.5} aria-label="Fontes dos registros">
+    <Stack direction="row" flexWrap="wrap" useFlexGap spacing={2} role="group" aria-label="Fontes dos registros">
       {FILTROS.map(({ key, label }) => (
-        <FormControlLabel
+        <Button
           key={key}
-          control={<Checkbox checked={filters[key]} onChange={(event) => onToggleFilter(key, event.target.checked)} />}
-          label={`${label} (${counts[key]})`}
-        />
+          variant={filters[key] ? 'contained' : 'outlined'}
+          aria-pressed={filters[key]}
+          onClick={() => onToggleFilter(key, !filters[key])}
+        >
+          {`${label} (${counts[key]})`}
+        </Button>
       ))}
     </Stack>
   );

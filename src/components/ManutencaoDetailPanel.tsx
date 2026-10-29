@@ -18,6 +18,8 @@ interface ManutencaoDetailPanelProps {
     selectedTipo: TipoEvento | null;
     loading: boolean;
     isAdmin: boolean;
+    /** Falha de uma fonte em texto completo (hoje, a do ERP), mostrada quando nada está selecionado. */
+    diagnostico?: string | null;
     error: string | null;
     onReload: () => void;
     onAdd?: () => void;
@@ -164,6 +166,7 @@ export default function ManutencaoDetailPanel({
     selectedTipo,
     loading,
     isAdmin,
+    diagnostico,
     error,
     onReload,
     onAdd,
@@ -177,6 +180,18 @@ export default function ManutencaoDetailPanel({
                 <Typography variant="body1" color="text.secondary">
                     Selecione um item.
                 </Typography>
+                {diagnostico && (
+                    <Alert
+                        severity="error"
+                        sx={{ mt: 2, '& .MuiAlert-message': { minWidth: 0, flex: 1 } }}
+                        action={<Button color="inherit" size="small" onClick={() => void navigator.clipboard?.writeText(diagnostico)}>Copiar</Button>}
+                    >
+                        <Typography variant="subtitle2" gutterBottom>Diagnóstico da consulta ao ERP (adm2)</Typography>
+                        <Box component="pre" sx={{ m: 0, fontFamily: 'monospace', fontSize: 12.5, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
+                            {diagnostico}
+                        </Box>
+                    </Alert>
+                )}
             </Paper>
         );
     }

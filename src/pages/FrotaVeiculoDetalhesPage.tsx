@@ -56,7 +56,7 @@ import { normalizarMovimentoCombustivel } from '../services/combustivel-normaliz
 import { normalizarAtividade } from '../services/atividade-normalizer';
 import { buildVehicleReport, fetchVehicleErpRows } from '../services/vehicle-report.service';
 import { createVehicleReportPdf } from '../services/vehicle-report-pdf';
-import { normalizeCalendarDate, resolveVehicleReportPeriod, type VehicleReportPeriod } from '../services/vehicle-report-core';
+import { describeErpCallError, normalizeCalendarDate, resolveVehicleReportPeriod, type VehicleReportPeriod } from '../services/vehicle-report-core';
 import { listFuncionariosAtivos } from '../services/funcionarios-selecao.service';
 import { getItemFrota } from '../services/veiculos.service';
 import type { ItemFrotaV2, PessoaV2 } from '../utils/cadastrosV2';
@@ -225,8 +225,7 @@ async function fetchAtividades(item: ItemFrotaV2): Promise<LinhaEvento[]> {
 }
 
 // Mesmo pedido do "Gerar Relatório" (Query 47 do ERP pela placa), de 01/01/2025 até hoje.
-async function fetchManutencoesErp(item: ItemFrotaV2): Promise<LinhaEvento[]> {
-    const { dataInicial, dataFinal } = resolveVehicleReportPeriod('all');
+async function fetchManutencoesErp(item: ItemFrotaV2, { dataInicial, dataFinal }: { dataInicial: string; dataFinal: string }): Promise<LinhaEvento[]> {
     const rows = await fetchVehicleErpRows(item.identificador, dataInicial, dataFinal);
     return rows
         .map((row, index): LinhaEvento => {
@@ -303,6 +302,7 @@ export default function FrotaVeiculoDetalhesPage() {
     const [erpRows, setErpRows] = useState<LinhaEvento[]>([]);
     const [erpLoading, setErpLoading] = useState(false);
     const [erpError, setErpError] = useState<string | null>(null);
+    const [erpDiagnostico, setErpDiagnostico] = useState<string | null>(null);
 
     const [combustivelRows, setCombustivelRows] = useState<LinhaEvento[]>([]);
     const [combustivelLoading, setCombustivelLoading] = useState(false);
@@ -801,11 +801,15 @@ export default function FrotaVeiculoDetalhesPage() {
         }
         setErpLoading(true);
         setErpError(null);
-        fetchManutencoesErp(veiculo)
+        setErpDiagnostico(null);
+        const pedido = { placa: veiculo.identificador, ...resolveVehicleReportPeriod('all') };
+        fetchManutencoesErp(veiculo, pedido)
             .then((data) => { if (active) setErpRows(data); })
             .catch((err) => {
                 console.error('Erro ao consultar o ERP', err);
-                if (active) setErpError('Não foi possível consultar o ERP agora. Tente de novo.');
+                if (!active) return;
+                setErpError('Não foi possível consultar o ERP agora. Tente de novo.');
+                setErpDiagnostico(describeErpCallError(err, pedido));
             })
             .finally(() => { if (active) setErpLoading(false); });
         return () => {
@@ -1160,6 +1164,7 @@ export default function FrotaVeiculoDetalhesPage() {
                             selectedTipo={selectedTipo}
                             loading={selectedLoading}
                             isAdmin={isAdmin}
+                            diagnostico={isAdmin && showErp ? erpDiagnostico : null}
                             error={selectedError}
                             onReload={handleReloadSelected}
                             onAdd={openManutencaoDialog}
