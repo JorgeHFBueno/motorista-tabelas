@@ -4,7 +4,7 @@
 // script fora do repositório, não pela tela (decisão de 2026-10-28). Funções puras, sem Firestore.
 // Contrato: The Manuscript, 03_APLICACAO_WEB/14_FRIDAY_CADASTROS_OFICIAIS.md e 01_FIRESTORE/COLECOES/veiculos-v2.md.
 
-import { chaveValida, rotulosOficiais, TIPOS_OFICIAIS, valorOficial, type CampoOficial, type RotuloOficial } from './fridayCadastroConverter.js';
+import { acrescentarRotulos, chaveValida, rotulosOficiais, TIPOS_OFICIAIS, valorOficial, type CampoOficial, type RotuloOficial } from './fridayCadastroConverter.js';
 
 type AnyRecord = Record<string, any>;
 
@@ -323,6 +323,22 @@ export function dividirNomeDoItem(d: NonNullable<CadastroExistente['dividir_nome
   if (PLACA.test((primeira ?? '').toUpperCase())) return { identificador: primeira.toUpperCase(), resto: resto.join(' '), categoria: d.categoria.placa };
   const identificador = texto.replace(/\([^)]*\)/g, ' ').replace(/\s-\s/g, ' ').replace(/\s+/g, ' ').trim().toUpperCase();
   return { identificador, resto: texto, categoria: d.categoria.outro };
+}
+
+/**
+ * Rótulo criado no Friday depois da conciliação: entra no campo se o contrato aceita (texto, opções abertas, grupo livre).
+ * Devolve o campo com o rótulo (ou o mesmo campo, `mudou: false`). `rotulosColuna` = config.rotulos da coluna.
+ */
+export function campoComRotuloNovo(campo: CampoExistente, rotulosColuna: AnyRecord[] | undefined, valor: unknown): { campo: CampoExistente; mudou: boolean } {
+  const aceita = campo.tipo_contrato === 'texto' || campo.opcoes_abertas || !campo.tipo_contrato;
+  if (campo.tipo !== 'status' || valor == null || !aceita || campo.rotulos?.some(r => r.friday_id === String(valor))) return { campo, mudou: false };
+  const rotulo = (rotulosColuna ?? []).find(x => String(x.id) === String(valor) && String(x.texto ?? '').trim());
+  if (!rotulo) return { campo, mudou: false };
+  const texto = String(rotulo.texto).trim();
+  const novo = (campo.tipo_contrato === 'texto'
+    ? { ...campo, rotulos: [...(campo.rotulos ?? []), { codigo: texto, texto, cor: String(rotulo.cor ?? '#c4c4c4'), friday_id: String(rotulo.id) }] }
+    : acrescentarRotulos(campo, [rotulo]).campo) as CampoExistente;
+  return { campo: novo, mudou: true };
 }
 
 /** Valor para gravar a partir da tela (com os campos calculados): vazio vira null (se o contrato aceita) ou é recusado. */

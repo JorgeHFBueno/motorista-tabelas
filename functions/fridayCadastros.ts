@@ -6,7 +6,7 @@ import { exigirAdm2 } from './fridayMondayImport.js';
 import { temCredencial, type Credencial } from './credenciais.js';
 import { dataLocal, novoId } from './fridayMondayConverter.js';
 import {
-  cadastroExistente, caminhoDaMarca, gravarCaminho, itemDoRegistro, lerCaminho, novoRegistro, valorDesativado, valorParaContrato, valorParaGravarExistente,
+  cadastroExistente, caminhoDaMarca, campoComRotuloNovo, gravarCaminho, itemDoRegistro, lerCaminho, novoRegistro, valorDesativado, valorParaContrato, valorParaGravarExistente,
   valorPeloTexto, type CampoExistente, type ChaveConciliacao, type ItemConciliavel,
 } from './fridayCadastrosExistentes.js';
 import {
@@ -298,15 +298,10 @@ async function gravarExistente(uid: string, item: AnyRecord, e: Escopo, op: Oper
   if (indice < 0) throw new HttpsError('invalid-argument', 'Esta coluna não é um campo oficial ativo.');
   let campo = e.campos[indice] as CampoExistente;
   // Rótulo criado no Friday depois da conciliação: entra no campo se o contrato aceita (texto, opções abertas, grupo livre).
-  const aceitaRotuloNovo = campo.tipo_contrato === 'texto' || campo.opcoes_abertas || !campo.tipo_contrato;
-  if (campo.tipo === 'status' && valor != null && aceitaRotuloNovo && !campo.rotulos?.some(r => r.friday_id === String(valor))) {
-    const rotulo = ((await db.collection('friday-colunas').doc(String(colunaId)).get()).data()?.config?.rotulos ?? [])
-      .find((x: AnyRecord) => String(x.id) === String(valor) && String(x.texto ?? '').trim());
-    if (rotulo) {
-      const texto = String(rotulo.texto).trim();
-      campo = (campo.tipo_contrato === 'texto'
-        ? { ...campo, rotulos: [...(campo.rotulos ?? []), { codigo: texto, texto, cor: String(rotulo.cor ?? '#c4c4c4'), friday_id: String(rotulo.id) }] }
-        : acrescentarRotulos(campo, [rotulo]).campo) as CampoExistente;
+  if (campo.tipo === 'status' && valor != null && !campo.rotulos?.some(r => r.friday_id === String(valor))) {
+    const r = campoComRotuloNovo(campo, (await db.collection('friday-colunas').doc(String(colunaId)).get()).data()?.config?.rotulos, valor);
+    if (r.mudou) {
+      campo = r.campo;
       const novos = [...e.campos];
       novos[indice] = campo;
       await e.salvarCampos(novos);
