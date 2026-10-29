@@ -68,7 +68,7 @@ const visivel = (x: Row | undefined) => !!x && x.arquivado_em == null && x.exclu
 
 // ---------------------------------------------------------------- monday (somente leitura, com espera nos limites da API)
 const espera = (ms: number) => new Promise(r => setTimeout(r, ms));
-async function gql(token: string, query: string, variables: AnyRecord = {}, tentativa = 1): Promise<AnyRecord> {
+export async function gql(token: string, query: string, variables: AnyRecord = {}, tentativa = 1): Promise<AnyRecord> {
   if (/\bmutation\b/i.test(query.split('{')[0])) throw new Error('mutations não são permitidas');
   const res = await fetch('https://api.monday.com/v2', {
     method: 'POST', headers: { Authorization: token, 'Content-Type': 'application/json', 'API-Version': MONDAY_API_VERSION }, body: JSON.stringify({ query, variables }),

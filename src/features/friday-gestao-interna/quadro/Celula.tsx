@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { AlertCircle, AlertTriangle, Check, CheckCircle2, Circle, Download, ExternalLink, Lock, Paperclip, Pencil, Plus, Search, Star, Trash2, Upload, UserPlus, X } from 'lucide-react';
-import { api, enviarArquivo, type Pessoa, type Row } from '../api.ts';
+import { api, copiarArquivosMonday, enviarArquivo, type Pessoa, type Row } from '../api.ts';
 import { useNav } from '../nav.tsx';
 import { calcular, textoResultado } from './formula.ts';
 import { IconeTipo, urlArquivo } from './Atualizacoes.tsx';
@@ -433,7 +433,9 @@ function CelulaFormula({ coluna, item, colunas, modo }: CelulaProps) {
 type ArquivoCelula = { id?: number; nome: string; mime?: string; tamanho?: number; monday_asset?: number; url?: string };
 const pendente = (a: ArquivoCelula) => !a.id && !a.url;
 function CelulaArquivos({ coluna, valor, onMudar, item }: CelulaProps) {
+  const nav = useNav();
   const pop = usePopover<HTMLDivElement>();
+  const [copiando, setCopiando] = useState<string | null>(null);
   const seletor = useRef<HTMLInputElement>(null);
   const [enviando, setEnviando] = useState(false);
   const [arrastando, setArrastando] = useState(false);
@@ -445,10 +447,28 @@ function CelulaArquivos({ coluna, valor, onMudar, item }: CelulaProps) {
       const novos: ArquivoCelula[] = [];
       for (const f of Array.from(fs)) {
         const a = await enviarArquivo(item.id, f, undefined, coluna.id);
-        novos.push({ id: a.id, nome: a.nome, mime: a.mime, tamanho: a.tamanho });
+        novos.push({ id: a.id, nome: a.nome, mime: a.mime, tamanho: a.tamanho, url: a.url });
       }
       onMudar([...lista, ...novos]);
     } catch (e) { alert((e as Error).message); } finally { setEnviando(false); }
+  };
+  // Copia de uma vez os arquivos "no monday" de todo o quadro (e dos subitens), em rodadas até não faltar nada.
+  const copiarDoMonday = async () => {
+    if (!item) return;
+    setCopiando('Copiando…');
+    let total = 0;
+    const falhas = new Set<string>();
+    try {
+      for (;;) {
+        const r = (await copiarArquivosMonday({ quadroId: item.quadro_id })).data;
+        total += r.copiados;
+        r.falhas.forEach(f => falhas.add(f));
+        setCopiando(`Copiados ${total}; faltam ${r.restantes}…`);
+        if (!r.restantes || !r.copiados) break;
+      }
+      alert(`${total} arquivo(s) copiado(s) do monday.${falhas.size ? `\n\nNão copiados:\n${[...falhas].join('\n')}` : ''}`);
+      window.location.reload();
+    } catch (e) { alert((e as Error).message); } finally { setCopiando(null); }
   };
   return (
     <>
@@ -483,6 +503,9 @@ function CelulaArquivos({ coluna, valor, onMudar, item }: CelulaProps) {
               </div>
             ))}
             {lista.some(pendente) && <small className="muted dica-monday">“no monday”: o arquivo veio na importação só com o nome; ainda não foi baixado para o app.</small>}
+            {lista.some(pendente) && nav.usuario?.admin && (
+              <button className="fr-btn" onClick={copiarDoMonday} disabled={!!copiando}><Download size={14} /> {copiando ?? 'Copiar do monday (quadro inteiro)'}</button>
+            )}
             {!lista.length && <p className="muted fr-small" style={{ margin: '4px 4px 8px' }}>Nenhum arquivo nesta coluna.</p>}
             <button className="fr-btn" onClick={() => seletor.current?.click()} disabled={enviando}><Upload size={14} /> {enviando ? 'Enviando…' : 'Adicionar arquivos'}</button>
             <small className="muted" style={{ marginTop: 6 }}>Dica: arraste arquivos direto para a célula.</small>

@@ -550,6 +550,19 @@ test('[storage] a well-named existing checklist photo cannot be overwritten', as
   await seedStorageObject(path);
   await assertFails(uploadBytes(ref(storageAs('canonicalUser'), path), image, { contentType: 'image/jpeg' }));
 });
+test('[storage] Friday attachments: escritorio and adm2 upload, read and delete up to 25 MB; no overwrite', async () => {
+  const pdf = new Uint8Array([0x25, 0x50, 0x44, 0x46]);
+  const caminho = 'friday/10/20/31-edital.pdf';
+  await assertSucceeds(uploadBytes(ref(storageAs('escritorio'), caminho), pdf, { contentType: 'application/pdf' }));
+  await assertSucceeds(getBytes(ref(storageAs('adm2'), caminho)));
+  await assertFails(uploadBytes(ref(storageAs('escritorio'), caminho), pdf, { contentType: 'application/pdf' }));
+  await assertFails(getBytes(ref(storageAs('canonicalUser'), caminho)));
+  await assertFails(uploadBytes(ref(storageAs('canonicalUser'), 'friday/10/20/32-x.pdf'), pdf, { contentType: 'application/pdf' }));
+  await assertFails(uploadBytes(ref(storageAs('escritorio'), 'friday/10/20/33-grande.bin'), new Uint8Array(25 * 1024 * 1024 + 1)));
+  await assertFails(uploadBytes(ref(storageAs('escritorio'), 'friday/10/34-fora.pdf'), pdf, { contentType: 'application/pdf' }));
+  await assertFails(deleteObject(ref(storageAs('canonicalUser'), caminho)));
+  await assertSucceeds(deleteObject(ref(storageAs('escritorio'), caminho)));
+});
 test('[storage] object delete remains denied', async () => {
   const path = 'checklists/saidas/a/delete.jpg';
   await seedStorageObject(path);
@@ -742,10 +755,17 @@ test('[firestore] Friday: generic resources open to escritorio and adm2 only', a
   await assertFails(setDoc(doc(dbAs('legacyOnly'), 'friday-grupos', '41'), { id: 41, quadro_id: 10, nome: 'Legado' }));
   await assertFails(setDoc(doc(dbAs('canonicalInactive'), 'friday-grupos', '42'), { id: 42, quadro_id: 10, nome: 'Inativo' }));
 });
-test('[firestore] Friday: attachments and executions are read/delete only; imports closed; meta only "indices"', async () => {
+test('[firestore] Friday: attachments carry the sender and a friday/ path; executions read/delete only; imports closed; meta only "indices"', async () => {
   const db = dbAs('escritorio');
+  const anexo = (id, extra = {}) => ({ id, item_id: 20, quadro_id: 10, nome: 'a.pdf', arquivo: `friday/10/20/${id}-a.pdf`, usuario_id: 'uid-escritorio', origem_id: null, ...extra });
   await assertSucceeds(getDoc(doc(db, 'friday-anexos', '30')));
-  await assertFails(setDoc(doc(db, 'friday-anexos', '31'), { id: 31 }));
+  await assertSucceeds(setDoc(doc(db, 'friday-anexos', '31'), anexo(31)));
+  await assertFails(updateDoc(doc(db, 'friday-anexos', '31'), { nome: 'b.pdf' }));
+  await assertFails(setDoc(doc(db, 'friday-anexos', '32'), { id: 32 }));
+  await assertFails(setDoc(doc(db, 'friday-anexos', '33'), anexo(33, { usuario_id: 'uid-adm2' })));
+  await assertFails(setDoc(doc(db, 'friday-anexos', '34'), anexo(34, { arquivo: 'checklists/saidas/x/a.jpg' })));
+  await assertFails(setDoc(doc(db, 'friday-anexos', '35'), anexo(35, { origem_id: 'monday:1' })));
+  await assertFails(setDoc(doc(dbAs('canonicalUser'), 'friday-anexos', '36'), anexo(36, { usuario_id: 'uid-canonical-user' })));
   await assertFails(setDoc(doc(db, 'friday-execucoes', '50'), { id: 50 }));
   await assertSucceeds(deleteDoc(doc(db, 'friday-anexos', '30')));
   await assertFails(getDoc(doc(db, 'friday-importacoes', '123')));

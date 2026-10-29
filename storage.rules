@@ -86,6 +86,20 @@ service firebase.storage {
       allow update, delete: if false;
     }
 
+    // Friday attachments: friday/{quadroId}/{itemId}/{anexoId}-{nome}. Same credential as the Friday in Firestore
+    // (escritorio or adm2), up to 25 MB, never overwritten; deleted together with the attachment record.
+    function isFridayUser() {
+      return hasPerfil('escritorio') || hasPerfil('adm2');
+    }
+
+    match /friday/{quadroId}/{itemId}/{arquivo} {
+      allow read, delete: if isFridayUser();
+      allow create: if isFridayUser()
+        && isNewObject()
+        && request.resource.size <= 25 * 1024 * 1024;
+      allow update: if false;
+    }
+
     match /{allPaths=**} {
       allow read, write: if false;
     }

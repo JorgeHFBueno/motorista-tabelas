@@ -6,7 +6,7 @@
 // 14_FRIDAY_CADASTROS_OFICIAIS.md.
 import { valorDoOficial } from './fridayCadastroConverter.js';
 import { campoComRotuloNovo, lerCaminho, valorParaGravarExistente, type CampoExistente } from './fridayCadastrosExistentes.js';
-import { json, valorDe, type ColunaImportada, type ContextoValor, type MItem, type MValor } from './fridayMondayConverter.js';
+import { json, manterCopias, valorDe, type ColunaImportada, type ContextoValor, type MItem, type MValor } from './fridayMondayConverter.js';
 
 type AnyRecord = Record<string, any>;
 /** Coluna do quadro vinda do monday, com o tipo e a configuração que ela tem hoje no Friday (pode ter mudado de tipo). */
@@ -126,14 +126,16 @@ export function planejarAtualizacao(p: {
   for (const cv of p.item.column_values) {
     const col = p.colunas.get(cv.id);
     if (!col || col.tipoMonday === 'board_relation' || col.tipoMonday === 'dependency') continue;
-    const novo = valorNoTipoAtual(col, cv, p.ctx);
     const campo = p.campos.find(c => Number(c.coluna_id) === col.id);
     if (!campo) {
-      if (!vazio(novo)) plano.livres[String(col.id)] = novo;
       const atual = p.existente.valores?.[String(col.id)];
+      // Arquivo do monday já copiado para o Friday: fica a cópia.
+      const novo = manterCopias(atual, valorNoTipoAtual(col, cv, p.ctx));
+      if (!vazio(novo)) plano.livres[String(col.id)] = novo;
       if (!SEM_PREVIA.has(col.tipo) && !mesmoValor(atual, novo)) plano.mudancas.push({ coluna: col.titulo, de: textoDoValor(col, atual), para: textoDoValor(col, novo) });
       continue;
     }
+    const novo = valorNoTipoAtual(col, cv, p.ctx);
     const atual = valorDoOficial(campo, lerCaminho(p.oficial, campo.chave));
     if (mesmoValor(atual, novo)) continue;
     const r = valorParaGravarExistente(campoComRotuloNovo(campo, col.config.rotulos, novo).campo, vazio(novo) ? null : novo);

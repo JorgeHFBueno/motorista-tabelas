@@ -810,11 +810,18 @@ service cloud.firestore {
         && colecao.matches('^friday-(areas|pastas|grupos|colunas|visoes|atualizacoes|automacoes)$');
     }
 
-    // Anexos e execuções de automação ainda não têm escritor na tela: só leitura e exclusão em cascata.
+    // Anexos: registro de um arquivo enviado ao Storage (friday/<quadro>/<item>/...). Quem anexa grava o próprio uid; não há
+    // edição. As cópias do monday (origem_id) são gravadas só pela Function fridayAnexosMonday (Admin SDK).
     match /friday-anexos/{anexoId} {
       allow read, delete: if fridayAccess();
-      allow create, update: if false;
+      allow create: if fridayAccess()
+        && request.resource.data.get('usuario_id', null) == request.auth.uid
+        && request.resource.data.get('arquivo', null) is string
+        && request.resource.data.arquivo.matches('^friday/[0-9]+/[0-9]+/.+$')
+        && request.resource.data.get('origem_id', null) == null;
+      allow update: if false;
     }
+    // Execuções de automação: gravadas pelo executor (Admin SDK); a tela só lê e exclui em cascata.
     match /friday-execucoes/{execucaoId} {
       allow read, delete: if fridayAccess();
       allow create, update: if false;

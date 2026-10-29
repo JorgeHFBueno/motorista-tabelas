@@ -89,3 +89,18 @@ test('rótulo novo numa coluna ligada a campo de texto entra no campo (mesma reg
   assert.deepEqual(m.valorParaGravarExistente(r.campo, '3'), { gravar: [['empresa', 'NOVA']] });
   assert.equal(m.campoComRotuloNovo(empresa, rotulos, '1').mudou, false);
 });
+
+test('reimportação: arquivo do monday já copiado para o Friday continua a cópia; arquivo novo chega só com o nome', () => {
+  const colDoc = { id: 15, tipoMonday: 'file', titulo: 'Doc. Edital', tipo: 'arquivos', config: {} };
+  const copia = { id: 500, nome: 'edital.pdf', mime: 'application/pdf', tamanho: 10, url: 'https://x/edital.pdf', monday_asset: 77 };
+  const existente = { id: 1, nome: 'X', grupo_id: 5, valores: { 15: [copia] } };
+  const files = (...f) => cv('doc', '', { files: f.map(([name, assetId]) => ({ name, assetId, fileType: 'ASSET' })) });
+  const plano = (coluna) => o.planejarAtualizacao({ item: { id: 'm', name: 'X', column_values: [coluna] }, existente, colunas: new Map([['doc', colDoc]]), campos: [],
+    oficial: {}, nomeTravado: false, grupoId: 5, nomeDoGrupo: String, ctx: ctx() });
+  const igual = plano(files(['edital.pdf', 77]));
+  assert.deepEqual(igual.mudancas, []);
+  assert.deepEqual(igual.livres, { 15: [copia] });
+  const novo = plano(files(['edital.pdf', 77], ['aditivo.pdf', 78]));
+  assert.deepEqual(novo.livres, { 15: [copia, { nome: 'aditivo.pdf', monday_asset: 78 }] });
+  assert.equal(novo.mudancas.length, 1);
+});

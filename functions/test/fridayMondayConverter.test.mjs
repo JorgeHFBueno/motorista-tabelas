@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
+  caminhoAnexo, comCopias, manterCopias, mimeDoNome, pendentesDoMonday,
   configDe, converterFormulaMonday, dataLocal, decidirItem, mesclarOpcoesLista, mesclarRotulosStatus, mesclarValores,
   pessoasDosValores, prefixosBusca, quadrosDeSubitens, resolverLigacoes, tipoFriday, valorDe, valoresDoItem,
 } from '../lib/fridayMondayConverter.js';
@@ -97,4 +98,19 @@ test('índices e datas seguem as mesmas regras da WEB', () => {
 
 test('subitens: quadro apontado pela coluna subtasks', () => {
   assert.deepEqual(quadrosDeSubitens([{ id: 'subitems', title: 'Subitens', type: 'subtasks', settings_str: JSON.stringify({ boardIds: [123] }) }]), ['123']);
+});
+
+test('arquivos do monday: pendentes, troca pela cópia, reimportação mantém a cópia, caminho e tipo', () => {
+  const copia = { id: 500, nome: 'edital.pdf', mime: 'application/pdf', tamanho: 10, url: 'https://x', monday_asset: 77 };
+  const valores = { 15: [{ nome: 'edital.pdf', monday_asset: 77 }, { nome: 'link', url: 'https://y' }, copia], 16: [{ nome: ' ', monday_asset: 78 }], 17: 'texto' };
+  assert.deepEqual(pendentesDoMonday(valores, ['15', '16', '17', '99']), [{ coluna_id: 15, asset: 77, nome: 'edital.pdf' }, { coluna_id: 16, asset: 78, nome: 'arquivo' }]);
+  assert.deepEqual(comCopias(valores, new Map([[77, copia]])), { 15: [copia, { nome: 'link', url: 'https://y' }, copia] });
+  assert.deepEqual(comCopias(valores, new Map()), {});
+  assert.deepEqual(manterCopias([copia], [{ nome: 'edital.pdf', monday_asset: 77 }, { nome: 'novo.pdf', monday_asset: 79 }]), [copia, { nome: 'novo.pdf', monday_asset: 79 }]);
+  assert.equal(manterCopias(null, 'x'), 'x');
+  // Reimportação comum (item intocado): a coluna vem do monday, mas a cópia fica.
+  assert.deepEqual(mesclarValores({ 15: [copia] }, { 15: [{ nome: 'edital.pdf', monday_asset: 77 }] }, [15]), { 15: [copia] });
+  assert.equal(caminhoAnexo(1, 2, 3, 'a/b\\c.pdf'), 'friday/1/2/3-a_b_c.pdf');
+  assert.equal(mimeDoNome('Edital.PDF'), 'application/pdf');
+  assert.equal(mimeDoNome('sem-extensao'), null);
 });

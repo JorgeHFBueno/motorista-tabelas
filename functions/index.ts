@@ -12,6 +12,7 @@ export { fridayMondayInventario, fridayMondayImportarQuadro } from './fridayMond
 export { fridayCadastroCampos, fridayCadastroGravar, fridayCadastroPromover } from './fridayCadastros.js';
 export { fridayObrasSituacaoItem, fridayObrasSituacaoDiaria } from './fridayObrasSituacao.js';
 export { fridayAutomacoesEvento, fridayAutomacoesDatas } from './fridayAutomacoes.js';
+export { fridayAnexosMonday } from './fridayAnexosMonday.js';
 export { atualizarMeuPerfil } from './meuPerfil.js';
 export { manuscriptListTree, manuscriptGetDocument, manuscriptSearch, manuscriptGetBacklinks, manuscriptGetDocumentGraph, manuscriptGetDocumentHistory } from './manuscript.js';
 

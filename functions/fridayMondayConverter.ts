@@ -127,7 +127,9 @@ export function mesclarOpcoesLista(config: AnyRecord, settings: AnyRecord): AnyR
 }
 
 // ---------------------------------------------------------------- arquivos e fórmulas
-export type ArquivoColuna = { nome: string; monday_asset?: number; url?: string };
+// Depois da cópia para o Storage (fridayAnexosMonday), a entrada ganha `id` (do anexo), `mime`, `tamanho` e `url`, e guarda
+// `monday_asset` para a reimportação reconhecer o arquivo.
+export type ArquivoColuna = { nome: string; monday_asset?: number; url?: string; id?: number; mime?: string; tamanho?: number };
 /** Coluna "Arquivos": só a lista (nome + asset do monday, ou link externo); o conteúdo vem na etapa de Storage. */
 export function arquivosDoMonday(valor: unknown): ArquivoColuna[] | null {
   const files = ((valor as { files?: { name?: string; assetId?: number | string; fileType?: string; linkToFile?: string; url?: string }[] } | null)?.files ?? []);
@@ -139,6 +141,55 @@ export function arquivosDoMonday(valor: unknown): ArquivoColuna[] | null {
   }).filter((x): x is ArquivoColuna => x != null);
   return lista.length ? lista : null;
 }
+
+/** Reimportação: um arquivo do monday já copiado para o Friday continua a ser a cópia (mesmo `monday_asset`). */
+export function manterCopias(atual: unknown, novo: unknown): unknown {
+  if (!Array.isArray(novo) || !Array.isArray(atual)) return novo;
+  const copias = new Map(atual.filter(a => a?.id != null && a?.monday_asset != null).map(a => [Number(a.monday_asset), a]));
+  if (!copias.size) return novo;
+  return novo.map(n => (n?.monday_asset != null && copias.get(Number(n.monday_asset))) || n);
+}
+
+export type ArquivoPendente = { coluna_id: number; asset: number; nome: string };
+/** Arquivos que vieram do monday só com o nome (ainda sem cópia no Storage), nas colunas de arquivos indicadas. */
+export function pendentesDoMonday(valores: AnyRecord | undefined, colunas: Iterable<string>): ArquivoPendente[] {
+  const out: ArquivoPendente[] = [];
+  for (const col of colunas) {
+    const lista = valores?.[col];
+    if (!Array.isArray(lista)) continue;
+    for (const a of lista) if (a && a.id == null && a.monday_asset != null) out.push({ coluna_id: Number(col), asset: Number(a.monday_asset), nome: String(a.nome ?? '').trim() || 'arquivo' });
+  }
+  return out;
+}
+
+/** Troca as entradas do monday pelas cópias (por `monday_asset`). Devolve só as colunas que mudaram. */
+export function comCopias(valores: AnyRecord | undefined, copias: Map<number, ArquivoColuna>): Record<string, unknown[]> {
+  const out: Record<string, unknown[]> = {};
+  for (const [col, lista] of Object.entries(valores ?? {})) {
+    if (!Array.isArray(lista)) continue;
+    let mudou = false;
+    const nova = lista.map(a => {
+      const c = a && a.id == null && a.monday_asset != null ? copias.get(Number(a.monday_asset)) : undefined;
+      if (c) mudou = true;
+      return c ?? a;
+    });
+    if (mudou) out[col] = nova;
+  }
+  return out;
+}
+
+/** Caminho do anexo no Storage, igual ao da tela (api.ts, enviarArquivo). */
+export const caminhoAnexo = (quadroId: unknown, itemId: unknown, anexoId: number, nome: string) => `friday/${quadroId}/${itemId}/${anexoId}-${nome.replace(/[/\\]/g, '_')}`;
+
+const MIMES: Record<string, string> = {
+  pdf: 'application/pdf', png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', gif: 'image/gif', webp: 'image/webp',
+  doc: 'application/msword', docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  xls: 'application/vnd.ms-excel', xlsx: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  csv: 'text/csv', txt: 'text/plain', zip: 'application/zip', rar: 'application/vnd.rar', '7z': 'application/x-7z-compressed',
+  mp4: 'video/mp4', dwg: 'image/vnd.dwg', kml: 'application/vnd.google-earth.kml+xml', kmz: 'application/vnd.google-earth.kmz',
+};
+/** Tipo do arquivo pela extensão (o monday nem sempre informa); null quando não conhecida. */
+export const mimeDoNome = (nome: string): string | null => MIMES[nome.split('.').pop()?.toLowerCase() ?? ''] ?? null;
 
 export type Alvo = { id: number | null; tipoMonday: string };
 /** Fórmula do monday ({status_1#labels}) → formato do Friday ({@<id da coluna>#Mod}). */
@@ -251,7 +302,8 @@ export function decidirItem(existente: AnyRecord | undefined, mondayAtualizadoEm
 export function mesclarValores(atuais: AnyRecord | undefined, novos: AnyRecord, colunasImportadas: Iterable<number>): AnyRecord {
   const out: AnyRecord = { ...(atuais ?? {}) };
   for (const id of colunasImportadas) delete out[String(id)];
-  return { ...out, ...novos };
+  for (const [k, v] of Object.entries(novos)) out[k] = manterCopias(atuais?.[k], v);
+  return out;
 }
 
 /** Ordem dos grupos do monday ("position" é texto numérico). */

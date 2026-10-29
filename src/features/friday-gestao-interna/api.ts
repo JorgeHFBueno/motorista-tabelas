@@ -3,7 +3,8 @@ import {
   type DocumentData, type DocumentReference,
 } from 'firebase/firestore';
 import { httpsCallable } from 'firebase/functions';
-import { db } from '../../firebase';
+import { deleteObject, getDownloadURL, ref as refArquivo, uploadBytes } from 'firebase/storage';
+import { db, storage } from '../../firebase';
 import { functions } from './funcoes.ts';
 import { CORES, fmtNumeroColuna, NOME_TRAVADO, nomeEspelhado } from './util.ts';
 import { converterColuna, nomeDoAlvo, type Alvo } from './quadro/mudarTipo.ts';
@@ -48,7 +49,8 @@ const CAMPOS: Record<Recurso, string[]> = {
   // quadro_id em atualizações e anexos: quadro do item, guardado para contar sem consultar item por item.
   atualizacoes: ['id', 'item_id', 'quadro_id', 'usuario_id', 'texto', 'criado_em', 'resposta_de', 'mencoes'],
   atividades: ['id', 'quadro_id', 'item_id', 'item_nome', 'usuario_id', 'automacao_id', 'acao', 'coluna_id', 'coluna_titulo', 'de', 'para', 'criado_em'],
-  anexos: ['id', 'item_id', 'quadro_id', 'atualizacao_id', 'coluna_id', 'nome', 'mime', 'tamanho', 'arquivo', 'url', 'usuario_id', 'criado_em'],
+  // arquivo: caminho no Storage; origem_id: arquivo copiado do monday ("monday:<asset>"), gravado pela Function fridayAnexosMonday.
+  anexos: ['id', 'item_id', 'quadro_id', 'atualizacao_id', 'coluna_id', 'nome', 'mime', 'tamanho', 'arquivo', 'url', 'usuario_id', 'criado_em', 'origem_id'],
   // usuario_uid: dono do aviso no Firebase Auth (as regras só deixam cada um ler os próprios avisos).
   notificacoes: ['id', 'usuario_id', 'usuario_uid', 'de_usuario_id', 'tipo', 'quadro_id', 'item_id', 'atualizacao_id', 'texto', 'lida', 'criado_em'],
   // origem_id: automação importada do monday ("monday:<id>"), para não importar duas vezes.
@@ -739,12 +741,14 @@ async function mudarEstado(r: Recurso, id: number, acao: 'arquivar' | 'restaurar
 }
 
 // Reúne o registro e tudo o que depende dele (como o ON DELETE CASCADE do protótipo).
-async function coletarExclusao(r: Recurso, row: Row, apagar: Map<string, DocumentReference>, soltar: Map<string, DocumentReference>) {
+// `arquivos` junta os caminhos no Storage dos anexos apagados.
+async function coletarExclusao(r: Recurso, row: Row, apagar: Map<string, DocumentReference>, soltar: Map<string, DocumentReference>, arquivos: string[]) {
   const chave = `${r}/${row.id}`;
   if (apagar.has(chave)) return;
   apagar.set(chave, ref(r, row.id));
+  if (r === 'anexos' && row.arquivo) arquivos.push(String(row.arquivo));
   const filhos = (rr: Recurso, campo: string) => consultar(rr, { [campo]: row.id });
-  const cada = async (rr: Recurso, campo: string) => { for (const x of await filhos(rr, campo)) await coletarExclusao(rr, x, apagar, soltar); };
+  const cada = async (rr: Recurso, campo: string) => { for (const x of await filhos(rr, campo)) await coletarExclusao(rr, x, apagar, soltar, arquivos); };
   switch (r) {
     case 'areas': await cada('pastas', 'area_id'); await cada('quadros', 'area_id'); break;
     case 'pastas':
@@ -766,11 +770,24 @@ async function coletarExclusao(r: Recurso, row: Row, apagar: Map<string, Documen
 async function apagarDeVez(r: Recurso, row: Row) {
   const apagar = new Map<string, DocumentReference>();
   const soltar = new Map<string, DocumentReference>();
-  await coletarExclusao(r, row, apagar, soltar);
+  const arquivos: string[] = [];
+  await coletarExclusao(r, row, apagar, soltar, arquivos);
   const ops: ((lote: ReturnType<typeof writeBatch>) => void)[] = [];
   for (const [k, d] of soltar) if (!apagar.has(k)) ops.push(lote => lote.update(d, { pasta_id: null }));
   for (const d of apagar.values()) ops.push(lote => lote.delete(d));
   await emLotes(ops);
+  // Depois dos registros, os arquivos (um arquivo que sobrar não aparece em lugar nenhum; um registro sem arquivo, sim).
+  for (const c of arquivos) {
+    await deleteObject(refArquivo(storage, c)).catch(e => { if ((e as { code?: string }).code !== 'storage/object-not-found') console.warn('[friday] arquivo não apagado:', c, e); });
+  }
+}
+// Anexo apagado pela aba Arquivos: sai também da célula da coluna em que foi enviado.
+async function tirarDaColuna(anexo: Row) {
+  const item = await buscar('itens', anexo.item_id);
+  const lista = item?.valores?.[String(anexo.coluna_id)];
+  if (!Array.isArray(lista) || !lista.some(a => a?.id === anexo.id)) return;
+  const resto = lista.filter(a => a?.id !== anexo.id);
+  await updateDoc(ref('itens', anexo.item_id), { [`valores.${anexo.coluna_id}`]: resto.length ? resto : deleteField() });
 }
 
 // O que está arquivado ou na lixeira (quadros, grupos e itens), do mais recente para o mais antigo.
@@ -1074,6 +1091,7 @@ async function excluir(r: Recurso, id: number, definitivo: boolean) {
     // Item oficial apagado de vez: o registro oficial fica, marcado como excluído.
     if (r === 'itens' && antes.vinculo && !antes.excluido_em) { await updateDoc(ref(r, id), { excluido_em: agora() }); await gravarOficial(id, 'situacao'); }
     await apagarDeVez(r, antes);
+    if (r === 'anexos' && antes.coluna_id != null) await tirarDaColuna(antes);
   }
   if (r === 'itens') await registrar({ quadro_id: antes.quadro_id, item_id: id, item_nome: antes.nome, acao: 'excluiu' });
 }
@@ -1127,11 +1145,39 @@ export async function req<T>(method: string, url: string, body?: unknown): Promi
   }
 }
 
-// Anexos (Firebase Storage) chegam na próxima etapa.
-export async function enviarArquivo(_itemId: number, arquivo: File, _atualizacaoId?: number, _colunaId?: number): Promise<Row> {
-  void _itemId; void _atualizacaoId; void _colunaId;
-  throw new Error(`Não foi possível anexar “${arquivo.name}”: anexos chegam na próxima etapa do Friday.`);
+// Anexos: o arquivo vai para o Storage (friday/<quadro>/<item>/<anexo>-<nome>) e o registro para friday-anexos.
+const LIMITE_ANEXO = 25 * 1024 * 1024;
+export async function enviarArquivo(itemId: number, arquivo: File, atualizacaoId?: number, colunaId?: number): Promise<Row> {
+  if (arquivo.size > LIMITE_ANEXO) throw new Error(`“${arquivo.name}” passa de 25 MB, o limite por arquivo.`);
+  const item = await buscar('itens', itemId);
+  if (!item) throw new Error('Item não encontrado.');
+  const id = novoId();
+  const caminho = `friday/${item.quadro_id}/${itemId}/${id}-${arquivo.name.replace(/[/\\]/g, '_')}`;
+  const mime = arquivo.type || 'application/octet-stream';
+  const alvo = refArquivo(storage, caminho);
+  try {
+    await uploadBytes(alvo, arquivo, { contentType: mime, contentDisposition: `inline; filename*=UTF-8''${encodeURIComponent(arquivo.name)}` });
+  } catch (e) {
+    if ((e as { code?: string }).code === 'storage/unauthorized') throw new Error(`Sem permissão para anexar “${arquivo.name}”.`);
+    throw e;
+  }
+  try {
+    const row: Row = {
+      id, item_id: itemId, quadro_id: item.quadro_id, atualizacao_id: atualizacaoId ?? null, coluna_id: colunaId ?? null, nome: arquivo.name, mime,
+      tamanho: arquivo.size, arquivo: caminho, url: await getDownloadURL(alvo), usuario_id: eu().id, criado_em: agora(), origem_id: null,
+    };
+    await setDoc(ref('anexos', id), row);
+    return row;
+  } catch (e) {
+    await deleteObject(alvo).catch(() => undefined);
+    throw e;
+  }
 }
+
+// Cópia única dos arquivos que vieram do monday só com o nome (Function fridayAnexosMonday, só adm2). Cada chamada copia
+// o que couber no tempo e diz quantos faltam.
+export const copiarArquivosMonday = httpsCallable<{ quadroId: number }, { copiados: number; restantes: number; falhas: string[] }>(
+  functions, 'fridayAnexosMonday', { timeout: 560_000 });
 
 export const api = {
   list: (r: string, filtros: Record<string, string | number> = {}) => {
