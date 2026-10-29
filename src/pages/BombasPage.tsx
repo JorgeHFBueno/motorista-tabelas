@@ -46,6 +46,7 @@ import {
   calculateUnitPrice,
   getPumpIndicators,
   parsePtBrNumber,
+  litrosParaUnidadeBomba,
   unidadeBombaParaLitros,
   suggestBatch,
   normalizeBombaLatestEntry,
@@ -168,6 +169,16 @@ export default function BombasPage() {
     return new Intl.DateTimeFormat('pt-BR', includeTime
       ? { dateStyle: 'short', timeStyle: 'short' }
       : { day: '2-digit', month: '2-digit', year: 'numeric' }).format(date);
+  };
+
+  // On blur, show the typed value exactly as it will be saved (cents for price, tenths of a liter for volume).
+  const formatTotalPriceField = () => {
+    const value = parsePtBrNumber(totalPrice);
+    if (value > 0) setTotalPrice(currency.format(Math.round(value * 100) / 100));
+  };
+  const formatPurchasedLitersField = () => {
+    const value = parsePtBrNumber(purchasedLiters);
+    if (value > 0) setPurchasedLiters(litersLabel(litrosParaUnidadeBomba(value) / 10));
   };
 
   const openEntry = () => {
@@ -344,8 +355,8 @@ export default function BombasPage() {
             {formError && <Alert severity="error">{formError}</Alert>}
             <TextField label="Bomba" value={selectedBomba ? bombaName(selectedBomba) : ''} disabled fullWidth />
             <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
-              <TextField label="Preço total" value={totalPrice} onChange={(event) => setTotalPrice(event.target.value)} placeholder="R$ 20.000,00" required fullWidth inputMode="decimal" />
-              <TextField label="Litros comprados" value={purchasedLiters} onChange={(event) => setPurchasedLiters(event.target.value)} placeholder="5.000" required fullWidth inputMode="decimal" />
+              <TextField label="Preço total" value={totalPrice} onChange={(event) => setTotalPrice(event.target.value)} onBlur={formatTotalPriceField} placeholder="R$ 20.000,00" required fullWidth inputMode="decimal" />
+              <TextField label="Litros comprados" value={purchasedLiters} onChange={(event) => setPurchasedLiters(event.target.value)} onBlur={formatPurchasedLitersField} placeholder="5.000" required fullWidth inputMode="decimal" />
             </Stack>
             <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
               <TextField
