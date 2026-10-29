@@ -20,9 +20,6 @@
 .pz-header h1 { color: var(--pz-head); font-size: 1.25rem; font-weight: 700; margin: 0; }
 .pz-sub { color: #52606d; font-size: .85rem; margin: 4px 0 0; }
 .pz-ref { color: #c00000; font-weight: 700; }
-.pz-header-actions { align-items: center; display: flex; gap: 10px; }
-.pz-fonte { border-radius: 999px; font-size: .72rem; font-weight: 700; padding: 4px 10px; }
-.pz-fonte--firestore { background: #dff0d8; color: #375623; }
 
 .pz-contadores { align-items: center; display: flex; flex-wrap: wrap; gap: 8px; }
 .pz-contador {

@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
 import { Alert, Button, Checkbox, CircularProgress, FormControlLabel, TextField, ToggleButton, ToggleButtonGroup, Tooltip } from '@mui/material';
-import RefreshIcon from '@mui/icons-material/Refresh';
 import TodayIcon from '@mui/icons-material/Today';
 import WarningAmberRoundedIcon from '@mui/icons-material/WarningAmberRounded';
 import OpenInNewIcon from '@mui/icons-material/OpenInNew';
@@ -112,10 +111,6 @@ export default function PrazosContratuaisPage() {
         <div>
           <h1>Cronograma de prazos contratuais — Obras públicas</h1>
           <p className="pz-sub">Ordem: menor prazo até o vencimento primeiro · <span className="pz-ref">Data de referência: {formatDate(hoje, true)}</span></p>
-        </div>
-        <div className="pz-header-actions">
-          <span className="pz-fonte pz-fonte--firestore" title="Coleção obras-v2 do Firestore">Firestore · obras-v2</span>
-          <Button size="small" variant="outlined" startIcon={<RefreshIcon />} onClick={() => void carregar()} disabled={carregando}>Recarregar</Button>
         </div>
       </header>
 
