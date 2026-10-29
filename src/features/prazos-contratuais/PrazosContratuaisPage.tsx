@@ -35,10 +35,11 @@ const LARGURA_MINIMA_TIMELINE = 360;
 const LARGURA_COLUNA: Record<Escala, number> = { semana: 22, mes: 44 };
 const COLUNAS_ANTES_DE_HOJE: Record<Escala, number> = { semana: 6, mes: 2 };
 const EMPRESAS = ['LEDUR', 'ARTEBASE'];
-/** Largura útil da folha deitada em px CSS: Carta (a mais estreita entre Carta e A4) com margens de 8 mm. */
-const LARGURA_FOLHA = 990;
-/** A impressão ocupa a largura da tabela; a borda das colunas fixas soma alguns px à grade. */
-const FOLGA_IMPRESSAO = 4;
+/**
+ * O navegador encolhe a impressão até caber na largura da folha, mas no máximo pela metade (Chrome).
+ * Por isso a tabela impressa não passa de duas folhas Carta deitadas (990 px CSS úteis cada, margens de 8 mm).
+ */
+const LARGURA_MAXIMA_IMPRESSAO = 2 * 990;
 /** Sem linha do tempo à vista, a impressão leva este número de colunas a partir de pouco antes de hoje. */
 const COLUNAS_IMPRESSAS_PADRAO = 26;
 
@@ -111,7 +112,7 @@ export default function PrazosContratuaisPage() {
   }, [hojePos, hojeCol, escala, largura, compacto]);
   useLayoutEffect(() => { if (!carregando) irParaHoje(); }, [carregando, escala, compacto]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Impressão (botão ou Ctrl+P): todas as obras e o trecho da linha do tempo que está na tela, ajustados à folha.
+  // Impressão (botão ou Ctrl+P): todas as obras e o trecho da linha do tempo que está na tela; o navegador ajusta à folha.
   useEffect(() => {
     const antes = () => {
       const el = scrollRef.current;
@@ -119,9 +120,10 @@ export default function PrazosContratuaisPage() {
       rolagemAntesDeImprimir.current = el.scrollLeft;
       const congelada = compacto ? LARGURA_CONGELADA : LARGURA_FIXA;
       const de = Math.floor(Math.max(0, el.scrollLeft + congelada - LARGURA_FIXA) / largura);
-      const ate = Math.min(todasColunas.length, Math.ceil((el.scrollLeft + el.clientWidth - LARGURA_FIXA) / largura)) - 1;
+      const maximo = Math.floor((LARGURA_MAXIMA_IMPRESSAO - LARGURA_FIXA) / largura);
+      const ate = Math.min(todasColunas.length, Math.ceil((el.scrollLeft + el.clientWidth - LARGURA_FIXA) / largura), de + maximo) - 1;
       const inicio = Math.max(0, Math.floor(posicaoHoje(todasColunas, hoje) ?? 0) - COLUNAS_ANTES_DE_HOJE[escala]);
-      flushSync(() => setJanela(ate >= de ? { de, ate } : { de: inicio, ate: Math.min(todasColunas.length, inicio + COLUNAS_IMPRESSAS_PADRAO) - 1 }));
+      flushSync(() => setJanela(ate >= de ? { de, ate } : { de: inicio, ate: Math.min(todasColunas.length, inicio + Math.min(COLUNAS_IMPRESSAS_PADRAO, maximo)) - 1 }));
     };
     const depois = () => {
       flushSync(() => setJanela(null));
@@ -136,7 +138,6 @@ export default function PrazosContratuaisPage() {
   const cssVars = {
     '--pz-col': `${largura}px`, '--pz-fixo': `${LARGURA_FIXA}px`, '--pz-congelada': `${LARGURA_CONGELADA}px`, '--pz-dados': `${LARGURA_FIXA - LARGURA_CONGELADA}px`,
     '--pz-grid-congelada': grade(COLUNAS_CONGELADAS), '--pz-grid-dados': grade(COLUNAS_DADOS), '--pz-timeline': `${colunas.length * largura}px`,
-    '--pz-zoom-impressao': Math.min(1, LARGURA_FOLHA / (LARGURA_FIXA + colunas.length * largura + FOLGA_IMPRESSAO)),
   } as CSSProperties;
 
   return (

@@ -118,8 +118,8 @@
   @page { size: landscape; margin: 8mm; }
   body * { visibility: hidden; }
   .pz-page, .pz-page * { -webkit-print-color-adjust: exact; print-color-adjust: exact; visibility: visible; }
-  /* Largura da tabela: textos longos (aviso, legenda) quebram linha em vez de alargar a página. */
-  .pz-page { background: #fff; left: 0; min-height: 0; padding: 0; position: absolute; top: 0; width: calc(var(--pz-fixo) + var(--pz-timeline) + 4px); zoom: var(--pz-zoom-impressao, 1); }
+  /* Largura da tabela (a legenda quebra linha); o navegador reduz tudo para caber na largura da folha. */
+  .pz-page { background: #fff; left: 0; min-height: 0; padding: 0; position: absolute; top: 0; width: calc(var(--pz-fixo) + var(--pz-timeline) + 4px); }
   /* Sem filtros nem avisos (Conferir no Friday, erro de carga): só o cronograma. */
   .pz-toolbar, .pz-loading, .pz-page > .MuiAlert-root { display: none !important; }
   .pz-scroll { border: 0; max-height: none; overflow: visible; }
