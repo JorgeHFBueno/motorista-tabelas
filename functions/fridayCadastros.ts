@@ -175,7 +175,8 @@ const apagarValores = (campos: CampoOficial[]) => campos.flatMap(c => [new Field
 type Operacao = 'valor' | 'nome' | 'situacao' | 'vincular' | 'grupo';
 const OPERACOES: Operacao[] = ['valor', 'nome', 'situacao', 'vincular', 'grupo'];
 
-async function gravar(uid: string, itemId: number, op: Operacao, colunaId: number | null, valor: unknown) {
+/** Gravação no cadastro oficial; usada também pelo executor de automações (fridayAutomacoes.ts), com o autor da automação. */
+export async function gravarNoCadastro(uid: string, itemId: number, op: Operacao, colunaId: number | null, valor: unknown) {
   const itemRef = db.collection('friday-itens').doc(String(itemId));
   const item = (await itemRef.get()).data();
   if (!item) throw new HttpsError('not-found', 'Item não encontrado.');
@@ -443,7 +444,7 @@ export const fridayCadastroGravar = onCall({ region: REGIAO, timeoutSeconds: 60,
     let valor = d.valor;
     if (d.registro != null) ({ itemId, colunaId, valor } = await alvoPeloRegistro(d.registro, d.campo, d.texto));
     if (!Number.isSafeInteger(itemId)) throw new HttpsError('invalid-argument', 'itemId inválido.');
-    return await gravar(uid, itemId, op, colunaId, valor);
+    return await gravarNoCadastro(uid, itemId, op, colunaId, valor);
   } catch (e) {
     if (e instanceof HttpsError) throw e;
     const mensagem = e instanceof Error ? e.message : String(e);

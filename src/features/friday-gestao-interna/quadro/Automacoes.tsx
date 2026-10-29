@@ -2,17 +2,18 @@ import { Fragment, useCallback, useEffect, useMemo, useState, type ReactNode } f
 import { useParams } from 'react-router-dom';
 import { useNavigate } from '../rotas.tsx';
 import {
-  AlertTriangle, ArrowLeft, CheckCircle2, Copy, History, MoreHorizontal, Pencil, Plus, Search, Trash2, X, Zap,
+  AlertTriangle, ArrowLeft, CheckCircle2, Copy, History, MoreHorizontal, Pencil, Plus, Search, Trash2, Upload, X, Zap,
 } from 'lucide-react';
 import { api, req, type Pessoa, type Row } from '../api.ts';
 import { useNav } from '../nav.tsx';
 import { Avatar, Menu, Modal, Popover, useConfirmar, usePopover } from '../ui/base.tsx';
 import { corTexto } from '../util.ts';
 import { tempoRelativo } from './Atualizacoes.tsx';
+import { lerAutomacoesMonday, type Importada } from './importarAutomacoes.ts';
 import { ehPrazo, infoTipo, statusPrincipal, type Coluna, type Grupo, type Rotulo } from './tipos.ts';
 import { useQuadro } from './useQuadro.ts';
 
-// ---------------------------------------------------------------- modelo (igual ao do servidor: server/src/automacoes.ts)
+// ---------------------------------------------------------------- modelo (o executor é a Function functions/fridayAutomacoes.ts)
 type Gatilho = { tipo: 'item_criado' | 'coluna_muda' | 'item_movido' | 'data_chega'; coluna_id?: number; grupo_id?: number | null; para?: string[]; de?: string[]; dias?: number; ponta?: 'inicio' | 'fim' };
 type Condicao = { alvo: number | 'grupo'; op: string; valor?: unknown };
 type Acao = {
@@ -35,7 +36,6 @@ const ACOES: { tipo: Acao['tipo']; rotulo: string }[] = [
   { tipo: 'subitem', rotulo: 'Criar um subitem' },
   { tipo: 'criar_item', rotulo: 'Criar um item em outro quadro' },
   { tipo: 'arquivar', rotulo: 'Arquivar o item' },
-  { tipo: 'webhook', rotulo: 'Enviar para um webhook (outro sistema)' },
 ];
 // Tipos que podem ser gatilho "quando mudar", ter valor definido por ação e ser usados em condições.
 const GATILHO_COLUNA = ['status', 'lista', 'pessoa', 'caixa', 'data', 'periodo', 'texto', 'numero', 'texto_longo', 'telefone', 'email', 'link', 'avaliacao', 'arquivos'];
@@ -114,7 +114,8 @@ function fraseAcao(a: Acao, ctx: Ctx): ReactNode {
     case 'subitem': return <>crie o subitem <B>{a.nome || '…'}</B></>;
     case 'criar_item': return <>crie um item em <B>{String(ctx.quadros.find(q => q.id === a.quadro_id)?.nome ?? '[quadro]')}</B></>;
     case 'arquivar': return <><B>arquive</B> o item</>;
-    case 'webhook': return <>envie para o <B>webhook</B></>;
+    // Regra antiga: webhook não roda (o Friday é interno).
+    case 'webhook': return <>envie para um <B>webhook</B> (não roda: o Friday é interno)</>;
   }
 }
 function Frase({ a, ctx }: { a: Automacao; ctx: Ctx }) {
@@ -138,7 +139,7 @@ function pendencia(a: Automacao): string | null {
     if (x.tipo === 'mover' && !x.grupo_id) return 'Escolha o grupo de destino.';
     if (x.tipo === 'notificar' && !(x.para?.length) && !x.coluna_pessoa) return 'Escolha quem vai ser avisado.';
     if (x.tipo === 'criar_item' && !x.quadro_id) return 'Escolha o quadro onde o item vai ser criado.';
-    if (x.tipo === 'webhook' && !/^https?:\/\//i.test(x.url ?? '')) return 'Informe o endereço do webhook (https://…).';
+    if (x.tipo === 'webhook') return 'Webhook não roda: o Friday é interno. Troque ou remova esta ação.';
   }
   return null;
 }
@@ -170,6 +171,7 @@ export default function AutomacoesPage() {
   const [busca, setBusca] = useState('');
   const [editando, setEditando] = useState<Automacao | null>(null);
   const [escolherModelo, setEscolherModelo] = useState(false);
+  const [importando, setImportando] = useState(false);
 
   const carregar = useCallback(() => {
     req<Automacao[]>('GET', `quadros/${quadroId}/automacoes`).then(setLista);
@@ -202,9 +204,11 @@ export default function AutomacoesPage() {
         <div>
           <h1><Zap size={22} className="ic-auto" /> Automações</h1>
           <p className="muted">Regras do quadro: <b>quando</b> algo acontecer, <b>e só se</b> as condições baterem, <b>então</b> o app faz as ações sozinho.</p>
-          <p className="aviso-leitura">As regras já podem ser criadas, mas ainda não rodam: a execução chega na etapa de automações.</p>
         </div>
-        <button className="fr-btn btn-primario" onClick={() => setEscolherModelo(true)}><Plus size={16} /> Criar automação</button>
+        <div className="auto-cab-botoes">
+          <button className="fr-btn" onClick={() => setImportando(true)}><Upload size={16} /> Importar</button>
+          <button className="fr-btn btn-primario" onClick={() => setEscolherModelo(true)}><Plus size={16} /> Criar automação</button>
+        </div>
       </header>
       <nav className="abas-visoes arquivo-abas">
         <button className={`aba-visao${aba === 'lista' ? ' on' : ''}`} onClick={() => setAba('lista')}><Zap size={15} /> Automações ({lista.length})</button>
@@ -256,6 +260,7 @@ export default function AutomacoesPage() {
           </div>
         </Modal>
       )}
+      {importando && <ImportarAutomacoes quadroId={quadroId} ctx={ctx} existentes={lista} onFechar={() => setImportando(false)} onImportou={carregar} />}
       {editando && <EditorAutomacao inicial={editando} ctx={ctx} onSalvar={salvar} onFechar={() => setEditando(null)} />}
     </div>
   );
@@ -430,7 +435,6 @@ function EditorAutomacao({ inicial, ctx, onSalvar, onFechar }: { inicial: Automa
               )}
               {x.tipo === 'subitem' && <input className="auto-texto largo" placeholder="Nome do subitem (pode usar {nome})" value={x.nome ?? ''} onChange={e => setAcao(k, { nome: e.target.value })} />}
               {x.tipo === 'criar_item' && <CriarItemDestino acao={x} ctx={ctx} onMudar={m => setAcao(k, m)} />}
-              {x.tipo === 'webhook' && <input className="auto-texto largo" placeholder="https://… (recebe o item em JSON)" value={x.url ?? ''} onChange={e => setAcao(k, { url: e.target.value })} />}
               <button className="btn-icone" aria-label="Remover ação" onClick={() => setA(y => ({ ...y, acoes: y.acoes.filter((_, j) => j !== k) }))}><X size={15} /></button>
             </div>
           );
@@ -524,5 +528,83 @@ function Escolha({ opcoes, valor, onMudar, vazio = 'qualquer' }: { opcoes: { id:
         </Popover>
       )}
     </>
+  );
+}
+
+// ---------------------------------------------------------------- importar do monday (CSV de automações)
+/** Dono no monday → funcionário pelo nome (todas as palavras do nome do monday no nome do funcionário, um só). */
+function donoDe(nome: string, usuarios: Pessoa[]): Pessoa | undefined {
+  const palavras = (t: string) => t.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().split(/\s+/).filter(Boolean);
+  const procuradas = palavras(nome);
+  if (!procuradas.length) return undefined;
+  const achados = usuarios.filter(u => { const p = palavras(u.nome); return procuradas.every(w => p.includes(w)); });
+  return achados.length === 1 ? achados[0] : undefined;
+}
+
+function ImportarAutomacoes({ quadroId, ctx, existentes, onFechar, onImportou }: { quadroId: number; ctx: Ctx; existentes: Automacao[]; onFechar: () => void; onImportou: () => void }) {
+  const [linhas, setLinhas] = useState<Importada[] | null>(null);
+  const [marcadas, setMarcadas] = useState<Set<string>>(new Set());
+  const [erro, setErro] = useState<string | null>(null);
+  const [salvando, setSalvando] = useState(false);
+  const jaImportadas = new Set(existentes.map(a => String(a.origem_id ?? '')).filter(Boolean));
+
+  const ler = async (arquivo: File | undefined) => {
+    if (!arquivo) return;
+    try {
+      const l = lerAutomacoesMonday(await arquivo.text(), { colunas: ctx.colunas, grupos: ctx.grupos });
+      setLinhas(l); setErro(null);
+      setMarcadas(new Set(l.filter(x => x.regra && !jaImportadas.has(x.origem_id)).map(x => x.origem_id)));
+    } catch (e) { setLinhas(null); setErro((e as Error).message); }
+  };
+  const escolhidas = (linhas ?? []).filter(x => x.regra && !jaImportadas.has(x.origem_id) && marcadas.has(x.origem_id));
+  const importar = async () => {
+    setSalvando(true);
+    try {
+      for (const l of escolhidas) {
+        const dono = donoDe(l.dono, ctx.usuarios);
+        // Com pendência (ou desligada no monday), entra desligada para alguém completar.
+        await api.create('automacoes', {
+          quadro_id: quadroId, nome: null, ...l.regra!, ativa: l.pendencias.length || !l.ativa_no_monday ? 0 : 1, origem_id: l.origem_id, ...(dono ? { criado_por: dono.id } : {}),
+        });
+      }
+      onImportou(); onFechar();
+    } catch (e) { setErro((e as Error).message); } finally { setSalvando(false); }
+  };
+  const n = escolhidas.length;
+
+  return (
+    <Modal titulo={<><Upload size={18} /> Importar automações do monday</>} largura={820} onClose={onFechar}
+      rodape={linhas && <>
+        <span className="fr-small muted espaco">Regras com pendência entram desligadas.</span>
+        <button className="fr-btn" onClick={onFechar}>Cancelar</button>
+        <button className="fr-btn btn-primario" disabled={!n || salvando} onClick={importar}>Importar {n} {n === 1 ? 'automação' : 'automações'}</button>
+      </>}>
+      <p className="muted fr-small">Escolha o arquivo de automações exportado do monday para este quadro (<b>board_automations_….csv</b>). Cada regra é lida pelos nomes das colunas, rótulos e grupos deste quadro. Regras que enviam algo para fora (webhook, e-mail, notificação) não são importadas: o Friday é interno.</p>
+      <input type="file" accept=".csv,text/csv" onChange={e => ler(e.target.files?.[0])} />
+      {erro && <p className="texto-alerta fr-small">{erro}</p>}
+      {linhas && !linhas.length && <p className="muted">O arquivo não tem automações.</p>}
+      {linhas && linhas.length > 0 && (
+        <div className="auto-importar">
+          {linhas.map(l => {
+            const ja = jaImportadas.has(l.origem_id);
+            const pode = !!l.regra && !ja;
+            return (
+              <label key={l.origem_id} className={`auto-importar-linha${pode ? '' : ' fora'}`}>
+                <input type="checkbox" disabled={!pode} checked={pode && marcadas.has(l.origem_id)}
+                  onChange={() => setMarcadas(m => { const s = new Set(m); if (s.has(l.origem_id)) s.delete(l.origem_id); else s.add(l.origem_id); return s; })} />
+                <div>
+                  <small className="muted">monday · {l.dono || 'sem dono'}{l.ativa_no_monday ? '' : ' · desligada no monday'}: “{l.frase}”</small>
+                  {l.regra && <div><Frase a={{ quadro_id: quadroId, ...l.regra } as Automacao} ctx={ctx} /></div>}
+                  {ja && <small className="muted">Já importada.</small>}
+                  {l.erro && <small className="muted">Não importa: {l.erro}.</small>}
+                  {!ja && l.pendencias.map(p => <small key={p} className="texto-alerta">Entra desligada: {p}</small>)}
+                  {!ja && l.avisos.map(p => <small key={p} className="auto-aviso">{p}</small>)}
+                </div>
+              </label>
+            );
+          })}
+        </div>
+      )}
+    </Modal>
   );
 }

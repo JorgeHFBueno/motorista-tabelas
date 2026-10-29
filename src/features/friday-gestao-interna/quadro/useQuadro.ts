@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { api, req, type Row } from '../api.ts';
+import { api, observarAutomacoes, req, type Row } from '../api.ts';
 import { useAvisoRapido } from '../ui/base.tsx';
 import { posEntre } from '../util.ts';
 import type { Coluna, Grupo, Item, Sub, TipoColuna, Visao } from './tipos.ts';
@@ -29,15 +29,14 @@ export function useQuadro(quadroId: number) {
     } catch (e) { setErro((e as Error).message); }
   }, [quadroId]);
   useEffect(() => { setDados(null); recarregar(); }, [recarregar]);
+  // Quadro com automações ligadas: quando uma roda no servidor (pode mover, arquivar ou mudar itens), recarrega.
+  const comAutomacoes = !!dados?.quadro.n_automacoes;
+  useEffect(() => (comAutomacoes ? observarAutomacoes(quadroId, recarregar) : undefined), [comAutomacoes, quadroId, recarregar]);
 
   const mudar = (f: (d: Dados) => Dados) => setDados(d => (d ? f(d) : d));
-  // Se a gravação disparou automações (_automacoes > 0), o servidor pode ter mudado outros itens: recarrega.
   const gravar = async (p: Promise<unknown>) => {
     try {
-      const r = await p;
-      const lista = Array.isArray(r) ? r : [r];
-      if (lista.some(x => (x as { _automacoes?: number } | undefined)?._automacoes)) recarregar();
-      return r;
+      return await p;
     } catch (e) { alert(`Não foi possível salvar: ${(e as Error).message}`); recarregar(); }
   };
   const tirarItens = (ids: number[]) => mudar(d => comItens(d, l => l.filter(i => !ids.includes(i.id) && !ids.includes(i.item_pai_id ?? -1))));
@@ -135,7 +134,6 @@ export function useQuadro(quadroId: number) {
       const posicao = noTopo ? posEntre(null, doGrupo[0]?.posicao) : posEntre(doGrupo.at(-1)?.posicao, null);
       const it = (await api.create('itens', { quadro_id: quadroId, grupo_id: grupoId, nome, posicao, valores })) as Item;
       mudar(d => ({ ...d, itens: [...d.itens, { ...it, n_atualizacoes: 0 }] }));
-      if ((it as { _automacoes?: number })._automacoes) recarregar();
       return it;
     },
     criarSubitem: async (paiId: number, nome: string) => {

@@ -723,6 +723,13 @@ body.redimensionando .friday-root, body.redimensionando .friday-root * { cursor:
 .friday-root .auto-modelo svg { color: #f5a623; flex: none; }
 .friday-root .auto-modelo:hover { border-color: var(--primaria); background: var(--primaria-clara); }
 .friday-root .auto-modelo.zero svg { color: var(--primaria); }
+.friday-root .auto-cab-botoes { display: flex; gap: 8px; flex-wrap: wrap; }
+.friday-root .auto-importar { display: flex; flex-direction: column; gap: 8px; margin-top: 12px; }
+.friday-root .auto-importar-linha { display: flex; gap: 10px; align-items: flex-start; border: 1px solid var(--borda-suave); border-radius: 8px; padding: 10px 12px; cursor: pointer; }
+.friday-root .auto-importar-linha > div { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.friday-root .auto-importar-linha small { display: block; overflow-wrap: anywhere; }
+.friday-root .auto-importar-linha.fora { opacity: .65; cursor: default; }
+.friday-root .auto-aviso { color: #8a5a00; }
 .friday-root .auto-previa { background: var(--superficie-2); border-radius: 8px; padding: 12px 14px; margin-bottom: 14px; }
 .friday-root .auto-bloco { border-left: 3px solid var(--primaria-clara); padding: 2px 0 6px 14px; margin-bottom: 14px; }
 .friday-root .auto-bloco h4 { font-size: 13px; text-transform: uppercase; letter-spacing: 0.04em; color: var(--texto-2); margin-bottom: 8px; }

@@ -1,5 +1,5 @@
 import {
-  collection, deleteField, doc, documentId, FieldPath, getDoc, getDocs, limit, query, runTransaction, setDoc, updateDoc, where, writeBatch,
+  collection, deleteField, doc, documentId, FieldPath, getDoc, getDocs, limit, onSnapshot, query, runTransaction, setDoc, updateDoc, where, writeBatch,
   type DocumentData, type DocumentReference,
 } from 'firebase/firestore';
 import { httpsCallable } from 'firebase/functions';
@@ -51,7 +51,8 @@ const CAMPOS: Record<Recurso, string[]> = {
   anexos: ['id', 'item_id', 'quadro_id', 'atualizacao_id', 'coluna_id', 'nome', 'mime', 'tamanho', 'arquivo', 'url', 'usuario_id', 'criado_em'],
   // usuario_uid: dono do aviso no Firebase Auth (as regras só deixam cada um ler os próprios avisos).
   notificacoes: ['id', 'usuario_id', 'usuario_uid', 'de_usuario_id', 'tipo', 'quadro_id', 'item_id', 'atualizacao_id', 'texto', 'lida', 'criado_em'],
-  automacoes: ['id', 'quadro_id', 'nome', 'ativa', 'modo', 'gatilho', 'condicoes', 'acoes', 'criado_por', 'criado_em', 'atualizado_em'],
+  // origem_id: automação importada do monday ("monday:<id>"), para não importar duas vezes.
+  automacoes: ['id', 'quadro_id', 'nome', 'ativa', 'modo', 'gatilho', 'condicoes', 'acoes', 'criado_por', 'criado_em', 'atualizado_em', 'origem_id'],
   execucoes: ['id', 'automacao_id', 'quadro_id', 'item_id', 'item_nome', 'chave', 'ok', 'detalhe', 'criado_em'],
 };
 const JSON_COLS: Partial<Record<Recurso, string[]>> = { colunas: ['config'], itens: ['valores'], visoes: ['config'], atualizacoes: ['mencoes'], automacoes: ['gatilho', 'condicoes', 'acoes'] };
@@ -722,8 +723,7 @@ async function definirValor(itemId: number, corpo: unknown) {
   if (de !== para) {
     await registrar({ quadro_id: item.quadro_id, item_id: item.id, item_nome: item.nome, acao: 'alterou', coluna_id: coluna.id, coluna_titulo: coluna.titulo, de, para });
   }
-  // Automações ainda não rodam nesta etapa (virão em Cloud Functions): nenhuma disparou.
-  return { ...atual, valores, atualizado_em, pessoas, _automacoes: 0 };
+  return { ...atual, valores, atualizado_em, pessoas };
 }
 
 // ------------------------------------------------------------------ arquivo, lixeira e exclusão definitiva
@@ -939,6 +939,24 @@ async function busca(termo: string | undefined) {
     // Subitem: abre o quadro principal no item pai.
     itens,
   };
+}
+
+/**
+ * As automações rodam no servidor (Function fridayAutomacoes), depois da gravação da tela. Cada execução fica em
+ * friday-execucoes; quando uma do quadro termina, `aoRodar` é chamado (com folga, para juntar várias) e a tela recarrega.
+ */
+export function observarAutomacoes(quadroId: number, aoRodar: () => void): () => void {
+  let primeira = true;
+  let espera: ReturnType<typeof setTimeout> | undefined;
+  const parar = onSnapshot(query(colecao('execucoes'), where('criado_em', '>=', agora())), snap => {
+    // A primeira leitura traz o que já existia: só as mudanças seguintes contam.
+    if (primeira) { primeira = false; return; }
+    const doQuadro = snap.docChanges().some(c => Number(c.doc.data().quadro_id) === quadroId && c.doc.data().detalhe !== 'rodando…');
+    if (!doQuadro) return;
+    clearTimeout(espera);
+    espera = setTimeout(aoRodar, 600);
+  }, e => console.warn('[friday] automações: sem atualização automática', e));
+  return () => { clearTimeout(espera); parar(); };
 }
 
 // Lista do quadro com quantas vezes cada automação rodou e quando foi a última.
