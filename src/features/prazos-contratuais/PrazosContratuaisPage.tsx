@@ -35,8 +35,10 @@ const LARGURA_MINIMA_TIMELINE = 360;
 const LARGURA_COLUNA: Record<Escala, number> = { semana: 22, mes: 44 };
 const COLUNAS_ANTES_DE_HOJE: Record<Escala, number> = { semana: 6, mes: 2 };
 const EMPRESAS = ['LEDUR', 'ARTEBASE'];
-/** Largura útil de uma folha A4 deitada (margens de 8 mm), em px CSS. */
-const LARGURA_FOLHA = 1060;
+/** Largura útil da folha deitada em px CSS: Carta (a mais estreita entre Carta e A4) com margens de 8 mm. */
+const LARGURA_FOLHA = 990;
+/** A impressão ocupa a largura da tabela; a borda das colunas fixas soma alguns px à grade. */
+const FOLGA_IMPRESSAO = 4;
 /** Sem linha do tempo à vista, a impressão leva este número de colunas a partir de pouco antes de hoje. */
 const COLUNAS_IMPRESSAS_PADRAO = 26;
 
@@ -134,7 +136,7 @@ export default function PrazosContratuaisPage() {
   const cssVars = {
     '--pz-col': `${largura}px`, '--pz-fixo': `${LARGURA_FIXA}px`, '--pz-congelada': `${LARGURA_CONGELADA}px`, '--pz-dados': `${LARGURA_FIXA - LARGURA_CONGELADA}px`,
     '--pz-grid-congelada': grade(COLUNAS_CONGELADAS), '--pz-grid-dados': grade(COLUNAS_DADOS), '--pz-timeline': `${colunas.length * largura}px`,
-    '--pz-zoom-impressao': Math.min(1, LARGURA_FOLHA / (LARGURA_FIXA + colunas.length * largura)),
+    '--pz-zoom-impressao': Math.min(1, LARGURA_FOLHA / (LARGURA_FIXA + colunas.length * largura + FOLGA_IMPRESSAO)),
   } as CSSProperties;
 
   return (

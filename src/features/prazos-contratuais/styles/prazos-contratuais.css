@@ -113,13 +113,15 @@
 .pz-legenda i { border: 1px solid rgb(0 0 0 / .1); display: inline-block; height: 12px; width: 22px; }
 .pz-legenda p { font-style: italic; margin: 2px 0; }
 
-/* Impressão: só a tela de prazos, sem filtros nem o menu do app, com as cores e todas as linhas. */
+/* Impressão: só a tela de prazos, sem o menu do app, com as cores e todas as linhas. */
 @media print {
-  @page { size: A4 landscape; margin: 8mm; }
+  @page { size: landscape; margin: 8mm; }
   body * { visibility: hidden; }
   .pz-page, .pz-page * { -webkit-print-color-adjust: exact; print-color-adjust: exact; visibility: visible; }
-  .pz-page { background: #fff; left: 0; min-height: 0; padding: 0; position: absolute; top: 0; width: max-content; zoom: var(--pz-zoom-impressao, 1); }
-  .pz-toolbar, .pz-loading { display: none !important; }
+  /* Largura da tabela: textos longos (aviso, legenda) quebram linha em vez de alargar a página. */
+  .pz-page { background: #fff; left: 0; min-height: 0; padding: 0; position: absolute; top: 0; width: calc(var(--pz-fixo) + var(--pz-timeline) + 4px); zoom: var(--pz-zoom-impressao, 1); }
+  /* Sem filtros nem avisos (Conferir no Friday, erro de carga): só o cronograma. */
+  .pz-toolbar, .pz-loading, .pz-page > .MuiAlert-root { display: none !important; }
   .pz-scroll { border: 0; max-height: none; overflow: visible; }
   .pz-row--head, .pz-fixo { position: static; }
   .pz-row { break-inside: avoid; }
