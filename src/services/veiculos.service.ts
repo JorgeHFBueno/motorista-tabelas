@@ -1,8 +1,9 @@
-import { collection, doc, getDoc, getDocs } from 'firebase/firestore';
+import { collection, doc, getDoc, getDocs, updateDoc } from 'firebase/firestore';
 import { db } from '../firebase';
 import { itemFrotaFromV2, sortItensFrota, type ItemFrotaV2 } from '../utils/cadastrosV2';
 
-// Frota só por ID de veiculos-v2 (The Manuscript, 01_FIRESTORE/COLECOES/veiculos-v2.md). O cadastro é do Friday.
+// Frota só por ID de veiculos-v2 (The Manuscript, 01_FIRESTORE/COLECOES/veiculos-v2.md). O cadastro é do Friday;
+// a WEB só edita o nome (detalhe do veículo, adm2), que o quadro FROTA espelha.
 export const VEICULOS_V2 = 'veiculos-v2';
 
 export async function listItensFrota(): Promise<ItemFrotaV2[]> {
@@ -19,4 +20,12 @@ export async function listVeiculosAtivos(): Promise<ItemFrotaV2[]> {
 export async function getItemFrota(id: string): Promise<ItemFrotaV2 | null> {
   const snapshot = await getDoc(doc(db, VEICULOS_V2, id));
   return snapshot.exists() ? itemFrotaFromV2(snapshot.id, snapshot.data()) : null;
+}
+
+/** Grava `identificacao.nome` (obrigatório, sem espaços nas pontas) e devolve o nome gravado. O identificador não muda. */
+export async function renomearItemFrota(id: string, nome: string): Promise<string> {
+  const limpo = nome.trim();
+  if (!limpo) throw new Error('O nome não pode ficar vazio.');
+  await updateDoc(doc(db, VEICULOS_V2, id), { 'identificacao.nome': limpo });
+  return limpo;
 }

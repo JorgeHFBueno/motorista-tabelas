@@ -6,13 +6,17 @@ import {
     Chip,
     CircularProgress,
     Container,
+    IconButton,
     Menu,
     MenuItem,
     Paper,
     Snackbar,
     Stack,
+    TextField,
+    Tooltip,
     Typography,
 } from '@mui/material';
+import EditOutlinedIcon from '@mui/icons-material/EditOutlined';
 import {
     Timestamp,
     addDoc,
@@ -58,9 +62,9 @@ import { buildVehicleReport, fetchVehicleErpRows } from '../services/vehicle-rep
 import { createVehicleReportPdf } from '../services/vehicle-report-pdf';
 import { describeErpCallError, normalizeCalendarDate, resolveVehicleReportPeriod, type VehicleReportPeriod } from '../services/vehicle-report-core';
 import { listFuncionariosAtivos } from '../services/funcionarios-selecao.service';
-import { getItemFrota } from '../services/veiculos.service';
+import { getItemFrota, renomearItemFrota } from '../services/veiculos.service';
 import type { ItemFrotaV2, PessoaV2 } from '../utils/cadastrosV2';
-import { atualizacaoInfo, medidorTexto } from '../utils/frotaVeiculosLista';
+import { atualizacaoInfo, medidorTexto, somarValores } from '../utils/frotaVeiculosLista';
 
 const FrotaCharts = lazy(() => import('../components/FrotaCharts'));
 type Manutencao = {
@@ -284,6 +288,8 @@ export default function FrotaVeiculoDetalhesPage() {
     const { isAdmin } = useAuth();
 
     const [veiculo, setVeiculo] = useState<ItemFrotaV2 | null>(null);
+    const [nomeEditado, setNomeEditado] = useState<string | null>(null); // null = fora da edição
+    const [salvandoNome, setSalvandoNome] = useState(false);
     const [pessoas, setPessoas] = useState<PessoaV2[]>([]);
     const [generatingReport, setGeneratingReport] = useState(false);
     const [reportMenuAnchor, setReportMenuAnchor] = useState<HTMLElement | null>(null);
@@ -975,6 +981,29 @@ export default function FrotaVeiculoDetalhesPage() {
 
     const hasActiveFilters = showAtividades || showAbastecimento || showManutencoes2026 || showErp;
 
+    // Soma dos valores das fontes marcadas, sobre o que já está carregado (atividades não têm valor).
+    const custoTotal = useMemo(() => somarValores(masterDetailItems), [masterDetailItems]);
+    const custoIncompleto =
+        (showAbastecimento && Boolean(combustivelError)) ||
+        (showManutencoes2026 && Boolean(manutencoes2026Error)) ||
+        (showErp && Boolean(erpError));
+
+    const salvarNome = useCallback(async () => {
+        if (!veiculo || nomeEditado === null) return;
+        setSalvandoNome(true);
+        try {
+            const nome = await renomearItemFrota(veiculo.id, nomeEditado);
+            setVeiculo((atual) => (atual ? { ...atual, nome } : atual));
+            setNomeEditado(null);
+            setSnackbar({ open: true, severity: 'success', message: 'Nome do veículo atualizado.' });
+        } catch (err) {
+            console.error('Erro ao renomear o veículo', err);
+            setSnackbar({ open: true, severity: 'error', message: err instanceof Error && err.message === 'O nome não pode ficar vazio.' ? err.message : 'Não foi possível salvar o nome.' });
+        } finally {
+            setSalvandoNome(false);
+        }
+    }, [nomeEditado, veiculo]);
+
     useEffect(() => {
         if (!hasActiveFilters) {
             setSelectedDocId(null);
@@ -1076,12 +1105,7 @@ export default function FrotaVeiculoDetalhesPage() {
     return (
         <Container sx={{ py: 4 }}>
             <Stack direction={{ xs: 'column', md: 'row' }} spacing={2} justifyContent="space-between" alignItems="center">
-                <Box>
-                    <Typography variant="h4">Detalhes do Veículo</Typography>
-                    <Typography variant="subtitle1" color="text.secondary">
-                        {tituloVeiculo}
-                    </Typography>
-                </Box>
+                <Typography variant="h4">Detalhes do Veículo</Typography>
                 <Stack direction="row" spacing={2}>
                     <Button variant="outlined" onClick={() => navigate('/frota/veiculos')}>
                         Voltar para Veículos
@@ -1115,7 +1139,42 @@ export default function FrotaVeiculoDetalhesPage() {
                             <Chip label={tipoVeiculo} size="small" variant="outlined" />
                             <Chip label={veiculo.situacao ?? (veiculo.ativo ? 'ativo' : 'inativo')} size="small" color={veiculo.ativo ? 'success' : 'default'} />
                         </Stack>
-                        <Typography sx={{ fontSize: { xs: 17, sm: 20 } }} color="text.secondary">{veiculo.nome}</Typography>
+                        {nomeEditado === null ? (
+                            <Stack direction="row" spacing={0.5} alignItems="center">
+                                <Typography sx={{ fontSize: { xs: 17, sm: 20 } }} color="text.secondary">{veiculo.nome}</Typography>
+                                {isAdmin && (
+                                    <Tooltip title="Editar nome">
+                                        <IconButton size="small" aria-label="Editar nome" onClick={() => setNomeEditado(veiculo.nome ?? '')}>
+                                            <EditOutlinedIcon fontSize="small" />
+                                        </IconButton>
+                                    </Tooltip>
+                                )}
+                            </Stack>
+                        ) : (
+                            <Stack
+                                component="form"
+                                direction={{ xs: 'column', sm: 'row' }}
+                                spacing={1}
+                                alignItems={{ sm: 'center' }}
+                                sx={{ mt: 1, maxWidth: 640 }}
+                                onSubmit={(event) => { event.preventDefault(); void salvarNome(); }}
+                            >
+                                <TextField
+                                    size="small"
+                                    label="Nome"
+                                    value={nomeEditado}
+                                    onChange={(event) => setNomeEditado(event.target.value)}
+                                    onKeyDown={(event) => { if (event.key === 'Escape') setNomeEditado(null); }}
+                                    autoFocus
+                                    fullWidth
+                                    disabled={salvandoNome}
+                                />
+                                <Stack direction="row" spacing={1}>
+                                    <Button type="submit" variant="contained" disabled={salvandoNome || !nomeEditado.trim()}>Salvar</Button>
+                                    <Button variant="outlined" onClick={() => setNomeEditado(null)} disabled={salvandoNome}>Cancelar</Button>
+                                </Stack>
+                            </Stack>
+                        )}
                         <Box sx={{ mt: 2.5, display: 'grid', gap: 2, gridTemplateColumns: { xs: '1fr 1fr', md: 'repeat(3, minmax(0, 1fr))' } }}>
                             <Box>
                                 <Typography variant="body2" color="text.secondary">{medidor} último</Typography>
@@ -1134,15 +1193,26 @@ export default function FrotaVeiculoDetalhesPage() {
                             </Box>
                         </Box>
                         <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 2 }}>
-                            O cadastro do veículo é feito no Friday (veiculos-v2).
+                            O cadastro do veículo é feito no Friday (veiculos-v2); aqui só o nome pode ser editado.
                         </Typography>
                     </Paper>
                 );
             })()}
 
-            <Box mt={3}>
+            <Stack mt={3} direction={{ xs: 'column', lg: 'row' }} spacing={2} alignItems={{ lg: 'center' }} justifyContent="space-between">
                 <RegistrosFiltros filters={masterDetailFilters} counts={masterDetailCounts} onToggleFilter={handleToggleFilter} />
-            </Box>
+                <Paper variant="outlined" sx={{ px: 2.5, py: 1, flexShrink: 0 }} aria-live="polite">
+                    <Typography component="span" sx={{ fontSize: 18 }}>Custo total: </Typography>
+                    <Typography component="span" sx={{ fontSize: 18, fontWeight: 700 }}>
+                        {masterDetailLoading ? 'calculando…' : currencyFormatter.format(custoTotal)}
+                    </Typography>
+                    {custoIncompleto && !masterDetailLoading && (
+                        <Typography variant="caption" color="error" sx={{ display: 'block' }}>
+                            sem a fonte que falhou
+                        </Typography>
+                    )}
+                </Paper>
+            </Stack>
 
             <Box mt={2}>
                 <Stack direction={{ xs: 'column', md: 'row' }} spacing={3} alignItems="stretch">

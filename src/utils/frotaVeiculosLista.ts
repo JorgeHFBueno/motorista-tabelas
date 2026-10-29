@@ -56,3 +56,8 @@ export function atualizacaoInfo(raw: unknown, agora = new Date()): { texto: stri
         : new Intl.DateTimeFormat('pt-BR', { dateStyle: 'short' }).format(data);
   return { texto, frescor: dias <= 7 ? 'recente' : dias <= 30 ? 'atencao' : 'antiga' };
 }
+
+/** Custo total do detalhe do veículo: soma os `valor` numéricos dos registros listados; sem valor não entra. */
+export function somarValores(itens: { valor?: number | null }[]): number {
+  return itens.reduce((total, item) => (typeof item.valor === 'number' && Number.isFinite(item.valor) ? total + item.valor : total), 0);
+}

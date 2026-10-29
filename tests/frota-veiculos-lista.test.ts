@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import test from 'node:test';
 import type { ItemFrotaV2 } from '../src/utils/cadastrosV2';
-import { atualizacaoInfo, filtrarVeiculos, medidorTexto } from '../src/utils/frotaVeiculosLista';
+import { atualizacaoInfo, filtrarVeiculos, medidorTexto, somarValores } from '../src/utils/frotaVeiculosLista';
 
 const item = (parcial: Partial<ItemFrotaV2>): ItemFrotaV2 => ({
   id: 'x', categoria: 'PLACA', identificador: 'IXR-7D23', nome: 'Hilux', ativo: true, situacao: null,
@@ -45,4 +45,9 @@ test('Frota é um grupo sem /frota próprio; rotas antigas foram apagadas', () =
   const ordem = ['Veículos', 'Registros', 'Checklists', 'KPI'].map((label) => menu.indexOf(`label: '${label}', to: '/frota/`));
   assert.ok(ordem.every((pos, i) => pos > 0 && (i === 0 || pos > ordem[i - 1])), 'ordem Veículos, Registros, Checklists, KPI');
   assert.doesNotMatch(menu, /to: '\/(frota|registros|checklists)',/);
+});
+
+test('custo total soma só os valores numéricos dos registros listados', () => {
+  assert.equal(somarValores([{ valor: 170 }, { valor: null }, { valor: 30.5 }, {}, { valor: Number.NaN }]), 200.5);
+  assert.equal(somarValores([]), 0);
 });
