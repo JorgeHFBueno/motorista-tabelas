@@ -48,6 +48,7 @@ export function createObraRelatorioPdf(relatorio: RelatorioObra) {
   drawing.section('DADOS DA OBRA');
   drawing.table(['Campo', 'Valor'], [
     ['Nome', obra.nomeObra],
+    ['Sinônimo', ou(obra.siglaObra)],
     ['Local', localPendente(obra.local) ? `${ou(obra.local)} (a corrigir)` : obra.local],
     ['Contrato', ou(contratoTexto(obra))],
     ['Ano', ou(obra.ano)],
@@ -60,7 +61,7 @@ export function createObraRelatorioPdf(relatorio: RelatorioObra) {
     ['Ordem de início', ou(obra.ordemInicio)],
     ['Confirmação de recurso', ou(obra.confirmacaoRecurso)],
     ['Subcentro ERP', ou(obra.subcentroErp)],
-    ['Sigla / código', `${ou(obra.siglaObra)} / ${ou(obra.codObra)}`],
+    ['Código', ou(obra.codObra)],
   ], [170, 353]);
   if (obra.lotes.length) drawing.table(['LOTE', 'Status'], obra.lotes.map((lote) => [lote.nome, ou(lote.status)]), [353, 170]);
   else vazio('Sem LOTEs cadastrados.');

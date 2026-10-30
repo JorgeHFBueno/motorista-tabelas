@@ -625,12 +625,18 @@ test('[firestore] obras-v2: read by employees, written by adm2', async () => {
   await assertFails(getDocs(collection(dbAs('missing'), 'obras-v2')));
 });
 
-test('[firestore] obras-v2: engenharia fills in only the work site (local)', async () => {
+test('[firestore] obras-v2: engenharia fills in only the work site (local) and the synonym (siglaObra)', async () => {
   await assertSucceeds(updateDoc(doc(dbAs('engenharia'), 'obras-v2', 'ob1'), { local: 'Lagoa Bonita do Sul - RS' }));
   await assertFails(updateDoc(doc(dbAs('engenharia'), 'obras-v2', 'ob1'), { local: '' }));
   await assertFails(updateDoc(doc(dbAs('engenharia'), 'obras-v2', 'ob1'), { local: 'X'.repeat(201) }));
   await assertFails(updateDoc(doc(dbAs('engenharia'), 'obras-v2', 'ob1'), { local: 'Outro', nomeObra: 'X' }));
   await assertFails(updateDoc(doc(dbAs('engenharia'), 'obras-v2', 'ob1'), { status: 'FINALIZADA' }));
+  await assertSucceeds(updateDoc(doc(dbAs('engenharia'), 'obras-v2', 'ob1'), { siglaObra: 'PONTE DO ARROIO' }));
+  await assertSucceeds(updateDoc(doc(dbAs('engenharia'), 'obras-v2', 'ob1'), { siglaObra: '' }));
+  await assertSucceeds(updateDoc(doc(dbAs('engenharia'), 'obras-v2', 'ob1'), { local: 'Ledur', siglaObra: 'OBV' }));
+  await assertFails(updateDoc(doc(dbAs('engenharia'), 'obras-v2', 'ob1'), { siglaObra: 'X'.repeat(101) }));
+  await assertFails(updateDoc(doc(dbAs('engenharia'), 'obras-v2', 'ob1'), { siglaObra: 7 }));
+  await assertFails(updateDoc(doc(dbAs('engenharia'), 'obras-v2', 'ob1'), { siglaObra: 'X', codObra: 5 }));
   await assertFails(setDoc(doc(dbAs('engenharia'), 'obras-v2', 'ob-nova'), { nomeObra: 'Nova', local: 'X', codObra: 0, siglaObra: '' }));
   await assertFails(deleteDoc(doc(dbAs('engenharia'), 'obras-v2', 'ob1')));
   await assertFails(updateDoc(doc(dbAs('canonicalUser'), 'obras-v2', 'ob1'), { local: 'Outro' }));

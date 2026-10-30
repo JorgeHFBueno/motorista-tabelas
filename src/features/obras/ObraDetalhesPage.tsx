@@ -6,7 +6,6 @@ import {
   Chip,
   CircularProgress,
   Container,
-  IconButton,
   Paper,
   Snackbar,
   Stack,
@@ -16,11 +15,8 @@ import {
   TableContainer,
   TableHead,
   TableRow,
-  TextField,
-  Tooltip,
   Typography,
 } from '@mui/material';
-import EditOutlinedIcon from '@mui/icons-material/EditOutlined';
 import { useNavigate, useParams } from 'react-router-dom';
 import {
   carregarAlocacoesDaObra,
@@ -29,8 +25,9 @@ import {
   carregarMedicoesDaObra,
   carregarNomesMestres,
   carregarObra,
-  gravarLocalObra,
+  gravarCampoObra,
 } from './obrasData';
+import CampoEditavel from './CampoEditavelObra';
 import {
   contratoTexto,
   dataCivilTexto,
@@ -40,6 +37,8 @@ import {
   periodosDosMestres,
   resumirCombustivel,
   veiculosNaObra,
+  ROTULOS_CAMPOS,
+  type CampoEditavelObra,
   type ObraDetalhe,
   type PeriodoMestre,
   type ResumoCombustivel,
@@ -47,7 +46,8 @@ import {
 } from './obrasDomain';
 import { createObraRelatorioPdf, nomeArquivoRelatorioObra, type MedicoesObra, type Parte } from './obraRelatorioPdf';
 
-// Detalhe da obra (obras-v2): todos os dados do contrato, só leitura, menos o local, que engenharia e adm2 gravam.
+// Detalhe da obra (obras-v2): todos os dados do contrato, só leitura, menos o local e o sinônimo (`siglaObra`),
+// que engenharia e adm2 gravam.
 
 type Estado<T> = { status: 'carregando' } | Parte<T>;
 const CARREGANDO = { status: 'carregando' } as const;
@@ -114,8 +114,7 @@ export default function ObraDetalhesPage() {
   const [mestres, setMestres] = useState<Estado<PeriodoMestre[]>>(CARREGANDO);
   const [veiculos, setVeiculos] = useState<Estado<VeiculoNaObra[]>>(CARREGANDO);
   const [combustivel, setCombustivel] = useState<Estado<ResumoCombustivel>>(CARREGANDO);
-  const [localEditado, setLocalEditado] = useState<string | null>(null); // null = fora da edição
-  const [salvandoLocal, setSalvandoLocal] = useState(false);
+  const [salvandoCampo, setSalvandoCampo] = useState(false);
   const [gerando, setGerando] = useState(false);
   const [snackbar, setSnackbar] = useState<{ open: boolean; severity: 'success' | 'error'; message: string }>({ open: false, severity: 'success', message: '' });
 
@@ -145,19 +144,21 @@ export default function ObraDetalhesPage() {
     return () => { active = false; };
   }, [id]);
 
-  async function salvarLocal() {
-    if (!obra || localEditado === null) return;
-    setSalvandoLocal(true);
+  async function salvarCampo(campo: CampoEditavelObra, valor: string): Promise<boolean> {
+    if (!obra) return false;
+    const rotulo = ROTULOS_CAMPOS[campo];
+    setSalvandoCampo(true);
     try {
-      const local = await gravarLocalObra(obra.id, localEditado);
-      setObra({ ...obra, local });
-      setLocalEditado(null);
-      setSnackbar({ open: true, severity: 'success', message: 'Local salvo.' });
+      const gravado = await gravarCampoObra(obra.id, campo, valor);
+      setObra({ ...obra, [campo]: gravado });
+      setSnackbar({ open: true, severity: 'success', message: `${rotulo} salvo.` });
+      return true;
     } catch (err) {
-      console.error('Erro ao salvar o local da obra', err);
-      setSnackbar({ open: true, severity: 'error', message: 'Não foi possível salvar o local. Tente novamente.' });
+      console.error(`Erro ao salvar ${campo} da obra`, err);
+      setSnackbar({ open: true, severity: 'error', message: `Não foi possível salvar o ${rotulo.toLowerCase()}. Tente novamente.` });
+      return false;
     } finally {
-      setSalvandoLocal(false);
+      setSalvandoCampo(false);
     }
   }
 
@@ -223,51 +224,23 @@ export default function ObraDetalhesPage() {
           {obraFinalizada(obra) && <Chip label="Finalizada" size="small" />}
         </Stack>
 
-        <Box sx={{ mt: 2 }}>
-          <Typography variant="body2" color="text.secondary">Local</Typography>
-          {localEditado === null ? (
-            <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" useFlexGap>
-              <Typography sx={{ fontSize: { xs: 18, sm: 22 }, fontWeight: 600 }} color={semLocal ? 'warning.dark' : 'text.primary'}>
-                {semLocal ? 'Local a corrigir' : obra.local}
-              </Typography>
-              {semLocal ? (
-                <Button size="small" variant="contained" onClick={() => setLocalEditado('')}>Cadastrar local</Button>
-              ) : (
-                <Tooltip title="Editar local">
-                  <IconButton size="small" aria-label="Editar local" onClick={() => setLocalEditado(obra.local)}>
-                    <EditOutlinedIcon fontSize="small" />
-                  </IconButton>
-                </Tooltip>
-              )}
-            </Stack>
-          ) : (
-            <Stack
-              component="form"
-              direction={{ xs: 'column', sm: 'row' }}
-              spacing={1}
-              alignItems={{ sm: 'center' }}
-              sx={{ mt: 1, maxWidth: 640 }}
-              onSubmit={(event) => { event.preventDefault(); void salvarLocal(); }}
-            >
-              <TextField
-                size="small"
-                label="Local"
-                placeholder="Ex.: Lagoa Bonita do Sul - RS"
-                value={localEditado}
-                onChange={(event) => setLocalEditado(event.target.value)}
-                onKeyDown={(event) => { if (event.key === 'Escape') setLocalEditado(null); }}
-                autoFocus
-                fullWidth
-                disabled={salvandoLocal}
-                slotProps={{ htmlInput: { maxLength: 200 } }}
-              />
-              <Stack direction="row" spacing={1}>
-                <Button type="submit" variant="contained" disabled={salvandoLocal || !localEditado.trim() || localEditado.trim() === obra.local}>Salvar</Button>
-                <Button variant="outlined" onClick={() => setLocalEditado(null)} disabled={salvandoLocal}>Cancelar</Button>
-              </Stack>
-            </Stack>
-          )}
-        </Box>
+        <Stack spacing={2} sx={{ mt: 2 }}>
+          <CampoEditavel
+            campo="local"
+            valor={obra.local}
+            vazio={semLocal ? { texto: 'Local a corrigir', botao: 'Cadastrar local' } : null}
+            destaque
+            salvando={salvandoCampo}
+            onSalvar={(valor) => salvarCampo('local', valor)}
+          />
+          <CampoEditavel
+            campo="siglaObra"
+            valor={obra.siglaObra}
+            vazio={obra.siglaObra ? null : { texto: 'Sem sinônimo', botao: 'Cadastrar sinônimo' }}
+            salvando={salvandoCampo}
+            onSalvar={(valor) => salvarCampo('siglaObra', valor)}
+          />
+        </Stack>
 
         <Box sx={{ mt: 2.5, display: 'grid', gap: 2, gridTemplateColumns: { xs: '1fr 1fr', md: 'repeat(4, minmax(0, 1fr))' } }}>
           <Campo rotulo="Contrato" valor={contratoTexto(obra)} />
@@ -279,7 +252,6 @@ export default function ObraDetalhesPage() {
           <Campo rotulo="Ordem de início" valor={obra.ordemInicio} />
           <Campo rotulo="Confirmação de recurso" valor={obra.confirmacaoRecurso} />
           <Campo rotulo="Subcentro ERP" valor={obra.subcentroErp} />
-          <Campo rotulo="Sigla" valor={obra.siglaObra} />
           <Campo rotulo="Código" valor={obra.codObra ? String(obra.codObra) : ''} />
           <Campo rotulo="Ano" valor={obra.ano ? String(obra.ano) : ''} />
         </Box>
@@ -292,7 +264,7 @@ export default function ObraDetalhesPage() {
         ) : <Vazio>Sem LOTEs cadastrados.</Vazio>}
 
         <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 2 }}>
-          O cadastro da obra é feito no Friday (quadro GESTÃO DE OBRAS); aqui só o local pode ser editado.
+          O cadastro da obra é feito no Friday (quadro GESTÃO DE OBRAS); aqui só o local e o sinônimo podem ser editados.
         </Typography>
       </Paper>
 

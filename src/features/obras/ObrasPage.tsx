@@ -24,7 +24,7 @@ import { contratoTexto, filtrarObras, localPendente, obraFinalizada, type Filtro
 
 function ObraLinha({ obra, onOpen }: { obra: ObraDetalhe; onOpen: () => void }) {
   const semLocal = localPendente(obra.local);
-  const detalhes = [obra.empresa, obra.tipoObra, contratoTexto(obra) && `Contrato ${contratoTexto(obra)}`].filter(Boolean).join(' · ');
+  const detalhes = [obra.siglaObra && `Sinônimo: ${obra.siglaObra}`, obra.empresa, obra.tipoObra, contratoTexto(obra) && `Contrato ${contratoTexto(obra)}`].filter(Boolean).join(' · ');
   return (
     <ButtonBase
       onClick={onOpen}
@@ -94,13 +94,13 @@ export default function ObrasPage() {
       <Stack direction={{ xs: 'column', md: 'row' }} spacing={2} mt={3} alignItems={{ xs: 'stretch', md: 'center' }}>
         <TextField
           size="small"
-          placeholder="Buscar obra, contrato ou local"
+          placeholder="Buscar obra, sinônimo, contrato ou local"
           value={busca}
           onChange={(event) => setBusca(event.target.value)}
           sx={{ flex: 1 }}
           slotProps={{
             input: { startAdornment: <InputAdornment position="start"><SearchIcon fontSize="small" /></InputAdornment> },
-            htmlInput: { 'aria-label': 'Buscar obra, contrato ou local' },
+            htmlInput: { 'aria-label': 'Buscar obra, sinônimo, contrato ou local' },
           }}
         />
         <ToggleButtonGroup

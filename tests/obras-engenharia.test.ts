@@ -4,6 +4,7 @@ import { normalizarAtividade } from '../src/services/atividade-normalizer';
 import { normalizarMovimentoCombustivel } from '../src/services/combustivel-normalizer';
 import {
   contratoTexto,
+  filtrarLocais,
   filtrarObras,
   localPendente,
   obraDetalheFromV2,
@@ -13,6 +14,7 @@ import {
   type ObraDetalhe,
 } from '../src/features/obras/obrasDomain';
 import { createObraRelatorioPdf, nomeArquivoRelatorioObra } from '../src/features/obras/obraRelatorioPdf';
+import { LOCAIS_SUGERIDOS } from '../src/features/obras/locaisSugeridos';
 
 const contrato = {
   nomeObra: 'LAGOA BONITA DO SUL 16/2026', siglaObra: '', codObra: 0, local: 'CORRIGIR', status: 'CONTRATADA',
@@ -36,6 +38,17 @@ test('obra de obras-v2: LOTEs ativos na ordem, arquivados só no mapa de nomes, 
   assert.equal(obra.dataFinal, null);
   assert.equal(contratoTexto(obra), '16/2026');
   assert.equal(obraDetalheFromV2('x', { nomeObra: '  ' }), null);
+});
+
+test('sugestões de local: lista antiga do /combustivel/novo, sem repetição, busca sem acento e no máximo 50', () => {
+  assert.equal(LOCAIS_SUGERIDOS[0], 'Fábrica');
+  assert.equal(LOCAIS_SUGERIDOS.length, 1183);
+  assert.equal(new Set(LOCAIS_SUGERIDOS).size, LOCAIS_SUGERIDOS.length);
+  assert.ok(LOCAIS_SUGERIDOS.includes('Lagoa Bonita do Sul - RS'));
+  assert.deepEqual(filtrarLocais(LOCAIS_SUGERIDOS, 'lagoa bonita'), ['Lagoa Bonita do Sul - RS']);
+  assert.ok(filtrarLocais(LOCAIS_SUGERIDOS, 'sao jose').includes('São José do Herval - RS'));
+  assert.equal(filtrarLocais(LOCAIS_SUGERIDOS, '').length, 50);
+  assert.deepEqual(filtrarLocais(LOCAIS_SUGERIDOS, 'zzz'), []);
 });
 
 test('local pendente: vazio ou CORRIGIR', () => {
@@ -121,7 +134,7 @@ test('relatório da obra: PDF com todas as seções; fonte que falhou aparece co
   });
   assert.equal(pdf.type, 'application/pdf');
   const conteudo = Buffer.from(await pdf.arrayBuffer()).toString('latin1');
-  for (const trecho of ['RELAT\xd3RIO DA OBRA', 'DADOS DA OBRA', 'SALDO DO CONTRATO / MEDI\xc7\xd5ES', 'MESTRES ALOCADOS', 'VE\xcdCULOS QUE FORAM PARA A OBRA', 'COMBUST\xcdVEL', 'JEFE', 'R$ 123.456,78', 'R$ 592,95', '100,5 L', 'N\xe3o foi poss\xedvel carregar as atividades.', 'Ledur Motorista \x97 relat\xf3rio da obra']) {
+  for (const trecho of ['RELAT\xd3RIO DA OBRA', 'DADOS DA OBRA', 'Sin\xf4nimo', 'SALDO DO CONTRATO / MEDI\xc7\xd5ES', 'MESTRES ALOCADOS', 'VE\xcdCULOS QUE FORAM PARA A OBRA', 'COMBUST\xcdVEL', 'JEFE', 'R$ 123.456,78', 'R$ 592,95', '100,5 L', 'N\xe3o foi poss\xedvel carregar as atividades.', 'Ledur Motorista \x97 relat\xf3rio da obra']) {
     assert.ok(conteudo.includes(trecho), trecho);
   }
   assert.equal(nomeArquivoRelatorioObra(obra, new Date('2026-10-30T15:00:00Z')), 'Relatorio-Obra-LAGOA-BONITA-DO-SUL-16-2026-2026-10-30.pdf');

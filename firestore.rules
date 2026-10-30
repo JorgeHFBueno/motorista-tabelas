@@ -509,13 +509,16 @@ service cloud.firestore {
     match /obras-v2/{obraId} {
       allow read: if isAuthorized();
       allow create, delete: if isAdm2();
-      // The registration belongs to Friday; Engenharia only fills in the work site (`local`) in /engenharia/obras.
+      // The registration belongs to Friday; in /engenharia/obras Engenharia only fills in the work site (`local`,
+      // required) and the synonym (`siglaObra`, may be empty).
       allow update: if isAdm2()
         || (
           hasPerfil('engenharia')
-          && changedOnly(['local'])
+          && changedOnly(['local', 'siglaObra'])
           && nonEmptyString(request.resource.data.local)
           && request.resource.data.local.size() <= 200
+          && request.resource.data.get('siglaObra', '') is string
+          && request.resource.data.get('siglaObra', '').size() <= 100
         );
     }
 

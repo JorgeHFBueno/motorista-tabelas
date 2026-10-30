@@ -87,6 +87,17 @@ export type FiltroObras = 'ATIVAS' | 'SEM_LOCAL' | 'FINALIZADAS' | 'TODAS';
 
 const normalizar = (value: string) => value.normalize('NFD').replace(/[̀-ͯ]/g, '').toLocaleLowerCase('pt-BR');
 
+/** Campos que engenharia e adm2 gravam no detalhe (Rules); `siglaObra` aparece como "Sinônimo". */
+export type CampoEditavelObra = 'local' | 'siglaObra';
+export const ROTULOS_CAMPOS: Record<CampoEditavelObra, string> = { local: 'Local', siglaObra: 'Sinônimo' };
+export const LIMITES_CAMPOS: Record<CampoEditavelObra, number> = { local: 200, siglaObra: 100 };
+
+/** Sugestões de local que contêm o texto digitado, sem acento; só as 50 primeiras, para a lista ficar leve. */
+export function filtrarLocais(opcoes: readonly string[], texto: string): string[] {
+  const termo = normalizar(texto.trim());
+  return (termo ? opcoes.filter((opcao) => normalizar(opcao).includes(termo)) : opcoes).slice(0, 50);
+}
+
 export function filtrarObras(obras: ObraDetalhe[], busca: string, filtro: FiltroObras): ObraDetalhe[] {
   const termo = normalizar(busca.trim());
   return obras

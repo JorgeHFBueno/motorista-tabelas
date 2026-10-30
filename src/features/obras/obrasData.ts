@@ -6,7 +6,7 @@ import { loadMondaySerpSnapshot, syncMondaySerpMeasurements } from '../../servic
 import type { MedicoesObra } from './obraRelatorioPdf';
 import { CRONOGRAMA_COLLECTION } from '../cronograma-obras/data/cronogramaFirestore';
 import { MESTRES_COLLECTION } from '../cronograma-obras/data/mestresFirestore';
-import { obraDetalheFromV2, type AlocacaoObra, type ObraDetalhe } from './obrasDomain';
+import { obraDetalheFromV2, type AlocacaoObra, type CampoEditavelObra, type ObraDetalhe } from './obrasDomain';
 
 const OBRAS_V2 = 'obras-v2';
 
@@ -22,11 +22,14 @@ export async function carregarObra(id: string): Promise<ObraDetalhe | null> {
   return snapshot.exists() ? obraDetalheFromV2(snapshot.id, snapshot.data()) : null;
 }
 
-/** Grava só `local` (engenharia ou adm2 nas Rules). Os registros já feitos guardam o local da época em `id_obra_snap`. */
-export async function gravarLocalObra(id: string, local: string): Promise<string> {
-  const limpo = local.trim();
-  if (!limpo) throw new Error('O local não pode ficar vazio.');
-  await updateDoc(doc(db, OBRAS_V2, id), { local: limpo });
+/**
+ * Grava um campo só: `local` é obrigatório; `siglaObra` (o "Sinônimo") pode ficar vazio. Os registros já feitos
+ * guardam o local e a sigla da época em `id_obra_snap`.
+ */
+export async function gravarCampoObra(id: string, campo: CampoEditavelObra, valor: string): Promise<string> {
+  const limpo = valor.trim();
+  if (campo === 'local' && !limpo) throw new Error('O local não pode ficar vazio.');
+  await updateDoc(doc(db, OBRAS_V2, id), { [campo]: limpo });
   return limpo;
 }
 
