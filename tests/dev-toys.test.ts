@@ -4,7 +4,7 @@ import { readFileSync } from 'node:fs';
 import { CHAVE_BOOT_VISTO, deveMostrarBoot, linhasBoot } from '../src/features/dev-toys/boot';
 import { forcaCrt, uniformsCrt } from '../src/features/dev-toys/crt/parametros';
 import { normalizarPrefs } from '../src/features/dev-toys/prefs';
-import { gerar, treinar } from '../src/features/dev-toys/toys/crawler/markov';
+import { fimDeFrase, gerar, treinar } from '../src/features/dev-toys/toys/crawler/markov';
 import { acrescentar, MAX_CORPUS, normalizarCorpus, normalizarOpcoes } from '../src/features/dev-toys/toys/crawler/memoria';
 import { embaralhar, paraAscii, QUEBRA, separarTextos } from '../src/features/dev-toys/toys/crawler/textos';
 import { PADRAO, crescer, criarCrawler, distancia, ik, noAr, paramsDaSeed, passo, rngDe, vizinhas } from '../src/features/dev-toys/toys/crawler/sim';
@@ -115,17 +115,32 @@ test('Crawler: comer acrescenta um segmento e um par de pernas a cada dois; a se
   assert.ok(p.segmentos >= 6 && p.segmentos <= 10);
 });
 
-test('Crawler: o mini-LLM só usa bigramas que viu', () => {
-  const comidas = 'o caminhao saiu da obra e o caminhao voltou da obra cedo'.split(' ');
-  const modelo = treinar(comidas);
-  const texto = gerar(modelo, 40, rngDe(5));
-  assert.equal(texto.length, 40);
-  const pares = new Set(comidas.slice(1).map((w, i) => `${comidas[i]} ${w}`));
-  for (let i = 1; i < texto.length; i++) {
-    assert.ok(comidas.includes(texto[i]));
-    if (modelo.has(texto[i - 1])) assert.ok(pares.has(`${texto[i - 1]} ${texto[i]}`), `${texto[i - 1]} ${texto[i]}`);
+test('Crawler: o mini-LLM aprende pares, trios e inícios de frase', () => {
+  const m = treinar('Time moves forward. Nothing changes. Time moves on.'.split(' '));
+  assert.deepEqual(m.inicios, ['Time', 'Nothing', 'Time']);
+  assert.deepEqual(m.bi.get('Time'), ['moves', 'moves']);
+  assert.deepEqual(m.tri.get('Time moves'), ['forward.', 'on.']);
+  assert.ok(fimDeFrase('end.') && fimDeFrase('what?"') && fimDeFrase('ok!)') && !fimDeFrase('comma,'));
+  assert.deepEqual(gerar(treinar([]), { alvo: 5, maximo: 10 }, rngDe(1)), []);
+});
+
+test('Crawler: o mini-LLM escreve frases inteiras com o que viu, sem inventar ligações', () => {
+  const corpus = separarTextos(readFileSync('src/features/dev-toys/toys/crawler/xerox.txt', 'utf8')).flat().filter((w) => w !== QUEBRA);
+  const m = treinar(corpus);
+  const pares = new Set(corpus.slice(1).map((w, i) => `${corpus[i]} ${w}`));
+  for (let seed = 1; seed <= 30; seed++) {
+    const t = gerar(m, { alvo: 60, maximo: 110 }, rngDe(seed));
+    assert.ok(m.inicios.includes(t[0]), `seed ${seed}: começa onde uma frase começava`);
+    assert.ok(fimDeFrase(t[t.length - 1]), `seed ${seed}: termina em ponto final (${t.slice(-3).join(' ')})`);
+    assert.ok(t.length >= 30 && t.length <= 110, `seed ${seed}: ${t.length} palavras`);
+    const frases = t.join(' ').split(/(?<=[.!?]["')\]]*) /);
+    assert.equal(new Set(frases).size, frases.length, `seed ${seed}: frase repetida`);
+    for (let i = 1; i < t.length; i++) {
+      const ligacao = pares.has(`${t[i - 1]} ${t[i]}`);
+      const recomeco = m.inicios.includes(t[i]); // frase nova ou beco sem saída
+      assert.ok(ligacao || recomeco, `seed ${seed}: "${t[i - 1]} ${t[i]}"`);
+    }
   }
-  assert.deepEqual(gerar(treinar([]), 5, rngDe(1)), []);
 });
 
 test('Crawler: textos separados por "- " no início da linha, com quebras de verso e estrofe, em ASCII', () => {

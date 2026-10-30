@@ -14,7 +14,7 @@ const A = 300;
 const FOLGA = 2; // px em volta da palavra que ainda contam como "dentro"
 const ESPERA_NOVO_TEXTO_MS = 1500;
 const TEXTOS_POR_XEROX = 3;
-const PALAVRAS_DO_XEROX = 80;
+const XEROX = { alvo: 60, maximo: 110 }; // palavras: a partir de 60, termina na primeira frase completa
 const FONTE = 14; // px a 100%; diminui só quando o texto não cabe na janela
 const FONTE_MIN = 7;
 
@@ -36,7 +36,7 @@ const seedDaUrl = (valor: string | null) => {
 };
 
 // Crawler: o bicho anda sobre o texto da janela, segue o cursor (ou a palavra mais perto), come as palavras e cresce.
-// Ciclo: 3 textos do "Xerox de um Xerox", depois um texto escrito pelo mini-LLM (Markov de bigramas) com tudo o que
+// Ciclo: 3 textos do "Xerox de um Xerox", depois um texto escrito pelo mini-LLM (Markov de trigramas, em frases inteiras) com tudo o que
 // ele já comeu, e de novo; o aprendizado nunca é zerado. `/dev?seed=N` repete o bicho e a ordem dos textos.
 export default function CrawlerToy() {
   const [busca] = useSearchParams();
@@ -59,6 +59,7 @@ export default function CrawlerToy() {
   const bicho = useRef<Crawler | null>(null);
   const reescrevendo = useRef(false);
   const corpus = useRef<string[]>([]);
+  const pagina = useRef<Array<{ i: number; w: string }>>([]); // comidas no texto atual, com a posição de leitura
   const atual = useRef({ fase, xerox, opcoes });
   useEffect(() => { atual.current = { fase, xerox, opcoes }; }, [fase, xerox, opcoes]);
 
@@ -68,7 +69,16 @@ export default function CrawlerToy() {
     corpus.current = lerCorpus();
     setTamanho(corpus.current.length);
   }, []);
-  const guardar = useCallback(() => { if (atual.current.opcoes.guardar) gravarCorpus(corpus.current); }, []);
+  // Fim do texto (ou da janela): o que ele comeu entra no aprendizado na ordem de leitura, não na ordem em que comeu.
+  const guardar = useCallback(() => {
+    if (pagina.current.length) {
+      const lidas = [...pagina.current].sort((a, b) => a.i - b.i).map((p) => p.w);
+      pagina.current = [];
+      corpus.current = acrescentar(corpus.current, lidas);
+      setTamanho(corpus.current.length);
+    }
+    if (atual.current.opcoes.guardar) gravarCorpus(corpus.current);
+  }, []);
   useEffect(() => guardar, [guardar]);
 
   // Retângulos das palavras ainda não comidas, relativos à caixa (arrastar a janela não muda nada), em medidas
@@ -117,7 +127,7 @@ export default function CrawlerToy() {
       const n = atual.current.xerox + 1;
       setFase({ tipo: 'xerox' });
       setXerox(n);
-      setPalavras(gerar(treinar(corpus.current), PALAVRAS_DO_XEROX, rngDe(seed + corpus.current.length + n)));
+      setPalavras(gerar(treinar(corpus.current), XEROX, rngDe(seed + corpus.current.length + n)));
     } else {
       setFase({ tipo: 'texto', n: 1 });
       setPalavras(proximoTexto());
@@ -149,8 +159,8 @@ export default function CrawlerToy() {
       crescer(c);
       const { fase: f, opcoes: o } = atual.current;
       if (f.tipo === 'texto' || o.aprendeDeSi) {
-        corpus.current = acrescentar(corpus.current, [p.el.textContent ?? '']);
-        setTamanho(corpus.current.length);
+        pagina.current.push({ i: Number(p.el.dataset.i), w: p.el.textContent ?? '' });
+        setTamanho(corpus.current.length + pagina.current.length);
       }
     }
     if (!alvos.current.length && !reescrevendo.current) {
@@ -179,7 +189,7 @@ export default function CrawlerToy() {
     <div className="dt-crawler">
       <div className="dt-crawler-area" ref={caixa} onPointerMove={mover} onPointerLeave={() => { cursor.current = null; }} style={{ width: L * ESCALA, height: A * ESCALA }}>
         <p className="dt-crawler-texto" ref={texto} key={versao}>
-          {palavras.map((w, i) => (w === QUEBRA ? <br key={i} /> : <span key={i}><span data-w>{w}</span> </span>))}
+          {palavras.map((w, i) => (w === QUEBRA ? <br key={i} /> : <span key={i}><span data-w data-i={i}>{w}</span> </span>))}
         </p>
         <CrtView largura={L} altura={A} desenhar={desenhar} transparente />
       </div>
