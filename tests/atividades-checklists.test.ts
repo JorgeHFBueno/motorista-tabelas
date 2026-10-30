@@ -53,3 +53,28 @@ test('checklist V2 e convertido do legado', () => {
   assert.equal(antigo.assinatura, 'Ausente — Checklist anterior ao checklist V2');
   assert.equal(antigo.itens[0].status, 'nao_se_aplica'); assert.equal(antigo.itens[0].fotos[0].miniatura, null);
 });
+
+test('filtro de registros: data, tipo, veículo, motorista, local e obra', async () => {
+  const { filtrarAtividades, FILTROS_VAZIOS, rotuloVeiculo, opcoesDistintas } = await import('../src/services/atividade-filtros.ts');
+  const comData = (raw: Record<string, unknown>, id: string) => {
+    const a = normalizarAtividade(raw, id);
+    return { ...a, dataJS: raw.data as Date | null };
+  };
+  const rows = [
+    comData(atividadeV2, 'a'),
+    comData({ ...atividadeV2, tipo: 'chegada', data: new Date(2026, 9, 22, 18), destino: 'Palmeira das Missões - RS', motorista: { uid: 'x', nome: 'OUTRO' } }, 'b'),
+    comData({ schemaVersion: 1, data: new Date(2026, 9, 21) }, 'c'),
+  ];
+  const ids = (f: Partial<typeof FILTROS_VAZIOS>) => filtrarAtividades(rows, { ...FILTROS_VAZIOS, ...f }).map((r) => r.id);
+
+  assert.deepEqual(ids({}), ['a', 'b', 'c']);
+  assert.deepEqual(ids({ dataInicial: '2026-10-21', dataFinal: '2026-10-22' }), ['b', 'c']);
+  assert.deepEqual(ids({ dataFinal: '2026-10-20' }), ['a']);
+  assert.deepEqual(ids({ tipo: 'chegada' }), ['b']);
+  assert.equal(rotuloVeiculo(rows[0]), 'IRO-2146 — Mercedez Axor');
+  assert.deepEqual(ids({ veiculos: ['IRO-2146 — Mercedez Axor'] }), ['a', 'b']);
+  assert.deepEqual(ids({ motoristas: ['OUTRO'] }), ['b']);
+  assert.deepEqual(ids({ locais: ['Arroio do Tigre - RS'] }), ['a']);
+  assert.deepEqual(ids({ obras: ['ARROIO DO TIGRE 214/2024'], motoristas: ['OUTRO', 'WELINTON FERNANDO RODRIGUES'] }), ['a', 'b']);
+  assert.deepEqual(opcoesDistintas(['b', undefined, 'a', '', 'b']), ['a', 'b']);
+});

@@ -1,35 +1,56 @@
 import { Suspense, lazy, useEffect, useMemo, useState, type ReactNode, type SyntheticEvent } from 'react';
-import { Alert, Box, Button, Container, MenuItem, Paper, Stack, Tab, Tabs, TextField, Typography } from '@mui/material';
+import {
+  Alert,
+  Autocomplete,
+  Box,
+  Button,
+  Chip,
+  Container,
+  MenuItem,
+  Paper,
+  Stack,
+  Tab,
+  Tabs,
+  TextField,
+  Typography,
+} from '@mui/material';
 import { useSearchParams } from 'react-router-dom';
 import { DataGrid, type GridColDef } from '@mui/x-data-grid';
-import useAtividade, { type Atividade } from '../hooks/useAtividade';
+import useAtividade from '../hooks/useAtividade';
 import useOnlineStatus from '../hooks/useOnlineStatus';
 import type { ChartKey, ChartPoint } from '../components/FrotaCharts';
+import {
+  FILTROS_VAZIOS,
+  filtrarAtividades,
+  opcoesDistintas,
+  rotuloVeiculo,
+  type AtividadeComData,
+  type FiltrosAtividade,
+} from '../services/atividade-filtros';
 
 const FrotaCharts = lazy(() => import('../components/FrotaCharts'));
 
 type TabKey = 'geral' | 'graficos' | 'hibrido';
-type RegistroTipoFiltro = 'todos' | 'saida' | 'chegada';
+type FiltroLista = 'veiculos' | 'motoristas' | 'locais' | 'obras';
 
 type MotoristaResumo = {
   id: string;
-  totalRegistros: number;
-  ultimoRegistroGeral: Date | null;
-  registrosPeriodo: number;
-  ultimoRegistroPeriodo: Date | null;
-};
-
-type ChartDateFilter = {
-  dataInicial: string;
-  dataFinal: string;
+  registros: number;
+  ultimoRegistro: Date | null;
 };
 
 const TAB_KEYS: TabKey[] = ['geral', 'graficos', 'hibrido'];
 const DEFAULT_TAB: TabKey = 'geral';
-const MOVIMENTACAO_OPTIONS: Array<{ value: RegistroTipoFiltro; label: string }> = [
-  { value: 'todos', label: 'Saídas/Chegadas' },
+const TIPO_OPTIONS: Array<{ value: FiltrosAtividade['tipo']; label: string }> = [
+  { value: 'todos', label: 'Saídas e chegadas' },
   { value: 'saida', label: 'Saídas' },
   { value: 'chegada', label: 'Chegadas' },
+];
+const FILTROS_LISTA: Array<{ key: FiltroLista; label: string; valor: (row: AtividadeComData) => string | undefined }> = [
+  { key: 'veiculos', label: 'Veículo', valor: rotuloVeiculo },
+  { key: 'motoristas', label: 'Motorista', valor: (row) => row.motorista },
+  { key: 'locais', label: 'Local', valor: (row) => row.destino },
+  { key: 'obras', label: 'Obra', valor: (row) => row.obra },
 ];
 
 function a11yProps(tab: TabKey) {
@@ -52,36 +73,9 @@ function formatDateInputValue(date: Date): string {
   return localDate.toISOString().slice(0, 10);
 }
 
-function getDefaultChartDateFilter(): ChartDateFilter {
-  const hoje = new Date();
-  hoje.setHours(0, 0, 0, 0);
-
-  const inicio = new Date(hoje);
-  inicio.setDate(inicio.getDate() - 29);
-
-  return {
-    dataInicial: formatDateInputValue(inicio),
-    dataFinal: formatDateInputValue(hoje),
-  };
-}
-
-function parseDateRange(dataInicial: string, dataFinal: string) {
-  if (!dataInicial || !dataFinal) {
-    return { error: 'Informe data inicial e data final para aplicar o filtro.' } as const;
-  }
-
-  const inicio = new Date(`${dataInicial}T00:00:00`);
-  const fim = new Date(`${dataFinal}T23:59:59.999`);
-
-  if (Number.isNaN(inicio.getTime()) || Number.isNaN(fim.getTime())) {
-    return { error: 'Informe um intervalo de datas valido.' } as const;
-  }
-
-  if (inicio > fim) {
-    return { error: 'A data inicial nao pode ser maior que a data final.' } as const;
-  }
-
-  return { inicio, fim, error: null } as const;
+function formatDateLabel(value: string): string {
+  const [ano, mes, dia] = value.split('-');
+  return `${dia}/${mes}/${ano}`;
 }
 
 function TabPanel({
@@ -100,7 +94,7 @@ function TabPanel({
       id={`frota-tabpanel-${tabKey}`}
       aria-labelledby={`frota-tab-${tabKey}`}
     >
-      {value === tabKey && <Box sx={{ p: 3 }}>{children}</Box>}
+      {value === tabKey && <Box sx={{ pt: 2 }}>{children}</Box>}
     </div>
   );
 }
@@ -123,19 +117,8 @@ function toDateAny(raw: unknown): Date | null {
   return Number.isNaN(date.getTime()) ? null : date;
 }
 
-function normalizarTipoRegistro(valor: unknown) {
-  return String(valor ?? '')
-    .trim()
-    .toLowerCase()
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '');
-}
-
-function getEmptyRowsMessage(tipoFiltro: RegistroTipoFiltro) {
-  if (tipoFiltro === 'saida') return 'Nenhuma saída encontrada para os filtros selecionados.';
-  if (tipoFiltro === 'chegada') return 'Nenhuma chegada encontrada para os filtros selecionados.';
-  return 'Nenhum registro encontrado para os filtros selecionados.';
-}
+const sortByDate = (a: unknown, b: unknown) =>
+  (a instanceof Date ? a.getTime() : 0) - (b instanceof Date ? b.getTime() : 0);
 
 export default function RegistrosPage() {
   const { isOnline } = useOnlineStatus();
@@ -143,27 +126,47 @@ export default function RegistrosPage() {
   const [tab, setTab] = useState<TabKey>(() => getValidTab(searchParams.get('tab')));
   const [chartTab, setChartTab] = useState<ChartKey>('caminhoes');
   const { data: atividade, loading: loadingAtividade } = useAtividade();
-  const [filtroDataInicial, setFiltroDataInicial] = useState('');
-  const [filtroDataFinal, setFiltroDataFinal] = useState('');
-  const [tipoMovimentacao, setTipoMovimentacao] = useState<RegistroTipoFiltro>('todos');
+  const [filtros, setFiltros] = useState<FiltrosAtividade>(FILTROS_VAZIOS);
   const [paginationModel, setPaginationModel] = useState({ page: 0, pageSize: 100 });
-  const [graficoFiltroRascunho, setGraficoFiltroRascunho] = useState<ChartDateFilter>(() => getDefaultChartDateFilter());
-  const [graficoFiltroAplicado, setGraficoFiltroAplicado] = useState<ChartDateFilter>(() => getDefaultChartDateFilter());
-  const [graficoFiltroErro, setGraficoFiltroErro] = useState<string | null>(null);
 
-  const rowsAtividade = useMemo(
-    () =>
-      atividade.map((item) => {
-        const dataJS = toDateAny(item.data);
-        return { ...item, dataJS };
-      }),
+  const rowsAtividade = useMemo<AtividadeComData[]>(
+    () => atividade.map((item) => ({ ...item, dataJS: toDateAny(item.data) })),
     [atividade],
   );
 
-  const rowsAtividadeFiltradas = useMemo(() => {
-    if (tipoMovimentacao === 'todos') return rowsAtividade;
-    return rowsAtividade.filter((row) => normalizarTipoRegistro(row.tipo) === tipoMovimentacao);
-  }, [rowsAtividade, tipoMovimentacao]);
+  const rowsFiltradas = useMemo(() => filtrarAtividades(rowsAtividade, filtros), [rowsAtividade, filtros]);
+
+  // Each list's options come from the rows that match the other filters, so choices narrow each other.
+  const opcoes = useMemo(() => {
+    const result = {} as Record<FiltroLista, string[]>;
+    FILTROS_LISTA.forEach(({ key, valor }) => {
+      const outros = filtrarAtividades(rowsAtividade, { ...filtros, [key]: [] });
+      result[key] = opcoesDistintas([...outros.map(valor), ...filtros[key]]);
+    });
+    return result;
+  }, [rowsAtividade, filtros]);
+
+  const atualizarFiltros = (patch: Partial<FiltrosAtividade>) => {
+    setFiltros((current) => ({ ...current, ...patch }));
+    setPaginationModel((current) => ({ ...current, page: 0 }));
+  };
+
+  const aplicarPeriodo = (dias: number) => {
+    const hoje = new Date();
+    const inicio = new Date(hoje);
+    inicio.setDate(inicio.getDate() - (dias - 1));
+    atualizarFiltros({ dataInicial: formatDateInputValue(inicio), dataFinal: formatDateInputValue(hoje) });
+  };
+
+  const filtrosAtivos =
+    Boolean(filtros.dataInicial || filtros.dataFinal) ||
+    filtros.tipo !== 'todos' ||
+    FILTROS_LISTA.some(({ key }) => filtros[key].length > 0);
+
+  const periodoLabel =
+    filtros.dataInicial || filtros.dataFinal
+      ? `${filtros.dataInicial ? formatDateLabel(filtros.dataInicial) : 'início'} a ${filtros.dataFinal ? formatDateLabel(filtros.dataFinal) : 'hoje'}`
+      : 'todo o período';
 
   const dateFmt = useMemo(
     () =>
@@ -179,40 +182,57 @@ export default function RegistrosPage() {
 
   const kmFormatter = useMemo(() => new Intl.NumberFormat('pt-BR'), []);
 
-  const colunasAtividade: GridColDef<Atividade & { dataJS: Date | null }>[] = useMemo(
+  const colunasAtividade: GridColDef<AtividadeComData>[] = useMemo(
     () => [
       {
         field: 'dataJS',
         headerName: 'Data',
-        minWidth: 160,
-        flex: 1.2,
-        renderCell: (params) => {
-          const value = params.row.dataJS as Date | null;
-          return value ? dateFmt.format(value) : '—';
-        },
-        sortComparator: (a, b) => {
-          const ta = a instanceof Date ? a.getTime() : 0;
-          const tb = b instanceof Date ? b.getTime() : 0;
-          return ta - tb;
-        },
+        width: 130,
+        renderCell: ({ row }) => (row.dataJS ? dateFmt.format(row.dataJS) : '—'),
+        sortComparator: sortByDate,
       },
-      { field: 'motorista', headerName: 'Motorista', minWidth: 150, flex: 1.2 },
-      { field: 'placa', headerName: 'Placa', minWidth: 120, flex: 1 },
-      { field: 'destino', headerName: 'Destino', minWidth: 180, flex: 1.4 },
-      { field: 'obra', headerName: 'Obra', minWidth: 180, flex: 1.4 },
-      { field: 'motivo', headerName: 'Motivo', minWidth: 200, flex: 1.4 },
       {
         field: 'tipo',
         headerName: 'Tipo',
-        minWidth: 140,
-        flex: 1,
+        width: 150,
         valueGetter: (_value, row) => (row.foraDoContrato ? 'Fora do contrato' : row.tipo === 'saida' ? 'Saída' : 'Chegada'),
+        renderCell: ({ row, value }) => (
+          <Chip
+            size="small"
+            label={value as string}
+            color={row.foraDoContrato ? 'error' : row.tipo === 'saida' ? 'primary' : 'success'}
+            variant={row.foraDoContrato ? 'filled' : 'outlined'}
+          />
+        ),
       },
+      {
+        field: 'placa',
+        headerName: 'Veículo',
+        minWidth: 170,
+        flex: 1,
+        renderCell: ({ row }) => (
+          <Box sx={{ py: 0.5 }}>
+            <Typography variant="body2" fontWeight={600}>
+              {row.placa || '—'}
+            </Typography>
+            {row.veiculoNome && (
+              <Typography variant="caption" color="text.secondary">
+                {row.veiculoNome}
+              </Typography>
+            )}
+          </Box>
+        ),
+      },
+      { field: 'motorista', headerName: 'Motorista', minWidth: 180, flex: 1.2 },
+      { field: 'destino', headerName: 'Local', minWidth: 160, flex: 1 },
+      { field: 'obra', headerName: 'Obra', minWidth: 200, flex: 1.4 },
+      { field: 'motivo', headerName: 'Motivo', minWidth: 200, flex: 1.4 },
       {
         field: 'km',
         headerName: 'KM',
-        minWidth: 120,
-        flex: 1,
+        width: 110,
+        align: 'right',
+        headerAlign: 'right',
         renderCell: ({ value }) => (typeof value === 'number' ? kmFormatter.format(value) : '—'),
       },
     ],
@@ -220,8 +240,7 @@ export default function RegistrosPage() {
   );
 
   useEffect(() => {
-    const currentTab = getValidTab(searchParams.get('tab'));
-    setTab(currentTab);
+    setTab(getValidTab(searchParams.get('tab')));
   }, [searchParams]);
 
   const handleTabChange = (_event: SyntheticEvent, newValue: TabKey) => {
@@ -238,103 +257,47 @@ export default function RegistrosPage() {
   };
 
   const motoristaResumo: MotoristaResumo[] = useMemo(() => {
-    let dataInicial: Date | null = filtroDataInicial ? new Date(filtroDataInicial) : null;
-    let dataFinal: Date | null = filtroDataFinal ? new Date(filtroDataFinal) : null;
-
-    if (dataInicial) dataInicial.setHours(0, 0, 0, 0);
-    if (dataFinal) dataFinal.setHours(23, 59, 59, 999);
-
-    if (dataInicial && dataFinal && dataInicial > dataFinal) {
-      const temporaria = dataInicial;
-      dataInicial = dataFinal;
-      dataFinal = temporaria;
-    }
-
     const acc = new Map<string, MotoristaResumo>();
-
-    rowsAtividadeFiltradas.forEach((row) => {
-      const data = row.dataJS instanceof Date ? row.dataJS : null;
+    rowsFiltradas.forEach((row) => {
       const motorista = row.motorista || '—';
-      const current = acc.get(motorista) ?? {
-        id: motorista,
-        totalRegistros: 0,
-        ultimoRegistroGeral: null,
-        registrosPeriodo: 0,
-        ultimoRegistroPeriodo: null,
-      };
-
-      if (data) {
-        current.totalRegistros += 1;
-        if (!current.ultimoRegistroGeral || current.ultimoRegistroGeral < data) {
-          current.ultimoRegistroGeral = data;
-        }
-
-        const dentroIntervalo = (!dataInicial || data >= dataInicial) && (!dataFinal || data <= dataFinal);
-
-        if (dentroIntervalo) {
-          current.registrosPeriodo += 1;
-          if (!current.ultimoRegistroPeriodo || current.ultimoRegistroPeriodo < data) {
-            current.ultimoRegistroPeriodo = data;
-          }
-        }
+      const current = acc.get(motorista) ?? { id: motorista, registros: 0, ultimoRegistro: null };
+      current.registros += 1;
+      if (row.dataJS && (!current.ultimoRegistro || current.ultimoRegistro < row.dataJS)) {
+        current.ultimoRegistro = row.dataJS;
       }
-
       acc.set(motorista, current);
     });
-
-    return Array.from(acc.values()).sort(
-      (a, b) => b.registrosPeriodo - a.registrosPeriodo || b.totalRegistros - a.totalRegistros,
-    );
-  }, [filtroDataFinal, filtroDataInicial, rowsAtividadeFiltradas]);
+    return Array.from(acc.values());
+  }, [rowsFiltradas]);
 
   const colunasMotoristaResumo: GridColDef<MotoristaResumo>[] = useMemo(
     () => [
       { field: 'id', headerName: 'Motorista', flex: 1.2, minWidth: 200 },
       {
-        field: 'ultimoRegistroPeriodo',
-        headerName: 'Último registro (período)',
-        flex: 1.2,
-        minWidth: 200,
+        field: 'ultimoRegistro',
+        headerName: 'Último registro',
+        flex: 1,
+        minWidth: 160,
         renderCell: ({ value }) => (value instanceof Date ? dateFmt.format(value) : '—'),
-        sortComparator: (a, b) => {
-          const ta = a instanceof Date ? a.getTime() : 0;
-          const tb = b instanceof Date ? b.getTime() : 0;
-          return ta - tb;
-        },
+        sortComparator: sortByDate,
       },
       {
-        field: 'registrosPeriodo',
-        headerName: 'Total de registros (período)',
+        field: 'registros',
+        headerName: 'Registros',
         flex: 1,
-        minWidth: 170,
-        valueFormatter: ({ value }) => kmFormatter.format(Number(value)),
+        minWidth: 120,
+        valueFormatter: (value) => kmFormatter.format(Number(value)),
       },
     ],
     [dateFmt, kmFormatter],
   );
 
   const chartData = useMemo(() => {
-    const intervalo = parseDateRange(graficoFiltroAplicado.dataInicial, graficoFiltroAplicado.dataFinal);
-    if (intervalo.error) {
-      return {
-        caminhoes: [],
-        km: [],
-        motorista: [],
-      };
-    }
-
-    const dadosFiltrados = rowsAtividadeFiltradas.filter(
-      (row) =>
-        row.dataJS &&
-        (row.dataJS as Date) >= intervalo.inicio &&
-        (row.dataJS as Date) <= intervalo.fim,
-    );
-
     const countByPlaca = new Map<string, number>();
     const kmByPlaca = new Map<string, number>();
     const countByMotorista = new Map<string, number>();
 
-    dadosFiltrados.forEach((row) => {
+    rowsFiltradas.forEach((row) => {
       const placa = row.placa || '—';
       const motorista = row.motorista || '—';
       const kmValue = Number(row.km) || 0;
@@ -344,41 +307,22 @@ export default function RegistrosPage() {
       countByMotorista.set(motorista, (countByMotorista.get(motorista) ?? 0) + 1);
     });
 
-    const sortDesc = (items: ChartPoint[]) => items.sort((a, b) => b.value - a.value);
-    const toPoints = (map: Map<string, number>) =>
-      sortDesc(Array.from(map.entries()).map(([label, value]) => ({ label, value })));
+    const toPoints = (map: Map<string, number>): ChartPoint[] =>
+      Array.from(map.entries())
+        .map(([label, value]) => ({ label, value }))
+        .sort((a, b) => b.value - a.value);
 
     return {
       caminhoes: toPoints(countByPlaca),
       km: toPoints(kmByPlaca),
       motorista: toPoints(countByMotorista),
     };
-  }, [graficoFiltroAplicado.dataFinal, graficoFiltroAplicado.dataInicial, rowsAtividadeFiltradas]);
+  }, [rowsFiltradas]);
 
   const currentChartData = chartData[chartTab];
-  const chartDateRangeLabel = `${graficoFiltroAplicado.dataInicial} a ${graficoFiltroAplicado.dataFinal}`;
-
-  const handleAplicarFiltroGraficos = () => {
-    const intervalo = parseDateRange(graficoFiltroRascunho.dataInicial, graficoFiltroRascunho.dataFinal);
-
-    if (intervalo.error) {
-      setGraficoFiltroErro(intervalo.error);
-      return;
-    }
-
-    setGraficoFiltroErro(null);
-    setGraficoFiltroAplicado(graficoFiltroRascunho);
-  };
-
-  const handleResetarFiltroGraficos = () => {
-    const filtroPadrao = getDefaultChartDateFilter();
-    setGraficoFiltroErro(null);
-    setGraficoFiltroRascunho(filtroPadrao);
-    setGraficoFiltroAplicado(filtroPadrao);
-  };
 
   return (
-    <Container sx={{ py: 3 }}>
+    <Container maxWidth={false} sx={{ py: 3 }}>
       <Typography variant="h4" gutterBottom>
         Registros
       </Typography>
@@ -388,6 +332,89 @@ export default function RegistrosPage() {
           Modo offline: exibindo dados em cache do Firestore. As últimas alterações podem não estar visíveis.
         </Alert>
       )}
+
+      <Paper elevation={1} sx={{ p: 2, mb: 2 }}>
+        <Box
+          sx={{
+            display: 'grid',
+            gap: 2,
+            gridTemplateColumns: {
+              xs: '1fr',
+              sm: 'repeat(2, minmax(0, 1fr))',
+              md: 'repeat(3, minmax(0, 1fr))',
+              lg: 'repeat(4, minmax(0, 1fr))',
+            },
+          }}
+        >
+          <TextField
+            label="Data inicial"
+            type="date"
+            size="small"
+            value={filtros.dataInicial}
+            onChange={(event) => atualizarFiltros({ dataInicial: event.target.value })}
+            InputLabelProps={{ shrink: true }}
+          />
+          <TextField
+            label="Data final"
+            type="date"
+            size="small"
+            value={filtros.dataFinal}
+            onChange={(event) => atualizarFiltros({ dataFinal: event.target.value })}
+            InputLabelProps={{ shrink: true }}
+          />
+          {FILTROS_LISTA.map(({ key, label }) => (
+            <Autocomplete
+              key={key}
+              multiple
+              size="small"
+              limitTags={2}
+              options={opcoes[key]}
+              value={filtros[key]}
+              onChange={(_event, value) => atualizarFiltros({ [key]: value })}
+              noOptionsText="Nenhuma opção"
+              renderInput={(params) => <TextField {...params} label={label} placeholder={filtros[key].length ? '' : 'Todos'} />}
+            />
+          ))}
+          <TextField
+            select
+            label="Tipo"
+            size="small"
+            value={filtros.tipo}
+            onChange={(event) => atualizarFiltros({ tipo: event.target.value as FiltrosAtividade['tipo'] })}
+          >
+            {TIPO_OPTIONS.map((option) => (
+              <MenuItem key={option.value} value={option.value}>
+                {option.label}
+              </MenuItem>
+            ))}
+          </TextField>
+        </Box>
+        <Stack
+          direction={{ xs: 'column', sm: 'row' }}
+          spacing={1}
+          alignItems={{ xs: 'stretch', sm: 'center' }}
+          justifyContent="space-between"
+          mt={2}
+        >
+          <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+            <Button size="small" variant="outlined" onClick={() => aplicarPeriodo(1)}>
+              Hoje
+            </Button>
+            <Button size="small" variant="outlined" onClick={() => aplicarPeriodo(7)}>
+              7 dias
+            </Button>
+            <Button size="small" variant="outlined" onClick={() => aplicarPeriodo(30)}>
+              30 dias
+            </Button>
+            <Button size="small" disabled={!filtrosAtivos} onClick={() => atualizarFiltros(FILTROS_VAZIOS)}>
+              Limpar filtros
+            </Button>
+          </Stack>
+          <Typography variant="body2" color="text.secondary">
+            {rowsFiltradas.length} de {rowsAtividade.length} registro(s) · {periodoLabel}
+          </Typography>
+        </Stack>
+      </Paper>
 
       <Tabs
         value={tab}
@@ -401,111 +428,47 @@ export default function RegistrosPage() {
         <Tab label="Híbrido" value="hibrido" {...a11yProps('hibrido')} />
       </Tabs>
 
-      <Paper elevation={1} sx={{ p: 2, mt: 2 }}>
-        <Stack
-          direction={{ xs: 'column', sm: 'row' }}
-          spacing={2}
-          alignItems={{ xs: 'stretch', sm: 'flex-end' }}
-        >
-          <TextField
-            select
-            label="Tipo de registro"
-            size="small"
-            value={tipoMovimentacao}
-            onChange={(event) => {
-              setTipoMovimentacao(event.target.value as RegistroTipoFiltro);
-              setPaginationModel((current) => ({ ...current, page: 0 }));
-            }}
-            sx={{ minWidth: { xs: '100%', sm: 220 } }}
-          >
-            {MOVIMENTACAO_OPTIONS.map((option) => (
-              <MenuItem key={option.value} value={option.value}>
-                {option.label}
-              </MenuItem>
-            ))}
-          </TextField>
-          <Typography variant="body2" color="text.secondary">
-            {rowsAtividadeFiltradas.length} registro(s) exibido(s)
-          </Typography>
-        </Stack>
-      </Paper>
-
       <TabPanel value={tab} tabKey="geral">
-        <Stack spacing={2} mt={2}>
-          <div style={{ height: 700, width: '100%' }}>
-            <DataGrid
-              rows={rowsAtividadeFiltradas}
-              columns={colunasAtividade}
-              loading={loadingAtividade}
-              getRowId={(row) => row.id}
-              disableRowSelectionOnClick
-              density="compact"
-              getRowHeight={() => 'auto'}
-              paginationModel={paginationModel}
-              onPaginationModelChange={setPaginationModel}
-              pageSizeOptions={[25, 50, 100]}
-              localeText={{
-                noRowsLabel: getEmptyRowsMessage(tipoMovimentacao),
-                noResultsOverlayLabel: getEmptyRowsMessage(tipoMovimentacao),
-              }}
-              initialState={{ sorting: { sortModel: [{ field: 'dataJS', sort: 'desc' }] } }}
-              getRowClassName={({ row }) => (row.foraDoContrato ? 'row-error' : '')}
-              sx={{ '& .row-error': { bgcolor: 'rgba(255,0,0,0.6)' } }}
-            />
-          </div>
-        </Stack>
+        <Box sx={{ height: 'calc(100vh - 220px)', minHeight: 500, width: '100%' }}>
+          <DataGrid
+            rows={rowsFiltradas}
+            columns={colunasAtividade}
+            loading={loadingAtividade}
+            getRowId={(row) => row.id}
+            disableRowSelectionOnClick
+            density="compact"
+            getRowHeight={() => 'auto'}
+            paginationModel={paginationModel}
+            onPaginationModelChange={setPaginationModel}
+            pageSizeOptions={[25, 50, 100]}
+            localeText={{
+              noRowsLabel: 'Nenhum registro encontrado para os filtros selecionados.',
+              noResultsOverlayLabel: 'Nenhum registro encontrado para os filtros selecionados.',
+            }}
+            initialState={{ sorting: { sortModel: [{ field: 'dataJS', sort: 'desc' }] } }}
+            getRowClassName={({ row }) => (row.foraDoContrato ? 'row-error' : '')}
+            sx={{
+              '& .MuiDataGrid-cell': {
+                display: 'flex',
+                alignItems: 'center',
+                py: 0.75,
+                whiteSpace: 'normal',
+                wordBreak: 'break-word',
+                lineHeight: 1.35,
+              },
+              '& .row-error': { bgcolor: 'rgba(255,0,0,0.6)' },
+            }}
+          />
+        </Box>
       </TabPanel>
 
       <TabPanel value={tab} tabKey="graficos">
-        <Stack spacing={2} mt={1}>
+        <Stack spacing={2}>
           {!isOnline && (
             <Alert severity="info">
               Você está offline. Os gráficos usam os dados em cache e podem não refletir atualizações recentes.
             </Alert>
           )}
-
-          <Paper elevation={1} sx={{ p: 2 }}>
-            <Stack spacing={2}>
-              <Stack
-                direction={{ xs: 'column', md: 'row' }}
-                spacing={2}
-                alignItems={{ xs: 'stretch', md: 'flex-end' }}
-              >
-                <TextField
-                  label="Data inicial"
-                  type="date"
-                  size="small"
-                  value={graficoFiltroRascunho.dataInicial}
-                  onChange={(event) => {
-                    setGraficoFiltroErro(null);
-                    setGraficoFiltroRascunho((current) => ({ ...current, dataInicial: event.target.value }));
-                  }}
-                  InputLabelProps={{ shrink: true }}
-                />
-                <TextField
-                  label="Data final"
-                  type="date"
-                  size="small"
-                  value={graficoFiltroRascunho.dataFinal}
-                  onChange={(event) => {
-                    setGraficoFiltroErro(null);
-                    setGraficoFiltroRascunho((current) => ({ ...current, dataFinal: event.target.value }));
-                  }}
-                  InputLabelProps={{ shrink: true }}
-                />
-                <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}>
-                  <Button variant="contained" onClick={handleAplicarFiltroGraficos}>
-                    Aplicar filtro
-                  </Button>
-                  <Button variant="outlined" onClick={handleResetarFiltroGraficos}>
-                    Últimos 30 dias
-                  </Button>
-                </Stack>
-              </Stack>
-
-              {graficoFiltroErro && <Alert severity="warning">{graficoFiltroErro}</Alert>}
-            </Stack>
-          </Paper>
 
           <Tabs
             value={chartTab}
@@ -520,13 +483,13 @@ export default function RegistrosPage() {
           </Tabs>
 
           {currentChartData.length === 0 ? (
-            <Typography variant="body1">Sem dados para o período selecionado.</Typography>
+            <Typography variant="body1">Sem dados para os filtros selecionados.</Typography>
           ) : (
             <Suspense fallback={<Typography>Carregando gráficos...</Typography>}>
               <FrotaCharts
                 chartTab={chartTab}
-                data={currentChartData as ChartPoint[]}
-                dateRangeLabel={chartDateRangeLabel}
+                data={currentChartData}
+                dateRangeLabel={periodoLabel}
                 hoverMode="valueOnly"
               />
             </Suspense>
@@ -535,49 +498,26 @@ export default function RegistrosPage() {
       </TabPanel>
 
       <TabPanel value={tab} tabKey="hibrido">
-        <Stack spacing={2} mt={1}>
-          <Paper elevation={1} sx={{ p: 2 }}>
-            <Stack direction={{ xs: 'column', md: 'row' }} justifyContent="space-between" spacing={2} mb={2}>
-              <Typography variant="h6">Sobre motorista</Typography>
-              <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
-                <TextField
-                  label="Data inicial"
-                  type="date"
-                  size="small"
-                  value={filtroDataInicial}
-                  onChange={(event) => setFiltroDataInicial(event.target.value)}
-                  InputLabelProps={{ shrink: true }}
-                />
-                <TextField
-                  label="Data final"
-                  type="date"
-                  size="small"
-                  value={filtroDataFinal}
-                  onChange={(event) => setFiltroDataFinal(event.target.value)}
-                  InputLabelProps={{ shrink: true }}
-                />
-              </Stack>
-            </Stack>
-            <div style={{ height: 400, width: '100%' }}>
-              <DataGrid
-                rows={motoristaResumo}
-                columns={colunasMotoristaResumo}
-                loading={loadingAtividade}
-                getRowId={(row) => row.id}
-                disableRowSelectionOnClick
-                density="compact"
-                getRowHeight={() => 'auto'}
-                initialState={{
-                  sorting: {
-                    sortModel: [{ field: 'registrosPeriodo', sort: 'desc' }],
-                  },
-                }}
-              />
-            </div>
-          </Paper>
-
-          <Paper elevation={1} sx={{ p: 2 }} />
-        </Stack>
+        <Paper elevation={1} sx={{ p: 2 }}>
+          <Typography variant="h6" mb={2}>
+            Sobre motorista
+          </Typography>
+          <div style={{ height: 400, width: '100%' }}>
+            <DataGrid
+              rows={motoristaResumo}
+              columns={colunasMotoristaResumo}
+              loading={loadingAtividade}
+              getRowId={(row) => row.id}
+              disableRowSelectionOnClick
+              density="compact"
+              initialState={{
+                sorting: {
+                  sortModel: [{ field: 'registros', sort: 'desc' }],
+                },
+              }}
+            />
+          </div>
+        </Paper>
       </TabPanel>
     </Container>
   );
