@@ -122,7 +122,7 @@ export default function Desktop() {
             onFechar={() => fechar(j.id)}
             onFocar={() => focar(j.id)}
           >
-            <Suspense fallback={<p>Carregando…</p>}>
+            <Suspense fallback={<p>Carregando...</p>}>
               <Brinquedo />
             </Suspense>
           </Window>

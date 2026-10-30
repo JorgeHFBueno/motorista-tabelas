@@ -3,6 +3,7 @@
  * sem copiar o arquivo. O CSS de um chunk lazy continua na página depois de sair do /dev, por isso TODO seletor
  * fica dentro de .devtoys (e a fonte tem nome próprio): nada daqui pode alcançar o resto do app.
  * monaco.woff veio de sakofchit/system.css, commit c95b954 (fonte da Apple, sem licença clara; decisão do responsável).
+ * Ela não tem acentos nem "…": os textos visíveis do DEV são escritos sem acento (decisão do responsável, 2026-10-30).
  */
 @font-face {
   font-family: 'DevToys Monaco';
