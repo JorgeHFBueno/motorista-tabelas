@@ -41,7 +41,7 @@ function encodePdfText(value: string) {
   return encoded.replace(/[()\\]/g, (match) => `\\${match}`);
 }
 
-const PAGE = { left: 36, right: 559, top: 800, bottom: 48 };
+export const PAGE = { left: 36, right: 559, top: 800, bottom: 48 };
 const colors = { ink: '0.12 0.15 0.18', border: '0.72 0.75 0.78', header: '0.92 0.93 0.95', section: '0.78 0.87 0.96', total: '0.88 0.93 0.97' };
 type PdfPage = { commands: string[] };
 type PdfReport = Awaited<ReturnType<typeof buildVehicleReport>>;
@@ -56,7 +56,8 @@ function wrap(value: unknown, width: number) {
   if (line) lines.push(line); return lines.length ? lines : ['—'];
 }
 
-function createDrawing() {
+/** Páginas A4 com título, seção e tabela; usado também pelo relatório da obra (/engenharia/obras). */
+export function createDrawing() {
   const pages: PdfPage[] = [{ commands: [] }]; let page = pages[0]; let y = PAGE.top;
   const newPage = () => { page = { commands: [] }; pages.push(page); y = PAGE.top; };
   const command = (value: string) => page.commands.push(value);
@@ -117,7 +118,12 @@ export function createVehicleReportPdf(report: PdfReport) {
   if (!q47) { drawing.text(PAGE.left, drawing.y, 'Dados indisponíveis para este relatório.', 8); drawing.y -= 12; drawing.text(PAGE.left, drawing.y, `Motivo: ${sourceReason('erp')}`, 8); drawing.y -= 16; }
   else drawing.table(['Data', 'Nota', 'Fornecedor', 'Natureza / conta', 'Tipo', 'Valor'], q47.detalhes.map((item: any) => [formatReportDate(item.data), item.nota, item.fornecedor, `${item.natureza} / ${item.conta}`, item.tipo, money(item.valor_rateio)]), [57, 43, 125, 150, 65, 83], right([5]));
   drawing.section('METODOLOGIA / PARÂMETROS'); drawing.table(['Parâmetro', 'Valor'], [['Veículo', report.veiculo.placa], ['Período', `${formatReportDate(report.periodo.dataInicial)} a ${formatReportDate(report.periodo.dataFinal)}`], ['Diesel interno', fuelClassified ? 'R$ 5,90/L' : 'Não calculado'], ['Documentos combustível encontrados', report.firebase.combustivel.registrosEncontrados ?? unavailable], ['Internos / externos excluídos', fuelClassified ? `${report.firebase.combustivel.registros} / ${report.firebase.combustivel.externos}` : unavailable], ['ERP', 'Query 47 — competência / notas'], ['Placa enviada ao ERP', report.veiculo.placa.replace(/[-\s]/g, '').toUpperCase()]], [250, 273]);
-  const pages = drawing.pages; pages.forEach((page, index) => { page.commands.push(`BT /F1 7 Tf ${colors.ink} rg 1 0 0 1 ${PAGE.left} 27 Tm (${encodePdfText('Ledur Motorista — relatório veicular')}) Tj ET`); page.commands.push(`BT /F1 7 Tf ${colors.ink} rg 1 0 0 1 470 27 Tm (${encodePdfText(`Pág. ${index + 1} de ${pages.length}`)}) Tj ET`); });
+  return pdfFromPages(drawing.pages, 'Ledur Motorista — relatório veicular');
+}
+
+/** Rodapé com a numeração e o arquivo PDF (Helvetica, WinAnsi). */
+export function pdfFromPages(pages: PdfPage[], rodape: string) {
+  pages.forEach((page, index) => { page.commands.push(`BT /F1 7 Tf ${colors.ink} rg 1 0 0 1 ${PAGE.left} 27 Tm (${encodePdfText(rodape)}) Tj ET`); page.commands.push(`BT /F1 7 Tf ${colors.ink} rg 1 0 0 1 470 27 Tm (${encodePdfText(`Pág. ${index + 1} de ${pages.length}`)}) Tj ET`); });
   const objects: string[] = ['<< /Type /Catalog /Pages 2 0 R >>', `<< /Type /Pages /Count ${pages.length} /Kids [${pages.map((_, index) => `${3 + index * 2} 0 R`).join(' ')}] >>`];
   pages.forEach((page, index) => { const content = page.commands.join('\n'); objects.push(`<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 ${3 + pages.length * 2} 0 R /F2 ${4 + pages.length * 2} 0 R >> >> /Contents ${4 + index * 2} 0 R >>`, `<< /Length ${content.length} >>\nstream\n${content}\nendstream`); });
   objects.push('<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>', '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold /Encoding /WinAnsiEncoding >>');

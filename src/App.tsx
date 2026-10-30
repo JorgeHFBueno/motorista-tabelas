@@ -29,6 +29,8 @@ const BombasPage = lazy(() => import('./pages/BombasPage'));
 const AccessDeniedPage = lazy(() => import('./pages/AccessDeniedPage'));
 const CronogramaObrasPage = lazy(() => import('./features/cronograma-obras/CronogramaObrasPage'));
 const PrazosContratuaisPage = lazy(() => import('./features/prazos-contratuais/PrazosContratuaisPage'));
+const ObrasPage = lazy(() => import('./features/obras/ObrasPage'));
+const ObraDetalhesPage = lazy(() => import('./features/obras/ObraDetalhesPage'));
 const TheManuscriptPage = lazy(() => import('./pages/TheManuscriptPage'));
 const MeuPerfilPage = lazy(() => import('./pages/MeuPerfilPage'));
 const FridayApp = lazy(() => import('./features/friday-gestao-interna/App'));
@@ -67,6 +69,8 @@ export default function App() {
           <Route element={<PrivateRoute permite={(p) => temCredencial(p, 'engenharia')} />}>
             <Route path="engenharia/cronograma" element={<CronogramaObrasPage />} />
             <Route path="engenharia/prazos" element={<PrazosContratuaisPage />} />
+            <Route path="engenharia/obras" element={<ObrasPage />} />
+            <Route path="engenharia/obras/:id" element={<ObraDetalhesPage />} />
           </Route>
           <Route element={<PrivateRoute />}>
             <Route path="the-manuscript/*" element={<TheManuscriptPage />} />

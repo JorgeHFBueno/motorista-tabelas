@@ -9,6 +9,7 @@ import LocalGasStationIcon from '@mui/icons-material/LocalGasStation';
 import EngineeringIcon from '@mui/icons-material/Engineering';
 import CalendarMonthIcon from '@mui/icons-material/CalendarMonth';
 import EventBusyIcon from '@mui/icons-material/EventBusy';
+import ConstructionIcon from '@mui/icons-material/Construction';
 import MenuBookRoundedIcon from '@mui/icons-material/MenuBookRounded';
 import ViewKanbanOutlinedIcon from '@mui/icons-material/ViewKanbanOutlined';
 import PersonOutlineRoundedIcon from '@mui/icons-material/PersonOutlineRounded';
@@ -83,6 +84,7 @@ export const menuPrincipal: MenuPrincipalItem[] = [
     children: [
       { label: 'Cronograma', to: '/engenharia/cronograma', icon: <CalendarMonthIcon /> },
       { label: 'Prazos contratuais', to: '/engenharia/prazos', icon: <EventBusyIcon /> },
+      { label: 'Obras', to: '/engenharia/obras', icon: <ConstructionIcon /> },
     ],
   },
   {

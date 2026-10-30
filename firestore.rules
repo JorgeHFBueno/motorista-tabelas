@@ -508,7 +508,15 @@ service cloud.firestore {
     // Obras V2 are written by the monday Functions; adm2 kept for administrative maintenance.
     match /obras-v2/{obraId} {
       allow read: if isAuthorized();
-      allow create, update, delete: if isAdm2();
+      allow create, delete: if isAdm2();
+      // The registration belongs to Friday; Engenharia only fills in the work site (`local`) in /engenharia/obras.
+      allow update: if isAdm2()
+        || (
+          hasPerfil('engenharia')
+          && changedOnly(['local'])
+          && nonEmptyString(request.resource.data.local)
+          && request.resource.data.local.size() <= 200
+        );
     }
 
     match /motoristas/{motoristaId} {

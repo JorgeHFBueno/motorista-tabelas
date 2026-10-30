@@ -625,6 +625,18 @@ test('[firestore] obras-v2: read by employees, written by adm2', async () => {
   await assertFails(getDocs(collection(dbAs('missing'), 'obras-v2')));
 });
 
+test('[firestore] obras-v2: engenharia fills in only the work site (local)', async () => {
+  await assertSucceeds(updateDoc(doc(dbAs('engenharia'), 'obras-v2', 'ob1'), { local: 'Lagoa Bonita do Sul - RS' }));
+  await assertFails(updateDoc(doc(dbAs('engenharia'), 'obras-v2', 'ob1'), { local: '' }));
+  await assertFails(updateDoc(doc(dbAs('engenharia'), 'obras-v2', 'ob1'), { local: 'X'.repeat(201) }));
+  await assertFails(updateDoc(doc(dbAs('engenharia'), 'obras-v2', 'ob1'), { local: 'Outro', nomeObra: 'X' }));
+  await assertFails(updateDoc(doc(dbAs('engenharia'), 'obras-v2', 'ob1'), { status: 'FINALIZADA' }));
+  await assertFails(setDoc(doc(dbAs('engenharia'), 'obras-v2', 'ob-nova'), { nomeObra: 'Nova', local: 'X', codObra: 0, siglaObra: '' }));
+  await assertFails(deleteDoc(doc(dbAs('engenharia'), 'obras-v2', 'ob1')));
+  await assertFails(updateDoc(doc(dbAs('canonicalUser'), 'obras-v2', 'ob1'), { local: 'Outro' }));
+  await assertSucceeds(updateDoc(doc(dbAs('canonicalAdm2'), 'obras-v2', 'ob1'), { local: 'Ledur' }));
+});
+
 test('[firestore] monday-obras: read by employees, written only by Functions', async () => {
   await assertSucceeds(getDocs(collection(dbAs('canonicalAdm2'), 'monday-obras')));
   await assertFails(setDoc(doc(dbAs('canonicalAdm2'), 'monday-obras', 'mo2'), { nome: 'X' }));

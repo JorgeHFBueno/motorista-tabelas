@@ -4,14 +4,14 @@ import test from 'node:test';
 
 const source = (path: string) => readFileSync(path, 'utf8');
 
-test('menu Engenharia disponibiliza Cronograma e Prazos para a credencial engenharia (adm2 entra em tudo)', () => {
+test('menu Engenharia disponibiliza Cronograma, Prazos e Obras para a credencial engenharia (adm2 entra em tudo)', () => {
   const menu = source('src/components/menuPrincipal.tsx');
   const home = source('src/pages/HomeDashboard.tsx');
 
   assert.match(menu, /label: 'Engenharia'/);
   assert.match(menu, /acesso: 'engenharia'/);
-  // A conciliação monday-obras ↔ obras-v2 (/engenharia/obras) saiu com a unificação das obras (2026-10-27).
-  assert.doesNotMatch(menu, /engenharia\/obras/);
+  // /engenharia/obras voltou em 2026-10-30 como a lista de obras-v2 (a conciliação antiga saiu em 2026-10-27).
+  assert.match(menu, /label: 'Obras', to: '\/engenharia\/obras'/);
   assert.match(menu, /label: 'Cronograma', to: '\/engenharia\/cronograma'/);
   assert.match(menu, /return temCredencial\(profile, item\.acesso\)/);
   assert.match(menu, /CalendarMonthIcon/);
@@ -63,6 +63,8 @@ test('header usa sino, ajuda e avatar no lugar dos links Usuário/Logout', () =>
 test('rotas existentes de Engenharia continuam sendo reutilizadas', () => {
   const app = source('src/App.tsx');
 
-  assert.doesNotMatch(app, /engenharia\/obras|EngenhariaObrasPage/);
+  assert.doesNotMatch(app, /EngenhariaObrasPage/);
+  assert.match(app, /path="engenharia\/obras" element=\{<ObrasPage \/>\}/);
+  assert.match(app, /path="engenharia\/obras\/:id" element=\{<ObraDetalhesPage \/>\}/);
   assert.match(app, /path="engenharia\/cronograma" element=\{<CronogramaObrasPage \/>\}/);
 });
