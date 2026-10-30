@@ -139,9 +139,9 @@ test('Crawler: textos separados por "- " no início da linha, com quebras de ver
   assert.equal(separarTextos('sem marcador').length, 0);
 });
 
-test('Crawler: o arquivo Xerox de um Xerox tem 16 textos, todos em ASCII, e os poemas guardam os versos', () => {
+test('Crawler: o arquivo Xerox de um Xerox tem 18 textos, todos em ASCII, e os poemas guardam os versos', () => {
   const textos = separarTextos(readFileSync('src/features/dev-toys/toys/crawler/xerox.txt', 'utf8'));
-  assert.equal(textos.length, 16);
+  assert.equal(textos.length, 18);
   for (const t of textos) {
     assert.ok(t.length > 0);
     for (const w of t) assert.match(w, /^([\x21-\x7E]+|\n)$/, w);
