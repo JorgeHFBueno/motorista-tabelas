@@ -66,9 +66,9 @@ import { buildVehicleReport, fetchVehicleErpRows } from '../services/vehicle-rep
 import { createVehicleReportPdf } from '../services/vehicle-report-pdf';
 import { describeErpCallError, normalizeCalendarDate, resolveVehicleReportPeriod, type VehicleReportPeriod } from '../services/vehicle-report-core';
 import { listFuncionariosAtivos } from '../services/funcionarios-selecao.service';
-import { atualizarKmInicial, getItemFrota, renomearItemFrota } from '../services/veiculos.service';
+import { atualizarKmInicial, getItemFrota, itemFridayDoVeiculo, renomearItemFrota } from '../services/veiculos.service';
 import type { ItemFrotaV2, PessoaV2 } from '../utils/cadastrosV2';
-import { atualizacaoInfo, lerKmInicial, medidorTexto, origemKmTexto, somarValores, type KmInicialEntrada } from '../utils/frotaVeiculosLista';
+import { atualizacaoInfo, camposQuadroFrota, lerKmInicial, medidorTexto, origemKmTexto, somarValores, type KmInicialEntrada } from '../utils/frotaVeiculosLista';
 
 const FrotaCharts = lazy(() => import('../components/FrotaCharts'));
 type Manutencao = {
@@ -294,6 +294,7 @@ export default function FrotaVeiculoDetalhesPage() {
     const [veiculo, setVeiculo] = useState<ItemFrotaV2 | null>(null);
     const [nomeEditado, setNomeEditado] = useState<string | null>(null); // null = fora da edição
     const [salvandoNome, setSalvandoNome] = useState(false);
+    const [itemFriday, setItemFriday] = useState<{ quadroId: number; itemId: number } | null>(null);
     const [kmInicialForm, setKmInicialForm] = useState<KmInicialEntrada | null>(null); // null = janela fechada
     const [salvandoKm, setSalvandoKm] = useState(false);
     const [pessoas, setPessoas] = useState<PessoaV2[]>([]);
@@ -1010,6 +1011,18 @@ export default function FrotaVeiculoDetalhesPage() {
         }
     }, [nomeEditado, veiculo]);
 
+    // Link para o item do quadro FROTA; sem item ligado (ou sem acesso), o botão não aparece.
+    const veiculoId = veiculo?.id ?? null;
+    useEffect(() => {
+        let ativo = true;
+        setItemFriday(null);
+        if (!veiculoId) return;
+        itemFridayDoVeiculo(veiculoId)
+            .then((item) => { if (ativo) setItemFriday(item); })
+            .catch((err) => console.warn('Item do Friday não encontrado para o veículo', err));
+        return () => { ativo = false; };
+    }, [veiculoId]);
+
     const abrirKmInicial = useCallback(() => {
         if (!veiculo) return;
         const data = toDate(veiculo.dataQuilometragemInicial);
@@ -1251,6 +1264,26 @@ export default function FrotaVeiculoDetalhesPage() {
                                         </Tooltip>
                                     );
                                 })()}
+                            </Box>
+                        </Box>
+                        <Box sx={{ mt: 3, pt: 2, borderTop: 1, borderColor: 'divider' }}>
+                            <Stack direction="row" spacing={1} alignItems="center" justifyContent="space-between" sx={{ mb: 1.5 }}>
+                                <Typography variant="subtitle2" color="text.secondary">Quadro FROTA (Friday)</Typography>
+                                {itemFriday && (
+                                    <Button size="small" variant="outlined" onClick={() => navigate(`/friday/quadros/${itemFriday.quadroId}?item=${itemFriday.itemId}`)}>
+                                        Abrir no Friday
+                                    </Button>
+                                )}
+                            </Stack>
+                            <Box sx={{ display: 'grid', columnGap: 2, rowGap: 1.5, gridTemplateColumns: { xs: '1fr 1fr', md: 'repeat(4, minmax(0, 1fr))' } }}>
+                                {camposQuadroFrota(veiculo.raw).map((campo) => (
+                                    <Box key={campo.rotulo} sx={{ minWidth: 0 }}>
+                                        <Typography variant="body2" color="text.secondary">{campo.rotulo}</Typography>
+                                        <Typography sx={{ fontWeight: 600, overflowWrap: 'anywhere' }} color={campo.valor === '—' ? 'text.disabled' : 'text.primary'}>
+                                            {campo.valor}
+                                        </Typography>
+                                    </Box>
+                                ))}
                             </Box>
                         </Box>
                         <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 2 }}>

@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import test from 'node:test';
 import type { ItemFrotaV2 } from '../src/utils/cadastrosV2';
-import { atualizacaoInfo, filtrarVeiculos, lerKmInicial, medidorTexto, origemKmTexto, somarValores } from '../src/utils/frotaVeiculosLista';
+import { atualizacaoInfo, camposQuadroFrota, filtrarVeiculos, lerKmInicial, medidorTexto, origemKmTexto, somarValores } from '../src/utils/frotaVeiculosLista';
 
 const item = (parcial: Partial<ItemFrotaV2>): ItemFrotaV2 => ({
   id: 'x', categoria: 'PLACA', identificador: 'IXR-7D23', nome: 'Hilux', ativo: true, situacao: null,
@@ -81,4 +81,23 @@ test('edição do KM inicial: inteiro, origem obrigatória com KM, data opcional
   assert.equal(lerKmInicial({ km: '12,5', data: '', origem: 'x' }).ok, false);
   assert.deepEqual(lerKmInicial({ km: '100', data: '', origem: '' }), { ok: false, erro: 'Informe de onde veio o KM inicial.' });
   assert.equal(lerKmInicial({ km: '100', data: 'xx', origem: 'x' }).ok, false);
+});
+
+test('campos do quadro FROTA: textos, ano sem separador, capacidades ÷10 e traço sem valor', () => {
+  const campos = Object.fromEntries(camposQuadroFrota({
+    cadastro: { tipoVeiculo: 'Caminhões Munck', anoFabricacao: 2010, empresa: 'LEDUR', responsavel: '' },
+    operacional: { local: ' Fábrica ', chaveTitular: 'MECANICO', chaveReserva: null },
+    capacidades: { cargaLiquida: 100, munck: 175, pesoBruto: null },
+    identificacao: { corCabine: 'BRANCO' },
+  }).map((c) => [c.rotulo, c.valor]));
+  assert.equal(campos['Tipo do veículo'], 'Caminhões Munck');
+  assert.equal(campos['Ano de fabricação'], '2010');
+  assert.equal(campos['Local'], 'Fábrica');
+  assert.equal(campos['Responsável'], '—');
+  assert.equal(campos['Chave reserva'], '—');
+  assert.equal(campos['Cap. de carga líquida'], '10');
+  assert.equal(campos['Cap. munck'], '17,5');
+  assert.equal(campos['Peso bruto'], '—');
+  assert.equal(campos['Cor da carroceria'], '—');
+  assert.equal(camposQuadroFrota({}).length, 12);
 });

@@ -91,3 +91,26 @@ export function lerKmInicial(entrada: KmInicialEntrada): { ok: true; valor: KmIn
   if (km !== null && !origem) return { ok: false, erro: 'Informe de onde veio o KM inicial.' };
   return { ok: true, valor: { km, data, origem } };
 }
+
+/** Campos do quadro FROTA do Friday gravados em veiculos-v2 (só leitura na WEB), na ordem do quadro.
+ * Capacidades e peso são guardados ×10 (contrato): 100 → "10"; 175 → "17,5". Sem valor: "—". */
+export function camposQuadroFrota(raw: Record<string, unknown>): { rotulo: string; valor: string }[] {
+  const grupo = (nome: string) => (raw[nome] && typeof raw[nome] === 'object' ? (raw[nome] as Record<string, unknown>) : {});
+  const cadastro = grupo('cadastro'); const operacional = grupo('operacional'); const identificacao = grupo('identificacao'); const capacidades = grupo('capacidades');
+  const texto = (v: unknown) => (typeof v === 'string' && v.trim() ? v.trim() : typeof v === 'number' && Number.isFinite(v) ? String(v) : '—');
+  const escala10 = (v: unknown) => (typeof v === 'number' && Number.isFinite(v) ? new Intl.NumberFormat('pt-BR', { maximumFractionDigits: 1 }).format(v / 10) : '—');
+  return [
+    { rotulo: 'Tipo do veículo', valor: texto(cadastro.tipoVeiculo) },
+    { rotulo: 'Ano de fabricação', valor: texto(cadastro.anoFabricacao) },
+    { rotulo: 'Empresa', valor: texto(cadastro.empresa) },
+    { rotulo: 'Local', valor: texto(operacional.local) },
+    { rotulo: 'Responsável', valor: texto(cadastro.responsavel) },
+    { rotulo: 'Chave titular', valor: texto(operacional.chaveTitular) },
+    { rotulo: 'Chave reserva', valor: texto(operacional.chaveReserva) },
+    { rotulo: 'Peso bruto', valor: escala10(capacidades.pesoBruto) },
+    { rotulo: 'Cap. de carga líquida', valor: escala10(capacidades.cargaLiquida) },
+    { rotulo: 'Cap. munck', valor: escala10(capacidades.munck) },
+    { rotulo: 'Cor da cabine', valor: texto(identificacao.corCabine) },
+    { rotulo: 'Cor da carroceria', valor: texto(identificacao.corCarroceria) },
+  ];
+}

@@ -1,4 +1,4 @@
-import { collection, doc, getDoc, getDocs, Timestamp, updateDoc } from 'firebase/firestore';
+import { collection, doc, getDoc, getDocs, query, Timestamp, updateDoc, where } from 'firebase/firestore';
 import { db } from '../firebase';
 import { itemFrotaFromV2, sortItensFrota, type ItemFrotaV2 } from '../utils/cadastrosV2';
 import type { KmInicialGravar } from '../utils/frotaVeiculosLista';
@@ -38,4 +38,12 @@ export async function atualizarKmInicial(id: string, { km, data, origem }: KmIni
     'operacional.dataQuilometragemInicial': data ? Timestamp.fromDate(data) : null,
     'operacional.origemQuilometragemInicial': origem,
   });
+}
+
+/** Item do quadro FROTA ligado ao veículo (friday-itens com vinculo.id = veículo e sem subitem), para o link
+ * "Abrir no Friday" (/friday/quadros/<quadro>?item=<item>). Sem item ligado: null. */
+export async function itemFridayDoVeiculo(id: string): Promise<{ quadroId: number; itemId: number } | null> {
+  const snapshot = await getDocs(query(collection(db, 'friday-itens'), where('vinculo.id', '==', id)));
+  const item = snapshot.docs.map((d) => d.data()).find((d) => d.vinculo?.sub == null && !d.excluido_em && typeof d.quadro_id === 'number' && typeof d.id === 'number');
+  return item ? { quadroId: item.quadro_id as number, itemId: item.id as number } : null;
 }
