@@ -34,6 +34,7 @@ const ObraDetalhesPage = lazy(() => import('./features/obras/ObraDetalhesPage'))
 const TheManuscriptPage = lazy(() => import('./pages/TheManuscriptPage'));
 const MeuPerfilPage = lazy(() => import('./pages/MeuPerfilPage'));
 const FridayApp = lazy(() => import('./features/friday-gestao-interna/App'));
+const DevToysPage = lazy(() => import('./features/dev-toys/DevToysPage'));
 
 function LoadingFallback({ label }: { label?: string }) {
   return (
@@ -71,6 +72,10 @@ export default function App() {
             <Route path="engenharia/prazos" element={<PrazosContratuaisPage />} />
             <Route path="engenharia/obras" element={<ObrasPage />} />
             <Route path="engenharia/obras/:id" element={<ObraDetalhesPage />} />
+          </Route>
+          {/* Área DEV: só a credencial retr0, nem o adm2 entra sem ela. */}
+          <Route element={<PrivateRoute permite={(p) => temCredencial(p, 'retr0')} />}>
+            <Route path="dev" element={<DevToysPage />} />
           </Route>
           <Route element={<PrivateRoute />}>
             <Route path="the-manuscript/*" element={<TheManuscriptPage />} />

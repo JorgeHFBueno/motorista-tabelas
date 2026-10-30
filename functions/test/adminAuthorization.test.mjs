@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { createAdminAuthorizationReader } from '../lib/adminAuthorization.js';
 
-const nenhuma = { adm2: false, motorista: false, frentista: false, mecanico: false, escritorio: false, engenharia: false };
+const nenhuma = { adm2: false, motorista: false, frentista: false, mecanico: false, escritorio: false, engenharia: false, retr0: false };
 
 test('admin backend reads funcionarios by exact Firebase Auth UID', async () => {
   const calls = [];

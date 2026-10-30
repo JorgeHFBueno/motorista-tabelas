@@ -49,6 +49,21 @@ test('credentials: each WEB area checks its own and adm2 enters everything (cred
   assert.equal(temCredencial(motorista, 'escritorio', 'engenharia'), false);
 });
 
+test('retr0 is exclusive: only who holds it enters /dev, not even adm2 (2026-10-30)', async () => {
+  const adm2 = await load(canonicalData(true, { adm2: true }));
+  const retr0 = await load(canonicalData(true, { retr0: true }));
+  const ambos = await load(canonicalData(true, { adm2: true, retr0: true }));
+  const inativo = await load(canonicalData(false, { retr0: true }));
+
+  assert.equal(temCredencial(adm2, 'retr0'), false);
+  assert.equal(temCredencial(adm2, 'retr0', 'escritorio'), true, 'another accepted credential still lets adm2 in');
+  assert.equal(temCredencial(retr0, 'retr0'), true);
+  assert.equal(temCredencial(retr0), false, 'retr0 is not adm2');
+  assert.equal(temAlgumaCredencial(retr0), true);
+  assert.equal(temCredencial(ambos, 'retr0'), true);
+  assert.equal(temCredencial(inativo, 'retr0'), false);
+});
+
 test('adm1, user, inactive and missing funcionarios have no WEB entry', async () => {
   const adm1 = await load(canonicalData(true, { adm1: true, user: true }));
   const inactive = await load(canonicalData(false, { adm2: true }));

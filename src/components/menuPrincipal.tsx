@@ -13,6 +13,7 @@ import ConstructionIcon from '@mui/icons-material/Construction';
 import MenuBookRoundedIcon from '@mui/icons-material/MenuBookRounded';
 import ViewKanbanOutlinedIcon from '@mui/icons-material/ViewKanbanOutlined';
 import PersonOutlineRoundedIcon from '@mui/icons-material/PersonOutlineRounded';
+import TerminalRoundedIcon from '@mui/icons-material/TerminalRounded';
 import type { AuthorizationProfile } from '../services/authorizationProfile';
 import { temAlgumaCredencial, temCredencial, type Credencial } from '../services/credenciais';
 
@@ -23,7 +24,7 @@ export type MenuPrincipalItem = {
   color: string;
   accent: string;
   to?: string;
-  // Quem vê: 'qualquer' credencial, só 'adm2', ou uma credencial (o adm2 vê tudo).
+  // Quem vê: 'qualquer' credencial, só 'adm2', ou uma credencial (o adm2 vê tudo, salvo as exclusivas, como retr0).
   acesso: 'qualquer' | 'adm2' | Exclude<Credencial, 'adm2'>;
   children?: Array<{ label: string; to: string; icon: ReactNode }>;
 };
@@ -95,9 +96,17 @@ export const menuPrincipal: MenuPrincipalItem[] = [
     to: '/perfil',
     acesso: 'qualquer',
   },
+  {
+    label: 'DEV',
+    icon: <TerminalRoundedIcon fontSize="large" />,
+    color: '#FFF4DC',
+    accent: '#8A5A00',
+    to: '/dev',
+    acesso: 'retr0',
+  },
 ];
 
-// Cada área aparece para quem tem a sua credencial; o adm2 vê tudo. Quem só tem credenciais do app
+// Cada área aparece para quem tem a sua credencial; o adm2 vê tudo, salvo as exclusivas (retr0). Quem só tem credenciais do app
 // (motorista, frentista, mecânico) vê o Meu perfil.
 export function filtrarMenuPrincipal(profile: AuthorizationProfile | null): MenuPrincipalItem[] {
   return menuPrincipal.filter((item) => {

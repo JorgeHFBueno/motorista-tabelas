@@ -1,0 +1,222 @@
+/*
+ * Área DEV: Desktop no estilo Mac System 6, em âmbar sobre escuro. CSS próprio, inspirado no system.css (MIT),
+ * sem copiar o arquivo. O CSS de um chunk lazy continua na página depois de sair do /dev, por isso TODO seletor
+ * fica dentro de .devtoys (e a fonte tem nome próprio): nada daqui pode alcançar o resto do app.
+ * monaco.woff veio de sakofchit/system.css, commit c95b954 (fonte da Apple, sem licença clara; decisão do responsável).
+ */
+@font-face {
+  font-family: 'DevToys Monaco';
+  src: url('./fonts/monaco.woff') format('woff');
+  font-display: swap;
+}
+
+.devtoys {
+  --dt-papel: #080603;   /* o "papel" branco do Mac vira fundo escuro */
+  --dt-tinta: #ffb000;   /* a "tinta" preta vira âmbar */
+  --dt-apagado: #7a5400; /* âmbar apagado: desabilitado e padrões */
+
+  position: fixed;
+  inset: 0;
+  z-index: 1300; /* acima do cabeçalho do app (AppBar do MUI é 1100) */
+  overflow: hidden;
+  color: var(--dt-tinta);
+  background-color: var(--dt-papel);
+  /* fundo pontilhado do Finder: xadrez de 1 px */
+  background-image: repeating-conic-gradient(var(--dt-apagado) 0 25%, var(--dt-papel) 0 50%);
+  background-size: 2px 2px;
+  font-family: 'DevToys Monaco', Consolas, monospace;
+  font-size: 12px;
+  line-height: 1.4;
+  -webkit-font-smoothing: none;
+  user-select: none;
+}
+
+.devtoys *,
+.devtoys *::before,
+.devtoys *::after {
+  box-sizing: border-box;
+}
+
+.devtoys button {
+  font: inherit;
+  color: inherit;
+  background: none;
+  border: 0;
+  margin: 0;
+  padding: 0;
+  cursor: default;
+}
+
+.devtoys :focus-visible {
+  outline: 1px dotted var(--dt-tinta);
+  outline-offset: 1px;
+}
+
+.devtoys p {
+  margin: 0 0 6px;
+}
+
+.devtoys hr {
+  border: 0;
+  border-top: 1px dotted var(--dt-tinta);
+  margin: 8px 0;
+}
+
+/* ---- barra de menus ---- */
+.devtoys .dt-menubar {
+  position: absolute;
+  inset: 0 0 auto;
+  height: 20px;
+  display: flex;
+  align-items: stretch;
+  padding: 0 8px;
+  background: var(--dt-papel);
+  border-bottom: 1px solid var(--dt-tinta);
+  z-index: 1000;
+}
+
+.devtoys .dt-menu {
+  position: relative;
+}
+
+.devtoys .dt-menu-titulo {
+  height: 100%;
+  padding: 0 10px;
+  font-weight: bold;
+}
+
+.devtoys .dt-menu-titulo.dt-aberto,
+.devtoys .dt-menu-lista button:hover,
+.devtoys .dt-menu-lista button:focus-visible {
+  color: var(--dt-papel);
+  background: var(--dt-tinta);
+  outline: none;
+}
+
+.devtoys .dt-menu-lista {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  min-width: 180px;
+  margin: 0;
+  padding: 2px 0;
+  list-style: none;
+  background: var(--dt-papel);
+  border: 1px solid var(--dt-tinta);
+  box-shadow: 2px 2px 0 var(--dt-tinta);
+}
+
+.devtoys .dt-menu-lista button {
+  display: block;
+  width: 100%;
+  padding: 1px 16px;
+  text-align: left;
+}
+
+.devtoys .dt-separador {
+  margin: 3px 0;
+  border-top: 1px dotted var(--dt-apagado);
+}
+
+.devtoys .dt-relogio {
+  margin-left: auto;
+  align-self: center;
+}
+
+/* ---- ícones do Desktop (à direita, como os discos do Finder) ---- */
+.devtoys .dt-icones {
+  position: absolute;
+  top: 36px;
+  right: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.devtoys .dt-icone {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  width: 88px;
+}
+
+.devtoys .dt-icone span {
+  padding: 0 3px;
+  background: var(--dt-papel);
+}
+
+.devtoys .dt-icone.dt-selecionado svg,
+.devtoys .dt-icone.dt-selecionado span {
+  color: var(--dt-papel);
+  background: var(--dt-tinta);
+}
+
+/* ---- janelas ---- */
+.devtoys .dt-janela {
+  position: absolute;
+  background: var(--dt-papel);
+  border: 1px solid var(--dt-tinta);
+  box-shadow: 1px 1px 0 var(--dt-tinta);
+}
+
+.devtoys .dt-titulo {
+  position: relative;
+  height: 19px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-bottom: 1px solid var(--dt-tinta);
+  touch-action: none;
+}
+
+/* listras horizontais da janela ativa */
+.devtoys .dt-ativa .dt-titulo {
+  background:
+    linear-gradient(var(--dt-papel), var(--dt-papel)) 0 0 / 100% 3px no-repeat,
+    linear-gradient(var(--dt-papel), var(--dt-papel)) 0 100% / 100% 3px no-repeat,
+    repeating-linear-gradient(var(--dt-tinta) 0 1px, var(--dt-papel) 1px 2px);
+  background-color: var(--dt-papel);
+  padding: 0 2px;
+}
+
+.devtoys .dt-titulo-texto {
+  padding: 0 8px;
+  font-weight: bold;
+  background: var(--dt-papel);
+  pointer-events: none;
+}
+
+.devtoys .dt-janela:not(.dt-ativa) .dt-titulo-texto {
+  color: var(--dt-apagado);
+}
+
+.devtoys .dt-fechar {
+  position: absolute;
+  left: 8px;
+  top: 4px;
+  width: 11px;
+  height: 11px;
+  background: var(--dt-papel);
+  border: 1px solid var(--dt-tinta);
+  box-shadow: 0 0 0 2px var(--dt-papel);
+}
+
+.devtoys .dt-fechar:active {
+  background: var(--dt-tinta);
+}
+
+.devtoys .dt-janela:not(.dt-ativa) .dt-fechar {
+  visibility: hidden;
+}
+
+.devtoys .dt-conteudo {
+  padding: 10px 12px;
+  user-select: text;
+}
+
+/* ---- Sobre o DEV ---- */
+.devtoys .dt-sobre-titulo {
+  font-weight: bold;
+  letter-spacing: 1px;
+}

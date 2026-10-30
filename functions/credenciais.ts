@@ -1,8 +1,10 @@
 // Independent credentials of funcionarios/{uid}.perfis (Manuscript funcionarios.md, "Credenciais"). Each flow checks
-// its own credential and adm2 enters everything. adm1 (replaced by frentista) and user are no longer read.
-export const CREDENCIAIS = ['adm2', 'motorista', 'frentista', 'mecanico', 'escritorio', 'engenharia'] as const;
+// its own credential and adm2 enters everything except the exclusive ones (below). adm1 (replaced by frentista) and user are no longer read.
+export const CREDENCIAIS = ['adm2', 'motorista', 'frentista', 'mecanico', 'escritorio', 'engenharia', 'retr0'] as const;
+// Credentials adm2 does not get for free (retr0: WEB DEV area, owner's decision on 2026-10-30).
 export type Credencial = (typeof CREDENCIAIS)[number];
 export type Credenciais = Record<Credencial, boolean>;
+export const CREDENCIAIS_EXCLUSIVAS: readonly Credencial[] = ['retr0'];
 
 type Funcionario = Record<string, unknown> | null | undefined;
 
@@ -11,11 +13,12 @@ export function credenciaisDe(perfis: unknown): Credenciais {
   return Object.fromEntries(CREDENCIAIS.map((c) => [c, valores[c] === true])) as Credenciais;
 }
 
-/** Active employee holding one of the accepted credentials (adm2 is always accepted). */
+/** Active employee holding one of the accepted credentials (adm2 is accepted, except for exclusive ones). */
 export function temCredencial(funcionario: Funcionario, ...aceitas: Credencial[]): funcionario is Record<string, unknown> {
   if (funcionario?.ativo !== true) return false;
   const c = credenciaisDe(funcionario.perfis);
-  return c.adm2 || aceitas.some((a) => c[a]);
+  if (aceitas.length === 0) return c.adm2;
+  return aceitas.some((a) => c[a] || (c.adm2 && !CREDENCIAIS_EXCLUSIVAS.includes(a)));
 }
 
 /** Active employee holding at least one credential (entry to the app and to the WEB). */
