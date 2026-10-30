@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type PointerEvent } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import CrtView, { type Desenhar } from '../../crt/CrtView';
+import { ESCALA } from '../../escala';
 import { gerar, treinar } from './markov';
 import { desenharCrawler } from './render';
 import { crescer, criarCrawler, paramsDaSeed, passo, rngDe, type Crawler, type Vec } from './sim';
@@ -39,14 +40,15 @@ export default function CrawlerToy() {
   const bicho = useRef<Crawler | null>(null);
   const reescrevendo = useRef(false);
 
-  // Retângulos das palavras ainda não comidas, relativos à caixa (arrastar a janela não muda nada).
+  // Retângulos das palavras ainda não comidas, relativos à caixa (arrastar a janela não muda nada), em medidas
+  // lógicas do canvas (px da tela ÷ ESCALA).
   const medir = useCallback(() => {
     const el = caixa.current;
     if (!el) return;
     const base = el.getBoundingClientRect();
     alvos.current = [...el.querySelectorAll<HTMLElement>('[data-w]:not(.dt-comida)')].map((s) => {
       const r = s.getBoundingClientRect();
-      return { el: s, x: r.left - base.left, y: r.top - base.top, w: r.width, h: r.height };
+      return { el: s, x: (r.left - base.left) / ESCALA, y: (r.top - base.top) / ESCALA, w: r.width / ESCALA, h: r.height / ESCALA };
     });
   }, []);
 
@@ -58,8 +60,9 @@ export default function CrawlerToy() {
     const ro = new ResizeObserver(medir);
     ro.observe(el);
     void document.fonts?.ready.then(medir);
-    const t = window.setTimeout(medir, 700); // depois de animações de abertura
-    return () => { ro.disconnect(); window.clearTimeout(t); };
+    // A animação do Desktop "ligando" escala a tela: medir durante ela dá retângulos errados.
+    window.addEventListener('animationend', medir);
+    return () => { ro.disconnect(); window.removeEventListener('animationend', medir); };
   }, [medir]);
 
   const desenhar: Desenhar = useCallback((ctx, { dt, largura, altura }) => {
@@ -103,12 +106,12 @@ export default function CrawlerToy() {
 
   const mover = (e: PointerEvent<HTMLDivElement>) => {
     const r = e.currentTarget.getBoundingClientRect();
-    cursor.current = { x: e.clientX - r.left, y: e.clientY - r.top };
+    cursor.current = { x: (e.clientX - r.left) / ESCALA, y: (e.clientY - r.top) / ESCALA };
   };
 
   return (
     <div className="dt-crawler">
-      <div className="dt-crawler-area" ref={caixa} onPointerMove={mover} onPointerLeave={() => { cursor.current = null; }} style={{ width: L, height: A }}>
+      <div className="dt-crawler-area" ref={caixa} onPointerMove={mover} onPointerLeave={() => { cursor.current = null; }} style={{ width: L * ESCALA, height: A * ESCALA }}>
         <p className="dt-crawler-texto" key={versao}>
           {palavras.map((w, i) => <span key={i}><span data-w>{w}</span> </span>)}
         </p>

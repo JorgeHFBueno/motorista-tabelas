@@ -23,7 +23,7 @@
   color: var(--dt-tinta);
   background-color: var(--dt-papel);
   font-family: 'DevToys Monaco', Consolas, monospace;
-  font-size: 12px;
+  font-size: 15px; /* tudo do DEV em 125%: com 12 px a Monaco ficava pequena demais (decisão do responsável) */
   line-height: 1.4;
   -webkit-font-smoothing: none;
   user-select: none;
@@ -51,13 +51,13 @@
 }
 
 .devtoys p {
-  margin: 0 0 6px;
+  margin: 0 0 8px;
 }
 
 .devtoys hr {
   border: 0;
   border-top: 1px dotted var(--dt-tinta);
-  margin: 8px 0;
+  margin: 10px 0;
 }
 
 .devtoys .dt-desktop {
@@ -72,10 +72,10 @@
 .devtoys .dt-menubar {
   position: absolute;
   inset: 0 0 auto;
-  height: 20px;
+  height: 25px;
   display: flex;
   align-items: stretch;
-  padding: 0 8px;
+  padding: 0 10px;
   background: var(--dt-papel);
   border-bottom: 1px solid var(--dt-tinta);
   z-index: 1000;
@@ -87,7 +87,7 @@
 
 .devtoys .dt-menu-titulo {
   height: 100%;
-  padding: 0 10px;
+  padding: 0 12px;
   font-weight: bold;
 }
 
@@ -103,9 +103,9 @@
   position: absolute;
   top: 100%;
   left: 0;
-  min-width: 180px;
+  min-width: 225px;
   margin: 0;
-  padding: 2px 0;
+  padding: 3px 0;
   list-style: none;
   background: var(--dt-papel);
   border: 1px solid var(--dt-tinta);
@@ -115,12 +115,12 @@
 .devtoys .dt-menu-lista button {
   display: block;
   width: 100%;
-  padding: 1px 16px;
+  padding: 2px 20px;
   text-align: left;
 }
 
 .devtoys .dt-separador {
-  margin: 3px 0;
+  margin: 4px 0;
   border-top: 1px dotted var(--dt-apagado);
 }
 
@@ -132,19 +132,19 @@
 /* ---- ícones do Desktop (à direita, como os discos do Finder) ---- */
 .devtoys .dt-icones {
   position: absolute;
-  top: 36px;
-  right: 16px;
+  top: 45px;
+  right: 20px;
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 20px;
 }
 
 .devtoys .dt-icone {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 2px;
-  width: 88px;
+  gap: 3px;
+  width: 110px;
 }
 
 .devtoys .dt-icone span {
@@ -168,7 +168,7 @@
 
 .devtoys .dt-titulo {
   position: relative;
-  height: 19px;
+  height: 24px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -179,15 +179,15 @@
 /* listras horizontais da janela ativa */
 .devtoys .dt-ativa .dt-titulo {
   background:
-    linear-gradient(var(--dt-papel), var(--dt-papel)) 0 0 / 100% 3px no-repeat,
-    linear-gradient(var(--dt-papel), var(--dt-papel)) 0 100% / 100% 3px no-repeat,
+    linear-gradient(var(--dt-papel), var(--dt-papel)) 0 0 / 100% 4px no-repeat,
+    linear-gradient(var(--dt-papel), var(--dt-papel)) 0 100% / 100% 4px no-repeat,
     repeating-linear-gradient(var(--dt-tinta) 0 1px, var(--dt-papel) 1px 2px);
   background-color: var(--dt-papel);
   padding: 0 2px;
 }
 
 .devtoys .dt-titulo-texto {
-  padding: 0 8px;
+  padding: 0 10px;
   font-weight: bold;
   background: var(--dt-papel);
   pointer-events: none;
@@ -199,10 +199,10 @@
 
 .devtoys .dt-fechar {
   position: absolute;
-  left: 8px;
-  top: 4px;
-  width: 11px;
-  height: 11px;
+  left: 10px;
+  top: 5px;
+  width: 14px;
+  height: 14px;
   background: var(--dt-papel);
   border: 1px solid var(--dt-tinta);
   box-shadow: 0 0 0 2px var(--dt-papel);
@@ -217,7 +217,7 @@
 }
 
 .devtoys .dt-conteudo {
-  padding: 10px 12px;
+  padding: 12px 15px;
   user-select: text;
 }
 
@@ -231,8 +231,8 @@
 .devtoys .dt-boot {
   position: absolute;
   inset: 0;
-  padding: 32px 40px;
-  font-size: 16px;
+  padding: 40px 50px;
+  font-size: 20px;
   cursor: default;
 }
 
@@ -248,8 +248,8 @@
 
 .devtoys .dt-boot-dica {
   position: absolute;
-  left: 40px;
-  bottom: 24px;
+  left: 50px;
+  bottom: 30px;
   margin: 0;
   color: var(--dt-apagado);
 }
@@ -335,8 +335,8 @@
 
 .devtoys .dt-crawler-texto {
   margin: 0;
-  padding: 16px 18px;
-  font-size: 14px;
+  padding: 20px 22px;
+  font-size: 17.5px;
   line-height: 2;
 }
 
@@ -351,7 +351,7 @@
 }
 
 .devtoys .dt-crawler-rodape {
-  margin: 6px 0 0;
+  margin: 8px 0 0;
   color: var(--dt-apagado);
 }
 

@@ -1,5 +1,6 @@
 import { useContext, useEffect, useRef } from 'react';
 import { criarCrtGl } from './CrtCanvas';
+import { ESCALA } from '../escala';
 import { CrtContexto } from './contexto';
 import { uniformsCrt } from './parametros';
 
@@ -13,6 +14,7 @@ const DT_MAX = 0.05; // ao voltar de outra aba, o tempo não "teleporta"
 // Sem WebGL, o 2D aparece direto (o CRT em CSS da área continua por cima).
 // `transparente`: o canvas fica sobre o DOM (o brinquedo limpa o 2D a cada quadro); sem curvatura, para o desenho
 // continuar onde o DOM embaixo espera.
+// `largura` e `altura` são medidas lógicas: na tela, o canvas sai ampliado por ESCALA (o desenho também).
 type Props = { largura: number; altura: number; desenhar: Desenhar; transparente?: boolean };
 
 export default function CrtView({ largura, altura, desenhar, transparente = false }: Props) {
@@ -24,16 +26,16 @@ export default function CrtView({ largura, altura, desenhar, transparente = fals
   useEffect(() => {
     const canvas = visivel.current;
     if (!canvas) return;
-    const dpr = Math.min(window.devicePixelRatio || 1, 2);
-    canvas.width = Math.round(largura * dpr);
-    canvas.height = Math.round(altura * dpr);
+    const px = Math.min(window.devicePixelRatio || 1, 2) * ESCALA;
+    canvas.width = Math.round(largura * px);
+    canvas.height = Math.round(altura * px);
 
     const fonte = document.createElement('canvas');
     fonte.width = canvas.width;
     fonte.height = canvas.height;
     const ctx = fonte.getContext('2d');
     if (!ctx) return;
-    ctx.scale(dpr, dpr);
+    ctx.scale(px, px);
 
     const gl = criarCrtGl(canvas);
     const ctxVisivel = gl ? null : canvas.getContext('2d');
@@ -74,5 +76,5 @@ export default function CrtView({ largura, altura, desenhar, transparente = fals
     };
   }, [largura, altura]);
 
-  return <canvas ref={visivel} className={transparente ? 'dt-crt-canvas dt-crt-transparente' : 'dt-crt-canvas'} style={{ width: largura, height: altura }} />;
+  return <canvas ref={visivel} className={transparente ? 'dt-crt-canvas dt-crt-transparente' : 'dt-crt-canvas'} style={{ width: largura * ESCALA, height: altura * ESCALA }} />;
 }

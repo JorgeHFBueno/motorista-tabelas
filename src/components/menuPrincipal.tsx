@@ -13,7 +13,7 @@ import ConstructionIcon from '@mui/icons-material/Construction';
 import MenuBookRoundedIcon from '@mui/icons-material/MenuBookRounded';
 import ViewKanbanOutlinedIcon from '@mui/icons-material/ViewKanbanOutlined';
 import PersonOutlineRoundedIcon from '@mui/icons-material/PersonOutlineRounded';
-import TerminalRoundedIcon from '@mui/icons-material/TerminalRounded';
+import IconeDev from '../features/dev-toys/IconeDev';
 import type { AuthorizationProfile } from '../services/authorizationProfile';
 import { temAlgumaCredencial, temCredencial, type Credencial } from '../services/credenciais';
 
@@ -98,7 +98,7 @@ export const menuPrincipal: MenuPrincipalItem[] = [
   },
   {
     label: 'DEV',
-    icon: <TerminalRoundedIcon fontSize="large" />,
+    icon: <IconeDev fontSize="large" />,
     color: '#FFF4DC',
     accent: '#8A5A00',
     to: '/dev',

@@ -13,8 +13,8 @@ type Props = {
   children: ReactNode;
 };
 
-const ALTURA_MENU = 20;
-const SOBRA = 48; // pedaço da janela que sempre fica na tela para poder puxá-la de volta
+const ALTURA_MENU = 25;
+const SOBRA = 60; // pedaço da janela que sempre fica na tela para poder puxá-la de volta
 
 // Janela no estilo System 6: arrasta pela barra de título listrada e fecha pela caixinha da esquerda.
 export default function Window({ titulo, x, y, largura, ativa, z, onMover, onFechar, onFocar, children }: Props) {
