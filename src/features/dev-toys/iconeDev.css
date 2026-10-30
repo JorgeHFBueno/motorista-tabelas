@@ -1,0 +1,48 @@
+/*
+ * Ícone DEV como uma telinha CRT. Este CSS entra no app inteiro (o menu importa o ícone), por isso tudo fica sob a
+ * classe própria .dev-crt-icone: nada daqui alcança outro card ou item de menu.
+ */
+.dev-crt-icone {
+  position: relative;
+  display: inline-flex;
+  padding: 3px;
+  border-radius: 5px;
+  overflow: hidden;
+  background: #080603;
+  box-shadow: inset 0 0 0 1px #7a5400;
+  line-height: 0;
+}
+
+/* só a raposa: âmbar com brilho de fósforo e flicker */
+.dev-crt-icone > svg {
+  color: #ffb000;
+  filter: drop-shadow(0 0 1.5px #ffb000) drop-shadow(0 0 4px #ffb00099);
+  animation: dev-crt-icone-flicker 3.2s steps(1) infinite;
+}
+
+/* vidro: scanlines e vinheta por cima, sem pegar clique */
+.dev-crt-icone::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(ellipse at center, transparent 50%, rgb(0 0 0 / 0.55) 100%),
+    repeating-linear-gradient(rgb(0 0 0 / 0.4) 0 1px, transparent 1px 3px);
+}
+
+@keyframes dev-crt-icone-flicker {
+  0%, 100% { opacity: 1; }
+  4% { opacity: 0.78; }
+  7% { opacity: 1; }
+  48% { opacity: 0.9; }
+  51% { opacity: 1; }
+  80% { opacity: 0.84; }
+  82% { opacity: 1; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dev-crt-icone > svg {
+    animation: none;
+  }
+}
