@@ -22,9 +22,6 @@
   overflow: hidden;
   color: var(--dt-tinta);
   background-color: var(--dt-papel);
-  /* fundo pontilhado do Finder: xadrez de 1 px */
-  background-image: repeating-conic-gradient(var(--dt-apagado) 0 25%, var(--dt-papel) 0 50%);
-  background-size: 2px 2px;
   font-family: 'DevToys Monaco', Consolas, monospace;
   font-size: 12px;
   line-height: 1.4;
@@ -61,6 +58,14 @@
   border: 0;
   border-top: 1px dotted var(--dt-tinta);
   margin: 8px 0;
+}
+
+.devtoys .dt-desktop {
+  position: absolute;
+  inset: 0;
+  /* fundo pontilhado do Finder: xadrez de 1 px */
+  background-image: repeating-conic-gradient(var(--dt-apagado) 0 25%, var(--dt-papel) 0 50%);
+  background-size: 2px 2px;
 }
 
 /* ---- barra de menus ---- */
@@ -223,19 +228,18 @@
 }
 
 /* ---- boot falso ---- */
-.devtoys.dt-boot {
-  background: var(--dt-papel);
+.devtoys .dt-boot {
+  position: absolute;
+  inset: 0;
   padding: 32px 40px;
   font-size: 16px;
   cursor: default;
 }
 
-.devtoys.dt-boot pre {
+.devtoys .dt-boot pre {
   margin: 0;
   font: inherit;
   white-space: pre-wrap;
-  /* brilho de fósforo; o CRT completo vem na fase seguinte */
-  text-shadow: 0 0 2px var(--dt-tinta), 0 0 6px #ffb00055;
 }
 
 .devtoys .dt-cursor {
@@ -255,8 +259,8 @@
 }
 
 /* Desktop "ligando" depois do boot: uma linha horizontal que se abre, como um CRT */
-.devtoys.dt-ligando {
-  animation: dt-ligar 550ms ease-out both;
+.devtoys .dt-desktop.dt-ligando {
+  animation: dt-ligar 550ms ease-out backwards; /* sem transform depois que termina */
 }
 
 @keyframes dt-ligar {
@@ -266,9 +270,47 @@
   100% { transform: none; filter: none; }
 }
 
+/* ---- CRT sobre o DOM: brilho, scanlines, vinheta e flicker ----
+ * WebGL não lê o DOM: aqui o efeito é só CSS. Curvatura e aberração ficam nos brinquedos em canvas (CrtView).
+ * --crt-forca (0 a 1) vem das preferências. */
+.devtoys.dt-crt-on {
+  text-shadow:
+    0 0 calc(var(--crt-forca) * 2px) var(--dt-tinta),
+    0 0 calc(var(--crt-forca) * 7px) #ffb00055;
+}
+
+.devtoys .dt-crt {
+  position: absolute;
+  inset: 0;
+  z-index: 5000; /* acima da barra de menus e das janelas */
+  pointer-events: none;
+  background:
+    radial-gradient(ellipse at center, transparent 55%, rgb(0 0 0 / calc(var(--crt-forca) * 0.75)) 100%),
+    repeating-linear-gradient(rgb(0 0 0 / calc(var(--crt-forca) * 0.32)) 0 1px, transparent 1px 3px);
+}
+
+.devtoys .dt-crt::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: rgb(255 176 0 / calc(var(--crt-forca) * 0.035));
+  animation: dt-flicker 0.12s steps(2) infinite;
+}
+
+@keyframes dt-flicker {
+  50% { opacity: 0.35; }
+}
+
+/* canvas de brinquedo com CRT WebGL */
+.devtoys .dt-crt-canvas {
+  display: block;
+  background: #000;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .devtoys .dt-cursor,
-  .devtoys.dt-ligando {
+  .devtoys .dt-desktop.dt-ligando,
+  .devtoys .dt-crt::after {
     animation: none;
   }
 }

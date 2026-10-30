@@ -1,6 +1,7 @@
 import Snackbar from '@mui/material/Snackbar';
 import Alert from '@mui/material/Alert';
 import { useEffect, useState } from 'react';
+import { useLocation } from 'react-router-dom';
 import useOnlineStatus from '../hooks/useOnlineStatus';
 
 type BannerSeverity = 'success' | 'warning' | 'info' | 'error';
@@ -13,6 +14,7 @@ type BannerState = {
 };
 
 export default function NetworkStatusBanner() {
+  const { pathname } = useLocation();
   const { isOnline } = useOnlineStatus();
   const [banner, setBanner] = useState<BannerState>({
     open: !isOnline,
@@ -43,6 +45,9 @@ export default function NetworkStatusBanner() {
     if (reason === 'clickaway') return;
     setBanner((current) => ({ ...current, open: false }));
   };
+
+  // A área DEV cobre a tela inteira e mostra a rede no próprio boot.
+  if (pathname === '/dev') return null;
 
   return (
     <Snackbar

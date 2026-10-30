@@ -1,12 +1,15 @@
 import { Suspense, useEffect, useState, type PointerEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { INTENSIDADES, type IntensidadeCrt } from '../crt/parametros';
 import type { PrefsDev } from '../prefs';
 import { DEV_TOYS, type DevToy } from '../registry';
 import Window from './Window';
 
 type Aberta = { id: string; x: number; y: number };
 
-const horaAgora = () => new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+const ROTULO_INTENSIDADE: Record<IntensidadeCrt, string> = { baixa: 'Baixa', media: 'Media', alta: 'Alta' };
+
+const horaAgora =() => new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
 
 function Icone({ toy }: { toy: DevToy }) {
   return (
@@ -74,10 +77,22 @@ export default function Desktop({ ligando, prefs, onPrefs, onReiniciar }: Props)
       ],
     },
     { id: 'brinquedos', rotulo: 'Brinquedos', itens: DEV_TOYS.map((t) => ({ rotulo: t.nome, acao: () => abrir(t.id) })) },
+    {
+      id: 'crt',
+      rotulo: 'CRT',
+      itens: [
+        { rotulo: `[${prefs.crt ? 'x' : ' '}] Ligado`, acao: () => onPrefs({ ...prefs, crt: !prefs.crt }) },
+        null,
+        ...INTENSIDADES.map((i) => ({
+          rotulo: `(${prefs.crtIntensidade === i ? '*' : ' '}) ${ROTULO_INTENSIDADE[i]}`,
+          acao: () => onPrefs({ ...prefs, crt: true, crtIntensidade: i }),
+        })),
+      ],
+    },
   ];
 
   return (
-    <div className={`devtoys${ligando ? ' dt-ligando' : ''}`} onPointerDown={fundo}>
+    <div className={`dt-desktop${ligando ? ' dt-ligando' : ''}`} onPointerDown={fundo}>
       <nav className="dt-menubar" aria-label="Menu do DEV">
         {menus.map((m) => (
           <div key={m.id} className="dt-menu">

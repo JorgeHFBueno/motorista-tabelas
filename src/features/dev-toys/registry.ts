@@ -18,4 +18,11 @@ export const DEV_TOYS: DevToy[] = [
     componente: lazy(() => import('./toys/sobre/SobreToy')),
     largura: 340,
   },
+  {
+    id: 'padrao',
+    nome: 'Padrao de teste',
+    icone: 'M4 0h1v1h1v1h1v1H6V2H5V1H4zM11 0h1v1h-1v1h-1v1H9V2h1V1h1zM1 3h14v12H1zM2 4h12v10H2zM3 5h2v8H3zM6 5h2v8H6zM9 5h2v8H9zM12 5h1v8h-1z',
+    componente: lazy(() => import('./toys/padrao/PadraoToy')),
+    largura: 346,
+  },
 ];

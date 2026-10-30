@@ -45,7 +45,7 @@ export default function BootScreen({ onFim }: { onFim: () => void }) {
   }, []);
 
   return (
-    <div className="devtoys dt-boot" aria-busy="true" aria-label="Iniciando a area DEV">
+    <div className="dt-boot" aria-busy="true" aria-label="Iniciando a area DEV">
       <pre aria-hidden="true">
         {texto.slice(0, digitados)}
         <span className="dt-cursor">_</span>
