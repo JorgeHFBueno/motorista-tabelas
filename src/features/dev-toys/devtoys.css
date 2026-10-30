@@ -337,6 +337,8 @@
 }
 
 .devtoys .dt-crawler-texto {
+  height: 100%; /* a fonte diminui até o texto caber nesta altura (CrawlerToy) */
+  overflow: hidden;
   margin: 0;
   padding: calc(var(--dt-e) * 16px) calc(var(--dt-e) * 18px);
   font-size: calc(var(--dt-e) * 14px);
@@ -354,8 +356,21 @@
 }
 
 .devtoys .dt-crawler-rodape {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0 calc(var(--dt-e) * 16px);
   margin: calc(var(--dt-e) * 6px) 0 0;
   color: var(--dt-apagado);
+}
+
+.devtoys .dt-crawler-rodape p {
+  width: 100%;
+  margin: 0;
+}
+
+.devtoys .dt-crawler-rodape button:hover,
+.devtoys .dt-crawler-rodape button:focus-visible {
+  color: var(--dt-tinta);
 }
 
 @media (prefers-reduced-motion: reduce) {

@@ -1,9 +1,12 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import { readFileSync } from 'node:fs';
 import { CHAVE_BOOT_VISTO, deveMostrarBoot, linhasBoot } from '../src/features/dev-toys/boot';
 import { forcaCrt, uniformsCrt } from '../src/features/dev-toys/crt/parametros';
 import { normalizarPrefs } from '../src/features/dev-toys/prefs';
 import { gerar, treinar } from '../src/features/dev-toys/toys/crawler/markov';
+import { acrescentar, MAX_CORPUS, normalizarCorpus, normalizarOpcoes } from '../src/features/dev-toys/toys/crawler/memoria';
+import { embaralhar, paraAscii, QUEBRA, separarTextos } from '../src/features/dev-toys/toys/crawler/textos';
 import { PADRAO, crescer, criarCrawler, distancia, ik, noAr, paramsDaSeed, passo, rngDe, vizinhas } from '../src/features/dev-toys/toys/crawler/sim';
 
 const sessao = (valores: Record<string, string>) => ({ getItem: (k: string) => valores[k] ?? null });
@@ -123,4 +126,42 @@ test('Crawler: o mini-LLM só usa bigramas que viu', () => {
     if (modelo.has(texto[i - 1])) assert.ok(pares.has(`${texto[i - 1]} ${texto[i]}`), `${texto[i - 1]} ${texto[i]}`);
   }
   assert.deepEqual(gerar(treinar([]), 5, rngDe(1)), []);
+});
+
+test('Crawler: textos separados por "- " no início da linha, com quebras de verso e estrofe, em ASCII', () => {
+  const bruto = '- Um texto\n\n- Antigonish\nYesterday, upon the stair,\n\n\nI met a man\n- Prosa \u201Ccom\u201D o\u2019 \u2014 fim\u2026 caf\u00e9\n';
+  const t = separarTextos(bruto);
+  assert.equal(t.length, 3);
+  assert.deepEqual(t[0], ['Um', 'texto']);
+  assert.deepEqual(t[1], ['Antigonish', QUEBRA, 'Yesterday,', 'upon', 'the', 'stair,', QUEBRA, QUEBRA, 'I', 'met', 'a', 'man'], 'linha em branco vira fim de estrofe, no máximo duas quebras');
+  assert.deepEqual(t[2], ['Prosa', '"com"', "o'", '-', 'fim...', 'cafe']);
+  assert.equal(paraAscii('\u00e1 \u00e7 \u00f1 \u2014 \u2026'), 'a c n - ...');
+  assert.equal(separarTextos('sem marcador').length, 0);
+});
+
+test('Crawler: o arquivo Xerox de um Xerox tem 16 textos, todos em ASCII, e os poemas guardam os versos', () => {
+  const textos = separarTextos(readFileSync('src/features/dev-toys/toys/crawler/xerox.txt', 'utf8'));
+  assert.equal(textos.length, 16);
+  for (const t of textos) {
+    assert.ok(t.length > 0);
+    for (const w of t) assert.match(w, /^([\x21-\x7E]+|\n)$/, w);
+  }
+  const antigonish = textos.find((t) => t[0] === 'Antigonish');
+  assert.ok(antigonish && antigonish.filter((w) => w === QUEBRA).length >= 8);
+});
+
+test('Crawler: a ordem dos textos usa cada um uma vez por volta', () => {
+  const ordem = embaralhar(16, rngDe(42));
+  assert.deepEqual([...ordem].sort((a, b) => a - b), Array.from({ length: 16 }, (_, i) => i));
+  assert.deepEqual(embaralhar(16, rngDe(42)), ordem);
+});
+
+test('Crawler: o aprendizado só cresce até o teto e as opções vêm ligadas', () => {
+  assert.deepEqual(acrescentar(['a', 'b'], ['c'], 3), ['a', 'b', 'c']);
+  assert.deepEqual(acrescentar(['a', 'b', 'c'], ['d', 'e'], 3), ['c', 'd', 'e'], 'guarda as últimas');
+  assert.equal(acrescentar([], Array(MAX_CORPUS + 10).fill('x')).length, MAX_CORPUS);
+  assert.deepEqual(normalizarCorpus(['a', 1, '', 'b', null]), ['a', 'b']);
+  assert.deepEqual(normalizarCorpus('lixo'), []);
+  assert.deepEqual(normalizarOpcoes(null), { aprendeDeSi: true, guardar: true });
+  assert.deepEqual(normalizarOpcoes({ aprendeDeSi: false }), { aprendeDeSi: false, guardar: true });
 });
