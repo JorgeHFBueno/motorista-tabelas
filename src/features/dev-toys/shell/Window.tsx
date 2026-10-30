@@ -1,4 +1,5 @@
 import { useRef, type PointerEvent, type ReactNode } from 'react';
+import { ESCALA } from '../escala';
 
 type Props = {
   titulo: string;
@@ -13,8 +14,8 @@ type Props = {
   children: ReactNode;
 };
 
-const ALTURA_MENU = 25;
-const SOBRA = 60; // pedaço da janela que sempre fica na tela para poder puxá-la de volta
+const ALTURA_MENU = 40 * ESCALA;
+const SOBRA = 48 * ESCALA; // pedaço da janela que sempre fica na tela para poder puxá-la de volta
 
 // Janela no estilo System 6: arrasta pela barra de título listrada e fecha pela caixinha da esquerda.
 export default function Window({ titulo, x, y, largura, ativa, z, onMover, onFechar, onFocar, children }: Props) {
@@ -27,7 +28,7 @@ export default function Window({ titulo, x, y, largura, ativa, z, onMover, onFec
   };
   const mover = (e: PointerEvent<HTMLDivElement>) => {
     if (!arrasto.current) return;
-    const nx = Math.min(Math.max(e.clientX - arrasto.current.dx, SOBRA - largura), window.innerWidth - SOBRA);
+    const nx = Math.min(Math.max(e.clientX - arrasto.current.dx, SOBRA - largura * ESCALA), window.innerWidth - SOBRA);
     const ny = Math.min(Math.max(e.clientY - arrasto.current.dy, ALTURA_MENU), window.innerHeight - SOBRA);
     onMover(nx, ny);
   };
@@ -36,7 +37,7 @@ export default function Window({ titulo, x, y, largura, ativa, z, onMover, onFec
   return (
     <section
       className={`dt-janela${ativa ? ' dt-ativa' : ''}`}
-      style={{ left: x, top: y, width: largura, zIndex: z }}
+      style={{ left: x, top: y, width: largura * ESCALA, zIndex: z }}
       role="dialog"
       aria-label={titulo}
       onPointerDownCapture={onFocar}

@@ -2,6 +2,7 @@ import { Suspense, useEffect, useState, type PointerEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { INTENSIDADES, type IntensidadeCrt } from '../crt/parametros';
 import type { PrefsDev } from '../prefs';
+import { ESCALA } from '../escala';
 import { DEV_TOYS, type DevToy } from '../registry';
 import Window from './Window';
 
@@ -13,7 +14,7 @@ const horaAgora =() => new Date().toLocaleTimeString('pt-BR', { hour: '2-digit',
 
 function Icone({ toy }: { toy: DevToy }) {
   return (
-    <svg viewBox="0 0 16 16" width={40} height={40} aria-hidden="true" shapeRendering="crispEdges">
+    <svg viewBox="0 0 16 16" width={32 * ESCALA} height={32 * ESCALA} aria-hidden="true" shapeRendering="crispEdges">
       <path d={toy.icone} fill="currentColor" fillRule="evenodd" />
     </svg>
   );
@@ -24,7 +25,7 @@ type Props = { ligando: boolean; prefs: PrefsDev; onPrefs: (prefs: PrefsDev) => 
 // Desktop da área DEV: barra de menus, ícones dos brinquedos e janelas (a última da lista fica na frente).
 export default function Desktop({ ligando, prefs, onPrefs, onReiniciar }: Props) {
   const navigate = useNavigate();
-  const [janelas, setJanelas] = useState<Aberta[]>(() => [{ id: DEV_TOYS[0].id, x: 80, y: 80 }]);
+  const [janelas, setJanelas] = useState<Aberta[]>(() => [{ id: DEV_TOYS[0].id, x: 64 * ESCALA, y: 64 * ESCALA }]);
   const [menu, setMenu] = useState<string | null>(null);
   const [selecionado, setSelecionado] = useState<string | null>(null);
   const [hora, setHora] = useState(horaAgora);
@@ -51,7 +52,7 @@ export default function Desktop({ ligando, prefs, onPrefs, onReiniciar }: Props)
     setJanelas((js) => {
       const aberta = js.find((j) => j.id === id);
       if (aberta) return [...js.filter((j) => j.id !== id), aberta];
-      return [...js, { id, x: 80 + js.length * 30, y: 80 + js.length * 30 }];
+      return [...js, { id, x: (64 + js.length * 24) * ESCALA, y: (64 + js.length * 24) * ESCALA }];
     });
   };
   const focar = (id: string) => setJanelas((js) => (js.at(-1)?.id === id ? js : [...js.filter((j) => j.id !== id), js.find((j) => j.id === id)!]));

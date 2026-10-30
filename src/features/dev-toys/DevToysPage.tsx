@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState, type CSSProperties } from 'r
 import { CHAVE_BOOT_VISTO, deveMostrarBoot } from './boot';
 import { CrtContexto } from './crt/contexto';
 import { forcaCrt } from './crt/parametros';
+import { ESCALA } from './escala';
 import { gravarPrefs, lerPrefs, type PrefsDev } from './prefs';
 import BootScreen from './shell/BootScreen';
 import Desktop from './shell/Desktop';
@@ -48,7 +49,7 @@ export default function DevToysPage() {
   const mudarPrefs = (novas: PrefsDev) => { setPrefs(novas); gravarPrefs(novas); };
 
   return (
-    <div className={`devtoys${forca > 0 ? ' dt-crt-on' : ''}`} style={{ '--crt-forca': forca } as CSSProperties}>
+    <div className={`devtoys${forca > 0 ? ' dt-crt-on' : ''}`} style={{ '--crt-forca': forca, '--dt-e': ESCALA } as CSSProperties}>
       <CrtContexto.Provider value={crt}>
         {tela === 'boot'
           ? <BootScreen onFim={fimDoBoot} />

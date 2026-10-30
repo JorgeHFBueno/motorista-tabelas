@@ -23,7 +23,9 @@
   color: var(--dt-tinta);
   background-color: var(--dt-papel);
   font-family: 'DevToys Monaco', Consolas, monospace;
-  font-size: 15px; /* tudo do DEV em 125%: com 12 px a Monaco ficava pequena demais (decisão do responsável) */
+  /* --dt-e: fator de tamanho do DEV, definido pelo DevToysPage a partir de ESCALA (escala.ts); as medidas abaixo
+   * são as de 100% vezes ele. */
+  font-size: calc(var(--dt-e) * 12px);
   line-height: 1.4;
   -webkit-font-smoothing: none;
   user-select: none;
@@ -51,13 +53,13 @@
 }
 
 .devtoys p {
-  margin: 0 0 8px;
+  margin: 0 0 calc(var(--dt-e) * 6px);
 }
 
 .devtoys hr {
   border: 0;
   border-top: 1px dotted var(--dt-tinta);
-  margin: 10px 0;
+  margin: calc(var(--dt-e) * 8px) 0;
 }
 
 .devtoys .dt-desktop {
@@ -72,10 +74,11 @@
 .devtoys .dt-menubar {
   position: absolute;
   inset: 0 0 auto;
-  height: 25px;
+  height: calc(var(--dt-e) * 40px); /* o dobro da barra do System 6 (decisão do responsável) */
   display: flex;
   align-items: stretch;
-  padding: 0 10px;
+  padding: 0 calc(var(--dt-e) * 10px);
+  font-size: calc(var(--dt-e) * 15px);
   background: var(--dt-papel);
   border-bottom: 1px solid var(--dt-tinta);
   z-index: 1000;
@@ -87,7 +90,7 @@
 
 .devtoys .dt-menu-titulo {
   height: 100%;
-  padding: 0 12px;
+  padding: 0 calc(var(--dt-e) * 14px);
   font-weight: bold;
 }
 
@@ -103,9 +106,9 @@
   position: absolute;
   top: 100%;
   left: 0;
-  min-width: 225px;
+  min-width: calc(var(--dt-e) * 180px);
   margin: 0;
-  padding: 3px 0;
+  padding: calc(var(--dt-e) * 2px) 0;
   list-style: none;
   background: var(--dt-papel);
   border: 1px solid var(--dt-tinta);
@@ -115,12 +118,12 @@
 .devtoys .dt-menu-lista button {
   display: block;
   width: 100%;
-  padding: 2px 20px;
+  padding: calc(var(--dt-e) * 3px) calc(var(--dt-e) * 16px);
   text-align: left;
 }
 
 .devtoys .dt-separador {
-  margin: 4px 0;
+  margin: calc(var(--dt-e) * 3px) 0;
   border-top: 1px dotted var(--dt-apagado);
 }
 
@@ -132,19 +135,19 @@
 /* ---- ícones do Desktop (à direita, como os discos do Finder) ---- */
 .devtoys .dt-icones {
   position: absolute;
-  top: 45px;
-  right: 20px;
+  top: calc(var(--dt-e) * 56px);
+  right: calc(var(--dt-e) * 16px);
   display: flex;
   flex-direction: column;
-  gap: 20px;
+  gap: calc(var(--dt-e) * 16px);
 }
 
 .devtoys .dt-icone {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 3px;
-  width: 110px;
+  gap: calc(var(--dt-e) * 2px);
+  width: calc(var(--dt-e) * 88px);
 }
 
 .devtoys .dt-icone span {
@@ -168,7 +171,7 @@
 
 .devtoys .dt-titulo {
   position: relative;
-  height: 24px;
+  height: calc(var(--dt-e) * 19px);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -179,15 +182,15 @@
 /* listras horizontais da janela ativa */
 .devtoys .dt-ativa .dt-titulo {
   background:
-    linear-gradient(var(--dt-papel), var(--dt-papel)) 0 0 / 100% 4px no-repeat,
-    linear-gradient(var(--dt-papel), var(--dt-papel)) 0 100% / 100% 4px no-repeat,
+    linear-gradient(var(--dt-papel), var(--dt-papel)) 0 0 / 100% calc(var(--dt-e) * 3px) no-repeat,
+    linear-gradient(var(--dt-papel), var(--dt-papel)) 0 100% / 100% calc(var(--dt-e) * 3px) no-repeat,
     repeating-linear-gradient(var(--dt-tinta) 0 1px, var(--dt-papel) 1px 2px);
   background-color: var(--dt-papel);
   padding: 0 2px;
 }
 
 .devtoys .dt-titulo-texto {
-  padding: 0 10px;
+  padding: 0 calc(var(--dt-e) * 8px);
   font-weight: bold;
   background: var(--dt-papel);
   pointer-events: none;
@@ -199,10 +202,10 @@
 
 .devtoys .dt-fechar {
   position: absolute;
-  left: 10px;
-  top: 5px;
-  width: 14px;
-  height: 14px;
+  left: calc(var(--dt-e) * 8px);
+  top: calc(var(--dt-e) * 4px);
+  width: calc(var(--dt-e) * 11px);
+  height: calc(var(--dt-e) * 11px);
   background: var(--dt-papel);
   border: 1px solid var(--dt-tinta);
   box-shadow: 0 0 0 2px var(--dt-papel);
@@ -217,7 +220,7 @@
 }
 
 .devtoys .dt-conteudo {
-  padding: 12px 15px;
+  padding: calc(var(--dt-e) * 10px) calc(var(--dt-e) * 12px);
   user-select: text;
 }
 
@@ -231,8 +234,8 @@
 .devtoys .dt-boot {
   position: absolute;
   inset: 0;
-  padding: 40px 50px;
-  font-size: 20px;
+  padding: calc(var(--dt-e) * 32px) calc(var(--dt-e) * 40px);
+  font-size: calc(var(--dt-e) * 16px);
   cursor: default;
 }
 
@@ -248,8 +251,8 @@
 
 .devtoys .dt-boot-dica {
   position: absolute;
-  left: 50px;
-  bottom: 30px;
+  left: calc(var(--dt-e) * 40px);
+  bottom: calc(var(--dt-e) * 24px);
   margin: 0;
   color: var(--dt-apagado);
 }
@@ -335,8 +338,8 @@
 
 .devtoys .dt-crawler-texto {
   margin: 0;
-  padding: 20px 22px;
-  font-size: 17.5px;
+  padding: calc(var(--dt-e) * 16px) calc(var(--dt-e) * 18px);
+  font-size: calc(var(--dt-e) * 14px);
   line-height: 2;
 }
 
@@ -351,7 +354,7 @@
 }
 
 .devtoys .dt-crawler-rodape {
-  margin: 8px 0 0;
+  margin: calc(var(--dt-e) * 6px) 0 0;
   color: var(--dt-apagado);
 }
 
