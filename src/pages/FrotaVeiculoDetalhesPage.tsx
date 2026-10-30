@@ -6,6 +6,10 @@ import {
     Chip,
     CircularProgress,
     Container,
+    Dialog,
+    DialogActions,
+    DialogContent,
+    DialogTitle,
     IconButton,
     Menu,
     MenuItem,
@@ -62,9 +66,9 @@ import { buildVehicleReport, fetchVehicleErpRows } from '../services/vehicle-rep
 import { createVehicleReportPdf } from '../services/vehicle-report-pdf';
 import { describeErpCallError, normalizeCalendarDate, resolveVehicleReportPeriod, type VehicleReportPeriod } from '../services/vehicle-report-core';
 import { listFuncionariosAtivos } from '../services/funcionarios-selecao.service';
-import { getItemFrota, renomearItemFrota } from '../services/veiculos.service';
+import { atualizarKmInicial, getItemFrota, renomearItemFrota } from '../services/veiculos.service';
 import type { ItemFrotaV2, PessoaV2 } from '../utils/cadastrosV2';
-import { atualizacaoInfo, medidorTexto, somarValores } from '../utils/frotaVeiculosLista';
+import { atualizacaoInfo, lerKmInicial, medidorTexto, origemKmTexto, somarValores, type KmInicialEntrada } from '../utils/frotaVeiculosLista';
 
 const FrotaCharts = lazy(() => import('../components/FrotaCharts'));
 type Manutencao = {
@@ -290,6 +294,8 @@ export default function FrotaVeiculoDetalhesPage() {
     const [veiculo, setVeiculo] = useState<ItemFrotaV2 | null>(null);
     const [nomeEditado, setNomeEditado] = useState<string | null>(null); // null = fora da edição
     const [salvandoNome, setSalvandoNome] = useState(false);
+    const [kmInicialForm, setKmInicialForm] = useState<KmInicialEntrada | null>(null); // null = janela fechada
+    const [salvandoKm, setSalvandoKm] = useState(false);
     const [pessoas, setPessoas] = useState<PessoaV2[]>([]);
     const [generatingReport, setGeneratingReport] = useState(false);
     const [reportMenuAnchor, setReportMenuAnchor] = useState<HTMLElement | null>(null);
@@ -1004,6 +1010,40 @@ export default function FrotaVeiculoDetalhesPage() {
         }
     }, [nomeEditado, veiculo]);
 
+    const abrirKmInicial = useCallback(() => {
+        if (!veiculo) return;
+        const data = toDate(veiculo.dataQuilometragemInicial);
+        // datetime-local usa a hora local, sem fuso: "AAAA-MM-DDTHH:mm".
+        const local = data ? new Date(data.getTime() - data.getTimezoneOffset() * 60_000).toISOString().slice(0, 16) : '';
+        setKmInicialForm({ km: veiculo.quilometragemInicial == null ? '' : String(veiculo.quilometragemInicial), data: local, origem: veiculo.origemQuilometragemInicial ?? '' });
+    }, [veiculo]);
+
+    const salvarKmInicial = useCallback(async () => {
+        if (!veiculo || !kmInicialForm) return;
+        const lido = lerKmInicial(kmInicialForm);
+        if (!lido.ok) {
+            setSnackbar({ open: true, severity: 'error', message: lido.erro });
+            return;
+        }
+        setSalvandoKm(true);
+        try {
+            await atualizarKmInicial(veiculo.id, lido.valor);
+            setVeiculo((atual) => (atual ? {
+                ...atual,
+                quilometragemInicial: lido.valor.km,
+                dataQuilometragemInicial: lido.valor.data,
+                origemQuilometragemInicial: lido.valor.origem,
+            } : atual));
+            setKmInicialForm(null);
+            setSnackbar({ open: true, severity: 'success', message: 'KM inicial atualizado.' });
+        } catch (err) {
+            console.error('Erro ao gravar o KM inicial', err);
+            setSnackbar({ open: true, severity: 'error', message: 'Não foi possível salvar o KM inicial.' });
+        } finally {
+            setSalvandoKm(false);
+        }
+    }, [kmInicialForm, veiculo]);
+
     useEffect(() => {
         if (!hasActiveFilters) {
             setSelectedDocId(null);
@@ -1186,14 +1226,35 @@ export default function FrotaVeiculoDetalhesPage() {
                                 <Typography variant="body2" color={corFrescor}>{atualizacao.texto}</Typography>
                             </Box>
                             <Box>
-                                <Typography variant="body2" color="text.secondary">{medidor} inicial</Typography>
+                                <Stack direction="row" spacing={0.5} alignItems="center">
+                                    <Typography variant="body2" color="text.secondary">{medidor} inicial</Typography>
+                                    {isAdmin && (
+                                        <Tooltip title={`Editar ${medidor} inicial`}>
+                                            <IconButton size="small" aria-label={`Editar ${medidor} inicial`} sx={{ p: 0.25 }} onClick={abrirKmInicial}>
+                                                <EditOutlinedIcon sx={{ fontSize: 16 }} />
+                                            </IconButton>
+                                        </Tooltip>
+                                    )}
+                                </Stack>
                                 <Typography sx={{ fontSize: { xs: 18, sm: 22 }, fontWeight: 600 }}>
                                     {medidorTexto({ categoria: veiculo.categoria, quilometragemUltima: veiculo.quilometragemInicial })}
                                 </Typography>
+                                {(() => {
+                                    const dataInicial = toDate(veiculo.dataQuilometragemInicial);
+                                    const origem = origemKmTexto(veiculo.origemQuilometragemInicial);
+                                    if (!dataInicial && !origem) return null;
+                                    return (
+                                        <Tooltip title={veiculo.origemQuilometragemInicial ?? ''}>
+                                            <Typography variant="body2" color="text.secondary">
+                                                {[dataInicial ? `em ${dateFormatter.format(dataInicial)}` : null, origem ? `origem: ${origem}` : null].filter(Boolean).join(' · ')}
+                                            </Typography>
+                                        </Tooltip>
+                                    );
+                                })()}
                             </Box>
                         </Box>
                         <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 2 }}>
-                            O cadastro do veículo é feito no Friday (veiculos-v2); aqui só o nome pode ser editado.
+                            O cadastro do veículo é feito no Friday (veiculos-v2); aqui só o nome e o {medidor} inicial podem ser editados.
                         </Typography>
                     </Paper>
                 );
@@ -1274,6 +1335,42 @@ export default function FrotaVeiculoDetalhesPage() {
                     </Suspense>
                 ))}
             </Box>
+
+            <Dialog open={kmInicialForm !== null} onClose={() => !salvandoKm && setKmInicialForm(null)} fullWidth maxWidth="xs">
+                {kmInicialForm && (
+                    <form onSubmit={(event) => { event.preventDefault(); void salvarKmInicial(); }}>
+                        <DialogTitle>{tipoVeiculo === 'PLACA' ? 'KM' : 'Horímetro'} inicial</DialogTitle>
+                        <DialogContent>
+                            <Stack spacing={2} sx={{ pt: 1 }}>
+                                <TextField
+                                    label={tipoVeiculo === 'PLACA' ? 'KM inicial' : 'Horímetro inicial'}
+                                    value={kmInicialForm.km}
+                                    onChange={(event) => setKmInicialForm({ ...kmInicialForm, km: event.target.value })}
+                                    slotProps={{ htmlInput: { inputMode: 'numeric' } }}
+                                    autoFocus
+                                />
+                                <TextField
+                                    label="Data da leitura"
+                                    type="datetime-local"
+                                    value={kmInicialForm.data}
+                                    onChange={(event) => setKmInicialForm({ ...kmInicialForm, data: event.target.value })}
+                                    slotProps={{ inputLabel: { shrink: true } }}
+                                />
+                                <TextField
+                                    label="Origem"
+                                    value={kmInicialForm.origem}
+                                    onChange={(event) => setKmInicialForm({ ...kmInicialForm, origem: event.target.value })}
+                                    helperText='Ex.: "manual: revisão da oficina de 12/2024". Do primeiro registro: "atividades/<id>" ou "03-combustivel/<id>".'
+                                />
+                            </Stack>
+                        </DialogContent>
+                        <DialogActions>
+                            <Button onClick={() => setKmInicialForm(null)} disabled={salvandoKm}>Cancelar</Button>
+                            <Button type="submit" variant="contained" disabled={salvandoKm}>Salvar</Button>
+                        </DialogActions>
+                    </form>
+                )}
+            </Dialog>
 
             <ManutencaoDialog
                 open={manutencaoOpen}

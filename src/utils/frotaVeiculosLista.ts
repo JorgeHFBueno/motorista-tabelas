@@ -61,3 +61,33 @@ export function atualizacaoInfo(raw: unknown, agora = new Date()): { texto: stri
 export function somarValores(itens: { valor?: number | null }[]): number {
   return itens.reduce((total, item) => (typeof item.valor === 'number' && Number.isFinite(item.valor) ? total + item.valor : total), 0);
 }
+
+/** Origem do KM inicial em texto: "atividades/<id>" → atividade, "03-combustivel/<id>" → abastecimento, o resto como está. */
+export function origemKmTexto(origem: string | null | undefined): string | null {
+  const texto = origem?.trim();
+  if (!texto) return null;
+  if (texto.startsWith('atividades/')) return 'atividade';
+  if (texto.startsWith('03-combustivel/')) return 'abastecimento';
+  return texto;
+}
+
+export type KmInicialEntrada = { km: string; data: string; origem: string };
+export type KmInicialGravar = { km: number | null; data: Date | null; origem: string | null };
+
+/** Valida a edição do KM inicial: KM inteiro >= 0 ou vazio; com KM, a origem é obrigatória; data "AAAA-MM-DDTHH:mm" ou vazia. */
+export function lerKmInicial(entrada: KmInicialEntrada): { ok: true; valor: KmInicialGravar } | { ok: false; erro: string } {
+  const kmTexto = entrada.km.trim().replace(/\./g, '');
+  const origem = entrada.origem.trim() || null;
+  let km: number | null = null;
+  if (kmTexto) {
+    if (!/^\d+$/.test(kmTexto)) return { ok: false, erro: 'O KM inicial deve ser um número inteiro.' };
+    km = Number(kmTexto);
+  }
+  let data: Date | null = null;
+  if (entrada.data.trim()) {
+    data = new Date(entrada.data);
+    if (Number.isNaN(data.getTime())) return { ok: false, erro: 'Data inválida.' };
+  }
+  if (km !== null && !origem) return { ok: false, erro: 'Informe de onde veio o KM inicial.' };
+  return { ok: true, valor: { km, data, origem } };
+}

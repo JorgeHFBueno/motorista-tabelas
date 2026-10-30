@@ -1,9 +1,10 @@
-import { collection, doc, getDoc, getDocs, updateDoc } from 'firebase/firestore';
+import { collection, doc, getDoc, getDocs, Timestamp, updateDoc } from 'firebase/firestore';
 import { db } from '../firebase';
 import { itemFrotaFromV2, sortItensFrota, type ItemFrotaV2 } from '../utils/cadastrosV2';
+import type { KmInicialGravar } from '../utils/frotaVeiculosLista';
 
 // Frota só por ID de veiculos-v2 (The Manuscript, 01_FIRESTORE/COLECOES/veiculos-v2.md). O cadastro é do Friday;
-// a WEB só edita o nome (detalhe do veículo, adm2), que o quadro FROTA espelha.
+// a WEB só edita o nome (o quadro FROTA espelha) e o KM inicial com data e origem (detalhe do veículo, adm2).
 export const VEICULOS_V2 = 'veiculos-v2';
 
 export async function listItensFrota(): Promise<ItemFrotaV2[]> {
@@ -28,4 +29,13 @@ export async function renomearItemFrota(id: string, nome: string): Promise<strin
   if (!limpo) throw new Error('O nome não pode ficar vazio.');
   await updateDoc(doc(db, VEICULOS_V2, id), { 'identificacao.nome': limpo });
   return limpo;
+}
+
+/** Grava o KM inicial com a data e a origem (só estes três campos de `operacional`). */
+export async function atualizarKmInicial(id: string, { km, data, origem }: KmInicialGravar): Promise<void> {
+  await updateDoc(doc(db, VEICULOS_V2, id), {
+    'operacional.quilometragemInicial': km,
+    'operacional.dataQuilometragemInicial': data ? Timestamp.fromDate(data) : null,
+    'operacional.origemQuilometragemInicial': origem,
+  });
 }

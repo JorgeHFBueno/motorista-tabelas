@@ -18,6 +18,9 @@ export interface ItemFrotaV2 {
   ativo: boolean;
   situacao: string | null;
   quilometragemInicial: number | null;
+  /** Quando e de onde veio o KM inicial (2026-10-30): data do registro e "atividades/<id>", "03-combustivel/<id>" ou texto. */
+  dataQuilometragemInicial: unknown;
+  origemQuilometragemInicial: string | null;
   quilometragemUltima: number | null;
   dataUltimaAtualizacao: unknown;
   raw: Record<string, unknown>;
@@ -41,6 +44,8 @@ export function itemFrotaFromV2(id: string, data: Record<string, unknown>): Item
     ativo: cadastro.ativo === true,
     situacao: text(cadastro.situacao) || null,
     quilometragemInicial: intOrNull(operacional.quilometragemInicial),
+    dataQuilometragemInicial: operacional.dataQuilometragemInicial ?? null,
+    origemQuilometragemInicial: text(operacional.origemQuilometragemInicial) || null,
     quilometragemUltima: intOrNull(operacional.quilometragemUltima),
     dataUltimaAtualizacao: operacional.dataUltimaAtualizacao ?? null,
     raw: data,

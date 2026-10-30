@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import test from 'node:test';
 import type { ItemFrotaV2 } from '../src/utils/cadastrosV2';
-import { atualizacaoInfo, filtrarVeiculos, medidorTexto, somarValores } from '../src/utils/frotaVeiculosLista';
+import { atualizacaoInfo, filtrarVeiculos, lerKmInicial, medidorTexto, origemKmTexto, somarValores } from '../src/utils/frotaVeiculosLista';
 
 const item = (parcial: Partial<ItemFrotaV2>): ItemFrotaV2 => ({
   id: 'x', categoria: 'PLACA', identificador: 'IXR-7D23', nome: 'Hilux', ativo: true, situacao: null,
@@ -63,4 +63,22 @@ test('valor da manutenção: dígitos sem vírgula são centavos; com vírgula v
   assert.equal(formatado.replace(/\s/g, ' '), 'R$ 1.234,56');
   assert.equal(parseValorManutencao(formatado), 1234.56);
   assert.equal(formatValorManutencao('abc'), 'abc');
+});
+
+test('origem do KM inicial em texto', () => {
+  assert.equal(origemKmTexto('atividades/saida - 02_04_25 - 1614 - IUT-2D00'), 'atividade');
+  assert.equal(origemKmTexto('03-combustivel/abc'), 'abastecimento');
+  assert.equal(origemKmTexto(' cadastro antigo (01-placas) '), 'cadastro antigo (01-placas)');
+  assert.equal(origemKmTexto(null), null);
+  assert.equal(origemKmTexto('  '), null);
+});
+
+test('edição do KM inicial: inteiro, origem obrigatória com KM, data opcional', () => {
+  const ok = lerKmInicial({ km: '811.295', data: '2025-02-04T16:14', origem: ' manual: revisão ' });
+  assert.equal(ok.ok, true);
+  if (ok.ok) { assert.equal(ok.valor.km, 811295); assert.equal(ok.valor.origem, 'manual: revisão'); assert.ok(ok.valor.data instanceof Date); }
+  assert.deepEqual(lerKmInicial({ km: '', data: '', origem: '' }), { ok: true, valor: { km: null, data: null, origem: null } });
+  assert.equal(lerKmInicial({ km: '12,5', data: '', origem: 'x' }).ok, false);
+  assert.deepEqual(lerKmInicial({ km: '100', data: '', origem: '' }), { ok: false, erro: 'Informe de onde veio o KM inicial.' });
+  assert.equal(lerKmInicial({ km: '100', data: 'xx', origem: 'x' }).ok, false);
 });
