@@ -314,3 +314,49 @@
     animation: none;
   }
 }
+
+/* ---- Crawler: texto no DOM embaixo, canvas transparente por cima ---- */
+.devtoys .dt-crt-canvas.dt-crt-transparente {
+  background: transparent;
+}
+
+.devtoys .dt-crawler-area {
+  position: relative;
+  overflow: hidden;
+  cursor: crosshair;
+  user-select: none;
+}
+
+.devtoys .dt-crawler-area .dt-crt-canvas {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.devtoys .dt-crawler-texto {
+  margin: 0;
+  padding: 16px 18px;
+  font-size: 14px;
+  line-height: 2;
+}
+
+.devtoys .dt-crawler-texto [data-w] {
+  display: inline-block;
+  transition: opacity 0.3s ease, transform 0.3s ease;
+}
+
+.devtoys .dt-crawler-texto .dt-comida {
+  opacity: 0;
+  transform: scale(0.2);
+}
+
+.devtoys .dt-crawler-rodape {
+  margin: 6px 0 0;
+  color: var(--dt-apagado);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .devtoys .dt-crawler-texto [data-w] {
+    transition: none;
+  }
+}

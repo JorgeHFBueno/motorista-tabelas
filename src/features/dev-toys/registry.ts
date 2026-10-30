@@ -25,4 +25,11 @@ export const DEV_TOYS: DevToy[] = [
     componente: lazy(() => import('./toys/padrao/PadraoToy')),
     largura: 346,
   },
+  {
+    id: 'crawler',
+    nome: 'Crawler',
+    icone: 'M5 0h1v1H5zM10 0h1v1h-1zM6 1h4v3H6zM5 5h6v9H5zM2 6h3v1H2zM11 6h3v1h-3zM1 9h4v1H1zM11 9h4v1h-4zM2 12h3v1H2zM11 12h3v1h-3z',
+    componente: lazy(() => import('./toys/crawler/CrawlerToy')),
+    largura: 506,
+  },
 ];

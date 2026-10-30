@@ -11,11 +11,15 @@ const DT_MAX = 0.05; // ao voltar de outra aba, o tempo não "teleporta"
 
 // Canvas de brinquedo com CRT de verdade: `desenhar` pinta um canvas 2D fora da tela e o shader leva para o visível.
 // Sem WebGL, o 2D aparece direto (o CRT em CSS da área continua por cima).
-export default function CrtView({ largura, altura, desenhar }: { largura: number; altura: number; desenhar: Desenhar }) {
+// `transparente`: o canvas fica sobre o DOM (o brinquedo limpa o 2D a cada quadro); sem curvatura, para o desenho
+// continuar onde o DOM embaixo espera.
+type Props = { largura: number; altura: number; desenhar: Desenhar; transparente?: boolean };
+
+export default function CrtView({ largura, altura, desenhar, transparente = false }: Props) {
   const visivel = useRef<HTMLCanvasElement>(null);
   const crt = useContext(CrtContexto);
-  const atual = useRef({ desenhar, crt });
-  useEffect(() => { atual.current = { desenhar, crt }; }, [desenhar, crt]);
+  const atual = useRef({ desenhar, crt, transparente });
+  useEffect(() => { atual.current = { desenhar, crt, transparente }; }, [desenhar, crt, transparente]);
 
   useEffect(() => {
     const canvas = visivel.current;
@@ -46,9 +50,14 @@ export default function CrtView({ largura, altura, desenhar }: { largura: number
       anterior = agora;
       tempo += dt;
       atual.current.desenhar(ctx, { tempo, dt, largura, altura, modo });
-      const { forca, movimentoReduzido } = atual.current.crt;
-      if (gl) gl.desenhar(fonte, uniformsCrt(forca, movimentoReduzido), tempo);
-      else ctxVisivel?.drawImage(fonte, 0, 0);
+      const { crt: { forca, movimentoReduzido }, transparente: sobreDom } = atual.current;
+      if (gl) {
+        const u = uniformsCrt(forca, movimentoReduzido);
+        gl.desenhar(fonte, sobreDom ? { ...u, curva: 0 } : u, tempo, sobreDom);
+      } else if (ctxVisivel) {
+        if (sobreDom) ctxVisivel.clearRect(0, 0, canvas.width, canvas.height);
+        ctxVisivel.drawImage(fonte, 0, 0);
+      }
     };
 
     // Aba oculta: para o laço; ao voltar, recomeça sem contar o tempo parado.
@@ -65,5 +74,5 @@ export default function CrtView({ largura, altura, desenhar }: { largura: number
     };
   }, [largura, altura]);
 
-  return <canvas ref={visivel} className="dt-crt-canvas" style={{ width: largura, height: altura }} />;
+  return <canvas ref={visivel} className={transparente ? 'dt-crt-canvas dt-crt-transparente' : 'dt-crt-canvas'} style={{ width: largura, height: altura }} />;
 }

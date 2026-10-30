@@ -12,7 +12,8 @@ void main() {
 }`;
 
 export type CrtGl = {
-  desenhar: (fonte: HTMLCanvasElement, u: UniformsCrt, tempoSeg: number) => void;
+  /** `transparente`: o canvas fica sobre o DOM e só o desenho aparece (sem fundo nem borda preta). */
+  desenhar: (fonte: HTMLCanvasElement, u: UniformsCrt, tempoSeg: number, transparente?: boolean) => void;
   liberar: () => void;
 };
 
@@ -63,12 +64,12 @@ export function criarCrtGl(canvas: HTMLCanvasElement): CrtGl | null {
   const u = (nome: string) => gl.getUniformLocation(programa, nome);
   const loc = {
     tex: u('uTex'), res: u('uRes'), tempo: u('uTime'), curva: u('uCurve'), scan: u('uScan'),
-    vinheta: u('uVig'), aberracao: u('uAberr'), ruido: u('uNoise'), flicker: u('uFlicker'),
+    vinheta: u('uVig'), aberracao: u('uAberr'), ruido: u('uNoise'), flicker: u('uFlicker'), transparente: u('uTransparente'),
   };
   gl.uniform1i(loc.tex, 0);
 
   return {
-    desenhar(fonte, p, tempoSeg) {
+    desenhar(fonte, p, tempoSeg, transparente = false) {
       if (gl.isContextLost()) return;
       gl.viewport(0, 0, canvas.width, canvas.height);
       gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, fonte);
@@ -80,6 +81,7 @@ export function criarCrtGl(canvas: HTMLCanvasElement): CrtGl | null {
       gl.uniform1f(loc.aberracao, p.aberracao);
       gl.uniform1f(loc.ruido, p.ruido);
       gl.uniform1f(loc.flicker, p.flicker);
+      gl.uniform1f(loc.transparente, transparente ? 1 : 0);
       gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
     },
     liberar() {
