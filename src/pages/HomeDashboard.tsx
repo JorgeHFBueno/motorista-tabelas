@@ -62,6 +62,8 @@ export default function HomeDashboard() {
                       ? () => setExpandedGroup((current) => current === action.label ? null : action.label)
                       : () => navigate(action.to!)}
                     aria-expanded={action.children ? expandedGroup === action.label : undefined}
+                    aria-label={action.crt ? action.label : undefined}
+                    className={action.crt ? 'dev-crt-card' : undefined}
                     sx={{
                       height: { xs: 68, sm: 76 },
                       backgroundColor: action.color,
@@ -82,12 +84,15 @@ export default function HomeDashboard() {
                         sx={{ height: '100%', color: '#12293B' }}
                       >
                         <Box sx={{ color: action.accent, display: 'flex' }}>{action.icon}</Box>
-                        <Typography variant="h6" fontWeight={700}>
-                          {action.label}
-                        </Typography>
-                        {action.children
+                        {/* Card CRT (DEV): só o ícone, sem texto nem seta. */}
+                        {!action.crt && (
+                          <Typography variant="h6" fontWeight={700}>
+                            {action.label}
+                          </Typography>
+                        )}
+                        {!action.crt && (action.children
                           ? <ExpandMoreIcon sx={{ ml: 'auto', transform: expandedGroup === action.label ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s ease' }} />
-                          : <ChevronRightRoundedIcon sx={{ ml: 'auto' }} />}
+                          : <ChevronRightRoundedIcon sx={{ ml: 'auto' }} />)}
                       </Stack>
                     </CardContent>
                   </CardActionArea>

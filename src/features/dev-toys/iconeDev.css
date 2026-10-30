@@ -46,3 +46,34 @@
     animation: none;
   }
 }
+
+/* ---- card DEV da Home inteiro como telinha (classe dev-crt-card, posta pelo HomeDashboard nos itens `crt`) ---- */
+.dev-crt-card {
+  box-shadow: inset 0 0 22px rgb(255 176 0 / 0.14);
+}
+
+.dev-crt-card::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+  background:
+    radial-gradient(ellipse at center, transparent 45%, rgb(0 0 0 / 0.6) 100%),
+    repeating-linear-gradient(rgb(0 0 0 / 0.4) 0 1px, transparent 1px 3px);
+}
+
+/* dentro do card, o vidro é o próprio card: a raposa fica sem a moldura e maior */
+.dev-crt-card .dev-crt-icone {
+  padding: 0;
+  background: none;
+  box-shadow: none;
+}
+
+.dev-crt-card .dev-crt-icone::after {
+  display: none;
+}
+
+.dev-crt-card .dev-crt-icone > svg {
+  font-size: 52px;
+}

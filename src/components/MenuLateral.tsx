@@ -48,9 +48,9 @@ export default function MenuLateral({ open, onClose }: { open: boolean; onClose:
 
               return (
                 <Box key={action.label}>
-                  <ListItemButton selected={hasChildren ? childIsActive : isActiveRoute(destino)} aria-current={!hasChildren && isActiveRoute(destino) ? 'page' : undefined} aria-expanded={hasChildren ? expanded : undefined} onClick={selecionar} sx={{ minHeight: 48, px: 2 }}>
+                  <ListItemButton selected={hasChildren ? childIsActive : isActiveRoute(destino)} aria-current={!hasChildren && isActiveRoute(destino) ? 'page' : undefined} aria-expanded={hasChildren ? expanded : undefined} onClick={selecionar} aria-label={action.crt ? action.label : undefined} sx={{ minHeight: 48, px: 2 }}>
                     <ListItemIcon sx={{ minWidth: 36, color: 'inherit', '& svg': { fontSize: 24 } }}>{action.icon}</ListItemIcon>
-                    <ListItemText primary={action.label} />
+                    {!action.crt && <ListItemText primary={action.label} />}
                     {hasChildren && <ExpandMoreIcon fontSize="small" sx={{ transform: expanded ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s ease' }} />}
                   </ListItemButton>
                   {hasChildren && (

@@ -27,6 +27,8 @@ export type MenuPrincipalItem = {
   // Quem vê: 'qualquer' credencial, só 'adm2', ou uma credencial (o adm2 vê tudo, salvo as exclusivas, como retr0).
   acesso: 'qualquer' | 'adm2' | Exclude<Credencial, 'adm2'>;
   children?: Array<{ label: string; to: string; icon: ReactNode }>;
+  // Item desenhado como telinha CRT, só com o ícone (área DEV): card escuro na Home, sem texto no menu lateral.
+  crt?: true;
 };
 
 export const menuPrincipal: MenuPrincipalItem[] = [
@@ -99,10 +101,11 @@ export const menuPrincipal: MenuPrincipalItem[] = [
   {
     label: 'DEV',
     icon: <IconeDev fontSize="large" />,
-    color: '#FFF4DC',
-    accent: '#8A5A00',
+    color: '#080603',
+    accent: '#FFB000',
     to: '/dev',
     acesso: 'retr0',
+    crt: true,
   },
 ];
 
