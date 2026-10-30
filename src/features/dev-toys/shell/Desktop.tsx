@@ -1,5 +1,6 @@
 import { Suspense, useEffect, useState, type PointerEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
+import type { PrefsDev } from '../prefs';
 import { DEV_TOYS, type DevToy } from '../registry';
 import Window from './Window';
 
@@ -15,8 +16,10 @@ function Icone({ toy }: { toy: DevToy }) {
   );
 }
 
+type Props = { ligando: boolean; prefs: PrefsDev; onPrefs: (prefs: PrefsDev) => void; onReiniciar: () => void };
+
 // Desktop da área DEV: barra de menus, ícones dos brinquedos e janelas (a última da lista fica na frente).
-export default function Desktop() {
+export default function Desktop({ ligando, prefs, onPrefs, onReiniciar }: Props) {
   const navigate = useNavigate();
   const [janelas, setJanelas] = useState<Aberta[]>(() => [{ id: DEV_TOYS[0].id, x: 64, y: 64 }]);
   const [menu, setMenu] = useState<string | null>(null);
@@ -59,12 +62,22 @@ export default function Desktop() {
   };
 
   const menus: Array<{ id: string; rotulo: string; itens: Array<{ rotulo: string; acao: () => void } | null> }> = [
-    { id: 'ledur', rotulo: 'Ledur', itens: [{ rotulo: 'Sobre o DEV', acao: () => abrir('sobre') }, null, { rotulo: 'Sair do DEV', acao: () => navigate('/') }] },
+    {
+      id: 'ledur',
+      rotulo: 'Ledur',
+      itens: [
+        { rotulo: 'Sobre o DEV', acao: () => abrir('sobre') },
+        { rotulo: 'Reiniciar', acao: onReiniciar },
+        { rotulo: `[${prefs.bootSempre ? 'x' : ' '}] Boot sempre`, acao: () => onPrefs({ ...prefs, bootSempre: !prefs.bootSempre }) },
+        null,
+        { rotulo: 'Sair do DEV', acao: () => navigate('/') },
+      ],
+    },
     { id: 'brinquedos', rotulo: 'Brinquedos', itens: DEV_TOYS.map((t) => ({ rotulo: t.nome, acao: () => abrir(t.id) })) },
   ];
 
   return (
-    <div className="devtoys" onPointerDown={fundo}>
+    <div className={`devtoys${ligando ? ' dt-ligando' : ''}`} onPointerDown={fundo}>
       <nav className="dt-menubar" aria-label="Menu do DEV">
         {menus.map((m) => (
           <div key={m.id} className="dt-menu">

@@ -221,3 +221,54 @@
   font-weight: bold;
   letter-spacing: 1px;
 }
+
+/* ---- boot falso ---- */
+.devtoys.dt-boot {
+  background: var(--dt-papel);
+  padding: 32px 40px;
+  font-size: 16px;
+  cursor: default;
+}
+
+.devtoys.dt-boot pre {
+  margin: 0;
+  font: inherit;
+  white-space: pre-wrap;
+  /* brilho de fósforo; o CRT completo vem na fase seguinte */
+  text-shadow: 0 0 2px var(--dt-tinta), 0 0 6px #ffb00055;
+}
+
+.devtoys .dt-cursor {
+  animation: dt-piscar 1s step-end infinite;
+}
+
+.devtoys .dt-boot-dica {
+  position: absolute;
+  left: 40px;
+  bottom: 24px;
+  margin: 0;
+  color: var(--dt-apagado);
+}
+
+@keyframes dt-piscar {
+  50% { opacity: 0; }
+}
+
+/* Desktop "ligando" depois do boot: uma linha horizontal que se abre, como um CRT */
+.devtoys.dt-ligando {
+  animation: dt-ligar 550ms ease-out both;
+}
+
+@keyframes dt-ligar {
+  0% { transform: scale(0, 0.004); filter: brightness(4); }
+  25% { transform: scale(1, 0.004); filter: brightness(4); }
+  70% { transform: scale(1, 1); filter: brightness(1.8); }
+  100% { transform: none; filter: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .devtoys .dt-cursor,
+  .devtoys.dt-ligando {
+    animation: none;
+  }
+}

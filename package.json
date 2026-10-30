@@ -25,6 +25,7 @@
     "test:friday-formula": "esbuild tests/friday-formula-servidor.test.ts --bundle --platform=node --format=esm --outfile=.tmp-friday-formula.test.mjs && node --test .tmp-friday-formula.test.mjs",
     "test:obras": "esbuild tests/obras-engenharia.test.ts --bundle --platform=node --format=esm --outfile=.tmp-obras-engenharia.test.mjs && node --test .tmp-obras-engenharia.test.mjs",
     "test:prazos": "esbuild tests/prazos-contratuais.test.ts --bundle --platform=node --format=esm --outfile=.tmp-prazos-contratuais.test.mjs && node --test .tmp-prazos-contratuais.test.mjs",
+    "test:dev-toys": "esbuild tests/dev-toys.test.ts --bundle --platform=node --format=esm --outfile=.tmp-dev-toys.test.mjs && node --test .tmp-dev-toys.test.mjs",
     "test:rules": "firebase emulators:exec --only firestore,storage --project demo-firebase-rules \"node --test tests/rules/*.test.mjs\"",
     "test:rules:firestore": "firebase emulators:exec --only firestore --project demo-firebase-rules \"node --test --test-name-pattern=^\\[firestore\\] tests/rules/*.test.mjs\"",
     "set-admin": "node scripts/setAdmin.cjs",
