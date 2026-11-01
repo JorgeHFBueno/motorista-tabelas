@@ -24,12 +24,16 @@ export type ParamsCrawler = {
   velMax: number;
   giroMax: number;
   segmentosMax: number;
+  /** um par de pernas a cada N segmentos (1 ou 2) */
+  pernasACada: number;
+  /** quanto a vontade de virar oscila quando ele vaga sem alvo (1 = normal) */
+  vagueia: number;
 };
 
 // Valores iniciais do plano: 8 segmentos a 10 px, 1 par de pernas a cada 2 segmentos, coxa/canela 14/18 px,
 // passo a partir de 16 px em 120 ms, até 90 px/s e 3 rad/s.
 export const PADRAO: ParamsCrawler = {
-  segmentos: 8, dist: 10, coxa: 14, canela: 18, limitePasso: 16, duracaoPasso: 0.12, velMax: 90, giroMax: 3, segmentosMax: 40,
+  segmentos: 8, dist: 10, coxa: 14, canela: 18, limitePasso: 16, duracaoPasso: 0.12, velMax: 90, giroMax: 3, segmentosMax: 40, pernasACada: 2, vagueia: 1,
 };
 
 /** Gerador pseudoaleatório com semente (mulberry32): a mesma seed dá o mesmo bicho. */
@@ -41,21 +45,6 @@ export function rngDe(seed: number): () => number {
     t = Math.imul(t ^ (t >>> 15), t | 1);
     t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
     return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
-  };
-}
-
-/** A seed escolhe o número de segmentos, o tamanho das pernas e o temperamento (lento ou rápido). */
-export function paramsDaSeed(seed: number): ParamsCrawler {
-  const r = rngDe(seed);
-  const escala = 0.8 + r() * 0.4;
-  const temperamento = 0.75 + r() * 0.5;
-  return {
-    ...PADRAO,
-    segmentos: 6 + Math.floor(r() * 5),
-    coxa: Math.round(PADRAO.coxa * escala * 10) / 10,
-    canela: Math.round(PADRAO.canela * escala * 10) / 10,
-    velMax: Math.round(PADRAO.velMax * temperamento),
-    giroMax: PADRAO.giroMax * temperamento,
   };
 }
 
@@ -84,10 +73,10 @@ export function peIdeal(c: Crawler, segmento: number, lado: 1 | -1): Vec {
   return soma(c.seg[segmento], soma(mul(normalDe(f), lado * alcance), mul(f, c.params.coxa * 0.4)));
 }
 
-/** Um par de pernas nos segmentos 1, 3, 5…; mantém as pernas que já existiam. */
+/** Um par de pernas a cada `pernasACada` segmentos, a partir do 1; mantém as pernas que já existiam. */
 export function montarPernas(c: Crawler, antigas: Perna[]): Perna[] {
   const pernas: Perna[] = [];
-  for (let i = 1; i < c.seg.length; i += 2) {
+  for (let i = 1; i < c.seg.length; i += c.params.pernasACada) {
     for (const lado of [-1, 1] as const) {
       const velha = antigas.find((p) => p.segmento === i && p.lado === lado);
       if (velha) { pernas.push(velha); continue; }
@@ -113,7 +102,7 @@ export function criarCrawler(params: ParamsCrawler, x: number, y: number, seed: 
 
 /** Pernas vizinhas: o par do mesmo segmento e as do mesmo lado nos pares da frente e de trás. */
 export function vizinhas(c: Crawler, p: Perna): Perna[] {
-  return c.pernas.filter((q) => q !== p && (q.segmento === p.segmento || (q.lado === p.lado && Math.abs(q.segmento - p.segmento) === 2)));
+  return c.pernas.filter((q) => q !== p && (q.segmento === p.segmento || (q.lado === p.lado && Math.abs(q.segmento - p.segmento) === c.params.pernasACada)));
 }
 
 /** IK analítica de 2 ossos (lei dos cossenos). O joelho dobra para o lado de `fora`; fora do alcance, a perna estica. */
@@ -130,8 +119,11 @@ export function ik(quadrilPos: Vec, alvo: Vec, a: number, b: number, fora: Vec):
 
 export type Limites = { largura: number; altura: number };
 
-/** Um quadro: a cabeça vira (giro limitado) e anda, o corpo segue, as pernas dão passos. */
-export function passo(c: Crawler, dt: number, alvo: Vec | null, limites: Limites) {
+/**
+ * Um quadro: a cabeça vira (giro limitado) e anda, o corpo segue, as pernas dão passos.
+ * `parado`: não anda, só vira para o alvo (o Crawler escaneando uma palavra).
+ */
+export function passo(c: Crawler, dt: number, alvo: Vec | null, limites: Limites, parado = false) {
   const { params } = c;
   const cabeca = c.seg[0];
   const margem = 24;
@@ -147,12 +139,13 @@ export function passo(c: Crawler, dt: number, alvo: Vec | null, limites: Limites
     velocidade = params.velMax * 0.5;
   } else {
     // vagar: a vontade de virar faz um passeio aleatório
-    c.vagar = limitar(c.vagar + (c.rng() - 0.5) * 6 * dt, -1, 1);
+    c.vagar = limitar(c.vagar + (c.rng() - 0.5) * 6 * params.vagueia * dt, -1, 1);
     desejado = c.ang + c.vagar;
     velocidade = params.velMax * 0.5;
   }
   const giro = params.giroMax * dt;
   c.ang = girar(c.ang + limitar(girar(desejado - c.ang), -giro, giro));
+  if (parado) velocidade = 0;
   c.seg[0] = v(
     limitar(cabeca.x + Math.cos(c.ang) * velocidade * dt, 0, limites.largura),
     limitar(cabeca.y + Math.sin(c.ang) * velocidade * dt, 0, limites.altura),
@@ -178,14 +171,4 @@ export function passo(c: Crawler, dt: number, alvo: Vec | null, limites: Limites
     p.para = soma(ideal, mul(frente(c, p.segmento), params.limitePasso * 0.4)); // passa um pouco do ideal
     p.t = 0;
   }
-}
-
-/** Comeu: ganha um segmento na cauda (e um par de pernas a cada dois), até o máximo. */
-export function crescer(c: Crawler) {
-  if (c.seg.length >= c.params.segmentosMax) return;
-  const n = c.seg.length;
-  const cauda = c.seg[n - 1];
-  const direcao = n > 1 ? normal(sub(cauda, c.seg[n - 2])) : mul(frente(c, 0), -1);
-  c.seg.push(soma(cauda, mul(direcao, c.params.dist)));
-  c.pernas = montarPernas(c, c.pernas);
 }

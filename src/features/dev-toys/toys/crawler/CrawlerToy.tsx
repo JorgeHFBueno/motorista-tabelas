@@ -1,99 +1,151 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type PointerEvent } from 'react';
-import { useSearchParams } from 'react-router-dom';
 import CrtView, { type Desenhar } from '../../crt/CrtView';
 import { ESCALA } from '../../escala';
-import { gerar, treinar } from './markov';
-import { acrescentar, apagarCorpus, gravarCorpus, gravarOpcoes, lerCorpus, lerOpcoes, type OpcoesCrawler } from './memoria';
-import { desenharCrawler } from './render';
-import { crescer, criarCrawler, paramsDaSeed, passo, rngDe, type Crawler, type Vec } from './sim';
+import {
+  EVENTO_VIVEIRO, FAMINTO, FOME_POR_PALAVRA, alimentar, atualizar, estagio, fomeAgora, gostei, gravarViveiro, lerViveiro, nomeDe,
+  registrarXerox, type Criatura, type Resultado, type Viveiro,
+} from './criaturas';
+import { NOME_ESTAGIO, paramsDe, proximoEstagio, visualDe } from './genoma';
+import { gerar, treinar, type Estatisticas } from './markov';
+import { acrescentar, gravarOpcoes, lerOpcoes, type OpcoesCrawler } from './memoria';
+import { avaliar } from './nota';
+import { boca, desenharCrawler, desenharRaio } from './render';
+import { criarCrawler, distancia, passo, rngDe, type Crawler, type Vec } from './sim';
 import { embaralhar, QUEBRA, separarTextos } from './textos';
 import bruto from './xerox.txt?raw';
 
 const L = 480;
 const A = 300;
-const FOLGA = 2; // px em volta da palavra que ainda contam como "dentro"
 const ESPERA_NOVO_TEXTO_MS = 1500;
 const TEXTOS_POR_XEROX = 3;
 const XEROX = { alvo: 60, maximo: 110 }; // palavras: a partir de 60, termina na primeira frase completa
 const FONTE = 14; // px a 100%; diminui só quando o texto não cabe na janela
 const FONTE_MIN = 7;
+const LENTIDAO_FAMINTO = 0.6;
+const AVISO_MS = 6000;
 
 // "Xerox de um Xerox": textos escolhidos pelo responsável (copiados com autorização dele), sem acento nem aspas curvas.
 const TEXTOS = separarTextos(bruto);
 
-type Palavra = { el: HTMLElement; x: number; y: number; w: number; h: number };
-type Fase = { tipo: 'texto'; n: number } | { tipo: 'xerox' };
+type Palavra = { el: HTMLElement; i: number; x: number; y: number; w: number; h: number };
+type Fase = { tipo: 'texto'; n: number } | { tipo: 'xerox'; nota: number };
 
-/** k-ésimo texto lido: cada volta pelos textos tem a sua ordem embaralhada pela seed, sem repetir dentro da volta. */
+/** k-ésimo texto lido por um Crawler: cada volta pelos textos tem a sua ordem embaralhada pela seed dele. */
 function textoDaVez(seed: number, k: number): string[] {
   const volta = Math.floor(k / TEXTOS.length);
   return TEXTOS[embaralhar(TEXTOS.length, rngDe(seed + volta * 7919))[k % TEXTOS.length]];
 }
 
-const seedDaUrl = (valor: string | null) => {
-  const n = Number(valor);
-  return valor !== null && Number.isInteger(n) ? n >>> 0 : Math.floor(Math.random() * 100000);
-};
+const ativaDe = (v: Viveiro) => v.criaturas.find((c) => c.id === v.ativa) ?? v.criaturas[0];
 
-// Crawler: o bicho anda sobre o texto da janela, segue o cursor (ou a palavra mais perto), come as palavras e cresce.
-// Ciclo: 3 textos do "Xerox de um Xerox", depois um texto escrito pelo mini-LLM (Markov de trigramas, em frases inteiras) com tudo o que
-// ele já comeu, e de novo; o aprendizado nunca é zerado. `/dev?seed=N` repete o bicho e a ordem dos textos.
+function avisoDe(r: Resultado, prefixo: string): string {
+  const partes = [prefixo];
+  if (r.evoluiu) partes.push(`EVOLUIU: ${NOME_ESTAGIO[r.evoluiu]}!`);
+  if (r.mutou) partes.push(`MUTOU (${r.mutou})!`);
+  return partes.join(' . ');
+}
+
+// Crawler: a criatura ativa do Viveiro anda sobre o texto, para perto de uma palavra e a escaneia com um raio; a palavra
+// lida fica apagada. Ciclo: 3 textos do "Xerox de um Xerox", depois um xerox do mini-LLM dela, com nota; a nota (e o
+// "gostei") vira experiência, e a experiência, evolução. Faminta, anda devagar e o xerox não rende experiência.
 export default function CrawlerToy() {
-  const [busca] = useSearchParams();
-  const seed = useMemo(() => seedDaUrl(busca.get('seed')), [busca]);
-
-  const lidos = useRef(1); // o texto 0 abre a janela
-  const proximoTexto = useCallback(() => textoDaVez(seed, lidos.current++), [seed]);
-
-  const [palavras, setPalavras] = useState<string[]>(() => textoDaVez(seed, 0));
+  const [criatura, setCriatura] = useState<Criatura>(() => ativaDe(lerViveiro()));
+  const [palavras, setPalavras] = useState<string[]>(() => textoDaVez(criatura.seed, criatura.textosLidos));
   const [versao, setVersao] = useState(0);
   const [fase, setFase] = useState<Fase>({ tipo: 'texto', n: 1 });
-  const [xerox, setXerox] = useState(0);
   const [opcoes, setOpcoes] = useState<OpcoesCrawler>(lerOpcoes);
-  const [tamanho, setTamanho] = useState(0);
+  const [aviso, setAviso] = useState<string | null>(null);
+  const [agora, setAgora] = useState(() => Date.now());
+  const [lidasNaPagina, setLidasNaPagina] = useState(0);
 
   const caixa = useRef<HTMLDivElement>(null);
   const texto = useRef<HTMLParagraphElement>(null);
   const alvos = useRef<Palavra[]>([]);
   const cursor = useRef<Vec | null>(null);
   const bicho = useRef<Crawler | null>(null);
+  const cabeca = useRef<Vec | null>(null); // onde renasce depois de evoluir ou mutar
+  const escaneando = useRef<{ p: Palavra; progresso: number } | null>(null);
   const reescrevendo = useRef(false);
-  const corpus = useRef<string[]>([]);
-  const pagina = useRef<Array<{ i: number; w: string }>>([]); // comidas no texto atual, com a posição de leitura
-  const atual = useRef({ fase, xerox, opcoes });
-  useEffect(() => { atual.current = { fase, xerox, opcoes }; }, [fase, xerox, opcoes]);
+  const pagina = useRef<Array<{ i: number; w: string }>>([]); // lidas no texto atual, com a posição de leitura
+  const atual = useRef({ fase, opcoes, criatura });
+  useEffect(() => { atual.current = { fase, opcoes, criatura }; }, [fase, opcoes, criatura]);
 
-  // aprendizado guardado neste navegador (se a opção estiver ligada)
+  const est = estagio(criatura);
+  const visual = useMemo(() => visualDe(criatura.genoma, est), [criatura.genoma, est]);
+  const corpo = useMemo(() => paramsDe(criatura.genoma, est), [criatura.genoma, est]);
+  const forma = useRef({ visual, corpo });
   useEffect(() => {
-    if (!lerOpcoes().guardar) return;
-    corpus.current = lerCorpus();
-    setTamanho(corpus.current.length);
+    forma.current = { visual, corpo };
+    bicho.current = null; // corpo novo (outro Crawler, evolução ou mutação): renasce onde a cabeça estava
+  }, [visual, corpo]);
+
+  useEffect(() => {
+    if (!aviso) return;
+    const t = window.setTimeout(() => setAviso(null), AVISO_MS);
+    return () => window.clearTimeout(t);
+  }, [aviso]);
+  useEffect(() => {
+    const t = window.setInterval(() => setAgora(Date.now()), 30_000);
+    return () => window.clearInterval(t);
   }, []);
-  // Fim do texto (ou da janela): o que ele comeu entra no aprendizado na ordem de leitura, não na ordem em que comeu.
-  const guardar = useCallback(() => {
+
+  /**
+   * O que foi lido no texto atual vira refeição e aprendizado (na ordem de leitura; o xerox só ensina se a opção
+   * estiver ligada) e o Crawler é salvo no Viveiro.
+   */
+  const guardar = useCallback((base?: Criatura): Criatura => {
+    let c = base ?? atual.current.criatura;
     if (pagina.current.length) {
       const lidas = [...pagina.current].sort((a, b) => a.i - b.i).map((p) => p.w);
       pagina.current = [];
-      corpus.current = acrescentar(corpus.current, lidas);
-      setTamanho(corpus.current.length);
+      const { fase: f, opcoes: o } = atual.current;
+      c = alimentar(c, lidas.length, Date.now());
+      if (f.tipo === 'texto' || o.aprendeDeSi) c = { ...c, corpus: acrescentar(c.corpus, lidas) };
     }
-    if (atual.current.opcoes.guardar) gravarCorpus(corpus.current);
+    // antes de gravar: gravar dispara o evento do Viveiro, e quem reagir já precisa ver esta versão
+    atual.current.criatura = c;
+    gravarViveiro(atualizar(lerViveiro(), c));
+    return c;
   }, []);
-  useEffect(() => guardar, [guardar]);
+  useEffect(() => () => { guardar(); }, [guardar]);
 
-  // Retângulos das palavras ainda não comidas, relativos à caixa (arrastar a janela não muda nada), em medidas
-  // lógicas do canvas (px da tela ÷ ESCALA).
+  // Outro Crawler escolhido no Viveiro: guarda o atual e troca, começando de um texto novo.
+  const trocando = useRef(false);
+  useEffect(() => {
+    const trocar = () => {
+      if (trocando.current) return; // o próprio guardar() abaixo grava e dispara o evento de novo
+      const proxima = ativaDe(lerViveiro());
+      if (!proxima || proxima.id === atual.current.criatura.id) return;
+      trocando.current = true;
+      try { guardar(); } finally { trocando.current = false; }
+      escaneando.current = null;
+      atual.current.criatura = proxima;
+      setCriatura(proxima);
+      setFase({ tipo: 'texto', n: 1 });
+      setPalavras(textoDaVez(proxima.seed, proxima.textosLidos));
+      setLidasNaPagina(0);
+      setVersao((n) => n + 1);
+      setAviso(`${nomeDe(proxima)} ENTROU`);
+    };
+    window.addEventListener(EVENTO_VIVEIRO, trocar);
+    return () => window.removeEventListener(EVENTO_VIVEIRO, trocar);
+  }, [guardar]);
+
+  // Retângulos das palavras ainda não lidas, relativos à caixa (arrastar a janela não muda nada), em medidas lógicas
+  // do canvas (px da tela ÷ ESCALA).
   const medir = useCallback(() => {
     const el = caixa.current;
     if (!el) return;
     const base = el.getBoundingClientRect();
-    alvos.current = [...el.querySelectorAll<HTMLElement>('[data-w]:not(.dt-comida)')].map((s) => {
+    escaneando.current?.p.el.classList.remove('dt-escaneando');
+    escaneando.current = null;
+    alvos.current = [...el.querySelectorAll<HTMLElement>('[data-w]:not(.dt-lida)')].map((s) => {
       const r = s.getBoundingClientRect();
-      return { el: s, x: (r.left - base.left) / ESCALA, y: (r.top - base.top) / ESCALA, w: r.width / ESCALA, h: r.height / ESCALA };
+      return { el: s, i: Number(s.dataset.i), x: (r.left - base.left) / ESCALA, y: (r.top - base.top) / ESCALA, w: r.width / ESCALA, h: r.height / ESCALA };
     });
   }, []);
 
-  // Texto novo: começa na fonte normal e diminui só até caber (textos longos e poemas), depois mede as palavras.
+  // Texto novo: começa na fonte normal e diminui só até caber, depois mede as palavras.
   useLayoutEffect(() => {
     const p = texto.current;
     if (p) {
@@ -116,73 +168,106 @@ export default function CrawlerToy() {
     return () => { ro.disconnect(); window.removeEventListener('animationend', medir); };
   }, [medir]);
 
-  // Acabou o texto: 3 textos, depois um xerox do LLM, e assim por diante.
+  // Acabou o texto: 3 textos, depois um xerox (com nota e experiência), e assim por diante.
   const virarPagina = useCallback(() => {
-    guardar();
     const f = atual.current.fase;
-    if (f.tipo === 'texto' && f.n < TEXTOS_POR_XEROX) {
-      setFase({ tipo: 'texto', n: f.n + 1 });
-      setPalavras(proximoTexto());
-    } else if (f.tipo === 'texto') {
-      const n = atual.current.xerox + 1;
-      setFase({ tipo: 'xerox' });
-      setXerox(n);
-      setPalavras(gerar(treinar(corpus.current), XEROX, rngDe(seed + corpus.current.length + n)));
+    let c = guardar();
+    if (f.tipo === 'texto') c = { ...c, textosLidos: c.textosLidos + 1 };
+    if (f.tipo === 'texto' && f.n >= TEXTOS_POR_XEROX) {
+      const stats: Estatisticas = { tri: 0, bi: 0, recomeco: 0 };
+      const rng = rngDe(c.seed + c.corpus.length + c.xeroxes * 31);
+      const novo = gerar(treinar(c.corpus), XEROX, rng, stats);
+      const { nota } = avaliar(novo, c.corpus, stats);
+      const r = registrarXerox(c, novo.join(' '), nota, Date.now(), rng);
+      c = r.criatura;
+      setAviso(avisoDe(r, r.xp ? `+${r.xp} XP` : 'FAMINTO: SEM XP'));
+      setFase({ tipo: 'xerox', nota });
+      setPalavras(novo.length ? novo : textoDaVez(c.seed, c.textosLidos));
     } else {
-      setFase({ tipo: 'texto', n: 1 });
-      setPalavras(proximoTexto());
+      setFase({ tipo: 'texto', n: f.tipo === 'texto' ? f.n + 1 : 1 });
+      setPalavras(textoDaVez(c.seed, c.textosLidos));
     }
+    c = guardar(c);
+    setCriatura(c);
+    setLidasNaPagina(0);
+    setAgora(Date.now());
     setVersao((v) => v + 1);
-  }, [guardar, proximoTexto, seed]);
+  }, [guardar]);
 
-  const desenhar: Desenhar = useCallback((ctx, { dt, largura, altura }) => {
-    const c = (bicho.current ??= criarCrawler(paramsDaSeed(seed), largura / 2, altura / 2, seed));
-    const cabeca = c.seg[0];
+  const desenhar: Desenhar = useCallback((ctx, { dt, tempo, largura, altura }) => {
+    const { visual: v, corpo: params } = forma.current;
+    const inicio = cabeca.current ?? { x: largura / 2, y: altura / 2 };
+    const c = (bicho.current ??= criarCrawler({ ...params }, inicio.x, inicio.y, atual.current.criatura.seed));
+    const faminto = fomeAgora(atual.current.criatura, Date.now()) - FOME_POR_PALAVRA * pagina.current.length >= FAMINTO;
+    c.params.velMax = params.velMax * (faminto ? LENTIDAO_FAMINTO : 1);
 
-    let alvo = cursor.current;
-    if (!alvo) {
+    // a palavra da vez: a que está sendo lida, ou a mais perto da boca
+    const b = boca(c);
+    let palavra = escaneando.current?.p ?? null;
+    if (!palavra) {
       let melhor = Infinity;
       for (const p of alvos.current) {
-        const centro = { x: p.x + p.w / 2, y: p.y + p.h / 2 };
-        const d = Math.hypot(centro.x - cabeca.x, centro.y - cabeca.y);
-        if (d < melhor) { melhor = d; alvo = centro; }
+        const d = distancia(b, { x: p.x + p.w / 2, y: p.y + p.h / 2 });
+        if (d < melhor) { melhor = d; palavra = p; }
       }
     }
-    passo(c, dt, alvo, { largura, altura });
+    const centro = palavra ? { x: palavra.x + palavra.w / 2, y: palavra.y + palavra.h / 2 } : null;
+    const aoAlcance = centro ? distancia(b, centro) <= v.alcance : false;
 
-    // comeu? a palavra some (sem mudar o layout), o bicho ganha um segmento e o LLM aprende a palavra
-    const h = c.seg[0];
-    const i = alvos.current.findIndex((p) => h.x >= p.x - FOLGA && h.x <= p.x + p.w + FOLGA && h.y >= p.y - FOLGA && h.y <= p.y + p.h + FOLGA);
-    if (i >= 0) {
-      const [p] = alvos.current.splice(i, 1);
-      p.el.classList.add('dt-comida');
-      crescer(c);
-      const { fase: f, opcoes: o } = atual.current;
-      if (f.tipo === 'texto' || o.aprendeDeSi) {
-        pagina.current.push({ i: Number(p.el.dataset.i), w: p.el.textContent ?? '' });
-        setTamanho(corpus.current.length + pagina.current.length);
+    // ao alcance do raio, para e lê; o cursor ainda pode puxá-lo (a leitura continua enquanto estiver ao alcance)
+    if (cursor.current) passo(c, dt, cursor.current, { largura, altura });
+    else passo(c, dt, centro, { largura, altura }, aoAlcance);
+
+    if (palavra && aoAlcance) {
+      if (escaneando.current?.p !== palavra) {
+        escaneando.current?.p.el.classList.remove('dt-escaneando');
+        escaneando.current = { p: palavra, progresso: 0 };
+        palavra.el.classList.add('dt-escaneando');
       }
+      const s = escaneando.current;
+      s.progresso += (dt * v.varredura * (faminto ? LENTIDAO_FAMINTO : 1)) / Math.max(2, palavra.el.textContent?.length ?? 2);
+      if (s.progresso >= 1) {
+        const lida = palavra;
+        lida.el.classList.remove('dt-escaneando');
+        lida.el.classList.add('dt-lida');
+        alvos.current = alvos.current.filter((p) => p !== lida);
+        pagina.current.push({ i: lida.i, w: lida.el.textContent ?? '' });
+        if (!atual.current.criatura.nasceu && pagina.current.length === 1) setAviso(`${nomeDe(atual.current.criatura)} CHOCOU!`);
+        setLidasNaPagina(pagina.current.length);
+        escaneando.current = null;
+      }
+    } else if (escaneando.current) {
+      escaneando.current.p.el.classList.remove('dt-escaneando');
+      escaneando.current = null;
     }
+
     if (!alvos.current.length && !reescrevendo.current) {
       reescrevendo.current = true;
       window.setTimeout(() => { reescrevendo.current = false; virarPagina(); }, ESPERA_NOVO_TEXTO_MS);
     }
 
+    cabeca.current = c.seg[0];
     ctx.clearRect(0, 0, largura, altura);
-    desenharCrawler(ctx, c);
-  }, [seed, virarPagina]);
+    if (escaneando.current) desenharRaio(ctx, boca(c), escaneando.current.p, escaneando.current.progresso, tempo);
+    desenharCrawler(ctx, c, v);
+  }, [virarPagina]);
 
   const mover = (e: PointerEvent<HTMLDivElement>) => {
     const r = e.currentTarget.getBoundingClientRect();
     cursor.current = { x: (e.clientX - r.left) / ESCALA, y: (e.clientY - r.top) / ESCALA };
   };
 
-  const mudarOpcoes = (novas: OpcoesCrawler) => {
-    setOpcoes(novas);
-    gravarOpcoes(novas);
-    if (novas.guardar) gravarCorpus(corpus.current);
-    else apagarCorpus(); // desligado: some do navegador, mas continua valendo enquanto a janela estiver aberta
+  const mudarOpcoes = (novas: OpcoesCrawler) => { setOpcoes(novas); gravarOpcoes(novas); };
+  const darGostei = () => {
+    const r = gostei(atual.current.criatura);
+    if (!r.xp) return;
+    setCriatura(guardar(r.criatura));
+    setAviso(avisoDe(r, `+${r.xp} XP (GOSTEI)`));
   };
+  const abrirViveiro = () => window.dispatchEvent(new CustomEvent('ledur:dev-abrir', { detail: 'viveiro' }));
+
+  const fome = Math.max(0, Math.round(fomeAgora(criatura, agora) - FOME_POR_PALAVRA * lidasNaPagina));
+  const proximo = proximoEstagio(criatura.xp);
   const marca = (ligado: boolean) => `[${ligado ? 'x' : ' '}]`;
 
   return (
@@ -195,14 +280,22 @@ export default function CrawlerToy() {
       </div>
       <div className="dt-crawler-rodape">
         <p>
-          {fase.tipo === 'texto' ? `TEXTO ${fase.n}/${TEXTOS_POR_XEROX}` : `XEROX ${xerox}`} . LLM {tamanho} PALAVRAS . SEED {seed}
+          {nomeDe(criatura)} . {NOME_ESTAGIO[est === 'ovo' ? 'larva' : est]} . XP {Math.round(criatura.xp)}{proximo ? `/${proximo.xp}` : ''}
+          {' '}. FOME {fome}{fome >= FAMINTO ? ' (FAMINTO)' : ''}
         </p>
+        <p>
+          {fase.tipo === 'texto' ? `TEXTO ${fase.n}/${TEXTOS_POR_XEROX}` : `XEROX ${criatura.xeroxes} . NOTA ${fase.nota}`}
+          {aviso ? ` . ${aviso}` : ''}
+        </p>
+        {fase.tipo === 'xerox' && (
+          <button type="button" onClick={darGostei} disabled={criatura.ultimo?.gostei}>
+            {marca(criatura.ultimo?.gostei === true)} Gostei deste xerox
+          </button>
+        )}
         <button type="button" onClick={() => mudarOpcoes({ ...opcoes, aprendeDeSi: !opcoes.aprendeDeSi })}>
           {marca(opcoes.aprendeDeSi)} LLM aprende o proprio texto
         </button>
-        <button type="button" onClick={() => mudarOpcoes({ ...opcoes, guardar: !opcoes.guardar })}>
-          {marca(opcoes.guardar)} Guardar aprendizado
-        </button>
+        <button type="button" onClick={abrirViveiro}>Viveiro</button>
       </div>
     </div>
   );

@@ -30,6 +30,9 @@ export function treinar(palavras: string[]): Markov {
   return modelo;
 }
 
+/** Como cada palavra do xerox foi escolhida: pelo par anterior, só pela anterior, ou recomeçando numa frase. */
+export type Estatisticas = { tri: number; bi: number; recomeco: number };
+
 export type OpcoesGerar = {
   /** a partir daqui, termina no primeiro ponto final */
   alvo: number;
@@ -38,7 +41,7 @@ export type OpcoesGerar = {
 };
 
 /** Escreve um texto de frases inteiras com o que o modelo aprendeu. */
-export function gerar(modelo: Markov, { alvo, maximo }: OpcoesGerar, rng: () => number): string[] {
+export function gerar(modelo: Markov, { alvo, maximo }: OpcoesGerar, rng: () => number, stats?: Estatisticas): string[] {
   const chaves = [...modelo.bi.keys()];
   const inicios = modelo.inicios.length ? modelo.inicios : chaves;
   if (!inicios.length) return [];
@@ -51,24 +54,31 @@ export function gerar(modelo: Markov, { alvo, maximo }: OpcoesGerar, rng: () => 
     const n = saida.length;
     const anterior = saida[n - 1];
     let candidatas: string[] | undefined;
+    let fonte: keyof Estatisticas = 'recomeco';
+    const tri = n >= 2 ? modelo.tri.get(`${saida[n - 2]} ${anterior}`) : undefined;
     if (n === 0 || fimDeFrase(anterior)) {
       if (n >= alvo) break; // passou do alvo e a frase acabou
-      if (n > 0) candidatas = n >= 2 ? modelo.tri.get(`${saida[n - 2]} ${anterior}`) : undefined;
       // frase nova: às vezes segue o texto de origem, às vezes recomeça noutra frase
-      if (!candidatas?.length || rng() < 0.5) candidatas = inicios;
+      if (tri?.length && rng() >= 0.5) { candidatas = tri; fonte = 'tri'; } else candidatas = inicios;
+    } else if (tri?.length) {
+      candidatas = tri;
+      fonte = 'tri';
+    } else if (modelo.bi.get(anterior)?.length) {
+      candidatas = modelo.bi.get(anterior)!;
+      fonte = 'bi';
     } else {
-      candidatas = (n >= 2 ? modelo.tri.get(`${saida[n - 2]} ${anterior}`) : undefined) ?? modelo.bi.get(anterior);
-      if (!candidatas?.length) candidatas = inicios; // beco sem saída: recomeça numa frase
+      candidatas = inicios; // beco sem saída: recomeça numa frase
     }
     // não repete trecho de três palavras nem abertura de frase já usados neste texto, se houver alternativa
     const abrindo = n === 0 || fimDeFrase(anterior);
     const nova = (w: string) => !(abrindo && aberturas.has(w)) && (n < 2 || !usados.has(`${saida[n - 2]} ${anterior} ${w}`));
     let novas = candidatas.filter(nova);
-    if (!novas.length && abrindo) novas = inicios.filter(nova); // a continuação já foi usada: tenta outra abertura
+    if (!novas.length && abrindo && candidatas !== inicios) { novas = inicios.filter(nova); fonte = 'recomeco'; } // continuação já usada: outra abertura
     const escolhida = sorteia(novas.length ? novas : candidatas);
     if (abrindo) aberturas.add(escolhida);
     if (n >= 2) usados.add(`${saida[n - 2]} ${anterior} ${escolhida}`);
     saida.push(escolhida);
+    if (stats && n > 0) stats[fonte]++;
   }
 
   // estourou o teto no meio de uma frase: corta no último ponto final, se ele não deixar o texto curto demais

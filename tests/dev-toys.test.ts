@@ -7,7 +7,12 @@ import { normalizarPrefs } from '../src/features/dev-toys/prefs';
 import { fimDeFrase, gerar, treinar } from '../src/features/dev-toys/toys/crawler/markov';
 import { acrescentar, MAX_CORPUS, normalizarCorpus, normalizarOpcoes } from '../src/features/dev-toys/toys/crawler/memoria';
 import { embaralhar, paraAscii, QUEBRA, separarTextos } from '../src/features/dev-toys/toys/crawler/textos';
-import { PADRAO, crescer, criarCrawler, distancia, ik, noAr, paramsDaSeed, passo, rngDe, vizinhas } from '../src/features/dev-toys/toys/crawler/sim';
+import { PADRAO, criarCrawler, distancia, ik, noAr, passo, rngDe, vizinhas } from '../src/features/dev-toys/toys/crawler/sim';
+import { estagioDe, mutar, normalizarGenoma, paramsDe, proximoEstagio, sortearGenoma, visualDe } from '../src/features/dev-toys/toys/crawler/genoma';
+import { avaliar } from '../src/features/dev-toys/toys/crawler/nota';
+import {
+  FAMINTO, MAX_CRIATURAS, MS_POR_PONTO_DE_FOME, alimentar, atualizar, chocar, fomeAgora, gostei, normalizarViveiro, novaCriatura, registrarXerox, soltar,
+} from '../src/features/dev-toys/toys/crawler/criaturas';
 
 const sessao = (valores: Record<string, string>) => ({ getItem: (k: string) => valores[k] ?? null });
 
@@ -95,24 +100,22 @@ test('Crawler: pernas vizinhas nunca estão no ar juntas, e a marcha acontece', 
   assert.equal(c.pernas.length, 8, '8 segmentos: pares nos segmentos 1, 3, 5 e 7');
 });
 
-test('Crawler: comer acrescenta um segmento e um par de pernas a cada dois; a seed fixa o bicho', () => {
-  const c = criarCrawler(PADRAO, 100, 100, 1);
-  crescer(c);
-  assert.equal(c.seg.length, 9);
-  assert.equal(c.pernas.length, 8, '9 segmentos: pernas ainda nos segmentos 1, 3, 5 e 7');
-  crescer(c);
-  assert.equal(c.seg.length, 10);
-  assert.equal(c.pernas.length, 10, 'o segmento 9 ganha um par');
-  assert.ok(Math.abs(distancia(c.seg[9], c.seg[8]) - PADRAO.dist) < 1e-6);
-  const cheio = criarCrawler({ ...PADRAO, segmentosMax: 9 }, 100, 100, 1);
-  crescer(cheio);
-  crescer(cheio);
-  assert.equal(cheio.seg.length, 9, 'para no máximo');
+test('Crawler: pernas a cada 2 ou a cada 1 segmento, e a marcha vale nos dois', () => {
+  assert.equal(criarCrawler(PADRAO, 100, 100, 1).pernas.length, 8, '8 segmentos: pares nos segmentos 1, 3, 5 e 7');
+  const c = criarCrawler({ ...PADRAO, pernasACada: 1 }, 240, 150, 3);
+  assert.equal(c.pernas.length, 14, '8 segmentos: um par em cada, menos a cabeça');
+  for (let i = 0; i < 2000; i++) {
+    passo(c, 1 / 60, { x: (i * 5) % 480, y: (i * 2) % 300 }, { largura: 480, altura: 300 });
+    for (const p of c.pernas) if (noAr(p)) assert.ok(!vizinhas(c, p).some(noAr), `quadro ${i}`);
+  }
+});
 
-  assert.deepEqual(paramsDaSeed(42), paramsDaSeed(42));
-  assert.notDeepEqual(paramsDaSeed(42), paramsDaSeed(43));
-  const p = paramsDaSeed(42);
-  assert.ok(p.segmentos >= 6 && p.segmentos <= 10);
+test('Crawler: parado para ler, ele não anda, só vira para a palavra', () => {
+  const c = criarCrawler(PADRAO, 100, 100, 1);
+  const antes = { ...c.seg[0] };
+  for (let i = 0; i < 60; i++) passo(c, 1 / 60, { x: 100, y: 200 }, { largura: 480, altura: 300 }, true);
+  assert.deepEqual(c.seg[0], antes);
+  assert.ok(Math.abs(c.ang - Math.PI / 2) < 0.05, `ângulo ${c.ang}`);
 });
 
 test('Crawler: o mini-LLM aprende pares, trios e inícios de frase', () => {
@@ -177,6 +180,98 @@ test('Crawler: o aprendizado só cresce até o teto e as opções vêm ligadas',
   assert.equal(acrescentar([], Array(MAX_CORPUS + 10).fill('x')).length, MAX_CORPUS);
   assert.deepEqual(normalizarCorpus(['a', 1, '', 'b', null]), ['a', 'b']);
   assert.deepEqual(normalizarCorpus('lixo'), []);
-  assert.deepEqual(normalizarOpcoes(null), { aprendeDeSi: true, guardar: true });
-  assert.deepEqual(normalizarOpcoes({ aprendeDeSi: false }), { aprendeDeSi: false, guardar: true });
+  assert.deepEqual(normalizarOpcoes(null), { aprendeDeSi: true });
+  assert.deepEqual(normalizarOpcoes({ aprendeDeSi: false, guardar: false }), { aprendeDeSi: false });
+});
+
+test('Crawler: o genoma sai da seed, cresce com o estágio e muta um gene por vez', () => {
+  const g = sortearGenoma(rngDe(5));
+  assert.deepEqual(sortearGenoma(rngDe(5)), g);
+  assert.notDeepEqual(sortearGenoma(rngDe(6)), g);
+  assert.ok(g.segmentos >= 6 && g.segmentos <= 11 && g.alcance >= 60 && g.alcance <= 110);
+  const tamanhos = (['larva', 'jovem', 'adulta', 'ancia'] as const).map((e) => paramsDe(g, e).segmentos);
+  assert.deepEqual(tamanhos, [g.segmentos - 3, g.segmentos - 2, g.segmentos - 1, g.segmentos]);
+  assert.ok(visualDe(g, 'larva').alcance < visualDe(g, 'ancia').alcance);
+  assert.equal(visualDe(g, 'larva').cabeca, null);
+  assert.equal(visualDe(g, 'jovem').cabeca, g.cabeca);
+  assert.equal(visualDe({ ...g, cauda: 'leque' }, 'jovem').cauda, null);
+  assert.equal(visualDe({ ...g, cauda: 'leque' }, 'adulta').cauda, 'leque');
+  assert.equal(visualDe({ ...g, enfeite: 'pontos' }, 'adulta').enfeite, null);
+  assert.equal(visualDe({ ...g, enfeite: 'pontos' }, 'ancia').enfeite, 'pontos');
+  for (let s = 1; s <= 20; s++) {
+    const { genoma, gene } = mutar(g, rngDe(s));
+    const diferentes = (Object.keys(g) as (keyof typeof g)[]).filter((k) => genoma[k] !== g[k]);
+    assert.ok(diferentes.length <= 1 && (diferentes.length === 0 || diferentes[0] === gene));
+  }
+  assert.deepEqual(normalizarGenoma(g, rngDe(9)), g, 'genoma salvo volta igual');
+  assert.ok(['circulo', 'losango', 'quadrado', 'anel'].includes(normalizarGenoma({ forma: 'triangulo' }, rngDe(9)).forma));
+});
+
+test('Crawler: estágios por experiência (ovo até a primeira palavra)', () => {
+  assert.equal(estagioDe(500, false), 'ovo');
+  assert.deepEqual([0, 149, 150, 399, 400, 899, 900].map((xp) => estagioDe(xp, true)), ['larva', 'larva', 'jovem', 'jovem', 'adulta', 'adulta', 'ancia']);
+  assert.deepEqual(proximoEstagio(10), { estagio: 'jovem', xp: 150 });
+  assert.equal(proximoEstagio(900), null);
+});
+
+test('Crawler: a nota do xerox premia coesão e mistura, e copiar trecho longo vale menos', () => {
+  const corpus = separarTextos(readFileSync('src/features/dev-toys/toys/crawler/xerox.txt', 'utf8')).flat().filter((w) => w !== QUEBRA);
+  const copia = avaliar(corpus.slice(0, 60), corpus, { tri: 59, bi: 0, recomeco: 0 });
+  assert.equal(copia.mistura, 0, 'cópia literal não mistura nada');
+  const m = treinar(corpus);
+  let melhor = 0;
+  for (let seed = 1; seed <= 20; seed++) {
+    const stats = { tri: 0, bi: 0, recomeco: 0 };
+    const t = gerar(m, { alvo: 60, maximo: 110 }, rngDe(seed), stats);
+    assert.ok(stats.tri + stats.bi + stats.recomeco >= t.length - 1, 'cada ligação escrita é contada');
+    const n = avaliar(t, corpus, stats);
+    assert.ok(n.nota >= 0 && n.nota <= 100);
+    melhor = Math.max(melhor, n.nota);
+  }
+  assert.ok(melhor > copia.nota, `um xerox misturado (${melhor}) vale mais que a cópia (${copia.nota})`);
+  assert.equal(avaliar([], corpus, { tri: 0, bi: 0, recomeco: 0 }).nota, 0);
+});
+
+test('Crawler: fome sobe com o tempo e cai comendo; faminto não ganha experiência; nunca morre', () => {
+  const t0 = 1_000_000;
+  const c = novaCriatura(1, 7, t0);
+  assert.equal(c.nasceu, false);
+  assert.equal(Math.round(fomeAgora(c, t0 + 10 * MS_POR_PONTO_DE_FOME)), 40);
+  assert.equal(fomeAgora(c, t0 + 1000 * MS_POR_PONTO_DE_FOME), 100, 'teto em 100');
+  const comeu = alimentar(c, 10, t0);
+  assert.equal(comeu.nasceu, true, 'a primeira palavra choca o ovo');
+  assert.equal(comeu.fome, 10);
+
+  const r = registrarXerox(comeu, 'Um texto.', 80, t0, () => 0.99);
+  assert.equal(r.xp, 80);
+  assert.equal(r.criatura.xeroxes, 1);
+  assert.equal(r.criatura.melhorNota, 80);
+  const faminto = registrarXerox({ ...comeu, fome: FAMINTO }, 'Um texto.', 80, t0, () => 0.99);
+  assert.equal(faminto.xp, 0);
+  const evolui = registrarXerox({ ...comeu, xp: 100 }, 'Um texto.', 60, t0, () => 0.99);
+  assert.equal(evolui.evoluiu, 'jovem');
+  const muta = registrarXerox(comeu, 'Um texto.', 90, t0, () => 0);
+  assert.ok(muta.mutou, 'nota alta pode mutar');
+  assert.equal(registrarXerox(comeu, 'Um texto.', 84, t0, () => 0).mutou, null, 'nota baixa não muta');
+
+  const g1 = gostei(r.criatura);
+  assert.equal(g1.xp, 25);
+  assert.equal(gostei(g1.criatura).xp, 0, 'gostei só uma vez por xerox');
+});
+
+test('Crawler: viveiro com até 6, um ativo, solto não volta, salvo estragado é ignorado', () => {
+  let v = normalizarViveiro('lixo', 0);
+  assert.deepEqual(v, { criaturas: [], ativa: null, proximoNumero: 1 });
+  for (let i = 0; i < 8; i++) v = chocar(v, 100 + i, 0);
+  assert.equal(v.criaturas.length, MAX_CRIATURAS);
+  assert.deepEqual(v.criaturas.map((c) => c.numero), [1, 2, 3, 4, 5, 6]);
+  assert.equal(v.ativa, v.criaturas[0].id);
+  const primeira = v.criaturas[0];
+  v = soltar(v, primeira.id);
+  assert.equal(v.ativa, v.criaturas[0].id, 'soltou a ativa: a próxima assume');
+  assert.equal(atualizar(v, { ...primeira, xp: 999 }), v, 'quem foi solto não volta ao salvar');
+  assert.equal(chocar(v, 999, 0).criaturas.at(-1)?.numero, 7, 'a numeração não se repete');
+  const salvo = normalizarViveiro(JSON.parse(JSON.stringify({ ...v, ativa: 'nao-existe' })), 0);
+  assert.equal(salvo.ativa, salvo.criaturas[0].id);
+  assert.deepEqual(salvo.criaturas[0].genoma, v.criaturas[0].genoma);
 });

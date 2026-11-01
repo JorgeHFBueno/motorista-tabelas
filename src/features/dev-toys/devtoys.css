@@ -347,12 +347,19 @@
 
 .devtoys .dt-crawler-texto [data-w] {
   display: inline-block;
-  transition: opacity 0.3s ease, transform 0.3s ease;
+  transition: opacity 0.4s ease, color 0.4s ease;
 }
 
-.devtoys .dt-crawler-texto .dt-comida {
-  opacity: 0;
-  transform: scale(0.2);
+/* sendo escaneada pelo raio: acesa */
+.devtoys .dt-crawler-texto .dt-escaneando {
+  color: #ffe2a0;
+}
+
+/* já lida: fica na tela, apagada */
+.devtoys .dt-crawler-texto .dt-lida {
+  color: var(--dt-apagado);
+  opacity: 0.45;
+  text-shadow: none;
 }
 
 .devtoys .dt-crawler-rodape {
@@ -377,4 +384,66 @@
   .devtoys .dt-crawler-texto [data-w] {
     transition: none;
   }
+}
+
+/* ---- Viveiro: fichas dos Crawlers, duas por linha ---- */
+.devtoys .dt-viveiro {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: calc(var(--dt-e) * 10px);
+  max-height: calc(var(--dt-e) * 520px);
+  overflow-y: auto;
+}
+
+.devtoys .dt-ficha {
+  padding: calc(var(--dt-e) * 6px) calc(var(--dt-e) * 8px);
+  border: 1px dotted var(--dt-apagado);
+  font-size: calc(var(--dt-e) * 10px);
+}
+
+.devtoys .dt-ficha p {
+  margin: 0 0 calc(var(--dt-e) * 3px);
+}
+
+.devtoys .dt-ficha canvas {
+  display: block;
+  margin: calc(var(--dt-e) * 2px) auto;
+}
+
+.devtoys .dt-ficha-ativa {
+  border: 1px solid var(--dt-tinta);
+  box-shadow: inset 0 0 calc(var(--dt-e) * 10px) rgb(255 176 0 / 0.15);
+}
+
+.devtoys .dt-ficha-nome {
+  font-weight: bold;
+}
+
+.devtoys .dt-ficha-xerox {
+  color: var(--dt-apagado);
+}
+
+.devtoys .dt-ficha-botoes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: calc(var(--dt-e) * 8px);
+}
+
+.devtoys .dt-ficha button:hover,
+.devtoys .dt-ficha button:focus-visible {
+  color: var(--dt-papel);
+  background: var(--dt-tinta);
+}
+
+.devtoys .dt-ficha-vazia {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: calc(var(--dt-e) * 8px);
+  color: var(--dt-apagado);
+}
+
+.devtoys .dt-crawler-rodape button:disabled {
+  cursor: default;
 }

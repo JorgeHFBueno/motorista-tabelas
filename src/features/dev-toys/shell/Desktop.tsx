@@ -1,4 +1,4 @@
-import { Suspense, useEffect, useState, type PointerEvent } from 'react';
+import { Suspense, useCallback, useEffect, useState, type PointerEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { INTENSIDADES, type IntensidadeCrt } from '../crt/parametros';
 import type { PrefsDev } from '../prefs';
@@ -47,14 +47,24 @@ export default function Desktop({ ligando, prefs, onPrefs, onReiniciar }: Props)
     return () => window.removeEventListener('keydown', onKey);
   }, [menu, janelas.length, navigate]);
 
-  const abrir = (id: string) => {
+  const abrir = useCallback((id: string) => {
     setMenu(null);
     setJanelas((js) => {
       const aberta = js.find((j) => j.id === id);
       if (aberta) return [...js.filter((j) => j.id !== id), aberta];
       return [...js, { id, x: (64 + js.length * 24) * ESCALA, y: (64 + js.length * 24) * ESCALA }];
     });
-  };
+  }, []);
+
+  // Um brinquedo pode pedir para abrir outro (o Viveiro abre o Crawler e vice-versa): evento `ledur:dev-abrir`.
+  useEffect(() => {
+    const pedir = (e: Event) => {
+      const id = (e as CustomEvent<unknown>).detail;
+      if (typeof id === 'string' && DEV_TOYS.some((t) => t.id === id)) abrir(id);
+    };
+    window.addEventListener('ledur:dev-abrir', pedir);
+    return () => window.removeEventListener('ledur:dev-abrir', pedir);
+  }, [abrir]);
   const focar = (id: string) => setJanelas((js) => (js.at(-1)?.id === id ? js : [...js.filter((j) => j.id !== id), js.find((j) => j.id === id)!]));
   const fechar = (id: string) => setJanelas((js) => js.filter((j) => j.id !== id));
   const mover = (id: string, x: number, y: number) => setJanelas((js) => js.map((j) => (j.id === id ? { ...j, x, y } : j)));

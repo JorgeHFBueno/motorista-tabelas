@@ -33,4 +33,11 @@ export const DEV_TOYS: DevToy[] = [
     componente: lazy(() => import('./toys/crawler/CrawlerToy')),
     largura: 506, // área 480 + margens
   },
+  {
+    id: 'viveiro',
+    nome: 'Viveiro',
+    icone: 'M3 1h10v2H3zM1 4h14v11H1zM2 5h12v9H2zM5 9h1v1H5zM10 9h1v1h-1zM6 10h4v2H6zM5 12h1v1H5zM10 12h1v1h-1z',
+    componente: lazy(() => import('./toys/viveiro/ViveiroToy')),
+    largura: 430, // duas fichas por linha
+  },
 ];
