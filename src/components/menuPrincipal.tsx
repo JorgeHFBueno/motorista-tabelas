@@ -91,6 +91,14 @@ export const menuPrincipal: MenuPrincipalItem[] = [
     ],
   },
   {
+    label: 'Logística',
+    icon: <LocalShippingOutlinedIcon fontSize="large" />,
+    color: '#EEF3FA',
+    accent: '#3A6EA5',
+    acesso: 'adm2',
+    children: [{ label: 'Cronograma', to: '/logistica/cronograma', icon: <CalendarMonthIcon /> }],
+  },
+  {
     label: 'Meu perfil',
     icon: <PersonOutlineRoundedIcon fontSize="large" />,
     color: '#F3F6F9',

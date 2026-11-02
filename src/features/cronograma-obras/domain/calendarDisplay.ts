@@ -23,3 +23,8 @@ export function mastersTooltip(masters: readonly MestrePlanejado[]): string | un
   const names = [...new Set(masters.map((mestre) => mestre.nome).filter(Boolean))];
   return names.length ? `Mestres:\n${names.map((name) => `- ${name}`).join('\n')}` : undefined;
 }
+
+/** Números de contrato (obras-v2.numeroContrato) das obras de uma célula da visão Mestres, sem repetição e na ordem em que aparecem. */
+export function contractNumbersForObras(obras: readonly { contratoId?: string }[], contratos: ReadonlyMap<string, { numeroContrato: string | null }>): string[] {
+  return [...new Set(obras.map((obra) => contratos.get(obra.contratoId ?? '')?.numeroContrato?.trim() ?? '').filter(Boolean))];
+}

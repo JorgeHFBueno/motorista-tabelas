@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { nextTableSort, sortObras } from "../src/features/cronograma-obras/domain/tableSort";
 import { RESIZABLE_COLUMNS } from "../src/features/cronograma-obras/domain/obraGridColumns";
+import { contractNumbersForObras } from "../src/features/cronograma-obras/domain/calendarDisplay";
 import { readFileSync } from "node:fs";
 
 test("table sort cycles asc, desc and original", () => {
@@ -50,4 +51,10 @@ test("sort compares dates and numbers and keeps missing values last", () => {
   const contracts = new Map();
   assert.deepEqual(sortObras(obras, contracts, { column: "inicio", direction: "asc" }).map((item) => item.id), ["b", "a", "c"]);
   assert.deepEqual(sortObras(obras, contracts, { column: "dias", direction: "desc" }).map((item) => item.id), ["a", "b", "c"]);
+});
+
+test("visão Mestres mostra o número do contrato das obras da célula, sem repetir e sem vazios", () => {
+  const contratos = new Map([["c1", { numeroContrato: "045/2025" }], ["c2", { numeroContrato: " 12/2026 " }], ["c3", { numeroContrato: null }]]);
+  assert.deepEqual(contractNumbersForObras([{ contratoId: "c1" }, { contratoId: "c1" }, { contratoId: "c2" }, { contratoId: "c3" }, {}], contratos), ["045/2025", "12/2026"]);
+  assert.deepEqual(contractNumbersForObras([], contratos), []);
 });

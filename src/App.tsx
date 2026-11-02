@@ -28,6 +28,7 @@ const HomeDashboard = lazy(() => import('./pages/HomeDashboard'));
 const BombasPage = lazy(() => import('./pages/BombasPage'));
 const AccessDeniedPage = lazy(() => import('./pages/AccessDeniedPage'));
 const CronogramaObrasPage = lazy(() => import('./features/cronograma-obras/CronogramaObrasPage'));
+const LogisticaCronogramaPage = lazy(() => import('./features/cronograma-logistica/LogisticaCronogramaPage'));
 const PrazosContratuaisPage = lazy(() => import('./features/prazos-contratuais/PrazosContratuaisPage'));
 const ObrasPage = lazy(() => import('./features/obras/ObrasPage'));
 const ObraDetalhesPage = lazy(() => import('./features/obras/ObraDetalhesPage'));
@@ -93,6 +94,7 @@ export default function App() {
             <Route path="frota/checklists/:id" element={<ChecklistDetalhePage />} />
             <Route path="frota/analytics" element={<FrotaAnalyticsPage />} />
             <Route path="bombas" element={<BombasPage />} />
+            <Route path="logistica/cronograma" element={<LogisticaCronogramaPage />} />
             <Route path="portfolio" element={<PortifolioPage />} />
           </Route>
         </Routes>

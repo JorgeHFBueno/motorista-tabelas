@@ -43,7 +43,7 @@ import {
   type MasterResizeEdge,
 } from "../domain/masterResize";
 import { getMestreColor, normalizeMestreKey } from "../domain/mestres";
-import { masterNameContent, mastersTooltip } from "../domain/calendarDisplay";
+import { contractNumbersForObras, masterNameContent, mastersTooltip } from "../domain/calendarDisplay";
 import {
   getBucketTimelineAggregate,
   layoutMasterAllocationLanes,
@@ -706,12 +706,42 @@ const ContractCells = memo(function ContractCells({
 
 const NOOP_DROP = () => undefined;
 
+/** Bloco da visão Mestres com o número do contrato das obras da célula; o dia (24px) mostra só no título. */
+function ResourceBlock({
+  mestre,
+  obras,
+  contratos,
+  showLabel,
+  as: Tag = "i",
+}: {
+  mestre: string;
+  obras: readonly ObraCronograma[];
+  contratos: ReadonlyMap<string, ContratoCronograma>;
+  showLabel: boolean;
+  as?: "i" | "span";
+}) {
+  const numbers = contractNumbersForObras(obras, contratos);
+  return (
+    <Tag
+      className="co-resource-block"
+      style={colorStyle(normalizeMestreKey(mestre))}
+      title={numbers.length ? `Contrato: ${numbers.join(", ")}` : undefined}
+    >
+      {showLabel && numbers.length > 0 && (
+        <span className="co-resource-contract">{numbers.join(" · ")}</span>
+      )}
+    </Tag>
+  );
+}
+
 function MasterCells({
   workload,
+  contratos,
   zoom,
   years,
 }: {
   workload: MestreWorkload;
+  contratos: ReadonlyMap<string, ContratoCronograma>;
   zoom: ZoomCronograma;
   years: number[];
 }) {
@@ -720,6 +750,7 @@ function MasterCells({
     zoom === "day"
       ? workload.daily.map((item) => ({
           days: item.obras.length,
+          obras: item.obras,
           conflict: item.conflict,
         }))
       : zoom === "week"
@@ -727,6 +758,13 @@ function MasterCells({
         : zoom === "year"
           ? years.map((year) => {
               const bucket = yearBucket(year);
+              const obras = workload.obras.filter((obra) =>
+                obra.mestresPlanejados.some(
+                  (mestre) =>
+                    mestre.nome === workload.mestre &&
+                    countIntersection(mestre.inicio, mestre.tempoPlanejado, bucket.start, bucket.days) > 0,
+                ),
+              );
               const days = workload.obras.reduce(
                 (sum, obra) =>
                   sum +
@@ -745,7 +783,7 @@ function MasterCells({
                     ),
                 0,
               );
-              return { days, conflict: false };
+              return { days, obras, conflict: false };
             })
           : monthlyHeader(calendarYear).map((month) => {
               const items = workload.daily.filter(
@@ -753,6 +791,7 @@ function MasterCells({
               );
               return {
                 days: items.filter((item) => item.obras.length).length,
+                obras: [...new Map(items.flatMap((item) => item.obras).map((obra) => [obra.id, obra])).values()],
                 conflict: items.some((item) => item.conflict),
               };
             });
@@ -791,10 +830,7 @@ function MasterCells({
                 style={{ left: `${index * BUCKET_WIDTH.day}px`, width: `${BUCKET_WIDTH.day}px` }}
               >
                 {cell.days > 0 && (
-                  <i
-                    className="co-resource-block"
-                    style={colorStyle(normalizeMestreKey(workload.mestre))}
-                  />
+                  <ResourceBlock mestre={workload.mestre} obras={cell.obras} contratos={contratos} showLabel={false} />
                 )}
                 {cell.conflict && <WarningAmberRounded className="co-conflict-icon" />}
               </span>
@@ -815,7 +851,7 @@ function MasterCells({
                 className={`co-week-resource-marker ${cell.conflict ? "is-conflict" : ""}`}
                 style={{ left: `${index * BUCKET_WIDTH.week}px`, width: `${BUCKET_WIDTH.week}px` }}
               >
-                {cell.days > 0 && <i className="co-resource-block" style={colorStyle(normalizeMestreKey(workload.mestre))} />}
+                {cell.days > 0 && <ResourceBlock mestre={workload.mestre} obras={cell.obras} contratos={contratos} showLabel />}
                 {cell.conflict && <WarningAmberRounded className="co-conflict-icon" />}
               </span>
             ),
@@ -831,10 +867,7 @@ function MasterCells({
           key={index}
         >
           {cell.days > 0 && (
-            <span
-              className="co-resource-block"
-              style={colorStyle(normalizeMestreKey(workload.mestre))}
-            />
+            <ResourceBlock as="span" mestre={workload.mestre} obras={cell.obras} contratos={contratos} showLabel />
           )}
           {cell.conflict && (
             <WarningAmberRounded className="co-conflict-icon" />
@@ -1521,7 +1554,7 @@ export const GanttGrid = memo(function GanttGrid({
                     </span>
                   </div>
                   <div className="co-row-timeline">
-                    <MasterCells workload={workload} zoom={zoom} years={years} />
+                    <MasterCells workload={workload} contratos={contratos} zoom={zoom} years={years} />
                   </div>
                 </div>
               ))}
