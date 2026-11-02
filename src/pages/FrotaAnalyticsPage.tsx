@@ -53,7 +53,7 @@ export default function FrotaAnalyticsPage() {
       <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2} justifyContent="space-between" alignItems={{ xs: 'flex-start', sm: 'center' }}>
         <Box>
           <Typography variant="h4">Analytics da Frota</Typography>
-          <Typography variant="subtitle1" color="text.secondary">KPI piloto · Jan–Ago 2026</Typography>
+          <Typography variant="subtitle1" color="text.secondary">KPI desde 01/01/2025</Typography>
         </Box>
         <Stack direction="row" spacing={1}>
           {selectedVehicle && <Button variant="text" onClick={() => setSearchParams({}, { replace: true })}>Visão geral</Button>}

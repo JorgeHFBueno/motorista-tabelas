@@ -64,7 +64,7 @@ import { normalizarMovimentoCombustivel } from '../services/combustivel-normaliz
 import { normalizarAtividade } from '../services/atividade-normalizer';
 import { buildVehicleReport, fetchVehicleErpRows } from '../services/vehicle-report.service';
 import { createVehicleReportPdf } from '../services/vehicle-report-pdf';
-import { describeErpCallError, normalizeCalendarDate, resolveVehicleReportPeriod, type VehicleReportPeriod } from '../services/vehicle-report-core';
+import { custoPorAbastecimento, describeErpCallError, extractCnpj, fuelReportSupplier, normalizeCalendarDate, resolveVehicleReportPeriod, type VehicleReportPeriod } from '../services/vehicle-report-core';
 import { listFuncionariosAtivos } from '../services/funcionarios-selecao.service';
 import { atualizarKmInicial, getItemFrota, itemFridayDoVeiculo, renomearItemFrota } from '../services/veiculos.service';
 import type { ItemFrotaV2, PessoaV2 } from '../utils/cadastrosV2';
@@ -722,7 +722,8 @@ export default function FrotaVeiculoDetalhesPage() {
                             qntAbastecida: registro.quantidadeAbastecida ?? null,
                             arla: registro.arla ?? null,
                             categoria,
-                            valor: registro.valor ?? null,
+                            valor: null, // calculado com as manutenções (combustivelComCusto)
+                            fornecedor: fuelReportSupplier(registro as unknown as Record<string, unknown>),
                             obra: registro.obra ?? null,
                         };
                     },
@@ -863,14 +864,27 @@ export default function FrotaVeiculoDetalhesPage() {
         return resolveManutencoes(manutencoes2026Rows);
     }, [manutencoes2026Rows, resolveManutencoes]);
 
+    // Valor do abastecimento pela regra do relatório (e do KPI): diesel interno a R$ 5,90/L; o externo que já está numa
+    // manutenção "ABASTECIMENTO EXTERNO" fica sem valor, para não contar duas vezes.
+    const combustivelComCusto = useMemo(() => {
+        const valores = custoPorAbastecimento(
+            combustivelRows.map((row) => ({ id: row.docId, data: normalizeCalendarDate(row.data), quantidadeRaw: row.qntAbastecida ?? 0, fornecedor: row.fornecedor ?? '', cnpj: extractCnpj(row.fornecedor ?? '') })),
+            rowsManutencoes2026.map((row) => ({ id: row.docId, data: normalizeCalendarDate(row.data), categoria: row.categoria ?? '', fornecedor: row.fornecedor ?? '' })),
+        );
+        return combustivelRows.map((row) => {
+            const valor = valores.get(row.docId) ?? null;
+            return valor === null ? { ...row, valor: null, categoria: `${row.categoria ?? 'ABASTECIMENTO'} (externo, na manutenção)` } : { ...row, valor };
+        });
+    }, [combustivelRows, rowsManutencoes2026]);
+
     const rowsByType = useMemo(() => {
         const merged: LinhaEvento[] = [];
-        if (showAbastecimento) merged.push(...combustivelRows);
+        if (showAbastecimento) merged.push(...combustivelComCusto);
         if (showManutencoes2026) merged.push(...rowsManutencoes2026);
         if (showErp) merged.push(...erpRows);
         return merged.sort((a, b) => (b.data?.getTime() ?? 0) - (a.data?.getTime() ?? 0));
     }, [
-        combustivelRows,
+        combustivelComCusto,
         erpRows,
         rowsManutencoes2026,
         showAbastecimento,
@@ -895,7 +909,7 @@ export default function FrotaVeiculoDetalhesPage() {
         }
         if (showAbastecimento) {
             merged.push(
-                ...combustivelRows.map((row) => ({
+                ...combustivelComCusto.map((row) => ({
                     id: row.docId,
                     collection: row.collection,
                     tipo: row.origem,
@@ -932,7 +946,7 @@ export default function FrotaVeiculoDetalhesPage() {
         return merged.sort((a, b) => (b.data?.getTime() ?? 0) - (a.data?.getTime() ?? 0));
     }, [
         atividadesRows,
-        combustivelRows,
+        combustivelComCusto,
         erpRows,
         rowsManutencoes2026,
         showAbastecimento,

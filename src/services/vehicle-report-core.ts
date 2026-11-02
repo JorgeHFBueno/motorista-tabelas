@@ -133,6 +133,13 @@ export function summarizeInternalFuel(fuel: FuelReportCandidate[], maintenances:
   return { encontrados: fuel.length, externos: externos.length, internos: internos.length, quantidadeRawInterna, litros, valor: custoDieselInterno(litros), itens: internos, diagnostics };
 }
 
+/** Valor de cada abastecimento (detalhe do veículo), pela regra do relatório: interno = litros × R$ 5,90; o externo que
+ * já está numa manutenção "ABASTECIMENTO EXTERNO" fica null (o custo dele está na manutenção). */
+export function custoPorAbastecimento(fuel: FuelReportCandidate[], maintenances: MaintenanceReportCandidate[]): Map<string, number | null> {
+  const internos = new Set(summarizeInternalFuel(fuel, maintenances).itens.map((item) => item.id));
+  return new Map(fuel.map((item) => [item.id, internos.has(item.id) ? custoDieselInterno(litrosFromQuantidadeRaw(item.quantidadeRaw)) : null]));
+}
+
 export function reportTotals(firebase: number, q47Despesa: number) { return { firebase: cents(firebase), erpQ47: cents(q47Despesa), consolidado: cents(firebase + q47Despesa) }; }
 
 /** Diagnóstico de uma falha de getVehicleErpCosts para adm2: código, mensagem e o `details` que a Function devolve

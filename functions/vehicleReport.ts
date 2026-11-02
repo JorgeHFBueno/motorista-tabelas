@@ -7,10 +7,16 @@ const erpToken = defineSecret('ERP360_API_TOKEN');
 const ERP_BASE = 'https://s15.elevor.cloud/LedurPreFabricados/ERP360';
 const DAY = /^\d{4}-\d{2}-\d{2}$/;
 
-function normalizePlate(value: unknown) { return String(value ?? '').toUpperCase().replace(/[-\s]/g, ''); }
+/** Placa sem hífen e espaços; identificador com sufixo ("ILW-2A23 - MICRO") vira só a placa (ILW2A23). */
+export function normalizePlate(value: unknown) {
+  const compacta = String(value ?? '').toUpperCase().replace(/[-\s]/g, '');
+  return /^[A-Z]{3}\d[A-Z0-9]\d{2}/.test(compacta) ? compacta.slice(0, 7) : compacta;
+}
 /** Até 500 caracteres do que o ERP respondeu: vai no log e no `details` do erro (a callable só atende adm2). */
 export function erpResponseExcerpt(text: string) { return text.trim().slice(0, 500); }
-function rows(payload: unknown, excerpt: string) {
+export function rows(payload: unknown, excerpt: string) {
+  // O ERP responde `null` (HTTP 200) quando a placa não tem lançamento no período: é lista vazia (2026-11-01).
+  if (payload === null) return [];
   if (Array.isArray(payload) && payload.every((row) => row && typeof row === 'object' && !Array.isArray(row))) return payload;
   if (payload && typeof payload === 'object') {
     const record = payload as Record<string, unknown>;
