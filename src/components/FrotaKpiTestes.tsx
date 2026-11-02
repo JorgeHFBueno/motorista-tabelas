@@ -38,7 +38,9 @@ export default function FrotaKpiTestes({ alvos, period, individual }: Props) {
   const navigate = useNavigate();
 
   const duplicidades = useMemo(() => alvos.map(({ vehicle, data }) => ({ vehicle, lista: duplicidadesFrotaErp(data, period) })), [alvos, period]);
-  const comErp = duplicidades.filter((item) => item.lista !== null);
+  // Só veículos com placa têm ERP (máquina EXTRA não conta).
+  const comPlaca = alvos.filter((item) => item.vehicle.placa);
+  const comErp = duplicidades.filter((item) => item.lista !== null && item.vehicle.placa);
   const casos = comErp.flatMap((item) => item.lista!.map((d) => ({ vehicle: item.vehicle, ...d })));
   const valorDuplicado = casos.reduce((total, item) => total + item.valor, 0);
 
@@ -64,7 +66,7 @@ export default function FrotaKpiTestes({ alvos, period, individual }: Props) {
     <Stack spacing={1}>
       <Teste
         titulo="Gasto lançado no FROTA e no ERP"
-        resumo={comErp.length ? `${casos.length} caso(s), ${moeda.format(valorDuplicado)} (${comErp.length} de ${alvos.length} veículo(s) com ERP)` : 'Inclua o ERP para medir'}
+        resumo={comErp.length ? `${casos.length} caso(s), ${moeda.format(valorDuplicado)} (${comErp.length} de ${comPlaca.length} placa(s) com ERP)` : 'Inclua o ERP para medir'}
         descricao="Manutenção do FROTA e despesa do ERP com o mesmo valor (diferença de até R$ 0,01) e datas a até 7 dias uma da outra, no mesmo veículo. Cada lançamento casa uma vez só. Hoje o custo total soma os dois; o valor ao lado é quanto estaria contado em dobro."
       >
         {!comErp.length ? <Typography variant="body2">O ERP ainda não foi incluído{individual ? ' para este veículo' : ''}.</Typography> : casos.length === 0 ? <Typography variant="body2">Nenhum caso no período.</Typography> :

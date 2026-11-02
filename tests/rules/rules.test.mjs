@@ -135,6 +135,7 @@ async function seed() {
     await setDoc(doc(db, 'monday-obras', 'mo1'), { nome: 'Obra monday' });
     await setDoc(doc(db, 'monday-mestres', 'dine'), { nome: 'Dine', cor: '#123456' });
     await setDoc(doc(db, 'manutencoes-legado', 'legacy1'), { status: 'OK' });
+    await setDoc(doc(db, 'erp-veiculos', 'vv1'), { schemaVersion: 1, placa: 'ABC1D23', status: 'ok', linhas: [] });
     await setDoc(doc(db, 'kioskCredentials', 'uid-user'), { pinHash: 'x' });
     await setDoc(doc(db, 'friday-quadros', '10'), { id: 10, nome: 'Quadro', cadastro: null, restrito: 0 });
     await setDoc(doc(db, 'friday-quadros', '11'), { id: 11, nome: 'Quadro oficial', cadastro: 'pontes', restrito: 0 });
@@ -168,6 +169,15 @@ test('[firestore] authenticated profile missing is denied', async () => assertFa
 test('[firestore] inactive profile is denied', async () => assertFails(getDoc(doc(dbAs('inactive'), 'veiculos', 'v1'))));
 test('[firestore] canonical active adm1 is authorized', async () => assertSucceeds(getDoc(doc(dbAs('canonicalFrentista'), 'veiculos', 'v1'))));
 test('[firestore] canonical active adm2 is authorized', async () => assertSucceeds(getDoc(doc(dbAs('canonicalAdm2'), 'veiculos', 'v1'))));
+
+test('[firestore] erp-veiculos: só adm2 lê; ninguém grava pelo cliente', async () => {
+  await assertSucceeds(getDoc(doc(dbAs('canonicalAdm2'), 'erp-veiculos', 'vv1')));
+  await assertFails(getDoc(doc(dbAs('canonicalFrentista'), 'erp-veiculos', 'vv1')));
+  await assertFails(getDoc(doc(dbAs('engenharia'), 'erp-veiculos', 'vv1')));
+  await assertFails(getDoc(doc(env.unauthenticatedContext().firestore(), 'erp-veiculos', 'vv1')));
+  await assertFails(setDoc(doc(dbAs('canonicalAdm2'), 'erp-veiculos', 'vv1'), { status: 'ok' }));
+  await assertFails(setDoc(doc(dbAs('canonicalAdm2'), 'erp-veiculos', 'novo'), { status: 'ok' }));
+});
 test('[firestore] canonical active user without admin permission is operationally authorized', async () => assertSucceeds(getDoc(doc(dbAs('canonicalUser'), 'veiculos', 'v1'))));
 test('[firestore] canonical inactive employee is denied', async () => assertFails(getDoc(doc(dbAs('canonicalInactive'), 'veiculos', 'v1'))));
 test('[firestore] canonical employee denies legacy privilege elevation', async () => assertFails(setDoc(doc(dbAs('canonicalPrecedence'), 'configuracoes', 'canonical-precedence'), { enabled: true })));

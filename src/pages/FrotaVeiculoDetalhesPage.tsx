@@ -66,6 +66,7 @@ import { buildVehicleReport, fetchVehicleErpRows } from '../services/vehicle-rep
 import { createVehicleReportPdf } from '../services/vehicle-report-pdf';
 import { custoPorAbastecimento, describeErpCallError, extractCnpj, fuelReportSupplier, normalizeCalendarDate, resolveVehicleReportPeriod, type VehicleReportPeriod } from '../services/vehicle-report-core';
 import { listFuncionariosAtivos } from '../services/funcionarios-selecao.service';
+import { lerErpVeiculo } from '../services/erp-veiculos.service';
 import { atualizarKmInicial, getItemFrota, itemFridayDoVeiculo, renomearItemFrota } from '../services/veiculos.service';
 import type { ItemFrotaV2, PessoaV2 } from '../utils/cadastrosV2';
 import { atualizacaoInfo, camposQuadroFrota, lerKmInicial, medidorTexto, origemKmTexto, somarValores, type KmInicialEntrada } from '../utils/frotaVeiculosLista';
@@ -233,9 +234,13 @@ async function fetchAtividades(item: ItemFrotaV2): Promise<LinhaEvento[]> {
         .sort((a, b) => (b.data?.getTime() ?? 0) - (a.data?.getTime() ?? 0));
 }
 
-// Mesmo pedido do "Gerar Relatório" (Query 47 do ERP pela placa), de 01/01/2025 até hoje.
+// Query 47 do ERP pela placa, de 01/01/2025 até hoje: o ERP guardado (erp-veiculos, atualizado todo dia às 3h);
+// sem documento guardado, o mesmo pedido do "Gerar Relatório", na hora.
 async function fetchManutencoesErp(item: ItemFrotaV2, { dataInicial, dataFinal }: { dataInicial: string; dataFinal: string }): Promise<LinhaEvento[]> {
-    const rows = await fetchVehicleErpRows(item.identificador, dataInicial, dataFinal);
+    const guardado = await lerErpVeiculo(item.id);
+    const rows = guardado?.linhas
+        ? guardado.linhas.filter((row) => { const emissao = normalizeCalendarDate(row.data_emissao); return Boolean(emissao) && emissao >= dataInicial && emissao <= dataFinal; })
+        : await fetchVehicleErpRows(item.identificador, dataInicial, dataFinal);
     return rows
         .map((row, index): LinhaEvento => {
             const emissao = normalizeCalendarDate(row.data_emissao);

@@ -3,7 +3,7 @@ import { temCredencial } from './credenciais.js';
 import { defineSecret } from 'firebase-functions/params';
 import { db } from './firebaseAdmin.js';
 
-const erpToken = defineSecret('ERP360_API_TOKEN');
+export const erpToken = defineSecret('ERP360_API_TOKEN');
 const ERP_BASE = 'https://s15.elevor.cloud/LedurPreFabricados/ERP360';
 const DAY = /^\d{4}-\d{2}-\d{2}$/;
 
@@ -27,7 +27,7 @@ export function rows(payload: unknown, excerpt: string) {
 }
 export const VEHICLE_ERP_QUERY_ALLOWLIST = [47] as const;
 
-async function queryErp(queryId: typeof VEHICLE_ERP_QUERY_ALLOWLIST[number], body: Record<string, string>, token: string) {
+export async function queryErp(queryId: typeof VEHICLE_ERP_QUERY_ALLOWLIST[number], body: Record<string, string>, token: string) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), 20_000);
   try {
@@ -50,7 +50,7 @@ async function queryErp(queryId: typeof VEHICLE_ERP_QUERY_ALLOWLIST[number], bod
 }
 
 /** Mirrors the /frota policy: active employee with adm2 (the WEB administrative screens are adm2-only). */
-async function assertFrotaAuthorization(uid: string) {
+export async function assertFrotaAuthorization(uid: string) {
   const employee = await db.collection('funcionarios').doc(uid).get();
   if (!temCredencial(employee.data())) {
     throw new HttpsError('permission-denied', 'Acesso não autorizado.');

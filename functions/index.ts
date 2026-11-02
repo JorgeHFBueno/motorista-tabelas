@@ -7,6 +7,7 @@ export { kioskAuthenticatePin, kioskAuthenticateQr } from './kiosk/kioskAuth.js'
 export { kioskSessionEvent } from './kiosk/kioskSession.js';
 export { provisionKioskAdminPin } from './kiosk/kioskAdminPin.js';
 export { getVehicleErpCosts } from './vehicleReport.js';
+export { atualizarErpVeiculos, erpVeiculosDiario } from './erpVeiculos.js';
 export { syncMondaySerpMeasurements } from './mondaySerpMeasurements.js';
 export { fridayMondayInventario, fridayMondayImportarQuadro } from './fridayMondayImport.js';
 export { fridayCadastroCampos, fridayCadastroGravar, fridayCadastroPromover } from './fridayCadastros.js';

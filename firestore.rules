@@ -457,6 +457,12 @@ service cloud.firestore {
       allow write: if false;
     }
 
+    // ERP (Query 47) guardado por veículo: só a Function grava; valores e fornecedores, então só adm2 lê (2026-11-02).
+    match /erp-veiculos/{veiculoId} {
+      allow read: if isAdm2();
+      allow write: if false;
+    }
+
 
     // ================================================================ fleet and registrations
 

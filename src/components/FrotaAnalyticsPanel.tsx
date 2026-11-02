@@ -7,7 +7,7 @@ import Plot from 'react-plotly.js';
 import { db } from '../firebase';
 import { normalizarMovimentoCombustivel } from '../services/combustivel-normalizer';
 import { normalizarAtividade } from '../services/atividade-normalizer';
-import { fetchVehicleErpRows } from '../services/vehicle-report.service';
+import { atualizarErpVeiculos, lerErpVeiculos, type ErpGuardado } from '../services/erp-veiculos.service';
 import { RegistrosFiltros, type MasterDetailFilters } from './ManutencoesList';
 import FrotaKpiTestes from './FrotaKpiTestes';
 import {
@@ -19,20 +19,13 @@ import {
 type Props = { vehicles: VehicleAnalyticsIdentity[]; vehicle?: VehicleAnalyticsIdentity };
 type Mode = 'all' | 'year' | 'month' | 'custom';
 type Dataset = { activities: ActivityAnalyticsRecord[]; fuel: FuelAnalyticsRecord[]; maintenance: MaintenanceAnalyticsRecord[] };
-type ErpEstado = { status: 'carregando' | 'ok' | 'erro'; rows: ErpAnalyticsRow[] | null };
 
 const MESES = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
 const numberFormatter = new Intl.NumberFormat('pt-BR', { maximumFractionDigits: 0 });
 const currencyFormatter = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' });
 const iso = (date: Date) => `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
 
-// ERP por placa, guardado enquanto a WEB estiver aberta (cada placa custa uma consulta ao ERP).
-const cacheErp = new Map<string, Promise<ErpAnalyticsRow[]>>();
-function erpDaPlaca(placa: string, dataInicial: string, dataFinal: string) {
-  const chave = `${placa}|${dataInicial}|${dataFinal}`;
-  if (!cacheErp.has(chave)) cacheErp.set(chave, fetchVehicleErpRows(placa, dataInicial, dataFinal).catch((error) => { cacheErp.delete(chave); throw error; }));
-  return cacheErp.get(chave)!;
-}
+const dataHoraCurta = (value: Date) => value.toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
 
 function periodFor(mode: Mode, year: number, month: number, start: string, end: string, limite: AnalyticsPeriod): { period: AnalyticsPeriod; error: string | null } {
   const recorte = (p: AnalyticsPeriod) => ({ start: p.start < limite.start ? limite.start : p.start, end: p.end > limite.end ? limite.end : p.end });
@@ -59,7 +52,7 @@ function metric(value: number | null, kind: 'number' | 'km' | 'h' | 'currency' |
   if (kind === 'rate') return `${currencyFormatter.format(value)}/km`;
   return numberFormatter.format(value);
 }
-const erpTexto = (m: FleetMetrics) => (m.custoErp === null ? 'ERP não carregado' : `ERP ${currencyFormatter.format(m.custoErp)}${m.erpCompleto ? '' : ' (parcial)'}`);
+const erpTexto = (m: FleetMetrics) => (m.custoErp === null ? 'sem ERP guardado' : `ERP ${currencyFormatter.format(m.custoErp)}${m.erpCompleto ? '' : ' (parcial)'}`);
 
 function CardMetric({ title, value, note }: { title: string; value: string; note?: string }) {
   return <Card variant="outlined" sx={{ minWidth: 0 }}><CardContent><Typography variant="body2" color="text.secondary">{title}</Typography><Typography variant="h6">{value}</Typography>{note && <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>{note}</Typography>}</CardContent></Card>;
@@ -162,7 +155,9 @@ export default function FrotaAnalyticsPanel({ vehicles, vehicle }: Props) {
   const [vehicleBId, setVehicleBId] = useState('');
   const [data, setData] = useState<Dataset | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
-  const [erp, setErp] = useState<Map<string, ErpEstado>>(new Map());
+  const [erpDocs, setErpDocs] = useState<Map<string, ErpGuardado> | null>(null); // null = lendo
+  const [atualizando, setAtualizando] = useState(false);
+  const [erroErp, setErroErp] = useState<string | null>(null);
 
   useEffect(() => {
     let active = true;
@@ -176,35 +171,40 @@ export default function FrotaAnalyticsPanel({ vehicles, vehicle }: Props) {
     return () => { active = false; };
   }, []);
 
-  // ERP: uma consulta por placa (01/01/2025 até hoje), três de cada vez. Veículo sem placa (EXTRA) não tem ERP.
-  const carregarErp = useCallback(async (alvos: VehicleAnalyticsIdentity[]) => {
-    const pendentes = alvos.filter((item) => erp.get(item.id)?.status !== 'ok' && erp.get(item.id)?.status !== 'carregando');
-    if (!pendentes.length) return;
-    setErp((atual) => { const novo = new Map(atual); pendentes.forEach((item) => novo.set(item.id, placaParaErp(item.placa) ? { status: 'carregando', rows: null } : { status: 'ok', rows: [] })); return novo; });
-    const fila = pendentes.filter((item) => placaParaErp(item.placa));
-    const trabalhar = async () => {
-      for (let item = fila.shift(); item; item = fila.shift()) {
-        const atual = item;
-        try {
-          const rows = await erpDaPlaca(placaParaErp(atual.placa)!, iso(KPI_INICIO), iso(limite.end));
-          setErp((mapa) => new Map(mapa).set(atual.id, { status: 'ok', rows }));
-        } catch (error) {
-          console.error(`Erro ao consultar o ERP de ${vehicleLabel(atual)}`, error);
-          setErp((mapa) => new Map(mapa).set(atual.id, { status: 'erro', rows: null }));
-        }
-      }
-    };
-    await Promise.all([trabalhar(), trabalhar(), trabalhar()]);
-  }, [erp, limite]);
+  // ERP guardado (erp-veiculos): gravado pela Function todo dia às 03:00; "Atualizar agora" consulta o ERP na hora.
+  useEffect(() => {
+    let active = true;
+    lerErpVeiculos()
+      .then((docs) => { if (active) setErpDocs(docs); })
+      .catch((error) => { console.error('Erro ao ler o ERP guardado', error); if (active) { setErpDocs(new Map()); setErroErp('Não foi possível ler o ERP guardado.'); } });
+    return () => { active = false; };
+  }, []);
+
+  const atualizarErp = useCallback(async (ids?: string[]) => {
+    setAtualizando(true);
+    setErroErp(null);
+    try {
+      const resumo = await atualizarErpVeiculos(ids);
+      setErpDocs(await lerErpVeiculos());
+      if (resumo.erro) setErroErp(`O ERP falhou para ${resumo.erro} de ${resumo.veiculos} placa(s): ${resumo.falhas.map((f) => f.placa).join(', ')}.`);
+    } catch (error) {
+      console.error('Erro ao atualizar o ERP', error);
+      setErroErp(`Não foi possível atualizar o ERP agora: ${(error as Error)?.message ?? error}`);
+    } finally {
+      setAtualizando(false);
+    }
+  }, []);
 
   const vehicleA = vehicles.find(item => item.id === vehicleAId);
   const vehicleB = vehicles.find(item => item.id === vehicleBId);
-  useEffect(() => { if (vehicle) void carregarErp([vehicle]); }, [vehicle]); // eslint-disable-line react-hooks/exhaustive-deps
-  useEffect(() => { const alvos = [vehicleA, vehicleB].filter((item): item is VehicleAnalyticsIdentity => Boolean(item)); if (alvos.length) void carregarErp(alvos); }, [vehicleA, vehicleB]); // eslint-disable-line react-hooks/exhaustive-deps
-
   const resolved = useMemo(() => periodFor(mode, year, month, start, end, limite), [end, limite, mode, month, start, year]);
   const base = useMemo(() => (data ? agruparPorVeiculo(data.activities, data.fuel, data.maintenance, vehicles) : null), [data, vehicles]);
-  const grupos = useMemo(() => (base ? new Map([...base].map(([id, item]) => [id, { ...item, erp: erp.get(id)?.rows ?? null }])) : null), [base, erp]);
+  const grupos = useMemo(() => {
+    if (!base) return null;
+    const placaDe = new Map(vehicles.map((item) => [item.id, placaParaErp(item.placa)]));
+    // Veículo sem placa (EXTRA) não tem ERP: conta como vazio. Com placa, as linhas guardadas (numa falha, as anteriores).
+    return new Map([...base].map(([id, item]) => [id, { ...item, erp: placaDe.get(id) ? (erpDocs?.get(id)?.linhas as ErpAnalyticsRow[] | null | undefined) ?? null : [] }]));
+  }, [base, erpDocs, vehicles]);
 
   const alvo = useMemo(() => (vehicle ? [vehicle] : vehicles), [vehicle, vehicles]);
   const dadosAlvo = useMemo(() => (grupos ? alvo.map((item) => grupos.get(item.id)!).filter(Boolean) : []), [alvo, grupos]);
@@ -218,11 +218,10 @@ export default function FrotaAnalyticsPanel({ vehicles, vehicle }: Props) {
   const seriesB = useMemo(() => (grupos && vehicleB ? monthlyMetrics([grupos.get(vehicleB.id)!], resolved.period) : []), [grupos, resolved.period, vehicleB]);
 
   const comPlaca = alvo.filter((item) => placaParaErp(item.placa));
-  const estados = comPlaca.map((item) => erp.get(item.id)?.status);
-  const carregando = estados.filter((s) => s === 'carregando').length;
-  const prontos = estados.filter((s) => s === 'ok').length;
-  const falharam = comPlaca.filter((item) => erp.get(item.id)?.status === 'erro');
-  const naoCarregados = comPlaca.filter((item) => !erp.get(item.id));
+  const semErp = comPlaca.filter((item) => !erpDocs?.get(item.id)?.linhas);
+  const comFalha = comPlaca.filter((item) => erpDocs?.get(item.id)?.status === 'erro');
+  const datas = comPlaca.map((item) => erpDocs?.get(item.id)?.atualizadoEm).filter((d): d is Date => Boolean(d));
+  const maisAntiga = datas.length ? new Date(Math.min(...datas.map((d) => d.getTime()))) : null;
 
   return <Box>
     <Typography variant="h5" gutterBottom>{vehicle ? `Análise individual · ${vehicleLabel(vehicle)}` : 'Visão geral'}</Typography>
@@ -238,17 +237,20 @@ export default function FrotaAnalyticsPanel({ vehicles, vehicle }: Props) {
     {(loadError || resolved.error) && <Alert severity="error" sx={{ mt: 2 }}>{loadError || resolved.error}</Alert>}
 
     {comPlaca.length > 0 && <Alert
-      severity={carregando > 0 || naoCarregados.length ? 'info' : falharam.length ? 'warning' : 'success'}
+      severity={!erpDocs || atualizando ? 'info' : erroErp || semErp.length || comFalha.length ? 'warning' : 'success'}
       sx={{ mt: 2 }}
-      action={naoCarregados.length || falharam.length ? <Button color="inherit" size="small" disabled={carregando > 0} onClick={() => void carregarErp([...naoCarregados, ...falharam])}>{falharam.length && !naoCarregados.length ? 'Tentar de novo' : 'Incluir ERP'}</Button> : undefined}
+      action={erpDocs && <Button color="inherit" size="small" disabled={atualizando} onClick={() => void atualizarErp(vehicle ? [vehicle.id] : undefined)}>Atualizar agora</Button>}
     >
-      {carregando > 0
-        ? <>Consultando o ERP: {prontos} de {comPlaca.length} placa(s)…<LinearProgress variant="determinate" value={(prontos / comPlaca.length) * 100} sx={{ mt: 1 }} /></>
-        : naoCarregados.length
-          ? `Custos do ERP (Query 47, desde 01/01/2025) ainda não incluídos: uma consulta por placa (${naoCarregados.length}).`
-          : falharam.length
-            ? `ERP incluído para ${prontos} de ${comPlaca.length} placa(s); falhou: ${falharam.map(vehicleLabel).join(', ')}.`
-            : `ERP incluído para ${comPlaca.length} placa(s).`}
+      {!erpDocs
+        ? 'Lendo o ERP guardado…'
+        : atualizando
+          ? <>Consultando o ERP de {vehicle ? 'uma placa' : `${comPlaca.length} placas`} (pode levar até um minuto)…<LinearProgress sx={{ mt: 1 }} /></>
+          : <>
+            ERP (Query 47, desde 01/01/2025) guardado para {comPlaca.length - semErp.length} de {comPlaca.length} placa(s){maisAntiga ? `, atualizado em ${dataHoraCurta(maisAntiga)}` : ''}; atualiza sozinho todo dia às 3h.
+            {comFalha.length > 0 && ` A última consulta falhou para ${comFalha.map(vehicleLabel).join(', ')} (ficou a anterior).`}
+            {semErp.length > 0 && ` Sem ERP guardado: ${semErp.map(vehicleLabel).join(', ')}.`}
+            {erroErp && <Box component="span" sx={{ display: 'block', mt: 0.5 }}>{erroErp}</Box>}
+          </>}
     </Alert>}
 
     {!data ? <CircularProgress sx={{ mt: 3 }} /> : current && <>
@@ -271,9 +273,9 @@ export default function FrotaAnalyticsPanel({ vehicles, vehicle }: Props) {
           </TableRow>)}</TableBody>
         </Table>
         </Box>
-        <Typography variant="caption" color="text.secondary">* KM com leitura(s) solta(s) ignorada(s) no período. ERP "—": não incluído.</Typography>
+        <Typography variant="caption" color="text.secondary">* KM com leitura(s) solta(s) ignorada(s) no período. ERP "—": sem ERP guardado.</Typography>
       </Secao>}
-      {!vehicle && <Secao titulo="Comparação A/B" descricao="Escolha dois veículos para ver os mesmos indicadores lado a lado e, nos gráficos, mês a mês. O ERP dos dois é consultado na hora.">
+      {!vehicle && <Secao titulo="Comparação A/B" descricao="Escolha dois veículos para ver os mesmos indicadores lado a lado e, nos gráficos, mês a mês. O ERP vem do que está guardado.">
         <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} mt={1}>
           <FormControl size="small" sx={{ minWidth: 180 }}><InputLabel>Veículo A</InputLabel><Select label="Veículo A" value={vehicleAId} onChange={event => setVehicleAId(event.target.value)}>{vehicles.map(item => <MenuItem key={item.id} value={item.id} disabled={item.id === vehicleBId}>{vehicleLabel(item)}</MenuItem>)}</Select></FormControl>
           <FormControl size="small" sx={{ minWidth: 180 }}><InputLabel>Veículo B</InputLabel><Select label="Veículo B" value={vehicleBId} onChange={event => setVehicleBId(event.target.value)}>{vehicles.map(item => <MenuItem key={item.id} value={item.id} disabled={item.id === vehicleAId}>{vehicleLabel(item)}</MenuItem>)}</Select></FormControl>
