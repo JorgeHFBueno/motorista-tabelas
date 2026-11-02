@@ -391,8 +391,12 @@
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: calc(var(--dt-e) * 10px);
-  max-height: calc(var(--dt-e) * 520px);
+  /* rola dentro da janela: a altura vai até o pé da tela (barra de título, margens e uma folga de 56 px) */
+  max-height: max(calc(var(--dt-e) * 180px), calc(100dvh - var(--dt-topo, 0px) - var(--dt-e) * 56px));
   overflow-y: auto;
+  padding-right: calc(var(--dt-e) * 4px);
+  scrollbar-gutter: stable;
+  scrollbar-color: var(--dt-tinta) var(--dt-papel);
 }
 
 .devtoys .dt-ficha {
@@ -446,4 +450,29 @@
 
 .devtoys .dt-crawler-rodape button:disabled {
   cursor: default;
+}
+
+/* ---- Viveiro: skill tree de cada Crawler ---- */
+.devtoys .dt-skills {
+  margin: calc(var(--dt-e) * 4px) 0 calc(var(--dt-e) * 6px);
+  padding-top: calc(var(--dt-e) * 4px);
+  border-top: 1px dotted var(--dt-apagado);
+}
+
+.devtoys .dt-skill {
+  display: grid;
+  grid-template-columns: 1fr auto calc(var(--dt-e) * 22px);
+  gap: 0 calc(var(--dt-e) * 6px);
+  margin-bottom: calc(var(--dt-e) * 5px);
+}
+
+.devtoys .dt-skill-efeito {
+  grid-column: 1 / span 2;
+  color: var(--dt-apagado);
+}
+
+.devtoys .dt-skill button {
+  grid-column: 3;
+  grid-row: 1 / span 2;
+  align-self: center;
 }

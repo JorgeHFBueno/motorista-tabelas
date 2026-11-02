@@ -1,4 +1,5 @@
 import { estagioDe, mutar, normalizarGenoma, sortearGenoma, type Estagio, type Genoma } from './genoma';
+import { SEM_SKILLS, aprender, nivelDe, normalizarSkills, type Skill, type Skills } from './habilidades';
 import { gravar, ler, normalizarCorpus, tirarCorpusAntigo } from './memoria';
 import { rngDe } from './sim';
 
@@ -35,6 +36,8 @@ export type Criatura = {
   xeroxes: number;
   melhorNota: number;
   ultimo: Xerox | null;
+  /** pontos gastos em cada skill (os pontos vêm do nível; ver habilidades.ts) */
+  skills: Skills;
 };
 
 export type Viveiro = { criaturas: Criatura[]; ativa: string | null; proximoNumero: number };
@@ -61,6 +64,7 @@ export function novaCriatura(numero: number, seed: number, agora: number): Criat
     xeroxes: 0,
     melhorNota: 0,
     ultimo: null,
+    skills: { ...SEM_SKILLS },
   };
 }
 
@@ -69,7 +73,10 @@ export function alimentar(c: Criatura, palavras: number, agora: number): Criatur
   return { ...c, nasceu: c.nasceu || palavras > 0, fome: Math.max(0, fomeAgora(c, agora) - FOME_POR_PALAVRA * palavras), ultimaRefeicao: agora };
 }
 
-export type Resultado = { criatura: Criatura; xp: number; mutou: string | null; evoluiu: Estagio | null };
+/** `subiu`: o nível novo, quando a experiência passou de um nível (cada nível dá um ponto de skill). */
+export type Resultado = { criatura: Criatura; xp: number; mutou: string | null; evoluiu: Estagio | null; subiu: number | null };
+
+const subiu = (antes: Criatura, depois: Criatura) => (nivelDe(depois.xp) > nivelDe(antes.xp) ? nivelDe(depois.xp) : null);
 
 /** Escreveu um xerox com esta nota: ganha experiência (zero se faminto) e, se a nota for alta, pode mutar. */
 export function registrarXerox(c: Criatura, texto: string, nota: number, agora: number, rng: () => number): Resultado {
@@ -91,16 +98,22 @@ export function registrarXerox(c: Criatura, texto: string, nota: number, agora: 
     ultimo: { texto, nota, gostei: false },
   };
   const depois = estagio(criatura);
-  return { criatura, xp, mutou, evoluiu: depois !== antes ? depois : null };
+  return { criatura, xp, mutou, evoluiu: depois !== antes ? depois : null, subiu: subiu(c, criatura) };
 }
 
 /** "Gostei" do último xerox: bônus de experiência, uma vez por xerox. */
 export function gostei(c: Criatura): Resultado {
-  if (!c.ultimo || c.ultimo.gostei) return { criatura: c, xp: 0, mutou: null, evoluiu: null };
+  if (!c.ultimo || c.ultimo.gostei) return { criatura: c, xp: 0, mutou: null, evoluiu: null, subiu: null };
   const antes = estagio(c);
   const criatura = { ...c, xp: c.xp + BONUS_GOSTEI, ultimo: { ...c.ultimo, gostei: true } };
   const depois = estagio(criatura);
-  return { criatura, xp: BONUS_GOSTEI, mutou: null, evoluiu: depois !== antes ? depois : null };
+  return { criatura, xp: BONUS_GOSTEI, mutou: null, evoluiu: depois !== antes ? depois : null, subiu: subiu(c, criatura) };
+}
+
+/** Gasta um ponto de skill (no Viveiro). */
+export function aprenderSkill(c: Criatura, k: Skill): Criatura {
+  const skills = aprender(c.xp, c.skills, k);
+  return skills === c.skills ? c : { ...c, skills };
 }
 
 const numero = (v: unknown, padrao: number) => (typeof v === 'number' && Number.isFinite(v) ? v : padrao);
@@ -125,6 +138,7 @@ export function normalizarCriatura(valor: unknown, agora: number): Criatura | nu
     xeroxes: Math.max(0, Math.floor(numero(v.xeroxes, 0))),
     melhorNota: Math.max(0, numero(v.melhorNota, 0)),
     ultimo: u && typeof u.texto === 'string' ? { texto: u.texto, nota: numero(u.nota, 0), gostei: u.gostei === true } : null,
+    skills: normalizarSkills(v.skills),
   };
 }
 

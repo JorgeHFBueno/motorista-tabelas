@@ -7,12 +7,13 @@ import { normalizarPrefs } from '../src/features/dev-toys/prefs';
 import { fimDeFrase, gerar, treinar } from '../src/features/dev-toys/toys/crawler/markov';
 import { acrescentar, MAX_CORPUS, normalizarCorpus, normalizarOpcoes } from '../src/features/dev-toys/toys/crawler/memoria';
 import { embaralhar, paraAscii, QUEBRA, separarTextos } from '../src/features/dev-toys/toys/crawler/textos';
-import { PADRAO, criarCrawler, distancia, fabrik, ik, noAr, passo, rngDe, vizinhas } from '../src/features/dev-toys/toys/crawler/sim';
+import { PADRAO, criarCrawler, curvaDe, distancia, fabrik, ik, noAr, normalDaPerna, passo, peIdeal, quadril, rngDe, vizinhas } from '../src/features/dev-toys/toys/crawler/sim';
+import { SKILL, aprender, efeitos, nivelDe, normalizarSkills, pontosLivres, SEM_SKILLS } from '../src/features/dev-toys/toys/crawler/habilidades';
 import { distanciaAte } from '../src/features/dev-toys/toys/crawler/render';
 import { PLANOS, estagioDe, mutar, normalizarGenoma, paramsDe, proximoEstagio, sortearGenoma, visualDe } from '../src/features/dev-toys/toys/crawler/genoma';
 import { avaliar } from '../src/features/dev-toys/toys/crawler/nota';
 import {
-  FAMINTO, MAX_CRIATURAS, MS_POR_PONTO_DE_FOME, alimentar, atualizar, chocar, fomeAgora, gostei, normalizarViveiro, novaCriatura, registrarXerox, soltar,
+  FAMINTO, MAX_CRIATURAS, MS_POR_PONTO_DE_FOME, alimentar, aprenderSkill, atualizar, chocar, fomeAgora, gostei, normalizarViveiro, novaCriatura, registrarXerox, soltar,
 } from '../src/features/dev-toys/toys/crawler/criaturas';
 
 const sessao = (valores: Record<string, string>) => ({ getItem: (k: string) => valores[k] ?? null });
@@ -114,6 +115,9 @@ test('Crawler: pernas a cada 2 ou a cada 1 segmento, e a marcha vale nos dois', 
 test('Crawler: parado para ler, ele não anda, só vira para a palavra', () => {
   const c = criarCrawler(PADRAO, 100, 100, 1);
   const antes = { ...c.seg[0] };
+  // parado, vira a 40% do giro: 90° em ~1,3 s
+  for (let i = 0; i < 60; i++) passo(c, 1 / 60, { x: 100, y: 200 }, { largura: 480, altura: 300 }, true);
+  assert.ok(c.ang > 1 && c.ang < Math.PI / 2 - 0.2, `ainda virando: ${c.ang}`);
   for (let i = 0; i < 60; i++) passo(c, 1 / 60, { x: 100, y: 200 }, { largura: 480, altura: 300 }, true);
   assert.deepEqual(c.seg[0], antes);
   assert.ok(Math.abs(c.ang - Math.PI / 2) < 0.05, `ângulo ${c.ang}`);
@@ -331,4 +335,80 @@ test('Crawler: o raio só alcança palavras perto da boca (medido até a borda d
     const g = sortearGenoma(rngDe(seed));
     assert.ok(visualDe(g, 'larva').alcance <= 22 && visualDe(g, 'ancia').alcance <= 28);
   }
+});
+
+test('Crawler: andando e virando, o joelho não troca de lado e a perna não fica torta nem esticada', () => {
+  for (const plano of PLANOS) {
+    for (const seed of [3, 4, 7]) {
+      const params = paramsDe(normalizarGenoma({ plano }, rngDe(seed)), 'ancia');
+      const c = criarCrawler(params, 240, 150, seed);
+      const lados = c.pernas.map((p) => p.dobra);
+      let trocas = 0;
+      let tortas = 0;
+      let esticadas = 0;
+      let quadros = 0;
+      for (let i = 0; i < 3000; i++) {
+        // palavras espalhadas: vai até uma, para e lê (virando devagar), vai até a próxima
+        const j = Math.floor(i / 300);
+        passo(c, 1 / 60, { x: 40 + ((j * 137) % 400), y: 30 + ((j * 71) % 240) }, { largura: 480, altura: 300 }, i % 300 > 180);
+        c.pernas.forEach((p, k) => {
+          if (lados[k] !== p.dobra) trocas++;
+          lados[k] = p.dobra;
+          const q = quadril(c, p);
+          const ideal = peIdeal(c, p);
+          const a = { x: p.pe.x - q.x, y: p.pe.y - q.y };
+          const b = { x: ideal.x - q.x, y: ideal.y - q.y };
+          if ((a.x * b.x + a.y * b.y) / (Math.hypot(a.x, a.y) * Math.hypot(b.x, b.y)) < 0.5) tortas++;
+          if (!noAr(p) && Math.hypot(a.x, a.y) > 0.97 * (params.coxa + params.canela)) esticadas++;
+          quadros++;
+          const n = normalDaPerna(c, p);
+          const cv = curvaDe(c, p);
+          assert.ok((n.x * cv.x + n.y * cv.y) * p.dobra > -0.36, `${plano} ${seed}: dobra para dentro além da folga`);
+        });
+      }
+      assert.ok(trocas <= 2, `${plano} ${seed}: o joelho trocou de lado ${trocas} vezes`);
+      assert.ok(tortas / quadros < 0.01, `${plano} ${seed}: perna torta em ${((100 * tortas) / quadros).toFixed(1)}% dos quadros`);
+      assert.ok(esticadas / quadros < 0.08, `${plano} ${seed}: pé no chão esticado em ${((100 * esticadas) / quadros).toFixed(1)}% dos quadros`);
+    }
+  }
+});
+
+test('Crawler: perna comprida vira mais devagar que a centopeia', () => {
+  const centopeia = paramsDe(normalizarGenoma({ plano: 'centopeia', velocidade: 1, perna: 1 }, rngDe(2)), 'ancia');
+  const aranha = paramsDe(normalizarGenoma({ plano: 'aranha', velocidade: 1, perna: 2 }, rngDe(2)), 'ancia');
+  assert.equal(centopeia.giroMax, PADRAO.giroMax);
+  assert.ok(aranha.giroMax < PADRAO.giroMax * 0.75, `aranha vira a ${aranha.giroMax}`);
+});
+
+test('Crawler: um nível a cada 100 XP, um ponto de skill por nível, cada skill com o seu máximo', () => {
+  assert.equal(nivelDe(0), 1);
+  assert.equal(nivelDe(99), 1);
+  assert.equal(nivelDe(100), 2);
+  assert.equal(nivelDe(1250), 13);
+  assert.equal(pontosLivres(50, SEM_SKILLS), 0);
+  assert.equal(aprender(50, SEM_SKILLS, 'leitura'), SEM_SKILLS, 'sem ponto, não aprende');
+  let s = aprender(250, SEM_SKILLS, 'palavras');
+  s = aprender(250, s, 'palavras');
+  assert.deepEqual(s, { leitura: 0, palavras: 2, movimento: 0 });
+  assert.equal(pontosLivres(250, s), 0);
+  assert.equal(aprender(9000, s, 'palavras'), s, 'Mais palavras para em 2 (3 palavras)');
+  for (let i = 0; i < 15; i++) s = aprender(9000, s, 'leitura');
+  assert.equal(s.leitura, SKILL.leitura.max);
+  assert.deepEqual(efeitos({ leitura: 10, palavras: 2, movimento: 10 }), { leitura: 1.5, palavras: 3, movimento: 1.2 });
+  assert.deepEqual(efeitos(SEM_SKILLS), { leitura: 1, palavras: 1, movimento: 1 });
+  assert.deepEqual(normalizarSkills({ leitura: 99, palavras: -3, movimento: 'x' }), { leitura: 10, palavras: 0, movimento: 0 });
+  assert.deepEqual(normalizarSkills(undefined), SEM_SKILLS);
+});
+
+test('Crawler: subir de nível avisa, o ponto vai para uma skill e criaturas de antes chegam com os pontos do XP', () => {
+  const c = { ...novaCriatura(1, 9, 0), nasceu: true, fome: 0, xp: 90 };
+  const r = registrarXerox(c, 'Time moves on.', 40, 0, () => 0.99);
+  assert.equal(r.subiu, 2);
+  assert.equal(registrarXerox(r.criatura, 'x.', 40, 0, () => 0.99).subiu, null);
+  const aprendeu = aprenderSkill(r.criatura, 'movimento');
+  assert.equal(aprendeu.skills.movimento, 1);
+  assert.equal(aprenderSkill(aprendeu, 'movimento'), aprendeu, 'sem ponto sobrando, nada muda');
+  const antiga = normalizarViveiro({ criaturas: [{ id: 'a', numero: 1, seed: 3, xp: 340 }] }, 0).criaturas[0];
+  assert.deepEqual(antiga.skills, SEM_SKILLS);
+  assert.equal(pontosLivres(antiga.xp, antiga.skills), 3);
 });

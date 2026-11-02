@@ -1,5 +1,5 @@
 import { raiosDe, type Forma, type Visual } from './genoma';
-import { direcaoDaPerna, fabrik, frente, ik, noAr, ossosDe, quadril, type Crawler, type Vec } from './sim';
+import { fabrik, frente, ik, noAr, normalDaPerna, ossosDe, quadril, type Crawler, type Vec } from './sim';
 
 const TINTA = '#ffb000';
 const PAPEL = '#080603';
@@ -52,19 +52,15 @@ function desenharPernas(ctx: Ctx, c: Crawler, v: Visual) {
   const ossos = ossosDe(c.params);
   for (const p of c.pernas) {
     const q = quadril(c, p);
-    const f = frente(c, p.segmento);
+    // dobra para fora do corpo, com folga (`dobra` em sim.ts); tentáculos alternam o lado da curva
+    const k = p.dobra * (v.plano === 'polvo' && p.ordem % 2 ? -1 : 1);
+    const n = normalDaPerna(c, p);
+    const fora = { x: n.x * k, y: n.y * k };
     let juntas: Vec[];
     if (ossos.length === 2) {
-      const dir = direcaoDaPerna(c, p);
-      const { joelho, pe } = ik(q, p.pe, ossos[0], ossos[1], { x: dir.x + f.x * 0.3, y: dir.y + f.y * 0.3 });
+      const { joelho, pe } = ik(q, p.pe, ossos[0], ossos[1], fora);
       juntas = [q, joelho, pe];
     } else {
-      // muitas juntas: a perna arqueia para fora do corpo (as da frente para a frente, as de trás para trás);
-      // tentáculos alternam o lado da curva
-      const eixo = { x: p.pe.x - q.x, y: p.pe.y - q.y };
-      let fora = normalDe(normalizar(eixo));
-      const sinal = v.plano === 'polvo' ? (p.ordem % 2 ? 1 : -1) * p.lado : Math.sign(p.abertura || 1);
-      if ((fora.x * f.x + fora.y * f.y) * sinal < 0) fora = { x: -fora.x, y: -fora.y };
       juntas = fabrik(q, p.pe, ossos, fora);
     }
 

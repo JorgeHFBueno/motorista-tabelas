@@ -6,6 +6,7 @@ import {
   registrarXerox, type Criatura, type Resultado, type Viveiro,
 } from './criaturas';
 import { NOME_ESTAGIO, NOME_PLANO, paramsDe, proximoEstagio, visualDe } from './genoma';
+import { efeitos, nivelDe, pontosLivres, SKILLS } from './habilidades';
 import { gerar, treinar, type Estatisticas } from './markov';
 import { acrescentar, gravarOpcoes, lerOpcoes, type OpcoesCrawler } from './memoria';
 import { avaliar } from './nota';
@@ -42,6 +43,7 @@ function avisoDe(r: Resultado, prefixo: string): string {
   const partes = [prefixo];
   if (r.evoluiu) partes.push(`EVOLUIU: ${NOME_ESTAGIO[r.evoluiu]}!`);
   if (r.mutou) partes.push(`MUTOU (${r.mutou})!`);
+  if (r.subiu) partes.push(`NIVEL ${r.subiu}: +1 PONTO DE SKILL`);
   return partes.join(' . ');
 }
 
@@ -64,7 +66,7 @@ export default function CrawlerToy() {
   const cursor = useRef<Vec | null>(null);
   const bicho = useRef<Crawler | null>(null);
   const cabeca = useRef<Vec | null>(null); // onde renasce depois de evoluir ou mutar
-  const escaneando = useRef<{ p: Palavra; progresso: number } | null>(null);
+  const escaneando = useRef<Array<{ p: Palavra; progresso: number }>>([]); // uma ou mais (skill "Mais palavras")
   const reescrevendo = useRef(false);
   const pagina = useRef<Array<{ i: number; w: string }>>([]); // lidas no texto atual, com a posição de leitura
   const atual = useRef({ fase, opcoes, criatura });
@@ -115,10 +117,20 @@ export default function CrawlerToy() {
     const trocar = () => {
       if (trocando.current) return; // o próprio guardar() abaixo grava e dispara o evento de novo
       const proxima = ativaDe(lerViveiro());
-      if (!proxima || proxima.id === atual.current.criatura.id) return;
+      if (!proxima) return;
+      if (proxima.id === atual.current.criatura.id) {
+        // skill aprendida no Viveiro: o Crawler ativo passa a usá-la (e não a desfaz ao salvar)
+        const agoraSkills = atual.current.criatura.skills;
+        if (SKILLS.some((k) => proxima.skills[k] !== agoraSkills[k])) {
+          const c = { ...atual.current.criatura, skills: proxima.skills };
+          atual.current.criatura = c;
+          setCriatura(c);
+        }
+        return;
+      }
       trocando.current = true;
       try { guardar(); } finally { trocando.current = false; }
-      escaneando.current = null;
+      escaneando.current = [];
       atual.current.criatura = proxima;
       setCriatura(proxima);
       setFase({ tipo: 'texto', n: 1 });
@@ -137,8 +149,8 @@ export default function CrawlerToy() {
     const el = caixa.current;
     if (!el) return;
     const base = el.getBoundingClientRect();
-    escaneando.current?.p.el.classList.remove('dt-escaneando');
-    escaneando.current = null;
+    for (const s of escaneando.current) s.p.el.classList.remove('dt-escaneando');
+    escaneando.current = [];
     alvos.current = [...el.querySelectorAll<HTMLElement>('[data-w]:not(.dt-lida)')].map((s) => {
       const r = s.getBoundingClientRect();
       return { el: s, i: Number(s.dataset.i), x: (r.left - base.left) / ESCALA, y: (r.top - base.top) / ESCALA, w: r.width / ESCALA, h: r.height / ESCALA };
@@ -199,47 +211,50 @@ export default function CrawlerToy() {
     const inicio = cabeca.current ?? { x: largura / 2, y: altura / 2 };
     const c = (bicho.current ??= criarCrawler({ ...params }, inicio.x, inicio.y, atual.current.criatura.seed));
     const faminto = fomeAgora(atual.current.criatura, Date.now()) - FOME_POR_PALAVRA * pagina.current.length >= FAMINTO;
-    c.params.velMax = params.velMax * (faminto ? LENTIDAO_FAMINTO : 1);
+    const ef = efeitos(atual.current.criatura.skills);
+    c.params.velMax = params.velMax * ef.movimento * (faminto ? LENTIDAO_FAMINTO : 1);
 
-    // a palavra da vez: a que está sendo lida, ou a mais perto da boca; ao alcance = da boca até a borda dela
+    // as palavras em leitura continuam enquanto ao alcance (da boca até a borda delas); com vaga (skill "Mais
+    // palavras"), pega as mais perto que estiverem ao alcance. Sem nenhuma ao alcance, vai até a mais perto.
     const b = boca(c, v);
-    let palavra = escaneando.current?.p ?? null;
-    if (!palavra) {
-      let melhor = Infinity;
-      for (const p of alvos.current) {
-        const d = distanciaAte(b, p);
-        if (d < melhor) { melhor = d; palavra = p; }
+    const lendo = escaneando.current.filter((s) => {
+      const ok = distanciaAte(b, s.p) <= v.alcance;
+      if (!ok) s.p.el.classList.remove('dt-escaneando');
+      return ok;
+    });
+    let maisPerto: Palavra | null = null;
+    if (lendo.length < ef.palavras) {
+      const livres = alvos.current
+        .filter((p) => !lendo.some((s) => s.p === p))
+        .map((p) => ({ p, d: distanciaAte(b, p) }))
+        .sort((x, y) => x.d - y.d);
+      maisPerto = livres[0]?.p ?? null;
+      for (const { p, d } of livres) {
+        if (lendo.length >= ef.palavras || d > v.alcance) break;
+        lendo.push({ p, progresso: 0 });
+        p.el.classList.add('dt-escaneando');
       }
     }
-    const centro = palavra ? { x: palavra.x + palavra.w / 2, y: palavra.y + palavra.h / 2 } : null;
-    const aoAlcance = palavra ? distanciaAte(b, palavra) <= v.alcance : false;
+    const foco = lendo[0]?.p ?? maisPerto;
+    const centro = foco ? { x: foco.x + foco.w / 2, y: foco.y + foco.h / 2 } : null;
 
-    // ao alcance do raio, para e lê; o cursor ainda pode puxá-lo (a leitura continua enquanto estiver ao alcance)
+    // lendo, para; o cursor ainda pode puxá-lo (a leitura continua enquanto estiver ao alcance)
     if (cursor.current) passo(c, dt, cursor.current, { largura, altura });
-    else passo(c, dt, centro, { largura, altura }, aoAlcance);
+    else passo(c, dt, centro, { largura, altura }, lendo.length > 0);
 
-    if (palavra && aoAlcance) {
-      if (escaneando.current?.p !== palavra) {
-        escaneando.current?.p.el.classList.remove('dt-escaneando');
-        escaneando.current = { p: palavra, progresso: 0 };
-        palavra.el.classList.add('dt-escaneando');
-      }
-      const s = escaneando.current;
-      s.progresso += (dt * v.varredura * (faminto ? LENTIDAO_FAMINTO : 1)) / Math.max(2, palavra.el.textContent?.length ?? 2);
-      if (s.progresso >= 1) {
-        const lida = palavra;
-        lida.el.classList.remove('dt-escaneando');
-        lida.el.classList.add('dt-lida');
-        alvos.current = alvos.current.filter((p) => p !== lida);
-        pagina.current.push({ i: lida.i, w: lida.el.textContent ?? '' });
-        if (!atual.current.criatura.nasceu && pagina.current.length === 1) setAviso(`${nomeDe(atual.current.criatura)} CHOCOU!`);
-        setLidasNaPagina(pagina.current.length);
-        escaneando.current = null;
-      }
-    } else if (escaneando.current) {
-      escaneando.current.p.el.classList.remove('dt-escaneando');
-      escaneando.current = null;
-    }
+    const ritmo = dt * v.varredura * ef.leitura * (faminto ? LENTIDAO_FAMINTO : 1);
+    escaneando.current = lendo.filter((s) => {
+      s.progresso += ritmo / Math.max(2, s.p.el.textContent?.length ?? 2);
+      if (s.progresso < 1) return true;
+      const lida = s.p;
+      lida.el.classList.remove('dt-escaneando');
+      lida.el.classList.add('dt-lida');
+      alvos.current = alvos.current.filter((p) => p !== lida);
+      pagina.current.push({ i: lida.i, w: lida.el.textContent ?? '' });
+      if (!atual.current.criatura.nasceu && pagina.current.length === 1) setAviso(`${nomeDe(atual.current.criatura)} CHOCOU!`);
+      setLidasNaPagina(pagina.current.length);
+      return false;
+    });
 
     if (!alvos.current.length && !reescrevendo.current) {
       reescrevendo.current = true;
@@ -248,7 +263,7 @@ export default function CrawlerToy() {
 
     cabeca.current = c.seg[0];
     ctx.clearRect(0, 0, largura, altura);
-    if (escaneando.current) desenharRaio(ctx, boca(c, v), escaneando.current.p, escaneando.current.progresso, tempo);
+    for (const s of escaneando.current) desenharRaio(ctx, boca(c, v), s.p, s.progresso, tempo);
     desenharCrawler(ctx, c, v);
   }, [virarPagina]);
 
@@ -268,6 +283,7 @@ export default function CrawlerToy() {
 
   const fome = Math.max(0, Math.round(fomeAgora(criatura, agora) - FOME_POR_PALAVRA * lidasNaPagina));
   const proximo = proximoEstagio(criatura.xp);
+  const pontos = pontosLivres(criatura.xp, criatura.skills);
   const marca = (ligado: boolean) => `[${ligado ? 'x' : ' '}]`;
 
   return (
@@ -280,7 +296,7 @@ export default function CrawlerToy() {
       </div>
       <div className="dt-crawler-rodape">
         <p>
-          {nomeDe(criatura)} . {NOME_PLANO[criatura.genoma.plano]} {NOME_ESTAGIO[est === 'ovo' ? 'larva' : est]} . XP {Math.round(criatura.xp)}{proximo ? `/${proximo.xp}` : ''}
+          {nomeDe(criatura)} . {NOME_PLANO[criatura.genoma.plano]} {NOME_ESTAGIO[est === 'ovo' ? 'larva' : est]} . NV {nivelDe(criatura.xp)}{pontos ? ` (+${pontos} SKILL)` : ''} . XP {Math.round(criatura.xp)}{proximo ? `/${proximo.xp}` : ''}
           {' '}. FOME {fome}{fome >= FAMINTO ? ' (FAMINTO)' : ''}
         </p>
         <p>

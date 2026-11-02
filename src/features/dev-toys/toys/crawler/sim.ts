@@ -60,8 +60,9 @@ export function rngDe(seed: number): () => number {
 /**
  * Perna presa a um segmento, de um lado (1 ou -1), aberta `abertura` rad para a frente (negativo: para trás).
  * `ordem`: posição dela no seu lado, da frente para trás (vizinhas são as de ordem seguida). `t < 1`: no ar.
+ * `dobra`: lado do joelho em relação à perna de agora (`normalDaPerna` vezes `dobra`), normalmente para fora do corpo.
  */
-export type Perna = { segmento: number; lado: 1 | -1; ordem: number; abertura: number; pe: Vec; de: Vec; para: Vec; t: number };
+export type Perna = { segmento: number; lado: 1 | -1; ordem: number; abertura: number; pe: Vec; de: Vec; para: Vec; t: number; dobra: 1 | -1 };
 export const noAr = (p: Perna) => p.t < 1;
 
 export type Crawler = { params: ParamsCrawler; seg: Vec[]; ang: number; vagar: number; pernas: Perna[]; rng: () => number };
@@ -95,6 +96,16 @@ export function peIdeal(c: Crawler, p: Encaixe): Vec {
 }
 
 /**
+ * Para que lado a perna dobra (joelho, ou a curva do tentáculo): perpendicular à perna em repouso, para fora do corpo.
+ * Fica fixo no corpo do bicho; escolher o lado pela perna de agora faz o joelho virar de lado quando ela aponta para a frente.
+ */
+export function curvaDe(c: Crawler, p: Encaixe): Vec {
+  const n = normalDe(normal(sub(peIdeal(c, p), quadril(c, p))));
+  const lateral = mul(normalDe(frente(c, p.segmento)), p.lado);
+  return n.x * lateral.x + n.y * lateral.y >= 0 ? n : mul(n, -1);
+}
+
+/**
  * Centopeia: um par a cada `pernasACada` segmentos, a partir do 1. Leque: `pares` pares no segmento 0, da frente
  * (abertura) para trás (-abertura). Mantém as pernas que já existiam.
  */
@@ -112,7 +123,9 @@ export function montarPernas(c: Crawler, antigas: Perna[]): Perna[] {
       const velha = antigas.find((p) => p.segmento === e.segmento && p.lado === lado && p.ordem === e.ordem);
       if (velha) { pernas.push(velha); continue; }
       const pe = peIdeal(c, { ...e, lado });
-      pernas.push({ ...e, lado, pe, de: pe, para: pe, t: 1 });
+      const nova: Perna = { ...e, lado, pe, de: pe, para: pe, t: 1, dobra: 1 };
+      atualizarDobra(c, nova, 0);
+      pernas.push(nova);
     }
   }
   return pernas;
@@ -189,6 +202,46 @@ export function ossosDe(params: ParamsCrawler): number[] {
 
 export type Limites = { largura: number; altura: number };
 
+/** Perna plantada torta demais (o corpo virou e ela ficou para trás): passa de ~40° do repouso, pede passo. */
+const COS_TORTA = 0.75;
+/** Passo mais curto possível (s), quando o corpo corre ou vira rápido. */
+const PASSO_MAIS_RAPIDO = 0.05;
+
+/** Onde o pé pousa: um pouco além do ideal, para a frente. */
+function pouso(c: Crawler, p: Perna, ideal = peIdeal(c, p)): Vec {
+  return soma(ideal, mul(frente(c, p.segmento), c.params.limitePasso * 0.4));
+}
+
+/** Fração do giro quando parado (girando no lugar). */
+const GIRO_PARADO = 0.4;
+/** O joelho só troca de lado quando a perna passa bem do través (evita o "estalo" perto dos 90°). */
+const FOLGA_DOBRA = 0.35;
+
+/** Quanto a perna plantada precisa de um passo: acima de 1, pede (longe do ideal ou torta demais). */
+function urgencia(c: Crawler, p: Perna, ideal: Vec): number {
+  const q = quadril(c, p);
+  const a = sub(p.pe, q);
+  const b = sub(ideal, q);
+  const ca = comp(a);
+  const cb = comp(b);
+  const cos = ca < 1e-6 || cb < 1e-6 ? -1 : (a.x * b.x + a.y * b.y) / (ca * cb);
+  return Math.max(distancia(p.pe, ideal) / c.params.limitePasso, (1 - cos) / (1 - COS_TORTA));
+}
+
+/** Perpendicular à perna de agora (do quadril ao pé); `dobra` diz para qual dos dois lados dela o joelho vai. */
+export function normalDaPerna(c: Crawler, p: Perna): Vec {
+  return normalDe(normal(sub(p.pe, quadril(c, p))));
+}
+
+/** Lado da dobra: o de fora do corpo (`curvaDe`), com folga, para só trocar quando a perna passa bem do través. */
+function atualizarDobra(c: Crawler, p: Perna, folga = FOLGA_DOBRA) {
+  if (distancia(p.pe, quadril(c, p)) < 1e-6) return;
+  const n = normalDaPerna(c, p);
+  const curva = curvaDe(c, p);
+  const d = n.x * curva.x + n.y * curva.y;
+  if (d * p.dobra < -folga) p.dobra = d > 0 ? 1 : -1;
+}
+
 /**
  * Um quadro: a cabeça vira (giro limitado) e anda, o corpo segue, as pernas dão passos.
  * `parado`: não anda, só vira para o alvo (o Crawler escaneando uma palavra).
@@ -213,8 +266,10 @@ export function passo(c: Crawler, dt: number, alvo: Vec | null, limites: Limites
     desejado = c.ang + c.vagar;
     velocidade = params.velMax * 0.5;
   }
-  const giro = params.giroMax * dt;
-  c.ang = girar(c.ang + limitar(girar(desejado - c.ang), -giro, giro));
+  // parado (lendo), vira devagar: girar no lugar rápido deixa as pernas para trás, torcidas
+  const giro = params.giroMax * dt * (parado ? GIRO_PARADO : 1);
+  const virou = limitar(girar(desejado - c.ang), -giro, giro);
+  c.ang = girar(c.ang + virou);
   if (parado) velocidade = 0;
   c.seg[0] = v(
     limitar(cabeca.x + Math.cos(c.ang) * velocidade * dt, 0, limites.largura),
@@ -226,19 +281,28 @@ export function passo(c: Crawler, dt: number, alvo: Vec | null, limites: Limites
     c.seg[i] = soma(c.seg[i - 1], mul(normal(sub(c.seg[i], c.seg[i - 1])), params.dist));
   }
 
-  // pernas no ar seguem o arco; depois, as plantadas longe demais pedem passo se nenhuma vizinha estiver no ar
+  // pernas no ar seguem o arco; depois, as plantadas longe ou tortas demais pedem passo se nenhuma vizinha estiver no ar
+  // passo mais rápido quando o corpo corre ou vira (a ponta da perna, ao virar, anda giro × comprimento da perna);
+  // no ar, o pé segue o ponto de pouso, que anda com o corpo
+  const pePorSegundo = velocidade + (Math.abs(virou) / Math.max(dt, 1e-6)) * (params.quadril + (params.coxa + params.canela) * 0.7);
+  const duracao = limitar((0.45 * params.limitePasso) / Math.max(pePorSegundo, 1e-6), PASSO_MAIS_RAPIDO, params.duracaoPasso);
   for (const p of c.pernas) {
     if (!noAr(p)) continue;
-    p.t = Math.min(1, p.t + dt / params.duracaoPasso);
+    p.t = Math.min(1, p.t + dt / duracao);
+    p.para = pouso(c, p);
     p.pe = soma(p.de, mul(sub(p.para, p.de), p.t));
   }
-  for (const p of c.pernas) {
-    if (noAr(p)) continue;
-    const ideal = peIdeal(c, p);
-    if (distancia(p.pe, ideal) <= params.limitePasso) continue;
+  // a mais atrasada passa na frente: senão as da frente do corpo sempre ganham e as outras ficam presas para trás
+  const pedem = c.pernas
+    .filter((p) => !noAr(p))
+    .map((p) => { const ideal = peIdeal(c, p); return { p, ideal, u: urgencia(c, p, ideal) }; })
+    .filter((x) => x.u > 1)
+    .sort((a, b) => b.u - a.u);
+  for (const { p, ideal } of pedem) {
     if (vizinhas(c, p).some(noAr)) continue;
     p.de = p.pe;
-    p.para = soma(ideal, mul(frente(c, p.segmento), params.limitePasso * 0.4)); // passa um pouco do ideal
+    p.para = pouso(c, p, ideal);
     p.t = 0;
   }
+  for (const p of c.pernas) atualizarDobra(c, p);
 }

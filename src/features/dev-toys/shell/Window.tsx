@@ -1,4 +1,4 @@
-import { useRef, type PointerEvent, type ReactNode } from 'react';
+import { useRef, type CSSProperties, type PointerEvent, type ReactNode } from 'react';
 import { ESCALA } from '../escala';
 
 type Props = {
@@ -37,7 +37,8 @@ export default function Window({ titulo, x, y, largura, ativa, z, onMover, onFec
   return (
     <section
       className={`dt-janela${ativa ? ' dt-ativa' : ''}`}
-      style={{ left: x, top: y, width: largura * ESCALA, zIndex: z }}
+      // --dt-topo: o conteúdo que rola (Viveiro) limita a altura ao que sobra da tela abaixo da janela
+      style={{ left: x, top: y, width: largura * ESCALA, zIndex: z, '--dt-topo': `${y}px` } as CSSProperties}
       role="dialog"
       aria-label={titulo}
       onPointerDownCapture={onFocar}

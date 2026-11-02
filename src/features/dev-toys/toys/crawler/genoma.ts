@@ -159,28 +159,37 @@ export function raiosDe(plano: Plano, espessura: number, segmentos: number): num
   });
 }
 
+const PASSADA_LEQUE = 0.3;
+
+/** Até este alcance de perna (px, do centro do corpo ao pé), o bicho vira no giro cheio. */
+const GIRO_ALCANCE = 30;
+
 /** Corpo para a física: cresce com o estágio. */
 export function paramsDe(g: Genoma, e: Estagio): ParamsCrawler {
   const n = nivel(e);
   const k = crescimento(n);
   const centopeia = g.plano === 'centopeia';
   const comprimento = 32 * g.perna * k; // coxa + canela
+  const quadril = centopeia ? 3 : raiosDe(g.plano, g.espessura * k, 1)[0] * 0.8;
+  // perna comprida vira mais devagar: ao virar, a ponta dela anda giro × comprimento e o passo não acompanha
+  const giroDaPerna = Math.min(1, GIRO_ALCANCE / (quadril + comprimento * 0.7));
   return {
     ...PADRAO,
     segmentos: centopeia ? Math.max(3, g.segmentos - 3 + n) : g.segmentos,
     dist: g.dist * (centopeia ? 1 : k),
     coxa: (comprimento * 14) / 32,
     canela: (comprimento * 18) / 32,
-    limitePasso: comprimento * 0.5 * g.passada,
+    // pernas em leque são longas: passada menor, para o pé não sair do alcance antes de dar o passo
+    limitePasso: comprimento * (centopeia ? 0.5 : PASSADA_LEQUE) * g.passada,
     duracaoPasso: PADRAO.duracaoPasso * g.passada * Math.sqrt(Math.max(1, g.perna)),
     velMax: PADRAO.velMax * g.velocidade * (0.8 + 0.066 * n),
-    giroMax: PADRAO.giroMax * g.velocidade,
+    giroMax: PADRAO.giroMax * g.velocidade * giroDaPerna,
     pernasACada: g.pernasACada,
     vagueia: g.vagueia,
     pares: centopeia ? 0 : Math.max(2, Math.min(g.pares, g.pares - 3 + n)),
     abertura: g.abertura,
     ossos: g.ossos,
-    quadril: centopeia ? 3 : raiosDe(g.plano, g.espessura * k, 1)[0] * 0.8,
+    quadril,
   };
 }
 
