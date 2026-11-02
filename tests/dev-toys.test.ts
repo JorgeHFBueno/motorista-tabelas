@@ -7,8 +7,9 @@ import { normalizarPrefs } from '../src/features/dev-toys/prefs';
 import { fimDeFrase, gerar, treinar } from '../src/features/dev-toys/toys/crawler/markov';
 import { acrescentar, MAX_CORPUS, normalizarCorpus, normalizarOpcoes } from '../src/features/dev-toys/toys/crawler/memoria';
 import { embaralhar, paraAscii, QUEBRA, separarTextos } from '../src/features/dev-toys/toys/crawler/textos';
-import { PADRAO, criarCrawler, distancia, ik, noAr, passo, rngDe, vizinhas } from '../src/features/dev-toys/toys/crawler/sim';
-import { estagioDe, mutar, normalizarGenoma, paramsDe, proximoEstagio, sortearGenoma, visualDe } from '../src/features/dev-toys/toys/crawler/genoma';
+import { PADRAO, criarCrawler, distancia, fabrik, ik, noAr, passo, rngDe, vizinhas } from '../src/features/dev-toys/toys/crawler/sim';
+import { distanciaAte } from '../src/features/dev-toys/toys/crawler/render';
+import { PLANOS, estagioDe, mutar, normalizarGenoma, paramsDe, proximoEstagio, sortearGenoma, visualDe } from '../src/features/dev-toys/toys/crawler/genoma';
 import { avaliar } from '../src/features/dev-toys/toys/crawler/nota';
 import {
   FAMINTO, MAX_CRIATURAS, MS_POR_PONTO_DE_FOME, alimentar, atualizar, chocar, fomeAgora, gostei, normalizarViveiro, novaCriatura, registrarXerox, soltar,
@@ -185,10 +186,10 @@ test('Crawler: o aprendizado só cresce até o teto e as opções vêm ligadas',
 });
 
 test('Crawler: o genoma sai da seed, cresce com o estágio e muta um gene por vez', () => {
-  const g = sortearGenoma(rngDe(5));
-  assert.deepEqual(sortearGenoma(rngDe(5)), g);
-  assert.notDeepEqual(sortearGenoma(rngDe(6)), g);
-  assert.ok(g.segmentos >= 6 && g.segmentos <= 11 && g.alcance >= 60 && g.alcance <= 110);
+  assert.deepEqual(sortearGenoma(rngDe(5)), sortearGenoma(rngDe(5)));
+  assert.notDeepEqual(sortearGenoma(rngDe(6)), sortearGenoma(rngDe(5)));
+  const g = normalizarGenoma({ plano: 'centopeia' }, rngDe(5));
+  assert.ok(g.segmentos >= 6 && g.segmentos <= 11 && g.alcance >= 12 && g.alcance <= 28);
   const tamanhos = (['larva', 'jovem', 'adulta', 'ancia'] as const).map((e) => paramsDe(g, e).segmentos);
   assert.deepEqual(tamanhos, [g.segmentos - 3, g.segmentos - 2, g.segmentos - 1, g.segmentos]);
   assert.ok(visualDe(g, 'larva').alcance < visualDe(g, 'ancia').alcance);
@@ -202,6 +203,7 @@ test('Crawler: o genoma sai da seed, cresce com o estágio e muta um gene por ve
     const { genoma, gene } = mutar(g, rngDe(s));
     const diferentes = (Object.keys(g) as (keyof typeof g)[]).filter((k) => genoma[k] !== g[k]);
     assert.ok(diferentes.length <= 1 && (diferentes.length === 0 || diferentes[0] === gene));
+    assert.notEqual(gene, 'plano', 'o plano não muta');
   }
   assert.deepEqual(normalizarGenoma(g, rngDe(9)), g, 'genoma salvo volta igual');
   assert.ok(['circulo', 'losango', 'quadrado', 'anel'].includes(normalizarGenoma({ forma: 'triangulo' }, rngDe(9)).forma));
@@ -274,4 +276,59 @@ test('Crawler: viveiro com até 6, um ativo, solto não volta, salvo estragado �
   const salvo = normalizarViveiro(JSON.parse(JSON.stringify({ ...v, ativa: 'nao-existe' })), 0);
   assert.equal(salvo.ativa, salvo.criaturas[0].id);
   assert.deepEqual(salvo.criaturas[0].genoma, v.criaturas[0].genoma);
+});
+
+test('Crawler: quatro planos corporais bem diferentes, todos aparecem e cada um com o seu jeito', () => {
+  const vistos = new Set<string>();
+  for (let seed = 1; seed <= 60; seed++) {
+    const g = sortearGenoma(rngDe(seed));
+    vistos.add(g.plano);
+    const p = paramsDe(g, 'ancia');
+    if (g.plano === 'centopeia') { assert.equal(p.pares, 0); assert.ok(p.segmentos >= 6); }
+    if (g.plano === 'aranha') { assert.equal(p.segmentos, 2); assert.ok(p.pares >= 3 && p.ossos >= 3 && g.perna >= 1.5); }
+    if (g.plano === 'polvo') { assert.equal(p.segmentos, 1); assert.ok(p.ossos >= 6, 'tentáculos de muitos gomos'); }
+    if (g.plano === 'caranguejo') { assert.equal(p.segmentos, 2); assert.ok(['caixa', 'quadrado'].includes(g.forma)); }
+  }
+  assert.deepEqual([...vistos].sort(), [...PLANOS].sort());
+  const aranha = normalizarGenoma({ plano: 'aranha', pares: 4 }, rngDe(1));
+  assert.ok(paramsDe(aranha, 'larva').pares < paramsDe(aranha, 'ancia').pares, 'ganha pernas ao crescer');
+  const antigo = normalizarGenoma({ forma: 'anel', alcance: 81, segmentos: 8 }, rngDe(1));
+  assert.equal(antigo.plano, 'centopeia', 'criatura de antes dos planos continua centopeia');
+  assert.equal(antigo.forma, 'anel');
+  assert.ok(antigo.alcance <= 28, 'o alcance antigo (até 110 px) é sorteado de novo');
+});
+
+test('Crawler: pernas em leque e de muitas juntas andam sem levantar vizinhas juntas', () => {
+  for (const plano of ['aranha', 'polvo', 'caranguejo'] as const) {
+    const params = paramsDe(normalizarGenoma({ plano }, rngDe(4)), 'ancia');
+    const c = criarCrawler(params, 240, 150, 4);
+    assert.equal(c.pernas.length, params.pares * 2);
+    for (let i = 0; i < 1500; i++) {
+      passo(c, 1 / 60, { x: (i * 7) % 480, y: (i * 3) % 300 }, { largura: 480, altura: 300 });
+      for (const p of c.pernas) if (noAr(p)) assert.ok(!vizinhas(c, p).some(noAr), `${plano}, quadro ${i}`);
+    }
+  }
+});
+
+test('Crawler: a IK de muitas juntas mantém os ossos, alcança o alvo e curva para fora', () => {
+  const ossos = [10, 9, 8, 7, 6];
+  const raiz = { x: 0, y: 0 };
+  const j = fabrik(raiz, { x: 25, y: 5 }, ossos, { x: 0, y: 1 });
+  assert.equal(j.length, 6);
+  ossos.forEach((o, i) => assert.ok(Math.abs(distancia(j[i], j[i + 1]) - o) < 1e-6, `osso ${i}`));
+  assert.ok(distancia(j[5], { x: 25, y: 5 }) < 0.5, 'o pé chega no alvo');
+  assert.ok(j.slice(1, 5).some((p) => p.y > 5), 'a curva vai para fora');
+  const longe = fabrik(raiz, { x: 100, y: 0 }, ossos, { x: 0, y: 1 });
+  assert.ok(Math.abs(longe[5].x - 40) < 1e-6 && Math.abs(longe[5].y) < 1e-6, 'fora do alcance, estica');
+});
+
+test('Crawler: o raio só alcança palavras perto da boca (medido até a borda da palavra)', () => {
+  const palavra = { x: 100, y: 50, w: 40, h: 20 };
+  assert.equal(distanciaAte({ x: 120, y: 60 }, palavra), 0, 'dentro');
+  assert.equal(distanciaAte({ x: 90, y: 60 }, palavra), 10);
+  assert.equal(Math.round(distanciaAte({ x: 150, y: 80 }, palavra)), 14);
+  for (let seed = 1; seed <= 40; seed++) {
+    const g = sortearGenoma(rngDe(seed));
+    assert.ok(visualDe(g, 'larva').alcance <= 22 && visualDe(g, 'ancia').alcance <= 28);
+  }
 });

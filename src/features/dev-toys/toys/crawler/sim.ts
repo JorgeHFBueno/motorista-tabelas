@@ -28,12 +28,21 @@ export type ParamsCrawler = {
   pernasACada: number;
   /** quanto a vontade de virar oscila quando ele vaga sem alvo (1 = normal) */
   vagueia: number;
+  /** 0: pernas ao longo do corpo (centopeia); N: N pares em leque no corpo (segmento 0), como aranha ou polvo */
+  pares: number;
+  /** leque: ângulo (rad) da perna mais da frente; a de trás fica no oposto */
+  abertura: number;
+  /** ossos por perna: 2 usa a IK analítica; mais que 2, FABRIK (tentáculo) */
+  ossos: number;
+  /** distância do centro do segmento até onde a perna sai */
+  quadril: number;
 };
 
 // Valores iniciais do plano: 8 segmentos a 10 px, 1 par de pernas a cada 2 segmentos, coxa/canela 14/18 px,
 // passo a partir de 16 px em 120 ms, até 90 px/s e 3 rad/s.
 export const PADRAO: ParamsCrawler = {
   segmentos: 8, dist: 10, coxa: 14, canela: 18, limitePasso: 16, duracaoPasso: 0.12, velMax: 90, giroMax: 3, segmentosMax: 40, pernasACada: 2, vagueia: 1,
+  pares: 0, abertura: 0, ossos: 2, quadril: 3,
 };
 
 /** Gerador pseudoaleatório com semente (mulberry32): a mesma seed dá o mesmo bicho. */
@@ -48,8 +57,11 @@ export function rngDe(seed: number): () => number {
   };
 }
 
-/** Perna presa a um segmento, de um lado (1 ou -1). `t < 1`: no ar, indo de `de` para `para`. */
-export type Perna = { segmento: number; lado: 1 | -1; pe: Vec; de: Vec; para: Vec; t: number };
+/**
+ * Perna presa a um segmento, de um lado (1 ou -1), aberta `abertura` rad para a frente (negativo: para trás).
+ * `ordem`: posição dela no seu lado, da frente para trás (vizinhas são as de ordem seguida). `t < 1`: no ar.
+ */
+export type Perna = { segmento: number; lado: 1 | -1; ordem: number; abertura: number; pe: Vec; de: Vec; para: Vec; t: number };
 export const noAr = (p: Perna) => p.t < 1;
 
 export type Crawler = { params: ParamsCrawler; seg: Vec[]; ang: number; vagar: number; pernas: Perna[]; rng: () => number };
@@ -62,26 +74,45 @@ export function frente(c: Crawler, i: number): Vec {
 
 const normalDe = (f: Vec) => v(-f.y, f.x);
 
-export function quadril(c: Crawler, p: Perna): Vec {
-  return soma(c.seg[p.segmento], mul(normalDe(frente(c, p.segmento)), p.lado * 3));
+type Encaixe = Pick<Perna, 'segmento' | 'lado' | 'abertura'>;
+
+/** Direção em que a perna sai: para o lado, girada pela abertura (para a frente ou para trás). */
+export function direcaoDaPerna(c: Crawler, p: Encaixe): Vec {
+  const f = frente(c, p.segmento);
+  const n = mul(normalDe(f), p.lado);
+  return soma(mul(n, Math.cos(p.abertura)), mul(f, Math.sin(p.abertura)));
 }
 
-/** Onde o pé gostaria de estar: ao lado do segmento, um pouco à frente. */
-export function peIdeal(c: Crawler, segmento: number, lado: 1 | -1): Vec {
-  const f = frente(c, segmento);
+export function quadril(c: Crawler, p: Encaixe): Vec {
+  return soma(c.seg[p.segmento], mul(direcaoDaPerna(c, p), c.params.quadril));
+}
+
+/** Onde o pé gostaria de estar: na direção da perna, a 70% do comprimento dela, um pouco à frente. */
+export function peIdeal(c: Crawler, p: Encaixe): Vec {
+  const f = frente(c, p.segmento);
   const alcance = (c.params.coxa + c.params.canela) * 0.7;
-  return soma(c.seg[segmento], soma(mul(normalDe(f), lado * alcance), mul(f, c.params.coxa * 0.4)));
+  return soma(quadril(c, p), soma(mul(direcaoDaPerna(c, p), alcance), mul(f, c.params.coxa * 0.4)));
 }
 
-/** Um par de pernas a cada `pernasACada` segmentos, a partir do 1; mantém as pernas que já existiam. */
+/**
+ * Centopeia: um par a cada `pernasACada` segmentos, a partir do 1. Leque: `pares` pares no segmento 0, da frente
+ * (abertura) para trás (-abertura). Mantém as pernas que já existiam.
+ */
 export function montarPernas(c: Crawler, antigas: Perna[]): Perna[] {
+  const encaixes: Array<Omit<Encaixe, 'lado'> & { ordem: number }> = [];
+  const { pares, abertura, pernasACada } = c.params;
+  if (pares > 0) {
+    for (let k = 0; k < pares; k++) encaixes.push({ segmento: 0, ordem: k, abertura: pares === 1 ? 0 : abertura * (1 - (2 * k) / (pares - 1)) });
+  } else {
+    for (let i = 1, k = 0; i < c.seg.length; i += pernasACada, k++) encaixes.push({ segmento: i, ordem: k, abertura: 0 });
+  }
   const pernas: Perna[] = [];
-  for (let i = 1; i < c.seg.length; i += c.params.pernasACada) {
+  for (const e of encaixes) {
     for (const lado of [-1, 1] as const) {
-      const velha = antigas.find((p) => p.segmento === i && p.lado === lado);
+      const velha = antigas.find((p) => p.segmento === e.segmento && p.lado === lado && p.ordem === e.ordem);
       if (velha) { pernas.push(velha); continue; }
-      const pe = peIdeal(c, i, lado);
-      pernas.push({ segmento: i, lado, pe, de: pe, para: pe, t: 1 });
+      const pe = peIdeal(c, { ...e, lado });
+      pernas.push({ ...e, lado, pe, de: pe, para: pe, t: 1 });
     }
   }
   return pernas;
@@ -100,9 +131,9 @@ export function criarCrawler(params: ParamsCrawler, x: number, y: number, seed: 
   return c;
 }
 
-/** Pernas vizinhas: o par do mesmo segmento e as do mesmo lado nos pares da frente e de trás. */
+/** Pernas vizinhas: a do outro lado na mesma ordem e as do mesmo lado logo à frente e logo atrás. */
 export function vizinhas(c: Crawler, p: Perna): Perna[] {
-  return c.pernas.filter((q) => q !== p && (q.segmento === p.segmento || (q.lado === p.lado && Math.abs(q.segmento - p.segmento) === c.params.pernasACada)));
+  return c.pernas.filter((q) => q !== p && (q.lado === p.lado ? Math.abs(q.ordem - p.ordem) === 1 : q.ordem === p.ordem));
 }
 
 /** IK analítica de 2 ossos (lei dos cossenos). O joelho dobra para o lado de `fora`; fora do alcance, a perna estica. */
@@ -115,6 +146,45 @@ export function ik(quadrilPos: Vec, alvo: Vec, a: number, b: number, fora: Vec):
   const j2 = candidato(-1);
   const pontua = (j: Vec) => (j.x - quadrilPos.x) * fora.x + (j.y - quadrilPos.y) * fora.y;
   return { joelho: pontua(j1) >= pontua(j2) ? j1 : j2, pe: soma(quadrilPos, v(Math.cos(base) * d, Math.sin(base) * d)) };
+}
+
+/**
+ * IK de vários ossos (FABRIK), para tentáculos e pernas de muitas juntas: começa num arco curvado para `fora` e
+ * ajusta algumas vezes. Devolve as juntas, da raiz ao pé (ossos + 1 pontos); fora do alcance, estica na direção do alvo.
+ */
+export function fabrik(raiz: Vec, alvo: Vec, ossos: number[], fora: Vec, iteracoes = 8): Vec[] {
+  const total = ossos.reduce((a, b) => a + b, 0);
+  const d = distancia(raiz, alvo);
+  const dir = normal(sub(alvo, raiz));
+  if (d >= total) {
+    const pts = [raiz];
+    for (const o of ossos) pts.push(soma(pts[pts.length - 1], mul(dir, o)));
+    return pts;
+  }
+  const curva = Math.sqrt(Math.max(0, total * total - d * d)) / 2; // quanto sobra de perna vira curvatura
+  const pts = [raiz];
+  let acumulado = 0;
+  for (const o of ossos) {
+    acumulado += o;
+    const t = acumulado / total;
+    pts.push(soma(soma(raiz, mul(sub(alvo, raiz), t)), mul(fora, curva * Math.sin(Math.PI * t))));
+  }
+  for (let it = 0; it < iteracoes; it++) {
+    pts[ossos.length] = alvo;
+    for (let i = ossos.length - 1; i >= 0; i--) pts[i] = soma(pts[i + 1], mul(normal(sub(pts[i], pts[i + 1])), ossos[i]));
+    pts[0] = raiz;
+    for (let i = 0; i < ossos.length; i++) pts[i + 1] = soma(pts[i], mul(normal(sub(pts[i + 1], pts[i])), ossos[i]));
+  }
+  return pts;
+}
+
+/** Comprimento de cada osso: a perna inteira (coxa + canela) dividida, afinando para a ponta. */
+export function ossosDe(params: ParamsCrawler): number[] {
+  const n = Math.max(2, Math.round(params.ossos));
+  if (n === 2) return [params.coxa, params.canela];
+  const pesos = Array.from({ length: n }, (_, i) => 1 - (0.4 * i) / (n - 1));
+  const totalPesos = pesos.reduce((a, b) => a + b, 0);
+  return pesos.map((w) => ((params.coxa + params.canela) * w) / totalPesos);
 }
 
 export type Limites = { largura: number; altura: number };
@@ -164,7 +234,7 @@ export function passo(c: Crawler, dt: number, alvo: Vec | null, limites: Limites
   }
   for (const p of c.pernas) {
     if (noAr(p)) continue;
-    const ideal = peIdeal(c, p.segmento, p.lado);
+    const ideal = peIdeal(c, p);
     if (distancia(p.pe, ideal) <= params.limitePasso) continue;
     if (vizinhas(c, p).some(noAr)) continue;
     p.de = p.pe;

@@ -4,12 +4,12 @@ import {
   EVENTO_VIVEIRO, FAMINTO, MAX_CRIATURAS, chocar, estagio, fomeAgora, gravarViveiro, lerViveiro, nomeDe, novaSemente, soltar,
   type Criatura, type Viveiro,
 } from '../crawler/criaturas';
-import { NOME_ESTAGIO, paramsDe, proximoEstagio, visualDe } from '../crawler/genoma';
+import { NOME_ESTAGIO, NOME_PLANO, paramsDe, proximoEstagio, raiosDe, visualDe } from '../crawler/genoma';
 import { desenharCrawler, desenharOvo } from '../crawler/render';
 import { criarCrawler } from '../crawler/sim';
 
 const RL = 170; // retrato, px a 100%
-const RA = 70;
+const RA = 95;
 
 // Retrato parado do Crawler (ou o ovo), desenhado conforme o genoma e o estágio.
 function Retrato({ c }: { c: Criatura }) {
@@ -28,12 +28,16 @@ function Retrato({ c }: { c: Criatura }) {
       desenharOvo(ctx, RL / 2, RA / 2, 0);
       return;
     }
+    // cabe o corpo inteiro com as pernas abertas (aranhas e polvos têm pernas bem maiores que o corpo)
     const p = paramsDe(c.genoma, est);
+    const v = visualDe(c.genoma, est);
     const comprimento = (p.segmentos - 1) * p.dist;
-    const k = Math.min(1, (RL - 30) / (comprimento + 30), (RA - 6) / ((p.coxa + p.canela) * 1.6 + 12));
+    const perna = (p.coxa + p.canela) * 0.85 + p.quadril;
+    const raio = Math.max(...raiosDe(v.plano, v.espessura, p.segmentos));
+    const k = Math.min(1, (RL - 8) / (comprimento + 2 * Math.max(perna, raio) + 16), (RA - 6) / (2 * Math.max(perna, raio) + 8));
     ctx.translate(RL / 2, RA / 2);
     ctx.scale(k, k);
-    desenharCrawler(ctx, criarCrawler(p, comprimento / 2, 0, c.seed), visualDe(c.genoma, est));
+    desenharCrawler(ctx, criarCrawler(p, comprimento / 2, 0, c.seed), v);
   }, [c]);
   return <canvas ref={ref} style={{ width: RL * ESCALA, height: RA * ESCALA }} />;
 }
@@ -75,7 +79,7 @@ export default function ViveiroToy() {
           <section key={c.id} className={`dt-ficha${ativa ? ' dt-ficha-ativa' : ''}`}>
             <p className="dt-ficha-nome">{nomeDe(c)}{ativa ? ' . ALIMENTANDO' : ''}</p>
             <Retrato c={c} />
-            <p>{NOME_ESTAGIO[est]} . XP {Math.round(c.xp)}{prox ? `/${prox.xp}` : ' (MAX)'}</p>
+            <p>{est === 'ovo' ? 'OVO' : `${NOME_PLANO[c.genoma.plano]} ${NOME_ESTAGIO[est]}`} . XP {Math.round(c.xp)}{prox ? `/${prox.xp}` : ' (MAX)'}</p>
             <p>FOME {barra(fome / 100)}{fome >= FAMINTO ? ' FAMINTO' : ''}</p>
             <p>XEROX {c.xeroxes} . MELHOR NOTA {c.melhorNota} . LEU {c.corpus.length} PALAVRAS</p>
             {c.ultimo && (

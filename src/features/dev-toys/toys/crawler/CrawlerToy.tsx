@@ -5,12 +5,12 @@ import {
   EVENTO_VIVEIRO, FAMINTO, FOME_POR_PALAVRA, alimentar, atualizar, estagio, fomeAgora, gostei, gravarViveiro, lerViveiro, nomeDe,
   registrarXerox, type Criatura, type Resultado, type Viveiro,
 } from './criaturas';
-import { NOME_ESTAGIO, paramsDe, proximoEstagio, visualDe } from './genoma';
+import { NOME_ESTAGIO, NOME_PLANO, paramsDe, proximoEstagio, visualDe } from './genoma';
 import { gerar, treinar, type Estatisticas } from './markov';
 import { acrescentar, gravarOpcoes, lerOpcoes, type OpcoesCrawler } from './memoria';
 import { avaliar } from './nota';
-import { boca, desenharCrawler, desenharRaio } from './render';
-import { criarCrawler, distancia, passo, rngDe, type Crawler, type Vec } from './sim';
+import { boca, desenharCrawler, desenharRaio, distanciaAte } from './render';
+import { criarCrawler, passo, rngDe, type Crawler, type Vec } from './sim';
 import { embaralhar, QUEBRA, separarTextos } from './textos';
 import bruto from './xerox.txt?raw';
 
@@ -201,18 +201,18 @@ export default function CrawlerToy() {
     const faminto = fomeAgora(atual.current.criatura, Date.now()) - FOME_POR_PALAVRA * pagina.current.length >= FAMINTO;
     c.params.velMax = params.velMax * (faminto ? LENTIDAO_FAMINTO : 1);
 
-    // a palavra da vez: a que está sendo lida, ou a mais perto da boca
-    const b = boca(c);
+    // a palavra da vez: a que está sendo lida, ou a mais perto da boca; ao alcance = da boca até a borda dela
+    const b = boca(c, v);
     let palavra = escaneando.current?.p ?? null;
     if (!palavra) {
       let melhor = Infinity;
       for (const p of alvos.current) {
-        const d = distancia(b, { x: p.x + p.w / 2, y: p.y + p.h / 2 });
+        const d = distanciaAte(b, p);
         if (d < melhor) { melhor = d; palavra = p; }
       }
     }
     const centro = palavra ? { x: palavra.x + palavra.w / 2, y: palavra.y + palavra.h / 2 } : null;
-    const aoAlcance = centro ? distancia(b, centro) <= v.alcance : false;
+    const aoAlcance = palavra ? distanciaAte(b, palavra) <= v.alcance : false;
 
     // ao alcance do raio, para e lê; o cursor ainda pode puxá-lo (a leitura continua enquanto estiver ao alcance)
     if (cursor.current) passo(c, dt, cursor.current, { largura, altura });
@@ -248,7 +248,7 @@ export default function CrawlerToy() {
 
     cabeca.current = c.seg[0];
     ctx.clearRect(0, 0, largura, altura);
-    if (escaneando.current) desenharRaio(ctx, boca(c), escaneando.current.p, escaneando.current.progresso, tempo);
+    if (escaneando.current) desenharRaio(ctx, boca(c, v), escaneando.current.p, escaneando.current.progresso, tempo);
     desenharCrawler(ctx, c, v);
   }, [virarPagina]);
 
@@ -280,7 +280,7 @@ export default function CrawlerToy() {
       </div>
       <div className="dt-crawler-rodape">
         <p>
-          {nomeDe(criatura)} . {NOME_ESTAGIO[est === 'ovo' ? 'larva' : est]} . XP {Math.round(criatura.xp)}{proximo ? `/${proximo.xp}` : ''}
+          {nomeDe(criatura)} . {NOME_PLANO[criatura.genoma.plano]} {NOME_ESTAGIO[est === 'ovo' ? 'larva' : est]} . XP {Math.round(criatura.xp)}{proximo ? `/${proximo.xp}` : ''}
           {' '}. FOME {fome}{fome >= FAMINTO ? ' (FAMINTO)' : ''}
         </p>
         <p>
