@@ -137,6 +137,7 @@ type LinhaEvento = {
 const numberFormatter = new Intl.NumberFormat('pt-BR');
 const erpNumber = (value: unknown) => typeof value === 'number' && Number.isFinite(value) ? value : Number(String(value ?? '').replace(',', '.')) || 0;
 const erpText = (value: unknown) => String(value ?? '').trim();
+const currencyBRL = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' });
 
 function toDate(raw: unknown): Date | null {
     if (!raw) return null;
@@ -246,7 +247,9 @@ async function fetchManutencoesErp(item: ItemFrotaV2, { dataInicial, dataFinal }
                 tipo: 'MANUTENCAO',
                 data: emissao ? toDate(`${emissao}T12:00:00`) : null,
                 categoria: erpText(row.natureza) || erpText(row.conta) || null,
-                valor: erpNumber(row.valor_rateio),
+                // Como o relatório e o KPI: só a linha DESPESA entra no custo; as outras mostram o tipo e o valor.
+                valor: erpText(row.tipo_movimento).toUpperCase() === 'DESPESA' ? erpNumber(row.valor_rateio) : null,
+                valorTexto: erpText(row.tipo_movimento).toUpperCase() === 'DESPESA' ? null : `${erpText(row.tipo_movimento) || 'sem tipo'}: ${currencyBRL.format(erpNumber(row.valor_rateio))}`,
                 raw: row,
             };
         })
@@ -940,6 +943,7 @@ export default function FrotaVeiculoDetalhesPage() {
                     data: row.data ?? null,
                     categoria: row.categoria ?? null,
                     valor: row.valor ?? null,
+                    valorTexto: row.valorTexto ?? null,
                 })),
             );
         }

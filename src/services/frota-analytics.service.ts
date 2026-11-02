@@ -2,7 +2,7 @@
 // Custo = a mesma conta do relatório do veículo (vehicle-report-core): diesel interno a R$ 5,90/L, o abastecimento
 // externo que já virou manutenção não conta duas vezes, manutenções FROTA e, quando carregado, ERP Q47 (DESPESA).
 import { isSemOdometro } from './combustivel-normalizer';
-import { extractCnpj, fuelReportSupplier, normalizeCalendarDate, summarizeInternalFuel, summarizeVehicleReportErp47 } from './vehicle-report-core';
+import { custoPorAbastecimento, extractCnpj, fuelReportSupplier, normalizeCalendarDate, summarizeInternalFuel, summarizeVehicleReportErp47 } from './vehicle-report-core';
 
 export type DataQuality = 'AVAILABLE' | 'PARTIAL' | 'UNAVAILABLE';
 export type AnalyticsPeriod = { start: Date; end: Date };
@@ -13,7 +13,7 @@ export function periodoKpi(hoje = new Date()): AnalyticsPeriod {
   return { start: KPI_INICIO, end: new Date(hoje.getFullYear(), hoje.getMonth(), hoje.getDate(), 23, 59, 59, 999) };
 }
 
-export type ActivityAnalyticsRecord = { id: string; tipo?: unknown; data?: unknown; veiculoId?: unknown; placa?: unknown; km?: unknown };
+export type ActivityAnalyticsRecord = { id: string; tipo?: unknown; data?: unknown; veiculoId?: unknown; placa?: unknown; km?: unknown; motorista?: unknown };
 export type FuelAnalyticsRecord = { id: string; data?: unknown; placa?: unknown; km?: unknown; semKm?: unknown; motivo?: unknown; quantidadeAbastecida?: unknown; isFuelOutput?: boolean; schema?: string; itemFrotaUid?: unknown; itemFrotaTipo?: unknown; identificadorSnapshot?: unknown; [campo: string]: unknown };
 export type MaintenanceAnalyticsRecord = { id: string; data?: unknown; item_frota_id?: unknown; valor?: unknown; categoria?: unknown; categoriaNomeSnapshot?: unknown; fornecedor?: unknown; fornecedorNomeSnapshot?: unknown };
 export type ErpAnalyticsRow = Record<string, unknown>;
@@ -228,4 +228,44 @@ export function monthlyMetrics(dados: VehicleData[], period: AnalyticsPeriod): M
 export function placaParaErp(identificador: string | undefined): string | null {
   const compacta = (identificador ?? '').toUpperCase().replace(/[-\s]/g, '');
   return /^[A-Z]{3}\d[A-Z0-9]\d{2}/.test(compacta) ? compacta.slice(0, 7) : null;
+}
+
+// ---------------------------------------------------------------- registros (tabela da análise de um veículo)
+export type FonteRegistro = 'atividade' | 'abastecimento' | 'manutencao' | 'erp';
+export type RegistroKpi = { id: string; fonte: FonteRegistro; data: Date | null; categoria: string; valor: number | null; valorTexto: string | null };
+const moeda = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' });
+const erpNumero = (value: unknown) => (typeof value === 'number' && Number.isFinite(value) ? value : Number(String(value ?? '').replace(',', '.')) || 0);
+
+/** Registros do veículo no período, com o valor que entra no custo: a soma dos valores das fontes de custo é o
+ * custo total do período (combustível + manutenção + ERP DESPESA). Atividade não tem valor (mostra o km); abastecimento
+ * externo já lançado na manutenção e linha do ERP que não é DESPESA aparecem sem valor, com o motivo. */
+export function registrosDoPeriodo(data: VehicleData, period: AnalyticsPeriod): RegistroKpi[] {
+  const registros: RegistroKpi[] = [];
+  for (const item of data.activities) {
+    if (item.tipo !== 'saida' || !inPeriod(item.data, period)) continue;
+    const km = typeof item.km === 'number' && Number.isFinite(item.km) ? item.km : null;
+    registros.push({ id: `atividade_${item.id}`, fonte: 'atividade', data: toAnalyticsDate(item.data), categoria: text(item.motorista) ? `Saída — ${text(item.motorista)}` : 'Saída', valor: null, valorTexto: km !== null ? `${new Intl.NumberFormat('pt-BR').format(km)} km` : null });
+  }
+  const fuel = data.fuel.filter((item) => item.isFuelOutput !== false && inPeriod(item.data, period));
+  const manutencoes = data.maintenance.filter((item) => inPeriod(item.data, period));
+  const valores = custoPorAbastecimento(
+    fuel.map((item) => { const fornecedor = fuelReportSupplier(item as Record<string, unknown>); return { id: item.id, data: normalizeCalendarDate(item.data), quantidadeRaw: numberValue(item.quantidadeAbastecida) ?? 0, fornecedor, cnpj: extractCnpj(fornecedor) }; }),
+    manutencoes.map((item) => ({ id: item.id, data: normalizeCalendarDate(item.data), categoria: text(item.categoriaNomeSnapshot) || text(item.categoria), fornecedor: text(item.fornecedorNomeSnapshot) || text(item.fornecedor) })),
+  );
+  for (const item of fuel) {
+    const valor = valores.get(item.id) ?? null;
+    const motivo = text(item.motivo) || 'ABASTECIMENTO';
+    registros.push({ id: `abastecimento_${item.id}`, fonte: 'abastecimento', data: toAnalyticsDate(item.data), categoria: valor === null ? `${motivo} (externo, na manutenção)` : motivo, valor, valorTexto: valor === null ? 'na manutenção' : null });
+  }
+  for (const item of manutencoes) {
+    registros.push({ id: `manutencao_${item.id}`, fonte: 'manutencao', data: toAnalyticsDate(item.data), categoria: text(item.categoriaNomeSnapshot) || text(item.categoria) || 'Manutenção', valor: numberValue(item.valor) ?? 0, valorTexto: null });
+  }
+  (data.erp ?? []).forEach((row, index) => {
+    const emissao = normalizeCalendarDate(row.data_emissao);
+    if (!emissao || !inPeriod(`${emissao}T12:00:00`, period)) return;
+    const despesa = text(row.tipo_movimento).toUpperCase() === 'DESPESA';
+    const valor = erpNumero(row.valor_rateio);
+    registros.push({ id: `erp_${index}`, fonte: 'erp', data: new Date(`${emissao}T12:00:00`), categoria: text(row.natureza) || text(row.conta) || 'ERP', valor: despesa ? valor : null, valorTexto: despesa ? null : `${text(row.tipo_movimento) || 'sem tipo'}: ${moeda.format(valor)}` });
+  });
+  return registros.sort((a, b) => (b.data?.getTime() ?? 0) - (a.data?.getTime() ?? 0));
 }

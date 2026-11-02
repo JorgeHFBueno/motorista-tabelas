@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Alert, Box, Button, Card, CardContent, CircularProgress, FormControl, InputLabel, LinearProgress, MenuItem, Select, Stack, Table, TableBody, TableCell, TableHead, TableRow, TextField, Typography } from '@mui/material';
 import { collection, getDocs, query, where } from 'firebase/firestore';
 import type { Data } from 'plotly.js';
@@ -7,10 +8,11 @@ import { db } from '../firebase';
 import { normalizarMovimentoCombustivel } from '../services/combustivel-normalizer';
 import { normalizarAtividade } from '../services/atividade-normalizer';
 import { fetchVehicleErpRows } from '../services/vehicle-report.service';
+import { RegistrosFiltros, type MasterDetailFilters } from './ManutencoesList';
 import {
-  agruparPorVeiculo, fleetMetrics, KPI_INICIO, monthlyMetrics, periodoKpi, placaParaErp, vehicleMetrics,
+  agruparPorVeiculo, fleetMetrics, KPI_INICIO, monthlyMetrics, periodoKpi, placaParaErp, registrosDoPeriodo, vehicleMetrics,
   type ActivityAnalyticsRecord, type AnalyticsPeriod, type ErpAnalyticsRow, type FleetMetrics, type FuelAnalyticsRecord,
-  type MaintenanceAnalyticsRecord, type MonthlyMetric, type VehicleAnalyticsIdentity,
+  type FonteRegistro, type MaintenanceAnalyticsRecord, type MonthlyMetric, type VehicleAnalyticsIdentity, type VehicleData,
 } from '../services/frota-analytics.service';
 
 type Props = { vehicles: VehicleAnalyticsIdentity[]; vehicle?: VehicleAnalyticsIdentity };
@@ -60,6 +62,14 @@ function CardMetric({ title, value, note }: { title: string; value: string; note
   return <Card variant="outlined" sx={{ minWidth: 200, flex: 1 }}><CardContent><Typography variant="body2" color="text.secondary">{title}</Typography><Typography variant="h6">{value}</Typography>{note && <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>{note}</Typography>}</CardContent></Card>;
 }
 
+function Secao({ titulo, descricao, acao, children }: { titulo: string; descricao: ReactNode; acao?: ReactNode; children?: ReactNode }) {
+  return <Box mt={4}>
+    <Stack direction="row" spacing={2} alignItems="center" justifyContent="space-between"><Typography variant="h6">{titulo}</Typography>{acao}</Stack>
+    <Typography variant="body2" color="text.secondary" sx={{ mb: 1, maxWidth: 900 }}>{descricao}</Typography>
+    {children}
+  </Box>;
+}
+
 function Cartoes({ m }: { m: FleetMetrics }) {
   return <Stack direction={{ xs: 'column', md: 'row' }} flexWrap="wrap" useFlexGap spacing={1} mt={2}>
     <CardMetric title="Viagens" value={metric(m.viagens, 'number')} note="Saídas registradas no app." />
@@ -72,19 +82,64 @@ function Cartoes({ m }: { m: FleetMetrics }) {
 function Graficos({ series, titulo }: { series: MonthlyMetric[]; titulo?: string }) {
   const x = series.map((item) => item.label);
   return <>
+    <Secao titulo={`Custo por mês${titulo ?? ''}`} descricao="Quanto foi gasto em cada mês, separado pela origem do gasto: combustível (diesel interno a R$ 5,90 por litro, sem o abastecimento externo que já foi lançado como manutenção), manutenções lançadas no FROTA e despesas do ERP (Query 47, quando incluído). Mês sem barra não teve gasto registrado.">
     <Plot data={[
       { type: 'bar', name: 'Combustível', x, y: series.map((item) => item.custoCombustivel) },
       { type: 'bar', name: 'Manutenção', x, y: series.map((item) => item.custoManutencao) },
       { type: 'bar', name: 'ERP', x, y: series.map((item) => item.custoErp ?? 0) },
-    ] as Data[]} layout={{ title: { text: `Custo por mês${titulo ?? ''}` }, barmode: 'stack', yaxis: { title: { text: 'R$' } }, autosize: true }} style={{ width: '100%', height: 320 }} useResizeHandler />
+    ] as Data[]} layout={{ barmode: 'stack', yaxis: { title: { text: 'R$' } }, autosize: true, margin: { t: 20 } }} style={{ width: '100%', height: 320 }} useResizeHandler />
+    </Secao>
+    <Secao titulo={`KM rodado e viagens por mês${titulo ?? ''}`} descricao="Barras: quilômetros rodados em cada mês, pela diferença entre leituras de odômetro seguidas (abastecimentos e saídas do app; leituras soltas, como zero ou um dígito a mais, ficam de fora). Linha: número de saídas registradas no app no mês.">
     <Plot data={[
       { type: 'bar', name: 'KM rodado', x, y: series.map((item) => item.kmRodado), yaxis: 'y' },
       { type: 'scatter', mode: 'lines+markers', name: 'Viagens', x, y: series.map((item) => item.viagens), yaxis: 'y2' },
-    ] as Data[]} layout={{ title: { text: `KM rodado e viagens por mês${titulo ?? ''}` }, yaxis: { title: { text: 'KM' } }, yaxis2: { title: { text: 'Viagens' }, overlaying: 'y', side: 'right' }, autosize: true }} style={{ width: '100%', height: 300 }} useResizeHandler />
+    ] as Data[]} layout={{ yaxis: { title: { text: 'KM' } }, yaxis2: { title: { text: 'Viagens' }, overlaying: 'y', side: 'right' }, autosize: true, margin: { t: 20 } }} style={{ width: '100%', height: 300 }} useResizeHandler />
+    </Secao>
   </>;
 }
 
+const FONTE_FILTRO: Record<FonteRegistro, keyof MasterDetailFilters> = { atividade: 'atividades', abastecimento: 'abastecimento', manutencao: 'manutencoes2026', erp: 'manutencoesErp' };
+const FONTE_TEXTO: Record<FonteRegistro, string> = { atividade: 'Atividade', abastecimento: 'Abastecimento', manutencao: 'Manutenção FROTA', erp: 'ERP' };
+const dataHora = (value: Date | null) => (value ? value.toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '—');
+
+/** A tabela do detalhe do veículo, no período do KPI: os lançamentos que formam os indicadores. */
+function RegistrosVeiculo({ data, period }: { data: VehicleData; period: AnalyticsPeriod }) {
+  const [filtros, setFiltros] = useState<MasterDetailFilters>({ atividades: false, abastecimento: true, manutencoes2026: true, manutencoesErp: true });
+  const registros = useMemo(() => registrosDoPeriodo(data, period), [data, period]);
+  const contagem = useMemo(() => {
+    const c = { atividades: 0, abastecimento: 0, manutencoes2026: 0, manutencoesErp: 0 };
+    registros.forEach((r) => { c[FONTE_FILTRO[r.fonte]] += 1; });
+    return c;
+  }, [registros]);
+  const visiveis = registros.filter((r) => filtros[FONTE_FILTRO[r.fonte]]);
+  const soma = visiveis.reduce((total, r) => total + (r.valor ?? 0), 0);
+  return <Secao
+    titulo="Registros do período"
+    descricao={<>Os lançamentos que formam os indicadores acima, como na tabela do detalhe do veículo. Com Abastecimento, Manutenções FROTA e Manutenções ERP marcados, a soma da coluna Valor é o custo total do período. Sem valor: atividade (mostra o km), abastecimento externo já lançado como manutenção e linha do ERP que não é despesa.{data.erp === null ? ' O ERP ainda não foi incluído para este veículo.' : ''}</>}
+  >
+    <Stack direction={{ xs: 'column', lg: 'row' }} spacing={2} alignItems={{ lg: 'center' }} justifyContent="space-between">
+      <RegistrosFiltros filters={filtros} counts={contagem} onToggleFilter={(key, value) => setFiltros((atual) => ({ ...atual, [key]: value }))} />
+      <Card variant="outlined" sx={{ px: 2.5, py: 1, flexShrink: 0 }}><Typography component="span" sx={{ fontSize: 18 }}>Soma: </Typography><Typography component="span" sx={{ fontSize: 18, fontWeight: 700 }}>{currencyFormatter.format(soma)}</Typography></Card>
+    </Stack>
+    <Box sx={{ mt: 2, maxHeight: 520, overflow: 'auto', border: 1, borderColor: 'divider', borderRadius: 2 }}>
+      <Table size="small" stickyHeader>
+        <TableHead><TableRow><TableCell>Data</TableCell><TableCell>Fonte</TableCell><TableCell>Categoria</TableCell><TableCell align="right">Valor</TableCell></TableRow></TableHead>
+        <TableBody>
+          {visiveis.length === 0 && <TableRow><TableCell colSpan={4} align="center" sx={{ color: 'text.secondary', py: 3 }}>Nenhum registro no período.</TableCell></TableRow>}
+          {visiveis.map((r) => <TableRow key={r.id} hover>
+            <TableCell sx={{ whiteSpace: 'nowrap' }}>{dataHora(r.data)}</TableCell>
+            <TableCell sx={{ whiteSpace: 'nowrap' }}>{FONTE_TEXTO[r.fonte]}</TableCell>
+            <TableCell>{r.categoria}</TableCell>
+            <TableCell align="right" sx={{ whiteSpace: 'nowrap', color: r.valor === null ? 'text.secondary' : undefined }}>{r.valor === null ? (r.valorTexto ?? '—') : currencyFormatter.format(r.valor)}</TableCell>
+          </TableRow>)}
+        </TableBody>
+      </Table>
+    </Box>
+  </Secao>;
+}
+
 export default function FrotaAnalyticsPanel({ vehicles, vehicle }: Props) {
+  const navigate = useNavigate();
   const limite = useMemo(() => periodoKpi(), []);
   const anos = useMemo(() => Array.from({ length: limite.end.getFullYear() - KPI_INICIO.getFullYear() + 1 }, (_, i) => KPI_INICIO.getFullYear() + i), [limite]);
   const [mode, setMode] = useState<Mode>('all');
@@ -185,14 +240,15 @@ export default function FrotaAnalyticsPanel({ vehicles, vehicle }: Props) {
     </Alert>}
 
     {!data ? <CircularProgress sx={{ mt: 3 }} /> : current && <>
-      <Cartoes m={current} />
+      <Secao titulo="Indicadores do período" descricao="Resumo do período escolhido. Viagens são as saídas registradas no app; KM rodado vem das leituras de odômetro; custo total soma combustível, manutenções FROTA e ERP; R$/km divide o custo total pelo KM rodado (só dos veículos que têm KM)."><Cartoes m={current} /></Secao>
       <Graficos series={series} />
-      {ranking.length > 0 && <Box mt={3} sx={{ overflowX: 'auto' }}>
-        <Typography variant="h6">Indicadores por veículo</Typography>
+      {vehicle && grupos?.get(vehicle.id) && <RegistrosVeiculo data={grupos.get(vehicle.id)!} period={resolved.period} />}
+      {ranking.length > 0 && <Secao titulo="Indicadores por veículo" descricao="Um veículo por linha, do maior custo para o menor, no período escolhido. Clique no veículo para abrir a análise individual, com a tabela de registros.">
+        <Box sx={{ overflowX: 'auto' }}>
         <Table size="small">
           <TableHead><TableRow><TableCell>Veículo</TableCell><TableCell align="right">Viagens</TableCell><TableCell align="right">KM rodado</TableCell><TableCell align="right">Combustível</TableCell><TableCell align="right">Manutenção</TableCell><TableCell align="right">ERP</TableCell><TableCell align="right">Custo total</TableCell><TableCell align="right">R$/km</TableCell></TableRow></TableHead>
           <TableBody>{ranking.map(row => <TableRow key={row.vehicle.id}>
-            <TableCell>{vehicleLabel(row.vehicle)}</TableCell>
+            <TableCell><Button size="small" sx={{ p: 0, minWidth: 0, textTransform: 'none', justifyContent: 'flex-start' }} onClick={() => navigate(`/frota/analytics?veiculo=${encodeURIComponent(row.vehicle.id)}`)}>{vehicleLabel(row.vehicle)}</Button></TableCell>
             <TableCell align="right">{metric(row.metrics.viagens, 'number')}</TableCell>
             <TableCell align="right">{metric(row.metrics.kmRodado, 'km')}{row.metrics.kmQuality === 'PARTIAL' ? '*' : ''}</TableCell>
             <TableCell align="right">{metric(row.metrics.custoCombustivel, 'currency')}</TableCell>
@@ -202,10 +258,10 @@ export default function FrotaAnalyticsPanel({ vehicles, vehicle }: Props) {
             <TableCell align="right">{metric(row.metrics.rsKm, 'rate')}</TableCell>
           </TableRow>)}</TableBody>
         </Table>
+        </Box>
         <Typography variant="caption" color="text.secondary">* KM com leitura(s) solta(s) ignorada(s) no período. ERP "—": não incluído.</Typography>
-      </Box>}
-      {!vehicle && <Box mt={4}>
-        <Typography variant="h5">Comparação A/B</Typography>
+      </Secao>}
+      {!vehicle && <Secao titulo="Comparação A/B" descricao="Escolha dois veículos para ver os mesmos indicadores lado a lado e, nos gráficos, mês a mês. O ERP dos dois é consultado na hora.">
         <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} mt={1}>
           <FormControl size="small" sx={{ minWidth: 180 }}><InputLabel>Veículo A</InputLabel><Select label="Veículo A" value={vehicleAId} onChange={event => setVehicleAId(event.target.value)}>{vehicles.map(item => <MenuItem key={item.id} value={item.id} disabled={item.id === vehicleBId}>{vehicleLabel(item)}</MenuItem>)}</Select></FormControl>
           <FormControl size="small" sx={{ minWidth: 180 }}><InputLabel>Veículo B</InputLabel><Select label="Veículo B" value={vehicleBId} onChange={event => setVehicleBId(event.target.value)}>{vehicles.map(item => <MenuItem key={item.id} value={item.id} disabled={item.id === vehicleAId}>{vehicleLabel(item)}</MenuItem>)}</Select></FormControl>
@@ -223,7 +279,7 @@ export default function FrotaAnalyticsPanel({ vehicles, vehicle }: Props) {
           <Plot data={[{ type: 'bar', name: vehicleLabel(vehicleA), x: seriesA.map(item => item.label), y: seriesA.map(item => item.kmRodado) }, { type: 'bar', name: vehicleLabel(vehicleB), x: seriesB.map(item => item.label), y: seriesB.map(item => item.kmRodado) }] as Data[]} layout={{ title: { text: 'KM rodado — comparação' }, barmode: 'group', autosize: true }} style={{ width: '100%', height: 300 }} useResizeHandler />
           <Plot data={[{ type: 'bar', name: vehicleLabel(vehicleA), x: seriesA.map(item => item.label), y: seriesA.map(item => item.custoTotal) }, { type: 'bar', name: vehicleLabel(vehicleB), x: seriesB.map(item => item.label), y: seriesB.map(item => item.custoTotal) }] as Data[]} layout={{ title: { text: 'Custo total — comparação' }, barmode: 'group', autosize: true }} style={{ width: '100%', height: 300 }} useResizeHandler />
         </>}
-      </Box>}
+      </Secao>}
     </>}
   </Box>;
 }

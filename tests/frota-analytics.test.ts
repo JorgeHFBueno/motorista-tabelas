@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { agruparPorVeiculo, custoCombustivel, custoErp, fleetMetrics, kmRodado, leiturasLimpas, mesesDoPeriodo, monthlyMetrics, periodoKpi, placaParaErp, vehicleMetrics, type VehicleData } from '../src/services/frota-analytics.service';
+import { agruparPorVeiculo, custoCombustivel, custoErp, fleetMetrics, kmRodado, leiturasLimpas, mesesDoPeriodo, monthlyMetrics, periodoKpi, placaParaErp, registrosDoPeriodo, vehicleMetrics, type VehicleData } from '../src/services/frota-analytics.service';
 import { custoPorAbastecimento } from '../src/services/vehicle-report-core';
 
 const d = (x: string) => new Date(`${x}T12:00:00`);
@@ -115,4 +115,25 @@ test('placa para o ERP: sem hífen, sem sufixo; EXTRA não tem placa', () => {
 test('a tela não tem mais o período piloto nem "Obras visitadas"', () => {
   const tela = readFileSync('src/components/FrotaAnalyticsPanel.tsx', 'utf8') + readFileSync('src/pages/FrotaAnalyticsPage.tsx', 'utf8');
   assert.doesNotMatch(tela, /piloto|PILOT_|Obras visitadas|31\/08\/2026/i);
+});
+
+test('registros do período: a soma dos valores é o custo total; sem valor quando não entra no custo', () => {
+  const data = veiculo({
+    activities: [{ id: 's1', tipo: 'saida', veiculoId: 'A', data: d('2026-03-01'), km: 1000, motorista: 'Ana' }],
+    fuel: [
+      { id: 'interno', itemFrotaUid: 'A', data: d('2026-03-01'), quantidadeAbastecida: 1000, motivo: 'ABASTECIMENTO' },
+      { id: 'externo', itemFrotaUid: 'A', data: d('2026-03-02'), quantidadeAbastecida: 500, fornecedorNomeSnapshot: 'Posto X' },
+    ],
+    maintenance: [{ id: 'm1', item_frota_id: 'A', data: d('2026-03-02'), valor: 300, categoriaNomeSnapshot: 'ABASTECIMENTO EXTERNO', fornecedorNomeSnapshot: 'Posto X' }],
+    erp: [{ data_emissao: '2026-03-05', tipo_movimento: 'DESPESA', valor_rateio: 1000, natureza: 'PEÇAS' }, { data_emissao: '2026-03-06', tipo_movimento: 'RECEITA', valor_rateio: 49.16, natureza: 'ESTORNO' }],
+  });
+  const registros = registrosDoPeriodo(data, todo);
+  assert.equal(registros.length, 6);
+  const soma = registros.reduce((total, r) => total + (r.valor ?? 0), 0);
+  assert.equal(soma, vehicleMetrics(data, todo).custoTotal);
+  assert.equal(soma, 590 + 300 + 1000);
+  assert.equal(registros.find((r) => r.fonte === 'atividade')?.valorTexto, '1.000 km');
+  assert.equal(registros.find((r) => r.id === 'abastecimento_externo')?.valor, null);
+  assert.match(registros.find((r) => r.categoria === 'ESTORNO')?.valorTexto ?? '', /RECEITA: R\$\s?49,16/);
+  assert.equal(registros[0].categoria, 'ESTORNO'); // do mais novo para o mais antigo
 });

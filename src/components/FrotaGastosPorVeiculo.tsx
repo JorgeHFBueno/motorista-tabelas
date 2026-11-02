@@ -335,6 +335,10 @@ export default function FrotaGastosPorVeiculo({ veiculos }: { veiculos: ItemFrot
                     {showGastosChart ? 'Ocultar gráfico' : 'Exibir gráfico'}
                 </Button>
             </Stack>
+            <Typography variant="body2" color="text.secondary" sx={{ maxWidth: 900 }}>
+                Só as manutenções lançadas no FROTA (sem combustível e sem ERP), somadas por veículo e por categoria. Escolha os
+                veículos, as categorias e o período; serve para ver em que tipo de manutenção cada veículo mais gasta.
+            </Typography>
 
             {showGastosChart && <><Box mt={1.5} display="flex" flexWrap="wrap" gap={1.5} alignItems="flex-start">
                 <Stack
