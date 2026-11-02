@@ -30,6 +30,9 @@ export default function FrotaAnalyticsPage() {
           id: item.id,
           identificador: item.identificador,
           ...(item.categoria === 'PLACA' ? { placa: item.identificador } : { extra: item.identificador }),
+          tipo: typeof (item.raw.cadastro as { tipoVeiculo?: unknown } | undefined)?.tipoVeiculo === 'string' ? (item.raw.cadastro as { tipoVeiculo: string }).tipoVeiculo : null,
+          quilometragemInicial: item.quilometragemInicial,
+          dataUltimaAtualizacao: item.dataUltimaAtualizacao,
         })));
       } catch (loadError) {
         console.error('Erro ao carregar veículos para Analytics', loadError);

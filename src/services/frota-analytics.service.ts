@@ -17,7 +17,7 @@ export type ActivityAnalyticsRecord = { id: string; tipo?: unknown; data?: unkno
 export type FuelAnalyticsRecord = { id: string; data?: unknown; placa?: unknown; km?: unknown; semKm?: unknown; motivo?: unknown; quantidadeAbastecida?: unknown; isFuelOutput?: boolean; schema?: string; itemFrotaUid?: unknown; itemFrotaTipo?: unknown; identificadorSnapshot?: unknown; [campo: string]: unknown };
 export type MaintenanceAnalyticsRecord = { id: string; data?: unknown; item_frota_id?: unknown; valor?: unknown; categoria?: unknown; categoriaNomeSnapshot?: unknown; fornecedor?: unknown; fornecedorNomeSnapshot?: unknown };
 export type ErpAnalyticsRow = Record<string, unknown>;
-export type VehicleAnalyticsIdentity = { id: string; placa?: string; identificador?: string; extra?: string };
+export type VehicleAnalyticsIdentity = { id: string; placa?: string; identificador?: string; extra?: string; tipo?: string | null; quilometragemInicial?: number | null; dataUltimaAtualizacao?: unknown };
 
 /** Registros de um veículo. `erp` null = ERP não carregado (ou falhou) para ele. */
 export type VehicleData = { activities: ActivityAnalyticsRecord[]; fuel: FuelAnalyticsRecord[]; maintenance: MaintenanceAnalyticsRecord[]; erp: ErpAnalyticsRow[] | null };
@@ -26,6 +26,7 @@ export type FleetMetrics = {
   viagens: number;
   kmRodado: number | null;
   kmQuality: DataQuality;
+  horasTrabalhadas: number | null; // máquinas (EXTRA), pelo horímetro
   leiturasIgnoradas: number;
   custoCombustivel: number;
   custoManutencao: number;
@@ -33,6 +34,7 @@ export type FleetMetrics = {
   erpCompleto: boolean;        // ERP carregado para todos os veículos considerados
   custoTotal: number;          // combustível + manutenção + ERP carregado
   rsKm: number | null;         // custo total dos veículos com KM ÷ KM rodado
+  rsHora: number | null;       // custo total das máquinas com horas ÷ horas trabalhadas
 };
 export type MonthlyMetric = FleetMetrics & { month: string; label: string };
 
@@ -88,46 +90,60 @@ export function agruparPorVeiculo(activities: ActivityAnalyticsRecord[], fuel: F
   }]));
 }
 
-// ---------------------------------------------------------------- KM
-type Leitura = { date: Date; km: number };
+// ---------------------------------------------------------------- KM e horímetro
+export type Medidor = 'km' | 'h';
+/** `valor` é o km (odômetro) ou as horas (horímetro); `origem` é "<coleção>/<id>" do registro. */
+export type Leitura = { date: Date; valor: number; origem: string };
 /** Mais que isto por dia entre duas leituras é erro de digitação (dígito a mais, vírgula perdida). */
 export const KM_MAXIMO_POR_DIA = 1500;
+export const HORAS_MAXIMAS_POR_DIA = 24;
 const DIA = 86_400_000;
 
-function fuelOdometer(item: FuelAnalyticsRecord): Leitura | null {
-  if (item.isFuelOutput === false || item.itemFrotaTipo === 'maquina') return null;
-  if (isSemOdometro(item.semKm)) return null;
+function abastecimentoValido(item: FuelAnalyticsRecord) {
+  if (item.isFuelOutput === false || isSemOdometro(item.semKm)) return false;
   const motivo = typeof item.motivo === 'string' ? item.motivo.toLowerCase() : '';
-  if (motivo.includes('galão') || motivo.includes('galao') || motivo.includes('bomba') || motivo.includes('ajuste') || motivo.includes('estoque')) return null;
-  const km = numberValue(item.km);
+  return !(motivo.includes('galão') || motivo.includes('galao') || motivo.includes('bomba') || motivo.includes('ajuste') || motivo.includes('estoque'));
+}
+function fuelReading(item: FuelAnalyticsRecord, medidor: Medidor): Leitura | null {
+  if (!abastecimentoValido(item)) return null;
+  if (medidor === 'km' ? item.itemFrotaTipo === 'maquina' : item.itemFrotaTipo !== 'maquina') return null;
+  const valor = numberValue(medidor === 'km' ? item.km : item.horimetro);
   const date = toAnalyticsDate(item.data);
-  return km !== null && date ? { km, date } : null;
+  return valor !== null && date ? { valor, date, origem: `03-combustivel/${item.id}` } : null;
 }
 function activityOdometer(item: ActivityAnalyticsRecord): Leitura | null {
-  const km = typeof item.km === 'number' && Number.isFinite(item.km) ? item.km : null;
+  const valor = typeof item.km === 'number' && Number.isFinite(item.km) ? item.km : null;
   const date = toAnalyticsDate(item.data);
-  return km !== null && date ? { km, date } : null;
+  return valor !== null && date ? { valor, date, origem: `atividades/${item.id}` } : null;
 }
 
-/** Leituras de odômetro do veículo (abastecimentos e atividades), da mais antiga para a mais nova, sem as soltas:
- * fica a maior sequência que só cresce e não salta mais que KM_MAXIMO_POR_DIA por dia; 0 e 1 (sem leitura) saem. */
+/** Leituras do medidor (km: abastecimentos e atividades; h: horímetro dos abastecimentos de máquina), da mais antiga
+ * para a mais nova, sem as soltas: fica a maior sequência que só cresce e não salta mais que o máximo por dia; 0 e 1
+ * (sem leitura) saem. */
 // Guardado pelas listas (não pelo objeto do veículo), para o ERP chegar sem refazer as leituras.
-const cacheLeituras = new WeakMap<object, WeakMap<object, { leituras: Leitura[]; ignoradas: Leitura[] }>>();
-export function leiturasLimpas(data: Pick<VehicleData, 'activities' | 'fuel'>): { leituras: Leitura[]; ignoradas: Leitura[] } {
-  const porAtividades = cacheLeituras.get(data.activities) ?? new WeakMap();
-  cacheLeituras.set(data.activities, porAtividades);
+type Limpas = { leituras: Leitura[]; ignoradas: Leitura[] };
+const cacheKm = new WeakMap<object, WeakMap<object, Limpas>>();
+const cacheHoras = new WeakMap<object, Limpas>();
+export function leiturasLimpas(data: Pick<VehicleData, 'activities' | 'fuel'>, medidor: Medidor = 'km'): Limpas {
+  if (medidor === 'h') {
+    const guardado = cacheHoras.get(data.fuel);
+    if (guardado) return guardado;
+    const resultado = limpar(data.fuel.map((item) => fuelReading(item, 'h')), HORAS_MAXIMAS_POR_DIA);
+    cacheHoras.set(data.fuel, resultado);
+    return resultado;
+  }
+  const porAtividades = cacheKm.get(data.activities) ?? new WeakMap();
+  cacheKm.set(data.activities, porAtividades);
   const guardado = porAtividades.get(data.fuel);
   if (guardado) return guardado;
-  const resultado = calcularLeiturasLimpas(data);
+  const resultado = limpar([...data.fuel.map((item) => fuelReading(item, 'km')), ...data.activities.map(activityOdometer)], KM_MAXIMO_POR_DIA);
   porAtividades.set(data.fuel, resultado);
   return resultado;
 }
-function calcularLeiturasLimpas(data: Pick<VehicleData, 'activities' | 'fuel'>): { leituras: Leitura[]; ignoradas: Leitura[] } {
-  const todas = [...data.fuel.map(fuelOdometer), ...data.activities.map(activityOdometer)]
-    .filter((item): item is Leitura => item !== null)
-    .sort((a, b) => a.date.getTime() - b.date.getTime() || a.km - b.km);
-  const candidatas = todas.filter((item) => item.km > 1);
-  const cabe = (antes: Leitura, depois: Leitura) => depois.km >= antes.km && depois.km - antes.km <= KM_MAXIMO_POR_DIA * Math.max(1, (depois.date.getTime() - antes.date.getTime()) / DIA);
+function limpar(lidas: (Leitura | null)[], maximoPorDia: number): Limpas {
+  const todas = lidas.filter((item): item is Leitura => item !== null).sort((a, b) => a.date.getTime() - b.date.getTime() || a.valor - b.valor);
+  const candidatas = todas.filter((item) => item.valor > 1);
+  const cabe = (antes: Leitura, depois: Leitura) => depois.valor >= antes.valor && depois.valor - antes.valor <= maximoPorDia * Math.max(1, (depois.date.getTime() - antes.date.getTime()) / DIA);
   const tamanho = candidatas.map(() => 1); const anterior = candidatas.map(() => -1);
   for (let j = 0; j < candidatas.length; j += 1) {
     for (let i = 0; i < j; i += 1) if (tamanho[i] + 1 > tamanho[j] && cabe(candidatas[i], candidatas[j])) { tamanho[j] = tamanho[i] + 1; anterior[j] = i; }
@@ -138,14 +154,16 @@ function calcularLeiturasLimpas(data: Pick<VehicleData, 'activities' | 'fuel'>):
   return { leituras, ignoradas: todas.filter((item) => !leituras.includes(item)) };
 }
 
-/** KM rodado no período: soma dos trechos entre leituras limpas consecutivas cuja leitura final cai no período. */
-export function kmRodado(data: Pick<VehicleData, 'activities' | 'fuel'>, period: AnalyticsPeriod): { value: number | null; quality: DataQuality; ignoradas: number } {
-  const { leituras, ignoradas } = leiturasLimpas(data);
+/** Quanto o medidor andou no período: soma dos trechos entre leituras limpas seguidas cuja leitura final cai no período. */
+function medicao(data: Pick<VehicleData, 'activities' | 'fuel'>, period: AnalyticsPeriod, medidor: Medidor): { value: number | null; quality: DataQuality; ignoradas: number } {
+  const { leituras, ignoradas } = leiturasLimpas(data, medidor);
   let value: number | null = null;
-  for (let i = 1; i < leituras.length; i += 1) if (inPeriod(leituras[i].date, period)) value = (value ?? 0) + leituras[i].km - leituras[i - 1].km;
+  for (let i = 1; i < leituras.length; i += 1) if (inPeriod(leituras[i].date, period)) value = (value ?? 0) + leituras[i].valor - leituras[i - 1].valor;
   const ignoradasNoPeriodo = ignoradas.filter((item) => inPeriod(item.date, period)).length;
   return { value, quality: value === null ? 'UNAVAILABLE' : ignoradasNoPeriodo ? 'PARTIAL' : 'AVAILABLE', ignoradas: ignoradasNoPeriodo };
 }
+export const kmRodado = (data: Pick<VehicleData, 'activities' | 'fuel'>, period: AnalyticsPeriod) => medicao(data, period, 'km');
+export const horasTrabalhadas = (data: Pick<VehicleData, 'activities' | 'fuel'>, period: AnalyticsPeriod) => medicao(data, period, 'h');
 
 // ---------------------------------------------------------------- custos
 /** Custo do combustível do veículo no período: diesel interno a R$ 5,90/L, sem os abastecimentos externos que já
@@ -173,15 +191,17 @@ export function custoErp(data: Pick<VehicleData, 'erp'>, period: AnalyticsPeriod
 // ---------------------------------------------------------------- métricas
 export function vehicleMetrics(data: VehicleData, period: AnalyticsPeriod): FleetMetrics {
   const km = kmRodado(data, period);
+  const horas = horasTrabalhadas(data, period);
   const combustivel = custoCombustivel(data, period);
   const manutencao = custoManutencao(data, period);
   const erp = custoErp(data, period);
   const custoTotal = combustivel + manutencao + (erp ?? 0);
   return {
     viagens: data.activities.filter((item) => item.tipo === 'saida' && inPeriod(item.data, period)).length,
-    kmRodado: km.value, kmQuality: km.quality, leiturasIgnoradas: km.ignoradas,
+    kmRodado: km.value, kmQuality: km.quality, horasTrabalhadas: horas.value, leiturasIgnoradas: km.ignoradas + horas.ignoradas,
     custoCombustivel: combustivel, custoManutencao: manutencao, custoErp: erp, erpCompleto: erp !== null, custoTotal,
     rsKm: km.value && km.value > 0 ? custoTotal / km.value : null,
+    rsHora: horas.value && horas.value > 0 ? custoTotal / horas.value : null,
   };
 }
 
@@ -191,10 +211,14 @@ export function fleetMetrics(rows: FleetMetrics[]): FleetMetrics {
   const kmRodadoTotal = comKm.length ? comKm.reduce((sum, row) => sum + (row.kmRodado ?? 0), 0) : null;
   const custoComKm = comKm.reduce((sum, row) => sum + row.custoTotal, 0);
   const comErp = rows.filter((row) => row.custoErp !== null);
+  const comHoras = rows.filter((row) => row.horasTrabalhadas !== null);
+  const horasTotal = comHoras.length ? comHoras.reduce((sum, row) => sum + (row.horasTrabalhadas ?? 0), 0) : null;
+  const custoComHoras = comHoras.reduce((sum, row) => sum + row.custoTotal, 0);
   return {
     viagens: rows.reduce((sum, row) => sum + row.viagens, 0),
     kmRodado: kmRodadoTotal,
     kmQuality: !comKm.length ? 'UNAVAILABLE' : comKm.length === rows.length && comKm.every((row) => row.kmQuality === 'AVAILABLE') ? 'AVAILABLE' : 'PARTIAL',
+    horasTrabalhadas: horasTotal,
     leiturasIgnoradas: rows.reduce((sum, row) => sum + row.leiturasIgnoradas, 0),
     custoCombustivel: rows.reduce((sum, row) => sum + row.custoCombustivel, 0),
     custoManutencao: rows.reduce((sum, row) => sum + row.custoManutencao, 0),
@@ -202,6 +226,7 @@ export function fleetMetrics(rows: FleetMetrics[]): FleetMetrics {
     erpCompleto: rows.length > 0 && comErp.length === rows.length,
     custoTotal: rows.reduce((sum, row) => sum + row.custoTotal, 0),
     rsKm: kmRodadoTotal && kmRodadoTotal > 0 ? custoComKm / kmRodadoTotal : null,
+    rsHora: horasTotal && horasTotal > 0 ? custoComHoras / horasTotal : null,
   };
 }
 
@@ -268,4 +293,77 @@ export function registrosDoPeriodo(data: VehicleData, period: AnalyticsPeriod): 
     registros.push({ id: `erp_${index}`, fonte: 'erp', data: new Date(`${emissao}T12:00:00`), categoria: text(row.natureza) || text(row.conta) || 'ERP', valor: despesa ? valor : null, valorTexto: despesa ? null : `${text(row.tipo_movimento) || 'sem tipo'}: ${moeda.format(valor)}` });
   });
   return registros.sort((a, b) => (b.data?.getTime() ?? 0) - (a.data?.getTime() ?? 0));
+}
+
+// ---------------------------------------------------------------- Testes de KPI (não entram nos números principais)
+const dataBr = (date: Date | null) => (date ? date.toLocaleDateString('pt-BR') : '—');
+const DIAS_SEM_ATUALIZAR = 30;
+
+export type Duplicidade = { manutencaoId: string; manutencaoData: Date | null; manutencaoCategoria: string; erpData: Date | null; erpNatureza: string; valor: number; dias: number };
+/** Gasto lançado no FROTA e no ERP: manutenção e linha DESPESA do ERP com o mesmo valor (diferença até R$ 0,01) e
+ * datas a até `maxDias` dias; cada linha casa uma vez só, com a data mais próxima. null = ERP não carregado. */
+export function duplicidadesFrotaErp(data: VehicleData, period: AnalyticsPeriod, maxDias = 7): Duplicidade[] | null {
+  if (!data.erp) return null;
+  const erp = data.erp.map((row) => ({ row, data: normalizeCalendarDate(row.data_emissao) ? new Date(`${normalizeCalendarDate(row.data_emissao)}T12:00:00`) : null }))
+    .filter((item) => item.data && inPeriod(item.data, period) && text(item.row.tipo_movimento).toUpperCase() === 'DESPESA');
+  const usadas = new Set<number>();
+  const duplicidades: Duplicidade[] = [];
+  const manutencoes = data.maintenance.filter((item) => inPeriod(item.data, period) && (numberValue(item.valor) ?? 0) > 0)
+    .sort((a, b) => (toAnalyticsDate(a.data)?.getTime() ?? 0) - (toAnalyticsDate(b.data)?.getTime() ?? 0));
+  for (const item of manutencoes) {
+    const valor = numberValue(item.valor) ?? 0; const dataManutencao = toAnalyticsDate(item.data);
+    let melhor = -1; let melhorDias = Infinity;
+    erp.forEach((linha, index) => {
+      if (usadas.has(index) || !linha.data || !dataManutencao) return;
+      if (Math.abs(erpNumero(linha.row.valor_rateio) - valor) > 0.01) return;
+      const dias = Math.abs(linha.data.getTime() - dataManutencao.getTime()) / DIA;
+      if (dias <= maxDias + 0.5 && dias < melhorDias) { melhor = index; melhorDias = dias; }
+    });
+    if (melhor < 0) continue;
+    usadas.add(melhor);
+    duplicidades.push({ manutencaoId: item.id, manutencaoData: dataManutencao, manutencaoCategoria: text(item.categoriaNomeSnapshot) || text(item.categoria) || 'Manutenção', erpData: erp[melhor].data, erpNatureza: text(erp[melhor].row.natureza) || text(erp[melhor].row.conta) || 'ERP', valor, dias: Math.round(melhorDias) });
+  }
+  return duplicidades;
+}
+
+export type Consumo = { litros: number; kmPorLitro: number | null; litrosPorHora: number | null };
+/** Consumo no período: litros de todas as saídas de combustível do veículo; km/L com o KM rodado e L/h com as horas. */
+export function consumo(data: VehicleData, period: AnalyticsPeriod): Consumo {
+  const litros = data.fuel.filter((item) => item.isFuelOutput !== false && inPeriod(item.data, period)).reduce((total, item) => total + (numberValue(item.quantidadeAbastecida) ?? 0) / 10, 0);
+  const km = kmRodado(data, period).value; const horas = horasTrabalhadas(data, period).value;
+  return { litros, kmPorLitro: km && litros > 0 ? km / litros : null, litrosPorHora: horas && horas > 0 && litros > 0 ? litros / horas : null };
+}
+
+/** Para onde vai o dinheiro: soma por categoria (FROTA) e natureza (ERP); combustível numa linha só. */
+export function custoPorCategoria(dados: VehicleData[], period: AnalyticsPeriod): { categoria: string; valor: number }[] {
+  const soma = new Map<string, number>();
+  for (const data of dados) {
+    for (const registro of registrosDoPeriodo(data, period)) {
+      if (registro.valor === null || registro.valor === 0) continue;
+      const categoria = registro.fonte === 'abastecimento' ? 'COMBUSTÍVEL (diesel interno)' : `${registro.categoria.trim().toUpperCase()}${registro.fonte === 'erp' ? ' (ERP)' : ''}`;
+      soma.set(categoria, (soma.get(categoria) ?? 0) + registro.valor);
+    }
+  }
+  return [...soma].map(([categoria, valor]) => ({ categoria, valor })).sort((a, b) => b.valor - a.valor);
+}
+
+export type ProblemaDado = { tipo: 'leitura-solta' | 'km-inicial' | 'sem-atualizacao'; detalhe: string; data: Date | null; origem: string | null };
+/** Dados a corrigir de um veículo (todo o histórico, não só o período). */
+export function dadosACorrigir(vehicle: VehicleAnalyticsIdentity, data: Pick<VehicleData, 'activities' | 'fuel'>, hoje = new Date()): ProblemaDado[] {
+  const problemas: ProblemaDado[] = [];
+  const placa = Boolean(vehicle.placa);
+  for (const medidor of ['km', 'h'] as Medidor[]) {
+    const { leituras, ignoradas } = leiturasLimpas(data, medidor);
+    for (const leitura of ignoradas) {
+      const antes = [...leituras].reverse().find((item) => item.date <= leitura.date);
+      problemas.push({ tipo: 'leitura-solta', data: leitura.date, origem: leitura.origem, detalhe: `${new Intl.NumberFormat('pt-BR').format(leitura.valor)} ${medidor} em ${dataBr(leitura.date)} fora da sequência${antes ? ` (antes: ${new Intl.NumberFormat('pt-BR').format(antes.valor)} ${medidor} em ${dataBr(antes.date)})` : ''}` });
+    }
+  }
+  if (placa && !vehicle.quilometragemInicial) problemas.push({ tipo: 'km-inicial', data: null, origem: null, detalhe: vehicle.quilometragemInicial === 0 ? 'KM inicial 0' : 'KM inicial vazio' });
+  if (placa) {
+    const ultima = toAnalyticsDate(vehicle.dataUltimaAtualizacao);
+    const dias = ultima ? Math.floor((hoje.getTime() - ultima.getTime()) / DIA) : null;
+    if (dias === null || dias > DIAS_SEM_ATUALIZAR) problemas.push({ tipo: 'sem-atualizacao', data: ultima, origem: null, detalhe: dias === null ? 'KM nunca atualizado pelo app' : `KM sem atualização há ${dias} dias` });
+  }
+  return problemas;
 }

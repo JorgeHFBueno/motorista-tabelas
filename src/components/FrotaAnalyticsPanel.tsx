@@ -9,6 +9,7 @@ import { normalizarMovimentoCombustivel } from '../services/combustivel-normaliz
 import { normalizarAtividade } from '../services/atividade-normalizer';
 import { fetchVehicleErpRows } from '../services/vehicle-report.service';
 import { RegistrosFiltros, type MasterDetailFilters } from './ManutencoesList';
+import FrotaKpiTestes from './FrotaKpiTestes';
 import {
   agruparPorVeiculo, fleetMetrics, KPI_INICIO, monthlyMetrics, periodoKpi, placaParaErp, registrosDoPeriodo, vehicleMetrics,
   type ActivityAnalyticsRecord, type AnalyticsPeriod, type ErpAnalyticsRow, type FleetMetrics, type FuelAnalyticsRecord,
@@ -49,9 +50,11 @@ function periodFor(mode: Mode, year: number, month: number, start: string, end: 
 
 const vehicleLabel = (vehicle: VehicleAnalyticsIdentity) => vehicle.placa || vehicle.extra || vehicle.identificador || vehicle.id;
 
-function metric(value: number | null, kind: 'number' | 'km' | 'currency' | 'rate') {
+function metric(value: number | null, kind: 'number' | 'km' | 'h' | 'currency' | 'rate' | 'rateH') {
   if (value === null) return 'Indisponível';
   if (kind === 'km') return `${numberFormatter.format(value)} km`;
+  if (kind === 'h') return `${numberFormatter.format(value)} h`;
+  if (kind === 'rateH') return `${currencyFormatter.format(value)}/h`;
   if (kind === 'currency') return currencyFormatter.format(value);
   if (kind === 'rate') return `${currencyFormatter.format(value)}/km`;
   return numberFormatter.format(value);
@@ -59,7 +62,7 @@ function metric(value: number | null, kind: 'number' | 'km' | 'currency' | 'rate
 const erpTexto = (m: FleetMetrics) => (m.custoErp === null ? 'ERP não carregado' : `ERP ${currencyFormatter.format(m.custoErp)}${m.erpCompleto ? '' : ' (parcial)'}`);
 
 function CardMetric({ title, value, note }: { title: string; value: string; note?: string }) {
-  return <Card variant="outlined" sx={{ minWidth: 200, flex: 1 }}><CardContent><Typography variant="body2" color="text.secondary">{title}</Typography><Typography variant="h6">{value}</Typography>{note && <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>{note}</Typography>}</CardContent></Card>;
+  return <Card variant="outlined" sx={{ minWidth: 0 }}><CardContent><Typography variant="body2" color="text.secondary">{title}</Typography><Typography variant="h6">{value}</Typography>{note && <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>{note}</Typography>}</CardContent></Card>;
 }
 
 function Secao({ titulo, descricao, acao, children }: { titulo: string; descricao: ReactNode; acao?: ReactNode; children?: ReactNode }) {
@@ -70,13 +73,18 @@ function Secao({ titulo, descricao, acao, children }: { titulo: string; descrica
   </Box>;
 }
 
-function Cartoes({ m }: { m: FleetMetrics }) {
-  return <Stack direction={{ xs: 'column', md: 'row' }} flexWrap="wrap" useFlexGap spacing={1} mt={2}>
-    <CardMetric title="Viagens" value={metric(m.viagens, 'number')} note="Saídas registradas no app." />
-    <CardMetric title="KM rodado" value={metric(m.kmRodado, 'km')} note={`Pelas leituras de abastecimentos e atividades${m.leiturasIgnoradas ? `; ${m.leiturasIgnoradas} leitura(s) solta(s) ignorada(s)` : ''}.`} />
+/** `medidor`: 'km' (veículo), 'h' (máquina) ou 'ambos' (frota). */
+function Cartoes({ m, medidor }: { m: FleetMetrics; medidor: 'km' | 'h' | 'ambos' }) {
+  const soltas = m.leiturasIgnoradas ? `; ${m.leiturasIgnoradas} leitura(s) solta(s) ignorada(s)` : '';
+  const colunas = medidor === 'ambos' ? 6 : medidor === 'km' ? 4 : 3;
+  return <Box sx={{ mt: 2, display: 'grid', gap: 1, gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr', md: `repeat(${Math.min(3, colunas)}, minmax(0, 1fr))`, lg: `repeat(${colunas}, minmax(0, 1fr))` } }}>
+    {medidor !== 'h' && <CardMetric title="Viagens" value={metric(m.viagens, 'number')} note="Saídas registradas no app." />}
+    {medidor !== 'h' && <CardMetric title="KM rodado" value={metric(m.kmRodado, 'km')} note={`Veículos, pelas leituras de abastecimentos e atividades${medidor === 'km' ? soltas : ''}.`} />}
+    {medidor !== 'km' && <CardMetric title="Horas trabalhadas" value={metric(m.horasTrabalhadas, 'h')} note={`Máquinas, pelo horímetro dos abastecimentos${medidor === 'h' ? soltas : ''}.`} />}
     <CardMetric title="Custo total" value={metric(m.custoTotal, 'currency')} note={`Combustível ${currencyFormatter.format(m.custoCombustivel)} · Manutenção ${currencyFormatter.format(m.custoManutencao)} · ${erpTexto(m)}`} />
-    <CardMetric title="R$/km" value={metric(m.rsKm, 'rate')} note="Custo total dos veículos com KM ÷ KM rodado." />
-  </Stack>;
+    {medidor !== 'h' && <CardMetric title="R$/km" value={metric(m.rsKm, 'rate')} note="Custo total dos veículos com KM ÷ KM rodado." />}
+    {medidor !== 'km' && <CardMetric title="R$/h" value={metric(m.rsHora, 'rateH')} note="Custo total das máquinas com horas ÷ horas trabalhadas." />}
+  </Box>;
 }
 
 function Graficos({ series, titulo }: { series: MonthlyMetric[]; titulo?: string }) {
@@ -95,6 +103,9 @@ function Graficos({ series, titulo }: { series: MonthlyMetric[]; titulo?: string
       { type: 'scatter', mode: 'lines+markers', name: 'Viagens', x, y: series.map((item) => item.viagens), yaxis: 'y2' },
     ] as Data[]} layout={{ yaxis: { title: { text: 'KM' } }, yaxis2: { title: { text: 'Viagens' }, overlaying: 'y', side: 'right' }, autosize: true, margin: { t: 20 } }} style={{ width: '100%', height: 300 }} useResizeHandler />
     </Secao>
+    {series.some((item) => item.horasTrabalhadas) && <Secao titulo={`Horas trabalhadas por mês${titulo ?? ''}`} descricao="Horas das máquinas (EXTRA) em cada mês, pela diferença entre leituras de horímetro seguidas nos abastecimentos; leituras soltas (zero, queda ou mais de 24 h por dia) ficam de fora.">
+    <Plot data={[{ type: 'bar', name: 'Horas', x, y: series.map((item) => item.horasTrabalhadas) }] as Data[]} layout={{ yaxis: { title: { text: 'h' } }, autosize: true, margin: { t: 20 } }} style={{ width: '100%', height: 280 }} useResizeHandler />
+    </Secao>}
   </>;
 }
 
@@ -197,6 +208,7 @@ export default function FrotaAnalyticsPanel({ vehicles, vehicle }: Props) {
 
   const alvo = useMemo(() => (vehicle ? [vehicle] : vehicles), [vehicle, vehicles]);
   const dadosAlvo = useMemo(() => (grupos ? alvo.map((item) => grupos.get(item.id)!).filter(Boolean) : []), [alvo, grupos]);
+  const alvosTestes = useMemo(() => (grupos ? alvo.map((item) => ({ vehicle: item, data: grupos.get(item.id)! })).filter((item) => item.data) : []), [alvo, grupos]);
   const current = useMemo(() => (grupos ? fleetMetrics(dadosAlvo.map((item) => vehicleMetrics(item, resolved.period))) : null), [dadosAlvo, grupos, resolved.period]);
   const series = useMemo(() => (grupos ? monthlyMetrics(dadosAlvo, resolved.period) : []), [dadosAlvo, grupos, resolved.period]);
   const ranking = useMemo(() => (grupos && !vehicle ? vehicles.map((item) => ({ vehicle: item, metrics: vehicleMetrics(grupos.get(item.id)!, resolved.period) })).sort((a, b) => b.metrics.custoTotal - a.metrics.custoTotal) : []), [grupos, resolved.period, vehicle, vehicles]);
@@ -240,22 +252,22 @@ export default function FrotaAnalyticsPanel({ vehicles, vehicle }: Props) {
     </Alert>}
 
     {!data ? <CircularProgress sx={{ mt: 3 }} /> : current && <>
-      <Secao titulo="Indicadores do período" descricao="Resumo do período escolhido. Viagens são as saídas registradas no app; KM rodado vem das leituras de odômetro; custo total soma combustível, manutenções FROTA e ERP; R$/km divide o custo total pelo KM rodado (só dos veículos que têm KM)."><Cartoes m={current} /></Secao>
+      <Secao titulo="Indicadores do período" descricao="Resumo do período escolhido. Viagens são as saídas registradas no app; KM rodado vem das leituras de odômetro dos veículos e horas trabalhadas, do horímetro das máquinas; custo total soma combustível, manutenções FROTA e ERP; R$/km e R$/h dividem o custo pelo KM ou pelas horas (só de quem tem leitura)."><Cartoes m={current} medidor={vehicle ? (vehicle.placa ? 'km' : 'h') : 'ambos'} /></Secao>
       <Graficos series={series} />
       {vehicle && grupos?.get(vehicle.id) && <RegistrosVeiculo data={grupos.get(vehicle.id)!} period={resolved.period} />}
       {ranking.length > 0 && <Secao titulo="Indicadores por veículo" descricao="Um veículo por linha, do maior custo para o menor, no período escolhido. Clique no veículo para abrir a análise individual, com a tabela de registros.">
         <Box sx={{ overflowX: 'auto' }}>
         <Table size="small">
-          <TableHead><TableRow><TableCell>Veículo</TableCell><TableCell align="right">Viagens</TableCell><TableCell align="right">KM rodado</TableCell><TableCell align="right">Combustível</TableCell><TableCell align="right">Manutenção</TableCell><TableCell align="right">ERP</TableCell><TableCell align="right">Custo total</TableCell><TableCell align="right">R$/km</TableCell></TableRow></TableHead>
+          <TableHead><TableRow><TableCell>Veículo</TableCell><TableCell align="right">Viagens</TableCell><TableCell align="right">KM / horas</TableCell><TableCell align="right">Combustível</TableCell><TableCell align="right">Manutenção</TableCell><TableCell align="right">ERP</TableCell><TableCell align="right">Custo total</TableCell><TableCell align="right">R$/km · R$/h</TableCell></TableRow></TableHead>
           <TableBody>{ranking.map(row => <TableRow key={row.vehicle.id}>
             <TableCell><Button size="small" sx={{ p: 0, minWidth: 0, textTransform: 'none', justifyContent: 'flex-start' }} onClick={() => navigate(`/frota/analytics?veiculo=${encodeURIComponent(row.vehicle.id)}`)}>{vehicleLabel(row.vehicle)}</Button></TableCell>
             <TableCell align="right">{metric(row.metrics.viagens, 'number')}</TableCell>
-            <TableCell align="right">{metric(row.metrics.kmRodado, 'km')}{row.metrics.kmQuality === 'PARTIAL' ? '*' : ''}</TableCell>
+            <TableCell align="right">{row.metrics.horasTrabalhadas !== null && row.metrics.kmRodado === null ? metric(row.metrics.horasTrabalhadas, 'h') : `${metric(row.metrics.kmRodado, 'km')}${row.metrics.kmQuality === 'PARTIAL' ? '*' : ''}`}</TableCell>
             <TableCell align="right">{metric(row.metrics.custoCombustivel, 'currency')}</TableCell>
             <TableCell align="right">{metric(row.metrics.custoManutencao, 'currency')}</TableCell>
             <TableCell align="right">{row.metrics.custoErp === null ? (placaParaErp(row.vehicle.placa) ? '—' : 'sem placa') : metric(row.metrics.custoErp, 'currency')}</TableCell>
             <TableCell align="right">{metric(row.metrics.custoTotal, 'currency')}</TableCell>
-            <TableCell align="right">{metric(row.metrics.rsKm, 'rate')}</TableCell>
+            <TableCell align="right">{row.metrics.rsHora !== null && row.metrics.rsKm === null ? metric(row.metrics.rsHora, 'rateH') : metric(row.metrics.rsKm, 'rate')}</TableCell>
           </TableRow>)}</TableBody>
         </Table>
         </Box>
@@ -270,16 +282,19 @@ export default function FrotaAnalyticsPanel({ vehicles, vehicle }: Props) {
           <Table size="small" sx={{ mt: 2 }}><TableHead><TableRow><TableCell>KPI</TableCell><TableCell>{vehicleLabel(vehicleA)}</TableCell><TableCell>{vehicleLabel(vehicleB)}</TableCell></TableRow></TableHead><TableBody>{[
             ['Viagens', metric(metricsA.viagens, 'number'), metric(metricsB.viagens, 'number')],
             ['KM rodado', metric(metricsA.kmRodado, 'km'), metric(metricsB.kmRodado, 'km')],
+            ['Horas trabalhadas', metric(metricsA.horasTrabalhadas, 'h'), metric(metricsB.horasTrabalhadas, 'h')],
             ['Combustível', metric(metricsA.custoCombustivel, 'currency'), metric(metricsB.custoCombustivel, 'currency')],
             ['Manutenção', metric(metricsA.custoManutencao, 'currency'), metric(metricsB.custoManutencao, 'currency')],
             ['ERP', metricsA.custoErp === null ? '—' : metric(metricsA.custoErp, 'currency'), metricsB.custoErp === null ? '—' : metric(metricsB.custoErp, 'currency')],
             ['Custo total', metric(metricsA.custoTotal, 'currency'), metric(metricsB.custoTotal, 'currency')],
             ['R$/km', metric(metricsA.rsKm, 'rate'), metric(metricsB.rsKm, 'rate')],
+            ['R$/h', metric(metricsA.rsHora, 'rateH'), metric(metricsB.rsHora, 'rateH')],
           ].map(row => <TableRow key={row[0]}>{row.map((cell, index) => <TableCell key={`${row[0]}-${index}`}>{cell}</TableCell>)}</TableRow>)}</TableBody></Table>
           <Plot data={[{ type: 'bar', name: vehicleLabel(vehicleA), x: seriesA.map(item => item.label), y: seriesA.map(item => item.kmRodado) }, { type: 'bar', name: vehicleLabel(vehicleB), x: seriesB.map(item => item.label), y: seriesB.map(item => item.kmRodado) }] as Data[]} layout={{ title: { text: 'KM rodado — comparação' }, barmode: 'group', autosize: true }} style={{ width: '100%', height: 300 }} useResizeHandler />
           <Plot data={[{ type: 'bar', name: vehicleLabel(vehicleA), x: seriesA.map(item => item.label), y: seriesA.map(item => item.custoTotal) }, { type: 'bar', name: vehicleLabel(vehicleB), x: seriesB.map(item => item.label), y: seriesB.map(item => item.custoTotal) }] as Data[]} layout={{ title: { text: 'Custo total — comparação' }, barmode: 'group', autosize: true }} style={{ width: '100%', height: 300 }} useResizeHandler />
         </>}
       </Secao>}
+      <FrotaKpiTestes alvos={alvosTestes} period={resolved.period} individual={Boolean(vehicle)} />
     </>}
   </Box>;
 }
