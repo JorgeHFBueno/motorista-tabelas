@@ -8,6 +8,8 @@ import { SKILL, SKILLS, XP_POR_NIVEL, nivelDe, pontosLivres, type Skill } from '
 import { NOME_ESTAGIO, NOME_PLANO, paramsDe, proximoEstagio, raiosDe, visualDe } from '../crawler/genoma';
 import { desenharCrawler, desenharOvo } from '../crawler/render';
 import { criarCrawler } from '../crawler/sim';
+import { CUSTO_SKILL, alterarCarteira, lerCarteira, mover, podePagarSkill } from '../fichas/carteira';
+import { useCarteira } from '../fichas/hooks';
 
 const RL = 170; // retrato, px a 100%
 const RA = 95;
@@ -43,20 +45,28 @@ function Retrato({ c }: { c: Criatura }) {
   return <canvas ref={ref} style={{ width: RL * ESCALA, height: RA * ESCALA }} />;
 }
 
-// Skill tree de um Crawler: cada nível dá um ponto; [+] gasta (para sempre) numa skill que ainda não está no máximo.
+// Skill tree de um Crawler: cada nível dá um ponto; [+] gasta (para sempre) um ponto e CUSTO_SKILL fichas da carteira
+// numa skill que ainda não está no máximo.
 function Skills({ c }: { c: Criatura }) {
+  const carteira = useCarteira();
   const pontos = pontosLivres(c.xp, c.skills);
   const nivel = nivelDe(c.xp);
   const gastar = (k: Skill) => {
+    if (!podePagarSkill(lerCarteira())) return;
     const v = lerViveiro();
     const salva = v.criaturas.find((x) => x.id === c.id);
-    if (salva) gravarViveiro(atualizar(v, aprenderSkill(salva, k)));
+    const nova = salva && aprenderSkill(salva, k);
+    if (!salva || !nova || nova === salva) return;
+    alterarCarteira((cart) => mover(cart, -CUSTO_SKILL));
+    gravarViveiro(atualizar(v, nova));
   };
+  const semDinheiro = !podePagarSkill(carteira);
   return (
     <div className="dt-skills">
       <p>
         {pontos ? `${pontos} ${pontos === 1 ? 'PONTO' : 'PONTOS'} PARA GASTAR` : 'SEM PONTOS'} . PROXIMO NIVEL EM {nivel * XP_POR_NIVEL - Math.floor(c.xp)} XP
       </p>
+      <p>CADA PONTO CUSTA {CUSTO_SKILL} FICHAS . VOCE TEM {carteira.fichas}{pontos > 0 && semDinheiro ? ' (GANHE FICHAS NOS JOGOS)' : ''}</p>
       {SKILLS.map((k) => {
         const n = c.skills[k];
         const { nome, max, efeito } = SKILL[k];
@@ -66,7 +76,7 @@ function Skills({ c }: { c: Criatura }) {
             <span>{barra(n / max, max)} {n}/{max}</span>
             <span className="dt-skill-efeito">{n ? efeito(n) : '-'}</span>
             {pontos > 0 && n < max && (
-              <button type="button" onClick={() => gastar(k)} aria-label={`Aprender ${nome}`}>[+]</button>
+              <button type="button" onClick={() => gastar(k)} disabled={semDinheiro} aria-label={`Aprender ${nome} por ${CUSTO_SKILL} fichas`}>[+]</button>
             )}
           </div>
         );

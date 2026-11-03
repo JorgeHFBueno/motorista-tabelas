@@ -49,6 +49,20 @@ export const DEV_TOYS: DevToy[] = [
     largura: 560, // mesa larga: nove cartas por linha
   },
   {
+    id: 'videopoker',
+    nome: 'Video Poker',
+    icone: 'M3 1h10v14H3zM4 2h8v12H4zM7 5h2v1H7zM6 6h4v1H6zM5 7h6v2H5zM7 9h2v2H7z',
+    componente: lazy(() => import('./toys/videopoker/VideoPokerToy')),
+    largura: 560,
+  },
+  {
+    id: 'slot',
+    nome: 'Slot Machine',
+    icone: 'M3 1h8v1H3zM2 3h10v12H2zM3 5h8v4H3zM4 6h1v2H4zM6 6h2v2H6zM9 6h1v2H9zM5 11h4v1H5zM12 2h3v3h-3zM13 5h1v5h-1z',
+    componente: lazy(() => import('./toys/slot/SlotToy')),
+    largura: 520,
+  },
+  {
     id: 'placar',
     nome: 'Placar de Lideres',
     icone: 'M3 1h10v1H3zM4 2h8v4H4zM7 3h2v1H7zM1 2h3v1H1zM12 2h3v1h-3zM1 3h1v2H1zM14 3h1v2h-1zM2 5h2v1H2zM12 5h2v1h-2zM5 6h6v1H5zM6 7h4v1H6zM7 8h2v3H7zM5 11h6v1H5zM4 12h8v2H4z',

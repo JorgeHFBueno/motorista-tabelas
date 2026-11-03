@@ -1,11 +1,9 @@
 // Regras do 21 (blackjack) contra a banca, sem DOM. Um baralho de 52, embaralhado a cada mão. A banca pede até 17
 // e para em qualquer 17. Blackjack (21 nas duas primeiras) paga 3:2; dobrar vale só com 2 cartas e compra uma.
-// Sem dividir par nem seguro. As fichas são de brincadeira e ficam só neste navegador.
+// Sem dividir par nem seguro. As fichas vêm da carteira (fichas/carteira.ts); o placar, de fichas/jogos.ts.
 
 import { embaralhar, novoBaralho, type Carta } from '../cartas/baralho';
 
-export const FICHAS_INICIAIS = 200;
-export const APOSTAS = [10, 20, 50] as const;
 /** A banca pede carta enquanto tiver menos que isto. */
 export const BANCA_PARA = 17;
 
@@ -100,59 +98,4 @@ export function dobrar(m: Mesa): Mesa {
   if (!podeDobrar(m)) return m;
   const mesa = pedir({ ...m, fichas: m.fichas - m.aposta, aposta: m.aposta * 2 });
   return mesa.fase === 'jogando' ? parar(mesa) : mesa;
-}
-
-// ---- placar guardado ----------------------------------------------------------------------------------------------
-
-/** Onde o placar fica (localStorage) e o evento disparado a cada gravação, que o Placar de Lideres acompanha. */
-export const CHAVE_21 = 'ledur:dev-21';
-
-export type Placar = { fichas: number; aposta: number; recorde: number; maos: number; vitorias: number; emprestimos: number };
-
-export const PLACAR_NOVO: Placar = { fichas: FICHAS_INICIAIS, aposta: APOSTAS[0], recorde: FICHAS_INICIAIS, maos: 0, vitorias: 0, emprestimos: 0 };
-
-export function normalizarPlacar(valor: unknown): Placar {
-  const v = valor && typeof valor === 'object' ? (valor as Record<string, unknown>) : {};
-  const inteiro = (x: unknown, padrao: number) => (typeof x === 'number' && Number.isFinite(x) && x >= 0 ? Math.floor(x) : padrao);
-  const fichas = inteiro(v.fichas, FICHAS_INICIAIS);
-  return {
-    fichas,
-    aposta: (APOSTAS as readonly number[]).includes(v.aposta as number) ? (v.aposta as number) : APOSTAS[0],
-    recorde: Math.max(fichas, inteiro(v.recorde, FICHAS_INICIAIS)),
-    maos: inteiro(v.maos, 0),
-    vitorias: inteiro(v.vitorias, 0),
-    emprestimos: inteiro(v.emprestimos, 0),
-  };
-}
-
-/** Sem fichas para a menor aposta, a casa empresta as fichas iniciais de novo. */
-export const precisaEmprestimo = (fichas: number) => fichas < APOSTAS[0];
-
-/** Fim de mão: conta a mão, a vitória e o recorde. */
-export function registrar(p: Placar, m: Mesa): Placar {
-  if (m.fase !== 'fim') return { ...p, fichas: m.fichas };
-  return {
-    ...p,
-    fichas: m.fichas,
-    recorde: Math.max(p.recorde, m.fichas),
-    maos: p.maos + 1,
-    vitorias: p.vitorias + (venceu(m.resultado) ? 1 : 0),
-  };
-}
-
-// ---- fichas no desenho --------------------------------------------------------------------------------------------
-
-/** Valores das fichas desenhadas, da maior para a menor (os pagamentos dão sempre múltiplos de 5). */
-export const VALORES_FICHA = [100, 50, 10, 5] as const;
-
-/** Quantas fichas de cada valor somam o total, das maiores para as menores; só os valores que aparecem. */
-export function pilhas(total: number): Array<{ valor: number; qtd: number }> {
-  let resto = Math.max(0, Math.floor(total));
-  const saida: Array<{ valor: number; qtd: number }> = [];
-  for (const valor of VALORES_FICHA) {
-    const qtd = Math.floor(resto / valor);
-    resto -= qtd * valor;
-    if (qtd) saida.push({ valor, qtd });
-  }
-  return saida;
 }

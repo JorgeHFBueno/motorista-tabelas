@@ -138,8 +138,12 @@
   position: absolute;
   top: calc(var(--dt-e) * 56px);
   right: calc(var(--dt-e) * 16px);
+  bottom: calc(var(--dt-e) * 16px);
   display: flex;
   flex-direction: column;
+  /* sem altura para todos, abre outra coluna à esquerda (a primeira fica na direita) */
+  flex-wrap: wrap-reverse;
+  align-content: flex-start;
   gap: calc(var(--dt-e) * 16px);
 }
 
@@ -478,6 +482,10 @@
   align-self: center;
 }
 
+.devtoys .dt-skill button:disabled {
+  color: var(--dt-apagado);
+}
+
 /* ---- Cartas (baralho comum dos jogos) ---- */
 .devtoys .dt-carta {
   display: flex;
@@ -554,7 +562,7 @@
 }
 
 /* ---- 21 ---- */
-.devtoys .dt-21 {
+.devtoys .dt-jogo {
   font-size: calc(var(--dt-e) * 15px);
 }
 
@@ -584,14 +592,14 @@
   margin-bottom: calc(var(--dt-e) * 14px);
 }
 
-.devtoys .dt-21-aviso {
+.devtoys .dt-jogo-aviso {
   text-align: center;
   font-weight: bold;
   padding-top: calc(var(--dt-e) * 10px);
   border-top: 1px dotted var(--dt-apagado);
 }
 
-.devtoys .dt-21-botoes {
+.devtoys .dt-jogo-botoes {
   display: flex;
   flex-wrap: wrap;
   justify-content: center;
@@ -601,19 +609,19 @@
   margin-bottom: calc(var(--dt-e) * 4px);
 }
 
-.devtoys .dt-21-botoes button:hover:not(:disabled),
-.devtoys .dt-21-botoes button:focus-visible,
-.devtoys .dt-21-botoes .dt-21-escolhida {
+.devtoys .dt-jogo-botoes button:hover:not(:disabled),
+.devtoys .dt-jogo-botoes button:focus-visible,
+.devtoys .dt-jogo-botoes .dt-jogo-escolhida {
   color: var(--dt-papel);
   background: var(--dt-tinta);
 }
 
-.devtoys .dt-21-botoes button:disabled {
+.devtoys .dt-jogo-botoes button:disabled {
   color: var(--dt-apagado);
 }
 
 /* fichas, no topo: o monte do jogador à esquerda e o da mesa à direita, desenhados e com o número */
-.devtoys .dt-21-fichas {
+.devtoys .dt-jogo-fichas {
   display: flex;
   justify-content: space-between;
   align-items: flex-end;
@@ -624,34 +632,34 @@
   border-bottom: 1px dotted var(--dt-apagado);
 }
 
-.devtoys .dt-21:focus {
+.devtoys .dt-jogo:focus {
   outline: none;
 }
 
-.devtoys .dt-21-fichas p {
+.devtoys .dt-jogo-fichas p {
   display: flex;
   flex-direction: column;
   margin: 0;
 }
 
-.devtoys .dt-21-monte {
+.devtoys .dt-jogo-monte {
   display: flex;
   align-items: flex-end;
   gap: calc(var(--dt-e) * 12px);
 }
 
-.devtoys .dt-21-legenda {
+.devtoys .dt-jogo-legenda {
   color: var(--dt-apagado);
   font-size: calc(var(--dt-e) * 11px);
 }
 
-.devtoys .dt-21-pilhas {
+.devtoys .dt-jogo-pilhas {
   display: flex;
   align-items: flex-end;
   gap: calc(var(--dt-e) * 6px);
 }
 
-.devtoys .dt-21-pilha {
+.devtoys .dt-jogo-pilha {
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -659,16 +667,16 @@
   line-height: 1.2;
 }
 
-.devtoys .dt-21-pilha svg {
+.devtoys .dt-jogo-pilha svg {
   width: calc(var(--dt-e) * 42px);
   fill: currentColor;
 }
 
-.devtoys .dt-21-pilha .dt-ficha-fundo {
+.devtoys .dt-jogo-pilha .dt-ficha-fundo {
   fill: var(--dt-papel);
 }
 
-.devtoys .dt-21-pilha-valor {
+.devtoys .dt-jogo-pilha-valor {
   color: var(--dt-apagado);
 }
 
@@ -680,7 +688,175 @@
   color: var(--dt-apagado);
 }
 
+/* ---- Video Poker ---- */
+.devtoys .dt-vp-tabela {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0 calc(var(--dt-e) * 12px);
+  margin: 0 0 calc(var(--dt-e) * 10px);
+  padding: 0;
+  list-style: none;
+  font-size: calc(var(--dt-e) * 12px);
+}
+
+.devtoys .dt-vp-tabela li {
+  display: flex;
+  justify-content: space-between;
+  gap: calc(var(--dt-e) * 6px);
+  padding: calc(var(--dt-e) * 1px) calc(var(--dt-e) * 4px);
+}
+
+.devtoys .dt-vp-tabela li span:last-child {
+  color: var(--dt-apagado);
+}
+
+.devtoys .dt-slot-tabela {
+  border-collapse: collapse;
+  font-size: calc(var(--dt-e) * 12px);
+}
+
+.devtoys .dt-slot-tabela td {
+  padding: calc(var(--dt-e) * 1px) calc(var(--dt-e) * 8px);
+  text-align: right;
+  color: var(--dt-apagado);
+}
+
+.devtoys .dt-slot-tabela td:first-child {
+  text-align: left;
+  color: var(--dt-tinta);
+}
+
+/* a linha do jogo que a mão forma (ou que pagou) */
+.devtoys .dt-vp-acesa,
+.devtoys .dt-vp-acesa td,
+.devtoys .dt-vp-acesa td:first-child,
+.devtoys .dt-vp-acesa span:last-child {
+  color: var(--dt-papel);
+  background: var(--dt-tinta);
+  text-shadow: none;
+}
+
+.devtoys .dt-vp-mao {
+  display: flex;
+  justify-content: center;
+  gap: calc(var(--dt-e) * 8px);
+  min-height: calc(var(--dt-e) * 96px);
+  align-items: flex-end;
+  margin-bottom: calc(var(--dt-e) * 4px);
+}
+
+.devtoys .dt-vp-carta {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: calc(var(--dt-e) * 4px);
+}
+
+.devtoys .dt-vp-carta .dt-carta {
+  transition: transform 120ms ease-out;
+}
+
+/* segurada: sobe um pouco e ganha a moldura dupla */
+.devtoys .dt-vp-segura .dt-carta {
+  transform: translateY(calc(var(--dt-e) * -8px));
+  box-shadow: 0 0 0 2px var(--dt-papel), 0 0 0 3px var(--dt-tinta);
+}
+
+.devtoys .dt-vp-carta:focus-visible .dt-carta {
+  outline: 1px dotted var(--dt-tinta);
+  outline-offset: 4px;
+}
+
+.devtoys .dt-vp-legenda {
+  min-height: calc(var(--dt-e) * 16px);
+  font-size: calc(var(--dt-e) * 11px);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .devtoys .dt-vp-carta .dt-carta {
+    transition: none;
+  }
+}
+
+/* ---- Slot Machine ---- */
+.devtoys .dt-slot-maquina {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: calc(var(--dt-e) * 20px);
+  margin-bottom: calc(var(--dt-e) * 12px);
+}
+
+.devtoys .dt-slot-rolos {
+  position: relative;
+  display: flex;
+  gap: calc(var(--dt-e) * 6px);
+  padding: calc(var(--dt-e) * 6px);
+  border: 1px solid var(--dt-tinta);
+}
+
+/* a linha que paga: tracejada, no meio dos rolos */
+.devtoys .dt-slot-rolos::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 50%;
+  border-top: 1px dashed var(--dt-tinta);
+}
+
+.devtoys .dt-slot-rolo {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: calc(var(--dt-e) * 6px);
+  padding: calc(var(--dt-e) * 4px) calc(var(--dt-e) * 8px);
+  border: 1px solid var(--dt-apagado);
+  background: var(--dt-papel);
+}
+
+.devtoys .dt-slot-simbolo {
+  position: relative;
+  width: calc(var(--dt-e) * 36px);
+  height: calc(var(--dt-e) * 36px);
+  fill: currentColor;
+}
+
+.devtoys .dt-slot-fora {
+  width: calc(var(--dt-e) * 26px);
+  height: calc(var(--dt-e) * 26px);
+  opacity: 0.35;
+}
+
+.devtoys .dt-slot-vermelho {
+  color: var(--dt-vermelho);
+}
+
+.devtoys .dt-slot-girando .dt-slot-simbolo {
+  opacity: 0.6;
+}
+
+.devtoys .dt-slot-ganhou {
+  animation: dt-slot-pisca 400ms steps(2) 3;
+}
+
+@keyframes dt-slot-pisca {
+  50% {
+    opacity: 0.2;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .devtoys .dt-slot-ganhou {
+    animation: none;
+  }
+}
+
 /* ---- Placar de Lideres ---- */
+.devtoys .dt-placar-carteira {
+  margin-bottom: calc(var(--dt-e) * 10px);
+}
+
 .devtoys .dt-placar table {
   width: 100%;
   border-collapse: collapse;

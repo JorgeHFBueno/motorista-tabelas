@@ -18,9 +18,15 @@ import {
 } from '../src/features/dev-toys/toys/crawler/criaturas';
 import { embaralhar as embaralharCartas, nomeDaCarta, novoBaralho, rotuloDe, type Carta } from '../src/features/dev-toys/toys/cartas/baralho';
 import {
-  FICHAS_INICIAIS, PLACAR_NOVO, distribuir, dobrar, mesaNova, normalizarPlacar, parar, pedir, pilhas, podeDobrar, pontos, precisaEmprestimo, registrar, retorno,
+  distribuir, dobrar, mesaNova, parar, pedir, podeDobrar, pontos, retorno,
   type Mesa,
 } from '../src/features/dev-toys/toys/vinteum/regras';
+import {
+  CUSTO_SKILL, FICHAS_INICIAIS, MESADA, hojeEmBrasilia, mover, normalizarCarteira, pegarMesada, pilhas, podeMesada, podePagarSkill, semFichas,
+} from '../src/features/dev-toys/toys/fichas/carteira';
+import { PLACAR_NOVO, normalizarPlacar, registrarJogada, taxaDeVitorias } from '../src/features/dev-toys/toys/fichas/jogos';
+import * as vp from '../src/features/dev-toys/toys/videopoker/regras';
+import * as slot from '../src/features/dev-toys/toys/slot/regras';
 
 const sessao = (valores: Record<string, string>) => ({ getItem: (k: string) => valores[k] ?? null });
 
@@ -522,16 +528,40 @@ test('21: distribuir desconta a aposta, recusa aposta sem fichas e o blackjack p
   assert.ok(blackjacks > 5, `${blackjacks} blackjacks em 400 mãos`);
 });
 
-test('21: o placar conta mãos, vitórias e recorde; salvo estragado volta ao padrão; sem fichas, a casa empresta', () => {
-  const m = parar(mesa21([10, 8], [10, 6], [1]));
-  const p = registrar(PLACAR_NOVO, m);
-  assert.deepEqual(p, { ...PLACAR_NOVO, fichas: 210, recorde: 210, maos: 1, vitorias: 1 });
-  assert.equal(registrar(p, mesa21([2, 3], [10, 7], [])).maos, 1, 'mão em jogo só guarda as fichas');
-  assert.deepEqual(normalizarPlacar({ fichas: -3, aposta: 7, maos: 'x' }), PLACAR_NOVO);
-  assert.equal(normalizarPlacar({ fichas: 900, recorde: 100 }).recorde, 900);
-  assert.equal(precisaEmprestimo(9), true);
-  assert.equal(precisaEmprestimo(10), false);
+test('Fichas: a carteira começa com 200 (ou com as fichas do 21 antigo), guarda o recorde e dá a mesada uma vez por dia', () => {
+  const nova = normalizarCarteira(null);
+  assert.deepEqual(nova, { fichas: 200, recorde: 200, mesadas: 0, ultimaMesada: null });
   assert.equal(FICHAS_INICIAIS, 200);
+  const doLegado = normalizarCarteira(null, { fichas: 340, recorde: 410, emprestimos: 3, maos: 9 });
+  assert.deepEqual(doLegado, { fichas: 340, recorde: 410, mesadas: 0, ultimaMesada: null }, 'fichas e recorde vêm do 21 antigo');
+  assert.deepEqual(normalizarCarteira({ fichas: -5, ultimaMesada: 'ontem' }), nova, 'salvo estragado volta ao padrão');
+
+  assert.deepEqual(mover(nova, 50), { ...nova, fichas: 250, recorde: 250 });
+  assert.equal(mover(nova, -500).fichas, 0, 'não fica negativa');
+
+  const quebrada = { ...nova, fichas: 5 };
+  assert.equal(semFichas(quebrada), true);
+  assert.equal(podeMesada(nova, '2026-11-03'), false, 'com fichas, sem mesada');
+  const comMesada = pegarMesada(quebrada, '2026-11-03');
+  assert.deepEqual(comMesada, { fichas: 205, recorde: 205, mesadas: 1, ultimaMesada: '2026-11-03' });
+  const deNovoQuebrada = { ...comMesada, fichas: 0 };
+  assert.equal(pegarMesada(deNovoQuebrada, '2026-11-03'), deNovoQuebrada, 'uma por dia');
+  assert.equal(pegarMesada(deNovoQuebrada, '2026-11-04').fichas, MESADA, 'no dia seguinte, outra');
+  assert.equal(hojeEmBrasilia(new Date('2026-11-04T02:30:00Z')), '2026-11-03', 'o dia vira à meia-noite de Brasília');
+
+  assert.equal(CUSTO_SKILL, 50);
+  assert.equal(podePagarSkill({ ...nova, fichas: 49 }), false);
+  assert.equal(podePagarSkill({ ...nova, fichas: 50 }), true);
+});
+
+test('Fichas: o placar de cada jogo conta jogadas, vitórias e o maior prêmio; o do 21 antigo vira jogadas', () => {
+  let p = registrarJogada(PLACAR_NOVO, 20, 50);
+  p = registrarJogada(p, 20, 20); // empate: devolveu a aposta, não é vitória
+  p = registrarJogada(p, 10, 0);
+  assert.deepEqual(p, { ...PLACAR_NOVO, jogadas: 3, vitorias: 1, maiorPremio: 30 });
+  assert.equal(taxaDeVitorias(p), 33);
+  assert.deepEqual(normalizarPlacar({ aposta: 20, maos: 12, vitorias: 5, fichas: 300, recorde: 400 }), { aposta: 20, jogadas: 12, vitorias: 5, maiorPremio: 0 });
+  assert.deepEqual(normalizarPlacar({ aposta: 7, jogadas: 'x' }), PLACAR_NOVO);
 });
 
 test('21: as fichas do desenho somam o total, das maiores para as menores', () => {
@@ -573,4 +603,61 @@ test('Anomalias: Deslocamento, Adaptação e Absorção mudam o corpo da física
   assert.equal(paramsDe(polvo, 'ancia', { ...SEM_SKILLS, movimento: 5 }).pares, p0.pares + 1, '+1 par de tentáculos');
   assert.ok(paramsDe(polvo, 'ancia', { ...SEM_SKILLS, gula: 4 }).quadril > p0.quadril, 'manto maior: tentáculos saem mais para fora');
   assert.equal(paramsDe(normalizarGenoma({ plano: 'aranha' }, rngDe(5)), 'ancia', { ...SEM_SKILLS, movimento: 10 }).pares, paramsDe(normalizarGenoma({ plano: 'aranha' }, rngDe(5)), 'ancia').pares, 'aranha não ganha par');
+});
+
+const mao5 = (...cs: string[]): Carta[] => cs.map((c) => ({
+  valor: ({ A: 1, J: 11, Q: 12, K: 13 } as Record<string, number>)[c.slice(0, -1)] ?? Number(c.slice(0, -1)),
+  naipe: ({ e: 'espadas', c: 'copas', o: 'ouros', p: 'paus' } as const)[c.slice(-1) as 'e' | 'c' | 'o' | 'p'],
+}));
+
+test('Video Poker: avalia as mãos de Jacks or Better', () => {
+  assert.equal(vp.avaliar(mao5('10e', 'Je', 'Qe', 'Ke', 'Ae')), 'royal');
+  assert.equal(vp.avaliar(mao5('5c', '6c', '7c', '8c', '9c')), 'straight-flush');
+  assert.equal(vp.avaliar(mao5('9e', '9c', '9o', '9p', '2e')), 'quadra');
+  assert.equal(vp.avaliar(mao5('3e', '3c', '3o', 'Kp', 'Ke')), 'full-house');
+  assert.equal(vp.avaliar(mao5('2o', '7o', '9o', 'Jo', 'Ko')), 'flush');
+  assert.equal(vp.avaliar(mao5('Ae', '2c', '3o', '4p', '5e')), 'sequencia', 'ás baixo');
+  assert.equal(vp.avaliar(mao5('10e', 'Jc', 'Qo', 'Kp', 'Ae')), 'sequencia', 'ás alto');
+  assert.equal(vp.avaliar(mao5('Qe', 'Kc', 'Ao', '2p', '3e')), null, 'não dá a volta');
+  assert.equal(vp.avaliar(mao5('7e', '7c', '7o', 'Kp', '2e')), 'trinca');
+  assert.equal(vp.avaliar(mao5('4e', '4c', '8o', '8p', 'Ae')), 'dois-pares');
+  assert.equal(vp.avaliar(mao5('Je', 'Jc', '3o', '8p', '9e')), 'par-alto');
+  assert.equal(vp.avaliar(mao5('Ae', 'Ac', '3o', '8p', '9e')), 'par-alto');
+  assert.equal(vp.avaliar(mao5('10e', '10c', '3o', '8p', '9e')), null, 'par de 10 não paga');
+});
+
+test('Video Poker: distribui, segura, troca uma vez e paga pela tabela', () => {
+  const m = vp.distribuir(vp.mesaNova(100), 20, rngDe(3));
+  assert.equal(m.fase, 'segurando');
+  assert.equal(m.fichas, 80);
+  assert.equal(m.mao.length + m.baralho.length, 52);
+  assert.equal(vp.distribuir(vp.mesaNova(10), 20, rngDe(3)).fase, 'apostando', 'sem fichas para a aposta');
+  const segura = vp.segurar(vp.segurar(m, 0), 3);
+  assert.deepEqual(segura.segura, [true, false, false, true, false]);
+  const fim = vp.trocar(segura);
+  assert.equal(fim.fase, 'fim');
+  assert.deepEqual([fim.mao[0], fim.mao[3]], [m.mao[0], m.mao[3]], 'as seguradas ficam');
+  assert.deepEqual([fim.mao[1], fim.mao[2], fim.mao[4]], m.baralho.slice(0, 3), 'as outras vêm do baralho, em ordem');
+  assert.equal(fim.fichas, 80 + 20 * vp.pagaDe(fim.jogo));
+  assert.equal(vp.trocar(fim), fim, 'troca só uma vez');
+  assert.equal(vp.segurar(fim, 1), fim);
+  // segurando um royal inteiro, paga 250 por ficha apostada
+  const royal = vp.trocar({ ...m, mao: mao5('10e', 'Je', 'Qe', 'Ke', 'Ae'), segura: [true, true, true, true, true] });
+  assert.equal(royal.jogo, 'royal');
+  assert.equal(royal.fichas, 80 + 20 * 250);
+});
+
+test('Slot: a fita tem 21 símbolos espalhados, a tabela paga a linha do meio e o retorno é o ajustado (~100%)', () => {
+  assert.equal(slot.FITA.length, 21);
+  for (const s of slot.SIMBOLOS) assert.equal(slot.FITA.filter((x) => x === s).length, slot.PESOS[s]);
+  for (let i = 0; i < 21; i++) assert.notEqual(slot.FITA[i], slot.FITA[(i + 1) % 21], `posições ${i} e ${(i + 1) % 21} iguais`);
+  const em = (s: slot.Simbolo) => slot.FITA.indexOf(s);
+  assert.equal(slot.retornoDe([em('olho'), em('olho'), em('olho')], 10), 5000);
+  assert.equal(slot.retornoDe([em('cereja'), em('cereja'), em('sino')], 20), 40, 'duas cerejas no começo');
+  assert.equal(slot.retornoDe([em('sino'), em('cereja'), em('cereja')], 20), 0, 'cerejas fora do começo não pagam');
+  assert.equal(slot.premioDe(['sete', 'sete', 'sete'])?.paga, 100);
+  assert.equal(slot.simboloEm(20, 1), slot.FITA[0], 'a fita dá a volta');
+  const r = slot.retornoTeorico();
+  assert.ok(r > 0.97 && r < 1.03, `retorno ${(100 * r).toFixed(1)}%`);
+  for (const p of slot.sortearParadas(rngDe(9))) assert.ok(p >= 0 && p < 21);
 });
