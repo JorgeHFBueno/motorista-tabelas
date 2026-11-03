@@ -12,15 +12,18 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { CATALOGOS, PARTES, usaHorimetro, type ParteId } from './domain/catalogo';
 import {
-  catalogoDoRascunho, comResposta, itensDoRascunho, respostaDe, type ChecklistMotorista, type ChecklistRascunho,
-  type ChecklistStatus,
+  catalogoDoRascunho, comResposta, itensDoRascunho, respostaDe, type ChecklistAssinatura, type ChecklistFoto,
+  type ChecklistMotorista, type ChecklistRascunho, type ChecklistStatus, type OrigemFoto,
 } from './domain/rascunho';
+import { dataOriginalDaFoto, textoCarimbo } from './domain/foto';
 import {
   comMedidor, itensAtivos, itensNaoSeAplica, paginaDaPrimeiraPendencia, partesDoRascunho, pendencias, progresso,
   reativarItem, validarMedidor,
 } from './domain/regras';
-import { carregarRascunho, salvarRascunho } from './data/armazenamentoLocal';
+import { apagarArquivos, carregarRascunho, chaveArquivo, salvarArquivo, salvarRascunho } from './data/armazenamentoLocal';
+import { processarFoto } from './data/fotoProcessamento';
 import { listarMotoristasChecklist } from './data/checklistFirestore';
+import AssinaturaDialog from './components/AssinaturaDialog';
 import ItemCard from './components/ItemCard';
 import MedidorCampo from './components/MedidorCampo';
 import MotoristaCampo from './components/MotoristaCampo';
@@ -37,7 +40,9 @@ export default function ChecklistItensPage() {
   const [pagina, setPagina] = useState(0);
   const [mostrarPendencias, setMostrarPendencias] = useState(false);
   const [aviso, setAviso] = useState<string | null>(null);
+  const [assinando, setAssinando] = useState(false);
   const [completo, setCompleto] = useState(false);
+  const [processando, setProcessando] = useState<ReadonlySet<string>>(new Set());
   const pendenteSalvar = useRef<ChecklistRascunho | null>(null);
   const timer = useRef<number | undefined>(undefined);
 
@@ -93,6 +98,53 @@ export default function ChecklistItensPage() {
   const definirObservacao = useCallback((itemId: string, observacao: string) =>
     alterar((r) => comResposta(r, itemId, { ...respostaDe(r, itemId), observacao })), [alterar]);
 
+  const rascunhoId = rascunho?.id;
+
+  /** Foto da câmera (hora do aparelho) ou da galeria (data do EXIF), processada e guardada antes de entrar no item. */
+  const adicionarFoto = useCallback(async (itemId: string, arquivo: File, origem: OrigemFoto) => {
+    if (!rascunhoId) return;
+    setProcessando((atual) => new Set(atual).add(itemId));
+    try {
+      const capturadaEm = origem === 'camera'
+        ? new Date()
+        : dataOriginalDaFoto(new Uint8Array(await arquivo.slice(0, 256 * 1024).arrayBuffer()));
+      const processada = await processarFoto(arquivo, textoCarimbo(origem, capturadaEm));
+      const nome = `${itemId}_${Date.now()}`;
+      const foto: ChecklistFoto = {
+        arquivo: chaveArquivo(rascunhoId, `${nome}.jpg`),
+        miniatura: chaveArquivo(rascunhoId, `${nome}_min.jpg`),
+        origem,
+        capturadaEm,
+        bytes: processada.foto.size,
+        largura: processada.largura,
+        altura: processada.altura,
+      };
+      await salvarArquivo(foto.arquivo, processada.foto);
+      await salvarArquivo(foto.miniatura, processada.miniatura);
+      alterar((r) => {
+        const atual = respostaDe(r, itemId);
+        return comResposta(r, itemId, { ...atual, fotos: [...atual.fotos, foto] });
+      });
+    } catch (error) {
+      console.error('Checklist: falha ao usar a foto', error);
+      setAviso('Não foi possível usar essa foto. Tente de novo.');
+    } finally {
+      setProcessando((atual) => {
+        const novo = new Set(atual);
+        novo.delete(itemId);
+        return novo;
+      });
+    }
+  }, [alterar, rascunhoId]);
+
+  const removerFoto = useCallback((itemId: string, foto: ChecklistFoto) => {
+    alterar((r) => {
+      const atual = respostaDe(r, itemId);
+      return comResposta(r, itemId, { ...atual, fotos: atual.fotos.filter((f) => f.arquivo !== foto.arquivo) });
+    });
+    apagarArquivos([foto.arquivo, foto.miniatura]).catch((error) => console.warn('Checklist: falha ao apagar a foto', error));
+  }, [alterar]);
+
   const lista = useMemo(() => (rascunho ? pendencias(rascunho) : []), [rascunho]);
   const itensComPendencia = useMemo(
     () => (mostrarPendencias ? new Set(lista.flatMap((p) => (p.itemId ? [p.itemId] : []))) : new Set<string>()),
@@ -119,7 +171,13 @@ export default function ChecklistItensPage() {
       if (destino != null) irPara(destino);
       return;
     }
-    salvarAgora();
+    // A assinatura do motorista é o último passo e a confirmação.
+    setAssinando(true);
+  };
+
+  const assinou = (assinatura: ChecklistAssinatura) => {
+    alterar((r) => ({ ...r, assinatura }));
+    setAssinando(false);
     setCompleto(true);
   };
 
@@ -164,8 +222,11 @@ export default function ChecklistItensPage() {
               parte={partes[atual - 1]}
               rascunho={rascunho}
               itensComPendencia={itensComPendencia}
+              processando={processando}
               onStatus={definirStatus}
               onObservacao={definirObservacao}
+              onAdicionarFoto={(itemId, arquivo, origem) => void adicionarFoto(itemId, arquivo, origem)}
+              onRemoverFoto={removerFoto}
               onReativar={(itemId) => alterar((r) => reativarItem(r, itemId))}
             />
           )}
@@ -183,10 +244,11 @@ export default function ChecklistItensPage() {
       </Box>
 
       <Snackbar open={aviso != null} autoHideDuration={4000} onClose={() => setAviso(null)} message={aviso} anchorOrigin={{ vertical: 'top', horizontal: 'center' }} />
-      {/* Assinatura e envio entram nas Fases 3 e 4; até lá o checklist completo fica guardado como rascunho. */}
+      {assinando && <AssinaturaDialog rascunho={rascunho} onFechar={() => setAssinando(false)} onConcluir={assinou} />}
+      {/* O envio entra na Fase 4; até lá o checklist assinado fica guardado como rascunho neste aparelho. */}
       <Dialog open={completo} onClose={() => setCompleto(false)}>
         <DialogTitle>Checklist completo</DialogTitle>
-        <DialogContent>A assinatura do motorista e o envio ainda estão em implantação. O checklist fica guardado neste aparelho.</DialogContent>
+        <DialogContent>{rascunho.assinatura?.ausente ? 'Motorista ausente registrado.' : 'Assinatura registrada.'} O envio ainda está em implantação: o checklist fica guardado neste aparelho.</DialogContent>
         <DialogActions><Button onClick={() => setCompleto(false)}>Fechar</Button></DialogActions>
       </Dialog>
     </Box>
@@ -247,12 +309,15 @@ function PaginaDados({ rascunho, motoristas, mostrarPendencias, alterar }: {
   );
 }
 
-function PaginaParte({ parte, rascunho, itensComPendencia, onStatus, onObservacao, onReativar }: {
+function PaginaParte({ parte, rascunho, itensComPendencia, processando, onStatus, onObservacao, onAdicionarFoto, onRemoverFoto, onReativar }: {
   parte: ParteId;
   rascunho: ChecklistRascunho;
   itensComPendencia: Set<string>;
+  processando: ReadonlySet<string>;
   onStatus: (itemId: string, status: ChecklistStatus) => void;
   onObservacao: (itemId: string, texto: string) => void;
+  onAdicionarFoto: (itemId: string, arquivo: File, origem: OrigemFoto) => void;
+  onRemoverFoto: (itemId: string, foto: ChecklistFoto) => void;
   onReativar: (itemId: string) => void;
 }) {
   const ativos = itensAtivos(rascunho).filter((i) => i.parte === parte);
@@ -267,8 +332,11 @@ function PaginaParte({ parte, rascunho, itensComPendencia, onStatus, onObservaca
           item={item}
           resposta={respostaDe(rascunho, item.id)}
           destacarPendencia={itensComPendencia.has(item.id)}
+          processandoFoto={processando.has(item.id)}
           onStatus={onStatus}
           onObservacao={onObservacao}
+          onAdicionarFoto={onAdicionarFoto}
+          onRemoverFoto={onRemoverFoto}
         />
       ))}
       {naoSeAplica.length > 0 && (

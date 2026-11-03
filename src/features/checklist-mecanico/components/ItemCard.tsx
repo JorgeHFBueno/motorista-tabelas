@@ -1,10 +1,11 @@
-import { Button, Card, CardContent, Stack, TextField, ToggleButton, ToggleButtonGroup, Typography } from '@mui/material';
+import { Button, Card, CardContent, CircularProgress, Stack, TextField, ToggleButton, ToggleButtonGroup, Typography } from '@mui/material';
 import NotesRoundedIcon from '@mui/icons-material/NotesRounded';
 import PhotoCameraOutlinedIcon from '@mui/icons-material/PhotoCameraOutlined';
 import PhotoLibraryOutlinedIcon from '@mui/icons-material/PhotoLibraryOutlined';
-import { memo, useState } from 'react';
+import { memo, useRef, useState, type ChangeEvent } from 'react';
 import { observacaoObrigatoria, type ChecklistItemDef } from '../domain/catalogo';
-import type { ChecklistResposta, ChecklistStatus } from '../domain/rascunho';
+import type { ChecklistFoto, ChecklistResposta, ChecklistStatus, OrigemFoto } from '../domain/rascunho';
+import FotoMiniatura from './FotoMiniatura';
 
 const STATUS: { valor: ChecklistStatus; rotulo: string; cor: 'success' | 'error' | 'standard' }[] = [
   { valor: 'ok', rotulo: 'OK', cor: 'success' },
@@ -13,14 +14,24 @@ const STATUS: { valor: ChecklistStatus; rotulo: string; cor: 'success' | 'error'
 ];
 
 /** Um item: OK / Avaria / Não se aplica, observação e fotos, com a pendência destacada depois de tentar concluir. */
-function ItemCard({ item, resposta, destacarPendencia, onStatus, onObservacao }: {
+function ItemCard({ item, resposta, destacarPendencia, processandoFoto, onStatus, onObservacao, onAdicionarFoto, onRemoverFoto }: {
   item: ChecklistItemDef;
   resposta: ChecklistResposta;
   destacarPendencia: boolean;
+  processandoFoto: boolean;
   onStatus: (itemId: string, status: ChecklistStatus) => void;
   onObservacao: (itemId: string, texto: string) => void;
+  onAdicionarFoto: (itemId: string, arquivo: File, origem: OrigemFoto) => void;
+  onRemoverFoto: (itemId: string, foto: ChecklistFoto) => void;
 }) {
   const [mostrarObservacao, setMostrarObservacao] = useState(false);
+  const camera = useRef<HTMLInputElement>(null);
+  const galeria = useRef<HTMLInputElement>(null);
+  const escolheu = (origem: OrigemFoto) => (e: ChangeEvent<HTMLInputElement>) => {
+    const arquivo = e.target.files?.[0];
+    e.target.value = ''; // a mesma foto pode ser escolhida de novo
+    if (arquivo) onAdicionarFoto(item.id, arquivo, origem);
+  };
   const { status } = resposta;
   const avaria = status === 'avaria';
   const exigeObservacao = avaria || (status === 'ok' && observacaoObrigatoria(item));
@@ -69,10 +80,18 @@ function ItemCard({ item, resposta, destacarPendencia, onStatus, onObservacao }:
                 Adicionar observação
               </Button>
             )}
-            {/* Fotos: câmera e galeria entram com o processamento de imagem (Fase 3). */}
-            <Stack direction="row" spacing={1}>
-              <Button variant="outlined" startIcon={<PhotoCameraOutlinedIcon />} disabled sx={{ minHeight: 44 }}>Câmera</Button>
-              <Button variant="outlined" startIcon={<PhotoLibraryOutlinedIcon />} disabled sx={{ minHeight: 44 }}>Galeria</Button>
+            {resposta.fotos.length > 0 && (
+              <Stack direction="row" spacing={1.5} useFlexGap sx={{ flexWrap: 'wrap', pt: 1.25, pr: 1.5 }}>
+                {resposta.fotos.map((foto) => <FotoMiniatura key={foto.arquivo} foto={foto} onRemover={() => onRemoverFoto(item.id, foto)} />)}
+              </Stack>
+            )}
+            {/* Câmera: abre direto a câmera traseira no celular; Galeria: escolhe uma foto já tirada. */}
+            <input ref={camera} type="file" accept="image/*" capture="environment" hidden onChange={escolheu('camera')} />
+            <input ref={galeria} type="file" accept="image/*" hidden onChange={escolheu('galeria')} />
+            <Stack direction="row" spacing={1} alignItems="center">
+              <Button variant="outlined" startIcon={<PhotoCameraOutlinedIcon />} disabled={processandoFoto} onClick={() => camera.current?.click()} sx={{ minHeight: 44 }}>Câmera</Button>
+              <Button variant="outlined" startIcon={<PhotoLibraryOutlinedIcon />} disabled={processandoFoto} onClick={() => galeria.current?.click()} sx={{ minHeight: 44 }}>Galeria</Button>
+              {processandoFoto && <CircularProgress size={22} aria-label="Preparando a foto" />}
             </Stack>
             {faltaFoto && <Typography variant="body2" color="error">Inclua ao menos uma foto da avaria.</Typography>}
           </Stack>

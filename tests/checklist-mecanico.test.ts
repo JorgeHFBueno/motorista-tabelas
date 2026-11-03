@@ -14,6 +14,10 @@ import {
 import {
   arquivosParaEnvio, caminhoAssinatura, deveAtualizarMedidor, fotosParaEnvio, montarDocumento,
 } from '../src/features/checklist-mecanico/domain/documento';
+import {
+  COMPRIMENTO_MINIMO_ASSINATURA, comprimentoDosTracos, dataOriginalDaFoto, limitarLado, medidasAssinatura,
+  proximaCompressao, tamanhoFonteCarimbo, textoCarimbo,
+} from '../src/features/checklist-mecanico/domain/foto';
 
 const caminhao: ChecklistVeiculo = { id: 'vv1', categoria: 'PLACA', identificador: 'ABC1D23', nome: 'Caminhão 1', medidorUltimo: 125000 };
 const carregadeira: ChecklistVeiculo = { id: 'vm1', categoria: 'EXTRA', identificador: 'CARREGADEIRA', nome: 'Carregadeira', medidorUltimo: 8700 };
@@ -312,4 +316,70 @@ test('páginas: Dados e uma por parte (Guincho só ligado); primeira pendência 
   assert.equal(paginaDaPrimeiraPendencia(comResposta(base, 'traseira_sirene_re', { status: null, observacao: '', fotos: [] })), 4);
   assert.equal(paginaDaPrimeiraPendencia({ ...base, guincho: true }), 6);
   assert.equal(paginaDaPrimeiraPendencia({ ...base, motorista: null }), 0);
+});
+
+// ------------------------------------------------------------------ fotos e assinatura
+test('carimbo: data da câmera, "(galeria)" na galeria com data, "foto da galeria" sem data', () => {
+  const d = new Date(2026, 10, 2, 9, 5, 30);
+  assert.equal(textoCarimbo('camera', d), '02/11/2026 09:05');
+  assert.equal(textoCarimbo('galeria', d), '02/11/2026 09:05 (galeria)');
+  assert.equal(textoCarimbo('galeria', null), 'foto da galeria');
+});
+
+test('foto: lado maior até 2048 e miniatura 480, na proporção; compressão 85→75→65→55, depois reduz e volta a 75', () => {
+  assert.deepEqual(limitarLado(4032, 3024, 2048), { largura: 2048, altura: 1536 });
+  assert.deepEqual(limitarLado(3024, 4032, 2048), { largura: 1536, altura: 2048 });
+  assert.deepEqual(limitarLado(1200, 900, 2048), { largura: 1200, altura: 900 });
+  assert.deepEqual(limitarLado(2048, 1536, 480), { largura: 480, altura: 360 });
+  const sequencia = [];
+  let q = 85;
+  for (let i = 0; i < 5; i++) {
+    const p = proximaCompressao(q);
+    sequencia.push(`${p.qualidade}${p.reduzir ? '↓' : ''}`);
+    q = p.qualidade;
+  }
+  assert.deepEqual(sequencia, ['75', '65', '55', '75↓', '65']);
+  assert.equal(tamanhoFonteCarimbo(2048), 48);
+  assert.equal(tamanhoFonteCarimbo(1199), 24);
+});
+
+/** JPEG mínimo com EXIF: IFD0 com DateTime e o ponteiro do Exif IFD com DateTimeOriginal. */
+function jpegComExif({ original, data, bigEndian = false }: { original?: string; data?: string; bigEndian?: boolean }): Uint8Array {
+  const tiff: number[] = [];
+  const u16 = (v: number) => (bigEndian ? [v >> 8, v & 255] : [v & 255, v >> 8]);
+  const u32 = (v: number) => (bigEndian ? [v >>> 24, (v >> 16) & 255, (v >> 8) & 255, v & 255] : [v & 255, (v >> 8) & 255, (v >> 16) & 255, v >>> 24]);
+  const ascii = (s: string) => [...s].map((c) => c.charCodeAt(0)).concat(0);
+  // Layout: header(8) | IFD0 (2 + 2*12 + 4 = 30) | Exif IFD (2 + 12 + 4 = 18) | strings
+  const ifd0 = 8;
+  const exifIfd = ifd0 + 30;
+  const textoData = exifIfd + 18;
+  const textoOriginal = textoData + 20;
+  tiff.push(...(bigEndian ? [0x4d, 0x4d] : [0x49, 0x49]), ...u16(42), ...u32(ifd0));
+  tiff.push(...u16(2));
+  tiff.push(...u16(0x0132), ...u16(2), ...u32(20), ...u32(textoData));
+  tiff.push(...u16(0x8769), ...u16(4), ...u32(1), ...u32(exifIfd));
+  tiff.push(...u32(0));
+  tiff.push(...u16(1), ...u16(0x9003), ...u16(2), ...u32(20), ...u32(textoOriginal), ...u32(0));
+  tiff.push(...ascii((data ?? '').padEnd(19, ' ')), ...ascii((original ?? '').padEnd(19, ' ')));
+  const app1 = [...ascii('Exif'), 0, ...tiff];
+  const tamanho = app1.length + 2;
+  return new Uint8Array([0xff, 0xd8, 0xff, 0xe1, tamanho >> 8, tamanho & 255, ...app1, 0xff, 0xda, 0, 2, 0xff, 0xd9]);
+}
+
+test('EXIF: DateTimeOriginal, depois DateTime; anos antes de 1990 e arquivos sem EXIF ficam sem data', () => {
+  assert.deepEqual(dataOriginalDaFoto(jpegComExif({ original: '2026:10:30 14:22:05', data: '2026:11:01 08:00:00' })), new Date(2026, 9, 30, 14, 22, 5));
+  assert.deepEqual(dataOriginalDaFoto(jpegComExif({ original: '2026:10:30 14:22:05', bigEndian: true })), new Date(2026, 9, 30, 14, 22, 5));
+  assert.deepEqual(dataOriginalDaFoto(jpegComExif({ data: '2025:01:02 03:04:05' })), new Date(2025, 0, 2, 3, 4, 5));
+  assert.equal(dataOriginalDaFoto(jpegComExif({ original: '1980:01:01 00:00:00' })), null);
+  assert.equal(dataOriginalDaFoto(new Uint8Array([0xff, 0xd8, 0xff, 0xda, 0, 2])), null);
+  assert.equal(dataOriginalDaFoto(new Uint8Array([0x89, 0x50, 0x4e, 0x47])), null);
+  assert.equal(dataOriginalDaFoto(jpegComExif({ original: '2026:10:30 14:22:05' }).slice(0, 40)), null);
+});
+
+test('assinatura: comprimento dos traços (mínimo 60) e JPEG de 1200 px na proporção da área', () => {
+  assert.equal(comprimentoDosTracos([[{ x: 0, y: 0 }, { x: 30, y: 40 }], [{ x: 5, y: 5 }], [{ x: 0, y: 0 }, { x: 10, y: 0 }]]), 60);
+  assert.ok(comprimentoDosTracos([[{ x: 0, y: 0 }, { x: 59, y: 0 }]]) < COMPRIMENTO_MINIMO_ASSINATURA);
+  assert.deepEqual(medidasAssinatura({ largura: 600, altura: 280 }), { largura: 1200, altura: 560, escala: 2, espessura: 6 });
+  assert.equal(medidasAssinatura({ largura: 2400, altura: 100 }).espessura, 2);
+  assert.equal(medidasAssinatura({ largura: 100, altura: 50 }).espessura, 12);
 });
