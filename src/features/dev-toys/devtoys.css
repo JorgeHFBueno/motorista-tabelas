@@ -15,6 +15,7 @@
   --dt-papel: #080603;   /* o "papel" branco do Mac vira fundo escuro */
   --dt-tinta: #ffb000;   /* a "tinta" preta vira âmbar */
   --dt-apagado: #7a5400; /* âmbar apagado: desabilitado e padrões */
+  --dt-vermelho: #ff4a2e; /* copas e ouros nas cartas */
 
   position: fixed;
   inset: 0;
@@ -482,13 +483,13 @@
   display: flex;
   flex-direction: column;
   flex: none;
-  width: calc(var(--dt-e) * 38px);
-  height: calc(var(--dt-e) * 54px);
-  padding: calc(var(--dt-e) * 3px);
+  width: calc(var(--dt-e) * 50px);
+  height: calc(var(--dt-e) * 72px);
+  padding: calc(var(--dt-e) * 4px);
   border: 1px solid var(--dt-tinta);
-  border-radius: calc(var(--dt-e) * 3px);
+  border-radius: calc(var(--dt-e) * 4px);
   background: var(--dt-papel);
-  font-size: calc(var(--dt-e) * 11px);
+  font-size: calc(var(--dt-e) * 14px);
   line-height: 1;
   animation: dt-carta-entra 160ms ease-out;
 }
@@ -504,20 +505,32 @@
 }
 
 .devtoys .dt-naipe {
-  width: calc(var(--dt-e) * 7px);
-  height: calc(var(--dt-e) * 7px);
+  width: calc(var(--dt-e) * 9px);
+  height: calc(var(--dt-e) * 9px);
 }
 
 .devtoys .dt-carta-meio {
   flex: 1;
   display: grid;
   place-items: center;
-  font-size: calc(var(--dt-e) * 18px);
+  font-size: calc(var(--dt-e) * 26px);
 }
 
 .devtoys .dt-naipe-grande {
-  width: calc(var(--dt-e) * 14px);
-  height: calc(var(--dt-e) * 14px);
+  width: calc(var(--dt-e) * 21px);
+  height: calc(var(--dt-e) * 21px);
+}
+
+/* copas e ouros: só o rótulo e o naipe; a moldura segue âmbar */
+.devtoys .dt-carta-vermelha .dt-carta-canto,
+.devtoys .dt-carta-vermelha .dt-carta-meio {
+  color: var(--dt-vermelho);
+}
+
+.devtoys.dt-crt-on .dt-carta-vermelha {
+  text-shadow:
+    0 0 calc(var(--crt-forca) * 2px) var(--dt-vermelho),
+    0 0 calc(var(--crt-forca) * 7px) #ff4a2e55;
 }
 
 /* verso: o xadrez de 1 px do Finder, com moldura */
@@ -541,26 +554,51 @@
 }
 
 /* ---- 21 ---- */
+.devtoys .dt-21 {
+  font-size: calc(var(--dt-e) * 15px);
+}
+
+.devtoys .dt-21-rotulo {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: calc(var(--dt-e) * 8px);
+  min-height: calc(var(--dt-e) * 22px);
+  margin-bottom: calc(var(--dt-e) * 8px);
+  letter-spacing: 1px;
+}
+
+.devtoys .dt-21-pontos {
+  padding: 0 calc(var(--dt-e) * 6px);
+  color: var(--dt-papel);
+  background: var(--dt-tinta);
+  text-shadow: none;
+}
+
 .devtoys .dt-21-mao {
   display: flex;
   flex-wrap: wrap;
-  gap: calc(var(--dt-e) * 6px);
-  min-height: calc(var(--dt-e) * 54px);
-  margin-bottom: calc(var(--dt-e) * 10px);
+  justify-content: center;
+  gap: calc(var(--dt-e) * 8px);
+  min-height: calc(var(--dt-e) * 72px);
+  margin-bottom: calc(var(--dt-e) * 14px);
 }
 
 .devtoys .dt-21-aviso {
+  text-align: center;
   font-weight: bold;
-  padding-top: calc(var(--dt-e) * 6px);
+  padding-top: calc(var(--dt-e) * 10px);
   border-top: 1px dotted var(--dt-apagado);
 }
 
 .devtoys .dt-21-botoes {
   display: flex;
   flex-wrap: wrap;
+  justify-content: center;
   align-items: center;
-  gap: calc(var(--dt-e) * 8px);
-  margin-bottom: calc(var(--dt-e) * 6px);
+  gap: calc(var(--dt-e) * 12px);
+  min-height: calc(var(--dt-e) * 22px);
+  margin-bottom: calc(var(--dt-e) * 12px);
 }
 
 .devtoys .dt-21-botoes button:hover:not(:disabled),
@@ -574,6 +612,22 @@
   color: var(--dt-apagado);
 }
 
+/* placar em colunas, espalhado na largura da janela */
 .devtoys .dt-21-placar {
+  display: flex;
+  justify-content: space-between;
+  gap: calc(var(--dt-e) * 12px);
+  margin: 0;
+  padding-top: calc(var(--dt-e) * 8px);
+  border-top: 1px dotted var(--dt-apagado);
+  text-align: center;
+}
+
+.devtoys .dt-21-placar dt {
   color: var(--dt-apagado);
+  font-size: calc(var(--dt-e) * 11px);
+}
+
+.devtoys .dt-21-placar dd {
+  margin: 0;
 }

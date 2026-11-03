@@ -65,13 +65,22 @@ export default function VinteUmToy() {
   const semFichas = !jogando && !revelando && precisaEmprestimo(mesa.fichas);
   const taxa = placar.maos ? Math.round((100 * placar.vitorias) / placar.maos) : 0;
 
+  const meus = pontos(mesa.jogador);
+  const naMesa = jogando || revelando ? mesa.aposta : 0;
+
   return (
     <div className="dt-21">
-      <p>BANCA{mesa.banca.length ? ` . ${pontosBanca}${jogando ? ' + ?' : ''}` : ''}</p>
+      <p className="dt-21-rotulo">
+        BANCA
+        {mesa.banca.length > 0 && <span className="dt-21-pontos">{pontosBanca}{jogando ? ' + ?' : ''}</span>}
+      </p>
       <div className="dt-21-mao">
         {banca.map((c, i) => <CartaView key={i} carta={c} virada={jogando && i === 1} />)}
       </div>
-      <p>VOCE{mesa.jogador.length ? ` . ${pontos(mesa.jogador).total}${pontos(mesa.jogador).macia ? ' (MACIO)' : ''}` : ''}</p>
+      <p className="dt-21-rotulo">
+        VOCE
+        {mesa.jogador.length > 0 && <span className="dt-21-pontos">{meus.total}{meus.macia ? ' MACIO' : ''}</span>}
+      </p>
       <div className="dt-21-mao">
         {mesa.jogador.map((c, i) => <CartaView key={i} carta={c} />)}
       </div>
@@ -79,7 +88,6 @@ export default function VinteUmToy() {
       <p className="dt-21-aviso" aria-live="polite">
         {resultado ? `${FRASE[resultado]} (${saldo >= 0 ? '+' : ''}${saldo})` : revelando ? 'A BANCA JOGA...' : jogando ? 'PEDIR OU PARAR?' : 'FACA SUA APOSTA'}
       </p>
-      <p>FICHAS {fichas}{jogando || revelando ?` . NA MESA ${mesa.aposta}` : ''} . RECORDE {placar.recorde}</p>
 
       <div className="dt-21-botoes">
         {jogando ? (
@@ -112,7 +120,14 @@ export default function VinteUmToy() {
           </>
         )}
       </div>
-      <p className="dt-21-placar">MAOS {placar.maos} . VITORIAS {placar.vitorias} ({taxa}%){placar.emprestimos ? ` . EMPRESTIMOS ${placar.emprestimos}` : ''}</p>
+      <dl className="dt-21-placar">
+        <div><dt>FICHAS</dt><dd>{fichas}</dd></div>
+        <div><dt>NA MESA</dt><dd>{naMesa || '-'}</dd></div>
+        <div><dt>RECORDE</dt><dd>{placar.recorde}</dd></div>
+        <div><dt>MAOS</dt><dd>{placar.maos}</dd></div>
+        <div><dt>VITORIAS</dt><dd>{placar.vitorias} ({taxa}%)</dd></div>
+        {placar.emprestimos > 0 && <div><dt>EMPRESTIMOS</dt><dd>{placar.emprestimos}</dd></div>}
+      </dl>
     </div>
   );
 }

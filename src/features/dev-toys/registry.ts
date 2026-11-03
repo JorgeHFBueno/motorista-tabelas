@@ -46,6 +46,6 @@ export const DEV_TOYS: DevToy[] = [
     // duas cartas, a da frente com um losango
     icone: 'M6 1h8v1H6zM6 2h1v2H6zM13 2h1v10h-1zM10 11h3v1h-3zM2 4h8v1H2zM2 14h8v1H2zM2 5h1v9H2zM9 5h1v9H9zM5 7h2v1H5zM4 8h4v2H4zM5 10h2v1H5z',
     componente: lazy(() => import('./toys/vinteum/VinteUmToy')),
-    largura: 330, // seis cartas por linha
+    largura: 560, // mesa larga: nove cartas por linha
   },
 ];
