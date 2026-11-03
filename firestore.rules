@@ -485,7 +485,8 @@ service cloud.firestore {
     }
 
     // Fleet V2. Operational users (Saída/Chegada, fuel and checklist) update only the last meter reading, never
-    // backwards, whether or not the item is active.
+    // backwards, whether or not the item is active. The mechanic may correct it downwards (checklist "Esse é o KM
+    // correto", `medidor.corrigido`).
     match /veiculos-v2/{itemFrotaId} {
       allow read: if isAuthorized();
       allow create: if isAdm2();
@@ -501,6 +502,7 @@ service cloud.firestore {
             resource.data.get('operacional', {}).get('quilometragemUltima', null) == null
             || request.resource.data.operacional.quilometragemUltima
               >= resource.data.operacional.quilometragemUltima
+            || isMecanico()
           )
         );
       allow delete: if false;
@@ -633,9 +635,35 @@ service cloud.firestore {
         && data.get('itens', null) is list;
     }
 
+    // Driver/operator: a name, and a uid that is null (typed name) or an active employee. Signature: the file of this
+    // checklist, or "motorista ausente" with a reason.
+    function validChecklistV2Pessoas(checklistId) {
+      let data = request.resource.data;
+      let motorista = data.get('motoristaOperador', null);
+      let uid = motorista is map ? motorista.get('uid', null) : null;
+      let funcionario = nonEmptyString(uid) && exists(/databases/$(database)/documents/funcionarios/$(uid))
+        ? get(/databases/$(database)/documents/funcionarios/$(uid)).data
+        : {};
+      let assinatura = data.get('assinatura', null);
+      let status = assinatura is map ? assinatura.get('status', '') : '';
+      return motorista is map
+        && nonEmptyString(motorista.get('nome', ''))
+        && motorista.get('nome', '').trim() != ''
+        && (uid == null || funcionario.get('ativo', false) == true)
+        && assinatura is map
+        && (
+          (status == 'assinada' && assinatura.get('path', '') == 'checklists-v2/' + checklistId + '/assinatura_1.jpg')
+          || (
+            status == 'ausente'
+            && nonEmptyString(assinatura.get('motivo', ''))
+            && assinatura.get('motivo', '').trim() != ''
+          )
+        );
+    }
+
     match /checklists-v2/{checklistId} {
       allow read: if isMecanico() || isAdm2();
-      allow create: if (isMecanico() || isAdm2()) && validChecklistV2Create();
+      allow create: if (isMecanico() || isAdm2()) && validChecklistV2Create() && validChecklistV2Pessoas(checklistId);
       allow update, delete: if false;
     }
 

@@ -105,6 +105,10 @@ async function seed() {
       schemaVersion: 2, cadastro: { ativo: false }, identificacao: { categoria: 'PLACA', identificador: 'OLD1A23', nome: 'Caminhão parado' },
       operacional: { quilometragemUltima: 90000 },
     });
+    await setDoc(doc(db, 'veiculos-v2', 'vv-correcao'), {
+      schemaVersion: 2, cadastro: { ativo: true }, identificacao: { categoria: 'PLACA', identificador: 'COR1R23', nome: 'Caminhão KM errado' },
+      operacional: { quilometragemUltima: 500000 },
+    });
     await setDoc(doc(db, 'veiculos', 'v1'), { placa: 'ABC1D23', categoria: 'truck', quilometragemUltima: 100, dataUltimaAtualizacao: 1 });
     await setDoc(doc(db, 'bombas', 'diesel_patio'), { nomeBomba: 'Pátio', montanteAtual: 1000, estoqueAtual: 5000, ultimoAbastecimento: 1, ultimoFrentista: 'old', ativo: true });
     await setDoc(doc(db, 'atividades', 'historic'), { tipo: 'saida', motorista: 'uid-user' });
@@ -860,6 +864,8 @@ function checklistV2(overrides = {}) {
     schemaVersion: 1, tipo: 'saida', catalogo: 'veiculos', catalogoVersao: '1',
     item_frota_id: 'vv1', item_frota_snapshot: { categoria: 'PLACA', identificador: 'ABC1D23', nome: 'Caminhão 1' },
     medidor: { tipo: 'km', valor: 126000, anterior: 125000 }, guincho: false,
+    motoristaOperador: { uid: 'uid-user', nome: 'User' },
+    assinatura: { status: 'ausente', motivo: 'Motorista em viagem', em: Timestamp.fromMillis(2) },
     criadoPor: { uid: 'uid-mecanico', nome: 'Mecanico' }, criadoPorUid: 'uid-mecanico',
     iniciadoEm: Timestamp.fromMillis(1), concluidoEm: Timestamp.fromMillis(2), registradoEm: Timestamp.fromMillis(3),
     totais: { ok: 1, avaria: 0, naoSeAplica: 0 },
@@ -881,6 +887,48 @@ test('[firestore] checklists-v2: mechanic saves in one transaction (read before 
     }));
     tx.update(veiculo, { 'operacional.quilometragemUltima': 95000, 'operacional.dataUltimaAtualizacao': Timestamp.fromMillis(4) });
   }));
+});
+test('[firestore] checklists-v2: mechanic corrects the meter downwards in the saving transaction; others cannot', async () => {
+  await assertFails(updateDoc(doc(dbAs('canonicalUser'), 'veiculos-v2', 'vv-correcao'), { 'operacional.quilometragemUltima': 50000 }));
+  await assertFails(updateDoc(doc(dbAs('canonicalFrentista'), 'veiculos-v2', 'vv-correcao'), { 'operacional.quilometragemUltima': 50000 }));
+  const db = dbAs('mecanico');
+  const id = 'CorrecaoKmParaBaixo1';
+  const checklist = doc(db, 'checklists-v2', id);
+  const veiculo = doc(db, 'veiculos-v2', 'vv-correcao');
+  await assertSucceeds(runTransaction(db, async (tx) => {
+    if ((await tx.get(checklist)).exists()) return;
+    await tx.get(veiculo);
+    tx.set(checklist, checklistV2({
+      item_frota_id: 'vv-correcao', item_frota_snapshot: { categoria: 'PLACA', identificador: 'COR1R23', nome: 'Caminhão KM errado' },
+      medidor: { tipo: 'km', valor: 50000, anterior: 500000, corrigido: true },
+      assinatura: { status: 'assinada', path: `checklists-v2/${id}/assinatura_1.jpg`, em: Timestamp.fromMillis(2), bytes: 30000, largura: 1200, altura: 600 },
+    }));
+    tx.update(veiculo, { 'operacional.quilometragemUltima': 50000, 'operacional.dataUltimaAtualizacao': Timestamp.fromMillis(4) });
+  }));
+  // Still only the meter fields, as integers.
+  await assertFails(updateDoc(doc(db, 'veiculos-v2', 'vv-correcao'), { 'operacional.quilometragemUltima': 40000.5 }));
+  await assertFails(updateDoc(doc(db, 'veiculos-v2', 'vv-correcao'), { 'operacional.quilometragemUltima': 40000, 'identificacao.nome': 'Outro' }));
+  await assertSucceeds(updateDoc(doc(db, 'veiculos-v2', 'vv-correcao'), { 'operacional.quilometragemUltima': 40000 }));
+});
+test('[firestore] checklists-v2: driver/operator and signature are validated on create', async () => {
+  const db = dbAs('mecanico');
+  const bad = {
+    'sem-motorista': { motoristaOperador: null },
+    'motorista-sem-nome': { motoristaOperador: { uid: null, nome: '  ' } },
+    'motorista-inexistente': { motoristaOperador: { uid: 'uid-nao-existe', nome: 'X' } },
+    'motorista-inativo': { motoristaOperador: { uid: 'uid-inactive', nome: 'Inactive' } },
+    'sem-assinatura': { assinatura: null },
+    'assinatura-status': { assinatura: { status: 'talvez', em: Timestamp.fromMillis(2) } },
+    'assinatura-outro-path': { assinatura: { status: 'assinada', path: 'checklists-v2/outro/assinatura_1.jpg', em: Timestamp.fromMillis(2) } },
+    'ausente-sem-motivo': { assinatura: { status: 'ausente', motivo: ' ', em: Timestamp.fromMillis(2) } },
+  };
+  for (const [id, change] of Object.entries(bad)) {
+    await assertFails(setDoc(doc(db, 'checklists-v2', `bad-${id}`), checklistV2(change)));
+  }
+  await assertSucceeds(setDoc(doc(db, 'checklists-v2', 'ok-nome-digitado'), checklistV2({ motoristaOperador: { uid: null, nome: 'Fulano terceirizado' } })));
+  await assertSucceeds(setDoc(doc(db, 'checklists-v2', 'ok-assinada'), checklistV2({
+    assinatura: { status: 'assinada', path: 'checklists-v2/ok-assinada/assinatura_1.jpg', em: Timestamp.fromMillis(2), bytes: 30000, largura: 1200, altura: 600 },
+  })));
 });
 test('[firestore] checklists-v2: mechanic and adm2 read all; other employees and legacy-only cannot', async () => {
   await assertSucceeds(getDocs(query(collection(dbAs('mecanico'), 'checklists-v2'), where('item_frota_id', '==', 'vv-inativo'))));
