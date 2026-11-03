@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { Alert, Box, Button, Card, CardContent, Chip, CircularProgress, Container, Dialog, DialogActions, DialogContent, DialogTitle, Divider, Stack, Typography } from '@mui/material';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import { useNavigate, useParams } from 'react-router-dom';
-import { obterChecklist, urlDaFoto, type Checklist, type ChecklistFoto, type ChecklistItem, type ChecklistStatus } from '../services/checklists.service';
+import { arquivoDaFoto, obterChecklist, urlDaFoto, type Checklist, type ChecklistFoto, type ChecklistItem, type ChecklistStatus } from '../services/checklists.service';
 
 const dateFmt = new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
 const STATUS: Record<ChecklistStatus, { label: string; color: 'success' | 'error' | 'default' }> = {
@@ -11,6 +11,49 @@ const STATUS: Record<ChecklistStatus, { label: string; color: 'success' | 'error
   nao_se_aplica: { label: 'Não se aplica', color: 'default' },
 };
 const ORDEM: ChecklistStatus[] = ['avaria', 'ok', 'nao_se_aplica'];
+
+type FotoAberta = { url: string; titulo: string; path: string };
+
+/** "Salvar foto": baixa a original e abre o menu de compartilhar (no iPhone, "Salvar imagem"); sem ele, baixa o arquivo.
+ * A foto é baixada ao abrir, porque o iPhone só abre o menu logo depois do toque. Sem o download, fica "Abrir original". */
+function SalvarFoto({ path, titulo }: { path: string; titulo: string }) {
+  const [arquivo, setArquivo] = useState<File | null>(null);
+  const [falhou, setFalhou] = useState(false);
+  useEffect(() => {
+    let active = true;
+    arquivoDaFoto(path).then((f) => active && setArquivo(f)).catch((error) => {
+      console.warn('Checklist: foto não baixada para salvar', error);
+      if (active) setFalhou(true);
+    });
+    return () => { active = false; };
+  }, [path]);
+  if (falhou) return null;
+  const salvar = () => {
+    if (!arquivo) return;
+    if (navigator.canShare?.({ files: [arquivo] })) {
+      navigator.share({ files: [arquivo], title: titulo }).catch(() => undefined);
+      return;
+    }
+    const url = URL.createObjectURL(arquivo);
+    const link = Object.assign(document.createElement('a'), { href: url, download: arquivo.name });
+    link.click();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  };
+  return <Button variant="contained" disabled={!arquivo} onClick={salvar}>{arquivo ? 'Salvar foto' : 'Preparando foto...'}</Button>;
+}
+
+function Assinatura({ path }: { path: string }) {
+  const [url, setUrl] = useState<string | null>(null);
+  const [erro, setErro] = useState(false);
+  useEffect(() => {
+    let active = true;
+    urlDaFoto(path).then((u) => active && setUrl(u)).catch(() => active && setErro(true));
+    return () => { active = false; };
+  }, [path]);
+  if (erro) return <Typography variant="caption" color="error">Assinatura indisponível</Typography>;
+  if (!url) return <CircularProgress size={20} />;
+  return <Box component="img" src={url} alt="Assinatura do motorista" sx={{ maxWidth: 360, width: '100%', border: '1px solid', borderColor: 'divider', borderRadius: 1, bgcolor: '#fff' }} />;
+}
 
 function Foto({ foto, titulo, onAbrir }: { foto: ChecklistFoto; titulo: string; onAbrir: (url: string) => void }) {
   const [url, setUrl] = useState<string | null>(null);
@@ -28,7 +71,7 @@ function Foto({ foto, titulo, onAbrir }: { foto: ChecklistFoto; titulo: string; 
   );
 }
 
-function Item({ item, onAbrir }: { item: ChecklistItem; onAbrir: (url: string, titulo: string) => void }) {
+function Item({ item, onAbrir }: { item: ChecklistItem; onAbrir: (aberta: FotoAberta) => void }) {
   const s = STATUS[item.status];
   return (
     <Stack spacing={1} sx={{ py: 1.5 }}>
@@ -39,19 +82,20 @@ function Item({ item, onAbrir }: { item: ChecklistItem; onAbrir: (url: string, t
       {item.observacao && <Typography variant="body2" sx={{ whiteSpace: 'pre-wrap' }}>{item.observacao}</Typography>}
       {item.fotos.length > 0 && (
         <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
-          {item.fotos.map((f) => <Foto key={f.path} foto={f} titulo={item.titulo} onAbrir={(url) => onAbrir(url, item.titulo)} />)}
+          {item.fotos.map((f) => <Foto key={f.path} foto={f} titulo={item.titulo} onAbrir={(url) => onAbrir({ url, titulo: item.titulo, path: f.path })} />)}
         </Stack>
       )}
     </Stack>
   );
 }
 
-export default function ChecklistDetalhePage() {
+/** Detalhe de um checklist: em /frota/checklists (adm2) e no histórico do mecânico (/checklist/historico). */
+export default function ChecklistDetalhePage({ voltarPara = '/frota/checklists', voltarRotulo = 'Checklists' }: { voltarPara?: string; voltarRotulo?: string }) {
   const { id = '' } = useParams();
   const navigate = useNavigate();
   const [checklist, setChecklist] = useState<Checklist | null>(null);
   const [estado, setEstado] = useState<'carregando' | 'ok' | 'nao-encontrado' | 'erro'>('carregando');
-  const [aberta, setAberta] = useState<{ url: string; titulo: string } | null>(null);
+  const [aberta, setAberta] = useState<FotoAberta | null>(null);
 
   useEffect(() => {
     let active = true;
@@ -69,7 +113,7 @@ export default function ChecklistDetalhePage() {
     return [...grupos.entries()];
   }, [checklist]);
 
-  const voltar = <Button startIcon={<ArrowBackIcon />} variant="outlined" onClick={() => navigate('/frota/checklists')}>Checklists</Button>;
+  const voltar = <Button startIcon={<ArrowBackIcon />} variant="outlined" onClick={() => navigate(voltarPara)}>{voltarRotulo}</Button>;
   if (estado === 'carregando') return <Container sx={{ py: 4 }}><CircularProgress /></Container>;
   if (estado !== 'ok' || !checklist) {
     return <Container sx={{ py: 3 }}><Stack spacing={2}>{voltar}<Alert severity={estado === 'erro' ? 'error' : 'warning'}>{estado === 'erro' ? 'Não foi possível carregar o checklist.' : 'Checklist não encontrado.'}</Alert></Stack></Container>;
@@ -105,10 +149,16 @@ export default function ChecklistDetalhePage() {
             <Chip label={`Não se aplica: ${c.totais.naoSeAplica}`} />
           </Stack>
         </CardContent></Card>
+        {c.assinaturaPath && (
+          <Card><CardContent>
+            <Typography variant="h6" gutterBottom>Assinatura de {c.motorista || 'motorista'}</Typography>
+            <Assinatura path={c.assinaturaPath} />
+          </CardContent></Card>
+        )}
         {partes.map(([parte, itens]) => (
           <Card key={parte}><CardContent>
             <Typography variant="h6" sx={{ textTransform: 'capitalize' }}>{parte.replace(/_/g, ' ')}</Typography>
-            <Stack divider={<Divider flexItem />}>{itens.map((item) => <Item key={item.itemId} item={item} onAbrir={(url, titulo) => setAberta({ url, titulo })} />)}</Stack>
+            <Stack divider={<Divider flexItem />}>{itens.map((item) => <Item key={item.itemId} item={item} onAbrir={setAberta} />)}</Stack>
           </CardContent></Card>
         ))}
       </Stack>
@@ -117,6 +167,7 @@ export default function ChecklistDetalhePage() {
         <DialogContent dividers>{aberta && <Box component="img" src={aberta.url} alt={aberta.titulo} sx={{ maxHeight: '72vh', maxWidth: '100%', objectFit: 'contain', display: 'block', mx: 'auto' }} />}</DialogContent>
         <DialogActions>
           {aberta && <Button component="a" href={aberta.url} target="_blank" rel="noreferrer">Abrir original</Button>}
+          {aberta && <SalvarFoto key={aberta.path} path={aberta.path} titulo={aberta.titulo} />}
           <Button onClick={() => setAberta(null)}>Fechar</Button>
         </DialogActions>
       </Dialog>

@@ -19,6 +19,7 @@ import {
   proximaCompressao, tamanhoFonteCarimbo, textoCarimbo,
 } from '../src/features/checklist-mecanico/domain/foto';
 import { EnviadorChecklist, esperaApos } from '../src/features/checklist-mecanico/domain/enviador';
+import { normalizarChecklist } from '../src/services/checklist-normalizer';
 
 const caminhao: ChecklistVeiculo = { id: 'vv1', categoria: 'PLACA', identificador: 'ABC1D23', nome: 'Caminhão 1', medidorUltimo: 125000 };
 const carregadeira: ChecklistVeiculo = { id: 'vm1', categoria: 'EXTRA', identificador: 'CARREGADEIRA', nome: 'Carregadeira', medidorUltimo: 8700 };
@@ -499,4 +500,19 @@ test('fila: só envia os checklists de quem está logado; sem login, nada', asyn
 
 test('fila: esperas de 30 s, 1, 2, 5, 10 e 15 min (e 15 min dali em diante)', () => {
   assert.deepEqual([1, 2, 3, 4, 5, 6, 7, 20].map(esperaApos), [30_000, 60_000, 120_000, 300_000, 600_000, 900_000, 900_000, 900_000]);
+});
+
+// ------------------------------------------------------------------ histórico
+test('histórico: o documento montado é lido pela tela de detalhe, com a assinatura e as fotos', () => {
+  const doc = montarDocumento(pendente(), new Date('2026-11-02T09:32:00Z'));
+  const c = normalizarChecklist(doc, 'AbCdEfGhIjKlMnOpQrSt');
+  assert.equal(c.assinaturaPath, 'checklists-v2/AbCdEfGhIjKlMnOpQrSt/assinatura_1.jpg');
+  assert.equal(c.assinatura, 'Assinada');
+  assert.equal(c.motorista, 'User');
+  assert.equal(c.placa, 'CARREGADEIRA');
+  assert.deepEqual(c.totais, { ok: 73, avaria: 1, naoSeAplica: 1 });
+  assert.equal(c.itens.find((i) => i.itemId === 'frente_farolete')?.fotos.length, 2);
+  const ausente = normalizarChecklist({ ...doc, assinatura: { status: 'ausente', motivo: 'Em viagem', em: new Date() } }, 'X');
+  assert.equal(ausente.assinaturaPath, null);
+  assert.equal(ausente.assinatura, 'Ausente — Em viagem');
 });

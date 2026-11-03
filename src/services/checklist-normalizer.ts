@@ -14,6 +14,8 @@ export type Checklist = {
   motorista: string;
   mecanico: string;
   assinatura: string;
+  /** Storage path of the signature image (`assinatura.status == 'assinada'`), or null. */
+  assinaturaPath: string | null;
   concluidoEm: Date | null;
   totais: { ok: number; avaria: number; naoSeAplica: number };
   itens: ChecklistItem[];
@@ -50,6 +52,7 @@ export function normalizarChecklist(raw: Record<string, unknown>, id: string): C
     motorista: text(map(raw.motoristaOperador).nome),
     mecanico: text(map(raw.criadoPor).nome),
     assinatura: assinatura.status === 'assinada' ? 'Assinada' : assinatura.status === 'ausente' ? `Ausente${text(assinatura.motivo) ? ` — ${text(assinatura.motivo)}` : ''}` : '—',
+    assinaturaPath: assinatura.status === 'assinada' ? text(assinatura.path) || null : null,
     concluidoEm: toDate(raw.concluidoEm),
     totais: { ok: num(totais.ok), avaria: num(totais.avaria), naoSeAplica: num(totais.naoSeAplica) },
     itens: itens.map((i) => ({

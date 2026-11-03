@@ -3,6 +3,7 @@ import { collection, getDocs, query, where } from 'firebase/firestore';
 import { db } from '../../../firebase';
 import { listVeiculosAtivos } from '../../../services/veiculos.service';
 import type { ItemFrotaV2 } from '../../../utils/cadastrosV2';
+import { normalizarChecklist, type Checklist } from '../../../services/checklist-normalizer';
 import type { ChecklistMotorista, ChecklistVeiculo } from '../domain/rascunho';
 import { naoSeAplicaDoUltimo } from '../domain/regras';
 
@@ -37,4 +38,12 @@ export async function listarMotoristasChecklist(): Promise<ChecklistMotorista[]>
 export async function naoSeAplicaDoUltimoChecklist(veiculoId: string): Promise<Set<string>> {
   const snapshot = await getDocs(query(collection(db, 'checklists-v2'), where('item_frota_id', '==', veiculoId)));
   return naoSeAplicaDoUltimo(snapshot.docs.map((d) => d.data()));
+}
+
+/** Histórico do mecânico: os checklists que ele fez, do mais novo ao mais antigo (ordenado no cliente: sem índice composto). */
+export async function listarChecklistsDoAutor(uid: string): Promise<Checklist[]> {
+  const snapshot = await getDocs(query(collection(db, 'checklists-v2'), where('criadoPorUid', '==', uid)));
+  return snapshot.docs
+    .map((d) => normalizarChecklist(d.data(), d.id))
+    .sort((a, b) => (b.concluidoEm?.getTime() ?? 0) - (a.concluidoEm?.getTime() ?? 0));
 }

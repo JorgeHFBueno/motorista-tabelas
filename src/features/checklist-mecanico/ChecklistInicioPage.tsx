@@ -5,6 +5,7 @@ import {
 } from '@mui/material';
 import DirectionsCarRoundedIcon from '@mui/icons-material/DirectionsCarRounded';
 import ConstructionRoundedIcon from '@mui/icons-material/ConstructionRounded';
+import HistoryRoundedIcon from '@mui/icons-material/HistoryRounded';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { itemFrotaLabel, type ItemFrotaV2 } from '../../utils/cadastrosV2';
@@ -64,7 +65,10 @@ export default function ChecklistInicioPage() {
 
   return (
     <Box sx={{ maxWidth: 640, mx: 'auto', px: 2, py: 2, pb: 6 }}>
-      <Typography variant="h5" fontWeight={800} sx={{ mb: 2 }}>Checklist</Typography>
+      <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 2 }}>
+        <Typography variant="h5" fontWeight={800}>Checklist</Typography>
+        <Button variant="outlined" startIcon={<HistoryRoundedIcon />} onClick={() => navigate('/checklist/historico')}>Histórico</Button>
+      </Stack>
       {fila.pendentes > 0 && (
         <Alert
           severity={fila.enviando ? 'info' : 'warning'}

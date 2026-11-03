@@ -1,5 +1,5 @@
 import { collection, doc, getDoc, getDocs } from 'firebase/firestore';
-import { getDownloadURL, ref } from 'firebase/storage';
+import { getBlob, getDownloadURL, ref } from 'firebase/storage';
 import { db, storage } from '../firebase';
 
 import { normalizarChecklist, type Checklist } from './checklist-normalizer';
@@ -21,4 +21,10 @@ const urlCache = new Map<string, Promise<string>>();
 export function urlDaFoto(path: string): Promise<string> {
   if (!urlCache.has(path)) urlCache.set(path, getDownloadURL(ref(storage, path)));
   return urlCache.get(path)!;
+}
+
+/** The original photo as a file, to save or share ("Salvar foto"). */
+export async function arquivoDaFoto(path: string): Promise<File> {
+  const blob = await getBlob(ref(storage, path));
+  return new File([blob], path.split('/').pop() || 'foto.jpg', { type: blob.type || 'image/jpeg' });
 }

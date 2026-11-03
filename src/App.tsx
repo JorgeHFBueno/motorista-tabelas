@@ -39,6 +39,7 @@ const FridayApp = lazy(() => import('./features/friday-gestao-interna/App'));
 const DevToysPage = lazy(() => import('./features/dev-toys/DevToysPage'));
 const ChecklistInicioPage = lazy(() => import('./features/checklist-mecanico/ChecklistInicioPage'));
 const ChecklistItensPage = lazy(() => import('./features/checklist-mecanico/ChecklistItensPage'));
+const ChecklistHistoricoPage = lazy(() => import('./features/checklist-mecanico/ChecklistHistoricoPage'));
 
 function LoadingFallback({ label }: { label?: string }) {
   return (
@@ -81,6 +82,8 @@ export default function App() {
           <Route element={<PrivateRoute permite={(p) => temCredencial(p, 'mecanico')} />}>
             <Route path="checklist" element={<ChecklistInicioPage />} />
             <Route path="checklist/itens" element={<ChecklistItensPage />} />
+            <Route path="checklist/historico" element={<ChecklistHistoricoPage />} />
+            <Route path="checklist/historico/:id" element={<ChecklistDetalhePage voltarPara="/checklist/historico" voltarRotulo="Histórico" />} />
           </Route>
           {/* Área DEV: só a credencial retr0, nem o adm2 entra sem ela. */}
           <Route element={<PrivateRoute permite={(p) => temCredencial(p, 'retr0')} />}>
