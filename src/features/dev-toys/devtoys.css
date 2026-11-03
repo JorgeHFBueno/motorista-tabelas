@@ -476,3 +476,104 @@
   grid-row: 1 / span 2;
   align-self: center;
 }
+
+/* ---- Cartas (baralho comum dos jogos) ---- */
+.devtoys .dt-carta {
+  display: flex;
+  flex-direction: column;
+  flex: none;
+  width: calc(var(--dt-e) * 38px);
+  height: calc(var(--dt-e) * 54px);
+  padding: calc(var(--dt-e) * 3px);
+  border: 1px solid var(--dt-tinta);
+  border-radius: calc(var(--dt-e) * 3px);
+  background: var(--dt-papel);
+  font-size: calc(var(--dt-e) * 11px);
+  line-height: 1;
+  animation: dt-carta-entra 160ms ease-out;
+}
+
+.devtoys .dt-carta svg {
+  fill: currentColor;
+}
+
+.devtoys .dt-carta-canto {
+  display: flex;
+  align-items: center;
+  gap: calc(var(--dt-e) * 2px);
+}
+
+.devtoys .dt-naipe {
+  width: calc(var(--dt-e) * 7px);
+  height: calc(var(--dt-e) * 7px);
+}
+
+.devtoys .dt-carta-meio {
+  flex: 1;
+  display: grid;
+  place-items: center;
+  font-size: calc(var(--dt-e) * 18px);
+}
+
+.devtoys .dt-naipe-grande {
+  width: calc(var(--dt-e) * 14px);
+  height: calc(var(--dt-e) * 14px);
+}
+
+/* verso: o xadrez de 1 px do Finder, com moldura */
+.devtoys .dt-carta-verso {
+  background-image: repeating-conic-gradient(var(--dt-apagado) 0 25%, var(--dt-papel) 0 50%);
+  background-size: 4px 4px;
+  box-shadow: inset 0 0 0 calc(var(--dt-e) * 3px) var(--dt-papel);
+}
+
+@keyframes dt-carta-entra {
+  from {
+    opacity: 0;
+    transform: translateY(calc(var(--dt-e) * -6px));
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .devtoys .dt-carta {
+    animation: none;
+  }
+}
+
+/* ---- 21 ---- */
+.devtoys .dt-21-mao {
+  display: flex;
+  flex-wrap: wrap;
+  gap: calc(var(--dt-e) * 6px);
+  min-height: calc(var(--dt-e) * 54px);
+  margin-bottom: calc(var(--dt-e) * 10px);
+}
+
+.devtoys .dt-21-aviso {
+  font-weight: bold;
+  padding-top: calc(var(--dt-e) * 6px);
+  border-top: 1px dotted var(--dt-apagado);
+}
+
+.devtoys .dt-21-botoes {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: calc(var(--dt-e) * 8px);
+  margin-bottom: calc(var(--dt-e) * 6px);
+}
+
+.devtoys .dt-21-botoes button:hover:not(:disabled),
+.devtoys .dt-21-botoes button:focus-visible,
+.devtoys .dt-21-botoes .dt-21-escolhida {
+  color: var(--dt-papel);
+  background: var(--dt-tinta);
+}
+
+.devtoys .dt-21-botoes button:disabled {
+  color: var(--dt-apagado);
+}
+
+.devtoys .dt-21-placar {
+  color: var(--dt-apagado);
+}

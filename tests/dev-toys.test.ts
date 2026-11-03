@@ -15,6 +15,11 @@ import { avaliar } from '../src/features/dev-toys/toys/crawler/nota';
 import {
   FAMINTO, MAX_CRIATURAS, MS_POR_PONTO_DE_FOME, alimentar, aprenderSkill, atualizar, chocar, fomeAgora, gostei, normalizarViveiro, novaCriatura, registrarXerox, soltar,
 } from '../src/features/dev-toys/toys/crawler/criaturas';
+import { embaralhar as embaralharCartas, nomeDaCarta, novoBaralho, rotuloDe, type Carta } from '../src/features/dev-toys/toys/cartas/baralho';
+import {
+  FICHAS_INICIAIS, PLACAR_NOVO, distribuir, dobrar, mesaNova, normalizarPlacar, parar, pedir, podeDobrar, pontos, precisaEmprestimo, registrar, retorno,
+  type Mesa,
+} from '../src/features/dev-toys/toys/vinteum/regras';
 
 const sessao = (valores: Record<string, string>) => ({ getItem: (k: string) => valores[k] ?? null });
 
@@ -438,4 +443,79 @@ test('Crawler: Estômago faz a fome subir mais devagar e Gula faz cada palavra t
   const comFome = { ...base, fome: 60 };
   assert.equal(alimentar(comFome, 10, 0).fome, 40);
   assert.equal(alimentar({ ...comFome, skills: { ...base.skills, gula: 4 } }, 10, 0).fome, 20);
+});
+
+const cartas = (...valores: number[]): Carta[] => valores.map((valor) => ({ valor, naipe: 'espadas' }));
+const mesa21 = (jogador: number[], banca: number[], baralho: number[], aposta = 10, fichas = 190): Mesa => ({
+  jogador: cartas(...jogador), banca: cartas(...banca), baralho: cartas(...baralho), aposta, fichas, fase: 'jogando', resultado: null,
+});
+
+test('Cartas: 52 cartas diferentes, embaralhadas pela semente, com rótulo e nome sem acento', () => {
+  const b = novoBaralho();
+  assert.equal(b.length, 52);
+  assert.equal(new Set(b.map((c) => `${c.valor}${c.naipe}`)).size, 52);
+  assert.deepEqual(embaralharCartas(b, rngDe(3)), embaralharCartas(b, rngDe(3)));
+  assert.notDeepEqual(embaralharCartas(b, rngDe(3)), b);
+  assert.deepEqual(b[0], { valor: 1, naipe: 'espadas' }, 'embaralhar não mexe no original');
+  assert.deepEqual([1, 7, 10, 11, 12, 13].map((valor) => rotuloDe({ valor, naipe: 'copas' })), ['A', '7', '10', 'J', 'Q', 'K']);
+  assert.equal(nomeDaCarta({ valor: 1, naipe: 'ouros' }), 'As de ouros');
+});
+
+test('21: ás vale 11 enquanto não estoura, figuras valem 10', () => {
+  assert.deepEqual(pontos(cartas(1, 13)), { total: 21, macia: true });
+  assert.deepEqual(pontos(cartas(1, 1, 9)), { total: 21, macia: true });
+  assert.deepEqual(pontos(cartas(1, 5, 10)), { total: 16, macia: false });
+  assert.equal(pontos(cartas(12, 13, 2)).total, 22);
+});
+
+test('21: a banca pede até 17 e para em qualquer 17; estourar, 21, dobrar e pagamentos', () => {
+  const ganhou = parar(mesa21([10, 8], [10, 6], [1, 5]));
+  assert.equal(pontos(ganhou.banca).total, 17, 'a banca comprou o ás e parou');
+  assert.equal(ganhou.resultado, 'ganhou');
+  assert.equal(ganhou.fichas, 210);
+  const empate = parar(mesa21([10, 7], [1, 6], [5]));
+  assert.equal(empate.banca.length, 2, 'para no 17 macio');
+  assert.equal(empate.resultado, 'empate');
+  assert.equal(empate.fichas, 200);
+  const estourou = pedir(mesa21([10, 6], [10, 7], [9]));
+  assert.equal(estourou.resultado, 'estourou');
+  assert.equal(estourou.fichas, 190);
+  const vinteUm = pedir(mesa21([10, 5], [10, 7], [6, 2]));
+  assert.equal(vinteUm.fase, 'fim', 'com 21 para sozinho');
+  assert.equal(vinteUm.resultado, 'ganhou');
+  const dobrou = dobrar(mesa21([5, 6], [10, 6], [10, 10]));
+  assert.equal(dobrou.aposta, 20);
+  assert.equal(dobrou.jogador.length, 3, 'dobrar compra só uma');
+  assert.equal(dobrou.resultado, 'banca-estourou');
+  assert.equal(dobrou.fichas, 220);
+  assert.equal(podeDobrar(mesa21([2, 3, 4], [10, 7], [])), false, 'só com 2 cartas');
+  assert.equal(podeDobrar(mesa21([5, 6], [10, 7], [], 10, 5)), false, 'sem fichas para dobrar');
+  assert.equal(retorno('blackjack', 10), 25, 'blackjack paga 3:2');
+  assert.equal(retorno('banca-blackjack', 10), 0);
+  assert.equal(pedir(estourou), estourou, 'mão encerrada não muda');
+});
+
+test('21: distribuir desconta a aposta, recusa aposta sem fichas e o blackjack paga na hora', () => {
+  const pobre = mesaNova(5);
+  assert.equal(distribuir(pobre, 10, rngDe(1)), pobre);
+  let blackjacks = 0;
+  for (let seed = 1; seed <= 400; seed++) {
+    const m = distribuir(mesaNova(200), 10, rngDe(seed));
+    assert.equal(m.jogador.length + m.banca.length + m.baralho.length, 52);
+    if (m.fase === 'jogando') assert.equal(m.fichas, 190);
+    if (m.resultado === 'blackjack') { blackjacks++; assert.equal(m.fichas, 215); }
+  }
+  assert.ok(blackjacks > 5, `${blackjacks} blackjacks em 400 mãos`);
+});
+
+test('21: o placar conta mãos, vitórias e recorde; salvo estragado volta ao padrão; sem fichas, a casa empresta', () => {
+  const m = parar(mesa21([10, 8], [10, 6], [1]));
+  const p = registrar(PLACAR_NOVO, m);
+  assert.deepEqual(p, { ...PLACAR_NOVO, fichas: 210, recorde: 210, maos: 1, vitorias: 1 });
+  assert.equal(registrar(p, mesa21([2, 3], [10, 7], [])).maos, 1, 'mão em jogo só guarda as fichas');
+  assert.deepEqual(normalizarPlacar({ fichas: -3, aposta: 7, maos: 'x' }), PLACAR_NOVO);
+  assert.equal(normalizarPlacar({ fichas: 900, recorde: 100 }).recorde, 900);
+  assert.equal(precisaEmprestimo(9), true);
+  assert.equal(precisaEmprestimo(10), false);
+  assert.equal(FICHAS_INICIAIS, 200);
 });
