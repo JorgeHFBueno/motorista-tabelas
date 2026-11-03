@@ -912,6 +912,71 @@ service cloud.firestore {
     }
 
 
+    // ================================================================ Logística (/logistica/cronograma)
+    // Cronograma Logístico (The Manuscript, 01_FIRESTORE/COLECOES/logistica.md): só adm2 lê e grava.
+    function logisticaDataOuNula(value) {
+      return value == null || (value is string && value.matches('^\\d{4}-\\d{2}-\\d{2}$'));
+    }
+
+    function logisticaRef(value, idField) {
+      return value == null
+        || (value is map
+          && value.keys().hasOnly([idField, 'nome'])
+          && nonEmptyString(value[idField])
+          && value.nome is string
+          && value.nome.size() <= 200);
+    }
+
+    function validLogisticaProgramacao(data) {
+      return data.keys().hasOnly([
+          'schemaVersion', 'semanaId', 'item', 'status', 'inicio', 'fim', 'motorista', 'auxiliar', 'veiculo', 'obra',
+          'posicao', 'criadoPorUid', 'criadoEm', 'atualizadoPorUid', 'atualizadoEm'
+        ])
+        && data.schemaVersion == 1
+        && data.semanaId is string
+        && exists(/databases/$(database)/documents/logistica-semanas/$(data.semanaId))
+        && data.item is string && data.item.size() >= 1 && data.item.size() <= 200
+        && data.status is string && data.status.size() <= 60
+        && logisticaDataOuNula(data.inicio)
+        && logisticaDataOuNula(data.fim)
+        && (data.inicio == null || data.fim == null || data.fim >= data.inicio)
+        && logisticaRef(data.motorista, 'uid')
+        && logisticaRef(data.auxiliar, 'uid')
+        && logisticaRef(data.veiculo, 'id')
+        && logisticaRef(data.obra, 'id')
+        && data.posicao is number
+        && data.atualizadoPorUid == request.auth.uid
+        && data.atualizadoEm == request.time;
+    }
+
+    match /logistica-semanas/{semanaId} {
+      allow read: if isAdm2();
+      allow create: if isAdm2()
+        && semanaId.matches('^\\d{4}-W\\d{2}$')
+        && request.resource.data.keys().hasOnly(['schemaVersion', 'inicio', 'fim', 'abertura', 'criadoPorUid', 'criadoEm'])
+        && request.resource.data.schemaVersion == 1
+        && logisticaDataOuNula(request.resource.data.inicio) && request.resource.data.inicio != null
+        && logisticaDataOuNula(request.resource.data.fim) && request.resource.data.fim != null
+        && request.resource.data.fim > request.resource.data.inicio
+        && request.resource.data.abertura in ['automatica', 'manual']
+        && request.resource.data.criadoPorUid == request.auth.uid
+        && request.resource.data.criadoEm == request.time;
+      allow update, delete: if false;
+    }
+
+    match /logistica-programacoes/{programacaoId} {
+      allow read: if isAdm2();
+      allow create: if isAdm2()
+        && validLogisticaProgramacao(request.resource.data)
+        && request.resource.data.criadoPorUid == request.auth.uid
+        && request.resource.data.criadoEm == request.time;
+      allow update: if isAdm2()
+        && validLogisticaProgramacao(request.resource.data)
+        && didNotChange(['semanaId', 'criadoPorUid', 'criadoEm']);
+      allow delete: if isAdm2();
+    }
+
+
     // Default deny for every undeclared collection and subcollection.
     match /{document=**} {
       allow read, write: if false;

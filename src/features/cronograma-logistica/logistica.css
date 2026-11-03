@@ -1,0 +1,162 @@
+/* Cronograma Logístico: visual do Friday (quadros, grupos, abas), cores próprias da Ledur. */
+.lg-pagina {
+  --lg-fundo: #f6f7fb;
+  --lg-superficie: #ffffff;
+  --lg-hover: #eef0f6;
+  --lg-borda: #d0d4e4;
+  --lg-borda-suave: #e6e9ef;
+  --lg-texto: #323338;
+  --lg-texto-2: #676879;
+  --lg-texto-3: #9699a6;
+  --lg-primaria: #2f6fde;
+  --lg-primaria-hover: #1f5bc4;
+  --lg-primaria-clara: #dce8fb;
+  --lg-perigo: #d83a52;
+  --lg-alerta-fundo: #fff4f2;
+  --lg-dia: 40px;
+  --lg-faixa: 26px;
+  background: var(--lg-fundo);
+  color: var(--lg-texto);
+  font-size: 14px;
+  min-height: calc(100vh - 64px);
+  padding: 16px 28px 80px;
+}
+.lg-pagina *, .lg-pagina *::before, .lg-pagina *::after { box-sizing: border-box; }
+.lg-pagina button { font: inherit; color: inherit; }
+
+/* cabeçalho e abas */
+.lg-cab { margin-bottom: 4px; }
+.lg-titulo { display: flex; align-items: center; gap: 12px; }
+.lg-titulo h1 { font-size: 24px; font-weight: 600; margin: 0; }
+.lg-titulo p { color: var(--lg-texto-2); font-size: 13px; margin: 2px 0 0; }
+.lg-titulo-icone { display: grid; place-items: center; width: 42px; height: 42px; border-radius: 10px; background: var(--lg-primaria-clara); color: var(--lg-primaria); }
+.lg-abas { display: flex; gap: 2px; margin-top: 14px; border-bottom: 1px solid var(--lg-borda-suave); }
+.lg-abas button { display: flex; align-items: center; gap: 6px; padding: 8px 10px; background: none; border: 0; border-bottom: 2px solid transparent; border-radius: 4px 4px 0 0; color: var(--lg-texto-2); cursor: pointer; }
+.lg-abas button:hover { background: var(--lg-hover); }
+.lg-abas button.on { color: var(--lg-texto); border-bottom-color: var(--lg-primaria); }
+.lg-barra { display: flex; align-items: center; gap: 10px; padding: 12px 0; flex-wrap: wrap; }
+.lg-erro { margin: 12px 0; }
+.lg-muted { color: var(--lg-texto-2); font-size: 13px; }
+.lg-vazio { padding: 40px 16px; text-align: center; color: var(--lg-texto-2); }
+.lg-espaco { flex: 1; }
+
+/* botões */
+.lg-btn { display: inline-flex; align-items: center; gap: 6px; height: 32px; padding: 0 12px; border: 1px solid var(--lg-borda); border-radius: 4px; background: var(--lg-superficie); cursor: pointer; }
+.lg-btn:hover { background: var(--lg-hover); }
+.lg-btn:disabled { opacity: .5; cursor: default; }
+.lg-btn-primario { background: var(--lg-primaria); border-color: var(--lg-primaria); color: #fff !important; }
+.lg-btn-primario:hover:not(:disabled) { background: var(--lg-primaria-hover); }
+.lg-btn-primario:disabled { opacity: 1; background: var(--lg-borda-suave); border-color: var(--lg-borda); color: var(--lg-texto-3) !important; }
+.lg-btn-perigo { color: var(--lg-perigo) !important; border-color: var(--lg-perigo); margin-top: 18px; }
+.lg-btn-icone { display: inline-flex; align-items: center; justify-content: center; padding: 4px; border: 0; border-radius: 4px; background: none; color: var(--lg-texto-3); cursor: pointer; }
+.lg-btn-icone:hover { background: var(--lg-hover); color: var(--lg-texto); }
+
+/* grupos (semanas) */
+.lg-grupo { margin-bottom: 28px; }
+.lg-grupo-cab, .lg-anteriores-cab { display: inline-flex; align-items: center; gap: 4px; padding: 2px 6px 2px 0; margin-bottom: 6px; background: none; border: 0; cursor: pointer; }
+.lg-grupo-cab svg { color: var(--lg-cor-grupo); }
+.lg-grupo-nome { color: var(--lg-cor-grupo); font-size: 18px; font-weight: 600; }
+.lg-grupo-total { color: var(--lg-texto-3); font-size: 13px; margin-left: 8px; font-weight: 400; }
+.lg-grupo-conflitos { display: inline-flex; align-items: center; gap: 3px; margin-left: 10px; color: var(--lg-perigo); font-size: 13px; }
+.lg-anteriores { margin-top: 8px; }
+.lg-anteriores-cab { font-size: 18px; font-weight: 600; color: var(--lg-texto-2); margin-bottom: 12px; }
+.lg-anteriores .lg-grupo { margin-left: 22px; }
+
+/* tabela */
+.lg-tabela-rolagem { overflow-x: auto; }
+.lg-tabela { border-collapse: separate; border-spacing: 0; table-layout: fixed; width: max-content; min-width: 100%; background: var(--lg-superficie); }
+.lg-tabela th, .lg-tabela td { height: 38px; padding: 0; border-bottom: 1px solid var(--lg-borda-suave); border-right: 1px solid var(--lg-borda-suave); background: var(--lg-superficie); }
+.lg-tabela th { border-top: 1px solid var(--lg-borda-suave); color: var(--lg-texto-2); font-size: 13px; font-weight: 400; text-align: center; }
+.lg-tabela tr > :first-child { border-left: 6px solid var(--lg-cor-grupo); }
+.lg-tabela thead tr > :first-child { border-top-left-radius: 6px; }
+.lg-tabela tbody tr:hover td { background: #f9fafc; }
+.lg-tabela tr.is-conflito td { background: var(--lg-alerta-fundo); }
+.lg-col-acao { text-align: center; }
+.lg-tabela tr .lg-col-acao .lg-btn-icone { opacity: 0; }
+.lg-tabela tr:hover .lg-col-acao .lg-btn-icone, .lg-tabela .lg-col-acao .lg-btn-icone:focus-visible { opacity: 1; }
+.lg-item { display: flex; align-items: center; gap: 2px; padding-right: 4px; }
+.lg-item .lg-input { flex: 1; min-width: 0; }
+.lg-aviso { display: inline-flex; color: var(--lg-perigo); padding-left: 6px; cursor: help; }
+.lg-abrir { display: inline-flex; align-items: center; gap: 4px; height: 24px; padding: 0 6px; border: 1px solid var(--lg-borda); border-radius: 4px; background: var(--lg-superficie); color: var(--lg-texto-2); font-size: 12px; cursor: pointer; opacity: 0; }
+.lg-tabela tr:hover .lg-abrir, .lg-abrir:focus-visible { opacity: 1; }
+.lg-abrir:hover { color: var(--lg-primaria); border-color: var(--lg-primaria); }
+.lg-nova td { background: var(--lg-superficie); }
+
+/* campos editáveis */
+.lg-input { width: 100%; height: 30px; padding: 0 8px; border: 1px solid transparent; border-radius: 4px; background: none; color: var(--lg-texto); font: inherit; outline: 0; }
+.lg-input:hover { border-color: var(--lg-borda); }
+.lg-input:focus { border-color: var(--lg-primaria); background: var(--lg-superficie); box-shadow: 0 0 0 2px var(--lg-primaria-clara); }
+.lg-input::placeholder { color: var(--lg-texto-3); }
+.lg-input-nova { margin: 0 4px; width: min(320px, calc(100% - 8px)); }
+.lg-periodo { display: flex; align-items: center; gap: 2px; padding: 0 4px; }
+.lg-data { padding: 0 4px; font-size: 13px; }
+.lg-ate { color: var(--lg-texto-3); font-size: 12px; }
+.lg-escolha { padding: 0 6px; }
+.lg-escolha .MuiInputBase-root { font-size: 14px; }
+.lg-escolha .MuiInputBase-input::placeholder { color: var(--lg-texto-3); opacity: 1; }
+
+/* painel lateral */
+.lg-painel { width: min(480px, 100vw); padding: 16px 24px 24px; display: flex; flex-direction: column; font-size: 14px; color: #323338; }
+.lg-painel-topo { display: flex; align-items: center; justify-content: space-between; }
+.lg-painel-semana { font-size: 13px; font-weight: 600; color: #2f6fde; }
+.lg-painel .lg-input.lg-painel-titulo { font-size: 20px; font-weight: 600; height: 40px; margin: 6px 0 14px; }
+.lg-painel-conflitos { display: flex; gap: 8px; padding: 10px 12px; margin-bottom: 14px; border-radius: 6px; background: #fff4f2; color: #b7473f; font-size: 13px; }
+.lg-painel-conflitos ul { margin: 0; padding-left: 16px; }
+.lg-painel-campo { display: flex; flex-direction: column; gap: 4px; margin-bottom: 12px; color: #676879; font-size: 13px; }
+.lg-painel-campo > span:first-child { font-weight: 600; }
+.lg-painel-campo .lg-input, .lg-painel-campo .lg-escolha { border: 1px solid #e6e9ef; border-radius: 4px; color: #323338; font-size: 14px; }
+.lg-painel-campo .lg-periodo { padding: 0; }
+.lg-painel-campo .lg-periodo .lg-input { border: 1px solid #e6e9ef; }
+.lg-painel .lg-btn-perigo { align-self: flex-start; }
+/* Os botões do painel (Drawer) ficam fora de .lg-pagina */
+.lg-painel .lg-btn { display: inline-flex; align-items: center; gap: 6px; height: 32px; padding: 0 12px; border: 1px solid #d83a52; border-radius: 4px; background: #fff; cursor: pointer; font: inherit; }
+.lg-painel .lg-btn-icone { display: inline-flex; padding: 4px; border: 0; border-radius: 4px; background: none; color: #9699a6; cursor: pointer; }
+.lg-painel .lg-input { width: 100%; height: 32px; padding: 0 8px; background: none; font: inherit; outline: 0; }
+.lg-painel .lg-input:focus { border-color: #2f6fde; box-shadow: 0 0 0 2px #dce8fb; }
+.lg-painel .lg-periodo { display: flex; align-items: center; gap: 6px; }
+.lg-painel .lg-ate { color: #9699a6; font-size: 12px; }
+.lg-painel .lg-escolha { padding: 2px 8px; }
+
+/* calendário */
+.lg-calendario { margin-top: 12px; }
+.lg-cal-barra { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+.lg-cal-alcance { font-weight: 600; }
+.lg-cal-rotulo { color: var(--lg-texto-2); font-size: 13px; }
+.lg-alternador { display: inline-flex; border: 1px solid var(--lg-borda); border-radius: 4px; overflow: hidden; }
+.lg-alternador button { height: 30px; padding: 0 12px; border: 0; background: var(--lg-superficie); cursor: pointer; }
+.lg-alternador button + button { border-left: 1px solid var(--lg-borda); }
+.lg-alternador button.on { background: var(--lg-primaria-clara); color: var(--lg-primaria); font-weight: 600; }
+.lg-cal-rolagem { overflow: auto; max-height: calc(100vh - 260px); border: 1px solid var(--lg-borda-suave); border-radius: 6px; background: var(--lg-superficie); }
+.lg-cal-grade { width: calc(200px + var(--lg-dias) * var(--lg-dia)); }
+.lg-cal-cab { display: grid; grid-template-columns: 200px 1fr; grid-template-rows: 30px 38px; position: sticky; top: 0; z-index: 3; background: var(--lg-superficie); border-bottom: 1px solid var(--lg-borda); }
+.lg-cal-nome { position: sticky; left: 0; z-index: 2; display: flex; align-items: center; padding: 0 12px; background: var(--lg-superficie); border-right: 1px solid var(--lg-borda); overflow: hidden; white-space: nowrap; text-overflow: ellipsis; font-weight: 600; }
+.lg-cal-canto { grid-row: 1 / span 2; color: var(--lg-texto-2); font-weight: 400; font-size: 13px; }
+.lg-cal-semanas { display: grid; grid-template-columns: repeat(4, calc(7 * var(--lg-dia))); }
+.lg-cal-semanas div { display: flex; align-items: center; justify-content: center; border-left: 2px solid var(--lg-borda); color: var(--lg-texto-2); font-size: 13px; font-weight: 600; }
+.lg-cal-semanas div.is-atual { color: var(--lg-primaria); background: var(--lg-primaria-clara); }
+.lg-cal-dias { display: grid; grid-template-columns: repeat(var(--lg-dias), var(--lg-dia)); grid-column: 2; }
+.lg-cal-dias div { display: flex; flex-direction: column; align-items: center; justify-content: center; line-height: 1.1; font-size: 13px; border-left: 1px solid var(--lg-borda-suave); }
+.lg-cal-dias div:nth-child(7n + 1) { border-left: 2px solid var(--lg-borda); }
+.lg-cal-dias small { color: var(--lg-texto-3); font-size: 10px; }
+.lg-cal-dias .is-fim-semana { background: rgba(50, 51, 56, .045); }
+.lg-cal-dias .is-hoje { background: var(--lg-primaria); color: #fff; border-radius: 4px; }
+.lg-cal-dias .is-hoje small { color: #fff; }
+.lg-cal-linha { display: grid; grid-template-columns: 200px 1fr; min-height: calc(var(--lg-faixas) * var(--lg-faixa) + 8px); border-bottom: 1px solid var(--lg-borda-suave); }
+.lg-cal-linha .lg-cal-nome { font-weight: 400; }
+.lg-cal-trilho { position: relative; display: grid; grid-template-columns: repeat(var(--lg-dias), var(--lg-dia)); }
+.lg-cal-celula { border-left: 1px solid var(--lg-borda-suave); }
+.lg-cal-celula.is-segunda { border-left: 2px solid var(--lg-borda); }
+.lg-cal-celula.is-fim-semana { background: rgba(50, 51, 56, .045); }
+.lg-cal-celula.is-hoje { background: rgba(47, 111, 222, .08); }
+.lg-cal-barra-item { position: absolute; height: calc(var(--lg-faixa) - 4px); margin-left: 2px; display: flex; align-items: center; gap: 3px; padding: 0 6px; border: 0; border-radius: 4px; background: var(--lg-cor); color: #fff !important; font-size: 12px; font-weight: 600; text-align: left; cursor: pointer; overflow: hidden; white-space: nowrap; box-shadow: 0 1px 2px rgba(0, 0, 0, .15); }
+.lg-cal-barra-item span { overflow: hidden; text-overflow: ellipsis; }
+.lg-cal-barra-item:hover { filter: brightness(1.1); }
+.lg-cal-barra-item.is-conflito { box-shadow: 0 0 0 2px var(--lg-perigo); }
+.lg-cal-barra-item.is-cortada-antes { border-top-left-radius: 0; border-bottom-left-radius: 0; }
+.lg-cal-barra-item.is-cortada-depois { border-top-right-radius: 0; border-bottom-right-radius: 0; }
+
+@media (max-width: 700px) {
+  .lg-pagina { padding: 12px 16px 60px; }
+  .lg-cal-grade { width: calc(140px + var(--lg-dias) * var(--lg-dia)); }
+  .lg-cal-cab, .lg-cal-linha { grid-template-columns: 140px 1fr; }
+}

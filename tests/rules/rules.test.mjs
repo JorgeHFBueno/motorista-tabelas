@@ -135,6 +135,8 @@ async function seed() {
     await setDoc(doc(db, 'monday-obras', 'mo1'), { nome: 'Obra monday' });
     await setDoc(doc(db, 'monday-mestres', 'dine'), { nome: 'Dine', cor: '#123456' });
     await setDoc(doc(db, 'manutencoes-legado', 'legacy1'), { status: 'OK' });
+    await setDoc(doc(db, 'logistica-semanas', '2026-W45'), { schemaVersion: 1, inicio: '2026-11-02', fim: '2026-11-08', abertura: 'automatica', criadoPorUid: 'uid-canonical-adm2', criadoEm: Timestamp.fromMillis(1) });
+    await setDoc(doc(db, 'logistica-programacoes', 'lp1'), { schemaVersion: 1, semanaId: '2026-W45', item: 'Transporte', status: '', inicio: null, fim: null, motorista: null, auxiliar: null, veiculo: null, obra: null, posicao: 1, criadoPorUid: 'uid-other', criadoEm: Timestamp.fromMillis(1), atualizadoPorUid: 'uid-other', atualizadoEm: Timestamp.fromMillis(1) });
     await setDoc(doc(db, 'erp-veiculos', 'vv1'), { schemaVersion: 1, placa: 'ABC1D23', status: 'ok', linhas: [] });
     await setDoc(doc(db, 'kioskCredentials', 'uid-user'), { pinHash: 'x' });
     await setDoc(doc(db, 'friday-quadros', '10'), { id: 10, nome: 'Quadro', cadastro: null, restrito: 0 });
@@ -1018,4 +1020,51 @@ test('[firestore] kioskBateria: only adm2 reads; nobody deletes', async () => {
   await assertFails(getDocs(collection(dbAs('canonicalFrentista'), 'kioskBateria', 'BOMBA-FABRICA-01', 'leituras')));
   await assertFails(deleteDoc(doc(dbAs('canonicalAdm2'), 'kioskBateria', 'BOMBA-FABRICA-01')));
   await assertFails(deleteDoc(leituraRef(env.unauthenticatedContext().firestore(), agora)));
+});
+
+test('[firestore] logistica: só adm2 lê, cria semana no formato e programação no esquema', async () => {
+  const adm2 = dbAs('canonicalAdm2');
+  const semana = (abertura = 'manual', extra = {}) => ({ schemaVersion: 1, inicio: '2026-11-09', fim: '2026-11-15', abertura, criadoPorUid: 'uid-canonical-adm2', criadoEm: serverTimestamp(), ...extra });
+  const programacao = (extra = {}) => ({
+    schemaVersion: 1, semanaId: '2026-W45', item: 'Buscar contra-peso', status: 'Programado', inicio: '2026-11-03', fim: '2026-11-04',
+    motorista: { uid: 'uid-user', nome: 'User' }, auxiliar: null, veiculo: { id: 'vv1', nome: 'ABC-1D23 - Caminhão' }, obra: { id: 'ob1', nome: 'OBV - Obra V2' },
+    posicao: 2, criadoPorUid: 'uid-canonical-adm2', criadoEm: serverTimestamp(), atualizadoPorUid: 'uid-canonical-adm2', atualizadoEm: serverTimestamp(), ...extra,
+  });
+
+  await assertSucceeds(getDoc(doc(adm2, 'logistica-semanas', '2026-W45')));
+  await assertSucceeds(getDoc(doc(adm2, 'logistica-programacoes', 'lp1')));
+  for (const outro of ['canonicalFrentista', 'engenharia', 'escritorio']) {
+    await assertFails(getDoc(doc(dbAs(outro), 'logistica-semanas', '2026-W45')));
+    await assertFails(getDoc(doc(dbAs(outro), 'logistica-programacoes', 'lp1')));
+    await assertFails(setDoc(doc(dbAs(outro), 'logistica-semanas', '2026-W50'), semana()));
+  }
+  await assertFails(getDoc(doc(env.unauthenticatedContext().firestore(), 'logistica-programacoes', 'lp1')));
+
+  // Semana: ID ISO, esquema fechado, autor e horário do servidor; não muda nem é apagada.
+  await assertFails(setDoc(doc(adm2, 'logistica-semanas', '2026-46'), semana()));
+  await assertFails(setDoc(doc(adm2, 'logistica-semanas', '2026-W46'), semana('outra')));
+  await assertFails(setDoc(doc(adm2, 'logistica-semanas', '2026-W46'), semana('manual', { criadoPorUid: 'uid-user' })));
+  await assertFails(setDoc(doc(adm2, 'logistica-semanas', '2026-W46'), semana('manual', { extra: 1 })));
+  await assertSucceeds(setDoc(doc(adm2, 'logistica-semanas', '2026-W46'), semana()));
+  await assertFails(updateDoc(doc(adm2, 'logistica-semanas', '2026-W46'), { abertura: 'automatica' }));
+  await assertFails(deleteDoc(doc(adm2, 'logistica-semanas', '2026-W46')));
+
+  // Programação: semana existente, datas em ordem, referências {id, nome}, autor = quem grava.
+  await assertSucceeds(setDoc(doc(adm2, 'logistica-programacoes', 'lp2'), programacao()));
+  await assertFails(setDoc(doc(adm2, 'logistica-programacoes', 'lp3'), programacao({ semanaId: '2030-W01' })));
+  await assertFails(setDoc(doc(adm2, 'logistica-programacoes', 'lp3'), programacao({ item: '' })));
+  await assertFails(setDoc(doc(adm2, 'logistica-programacoes', 'lp3'), programacao({ inicio: '2026-11-05', fim: '2026-11-04' })));
+  await assertFails(setDoc(doc(adm2, 'logistica-programacoes', 'lp3'), programacao({ inicio: '03/11/2026' })));
+  await assertFails(setDoc(doc(adm2, 'logistica-programacoes', 'lp3'), programacao({ motorista: { id: 'uid-user', nome: 'User' } })));
+  await assertFails(setDoc(doc(adm2, 'logistica-programacoes', 'lp3'), programacao({ criadoPorUid: 'uid-user' })));
+  await assertFails(setDoc(doc(adm2, 'logistica-programacoes', 'lp3'), programacao({ outro: true })));
+  await assertSucceeds(setDoc(doc(adm2, 'logistica-programacoes', 'lp3'), programacao({ inicio: '2026-11-05', fim: null, veiculo: null })));
+
+  // Alteração: não troca semana nem autoria; registra quem alterou.
+  await assertSucceeds(updateDoc(doc(adm2, 'logistica-programacoes', 'lp1'), { status: 'Concluído', atualizadoPorUid: 'uid-canonical-adm2', atualizadoEm: serverTimestamp() }));
+  await assertFails(updateDoc(doc(adm2, 'logistica-programacoes', 'lp1'), { status: 'x', atualizadoPorUid: 'uid-other', atualizadoEm: serverTimestamp() }));
+  await assertFails(updateDoc(doc(adm2, 'logistica-programacoes', 'lp1'), { semanaId: '2026-W46', atualizadoPorUid: 'uid-canonical-adm2', atualizadoEm: serverTimestamp() }));
+  await assertFails(updateDoc(doc(dbAs('canonicalFrentista'), 'logistica-programacoes', 'lp1'), { status: 'x' }));
+  await assertFails(deleteDoc(doc(dbAs('engenharia'), 'logistica-programacoes', 'lp1')));
+  await assertSucceeds(deleteDoc(doc(adm2, 'logistica-programacoes', 'lp1')));
 });
