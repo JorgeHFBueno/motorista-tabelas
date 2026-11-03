@@ -3,6 +3,11 @@
 .manuscript-map-docs:hover{background:#c8e0ec!important}
 .manuscript-map-body{flex:1;min-height:0;display:grid;grid-template-columns:minmax(0,1fr)}
 .manuscript-map-body.with-chat{grid-template-columns:minmax(0,1fr) minmax(320px,400px)}
+/* Antes da primeira pergunta: o grafo ocupa a largura toda e o chat é só a barra de pergunta embaixo. */
+.manuscript-map-body.with-chat.compacto{grid-template-columns:minmax(0,1fr);grid-template-rows:minmax(0,1fr) auto}
+.manuscript-chat.compacto{border-left:0;border-top:0;background:transparent;min-height:0!important}
+.manuscript-chat.compacto .manuscript-chat-form{padding:2px 14px 12px;border-top:0}
+.manuscript-chat.compacto .MuiOutlinedInput-root{background:#fff}
 .manuscript-map-main{display:flex;flex-direction:column;min-width:0;min-height:0;padding:10px 14px;gap:8px}
 .manuscript-map-filters .MuiFormControlLabel-label{font-size:.8rem;color:#4a5962}
 .manuscript-map-swatch{display:inline-block;width:10px;height:10px;margin-left:6px!important}

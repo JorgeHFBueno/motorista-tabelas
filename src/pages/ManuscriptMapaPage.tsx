@@ -71,10 +71,10 @@ export default function ManuscriptMapaPage() {
   const [showLinks, setShowLinks] = useState(false);
   const [showAudit, setShowAudit] = useState(false);
   const [problemsOpen, setProblemsOpen] = useState(false);
-  // Pesquisa do chat: ao digitar o mapa fica cinza; durante e depois da resposta, acende o que a IA usou.
-  const [typing, setTyping] = useState(false);
+  // Sem conversa, o grafo ocupa a tela e o chat é só a barra de pergunta; depois do Enter, o chat vai para a lateral.
+  const [compacto, setCompacto] = useState(true);
+  // Pesquisa do chat: depois do Enter o mapa fica cinza e acende o que a IA busca, lê e cita.
   const [busca, setBusca] = useState<GraphSearchHighlight | null>(null);
-  const pesquisa = useMemo(() => busca ?? (typing ? semDestaque() : null), [busca, typing]);
   // A página ocupa a tela abaixo do cabeçalho do sistema (como o Friday): a caixa de pergunta fica visível sem rolar.
   const raiz = useRef<HTMLDivElement>(null);
   const [topo, setTopo] = useState(0);
@@ -111,7 +111,7 @@ export default function ManuscriptMapaPage() {
     <header className="manuscript-topbar">
       <Stack direction="row" alignItems="center" spacing={1.5}><MenuBookRoundedIcon className="manuscript-brand-icon" /><Typography variant="h6">The Manuscript · Mapa</Typography><Button size="small" variant="contained" disableElevation className="manuscript-map-docs" startIcon={<MenuBookRoundedIcon />} onClick={() => navigate('/the-manuscript')}>Documentos</Button></Stack>
     </header>
-    <Box className={`manuscript-map-body ${chatEnabled ? 'with-chat' : ''}`}>
+    <Box className={`manuscript-map-body ${chatEnabled ? 'with-chat' : ''} ${chatEnabled && compacto ? 'compacto' : ''}`}>
       <Box className="manuscript-map-main">
         <Stack className="manuscript-map-filters" direction="row" spacing={.75} useFlexGap flexWrap="wrap" alignItems="center">
           {KINDS.map((kind) => <Chip key={kind.key} size="small" label={kind.label} variant={kinds.has(kind.key) ? 'filled' : 'outlined'} onClick={() => setKinds((old) => toggle(old, kind.key))} icon={<span className="manuscript-map-swatch" style={{ background: kind.key === 'DOCUMENTO' ? '#90a4ae' : ENTITY_COLORS[kind.key], borderRadius: kind.key === 'DOCUMENTO' ? '50%' : 3 }} />} />)}
@@ -125,12 +125,12 @@ export default function ManuscriptMapaPage() {
         </Stack>
         <Box className="manuscript-map-stage">
           {error ? <Alert severity="error">{error}</Alert> : !graph ? <Stack alignItems="center" justifyContent="center" height="100%"><CircularProgress size={28} /></Stack>
-            : <SystemGraphCanvas nodes={visible.nodes} edges={visible.edges} positions={positions} selectedId={selectedId} pesquisa={pesquisa} focusId={focusId} onSelect={select} />}
-          {busca && !typing && <Chip className="manuscript-map-search-chip" size="small" label="Destaque da pergunta" onDelete={() => setBusca(null)} />}
+            : <SystemGraphCanvas nodes={visible.nodes} edges={visible.edges} positions={positions} selectedId={selectedId} pesquisa={busca} focusId={focusId} onSelect={select} />}
+          {busca && <Chip className="manuscript-map-search-chip" size="small" label="Destaque da pergunta" onDelete={() => setBusca(null)} />}
           {graph && selected && <Details graph={graph} node={selected} onSelect={focus} onClose={() => select(null)} />}
         </Box>
       </Box>
-      {chatEnabled && <ManuscriptChat onCite={focus} onTyping={setTyping} onStart={() => { setTyping(false); setBusca(semDestaque()); }} onProgress={(evento) => setBusca((old) => aplicarProgresso(old, evento))} onAnswer={(cited) => setBusca((old) => ({ ...(old ?? semDestaque()), citados: new Set(cited), ultimo: null }))} onClear={() => setBusca(null)} />}
+      {chatEnabled && <ManuscriptChat onCite={focus} onCompact={setCompacto} onStart={() => setBusca(semDestaque())} onProgress={(evento) => setBusca((old) => aplicarProgresso(old, evento))} onAnswer={(cited) => setBusca((old) => ({ ...(old ?? semDestaque()), citados: new Set(cited), ultimo: null }))} onClear={() => setBusca(null)} />}
     </Box>
     <Dialog open={problemsOpen} onClose={() => setProblemsOpen(false)} fullWidth maxWidth="md">
       <DialogTitle>Problemas nos blocos de dados</DialogTitle>

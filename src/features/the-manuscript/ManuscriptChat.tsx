@@ -25,22 +25,29 @@ const documentPath = (href: string) => { if (/^[a-z][a-z\d+.-]*:/i.test(href) ||
 /** Documentos citados nos links da resposta. */
 const citedPaths = (markdown: string) => [...new Set([...markdown.matchAll(/\]\(([^)\s]+)\)/g)].flatMap((match) => documentPath(match[1]) ?? []))];
 
-/** Avisos para o mapa: digitação, início da pesquisa, progresso, documentos citados e limpeza. */
+/** Avisos para o mapa: modo compacto, início da pesquisa, progresso, documentos citados e limpeza. */
 export interface ManuscriptChatEvents {
   onCite: (path: string) => void;
-  onTyping: (typing: boolean) => void;
+  /** Sem conversa o chat é só a barra de pergunta; a página usa isso para dar a tela ao grafo. */
+  onCompact: (compact: boolean) => void;
   onStart: () => void;
   onProgress: (evento: ManuscriptChatProgress) => void;
   onAnswer: (cited: string[]) => void;
   onClear: () => void;
 }
 
-export default function ManuscriptChat({ onCite, onTyping, onStart, onProgress, onAnswer, onClear }: ManuscriptChatEvents) {
+export default function ManuscriptChat({ onCite, onCompact, onStart, onProgress, onAnswer, onClear }: ManuscriptChatEvents) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [draft, setDraft] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const list = useRef<HTMLDivElement>(null);
+  const input = useRef<HTMLTextAreaElement>(null);
+  // O campo fica desativado durante a resposta; quando ela chega, o cursor volta a ele.
+  const answered = useRef(false);
+  useEffect(() => { if (loading) answered.current = true; else if (answered.current) input.current?.focus({ preventScroll: true }); }, [loading]);
+  const compact = messages.length === 0 && !loading;
+  useEffect(() => { onCompact(compact); }, [compact, onCompact]);
   // Rola só a caixa de mensagens, nunca a página.
   useEffect(() => { const box = list.current; if (box && (messages.length || loading)) box.scrollTo({ top: box.scrollHeight, behavior: 'smooth' }); }, [messages, loading]);
 
@@ -63,9 +70,9 @@ export default function ManuscriptChat({ onCite, onTyping, onStart, onProgress, 
   };
   const onKey = (event: KeyboardEvent<HTMLDivElement>) => { if (event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); void send(); } };
 
-  return <section className="manuscript-chat" aria-label="Chat do Manuscript">
-    <Stack direction="row" alignItems="center" justifyContent="space-between" className="manuscript-chat-header">
-      <Typography variant="overline">Pergunte ao Manuscript</Typography>
+  return <section className={`manuscript-chat ${compact ? 'compacto' : ''}`} aria-label="Pergunte ao Autor">
+    {!compact && <><Stack direction="row" alignItems="center" justifyContent="space-between" className="manuscript-chat-header">
+      <Typography variant="overline">Pergunte ao Autor</Typography>
       {messages.length > 0 && <IconButton size="small" aria-label="Limpar conversa" title="Limpar conversa" onClick={() => { setMessages([]); setError(''); onClear(); }} disabled={loading}><DeleteSweepRoundedIcon fontSize="small" /></IconButton>}
     </Stack>
     <Box className="manuscript-chat-messages" ref={list}>
@@ -75,10 +82,10 @@ export default function ManuscriptChat({ onCite, onTyping, onStart, onProgress, 
         {!!message.consultados?.length && <Stack direction="row" spacing={.5} useFlexGap flexWrap="wrap" className="manuscript-chat-sources">{message.consultados.map((path) => <Chip key={path} size="small" variant="outlined" label={path.split('/').at(-1)} title={path} onClick={() => onCite(path)} />)}</Stack>}
       </article>)}
       {loading && <Stack direction="row" spacing={1} alignItems="center" className="manuscript-chat-loading"><CircularProgress size={16} /><Typography variant="caption">Lendo a documentação… pode levar até um minuto.</Typography></Stack>}
-    </Box>
+    </Box></>}
     {error && <Alert severity="warning" onClose={() => setError('')}>{error}</Alert>}
     <Box component="form" onSubmit={send} className="manuscript-chat-form">
-      <TextField fullWidth multiline maxRows={6} size="small" value={draft} onChange={(e) => { setDraft(e.target.value); onTyping(e.target.value.trim().length > 0); }} onKeyDown={onKey} placeholder="Faça uma pergunta…" disabled={loading} inputProps={{ maxLength: 8000 }} />
+      <TextField inputRef={input} fullWidth multiline maxRows={6} size="small" value={draft} onChange={(e) => setDraft(e.target.value)} onKeyDown={onKey} placeholder={compact ? 'Pergunte ao Autor sobre coleções, Functions, telas ou regras…' : 'Faça uma pergunta…'} disabled={loading} inputProps={{ maxLength: 8000 }} />
       <Button type="submit" variant="contained" disabled={loading || !draft.trim()} aria-label="Enviar pergunta"><SendRoundedIcon fontSize="small" /></Button>
     </Box>
   </section>;
