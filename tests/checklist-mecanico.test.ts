@@ -18,6 +18,7 @@ import {
   COMPRIMENTO_MINIMO_ASSINATURA, comprimentoDosTracos, dataOriginalDaFoto, limitarLado, medidasAssinatura,
   proximaCompressao, tamanhoFonteCarimbo, textoCarimbo,
 } from '../src/features/checklist-mecanico/domain/foto';
+import { EnviadorChecklist, esperaApos } from '../src/features/checklist-mecanico/domain/enviador';
 
 const caminhao: ChecklistVeiculo = { id: 'vv1', categoria: 'PLACA', identificador: 'ABC1D23', nome: 'Caminhão 1', medidorUltimo: 125000 };
 const carregadeira: ChecklistVeiculo = { id: 'vm1', categoria: 'EXTRA', identificador: 'CARREGADEIRA', nome: 'Carregadeira', medidorUltimo: 8700 };
@@ -382,4 +383,120 @@ test('assinatura: comprimento dos traços (mínimo 60) e JPEG de 1200 px na prop
   assert.deepEqual(medidasAssinatura({ largura: 600, altura: 280 }), { largura: 1200, altura: 560, escala: 2, espessura: 6 });
   assert.equal(medidasAssinatura({ largura: 2400, altura: 100 }).espessura, 2);
   assert.equal(medidasAssinatura({ largura: 100, altura: 50 }).espessura, 12);
+});
+
+// ------------------------------------------------------------------ fila de envio
+function fila(opcoes: { falharEnvioEm?: string; falharGravar?: boolean; existentes?: string[]; uid?: string | null } = {}) {
+  const pendentes = new Map<string, ChecklistPendente>();
+  const arquivos = new Map<string, Blob>();
+  const p = pendente();
+  const enviados: string[] = [];
+  const gravados: string[] = [];
+  const agendados: number[] = [];
+  let agora = new Date('2026-11-03T10:00:00Z');
+  let falharEnvioEm = opcoes.falharEnvioEm;
+  let falharGravar = opcoes.falharGravar ?? false;
+  const existentes = new Set(opcoes.existentes ?? []);
+  const e = new EnviadorChecklist({
+    armazenamento: {
+      listarPendentes: async () => [...pendentes.values()],
+      salvarPendente: async (p) => { pendentes.set(p.rascunho.id, structuredClone(p)); },
+      removerPendente: async (id) => { pendentes.delete(id); },
+      lerArquivo: async (chave) => arquivos.get(chave) ?? null,
+      // No exemplo as chaves locais não têm o prefixo do id: apaga as do checklist pelo que ele envia.
+      apagarArquivosDoChecklist: async (id) => { if (id === p.rascunho.id) for (const a of arquivosParaEnvio(p)) arquivos.delete(a.local); },
+    },
+    destino: {
+      arquivoExiste: async (caminho) => existentes.has(caminho),
+      enviarArquivo: async (caminho) => {
+        if (caminho === falharEnvioEm) throw new Error('sem rede');
+        enviados.push(caminho);
+        existentes.add(caminho);
+      },
+      gravar: async (p) => {
+        if (falharGravar) throw new Error('transação recusada');
+        gravados.push(p.rascunho.id);
+      },
+    },
+    uidAtual: () => (opcoes.uid === undefined ? 'uid-mecanico' : opcoes.uid),
+    relogio: { agora: () => agora, agendar: (_acao, ms) => { agendados.push(ms); return ms; }, cancelar: () => undefined },
+  });
+  for (const a of arquivosParaEnvio(p)) arquivos.set(a.local, new Blob(['x']));
+  return {
+    e, pendentes, arquivos, enviados, gravados, agendados, p,
+    adicionar: async (x: ChecklistPendente = p) => { pendentes.set(x.rascunho.id, x); },
+    avancar: (ms: number) => { agora = new Date(agora.getTime() + ms); },
+    curar: () => { falharEnvioEm = undefined; falharGravar = false; },
+  };
+}
+
+test('fila: envia os arquivos (pulando os que já existem), grava e só então apaga os dados locais', async () => {
+  const f = fila({ existentes: ['checklists-v2/AbCdEfGhIjKlMnOpQrSt/frente_farolete_1.jpg'] });
+  await f.adicionar();
+  await f.e.enviarPendentes();
+  assert.equal(f.enviados.length, 6);
+  assert.ok(!f.enviados.includes('checklists-v2/AbCdEfGhIjKlMnOpQrSt/frente_farolete_1.jpg'));
+  assert.equal(f.enviados.at(-1), 'checklists-v2/AbCdEfGhIjKlMnOpQrSt/assinatura_1.jpg');
+  assert.deepEqual(f.gravados, ['AbCdEfGhIjKlMnOpQrSt']);
+  assert.equal(f.pendentes.size, 0);
+  assert.equal(f.arquivos.size, 0);
+  assert.deepEqual(f.e.obterEstado(), { pendentes: 0, enviando: false, progresso: null });
+  assert.deepEqual(f.agendados, []);
+});
+
+test('fila: falha no meio guarda o progresso, espera 30 s e retoma do ponto onde parou', async () => {
+  const falha = 'checklists-v2/AbCdEfGhIjKlMnOpQrSt/lateral_esquerda_pneu_frente_1.jpg';
+  const f = fila({ falharEnvioEm: falha });
+  await f.adicionar();
+  await f.e.enviarPendentes();
+  const guardado = f.pendentes.get('AbCdEfGhIjKlMnOpQrSt')!;
+  assert.equal(guardado.enviados.length, 4);
+  assert.equal(guardado.tentativas, 1);
+  assert.deepEqual(guardado.proximaTentativa, new Date('2026-11-03T10:00:30Z'));
+  assert.deepEqual(f.agendados, [30_000]);
+  assert.equal(f.e.obterEstado().pendentes, 1);
+  assert.equal(f.arquivos.size, 7);
+
+  // Antes da hora, sem forçar, não tenta; forçando (internet voltou), tenta de novo.
+  f.curar();
+  await f.e.enviarPendentes();
+  assert.equal(f.gravados.length, 0);
+  await f.e.enviarPendentes({ forcar: true });
+  assert.deepEqual(f.gravados, ['AbCdEfGhIjKlMnOpQrSt']);
+  assert.equal(f.enviados.length, 7);
+  assert.equal(new Set(f.enviados).size, 7);
+  assert.equal(f.pendentes.size, 0);
+});
+
+test('fila: transação recusada mantém os arquivos e aumenta a espera; depois da hora tenta sozinha', async () => {
+  const f = fila({ falharGravar: true });
+  await f.adicionar();
+  await f.e.enviarPendentes();
+  await f.e.enviarPendentes({ forcar: true });
+  const guardado = f.pendentes.get('AbCdEfGhIjKlMnOpQrSt')!;
+  assert.equal(guardado.tentativas, 2);
+  assert.equal(guardado.enviados.length, 7);
+  assert.equal(f.arquivos.size, 7);
+  assert.deepEqual(f.agendados, [30_000, 60_000]);
+  f.curar();
+  f.avancar(60_000);
+  await f.e.enviarPendentes();
+  assert.deepEqual(f.gravados, ['AbCdEfGhIjKlMnOpQrSt']);
+  assert.equal(f.enviados.length, 7); // nada reenviado
+});
+
+test('fila: só envia os checklists de quem está logado; sem login, nada', async () => {
+  const f = fila({ uid: 'outra-pessoa' });
+  await f.adicionar();
+  await f.e.enviarPendentes({ forcar: true });
+  assert.equal(f.gravados.length, 0);
+  assert.equal(f.e.obterEstado().pendentes, 0);
+  const semLogin = fila({ uid: null });
+  await semLogin.adicionar();
+  await semLogin.e.enviarPendentes({ forcar: true });
+  assert.equal(semLogin.gravados.length, 0);
+});
+
+test('fila: esperas de 30 s, 1, 2, 5, 10 e 15 min (e 15 min dali em diante)', () => {
+  assert.deepEqual([1, 2, 3, 4, 5, 6, 7, 20].map(esperaApos), [30_000, 60_000, 120_000, 300_000, 600_000, 900_000, 900_000, 900_000]);
 });

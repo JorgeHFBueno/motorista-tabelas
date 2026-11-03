@@ -1,13 +1,14 @@
 // Dados do checklist guardados no aparelho (IndexedDB, sem dependência): o rascunho em andamento, um por vez e sem
-// expirar, como no app, e os arquivos (fotos, miniaturas e assinatura) por chave `{checklistId}/...`. Datas e Blobs
-// passam direto (structured clone).
-import type { ChecklistRascunho } from '../domain/rascunho';
+// expirar, como no app; os arquivos (fotos, miniaturas e assinatura) por chave `{checklistId}/...`; e a fila dos
+// concluídos aguardando envio. Datas e Blobs passam direto (structured clone).
+import type { ChecklistPendente, ChecklistRascunho } from '../domain/rascunho';
 
 const BANCO = 'ledur-checklist-mecanico';
-const VERSAO = 2;
+const VERSAO = 3;
 const RASCUNHO = 'rascunho';
 const CHAVE_RASCUNHO = 'atual';
 const ARQUIVOS = 'arquivos';
+const PENDENTES = 'pendentes';
 
 let aberto: Promise<IDBDatabase> | null = null;
 
@@ -16,7 +17,7 @@ function abrir(): Promise<IDBDatabase> {
     const pedido = indexedDB.open(BANCO, VERSAO);
     pedido.onupgradeneeded = () => {
       const db = pedido.result;
-      for (const loja of [RASCUNHO, ARQUIVOS]) {
+      for (const loja of [RASCUNHO, ARQUIVOS, PENDENTES]) {
         if (!db.objectStoreNames.contains(loja)) db.createObjectStore(loja);
       }
     };
@@ -79,4 +80,20 @@ export async function apagarArquivos(chaves: readonly string[]): Promise<void> {
 export async function apagarArquivosDoChecklist(checklistId: string): Promise<void> {
   const prefixo = `${checklistId}/`;
   await executar(ARQUIVOS, 'readwrite', (s) => s.delete(IDBKeyRange.bound(prefixo, prefixo + String.fromCharCode(0xffff))));
+}
+
+// ------------------------------------------------------------------ fila de envio (por id do checklist)
+
+/** Checklists concluídos aguardando envio, do mais antigo para o mais novo. */
+export async function listarPendentes(): Promise<ChecklistPendente[]> {
+  const lista = await executar<ChecklistPendente[]>(PENDENTES, 'readonly', (s) => s.getAll());
+  return lista.sort((a, b) => a.concluidoEm.getTime() - b.concluidoEm.getTime());
+}
+
+export async function salvarPendente(pendente: ChecklistPendente): Promise<void> {
+  await executar(PENDENTES, 'readwrite', (s) => s.put(pendente, pendente.rascunho.id));
+}
+
+export async function removerPendente(checklistId: string): Promise<void> {
+  await executar(PENDENTES, 'readwrite', (s) => s.delete(checklistId));
 }

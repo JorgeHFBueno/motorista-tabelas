@@ -1,7 +1,6 @@
 import {
-  Accordion, AccordionDetails, AccordionSummary, Alert, Box, Button, Card, CardContent, CircularProgress, Dialog,
-  DialogActions, DialogContent, DialogTitle, FormControlLabel, LinearProgress, Snackbar, Stack, Switch, Tab, Tabs,
-  Typography,
+  Accordion, AccordionDetails, AccordionSummary, Alert, Box, Button, Card, CardContent, CircularProgress,
+  FormControlLabel, LinearProgress, Snackbar, Stack, Switch, Tab, Tabs, Typography,
 } from '@mui/material';
 import CheckRoundedIcon from '@mui/icons-material/CheckRounded';
 import ChevronLeftRoundedIcon from '@mui/icons-material/ChevronLeftRounded';
@@ -20,7 +19,11 @@ import {
   comMedidor, itensAtivos, itensNaoSeAplica, paginaDaPrimeiraPendencia, partesDoRascunho, pendencias, progresso,
   reativarItem, validarMedidor,
 } from './domain/regras';
-import { apagarArquivos, carregarRascunho, chaveArquivo, salvarArquivo, salvarRascunho } from './data/armazenamentoLocal';
+import {
+  apagarArquivos, carregarRascunho, chaveArquivo, descartarRascunho, salvarArquivo, salvarPendente, salvarRascunho,
+} from './data/armazenamentoLocal';
+import { enviador } from './data/filaEnvio';
+import { useAuth } from '../../contexts/AuthContext';
 import { processarFoto } from './data/fotoProcessamento';
 import { listarMotoristasChecklist } from './data/checklistFirestore';
 import AssinaturaDialog from './components/AssinaturaDialog';
@@ -35,19 +38,23 @@ const botaoGrande = { minHeight: 52, fontSize: 16, fontWeight: 700, textTransfor
 /** /checklist/itens: preenchimento em páginas, "Dados" e uma por parte, salvando no aparelho a cada mudança. */
 export default function ChecklistItensPage() {
   const navigate = useNavigate();
+  const { currentUser, authorizationProfile } = useAuth();
   const [rascunho, setRascunho] = useState<ChecklistRascunho | null>(null);
   const [motoristas, setMotoristas] = useState<ChecklistMotorista[]>([]);
   const [pagina, setPagina] = useState(0);
   const [mostrarPendencias, setMostrarPendencias] = useState(false);
   const [aviso, setAviso] = useState<string | null>(null);
   const [assinando, setAssinando] = useState(false);
-  const [completo, setCompleto] = useState(false);
+  const [concluindo, setConcluindo] = useState(false);
   const [processando, setProcessando] = useState<ReadonlySet<string>>(new Set());
   const pendenteSalvar = useRef<ChecklistRascunho | null>(null);
   const timer = useRef<number | undefined>(undefined);
+  // Depois de concluído, o rascunho saiu do aparelho: nada mais pode gravá-lo de novo.
+  const concluido = useRef(false);
 
   const salvarAgora = useCallback(() => {
     window.clearTimeout(timer.current);
+    if (concluido.current) return;
     const atual = pendenteSalvar.current;
     pendenteSalvar.current = null;
     if (atual) salvarRascunho(atual).catch((error) => console.error('Checklist: falha ao salvar o rascunho', error));
@@ -175,10 +182,34 @@ export default function ChecklistItensPage() {
     setAssinando(true);
   };
 
-  const assinou = (assinatura: ChecklistAssinatura) => {
-    alterar((r) => ({ ...r, assinatura }));
-    setAssinando(false);
-    setCompleto(true);
+  /** Com a assinatura, o checklist vai para a fila de envio e não muda mais; o envio continua em seguida. */
+  const assinou = async (assinatura: ChecklistAssinatura) => {
+    if (!currentUser) return;
+    setConcluindo(true);
+    window.clearTimeout(timer.current);
+    pendenteSalvar.current = null;
+    const final: ChecklistRascunho = { ...rascunho, assinatura };
+    try {
+      await salvarRascunho(final);
+      await salvarPendente({
+        rascunho: final,
+        autor: { uid: currentUser.uid, nome: authorizationProfile?.nome || currentUser.displayName || currentUser.email || '' },
+        concluidoEm: new Date(),
+        enviados: [],
+        tentativas: 0,
+        proximaTentativa: null,
+      });
+      concluido.current = true;
+      await descartarRascunho({ apagarArquivos: false });
+      void enviador.enviarPendentes({ forcar: true });
+      navigate('/checklist', { replace: true, state: { aviso: 'Checklist concluído. O envio continua em seguida.' } });
+    } catch (error) {
+      console.error('Checklist: falha ao concluir', error);
+      setRascunho(final);
+      setAssinando(false);
+      setConcluindo(false);
+      setAviso('Não foi possível concluir. Tente de novo.');
+    }
   };
 
   const pendenciaDados = mostrarPendencias && lista.some((p) => p.itemId == null);
@@ -238,19 +269,13 @@ export default function ChecklistItensPage() {
             Anterior
           </Button>
           {ultima
-            ? <Button fullWidth variant="contained" size="large" sx={botaoGrande} onClick={concluir}>Concluir checklist</Button>
+            ? <Button fullWidth variant="contained" size="large" sx={botaoGrande} disabled={concluindo} onClick={concluir}>Concluir checklist</Button>
             : <Button fullWidth variant="contained" size="large" sx={botaoGrande} onClick={() => irPara(atual + 1)} endIcon={<ChevronRightRoundedIcon />}>Próxima</Button>}
         </Stack>
       </Box>
 
       <Snackbar open={aviso != null} autoHideDuration={4000} onClose={() => setAviso(null)} message={aviso} anchorOrigin={{ vertical: 'top', horizontal: 'center' }} />
-      {assinando && <AssinaturaDialog rascunho={rascunho} onFechar={() => setAssinando(false)} onConcluir={assinou} />}
-      {/* O envio entra na Fase 4; até lá o checklist assinado fica guardado como rascunho neste aparelho. */}
-      <Dialog open={completo} onClose={() => setCompleto(false)}>
-        <DialogTitle>Checklist completo</DialogTitle>
-        <DialogContent>{rascunho.assinatura?.ausente ? 'Motorista ausente registrado.' : 'Assinatura registrada.'} O envio ainda está em implantação: o checklist fica guardado neste aparelho.</DialogContent>
-        <DialogActions><Button onClick={() => setCompleto(false)}>Fechar</Button></DialogActions>
-      </Dialog>
+      {assinando && <AssinaturaDialog rascunho={rascunho} onFechar={() => setAssinando(false)} onConcluir={(a) => void assinou(a)} />}
     </Box>
   );
 }

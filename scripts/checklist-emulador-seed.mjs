@@ -2,7 +2,7 @@
 // mecânico no Auth, dois motoristas, um veículo e uma máquina em veiculos-v2 e um checklist anterior do veículo (com
 // "Não se aplica" para lembrar). Só fala com 127.0.0.1, nunca com produção.
 //
-// Uso (com os emuladores no ar: npx firebase emulators:start --only auth,firestore):
+// Uso (com os emuladores no ar: npx firebase emulators:start --only auth,firestore,storage):
 //   node scripts/checklist-emulador-seed.mjs
 // Depois: npx vite --mode emulador (arquivo .env.emulador com VITE_USE_FIREBASE_EMULATORS=true)
 // e entre em http://localhost:5173/login com a conta abaixo; abra /checklist.

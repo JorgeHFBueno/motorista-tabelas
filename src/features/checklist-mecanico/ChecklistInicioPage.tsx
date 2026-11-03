@@ -1,11 +1,12 @@
 import {
   Alert, Autocomplete, Box, Button, Card, CardContent, CircularProgress, Dialog, DialogActions, DialogContent,
-  DialogTitle, FormControlLabel, LinearProgress, Stack, Switch, TextField, ToggleButton, ToggleButtonGroup, Typography,
+  DialogTitle, FormControlLabel, LinearProgress, Snackbar, Stack, Switch, TextField, ToggleButton, ToggleButtonGroup,
+  Typography,
 } from '@mui/material';
 import DirectionsCarRoundedIcon from '@mui/icons-material/DirectionsCarRounded';
 import ConstructionRoundedIcon from '@mui/icons-material/ConstructionRounded';
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { itemFrotaLabel, type ItemFrotaV2 } from '../../utils/cadastrosV2';
 import { catalogoParaCategoria, type CatalogoId } from './domain/catalogo';
 import { novoRascunho, type ChecklistMotorista, type ChecklistRascunho, type ChecklistTipo } from './domain/rascunho';
@@ -14,6 +15,7 @@ import { carregarRascunho, descartarRascunho, salvarRascunho } from './data/arma
 import {
   checklistVeiculoDe, listarMotoristasChecklist, listarVeiculosChecklist, naoSeAplicaDoUltimoChecklist,
 } from './data/checklistFirestore';
+import { enviador, useFilaEnvio } from './data/filaEnvio';
 import MedidorCampo from './components/MedidorCampo';
 import MotoristaCampo from './components/MotoristaCampo';
 
@@ -28,7 +30,11 @@ const botaoGrande = { minHeight: 52, fontSize: 16, fontWeight: 700, textTransfor
 /** /checklist: começa um checklist ou retoma o rascunho em andamento (um por vez), como no app. */
 export default function ChecklistInicioPage() {
   const navigate = useNavigate();
+  const location = useLocation();
   const [inicio, setInicio] = useState<Inicio>({ estado: 'carregando' });
+  const fila = useFilaEnvio();
+  // Aviso deixado pela tela de itens ao concluir ("O envio continua em seguida").
+  const [aviso, setAviso] = useState<string | null>(() => (location.state as { aviso?: string } | null)?.aviso ?? null);
 
   const carregar = useCallback(async () => {
     setInicio({ estado: 'carregando' });
@@ -51,10 +57,29 @@ export default function ChecklistInicioPage() {
   }, []);
 
   useEffect(() => { void carregar(); }, [carregar]);
+  // O aviso vem uma vez: recarregar a página não o mostra de novo.
+  useEffect(() => {
+    if ((location.state as { aviso?: string } | null)?.aviso) navigate('/checklist', { replace: true, state: null });
+  }, [location.state, navigate]);
 
   return (
     <Box sx={{ maxWidth: 640, mx: 'auto', px: 2, py: 2, pb: 6 }}>
       <Typography variant="h5" fontWeight={800} sx={{ mb: 2 }}>Checklist</Typography>
+      {fila.pendentes > 0 && (
+        <Alert
+          severity={fila.enviando ? 'info' : 'warning'}
+          sx={{ mb: 2 }}
+          action={fila.enviando
+            ? <CircularProgress size={20} sx={{ mt: 0.5, mr: 1 }} />
+            : <Button color="inherit" size="small" onClick={() => void enviador.enviarPendentes({ forcar: true })}>Enviar agora</Button>}
+        >
+          <Typography fontWeight={700}>{fila.pendentes === 1 ? '1 checklist aguardando envio' : `${fila.pendentes} checklists aguardando envio`}</Typography>
+          <Typography variant="body2">
+            {fila.progresso ? `Enviando ${fila.progresso.enviados} de ${fila.progresso.total} arquivos. ` : ''}
+            Mantenha o app aberto até terminar.
+          </Typography>
+        </Alert>
+      )}
       {inicio.estado === 'carregando' && <Stack alignItems="center" sx={{ py: 6 }}><CircularProgress /></Stack>}
       {inicio.estado === 'erro' && (
         <Stack spacing={2} alignItems="center" sx={{ py: 6 }}>
@@ -66,6 +91,7 @@ export default function ChecklistInicioPage() {
         <EmAndamento rascunho={inicio.rascunho} onContinuar={() => navigate('/checklist/itens')} onDescartado={() => void carregar()} />
       )}
       {inicio.estado === 'novo' && <Formulario veiculos={inicio.veiculos} motoristas={inicio.motoristas} onComecou={() => navigate('/checklist/itens')} />}
+      <Snackbar open={aviso != null} autoHideDuration={5000} onClose={() => setAviso(null)} message={aviso} anchorOrigin={{ vertical: 'top', horizontal: 'center' }} />
     </Box>
   );
 }
