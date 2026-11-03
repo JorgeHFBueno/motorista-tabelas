@@ -190,6 +190,9 @@ export function paramsDe(g: Genoma, e: Estagio): ParamsCrawler {
     abertura: g.abertura,
     ossos: g.ossos,
     quadril,
+    // leque bem aberto dobra para fora; perna reta para o lado (centopeia) ou leque fechado (caranguejo), para
+    // onde abre: para fora, o joelho iria para trás ou para cima da vizinha
+    joelho: g.plano === 'aranha' || g.plano === 'polvo' ? 'fora' : 'abre',
   };
 }
 

@@ -373,6 +373,19 @@ test('Crawler: andando e virando, o joelho não troca de lado e a perna não fic
   }
 });
 
+test('Crawler: o joelho dobra para fora na aranha e no polvo, e para onde a perna abre na centopeia e no caranguejo', () => {
+  for (const plano of PLANOS) {
+    for (const seed of [3, 4, 7]) {
+      const c = criarCrawler(paramsDe(normalizarGenoma({ plano }, rngDe(seed)), 'ancia'), 240, 150, seed);
+      for (const p of c.pernas) {
+        const cv = curvaDe(c, p); // virado para a direita: frente = +x, lado de fora = +y vezes o lado
+        if (plano === 'aranha' || plano === 'polvo') assert.ok(cv.y * p.lado > 0, `${plano} ${seed}: para fora`);
+        else assert.ok(cv.x * (p.abertura < 0 ? -1 : 1) > 0, `${plano} ${seed}: ordem ${p.ordem} para onde abre`);
+      }
+    }
+  }
+});
+
 test('Crawler: perna comprida vira mais devagar que a centopeia', () => {
   const centopeia = paramsDe(normalizarGenoma({ plano: 'centopeia', velocidade: 1, perna: 1 }, rngDe(2)), 'ancia');
   const aranha = paramsDe(normalizarGenoma({ plano: 'aranha', velocidade: 1, perna: 2 }, rngDe(2)), 'ancia');

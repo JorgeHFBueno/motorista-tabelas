@@ -36,13 +36,18 @@ export type ParamsCrawler = {
   ossos: number;
   /** distância do centro do segmento até onde a perna sai */
   quadril: number;
+  /**
+   * Lado do joelho: 'fora' do corpo (leque bem aberto: aranha, polvo) ou para onde a perna 'abre' (as da frente
+   * dobram para a frente e as de trás para trás; pernas retas para o lado, como as da centopeia, para a frente).
+   */
+  joelho: 'fora' | 'abre';
 };
 
 // Valores iniciais do plano: 8 segmentos a 10 px, 1 par de pernas a cada 2 segmentos, coxa/canela 14/18 px,
 // passo a partir de 16 px em 120 ms, até 90 px/s e 3 rad/s.
 export const PADRAO: ParamsCrawler = {
   segmentos: 8, dist: 10, coxa: 14, canela: 18, limitePasso: 16, duracaoPasso: 0.12, velMax: 90, giroMax: 3, segmentosMax: 40, pernasACada: 2, vagueia: 1,
-  pares: 0, abertura: 0, ossos: 2, quadril: 3,
+  pares: 0, abertura: 0, ossos: 2, quadril: 3, joelho: 'abre',
 };
 
 /** Gerador pseudoaleatório com semente (mulberry32): a mesma seed dá o mesmo bicho. */
@@ -60,7 +65,7 @@ export function rngDe(seed: number): () => number {
 /**
  * Perna presa a um segmento, de um lado (1 ou -1), aberta `abertura` rad para a frente (negativo: para trás).
  * `ordem`: posição dela no seu lado, da frente para trás (vizinhas são as de ordem seguida). `t < 1`: no ar.
- * `dobra`: lado do joelho em relação à perna de agora (`normalDaPerna` vezes `dobra`), normalmente para fora do corpo.
+ * `dobra`: lado do joelho em relação à perna de agora (`normalDaPerna` vezes `dobra`), normalmente o de `curvaDe`.
  */
 export type Perna = { segmento: number; lado: 1 | -1; ordem: number; abertura: number; pe: Vec; de: Vec; para: Vec; t: number; dobra: 1 | -1 };
 export const noAr = (p: Perna) => p.t < 1;
@@ -96,13 +101,15 @@ export function peIdeal(c: Crawler, p: Encaixe): Vec {
 }
 
 /**
- * Para que lado a perna dobra (joelho, ou a curva do tentáculo): perpendicular à perna em repouso, para fora do corpo.
- * Fica fixo no corpo do bicho; escolher o lado pela perna de agora faz o joelho virar de lado quando ela aponta para a frente.
+ * Para que lado a perna dobra (joelho, ou a curva do tentáculo): perpendicular à perna em repouso, para o lado de
+ * `params.joelho`. Fica fixo no corpo do bicho; escolher o lado pela perna de agora faz o joelho virar de lado quando
+ * ela aponta para a frente.
  */
 export function curvaDe(c: Crawler, p: Encaixe): Vec {
   const n = normalDe(normal(sub(peIdeal(c, p), quadril(c, p))));
-  const lateral = mul(normalDe(frente(c, p.segmento)), p.lado);
-  return n.x * lateral.x + n.y * lateral.y >= 0 ? n : mul(n, -1);
+  const f = frente(c, p.segmento);
+  const lado = c.params.joelho === 'fora' ? mul(normalDe(f), p.lado) : mul(f, p.abertura < 0 ? -1 : 1);
+  return n.x * lado.x + n.y * lado.y >= 0 ? n : mul(n, -1);
 }
 
 /**
