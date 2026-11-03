@@ -3,7 +3,7 @@ import test from 'node:test';
 import { HttpsError } from 'firebase-functions/v2/https';
 import { answerManuscriptQuestion, validateChatInput } from '../lib/manuscriptChat.js';
 
-const usage = { input_tokens: 10, output_tokens: 5, cache_read_input_tokens: 3 };
+const usage = { input_tokens: 10, output_tokens: 5, cache_creation_input_tokens: 7, cache_read_input_tokens: 3 };
 const source = {
   catalog: async () => '01_FIRESTORE/COLECOES/bombas.md | colecao | vigente | bombas | Estado da bomba.',
   search: async () => [{ path: '01_FIRESTORE/COLECOES/bombas.md', title: 'bombas', snippet: 'estoqueAtual' }],
@@ -36,7 +36,7 @@ test('chat runs read-only tools, keeps the turn append-only and reports consulte
   const answer = await answerManuscriptQuestion(client, source, [{ role: 'user', text: 'oi' }, { role: 'assistant', text: 'olá' }], 'Quem grava em bombas?');
   assert.equal(answer.resposta, 'Grava em [bombas](01_FIRESTORE/COLECOES/bombas.md).');
   assert.deepEqual(answer.consultados, ['01_FIRESTORE/COLECOES/bombas.md']);
-  assert.deepEqual(answer.uso, { entrada: 20, saida: 10, cache: 6 });
+  assert.deepEqual(answer.uso, { entrada: 20, cacheGravado: 14, cacheLido: 6, saida: 10 });
   assert.equal(client.calls.length, 2);
   const [first, second] = client.calls;
   assert.equal(first.model, 'claude-opus-5-5');

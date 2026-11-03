@@ -20,7 +20,7 @@ export const manuscriptGetDocumentHistory = async (path: string, limit = 10) => 
 export type { ManuscriptSystemEdge, ManuscriptSystemNode, ManuscriptCheckProblem } from '../../functions/manuscriptMetadata';
 export type ManuscriptSystemGraphResponse = ManuscriptSystemGraph & { headSha: string };
 export interface ManuscriptChatTurn { role: 'user' | 'assistant'; text: string }
-export interface ManuscriptChatAnswer { resposta: string; consultados: string[]; uso: { entrada: number; saida: number; cache: number } }
+export interface ManuscriptChatAnswer { resposta: string; consultados: string[]; uso: { entrada: number; cacheGravado: number; cacheLido: number; saida: number } }
 export const manuscriptGetSystemGraph = async () => (await httpsCallable<undefined, ManuscriptSystemGraphResponse>(functions, 'manuscriptGetSystemGraph')()).data;
 // O chat pode levar alguns minutos (a Function tem 300 s).
 export const manuscriptChat = async (pergunta: string, historico: ManuscriptChatTurn[]) => (await httpsCallable<{ pergunta: string; historico: ManuscriptChatTurn[] }, ManuscriptChatAnswer>(functions, 'manuscriptChat', { timeout: 300_000 })({ pergunta, historico })).data;

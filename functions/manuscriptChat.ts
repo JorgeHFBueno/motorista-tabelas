@@ -9,7 +9,7 @@ const MAX_TEXT = 8000;
 const MAX_ROUNDS = 12;
 
 export interface ManuscriptChatTurn { role: 'user' | 'assistant'; text: string }
-export interface ManuscriptChatAnswer { resposta: string; consultados: string[]; uso: { entrada: number; saida: number; cache: number } }
+export interface ManuscriptChatAnswer { resposta: string; consultados: string[]; uso: { entrada: number; cacheGravado: number; cacheLido: number; saida: number } }
 
 /** O que o chat consegue ler do Manuscript (implementado pelo ManuscriptService). */
 export interface ManuscriptChatSource {
@@ -99,7 +99,8 @@ export async function answerManuscriptQuestion(client: ChatClient, source: Manus
   const system = systemPrompt(await source.catalog());
   const messages: BetaMessageParam[] = [...history.map((turn) => ({ role: turn.role, content: turn.text })), { role: 'user', content: question }];
   const consulted = new Set<string>();
-  const uso = { entrada: 0, saida: 0, cache: 0 };
+  // Tokens de entrada em três partes, como a API cobra: sem cache, gravados no cache e lidos do cache.
+  const uso = { entrada: 0, cacheGravado: 0, cacheLido: 0, saida: 0 };
   for (let round = 0; round < MAX_ROUNDS; round += 1) {
     const response = await client.create({
       model: MANUSCRIPT_CHAT_MODEL,
@@ -114,7 +115,8 @@ export async function answerManuscriptQuestion(client: ChatClient, source: Manus
     });
     uso.entrada += response.usage.input_tokens;
     uso.saida += response.usage.output_tokens;
-    uso.cache += response.usage.cache_read_input_tokens ?? 0;
+    uso.cacheGravado += response.usage.cache_creation_input_tokens ?? 0;
+    uso.cacheLido += response.usage.cache_read_input_tokens ?? 0;
     const text = response.content.flatMap((block) => (block.type === 'text' ? [block.text] : [])).join('\n').trim();
     if (response.stop_reason === 'refusal') return { resposta: 'A pergunta foi recusada pelo modelo. Tente reformular.', consultados: [...consulted], uso };
     if (response.stop_reason === 'pause_turn') { messages.push({ role: 'assistant', content: response.content }); continue; }
