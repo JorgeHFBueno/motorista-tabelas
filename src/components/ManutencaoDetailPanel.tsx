@@ -9,6 +9,7 @@ import {
     Typography,
 } from '@mui/material';
 import { Timestamp } from 'firebase/firestore';
+import BotaoManutencaoNoErp from './ManutencaoNoErp';
 import EditableFieldRow from './EditableFieldRow';
 import type { TipoEvento } from './ManutencoesList';
 
@@ -250,9 +251,9 @@ export default function ManutencaoDetailPanel({
                     </Box>
                     <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
                         {onAdd && (
-                            <Button variant="contained" onClick={onAdd}>
+                            <BotaoManutencaoNoErp variant="contained" onClick={onAdd}>
                                 Adicionar
-                            </Button>
+                            </BotaoManutencaoNoErp>
                         )}
                         {selectedTipo !== 'manutencaoErp' && (
                             <Button variant="outlined" onClick={onReload}>
