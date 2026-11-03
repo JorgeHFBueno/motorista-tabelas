@@ -93,7 +93,7 @@ export default function SlotToy() {
         <table className="dt-slot-tabela">
           <tbody>
             {PREMIOS.map((p) => (
-              <tr key={p.nome} className={premio === p ? 'dt-vp-acesa' : undefined}>
+              <tr key={p.nome} className={premio === p ? 'dt-jogo-acesa' : undefined}>
                 <td>{p.nome}</td>
                 <td>x{p.paga}</td>
               </tr>

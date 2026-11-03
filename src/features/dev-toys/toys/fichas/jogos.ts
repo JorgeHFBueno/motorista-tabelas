@@ -6,7 +6,7 @@ import { APOSTAS } from './carteira';
 
 export const JOGOS = [
   { chave: 'ledur:dev-21', nome: '21' },
-  { chave: 'ledur:dev-videopoker', nome: 'VIDEO POKER' },
+  { chave: 'ledur:dev-poker', nome: 'POKER' },
   { chave: 'ledur:dev-slot', nome: 'SLOT' },
 ] as const;
 export type ChaveJogo = (typeof JOGOS)[number]['chave'];

@@ -25,7 +25,7 @@ import {
   CUSTO_SKILL, FICHAS_INICIAIS, MESADA, hojeEmBrasilia, mover, normalizarCarteira, pegarMesada, pilhas, podeMesada, podePagarSkill, semFichas,
 } from '../src/features/dev-toys/toys/fichas/carteira';
 import { PLACAR_NOVO, normalizarPlacar, registrarJogada, taxaDeVitorias } from '../src/features/dev-toys/toys/fichas/jogos';
-import * as vp from '../src/features/dev-toys/toys/videopoker/regras';
+import * as pk from '../src/features/dev-toys/toys/poker/regras';
 import * as slot from '../src/features/dev-toys/toys/slot/regras';
 
 const sessao = (valores: Record<string, string>) => ({ getItem: (k: string) => valores[k] ?? null });
@@ -610,41 +610,57 @@ const mao5 = (...cs: string[]): Carta[] => cs.map((c) => ({
   naipe: ({ e: 'espadas', c: 'copas', o: 'ouros', p: 'paus' } as const)[c.slice(-1) as 'e' | 'c' | 'o' | 'p'],
 }));
 
-test('Video Poker: avalia as mãos de Jacks or Better', () => {
-  assert.equal(vp.avaliar(mao5('10e', 'Je', 'Qe', 'Ke', 'Ae')), 'royal');
-  assert.equal(vp.avaliar(mao5('5c', '6c', '7c', '8c', '9c')), 'straight-flush');
-  assert.equal(vp.avaliar(mao5('9e', '9c', '9o', '9p', '2e')), 'quadra');
-  assert.equal(vp.avaliar(mao5('3e', '3c', '3o', 'Kp', 'Ke')), 'full-house');
-  assert.equal(vp.avaliar(mao5('2o', '7o', '9o', 'Jo', 'Ko')), 'flush');
-  assert.equal(vp.avaliar(mao5('Ae', '2c', '3o', '4p', '5e')), 'sequencia', 'ás baixo');
-  assert.equal(vp.avaliar(mao5('10e', 'Jc', 'Qo', 'Kp', 'Ae')), 'sequencia', 'ás alto');
-  assert.equal(vp.avaliar(mao5('Qe', 'Kc', 'Ao', '2p', '3e')), null, 'não dá a volta');
-  assert.equal(vp.avaliar(mao5('7e', '7c', '7o', 'Kp', '2e')), 'trinca');
-  assert.equal(vp.avaliar(mao5('4e', '4c', '8o', '8p', 'Ae')), 'dois-pares');
-  assert.equal(vp.avaliar(mao5('Je', 'Jc', '3o', '8p', '9e')), 'par-alto');
-  assert.equal(vp.avaliar(mao5('Ae', 'Ac', '3o', '8p', '9e')), 'par-alto');
-  assert.equal(vp.avaliar(mao5('10e', '10c', '3o', '8p', '9e')), null, 'par de 10 não paga');
+test('Poker: a melhor mão de 5 entre 7 cartas, com desempate', () => {
+  const nome = (...cs: string[]) => pk.nomeDaMao(mao5(...cs));
+  const forca = (...cs: string[]) => pk.melhorMao(mao5(...cs));
+  assert.equal(nome('10e', 'Je', 'Qe', 'Ke', 'Ae', '2c', '3o'), 'ROYAL FLUSH');
+  assert.equal(nome('5c', '6c', '7c', '8c', '9c', 'Ae', 'Ao'), 'STRAIGHT FLUSH');
+  assert.equal(nome('9e', '9c', '9o', '9p', '2e', '3e', '4c'), 'QUADRA');
+  assert.equal(nome('3e', '3c', '3o', 'Kp', 'Ke', '2c', '7o'), 'FULL HOUSE');
+  assert.equal(nome('2o', '7o', '9o', 'Jo', 'Ko', 'Ae', 'Ac'), 'FLUSH');
+  assert.equal(nome('Ae', '2c', '3o', '4p', '5e', 'Kc', 'Ko'), 'SEQUENCIA', 'ás baixo');
+  assert.equal(nome('7e', '7c', '7o', 'Kp', '2e', '4c', '9o'), 'TRINCA');
+  assert.equal(nome('4e', '4c', '8o', '8p', 'Ae', '2c', 'Jo'), 'DOIS PARES');
+  assert.equal(nome('Je', 'Jc', '3o', '8p', '9e', '2c', '5o'), 'PAR');
+  assert.equal(nome('Je', '7c', '3o', '8p', '9e', '2c', '5o'), 'CARTA ALTA');
+  assert.equal(nome('Ke', 'Kc'), 'PAR', 'antes da mesa: só o par');
+  assert.ok(pk.comparar(forca('Ae', 'Ac', '3o', '8p', '9e', '2c', '5o'), forca('Ke', 'Kc', '3o', '8p', '9e', '2c', 'Jo')) > 0, 'par maior ganha');
+  assert.ok(pk.comparar(forca('Ae', 'Ac', 'Ko', '8p', '9e', '2c', '5o'), forca('Ae', 'Ac', 'Qo', '8p', '9e', '2c', '5o')) > 0, 'kicker desempata');
+  assert.ok(pk.comparar(forca('Ae', '2c', '3o', '4p', '5e', 'Kc', 'Jo'), forca('2e', '3c', '4o', '5p', '6e', 'Kc', 'Jo')) < 0, 'A-5 perde de 2-6');
+  assert.equal(pk.comparar(forca('2e', '3c', 'Ao', 'Ap', 'Ke', 'Kc', 'Qo'), forca('4e', '5c', 'Ao', 'Ap', 'Ke', 'Kc', 'Qo')), 0, 'mesma mão da mesa: empate');
 });
 
-test('Video Poker: distribui, segura, troca uma vez e paga pela tabela', () => {
-  const m = vp.distribuir(vp.mesaNova(100), 20, rngDe(3));
-  assert.equal(m.fase, 'segurando');
+test('Poker: a casa segue com par, ás ou rei, ou duas de 10 para cima', () => {
+  assert.equal(pk.casaSegue(mao5('4e', '4c')), true);
+  assert.equal(pk.casaSegue(mao5('Ae', '2c')), true);
+  assert.equal(pk.casaSegue(mao5('Ke', '3c')), true);
+  assert.equal(pk.casaSegue(mao5('10e', 'Jc')), true);
+  assert.equal(pk.casaSegue(mao5('Qe', '9c')), false);
+  assert.equal(pk.casaSegue(mao5('7e', '2c')), false);
+});
+
+test('Poker: distribui, decide uma vez depois do flop e paga', () => {
+  const m = pk.distribuir(pk.mesaNova(100), 20, rngDe(3));
+  assert.equal(m.fase, 'decidindo');
   assert.equal(m.fichas, 80);
-  assert.equal(m.mao.length + m.baralho.length, 52);
-  assert.equal(vp.distribuir(vp.mesaNova(10), 20, rngDe(3)).fase, 'apostando', 'sem fichas para a aposta');
-  const segura = vp.segurar(vp.segurar(m, 0), 3);
-  assert.deepEqual(segura.segura, [true, false, false, true, false]);
-  const fim = vp.trocar(segura);
-  assert.equal(fim.fase, 'fim');
-  assert.deepEqual([fim.mao[0], fim.mao[3]], [m.mao[0], m.mao[3]], 'as seguradas ficam');
-  assert.deepEqual([fim.mao[1], fim.mao[2], fim.mao[4]], m.baralho.slice(0, 3), 'as outras vêm do baralho, em ordem');
-  assert.equal(fim.fichas, 80 + 20 * vp.pagaDe(fim.jogo));
-  assert.equal(vp.trocar(fim), fim, 'troca só uma vez');
-  assert.equal(vp.segurar(fim, 1), fim);
-  // segurando um royal inteiro, paga 250 por ficha apostada
-  const royal = vp.trocar({ ...m, mao: mao5('10e', 'Je', 'Qe', 'Ke', 'Ae'), segura: [true, true, true, true, true] });
-  assert.equal(royal.jogo, 'royal');
-  assert.equal(royal.fichas, 80 + 20 * 250);
+  assert.equal(m.jogador.length + m.casa.length + m.mesa.length + m.baralho.length, 52);
+  assert.equal(pk.distribuir(pk.mesaNova(10), 20, rngDe(3)).fase, 'apostando', 'sem fichas para a aposta');
+
+  const comCasa = (casa: string[]) => ({ ...m, casa: mao5(...casa), jogador: mao5('Ae', 'Ac'), mesa: mao5('2o', '7p', '9e', 'Jc', '4o') });
+  const desiste = pk.apostar(comCasa(['Qe', '9c']));
+  assert.deepEqual([desiste.resultado, desiste.extra, desiste.fichas], ['casa-desistiu', 20, 60 + 40 + 20], 'leva a inicial da casa e a aposta volta');
+  const cobre = pk.apostar(comCasa(['Ke', 'Kc']));
+  assert.deepEqual([cobre.resultado, cobre.fichas], ['ganhou', 60 + 80], 'par de ases ganha de par de reis: o dobro de 40');
+  const perde = pk.apostar({ ...comCasa(['Ke', 'Kc']), jogador: mao5('3e', '5c') });
+  assert.deepEqual([perde.resultado, perde.fichas], ['perdeu', 60]);
+  const passa = pk.passar(comCasa(['Qe', '9c']));
+  assert.deepEqual([passa.resultado, passa.extra, passa.fichas], ['ganhou', 0, 80 + 40], 'passando, a casa não desiste: vai ao fim');
+  const empate = pk.passar({ ...comCasa(['3o', '5p']), jogador: mao5('3e', '5c') });
+  assert.deepEqual([empate.resultado, empate.fichas], ['empate', 100]);
+  const fora = pk.desistir(comCasa(['Ke', 'Kc']));
+  assert.deepEqual([fora.resultado, fora.fichas], ['desistiu', 80]);
+  assert.equal(pk.apostar(fora), fora, 'decide uma vez');
+  assert.equal(pk.podeApostar({ ...m, fichas: 19 }), false, 'sem fichas para apostar: só passar ou desistir');
 });
 
 test('Slot: a fita tem 21 símbolos espalhados, a tabela paga a linha do meio e o retorno é o ajustado (~100%)', () => {

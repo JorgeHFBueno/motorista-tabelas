@@ -688,28 +688,30 @@
   color: var(--dt-apagado);
 }
 
-/* ---- Video Poker ---- */
-.devtoys .dt-vp-tabela {
+/* ---- Poker ---- */
+/* casa em cima e você embaixo, à esquerda; a mesa (5 cartas) à direita, entre os dois */
+.devtoys .dt-poker-mesa {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 0 calc(var(--dt-e) * 12px);
-  margin: 0 0 calc(var(--dt-e) * 10px);
-  padding: 0;
-  list-style: none;
-  font-size: calc(var(--dt-e) * 12px);
+  grid-template-columns: auto auto;
+  grid-template-areas: 'casa mesa' 'voce mesa';
+  justify-content: center;
+  align-items: center;
+  column-gap: calc(var(--dt-e) * 28px);
 }
 
-.devtoys .dt-vp-tabela li {
-  display: flex;
-  justify-content: space-between;
-  gap: calc(var(--dt-e) * 6px);
-  padding: calc(var(--dt-e) * 1px) calc(var(--dt-e) * 4px);
+.devtoys .dt-poker-casa {
+  grid-area: casa;
 }
 
-.devtoys .dt-vp-tabela li span:last-child {
-  color: var(--dt-apagado);
+.devtoys .dt-poker-voce {
+  grid-area: voce;
 }
 
+.devtoys .dt-poker-centro {
+  grid-area: mesa;
+}
+
+/* ---- tabela de prêmios (Slot) ---- */
 .devtoys .dt-slot-tabela {
   border-collapse: collapse;
   font-size: calc(var(--dt-e) * 12px);
@@ -726,56 +728,12 @@
   color: var(--dt-tinta);
 }
 
-/* a linha do jogo que a mão forma (ou que pagou) */
-.devtoys .dt-vp-acesa,
-.devtoys .dt-vp-acesa td,
-.devtoys .dt-vp-acesa td:first-child,
-.devtoys .dt-vp-acesa span:last-child {
+/* a linha do prêmio que saiu */
+.devtoys .dt-jogo-acesa td,
+.devtoys .dt-jogo-acesa td:first-child {
   color: var(--dt-papel);
   background: var(--dt-tinta);
   text-shadow: none;
-}
-
-.devtoys .dt-vp-mao {
-  display: flex;
-  justify-content: center;
-  gap: calc(var(--dt-e) * 8px);
-  min-height: calc(var(--dt-e) * 96px);
-  align-items: flex-end;
-  margin-bottom: calc(var(--dt-e) * 4px);
-}
-
-.devtoys .dt-vp-carta {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: calc(var(--dt-e) * 4px);
-}
-
-.devtoys .dt-vp-carta .dt-carta {
-  transition: transform 120ms ease-out;
-}
-
-/* segurada: sobe um pouco e ganha a moldura dupla */
-.devtoys .dt-vp-segura .dt-carta {
-  transform: translateY(calc(var(--dt-e) * -8px));
-  box-shadow: 0 0 0 2px var(--dt-papel), 0 0 0 3px var(--dt-tinta);
-}
-
-.devtoys .dt-vp-carta:focus-visible .dt-carta {
-  outline: 1px dotted var(--dt-tinta);
-  outline-offset: 4px;
-}
-
-.devtoys .dt-vp-legenda {
-  min-height: calc(var(--dt-e) * 16px);
-  font-size: calc(var(--dt-e) * 11px);
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .devtoys .dt-vp-carta .dt-carta {
-    transition: none;
-  }
 }
 
 /* ---- Slot Machine ---- */
