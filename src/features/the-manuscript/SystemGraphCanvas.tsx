@@ -8,12 +8,15 @@ import { GRAPH_SIZE, type Point } from './systemGraphLayout';
 import { nodeColor } from './systemGraphColors';
 
 interface View { scale: number; tx: number; ty: number }
+/** Destaque da pesquisa do chat: o mapa fica cinza e acende o que a IA tocou (busca), leu e citou. */
+export interface GraphSearchHighlight { tocados: Set<string>; lidos: Set<string>; citados: Set<string>; ultimo: string | null }
 type Props = {
   nodes: ManuscriptSystemNode[]; edges: ManuscriptSystemEdge[]; positions: Map<string, Point>;
-  selectedId: string | null; highlighted: Set<string>; focusId: string | null; onSelect: (id: string | null) => void;
+  selectedId: string | null; pesquisa: GraphSearchHighlight | null; focusId: string | null; onSelect: (id: string | null) => void;
 };
+const APAGADO = '#52626c';
 
-export default function SystemGraphCanvas({ nodes, edges, positions, selectedId, highlighted, focusId, onSelect }: Props) {
+export default function SystemGraphCanvas({ nodes, edges, positions, selectedId, pesquisa, focusId, onSelect }: Props) {
   const svg = useRef<SVGSVGElement>(null);
   const drag = useRef<{ x: number; y: number; view: View; moved: boolean } | null>(null);
   const [view, setView] = useState<View>({ scale: 1, tx: 0, ty: 0 });
@@ -37,7 +40,7 @@ export default function SystemGraphCanvas({ nodes, edges, positions, selectedId,
     return set;
   }, [edges, selectedId]);
 
-  // Centraliza no nó pedido (busca, link do chat, ?foco=).
+  // Centraliza no nó pedido (link do chat, entidade do Reader, ?foco=).
   useEffect(() => {
     const point = focusId ? positions.get(focusId) : undefined;
     if (!point) return;
@@ -74,8 +77,10 @@ export default function SystemGraphCanvas({ nodes, edges, positions, selectedId,
     }
   };
 
-  const dim = (id: string) => (neighbors && !neighbors.has(id)) || (highlighted.size > 0 && !highlighted.has(id) && !neighbors?.has(id));
-  const showLabel = (node: ManuscriptSystemNode) => neighbors?.has(node.id) || highlighted.has(node.id) || view.scale >= 2.2 || (node.kind === 'DOCUMENTO' && (degree.get(node.id) ?? 0) >= 18 / view.scale);
+  // Nível de luz de cada nó na pesquisa: 3 citado, 2 lido, 1 tocado pela busca, 0 apagado.
+  const luz = (id: string) => (!pesquisa ? 2 : pesquisa.citados.has(id) ? 3 : pesquisa.lidos.has(id) ? 2 : pesquisa.tocados.has(id) ? 1 : 0);
+  const dim = (id: string) => !pesquisa && !!neighbors && !neighbors.has(id);
+  const showLabel = (node: ManuscriptSystemNode) => (pesquisa ? luz(node.id) >= 2 || selectedId === node.id : neighbors?.has(node.id) || view.scale >= 2.2 || (node.kind === 'DOCUMENTO' && (degree.get(node.id) ?? 0) >= 18 / view.scale));
   const r = (node: ManuscriptSystemNode) => (node.kind === 'DOCUMENTO' ? 4 + Math.min(7, Math.sqrt(degree.get(node.id) ?? 0)) : 3.5);
 
   return <div className="manuscript-map-canvas">
@@ -84,17 +89,21 @@ export default function SystemGraphCanvas({ nodes, edges, positions, selectedId,
         {edges.map((edge, i) => {
           const a = positions.get(edge.source); const b = positions.get(edge.target);
           if (!a || !b) return null;
-          const active = selectedId && (edge.source === selectedId || edge.target === selectedId);
-          return <line key={`${edge.source}|${edge.target}|${edge.relacao}|${i}`} x1={a.x} y1={a.y} x2={b.x} y2={b.y} className={`edge ${edge.relacao} ${active ? 'active' : ''} ${selectedId && !active ? 'dim' : ''}`} strokeWidth={(active ? 1.6 : 0.8) * unit} />;
+          const active = pesquisa ? (luz(edge.source) >= 2 && luz(edge.target) >= 1) || (luz(edge.target) >= 2 && luz(edge.source) >= 1) : selectedId && (edge.source === selectedId || edge.target === selectedId);
+          const off = pesquisa ? !active : selectedId && !active;
+          return <line key={`${edge.source}|${edge.target}|${edge.relacao}|${i}`} x1={a.x} y1={a.y} x2={b.x} y2={b.y} className={`edge ${edge.relacao} ${active ? 'active' : ''} ${off ? 'dim' : ''}`} strokeWidth={(active ? 1.6 : 0.8) * unit} />;
         })}
         {nodes.map((node) => {
           const p = positions.get(node.id);
           if (!p) return null;
           const size = r(node) * unit;
-          const color = nodeColor(node);
-          return <g key={node.id} data-node={node.id} className={`node ${node.kind.toLowerCase()} ${selectedId === node.id ? 'selected' : ''} ${dim(node.id) ? 'dim' : ''}`} transform={`translate(${p.x} ${p.y})`}>
+          const nivel = luz(node.id);
+          const color = nivel ? nodeColor(node) : APAGADO;
+          const lit = pesquisa && nivel >= 2;
+          return <g key={node.id} data-node={node.id} className={`node ${node.kind.toLowerCase()} ${selectedId === node.id ? 'selected' : ''} ${dim(node.id) ? 'dim' : ''} ${pesquisa ? `luz-${nivel}` : ''} ${pesquisa?.ultimo === node.id ? 'ultimo' : ''}`} transform={`translate(${p.x} ${p.y})`}>
             <title>{node.kind === 'DOCUMENTO' ? `${node.label}\n${node.id}` : node.id}</title>
-            {node.kind === 'DOCUMENTO' ? <circle r={size} fill={color} stroke={selectedId === node.id ? '#102a3a' : 'none'} strokeWidth={2.4 * unit} /> : <rect x={-size} y={-size} width={size * 2} height={size * 2} rx={size * 0.35} fill={selectedId === node.id ? color : '#fff'} stroke={selectedId === node.id ? '#102a3a' : color} strokeWidth={1.4 * unit} />}
+            {lit && <circle className="halo" r={size * (nivel === 3 ? 2.6 : 2.1)} fill={nodeColor(node)} />}
+            {node.kind === 'DOCUMENTO' ? <circle r={size} fill={color} stroke={selectedId === node.id ? '#102a3a' : 'none'} strokeWidth={2.4 * unit} /> : <rect x={-size} y={-size} width={size * 2} height={size * 2} rx={size * 0.35} fill={selectedId === node.id ? color : '#16232b'} stroke={selectedId === node.id ? '#102a3a' : color} strokeWidth={1.4 * unit} />}
             {showLabel(node) && <text y={-size - 3 * unit} fontSize={11 * unit} textAnchor="middle">{node.label}</text>}
           </g>;
         })}

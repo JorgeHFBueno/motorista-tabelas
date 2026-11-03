@@ -37,7 +37,7 @@ export const menuPrincipal: MenuPrincipalItem[] = [
     icon: <MenuBookRoundedIcon fontSize="large" />,
     color: '#EDF3F7',
     accent: '#174F76',
-    to: '/the-manuscript',
+    to: '/the-manuscript/mapa',
     acesso: 'adm2',
   },
   {

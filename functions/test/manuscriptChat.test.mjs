@@ -9,6 +9,7 @@ const source = {
   search: async () => [{ path: '01_FIRESTORE/COLECOES/bombas.md', title: 'bombas', snippet: 'estoqueAtual' }],
   read: async (path) => { if (path !== '01_FIRESTORE/COLECOES/bombas.md') throw new HttpsError('not-found', 'MANUSCRIPT_DOCUMENT_NOT_FOUND'); return '# bombas\n\nTexto.'; },
   relations: async (id) => `${id} --define--> colecao:bombas`,
+  neighbors: async () => ['01_FIRESTORE/COLECOES/bombas.md'],
 };
 
 function fakeClient(responses) {
@@ -33,7 +34,13 @@ test('chat runs read-only tools, keeps the turn append-only and reports consulte
     ] },
     { stop_reason: 'end_turn', usage, content: [{ type: 'text', text: 'Grava em [bombas](01_FIRESTORE/COLECOES/bombas.md).' }] },
   ]);
-  const answer = await answerManuscriptQuestion(client, source, [{ role: 'user', text: 'oi' }, { role: 'assistant', text: 'olá' }], 'Quem grava em bombas?');
+  const events = [];
+  const answer = await answerManuscriptQuestion(client, source, [{ role: 'user', text: 'oi' }, { role: 'assistant', text: 'olá' }], 'Quem grava em bombas?', (evento) => events.push(evento));
+  // A tela acende no mapa só o que foi de fato lido ou seguido; leitura que falhou não gera aviso.
+  assert.deepEqual(events, [
+    { tipo: 'leitura', id: '01_FIRESTORE/COLECOES/bombas.md' },
+    { tipo: 'relacoes', id: 'colecao:bombas', vizinhos: ['01_FIRESTORE/COLECOES/bombas.md'] },
+  ]);
   assert.equal(answer.resposta, 'Grava em [bombas](01_FIRESTORE/COLECOES/bombas.md).');
   assert.deepEqual(answer.consultados, ['01_FIRESTORE/COLECOES/bombas.md']);
   assert.deepEqual(answer.uso, { entrada: 20, cacheGravado: 14, cacheLido: 6, saida: 10 });
@@ -57,6 +64,8 @@ test('chat stops on refusal and on the round limit', async () => {
   const refused = await answerManuscriptQuestion(fakeClient([{ stop_reason: 'refusal', usage, content: [] }]), source, [], 'x');
   assert.match(refused.resposta, /recusada/);
   const looping = Array.from({ length: 12 }, () => ({ stop_reason: 'tool_use', usage, content: [{ type: 'tool_use', id: 't', name: 'buscar_documentos', input: { consulta: 'bombas' } }] }));
-  const capped = await answerManuscriptQuestion(fakeClient(looping), source, [], 'x');
+  const searches = [];
+  const capped = await answerManuscriptQuestion(fakeClient(looping), source, [], 'x', (evento) => searches.push(evento));
+  assert.deepEqual(searches[0], { tipo: 'busca', ids: ['01_FIRESTORE/COLECOES/bombas.md'] });
   assert.match(capped.resposta, /limite de etapas/);
 });

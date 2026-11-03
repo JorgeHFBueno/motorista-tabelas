@@ -4,7 +4,7 @@ import DeleteSweepRoundedIcon from '@mui/icons-material/DeleteSweepRounded';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { type FormEvent, type KeyboardEvent, useEffect, useRef, useState } from 'react';
-import { manuscriptChat, type ManuscriptChatTurn } from '../../services/manuscript';
+import { manuscriptChat, type ManuscriptChatProgress, type ManuscriptChatTurn } from '../../services/manuscript';
 
 interface Message extends ManuscriptChatTurn { consultados?: string[] }
 
@@ -22,7 +22,20 @@ const errorText = (error: unknown) => {
 /** Resolve o link que a IA cita (caminho .md relativo à raiz do Manuscript). */
 const documentPath = (href: string) => { if (/^[a-z][a-z\d+.-]*:/i.test(href) || href.startsWith('//')) return null; const [path] = href.replace(/^\.?\//, '').split('#', 1); return path.toLowerCase().endsWith('.md') ? path : null; };
 
-export default function ManuscriptChat({ onCite }: { onCite: (path: string) => void }) {
+/** Documentos citados nos links da resposta. */
+const citedPaths = (markdown: string) => [...new Set([...markdown.matchAll(/\]\(([^)\s]+)\)/g)].flatMap((match) => documentPath(match[1]) ?? []))];
+
+/** Avisos para o mapa: digitação, início da pesquisa, progresso, documentos citados e limpeza. */
+export interface ManuscriptChatEvents {
+  onCite: (path: string) => void;
+  onTyping: (typing: boolean) => void;
+  onStart: () => void;
+  onProgress: (evento: ManuscriptChatProgress) => void;
+  onAnswer: (cited: string[]) => void;
+  onClear: () => void;
+}
+
+export default function ManuscriptChat({ onCite, onTyping, onStart, onProgress, onAnswer, onClear }: ManuscriptChatEvents) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [draft, setDraft] = useState('');
   const [loading, setLoading] = useState(false);
@@ -37,10 +50,11 @@ export default function ManuscriptChat({ onCite }: { onCite: (path: string) => v
     if (!pergunta || loading) return;
     const historico = messages.map(({ role, text }) => ({ role, text })).slice(-20);
     setMessages((old) => [...old, { role: 'user', text: pergunta }]);
-    setDraft(''); setError(''); setLoading(true);
+    setDraft(''); setError(''); setLoading(true); onStart();
     try {
-      const answer = await manuscriptChat(pergunta, historico);
+      const answer = await manuscriptChat(pergunta, historico, onProgress);
       setMessages((old) => [...old, { role: 'assistant', text: answer.resposta, consultados: answer.consultados }]);
+      onAnswer(citedPaths(answer.resposta));
     } catch (caught) {
       setError(errorText(caught));
       setMessages((old) => old.slice(0, -1));
@@ -52,7 +66,7 @@ export default function ManuscriptChat({ onCite }: { onCite: (path: string) => v
   return <section className="manuscript-chat" aria-label="Chat do Manuscript">
     <Stack direction="row" alignItems="center" justifyContent="space-between" className="manuscript-chat-header">
       <Typography variant="overline">Pergunte ao Manuscript</Typography>
-      {messages.length > 0 && <IconButton size="small" aria-label="Limpar conversa" title="Limpar conversa" onClick={() => { setMessages([]); setError(''); }} disabled={loading}><DeleteSweepRoundedIcon fontSize="small" /></IconButton>}
+      {messages.length > 0 && <IconButton size="small" aria-label="Limpar conversa" title="Limpar conversa" onClick={() => { setMessages([]); setError(''); onClear(); }} disabled={loading}><DeleteSweepRoundedIcon fontSize="small" /></IconButton>}
     </Stack>
     <Box className="manuscript-chat-messages" ref={list}>
       {messages.length === 0 && !loading && <Typography variant="body2" className="manuscript-chat-empty">Pergunte sobre coleções, Functions, telas ou regras. A resposta vem só da documentação, com links para os documentos usados. Ex.: “Quem grava em bombas?”</Typography>}
@@ -64,7 +78,7 @@ export default function ManuscriptChat({ onCite }: { onCite: (path: string) => v
     </Box>
     {error && <Alert severity="warning" onClose={() => setError('')}>{error}</Alert>}
     <Box component="form" onSubmit={send} className="manuscript-chat-form">
-      <TextField fullWidth multiline maxRows={6} size="small" value={draft} onChange={(e) => setDraft(e.target.value)} onKeyDown={onKey} placeholder="Faça uma pergunta…" disabled={loading} inputProps={{ maxLength: 8000 }} />
+      <TextField fullWidth multiline maxRows={6} size="small" value={draft} onChange={(e) => { setDraft(e.target.value); onTyping(e.target.value.trim().length > 0); }} onKeyDown={onKey} placeholder="Faça uma pergunta…" disabled={loading} inputProps={{ maxLength: 8000 }} />
       <Button type="submit" variant="contained" disabled={loading || !draft.trim()} aria-label="Enviar pergunta"><SendRoundedIcon fontSize="small" /></Button>
     </Box>
   </section>;

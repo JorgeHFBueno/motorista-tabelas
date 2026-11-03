@@ -1,6 +1,9 @@
 import { httpsCallable } from 'firebase/functions';
 import { functions } from '../firebase';
 import type { ManuscriptSystemGraph } from '../../functions/manuscriptMetadata';
+import type { ManuscriptChatProgress } from '../../functions/manuscriptChat';
+
+export type { ManuscriptChatProgress };
 
 export interface ManuscriptDocument { path: string; name: string; directory: string; sha: string }
 export interface ManuscriptSearchResult { path: string; title: string; snippet: string; matches: number }
@@ -22,5 +25,11 @@ export type ManuscriptSystemGraphResponse = ManuscriptSystemGraph & { headSha: s
 export interface ManuscriptChatTurn { role: 'user' | 'assistant'; text: string }
 export interface ManuscriptChatAnswer { resposta: string; consultados: string[]; uso: { entrada: number; cacheGravado: number; cacheLido: number; saida: number } }
 export const manuscriptGetSystemGraph = async () => (await httpsCallable<undefined, ManuscriptSystemGraphResponse>(functions, 'manuscriptGetSystemGraph')()).data;
-// O chat pode levar alguns minutos (a Function tem 300 s).
-export const manuscriptChat = async (pergunta: string, historico: ManuscriptChatTurn[]) => (await httpsCallable<{ pergunta: string; historico: ManuscriptChatTurn[] }, ManuscriptChatAnswer>(functions, 'manuscriptChat', { timeout: 300_000 })({ pergunta, historico })).data;
+// O chat pode levar alguns minutos (a Function tem 300 s). Durante a pesquisa, a Function manda o progresso
+// (o que buscou, leu ou seguiu no mapa) por streaming; a resposta chega no fim.
+export const manuscriptChat = async (pergunta: string, historico: ManuscriptChatTurn[], onProgress: (evento: ManuscriptChatProgress) => void = () => {}) => {
+  const callable = httpsCallable<{ pergunta: string; historico: ManuscriptChatTurn[] }, ManuscriptChatAnswer, ManuscriptChatProgress>(functions, 'manuscriptChat', { timeout: 300_000 });
+  const { stream, data } = await callable.stream({ pergunta, historico });
+  for await (const evento of stream) onProgress(evento);
+  return data;
+};

@@ -1,14 +1,13 @@
-import { Alert, Box, Button, Chip, CircularProgress, Dialog, DialogContent, DialogTitle, FormControlLabel, IconButton, InputAdornment, Stack, Switch, TextField, Typography } from '@mui/material';
+import { Alert, Box, Button, Chip, CircularProgress, Dialog, DialogContent, DialogTitle, FormControlLabel, IconButton, Stack, Switch, Typography } from '@mui/material';
 import MenuBookRoundedIcon from '@mui/icons-material/MenuBookRounded';
-import SearchRoundedIcon from '@mui/icons-material/SearchRounded';
 import CloseRoundedIcon from '@mui/icons-material/CloseRounded';
 import WarningAmberRoundedIcon from '@mui/icons-material/WarningAmberRounded';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { type CSSProperties, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { temCredencial } from '../services/credenciais';
-import { manuscriptGetSystemGraph, type ManuscriptSystemGraphResponse, type ManuscriptSystemNode } from '../services/manuscript';
-import SystemGraphCanvas from '../features/the-manuscript/SystemGraphCanvas';
+import { manuscriptGetSystemGraph, type ManuscriptChatProgress, type ManuscriptSystemGraphResponse, type ManuscriptSystemNode } from '../services/manuscript';
+import SystemGraphCanvas, { type GraphSearchHighlight } from '../features/the-manuscript/SystemGraphCanvas';
 import { ENTITY_COLORS, domainColor, nodeColor } from '../features/the-manuscript/systemGraphColors';
 import ManuscriptChat from '../features/the-manuscript/ManuscriptChat';
 import { layoutSystemGraph } from '../features/the-manuscript/systemGraphLayout';
@@ -19,6 +18,16 @@ import '../features/the-manuscript/mapa.css';
 const KINDS: Array<{ key: string; label: string }> = [{ key: 'DOCUMENTO', label: 'Documentos' }, { key: 'colecao', label: 'Coleções' }, { key: 'function', label: 'Functions' }, { key: 'rota', label: 'Rotas' }, { key: 'externo', label: 'Externos' }];
 const RELACAO_LABEL: Record<string, [string, string]> = { define: ['define', 'definida em'], le: ['lê', 'lida por'], escreve: ['escreve', 'escrita por'], chama: ['chama', 'chamada por'], integra: ['integra', 'integrada por'], link: ['cita', 'citado por'] };
 const kindOf = (node: ManuscriptSystemNode) => (node.kind === 'DOCUMENTO' ? 'DOCUMENTO' : node.tipo);
+const semDestaque = (): GraphSearchHighlight => ({ tocados: new Set(), lidos: new Set(), citados: new Set(), ultimo: null });
+/** Acende no mapa o que a pesquisa do chat buscou, leu ou seguiu. */
+function aplicarProgresso(old: GraphSearchHighlight | null, evento: ManuscriptChatProgress): GraphSearchHighlight {
+  const next = old ?? semDestaque();
+  const tocados = new Set(next.tocados); const lidos = new Set(next.lidos);
+  if (evento.tipo === 'busca') { evento.ids.forEach((id) => tocados.add(id)); return { ...next, tocados }; }
+  lidos.add(evento.id);
+  if (evento.tipo === 'relacoes') evento.vizinhos.forEach((id) => tocados.add(id));
+  return { ...next, tocados, lidos, ultimo: evento.id };
+}
 
 function Details({ graph, node, onSelect, onClose }: { graph: ManuscriptSystemGraphResponse; node: ManuscriptSystemNode; onSelect: (id: string) => void; onClose: () => void }) {
   const navigate = useNavigate();
@@ -57,12 +66,24 @@ export default function ManuscriptMapaPage() {
   const [error, setError] = useState('');
   const [selectedId, setSelectedId] = useState<string | null>(params.get('foco'));
   const [focusId, setFocusId] = useState<string | null>(params.get('foco'));
-  const [query, setQuery] = useState('');
   const [kinds, setKinds] = useState(() => new Set(KINDS.map((kind) => kind.key)));
   const [domains, setDomains] = useState<Set<string>>(new Set());
   const [showLinks, setShowLinks] = useState(false);
   const [showAudit, setShowAudit] = useState(false);
   const [problemsOpen, setProblemsOpen] = useState(false);
+  // Pesquisa do chat: ao digitar o mapa fica cinza; durante e depois da resposta, acende o que a IA usou.
+  const [typing, setTyping] = useState(false);
+  const [busca, setBusca] = useState<GraphSearchHighlight | null>(null);
+  const pesquisa = useMemo(() => busca ?? (typing ? semDestaque() : null), [busca, typing]);
+  // A página ocupa a tela abaixo do cabeçalho do sistema (como o Friday): a caixa de pergunta fica visível sem rolar.
+  const raiz = useRef<HTMLDivElement>(null);
+  const [topo, setTopo] = useState(0);
+  useLayoutEffect(() => {
+    const medir = () => setTopo((raiz.current?.getBoundingClientRect().top ?? 0) + window.scrollY);
+    medir();
+    window.addEventListener('resize', medir);
+    return () => window.removeEventListener('resize', medir);
+  }, []);
 
   useEffect(() => { void manuscriptGetSystemGraph().then(setGraph).catch(() => setError('Não foi possível carregar o mapa do sistema.')); }, []);
   const positions = useMemo(() => (graph ? layoutSystemGraph(graph.nodes, graph.edges) : new Map()), [graph]);
@@ -78,12 +99,6 @@ export default function ManuscriptMapaPage() {
     return { nodes, edges };
   }, [graph, kinds, domains, showLinks, showAudit, selectedId]);
 
-  const highlighted = useMemo(() => {
-    const needle = query.trim().toLocaleLowerCase();
-    if (needle.length < 2) return new Set<string>();
-    return new Set(visible.nodes.filter((node) => `${node.id} ${node.label} ${node.resumo ?? ''}`.toLocaleLowerCase().includes(needle)).map((node) => node.id));
-  }, [query, visible.nodes]);
-
   const select = useCallback((id: string | null) => {
     setSelectedId(id);
     setParams((old) => { const next = new URLSearchParams(old); if (id) next.set('foco', id); else next.delete('foco'); return next; }, { replace: true });
@@ -92,10 +107,9 @@ export default function ManuscriptMapaPage() {
   const selected = graph?.nodes.find((node) => node.id === selectedId) ?? null;
   const toggle = <T,>(set: Set<T>, value: T) => { const next = new Set(set); if (next.has(value)) next.delete(value); else next.add(value); return next; };
 
-  return <Box className="manuscript-page manuscript-map-page">
+  return <Box ref={raiz} className="manuscript-page manuscript-map-page" style={{ '--mapa-topo': `${topo}px` } as CSSProperties}>
     <header className="manuscript-topbar">
-      <Stack direction="row" alignItems="center" spacing={1}><MenuBookRoundedIcon className="manuscript-brand-icon" /><Typography variant="h6">The Manuscript · Mapa</Typography><Button size="small" startIcon={<MenuBookRoundedIcon />} onClick={() => navigate('/the-manuscript')}>Documentos</Button></Stack>
-      <TextField size="small" className="manuscript-search" value={query} onChange={(e) => setQuery(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter' && highlighted.size) focus([...highlighted][0]); }} placeholder="Buscar no mapa" InputProps={{ startAdornment: <InputAdornment position="start"><SearchRoundedIcon /></InputAdornment> }} />
+      <Stack direction="row" alignItems="center" spacing={1.5}><MenuBookRoundedIcon className="manuscript-brand-icon" /><Typography variant="h6">The Manuscript · Mapa</Typography><Button size="small" variant="contained" disableElevation className="manuscript-map-docs" startIcon={<MenuBookRoundedIcon />} onClick={() => navigate('/the-manuscript')}>Documentos</Button></Stack>
     </header>
     <Box className={`manuscript-map-body ${chatEnabled ? 'with-chat' : ''}`}>
       <Box className="manuscript-map-main">
@@ -111,11 +125,12 @@ export default function ManuscriptMapaPage() {
         </Stack>
         <Box className="manuscript-map-stage">
           {error ? <Alert severity="error">{error}</Alert> : !graph ? <Stack alignItems="center" justifyContent="center" height="100%"><CircularProgress size={28} /></Stack>
-            : <SystemGraphCanvas nodes={visible.nodes} edges={visible.edges} positions={positions} selectedId={selectedId} highlighted={highlighted} focusId={focusId} onSelect={select} />}
+            : <SystemGraphCanvas nodes={visible.nodes} edges={visible.edges} positions={positions} selectedId={selectedId} pesquisa={pesquisa} focusId={focusId} onSelect={select} />}
+          {busca && !typing && <Chip className="manuscript-map-search-chip" size="small" label="Destaque da pergunta" onDelete={() => setBusca(null)} />}
           {graph && selected && <Details graph={graph} node={selected} onSelect={focus} onClose={() => select(null)} />}
         </Box>
       </Box>
-      {chatEnabled && <ManuscriptChat onCite={focus} />}
+      {chatEnabled && <ManuscriptChat onCite={focus} onTyping={setTyping} onStart={() => { setTyping(false); setBusca(semDestaque()); }} onProgress={(evento) => setBusca((old) => aplicarProgresso(old, evento))} onAnswer={(cited) => setBusca((old) => ({ ...(old ?? semDestaque()), citados: new Set(cited), ultimo: null }))} onClear={() => setBusca(null)} />}
     </Box>
     <Dialog open={problemsOpen} onClose={() => setProblemsOpen(false)} fullWidth maxWidth="md">
       <DialogTitle>Problemas nos blocos de dados</DialogTitle>

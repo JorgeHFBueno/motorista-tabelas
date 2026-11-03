@@ -256,6 +256,10 @@ export class ManuscriptService {
         const header = node.kind === 'DOCUMENTO' ? `${id}: ${node.label} (${node.tipo}, ${node.status ?? 'sem status'})${node.resumo ? ` — ${node.resumo}` : ''}` : `${id}${node.definidoEm ? `, definida em ${node.definidoEm}` : ', sem documento que a defina'}`;
         return [header, ...out, ...incoming].join('\n') || header;
       },
+      neighbors: async (id) => {
+        const graph = await this.getSystemGraph();
+        return [...new Set(graph.edges.flatMap((edge) => (edge.relacao === 'link' ? [] : edge.source === id ? [edge.target] : edge.target === id ? [edge.source] : [])))];
+      },
     };
   }
   async getDocumentHistory(pathInput: unknown, limitInput: unknown): Promise<ManuscriptDocumentHistoryResponse> {
@@ -297,7 +301,7 @@ export const manuscriptGetDocumentGraph = onCall(callableOptions, async (request
 export const manuscriptGetDocumentHistory = onCall(callableOptions, async (request) => { try { await assertReader(request.auth?.uid); return await service.getDocumentHistory(request.data?.path, request.data?.limit); } catch (error) { throw cleanError(error); } });
 export const manuscriptGetSystemGraph = onCall(callableOptions, async (request) => { try { await assertReader(request.auth?.uid); return await service.getSystemGraph(); } catch (error) { throw cleanError(error); } });
 /** Chat do Manuscript: só a credencial retr0 (decisão do responsável de 2026-11-02), paga com os créditos de API. */
-export const manuscriptChat = onCall({ ...callableOptions, secrets: [...callableOptions.secrets, anthropicApiKey], timeoutSeconds: 300, memory: '512MiB' }, async (request) => {
+export const manuscriptChat = onCall({ ...callableOptions, secrets: [...callableOptions.secrets, anthropicApiKey], timeoutSeconds: 300, memory: '512MiB' }, async (request, response) => {
   try {
     const uid = request.auth?.uid;
     if (!uid) throw new HttpsError('unauthenticated', 'Autenticação obrigatória.');
@@ -307,7 +311,8 @@ export const manuscriptChat = onCall({ ...callableOptions, secrets: [...callable
     const apiKey = anthropicApiKey.value();
     if (!apiKey) throw new HttpsError('failed-precondition', 'MANUSCRIPT_CHAT_NOT_CONFIGURED');
     const client = new Anthropic({ apiKey, maxRetries: 2 });
-    const answer = await answerManuscriptQuestion(client.beta.messages, service.chatSource(), history, question);
+    // Progresso por streaming: a tela acende no mapa o que a IA busca e lê. Sem streaming, sendChunk não faz nada.
+    const answer = await answerManuscriptQuestion(client.beta.messages, service.chatSource(), history, question, (evento) => { void response?.sendChunk(evento); });
     console.info('manuscriptChat', { uid, ...answer.uso, consultados: answer.consultados.length });
     return answer;
   } catch (error) {

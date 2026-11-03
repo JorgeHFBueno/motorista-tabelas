@@ -9,6 +9,11 @@ const MAX_TEXT = 8000;
 const MAX_ROUNDS = 12;
 
 export interface ManuscriptChatTurn { role: 'user' | 'assistant'; text: string }
+/** Progresso enviado à tela durante a pesquisa: o que a IA buscou, leu ou seguiu no mapa. */
+export type ManuscriptChatProgress =
+  | { tipo: 'busca'; ids: string[] }
+  | { tipo: 'leitura'; id: string }
+  | { tipo: 'relacoes'; id: string; vizinhos: string[] };
 export interface ManuscriptChatAnswer { resposta: string; consultados: string[]; uso: { entrada: number; cacheGravado: number; cacheLido: number; saida: number } }
 
 /** O que o chat consegue ler do Manuscript (implementado pelo ManuscriptService). */
@@ -17,6 +22,8 @@ export interface ManuscriptChatSource {
   search(query: string): Promise<Array<{ path: string; title: string; snippet: string }>>;
   read(path: string): Promise<string>;
   relations(id: string): Promise<string>;
+  /** Vizinhos de um nó no mapa (para acender na tela). */
+  neighbors(id: string): Promise<string[]>;
 }
 
 type ChatClient = Pick<Anthropic['beta']['messages'], 'create'>;
@@ -72,20 +79,28 @@ export function validateChatInput(historyInput: unknown, questionInput: unknown)
   return { history, question };
 }
 
-async function runTool(source: ManuscriptChatSource, block: BetaToolUseBlock, consulted: Set<string>): Promise<BetaToolResultBlockParam> {
+type Progress = (evento: ManuscriptChatProgress) => void;
+
+async function runTool(source: ManuscriptChatSource, block: BetaToolUseBlock, consulted: Set<string>, progress: Progress): Promise<BetaToolResultBlockParam> {
   const input = (block.input ?? {}) as Record<string, unknown>;
   const fail = (content: string): BetaToolResultBlockParam => ({ type: 'tool_result', tool_use_id: block.id, is_error: true, content });
   try {
     if (block.name === 'buscar_documentos' && typeof input.consulta === 'string') {
       const results = await source.search(input.consulta);
+      progress({ tipo: 'busca', ids: results.map((r) => r.path) });
       return { type: 'tool_result', tool_use_id: block.id, content: results.length ? results.map((r) => `${r.path} | ${r.title}\n  ${r.snippet}`).join('\n') : 'Nenhum documento contém esse texto.' };
     }
     if (block.name === 'ler_documento' && typeof input.caminho === 'string') {
       const content = await source.read(input.caminho);
       consulted.add(input.caminho);
+      progress({ tipo: 'leitura', id: input.caminho });
       return { type: 'tool_result', tool_use_id: block.id, content };
     }
-    if (block.name === 'relacoes' && typeof input.id === 'string') return { type: 'tool_result', tool_use_id: block.id, content: await source.relations(input.id) };
+    if (block.name === 'relacoes' && typeof input.id === 'string') {
+      const content = await source.relations(input.id);
+      progress({ tipo: 'relacoes', id: input.id, vizinhos: await source.neighbors(input.id) });
+      return { type: 'tool_result', tool_use_id: block.id, content };
+    }
     return fail('Ferramenta ou entrada inválida.');
   } catch (error) {
     if (error instanceof HttpsError && error.code === 'not-found') return fail('Documento não encontrado. Confira o caminho no catálogo.');
@@ -95,7 +110,7 @@ async function runTool(source: ManuscriptChatSource, block: BetaToolUseBlock, co
 }
 
 /** Uma pergunta: o histórico entra só como texto; dentro da pergunta, as mensagens só crescem. */
-export async function answerManuscriptQuestion(client: ChatClient, source: ManuscriptChatSource, history: ManuscriptChatTurn[], question: string): Promise<ManuscriptChatAnswer> {
+export async function answerManuscriptQuestion(client: ChatClient, source: ManuscriptChatSource, history: ManuscriptChatTurn[], question: string, progress: Progress = () => {}): Promise<ManuscriptChatAnswer> {
   const system = systemPrompt(await source.catalog());
   const messages: BetaMessageParam[] = [...history.map((turn) => ({ role: turn.role, content: turn.text })), { role: 'user', content: question }];
   const consulted = new Set<string>();
@@ -126,7 +141,7 @@ export async function answerManuscriptQuestion(client: ChatClient, source: Manus
       return { resposta: (text || 'Não consegui montar uma resposta.') + cut, consultados: [...consulted], uso };
     }
     messages.push({ role: 'assistant', content: response.content });
-    messages.push({ role: 'user', content: await Promise.all(toolUses.map((block) => runTool(source, block, consulted))) });
+    messages.push({ role: 'user', content: await Promise.all(toolUses.map((block) => runTool(source, block, consulted, progress))) });
   }
   return { resposta: 'A pesquisa passou do limite de etapas sem chegar a uma resposta. Tente uma pergunta mais específica.', consultados: [...consulted], uso };
 }
