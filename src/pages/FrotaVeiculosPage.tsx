@@ -14,6 +14,7 @@ import {
     TextField,
     ToggleButton,
     ToggleButtonGroup,
+    Tooltip,
     Typography,
 } from '@mui/material';
 import PhotoCameraOutlinedIcon from '@mui/icons-material/PhotoCameraOutlined';
@@ -45,6 +46,30 @@ const COR_FRESCOR: Record<Frescor, string> = {
     antiga: 'error.main',
     'sem-dado': 'text.disabled',
 };
+
+// Norma de lançamento da manutenção no ERP (The Manuscript, 03_APLICACAO_WEB/04_FROTA_E_MANUTENCOES.md).
+const exemplo = { fontFamily: 'monospace', fontSize: '0.8rem', color: 'common.white', bgcolor: 'rgba(255,255,255,0.14)', border: 0, borderRadius: 0.5, px: 0.75, py: 0.25, mt: 0.5, display: 'block', whiteSpace: 'pre-wrap' } as const;
+
+function NormaManutencaoErp() {
+    return (
+        <Box sx={{ fontSize: '0.8rem', lineHeight: 1.5 }}>
+            <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>Lançar no ERP, no CUSTO DA OBRA</Typography>
+            <Typography variant="caption" component="div" sx={{ mt: 0.5 }}>Com a formatação:</Typography>
+            <Box component="code" sx={exemplo}>PLACA - KM - LITROS - PREÇO LITRO - CATEGORIA;</Box>
+            <Box component="ul" sx={{ m: 0, mt: 1, pl: 2.25, '& li + li': { mt: 0.75 } }}>
+                <li>A <b>placa</b> é escrita por extenso, sem hífen: <Box component="code" sx={{ ...exemplo, display: 'inline', mt: 0 }}>XXXYYYY</Box></li>
+                <li>
+                    O <b>"-"</b> entre os campos é obrigatório, mesmo com o campo vazio:
+                    <Box component="code" sx={exemplo}>XXXYYYY - - 50 - 7.8 - 21;</Box>
+                </li>
+                <li>
+                    O <b>";"</b> fecha cada placa, o que permite várias placas no mesmo lançamento:
+                    <Box component="code" sx={exemplo}>XXXYYYY - 12000 - 50 - 7.8 - 21; ZZZWWWW - 50000 - 20 - 7.8 - 21;</Box>
+                </li>
+            </Box>
+        </Box>
+    );
+}
 
 function VeiculoLinha({ item, onOpen }: { item: ItemFrotaV2; onOpen: () => void }) {
     const atualizacao = atualizacaoInfo(item.dataUltimaAtualizacao);
@@ -275,9 +300,19 @@ export default function FrotaVeiculosPage() {
         <Container sx={{ py: 3 }}>
             <Stack direction="row" spacing={2} alignItems="center" justifyContent="space-between">
                 <Typography variant="h4">Veículos</Typography>
-                <Button variant="outlined" size="small" onClick={openManutencaoDialog}>
-                    Adicionar manutenção
-                </Button>
+                {/* Manutenção agora é lançada no ERP (norma de 2026-11-03); o formulário fica, com o botão desabilitado. */}
+                <Tooltip
+                    title={<NormaManutencaoErp />}
+                    enterTouchDelay={0}
+                    leaveTouchDelay={15000}
+                    slotProps={{ tooltip: { sx: { maxWidth: 460, p: 1.5, bgcolor: 'grey.900' } } }}
+                >
+                    <span tabIndex={0} aria-label="Adicionar manutenção desabilitado: lançar no ERP, no CUSTO DA OBRA">
+                        <Button variant="outlined" size="small" disabled onClick={openManutencaoDialog}>
+                            Adicionar manutenção
+                        </Button>
+                    </span>
+                </Tooltip>
             </Stack>
 
             <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2} mt={3} alignItems={{ xs: 'stretch', sm: 'center' }}>
