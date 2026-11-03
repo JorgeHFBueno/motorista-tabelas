@@ -598,7 +598,7 @@
   align-items: center;
   gap: calc(var(--dt-e) * 12px);
   min-height: calc(var(--dt-e) * 22px);
-  margin-bottom: calc(var(--dt-e) * 12px);
+  margin-bottom: calc(var(--dt-e) * 4px);
 }
 
 .devtoys .dt-21-botoes button:hover:not(:disabled),
@@ -612,15 +612,20 @@
   color: var(--dt-apagado);
 }
 
-/* fichas: o monte do jogador à esquerda e o da mesa à direita, desenhados e com o número */
+/* fichas, no topo: o monte do jogador à esquerda e o da mesa à direita, desenhados e com o número */
 .devtoys .dt-21-fichas {
   display: flex;
   justify-content: space-between;
   align-items: flex-end;
   gap: calc(var(--dt-e) * 12px);
   min-height: calc(var(--dt-e) * 100px);
-  padding-top: calc(var(--dt-e) * 8px);
-  border-top: 1px dotted var(--dt-apagado);
+  padding-bottom: calc(var(--dt-e) * 8px);
+  margin-bottom: calc(var(--dt-e) * 12px);
+  border-bottom: 1px dotted var(--dt-apagado);
+}
+
+.devtoys .dt-21:focus {
+  outline: none;
 }
 
 .devtoys .dt-21-fichas p {

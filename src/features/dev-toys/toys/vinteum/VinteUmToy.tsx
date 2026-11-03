@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState, type KeyboardEvent } from 'react';
 import { CartaView } from '../cartas/CartaView';
 import { FichasView } from './FichasView';
 import { gravar, ler } from '../crawler/memoria';
@@ -69,11 +69,49 @@ export default function VinteUmToy() {
   const saldo = resultado ? retorno(resultado, mesa.aposta) - mesa.aposta : 0;
   const semFichas = !jogando && !revelando && precisaEmprestimo(mesa.fichas);
 
+  // teclado: setas andam entre as opções (botões habilitados) e Enter escolhe. Quando as opções mudam (a mão
+  // começou ou acabou), o foco vai para a principal, se ele estava no 21 ou em lugar nenhum; ao abrir a janela, sempre
+  const raiz = useRef<HTMLDivElement>(null);
+  const abriu = useRef(false);
+  const opcoes = () => [...(raiz.current?.querySelectorAll<HTMLButtonElement>('.dt-21-botoes button:not(:disabled)') ?? [])];
+  const principal = () => raiz.current?.querySelector<HTMLButtonElement>('.dt-21-botoes [data-principal]:not(:disabled)');
+  const teclas = (e: KeyboardEvent) => {
+    const passo = { ArrowLeft: -1, ArrowUp: -1, ArrowRight: 1, ArrowDown: 1 }[e.key];
+    const lista = opcoes();
+    const atual = lista.indexOf(document.activeElement as HTMLButtonElement);
+    if (passo && lista.length) {
+      e.preventDefault();
+      const de = atual < 0 ? Math.max(0, lista.indexOf(principal() as HTMLButtonElement)) - passo : atual;
+      lista[(de + passo + lista.length) % lista.length].focus();
+    } else if (e.key === 'Enter' && atual < 0) {
+      e.preventDefault();
+      principal()?.click();
+    }
+  };
+  useEffect(() => {
+    const ativo = document.activeElement;
+    const fora = ativo && ativo !== document.body && !raiz.current?.contains(ativo);
+    if (fora && abriu.current) return;
+    abriu.current = true;
+    principal()?.focus({ preventScroll: true });
+  }, [mesa.fase, revelando, semFichas]);
+
   const meus = pontos(mesa.jogador);
   const naMesa = jogando || revelando ? mesa.aposta : 0;
 
   return (
-    <div className="dt-21">
+    <div className="dt-21" ref={raiz} tabIndex={-1} onKeyDown={teclas}>
+      <div className="dt-21-fichas">
+        <div className="dt-21-monte">
+          <FichasView total={fichas} />
+          <p><span className="dt-21-legenda">FICHAS</span>{fichas}</p>
+        </div>
+        {placar.emprestimos > 0 && <p><span className="dt-21-legenda">EMPRESTIMOS</span>{placar.emprestimos}</p>}
+        <div className="dt-21-monte">
+          <p><span className="dt-21-legenda">NA MESA</span>{naMesa || '-'}</p>
+          <FichasView total={naMesa} />
+        </div>
+      </div>
       <p className="dt-21-rotulo">
         BANCA
         {mesa.banca.length > 0 && <span className="dt-21-pontos">{pontosBanca}{jogando ? ' + ?' : ''}</span>}
@@ -96,14 +134,14 @@ export default function VinteUmToy() {
       <div className="dt-21-botoes">
         {jogando ? (
           <>
-            <button type="button" onClick={() => jogar(pedir(mesa))}>[Pedir]</button>
+            <button type="button" data-principal onClick={() => jogar(pedir(mesa))}>[Pedir]</button>
             <button type="button" onClick={() => jogar(parar(mesa))}>[Parar]</button>
             {podeDobrar(mesa) && <button type="button" onClick={() => jogar(dobrar(mesa))}>[Dobrar]</button>}
           </>
         ) : semFichas ? (
           <>
             <span>SEM FICHAS.</span>
-            <button type="button" onClick={emprestar}>[A casa empresta {FICHAS_INICIAIS}]</button>
+            <button type="button" data-principal onClick={emprestar}>[A casa empresta {FICHAS_INICIAIS}]</button>
           </>
         ) : (
           <>
@@ -120,20 +158,9 @@ export default function VinteUmToy() {
                 [{a}]
               </button>
             ))}
-            <button type="button" onClick={novaMao} disabled={revelando || placar.aposta > mesa.fichas}>[Distribuir]</button>
+            <button type="button" data-principal onClick={novaMao} disabled={revelando || placar.aposta > mesa.fichas}>[Distribuir]</button>
           </>
         )}
-      </div>
-      <div className="dt-21-fichas">
-        <div className="dt-21-monte">
-          <FichasView total={fichas} />
-          <p><span className="dt-21-legenda">FICHAS</span>{fichas}</p>
-        </div>
-        {placar.emprestimos > 0 && <p><span className="dt-21-legenda">EMPRESTIMOS</span>{placar.emprestimos}</p>}
-        <div className="dt-21-monte">
-          <p><span className="dt-21-legenda">NA MESA</span>{naMesa || '-'}</p>
-          <FichasView total={naMesa} />
-        </div>
       </div>
     </div>
   );
