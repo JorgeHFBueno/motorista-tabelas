@@ -330,7 +330,7 @@ export default function CrawlerToy() {
         <button type="button" onClick={() => mudarOpcoes({ ...opcoes, aprendeDeSi: !opcoes.aprendeDeSi })}>
           {marca(opcoes.aprendeDeSi)} LLM aprende o proprio texto
         </button>
-        <button type="button" onClick={abrirViveiro}>Viveiro</button>
+        <button type="button" onClick={abrirViveiro}>Setor de Contencao</button>
       </div>
     </div>
   );

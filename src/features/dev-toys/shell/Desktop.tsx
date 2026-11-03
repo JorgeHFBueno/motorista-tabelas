@@ -87,7 +87,7 @@ export default function Desktop({ ligando, prefs, onPrefs, onReiniciar }: Props)
         { rotulo: 'Sair do DEV', acao: () => navigate('/') },
       ],
     },
-    { id: 'brinquedos', rotulo: 'Brinquedos', itens: DEV_TOYS.map((t) => ({ rotulo: t.nome, acao: () => abrir(t.id) })) },
+    { id: 'brinquedos', rotulo: 'Setores', itens: DEV_TOYS.map((t) => ({ rotulo: t.nome, acao: () => abrir(t.id) })) },
     {
       id: 'crt',
       rotulo: 'CRT',

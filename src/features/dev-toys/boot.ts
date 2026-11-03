@@ -12,7 +12,7 @@ export function linhasBoot({ modo, online, serviceWorker }: EstadoBoot): string[
     `NETWORK ............ ${online ? 'ONLINE' : 'OFFLINE'}`,
     `PWA ................ ${serviceWorker ? 'SERVICE WORKER OK' : 'SEM SERVICE WORKER'}`,
     'LOADING FLEET.SYS ... OK',
-    'LOADING CRAWLER.DRV . OK',
+    'LOADING ANOMALY.DRV . OK',
     '',
     'STARTING DESKTOP ...',
   ];

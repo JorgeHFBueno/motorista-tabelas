@@ -8,14 +8,14 @@ export type Skill = (typeof SKILLS)[number];
 export type Skills = Record<Skill, number>;
 
 export const SKILL: Record<Skill, { nome: string; max: number; efeito: (n: number) => string }> = {
-  leitura: { nome: 'RAPIDEZ EM LEITURA', max: 10, efeito: (n) => `LE ${5 * n}% MAIS RAPIDO` },
-  palavras: { nome: 'MAIS PALAVRAS', max: 2, efeito: (n) => `LE ${1 + n} ${n ? 'PALAVRAS' : 'PALAVRA'} POR VEZ` },
-  movimento: { nome: 'VELOCIDADE', max: 10, efeito: (n) => `ANDA ${2 * n}% MAIS RAPIDO` },
-  faro: { nome: 'FARO', max: 3, efeito: (n) => `PREFERE PALAVRAS A FRENTE (${n}/3)` },
-  raio: { nome: 'RAIO LONGO', max: 5, efeito: (n) => `RAIO +${2 * n} PX` },
-  estomago: { nome: 'ESTOMAGO', max: 5, efeito: (n) => `FOME SOBE ${10 * n}% MAIS DEVAGAR` },
-  gula: { nome: 'GULA', max: 4, efeito: (n) => `CADA PALAVRA TIRA ${2 + 0.5 * n} DE FOME` },
-  revisor: { nome: 'REVISOR', max: 2, efeito: (n) => `ESCREVE ${1 + n} XEROX, FICA COM O MELHOR` },
+  leitura: { nome: 'CLARIVIDENCIA', max: 10, efeito: (n) => `LE ${5 * n}% MAIS RAPIDO` },
+  palavras: { nome: 'MULTIPRESENCA', max: 2, efeito: (n) => `LE ${1 + n} ${n ? 'PALAVRAS' : 'PALAVRA'} POR VEZ` },
+  movimento: { nome: 'DESLOCAMENTO', max: 10, efeito: (n) => `ANDA ${2 * n}% MAIS RAPIDO` },
+  faro: { nome: 'PREMONICAO', max: 3, efeito: (n) => `PREFERE PALAVRAS A FRENTE (${n}/3)` },
+  raio: { nome: 'EXPANSAO', max: 5, efeito: (n) => `RAIO +${2 * n} PX` },
+  estomago: { nome: 'ADAPTACAO', max: 5, efeito: (n) => `FOME SOBE ${10 * n}% MAIS DEVAGAR` },
+  gula: { nome: 'ABSORCAO', max: 4, efeito: (n) => `CADA PALAVRA TIRA ${2 + 0.5 * n} DE FOME` },
+  revisor: { nome: 'PERFECCIONISMO', max: 2, efeito: (n) => `ESCREVE ${1 + n} XEROX, FICA COM O MELHOR` },
 };
 
 export const SEM_SKILLS: Skills = { leitura: 0, palavras: 0, movimento: 0, faro: 0, raio: 0, estomago: 0, gula: 0, revisor: 0 };

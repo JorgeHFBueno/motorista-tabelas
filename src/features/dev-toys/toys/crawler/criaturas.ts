@@ -42,7 +42,7 @@ export type Criatura = {
 
 export type Viveiro = { criaturas: Criatura[]; ativa: string | null; proximoNumero: number };
 
-export const nomeDe = (c: Pick<Criatura, 'numero'>) => `CRAWLER ${String(c.numero).padStart(2, '0')}`;
+export const nomeDe = (c: Pick<Criatura, 'numero'>) => `ANOMALIA ${String(c.numero).padStart(2, '0')}`;
 export const estagio = (c: Criatura): Estagio => estagioDe(c.xp, c.nasceu);
 
 /** Fome agora (0–100). Com a skill Estômago, sobe mais devagar desde a última refeição. */
