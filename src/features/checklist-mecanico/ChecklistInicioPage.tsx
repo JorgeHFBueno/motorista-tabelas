@@ -19,6 +19,7 @@ import {
 import { enviador, useFilaEnvio } from './data/filaEnvio';
 import MedidorCampo from './components/MedidorCampo';
 import MotoristaCampo from './components/MotoristaCampo';
+import InstalarNoIphone from './components/InstalarNoIphone';
 
 type Inicio =
   | { estado: 'carregando' }
@@ -69,6 +70,7 @@ export default function ChecklistInicioPage() {
         <Typography variant="h5" fontWeight={800}>Checklist</Typography>
         <Button variant="outlined" startIcon={<HistoryRoundedIcon />} onClick={() => navigate('/checklist/historico')}>Histórico</Button>
       </Stack>
+      <InstalarNoIphone />
       {fila.pendentes > 0 && (
         <Alert
           severity={fila.enviando ? 'info' : 'warning'}

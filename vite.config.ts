@@ -10,6 +10,7 @@ export default defineConfig({
       manifest: false,
       includeAssets: [
         'logo-ledur-branco.png',
+        'apple-touch-icon.png',
         'perfil1.svg',
         'perfil2.svg',
         'icons/icon-192x192.png',

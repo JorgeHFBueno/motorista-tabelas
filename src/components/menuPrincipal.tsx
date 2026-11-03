@@ -71,6 +71,15 @@ export const menuPrincipal: MenuPrincipalItem[] = [
     ],
   },
   {
+    // Checklist do mecânico para celular (iPhone); quem só tem esta área entra direto nela.
+    label: 'Checklist',
+    icon: <FactCheckOutlinedIcon fontSize="large" />,
+    color: '#EEF5F1',
+    accent: '#2E9D6F',
+    to: '/checklist',
+    acesso: 'mecanico',
+  },
+  {
     label: 'Combustível',
     icon: <LocalGasStationIcon fontSize="large" />,
     color: '#FFF6E8',
@@ -118,7 +127,7 @@ export const menuPrincipal: MenuPrincipalItem[] = [
 ];
 
 // Cada área aparece para quem tem a sua credencial; o adm2 vê tudo, salvo as exclusivas (retr0). Quem só tem credenciais do app
-// (motorista, frentista, mecânico) vê o Meu perfil.
+// (motorista, frentista) vê o Meu perfil; o mecânico vê o Checklist.
 export function filtrarMenuPrincipal(profile: AuthorizationProfile | null): MenuPrincipalItem[] {
   return menuPrincipal.filter((item) => {
     if (item.acesso === 'qualquer') return temAlgumaCredencial(profile);
