@@ -5,9 +5,10 @@
 // se você apostar, ela cobre ou desiste, olhando apenas as próprias 2 cartas (`casaSegue`). Depois abrem o turn e o
 // river, e a melhor mão de 5 entre as 7 cartas de cada um ganha. Um baralho novo a cada mão.
 //
-// Pagamento (com o que você pôs dentro): ganhou, o dobro do que pôs; empate, o que pôs; a casa desistiu, o dobro da
-// aposta inicial mais a aposta que ela não cobriu; perdeu ou desistiu, nada. Para ajustar a vantagem, mude
-// `casaSegue` (decisão do responsável: ajustável).
+// Pagamento (com o que você pôs dentro): ganhou, o dobro do que pôs; empate ou a casa desistiu, o que pôs; perdeu ou
+// desistiu, nada. Ajuste do responsável (2026-11-03), por simulação de 150 mil mãos: com a casa desistindo de graça,
+// apostar sempre devolvia ~124%. Assim, passar sempre devolve 100%, apostar sempre ~95% e apostar só com par ou
+// melhor no flop ~103%. Para mexer na vantagem: `casaSegue` e `retorno`.
 
 import { embaralhar, novoBaralho, type Carta } from '../cartas/baralho';
 
@@ -81,10 +82,10 @@ export function nomeDaMao(cartas: Carta[]): string {
   return f[0] === 8 && f[1] === 14 ? 'ROYAL FLUSH' : NOMES_MAO[f[0]];
 }
 
-/** Sem blefe: a casa cobre a sua aposta com par, ás ou rei, ou duas cartas de 10 para cima. */
+/** Sem blefe: a casa cobre a sua aposta com par ou com alguma carta de 8 para cima (ás conta como alta). */
 export function casaSegue(casa: Carta[]): boolean {
   const [a, b] = casa.map((c) => alto(c.valor));
-  return a === b || a >= 13 || b >= 13 || (a >= 10 && b >= 10);
+  return a === b || a >= 8 || b >= 8;
 }
 
 // ---- mesa ---------------------------------------------------------------------------------------------------------
@@ -111,8 +112,7 @@ export const mesaNova = (fichas: number): Mesa => ({ baralho: [], jogador: [], c
 /** Quanto volta para as fichas no fim (o que você pôs já saiu delas). */
 export function retorno(r: Resultado, aposta: number, extra: number): number {
   if (r === 'ganhou') return 2 * (aposta + extra);
-  if (r === 'empate') return aposta + extra;
-  if (r === 'casa-desistiu') return 2 * aposta + extra;
+  if (r === 'empate' || r === 'casa-desistiu') return aposta + extra;
   return 0;
 }
 

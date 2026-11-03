@@ -630,13 +630,12 @@ test('Poker: a melhor mão de 5 entre 7 cartas, com desempate', () => {
   assert.equal(pk.comparar(forca('2e', '3c', 'Ao', 'Ap', 'Ke', 'Kc', 'Qo'), forca('4e', '5c', 'Ao', 'Ap', 'Ke', 'Kc', 'Qo')), 0, 'mesma mão da mesa: empate');
 });
 
-test('Poker: a casa segue com par, ás ou rei, ou duas de 10 para cima', () => {
+test('Poker: a casa segue com par ou com alguma carta de 8 para cima', () => {
   assert.equal(pk.casaSegue(mao5('4e', '4c')), true);
-  assert.equal(pk.casaSegue(mao5('Ae', '2c')), true);
-  assert.equal(pk.casaSegue(mao5('Ke', '3c')), true);
-  assert.equal(pk.casaSegue(mao5('10e', 'Jc')), true);
-  assert.equal(pk.casaSegue(mao5('Qe', '9c')), false);
+  assert.equal(pk.casaSegue(mao5('Ae', '2c')), true, 'ás conta como alta');
+  assert.equal(pk.casaSegue(mao5('8e', '3c')), true);
   assert.equal(pk.casaSegue(mao5('7e', '2c')), false);
+  assert.equal(pk.casaSegue(mao5('5e', '6c')), false);
 });
 
 test('Poker: distribui, decide uma vez depois do flop e paga', () => {
@@ -647,13 +646,13 @@ test('Poker: distribui, decide uma vez depois do flop e paga', () => {
   assert.equal(pk.distribuir(pk.mesaNova(10), 20, rngDe(3)).fase, 'apostando', 'sem fichas para a aposta');
 
   const comCasa = (casa: string[]) => ({ ...m, casa: mao5(...casa), jogador: mao5('Ae', 'Ac'), mesa: mao5('2o', '7p', '9e', 'Jc', '4o') });
-  const desiste = pk.apostar(comCasa(['Qe', '9c']));
-  assert.deepEqual([desiste.resultado, desiste.extra, desiste.fichas], ['casa-desistiu', 20, 60 + 40 + 20], 'leva a inicial da casa e a aposta volta');
+  const desiste = pk.apostar(comCasa(['7e', '2c']));
+  assert.deepEqual([desiste.resultado, desiste.extra, desiste.fichas], ['casa-desistiu', 20, 100], 'a casa desistiu: volta o que você pôs, sem lucro');
   const cobre = pk.apostar(comCasa(['Ke', 'Kc']));
   assert.deepEqual([cobre.resultado, cobre.fichas], ['ganhou', 60 + 80], 'par de ases ganha de par de reis: o dobro de 40');
   const perde = pk.apostar({ ...comCasa(['Ke', 'Kc']), jogador: mao5('3e', '5c') });
   assert.deepEqual([perde.resultado, perde.fichas], ['perdeu', 60]);
-  const passa = pk.passar(comCasa(['Qe', '9c']));
+  const passa = pk.passar(comCasa(['5e', '6c']));
   assert.deepEqual([passa.resultado, passa.extra, passa.fichas], ['ganhou', 0, 80 + 40], 'passando, a casa não desiste: vai ao fim');
   const empate = pk.passar({ ...comCasa(['3o', '5p']), jogador: mao5('3e', '5c') });
   assert.deepEqual([empate.resultado, empate.fichas], ['empate', 100]);

@@ -19,7 +19,7 @@ const FRASE: Record<Resultado, string> = {
   ganhou: 'VOCE GANHOU',
   perdeu: 'A CASA GANHOU',
   empate: 'EMPATE: VOLTA O QUE VOCE POS',
-  'casa-desistiu': 'A CASA DESISTIU',
+  'casa-desistiu': 'A CASA DESISTIU: VOLTA O QUE VOCE POS',
   desistiu: 'VOCE DESISTIU',
 };
 
