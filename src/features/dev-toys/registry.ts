@@ -48,4 +48,11 @@ export const DEV_TOYS: DevToy[] = [
     componente: lazy(() => import('./toys/vinteum/VinteUmToy')),
     largura: 560, // mesa larga: nove cartas por linha
   },
+  {
+    id: 'placar',
+    nome: 'Placar de Lideres',
+    icone: 'M3 1h10v1H3zM4 2h8v4H4zM7 3h2v1H7zM1 2h3v1H1zM12 2h3v1h-3zM1 3h1v2H1zM14 3h1v2h-1zM2 5h2v1H2zM12 5h2v1h-2zM5 6h6v1H5zM6 7h4v1H6zM7 8h2v3H7zM5 11h6v1H5zM4 12h8v2H4z',
+    componente: lazy(() => import('./toys/placar/PlacarToy')),
+    largura: 400,
+  },
 ];

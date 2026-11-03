@@ -104,6 +104,9 @@ export function dobrar(m: Mesa): Mesa {
 
 // ---- placar guardado ----------------------------------------------------------------------------------------------
 
+/** Onde o placar fica (localStorage) e o evento disparado a cada gravação, que o Placar de Lideres acompanha. */
+export const CHAVE_21 = 'ledur:dev-21';
+
 export type Placar = { fichas: number; aposta: number; recorde: number; maos: number; vitorias: number; emprestimos: number };
 
 export const PLACAR_NOVO: Placar = { fichas: FICHAS_INICIAIS, aposta: APOSTAS[0], recorde: FICHAS_INICIAIS, maos: 0, vitorias: 0, emprestimos: 0 };
@@ -135,4 +138,21 @@ export function registrar(p: Placar, m: Mesa): Placar {
     maos: p.maos + 1,
     vitorias: p.vitorias + (venceu(m.resultado) ? 1 : 0),
   };
+}
+
+// ---- fichas no desenho --------------------------------------------------------------------------------------------
+
+/** Valores das fichas desenhadas, da maior para a menor (os pagamentos dão sempre múltiplos de 5). */
+export const VALORES_FICHA = [100, 50, 10, 5] as const;
+
+/** Quantas fichas de cada valor somam o total, das maiores para as menores; só os valores que aparecem. */
+export function pilhas(total: number): Array<{ valor: number; qtd: number }> {
+  let resto = Math.max(0, Math.floor(total));
+  const saida: Array<{ valor: number; qtd: number }> = [];
+  for (const valor of VALORES_FICHA) {
+    const qtd = Math.floor(resto / valor);
+    resto -= qtd * valor;
+    if (qtd) saida.push({ valor, qtd });
+  }
+  return saida;
 }

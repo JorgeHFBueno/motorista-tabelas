@@ -1,15 +1,16 @@
 import { useEffect, useState } from 'react';
 import { CartaView } from '../cartas/CartaView';
+import { FichasView } from './FichasView';
 import { gravar, ler } from '../crawler/memoria';
 import { rngDe } from '../crawler/sim';
 import {
-  APOSTAS, FICHAS_INICIAIS, distribuir, dobrar, mesaNova, normalizarPlacar, parar, pedir, podeDobrar, pontos, precisaEmprestimo,
+  APOSTAS, CHAVE_21, FICHAS_INICIAIS, distribuir, dobrar, mesaNova, normalizarPlacar, parar, pedir, podeDobrar, pontos, precisaEmprestimo,
   registrar, retorno, type Mesa, type Placar, type Resultado,
 } from './regras';
 
-// 21 contra a banca, com fichas de brincadeira guardadas neste navegador (`ledur:dev-21`). Sair no meio da mão perde
-// a aposta: ela sai das fichas ao distribuir. A banca revela as cartas uma a uma no fim.
-const CHAVE = 'ledur:dev-21';
+// 21 contra a banca, com fichas de brincadeira guardadas neste navegador (`CHAVE_21`). Sair no meio da mão perde
+// a aposta: ela sai das fichas ao distribuir. A banca revela as cartas uma a uma no fim. Recorde, mãos e vitórias
+// aparecem no Placar de Lideres.
 const REVELAR_MS = 380;
 
 const FRASE: Record<Resultado, string> = {
@@ -27,7 +28,7 @@ const semMovimento = () => {
 };
 
 export default function VinteUmToy() {
-  const [placar, setPlacar] = useState<Placar>(() => normalizarPlacar(ler(CHAVE)));
+  const [placar, setPlacar] = useState<Placar>(() => normalizarPlacar(ler(CHAVE_21)));
   const [mesa, setMesa] = useState<Mesa>(() => mesaNova(placar.fichas));
   // cartas da banca já à mostra: no fim, as que ela comprou aparecem uma a uma
   const [mostradas, setMostradas] = useState(0);
@@ -39,7 +40,11 @@ export default function VinteUmToy() {
     return () => window.clearTimeout(t);
   }, [revelando, mostradas]);
 
-  const guardar = (p: Placar) => { setPlacar(p); gravar(CHAVE, p); };
+  const guardar = (p: Placar) => {
+    setPlacar(p);
+    gravar(CHAVE_21, p);
+    window.dispatchEvent(new CustomEvent(CHAVE_21));
+  };
   const jogar = (nova: Mesa) => {
     if (nova === mesa) return;
     setMesa(nova);
@@ -63,7 +68,6 @@ export default function VinteUmToy() {
   const pontosBanca = jogando ? pontos(mesa.banca.slice(0, 1)).total : pontos(banca).total;
   const saldo = resultado ? retorno(resultado, mesa.aposta) - mesa.aposta : 0;
   const semFichas = !jogando && !revelando && precisaEmprestimo(mesa.fichas);
-  const taxa = placar.maos ? Math.round((100 * placar.vitorias) / placar.maos) : 0;
 
   const meus = pontos(mesa.jogador);
   const naMesa = jogando || revelando ? mesa.aposta : 0;
@@ -120,14 +124,17 @@ export default function VinteUmToy() {
           </>
         )}
       </div>
-      <dl className="dt-21-placar">
-        <div><dt>FICHAS</dt><dd>{fichas}</dd></div>
-        <div><dt>NA MESA</dt><dd>{naMesa || '-'}</dd></div>
-        <div><dt>RECORDE</dt><dd>{placar.recorde}</dd></div>
-        <div><dt>MAOS</dt><dd>{placar.maos}</dd></div>
-        <div><dt>VITORIAS</dt><dd>{placar.vitorias} ({taxa}%)</dd></div>
-        {placar.emprestimos > 0 && <div><dt>EMPRESTIMOS</dt><dd>{placar.emprestimos}</dd></div>}
-      </dl>
+      <div className="dt-21-fichas">
+        <div className="dt-21-monte">
+          <FichasView total={fichas} />
+          <p><span className="dt-21-legenda">FICHAS</span>{fichas}</p>
+        </div>
+        {placar.emprestimos > 0 && <p><span className="dt-21-legenda">EMPRESTIMOS</span>{placar.emprestimos}</p>}
+        <div className="dt-21-monte">
+          <p><span className="dt-21-legenda">NA MESA</span>{naMesa || '-'}</p>
+          <FichasView total={naMesa} />
+        </div>
+      </div>
     </div>
   );
 }

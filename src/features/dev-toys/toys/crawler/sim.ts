@@ -240,6 +240,15 @@ export function normalDaPerna(c: Crawler, p: Perna): Vec {
   return normalDe(normal(sub(p.pe, quadril(c, p))));
 }
 
+/**
+ * Para onde a perna desenhada curva: o lado da `dobra`. Tentáculos (`ondula`) alternam a curva nas pernas de ordem
+ * ímpar, mas nunca no último par: a de trás curvaria para dentro, para baixo do corpo (a larva tem só 2 pares).
+ */
+export function curvaDesenhada(c: Crawler, p: Perna, ondula: boolean): Vec {
+  const inverte = ondula && p.ordem % 2 === 1 && p.ordem < c.params.pares - 1;
+  return mul(normalDaPerna(c, p), inverte ? -p.dobra : p.dobra);
+}
+
 /** Lado da dobra: o de fora do corpo (`curvaDe`), com folga, para só trocar quando a perna passa bem do través. */
 function atualizarDobra(c: Crawler, p: Perna, folga = FOLGA_DOBRA) {
   if (distancia(p.pe, quadril(c, p)) < 1e-6) return;

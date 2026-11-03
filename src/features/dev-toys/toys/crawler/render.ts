@@ -1,5 +1,5 @@
 import { raiosDe, type Forma, type Visual } from './genoma';
-import { fabrik, frente, ik, noAr, normalDaPerna, ossosDe, quadril, type Crawler, type Vec } from './sim';
+import { curvaDesenhada, fabrik, frente, ik, noAr, ossosDe, quadril, type Crawler, type Vec } from './sim';
 
 const TINTA = '#ffb000';
 const PAPEL = '#080603';
@@ -52,10 +52,8 @@ function desenharPernas(ctx: Ctx, c: Crawler, v: Visual) {
   const ossos = ossosDe(c.params);
   for (const p of c.pernas) {
     const q = quadril(c, p);
-    // dobra para fora do corpo, com folga (`dobra` em sim.ts); tentáculos alternam o lado da curva
-    const k = p.dobra * (v.plano === 'polvo' && p.ordem % 2 ? -1 : 1);
-    const n = normalDaPerna(c, p);
-    const fora = { x: n.x * k, y: n.y * k };
+    // dobra para fora do corpo, com folga (`dobra` em sim.ts); tentáculos ondulam (`curvaDesenhada`)
+    const fora = curvaDesenhada(c, p, v.plano === 'polvo');
     let juntas: Vec[];
     if (ossos.length === 2) {
       const { joelho, pe } = ik(q, p.pe, ossos[0], ossos[1], fora);

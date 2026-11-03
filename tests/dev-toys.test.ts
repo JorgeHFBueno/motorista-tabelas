@@ -7,7 +7,7 @@ import { normalizarPrefs } from '../src/features/dev-toys/prefs';
 import { fimDeFrase, gerar, treinar } from '../src/features/dev-toys/toys/crawler/markov';
 import { acrescentar, MAX_CORPUS, normalizarCorpus, normalizarOpcoes } from '../src/features/dev-toys/toys/crawler/memoria';
 import { embaralhar, paraAscii, QUEBRA, separarTextos } from '../src/features/dev-toys/toys/crawler/textos';
-import { PADRAO, criarCrawler, curvaDe, distancia, fabrik, ik, noAr, normalDaPerna, passo, peIdeal, quadril, rngDe, vizinhas } from '../src/features/dev-toys/toys/crawler/sim';
+import { PADRAO, criarCrawler, curvaDe, curvaDesenhada, distancia, fabrik, ik, noAr, normalDaPerna, passo, peIdeal, quadril, rngDe, vizinhas } from '../src/features/dev-toys/toys/crawler/sim';
 import { SKILL, aprender, efeitos, nivelDe, normalizarSkills, pontosLivres, SEM_SKILLS } from '../src/features/dev-toys/toys/crawler/habilidades';
 import { distanciaAte } from '../src/features/dev-toys/toys/crawler/render';
 import { PLANOS, estagioDe, mutar, normalizarGenoma, paramsDe, proximoEstagio, sortearGenoma, visualDe } from '../src/features/dev-toys/toys/crawler/genoma';
@@ -17,7 +17,7 @@ import {
 } from '../src/features/dev-toys/toys/crawler/criaturas';
 import { embaralhar as embaralharCartas, nomeDaCarta, novoBaralho, rotuloDe, type Carta } from '../src/features/dev-toys/toys/cartas/baralho';
 import {
-  FICHAS_INICIAIS, PLACAR_NOVO, distribuir, dobrar, mesaNova, normalizarPlacar, parar, pedir, podeDobrar, pontos, precisaEmprestimo, registrar, retorno,
+  FICHAS_INICIAIS, PLACAR_NOVO, distribuir, dobrar, mesaNova, normalizarPlacar, parar, pedir, pilhas, podeDobrar, pontos, precisaEmprestimo, registrar, retorno,
   type Mesa,
 } from '../src/features/dev-toys/toys/vinteum/regras';
 
@@ -391,6 +391,19 @@ test('Crawler: o joelho dobra para fora na aranha e no polvo, e para onde a pern
   }
 });
 
+test('Crawler: o tentáculo de trás do polvo nunca curva para dentro (larva de 2 pares e adulto)', () => {
+  for (const estagio of ['larva', 'ancia'] as const) {
+    for (const seed of [3, 4, 7, 11]) {
+      const c = criarCrawler(paramsDe(normalizarGenoma({ plano: 'polvo' }, rngDe(seed)), estagio), 240, 150, seed);
+      const ultima = c.params.pares - 1;
+      for (const p of c.pernas.filter((q) => q.ordem === 0 || q.ordem === ultima)) {
+        const fora = curvaDesenhada(c, p, true); // virado para a direita: lado de fora = +y vezes o lado
+        assert.ok(fora.y * p.lado > 0, `polvo ${estagio} ${seed}: ordem ${p.ordem} de ${c.params.pares} para fora`);
+      }
+    }
+  }
+});
+
 test('Crawler: perna comprida vira mais devagar que a centopeia', () => {
   const centopeia = paramsDe(normalizarGenoma({ plano: 'centopeia', velocidade: 1, perna: 1 }, rngDe(2)), 'ancia');
   const aranha = paramsDe(normalizarGenoma({ plano: 'aranha', velocidade: 1, perna: 2 }, rngDe(2)), 'ancia');
@@ -518,4 +531,11 @@ test('21: o placar conta mãos, vitórias e recorde; salvo estragado volta ao pa
   assert.equal(precisaEmprestimo(9), true);
   assert.equal(precisaEmprestimo(10), false);
   assert.equal(FICHAS_INICIAIS, 200);
+});
+
+test('21: as fichas do desenho somam o total, das maiores para as menores', () => {
+  assert.deepEqual(pilhas(0), []);
+  assert.deepEqual(pilhas(285), [{ valor: 100, qtd: 2 }, { valor: 50, qtd: 1 }, { valor: 10, qtd: 3 }, { valor: 5, qtd: 1 }]);
+  assert.deepEqual(pilhas(20), [{ valor: 10, qtd: 2 }]);
+  for (const total of [5, 15, 75, 200, 1235]) assert.equal(pilhas(total).reduce((s, p) => s + p.valor * p.qtd, 0), total);
 });

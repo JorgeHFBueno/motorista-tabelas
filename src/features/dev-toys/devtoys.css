@@ -612,22 +612,93 @@
   color: var(--dt-apagado);
 }
 
-/* placar em colunas, espalhado na largura da janela */
-.devtoys .dt-21-placar {
+/* fichas: o monte do jogador à esquerda e o da mesa à direita, desenhados e com o número */
+.devtoys .dt-21-fichas {
   display: flex;
   justify-content: space-between;
+  align-items: flex-end;
   gap: calc(var(--dt-e) * 12px);
-  margin: 0;
+  min-height: calc(var(--dt-e) * 100px);
   padding-top: calc(var(--dt-e) * 8px);
   border-top: 1px dotted var(--dt-apagado);
-  text-align: center;
 }
 
-.devtoys .dt-21-placar dt {
+.devtoys .dt-21-fichas p {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+}
+
+.devtoys .dt-21-monte {
+  display: flex;
+  align-items: flex-end;
+  gap: calc(var(--dt-e) * 12px);
+}
+
+.devtoys .dt-21-legenda {
   color: var(--dt-apagado);
   font-size: calc(var(--dt-e) * 11px);
 }
 
-.devtoys .dt-21-placar dd {
-  margin: 0;
+.devtoys .dt-21-pilhas {
+  display: flex;
+  align-items: flex-end;
+  gap: calc(var(--dt-e) * 6px);
+}
+
+.devtoys .dt-21-pilha {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  font-size: calc(var(--dt-e) * 10px);
+  line-height: 1.2;
+}
+
+.devtoys .dt-21-pilha svg {
+  width: calc(var(--dt-e) * 42px);
+  fill: currentColor;
+}
+
+.devtoys .dt-21-pilha .dt-ficha-fundo {
+  fill: var(--dt-papel);
+}
+
+.devtoys .dt-21-pilha-valor {
+  color: var(--dt-apagado);
+}
+
+.devtoys .dt-ficha-50 {
+  color: var(--dt-vermelho);
+}
+
+.devtoys .dt-ficha-5 svg {
+  color: var(--dt-apagado);
+}
+
+/* ---- Placar de Lideres ---- */
+.devtoys .dt-placar table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.devtoys .dt-placar th,
+.devtoys .dt-placar td {
+  padding: calc(var(--dt-e) * 3px) calc(var(--dt-e) * 6px);
+  text-align: right;
+}
+
+.devtoys .dt-placar th:first-child,
+.devtoys .dt-placar td:first-child {
+  text-align: left;
+}
+
+.devtoys .dt-placar th {
+  font-weight: normal;
+  color: var(--dt-apagado);
+  border-bottom: 1px dotted var(--dt-apagado);
+}
+
+.devtoys .dt-placar-nota {
+  margin: calc(var(--dt-e) * 10px) 0 0;
+  color: var(--dt-apagado);
 }
