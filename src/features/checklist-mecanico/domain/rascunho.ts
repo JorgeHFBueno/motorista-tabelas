@@ -104,7 +104,17 @@ export function novoRascunho(dados: {
   };
 }
 
-export const catalogoDoRascunho = (r: ChecklistRascunho): CatalogoId => catalogoParaCategoria(r.veiculo.categoria);
+const paraBusca = (texto: string) => texto.normalize('NFD').replace(/[̀-ͯ]/g, '').trim().toLocaleLowerCase('pt-BR');
+
+/** O motorista da lista com esse nome (sem acento nem caixa), ou só o nome digitado (sem cadastro); vazio → null. */
+export function resolverMotorista(texto: string, motoristas: readonly ChecklistMotorista[]): ChecklistMotorista | null {
+  const nome = texto.trim();
+  if (nome === '') return null;
+  const busca = paraBusca(nome);
+  return motoristas.find((m) => paraBusca(m.nome) === busca) ?? { uid: null, nome };
+}
+
+export const catalogoDoRascunho =(r: ChecklistRascunho): CatalogoId => catalogoParaCategoria(r.veiculo.categoria);
 
 /** Itens que valem neste checklist (catálogo + guincho). */
 export const itensDoRascunho = (r: ChecklistRascunho): ChecklistItemDef[] => itensDoCatalogo(catalogoDoRascunho(r), r.guincho);

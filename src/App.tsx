@@ -37,6 +37,8 @@ const ManuscriptMapaPage = lazy(() => import('./pages/ManuscriptMapaPage'));
 const MeuPerfilPage = lazy(() => import('./pages/MeuPerfilPage'));
 const FridayApp = lazy(() => import('./features/friday-gestao-interna/App'));
 const DevToysPage = lazy(() => import('./features/dev-toys/DevToysPage'));
+const ChecklistInicioPage = lazy(() => import('./features/checklist-mecanico/ChecklistInicioPage'));
+const ChecklistItensPage = lazy(() => import('./features/checklist-mecanico/ChecklistItensPage'));
 
 function LoadingFallback({ label }: { label?: string }) {
   return (
@@ -74,6 +76,11 @@ export default function App() {
             <Route path="engenharia/prazos" element={<PrazosContratuaisPage />} />
             <Route path="engenharia/obras" element={<ObrasPage />} />
             <Route path="engenharia/obras/:id" element={<ObraDetalhesPage />} />
+          </Route>
+          {/* Checklist do mecânico para celular (iPhone), mesmo contrato checklists-v2 do app. */}
+          <Route element={<PrivateRoute permite={(p) => temCredencial(p, 'mecanico')} />}>
+            <Route path="checklist" element={<ChecklistInicioPage />} />
+            <Route path="checklist/itens" element={<ChecklistItensPage />} />
           </Route>
           {/* Área DEV: só a credencial retr0, nem o adm2 entra sem ela. */}
           <Route element={<PrivateRoute permite={(p) => temCredencial(p, 'retr0')} />}>

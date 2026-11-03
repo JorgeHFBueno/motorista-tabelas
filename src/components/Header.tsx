@@ -12,8 +12,10 @@ import MenuLateral from './MenuLateral';
 import { useAuth } from '../contexts/AuthContext';
 import { iniciais } from '../services/funcionarios';
 
-// Páginas sem menu lateral: a Home já é o menu; as demais são de quem ainda não entrou.
+// Páginas sem menu lateral: a Home já é o menu; as demais são de quem ainda não entrou. O checklist do mecânico é tela
+// cheia para celular.
 const SEM_MENU_LATERAL = ['/', '/login', '/acesso-negado'];
+const semMenuLateral = (caminho: string) => SEM_MENU_LATERAL.includes(caminho) || caminho === '/checklist' || caminho.startsWith('/checklist/');
 
 const botaoIconeSx = { color: '#fff', width: 40, height: 40, '&:hover': { bgcolor: 'rgb(255 255 255 / 0.12)' } };
 
@@ -41,7 +43,7 @@ export default function Header() {
   const navigate = useNavigate();
   const [menuLateralOpen, setMenuLateralOpen] = useState(false);
   const [menuUsuario, setMenuUsuario] = useState<HTMLElement | null>(null);
-  const comMenuLateral = Boolean(currentUser) && !SEM_MENU_LATERAL.includes(location.pathname);
+  const comMenuLateral = Boolean(currentUser) && !semMenuLateral(location.pathname);
   const nome = authorizationProfile?.nome || currentUser?.displayName || currentUser?.email || '';
 
   return (

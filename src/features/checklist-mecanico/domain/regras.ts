@@ -1,5 +1,5 @@
 // Regras do checklist, iguais às do app Flutter (lib/features/checklist/checklist_regras.dart).
-import { observacaoObrigatoria, todosOsItens, usaHorimetro, type ChecklistItemDef } from './catalogo';
+import { PARTES, observacaoObrigatoria, todosOsItens, usaHorimetro, type ChecklistItemDef, type ParteId } from './catalogo';
 import {
   catalogoDoRascunho, comResposta, itensDoRascunho, respostaDe, type ChecklistRascunho, type ChecklistStatus,
 } from './rascunho';
@@ -70,6 +70,25 @@ export const itensAtivos = (r: ChecklistRascunho): ChecklistItemDef[] =>
 /** Itens da área "Não se aplica", na ordem do catálogo. */
 export const itensNaoSeAplica = (r: ChecklistRascunho): ChecklistItemDef[] =>
   itensDoRascunho(r).filter((item) => respostaDe(r, item.id).status === 'nao_se_aplica');
+
+/** Partes com itens neste checklist, na ordem (Guincho só com "Com guincho"). A página 0 é "Dados"; a parte i é i + 1. */
+export const partesDoRascunho = (r: ChecklistRascunho): ParteId[] => {
+  const itens = itensDoRascunho(r);
+  return PARTES.map((p) => p.id).filter((parte) => itens.some((i) => i.parte === parte));
+};
+
+/** Primeira página com pendência: 0 ("Dados") para medidor ou motorista, ou a da parte; null sem pendências. */
+export function paginaDaPrimeiraPendencia(r: ChecklistRascunho): number | null {
+  const lista = pendencias(r);
+  if (lista.some((p) => p.itemId == null)) return 0;
+  const itens = itensDoRascunho(r);
+  const partes = partesDoRascunho(r);
+  for (let i = 0; i < partes.length; i++) {
+    const ids = new Set(itens.filter((item) => item.parte === partes[i]).map((item) => item.id));
+    if (lista.some((p) => p.itemId != null && ids.has(p.itemId))) return i + 1;
+  }
+  return null;
+}
 
 /** Respondidos e total dos itens que valem. */
 export function progresso(r: ChecklistRascunho): { respondidos: number; total: number } {

@@ -4,12 +4,12 @@ import {
   CATALOGOS, PARTES, catalogoParaCategoria, itensDoCatalogo, todosOsItens, type CatalogoId,
 } from '../src/features/checklist-mecanico/domain/catalogo';
 import {
-  comResposta, gerarIdChecklist, novoRascunho, type ChecklistFoto, type ChecklistPendente, type ChecklistRascunho,
+  comResposta, gerarIdChecklist, novoRascunho, resolverMotorista, type ChecklistFoto, type ChecklistPendente, type ChecklistRascunho,
   type ChecklistVeiculo,
 } from '../src/features/checklist-mecanico/domain/rascunho';
 import {
-  aplicarNaoSeAplicaLembrados, comMedidor, itensAtivos, itensNaoSeAplica, naoSeAplicaDoUltimo, pendencias, podeConcluir,
-  progresso, reativarItem, totais, validarMedidor,
+  aplicarNaoSeAplicaLembrados, comMedidor, itensAtivos, itensNaoSeAplica, naoSeAplicaDoUltimo, paginaDaPrimeiraPendencia,
+  partesDoRascunho, pendencias, podeConcluir, progresso, reativarItem, totais, validarMedidor,
 } from '../src/features/checklist-mecanico/domain/regras';
 import {
   arquivosParaEnvio, caminhoAssinatura, deveAtualizarMedidor, fotosParaEnvio, montarDocumento,
@@ -292,4 +292,24 @@ test('medidor na transação: sobe sempre, baixa só com a correção, nada sem 
   assert.equal(caso(100, 99, true), true);
   assert.equal(caso(100, 101, false, false), false);
   assert.equal(caso(100, null), false);
+});
+
+// ------------------------------------------------------------------ telas
+test('motorista: nome da lista sem acento nem caixa vira o cadastrado; outro nome fica sem uid; vazio é null', () => {
+  const lista = [{ uid: 'u1', nome: 'João Silva' }, { uid: 'u2', nome: 'Maria' }];
+  assert.deepEqual(resolverMotorista('  joao silva ', lista), { uid: 'u1', nome: 'João Silva' });
+  assert.deepEqual(resolverMotorista('Fulano', lista), { uid: null, nome: 'Fulano' });
+  assert.equal(resolverMotorista('   ', lista), null);
+});
+
+test('páginas: Dados e uma por parte (Guincho só ligado); primeira pendência leva à página dela', () => {
+  const r = novoRascunho({ tipo: 'saida', veiculo: caminhao, id: 'X' });
+  assert.deepEqual(partesDoRascunho(r), ['frente', 'lateral_esquerda', 'lateral_direita', 'traseira', 'parte_mecanica']);
+  assert.deepEqual(partesDoRascunho({ ...r, guincho: true }).at(-1), 'guincho');
+  assert.equal(paginaDaPrimeiraPendencia(r), 0);
+  const base = completo(r);
+  assert.equal(paginaDaPrimeiraPendencia(base), null);
+  assert.equal(paginaDaPrimeiraPendencia(comResposta(base, 'traseira_sirene_re', { status: null, observacao: '', fotos: [] })), 4);
+  assert.equal(paginaDaPrimeiraPendencia({ ...base, guincho: true }), 6);
+  assert.equal(paginaDaPrimeiraPendencia({ ...base, motorista: null }), 0);
 });
