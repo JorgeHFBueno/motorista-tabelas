@@ -30,11 +30,11 @@ function Retrato({ c }: { c: Criatura }) {
       return;
     }
     // cabe o corpo inteiro com as pernas abertas (aranhas e polvos têm pernas bem maiores que o corpo)
-    const p = paramsDe(c.genoma, est);
-    const v = visualDe(c.genoma, est);
+    const p = paramsDe(c.genoma, est, c.skills);
+    const v = visualDe(c.genoma, est, c.skills);
     const comprimento = (p.segmentos - 1) * p.dist;
     const perna = (p.coxa + p.canela) * 0.85 + p.quadril;
-    const raio = Math.max(...raiosDe(v.plano, v.espessura, p.segmentos));
+    const raio = Math.max(...raiosDe(v.plano, v.espessura, p.segmentos, v.aparencia.barriga)) + 14 * v.aparencia.expansao;
     const k = Math.min(1, (RL - 8) / (comprimento + 2 * Math.max(perna, raio) + 16), (RA - 6) / (2 * Math.max(perna, raio) + 8));
     ctx.translate(RL / 2, RA / 2);
     ctx.scale(k, k);

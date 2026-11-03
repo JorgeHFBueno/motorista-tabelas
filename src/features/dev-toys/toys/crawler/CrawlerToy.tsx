@@ -79,12 +79,12 @@ export default function CrawlerToy() {
   useEffect(() => { atual.current = { fase, opcoes, criatura }; }, [fase, opcoes, criatura]);
 
   const est = estagio(criatura);
-  const visual = useMemo(() => visualDe(criatura.genoma, est), [criatura.genoma, est]);
-  const corpo = useMemo(() => paramsDe(criatura.genoma, est), [criatura.genoma, est]);
+  const visual = useMemo(() => visualDe(criatura.genoma, est, criatura.skills), [criatura.genoma, est, criatura.skills]);
+  const corpo = useMemo(() => paramsDe(criatura.genoma, est, criatura.skills), [criatura.genoma, est, criatura.skills]);
   const forma = useRef({ visual, corpo });
   useEffect(() => {
     forma.current = { visual, corpo };
-    bicho.current = null; // corpo novo (outro Crawler, evolução ou mutação): renasce onde a cabeça estava
+    bicho.current = null; // corpo novo (outro Crawler, evolução, mutação ou skill): renasce onde a cabeça estava
   }, [visual, corpo]);
 
   useEffect(() => {

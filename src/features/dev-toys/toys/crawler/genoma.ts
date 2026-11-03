@@ -1,3 +1,5 @@
+import { aparenciaDe, type Aparencia } from './aparencia';
+import { SEM_SKILLS, type Skills } from './habilidades';
 import { PADRAO, type ParamsCrawler } from './sim';
 
 // Genoma de um Crawler: sorteado ao chocar o ovo. O plano corporal (centopeia, aranha, polvo, caranguejo) decide a
@@ -149,33 +151,45 @@ export function proximoEstagio(xp: number): { estagio: Estagio; xp: number } | n
 const nivel = (e: Estagio) => Math.max(0, ESTAGIOS.indexOf(e) - 1); // larva 0 … ancia 3
 const crescimento = (n: number) => 0.75 + 0.083 * n; // Larva 75% … Anciã 100%
 
-/** Raio de cada segmento (px), pelo plano: centopeia afina até a cauda; aranha tem abdômen maior; caranguejo, carapaça. */
-export function raiosDe(plano: Plano, espessura: number, segmentos: number): number[] {
+/**
+ * Raio de cada segmento (px), pelo plano: centopeia afina até a cauda; aranha tem abdômen maior; caranguejo, carapaça.
+ * `barriga` (skill Absorção) aumenta o corpo principal: a centopeia inteira, o abdômen, o manto ou a carapaça.
+ */
+export function raiosDe(plano: Plano, espessura: number, segmentos: number, barriga = 1): number[] {
   return Array.from({ length: segmentos }, (_, i) => {
-    if (plano === 'aranha') return (i === 0 ? 5 : 6.5) * espessura;
-    if (plano === 'caranguejo') return (i === 0 ? 5.5 : 3.5) * espessura;
-    if (plano === 'polvo') return 5 * espessura;
-    return Math.max(2, (5 - (i / segmentos) * 3) * espessura);
+    if (plano === 'aranha') return (i === 0 ? 5 : 6.5 * barriga) * espessura;
+    if (plano === 'caranguejo') return (i === 0 ? 5.5 * barriga : 3.5) * espessura;
+    if (plano === 'polvo') return 5 * espessura * barriga;
+    return Math.max(2, (5 - (i / segmentos) * 3) * espessura * barriga);
   });
 }
+
+/** Deslocamento a partir deste nível: centopeia com uma perna por segmento; polvo e caranguejo com um par a mais. */
+export const DESLOCAMENTO_PERNAS = 5;
 
 const PASSADA_LEQUE = 0.3;
 
 /** Até este alcance de perna (px, do centro do corpo ao pé), o bicho vira no giro cheio. */
 const GIRO_ALCANCE = 30;
 
-/** Corpo para a física: cresce com o estágio. */
-export function paramsDe(g: Genoma, e: Estagio): ParamsCrawler {
+/**
+ * Corpo para a física: cresce com o estágio. Skills que mudam o corpo: Deslocamento (pernas mais longas; uma por
+ * segmento na centopeia, um par a mais no polvo e no caranguejo), Adaptação (segmentos a mais na centopeia) e
+ * Absorção (corpo principal maior, então as pernas saem mais para fora).
+ */
+export function paramsDe(g: Genoma, e: Estagio, s: Skills = SEM_SKILLS): ParamsCrawler {
   const n = nivel(e);
   const k = crescimento(n);
   const centopeia = g.plano === 'centopeia';
-  const comprimento = 32 * g.perna * k; // coxa + canela
-  const quadril = centopeia ? 3 : raiosDe(g.plano, g.espessura * k, 1)[0] * 0.8;
+  const anda = s.movimento >= DESLOCAMENTO_PERNAS;
+  const comprimento = 32 * g.perna * k * (1 + 0.03 * s.movimento); // coxa + canela
+  const quadril = centopeia ? 3 : raiosDe(g.plano, g.espessura * k, 1, aparenciaDe(g.plano, s).barriga)[0] * 0.8;
+  const parExtra = anda && (g.plano === 'polvo' || g.plano === 'caranguejo') ? 1 : 0;
   // perna comprida vira mais devagar: ao virar, a ponta dela anda giro × comprimento e o passo não acompanha
   const giroDaPerna = Math.min(1, GIRO_ALCANCE / (quadril + comprimento * 0.7));
   return {
     ...PADRAO,
-    segmentos: centopeia ? Math.max(3, g.segmentos - 3 + n) : g.segmentos,
+    segmentos: centopeia ? Math.max(3, g.segmentos - 3 + n) + Math.floor(s.estomago / 2) : g.segmentos,
     dist: g.dist * (centopeia ? 1 : k),
     coxa: (comprimento * 14) / 32,
     canela: (comprimento * 18) / 32,
@@ -184,9 +198,9 @@ export function paramsDe(g: Genoma, e: Estagio): ParamsCrawler {
     duracaoPasso: PADRAO.duracaoPasso * g.passada * Math.sqrt(Math.max(1, g.perna)),
     velMax: PADRAO.velMax * g.velocidade * (0.8 + 0.066 * n),
     giroMax: PADRAO.giroMax * g.velocidade * giroDaPerna,
-    pernasACada: g.pernasACada,
+    pernasACada: centopeia && anda ? 1 : g.pernasACada,
     vagueia: g.vagueia,
-    pares: centopeia ? 0 : Math.max(2, Math.min(g.pares, g.pares - 3 + n)),
+    pares: centopeia ? 0 : Math.max(2, Math.min(g.pares, g.pares - 3 + n)) + parExtra,
     abertura: g.abertura,
     ossos: g.ossos,
     quadril,
@@ -212,10 +226,12 @@ export type Visual = {
   enfeite: Enfeite | null;
   alcance: number;
   varredura: number;
+  /** o que as skills mudam no desenho (aparencia.ts) */
+  aparencia: Aparencia;
 };
 
-/** O que se vê e o raio: a cabeça aparece na Jovem, a cauda na Adulta, os enfeites na Anciã. */
-export function visualDe(g: Genoma, e: Estagio): Visual {
+/** O que se vê e o raio: a cabeça aparece na Jovem, a cauda na Adulta, os enfeites na Anciã; e o que as skills dão. */
+export function visualDe(g: Genoma, e: Estagio, s: Skills = SEM_SKILLS): Visual {
   const n = nivel(e);
   return {
     plano: g.plano,
@@ -230,6 +246,7 @@ export function visualDe(g: Genoma, e: Estagio): Visual {
     enfeite: n >= 3 && g.enfeite !== 'nenhum' ? g.enfeite : null,
     alcance: Math.round(g.alcance * crescimento(n)),
     varredura: g.varredura * (0.7 + 0.1 * n),
+    aparencia: aparenciaDe(g.plano, s),
   };
 }
 

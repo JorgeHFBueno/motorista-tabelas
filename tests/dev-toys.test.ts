@@ -11,6 +11,7 @@ import { PADRAO, criarCrawler, curvaDe, curvaDesenhada, distancia, fabrik, ik, n
 import { SKILL, aprender, efeitos, nivelDe, normalizarSkills, pontosLivres, SEM_SKILLS } from '../src/features/dev-toys/toys/crawler/habilidades';
 import { distanciaAte } from '../src/features/dev-toys/toys/crawler/render';
 import { PLANOS, estagioDe, mutar, normalizarGenoma, paramsDe, proximoEstagio, sortearGenoma, visualDe } from '../src/features/dev-toys/toys/crawler/genoma';
+import { SEM_APARENCIA, aparenciaDe, todasNoMaximo } from '../src/features/dev-toys/toys/crawler/aparencia';
 import { avaliar } from '../src/features/dev-toys/toys/crawler/nota';
 import {
   FAMINTO, MAX_CRIATURAS, MS_POR_PONTO_DE_FOME, alimentar, aprenderSkill, atualizar, chocar, fomeAgora, gostei, normalizarViveiro, novaCriatura, registrarXerox, soltar,
@@ -538,4 +539,38 @@ test('21: as fichas do desenho somam o total, das maiores para as menores', () =
   assert.deepEqual(pilhas(285), [{ valor: 100, qtd: 2 }, { valor: 50, qtd: 1 }, { valor: 10, qtd: 3 }, { valor: 5, qtd: 1 }]);
   assert.deepEqual(pilhas(20), [{ valor: 10, qtd: 2 }]);
   for (const total of [5, 15, 75, 200, 1235]) assert.equal(pilhas(total).reduce((s, p) => s + p.valor * p.qtd, 0), total);
+});
+
+test('Anomalias: as skills mudam a aparência pelo plano; o eco de xerox só com todas no máximo', () => {
+  for (const plano of PLANOS) assert.deepEqual(aparenciaDe(plano, SEM_SKILLS), SEM_APARENCIA);
+  const clarividencia = { ...SEM_SKILLS, leitura: 10 };
+  assert.equal(aparenciaDe('aranha', clarividencia).olhos, 4, 'aranha: até 8 olhos');
+  assert.equal(aparenciaDe('centopeia', clarividencia).olhos, 3);
+  assert.equal(aparenciaDe('polvo', clarividencia).olhos, 2);
+  assert.equal(aparenciaDe('caranguejo', clarividencia).olhos, 1);
+  assert.equal(aparenciaDe('aranha', { ...SEM_SKILLS, leitura: 1 }).olhos, 1, 'o primeiro nível já dá olhos');
+
+  const maximo = Object.fromEntries(Object.entries(SKILL).map(([k, d]) => [k, d.max])) as typeof SEM_SKILLS;
+  assert.equal(todasNoMaximo(maximo), true);
+  assert.equal(aparenciaDe('polvo', maximo).eco, true);
+  assert.equal(aparenciaDe('polvo', maximo).cabecas, 2, 'Perfeccionismo: opção A, cabeças a mais');
+  assert.equal(aparenciaDe('polvo', { ...maximo, raio: 4 }).eco, false, 'falta um nível: sem eco');
+  assert.equal(aparenciaDe('polvo', { ...SEM_SKILLS, revisor: 2 }).eco, false);
+});
+
+test('Anomalias: Deslocamento, Adaptação e Absorção mudam o corpo da física', () => {
+  const centopeia = normalizarGenoma({ plano: 'centopeia', pernasACada: 2 }, rngDe(5));
+  const base = paramsDe(centopeia, 'ancia');
+  const anda = paramsDe(centopeia, 'ancia', { ...SEM_SKILLS, movimento: 5 });
+  assert.equal(base.pernasACada, 2);
+  assert.equal(anda.pernasACada, 1, 'uma perna por segmento');
+  assert.ok(anda.coxa > base.coxa, 'pernas mais longas');
+  assert.equal(paramsDe(centopeia, 'ancia', { ...SEM_SKILLS, estomago: 5 }).segmentos, base.segmentos + 2);
+
+  const polvo = normalizarGenoma({ plano: 'polvo' }, rngDe(5));
+  const p0 = paramsDe(polvo, 'ancia');
+  assert.equal(paramsDe(polvo, 'ancia', { ...SEM_SKILLS, movimento: 4 }).pares, p0.pares);
+  assert.equal(paramsDe(polvo, 'ancia', { ...SEM_SKILLS, movimento: 5 }).pares, p0.pares + 1, '+1 par de tentáculos');
+  assert.ok(paramsDe(polvo, 'ancia', { ...SEM_SKILLS, gula: 4 }).quadril > p0.quadril, 'manto maior: tentáculos saem mais para fora');
+  assert.equal(paramsDe(normalizarGenoma({ plano: 'aranha' }, rngDe(5)), 'ancia', { ...SEM_SKILLS, movimento: 10 }).pares, paramsDe(normalizarGenoma({ plano: 'aranha' }, rngDe(5)), 'ancia').pares, 'aranha não ganha par');
 });
