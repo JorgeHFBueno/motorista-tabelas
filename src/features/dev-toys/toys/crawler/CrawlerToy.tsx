@@ -2,7 +2,7 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, typ
 import CrtView, { type Desenhar } from '../../crt/CrtView';
 import { ESCALA } from '../../escala';
 import {
-  EVENTO_VIVEIRO, FAMINTO, FOME_POR_PALAVRA, alimentar, atualizar, estagio, fomeAgora, gostei, gravarViveiro, lerViveiro, nomeDe,
+  EVENTO_VIVEIRO, FAMINTO, alimentar, atualizar, estagio, fomeAgora, gostei, gravarViveiro, lerViveiro, nomeDe,
   registrarXerox, type Criatura, type Resultado, type Viveiro,
 } from './criaturas';
 import { NOME_ESTAGIO, NOME_PLANO, paramsDe, proximoEstagio, visualDe } from './genoma';
@@ -35,6 +35,12 @@ type Fase = { tipo: 'texto'; n: number } | { tipo: 'xerox'; nota: number };
 function textoDaVez(seed: number, k: number): string[] {
   const volta = Math.floor(k / TEXTOS.length);
   return TEXTOS[embaralhar(TEXTOS.length, rngDe(seed + volta * 7919))[k % TEXTOS.length]];
+}
+
+/** Quanto (rad, 0 a π) o Crawler precisa virar para apontar da boca até o centro da palavra. */
+function voltaAte(c: Crawler, boca: Vec, p: Palavra): number {
+  const a = Math.atan2(p.y + p.h / 2 - boca.y, p.x + p.w / 2 - boca.x) - c.ang;
+  return Math.abs(Math.atan2(Math.sin(a), Math.cos(a)));
 }
 
 const ativaDe = (v: Viveiro) => v.criaturas.find((c) => c.id === v.ativa) ?? v.criaturas[0];
@@ -186,10 +192,17 @@ export default function CrawlerToy() {
     let c = guardar();
     if (f.tipo === 'texto') c = { ...c, textosLidos: c.textosLidos + 1 };
     if (f.tipo === 'texto' && f.n >= TEXTOS_POR_XEROX) {
-      const stats: Estatisticas = { tri: 0, bi: 0, recomeco: 0 };
+      // skill Revisor: escreve mais de um e fica com o de maior nota
       const rng = rngDe(c.seed + c.corpus.length + c.xeroxes * 31);
-      const novo = gerar(treinar(c.corpus), XEROX, rng, stats);
-      const { nota } = avaliar(novo, c.corpus, stats);
+      const modelo = treinar(c.corpus);
+      let novo: string[] = [];
+      let nota = -1;
+      for (let k = 0; k < efeitos(c.skills).rascunhos; k++) {
+        const stats: Estatisticas = { tri: 0, bi: 0, recomeco: 0 };
+        const rascunho = gerar(modelo, XEROX, rng, stats);
+        const n = avaliar(rascunho, c.corpus, stats).nota;
+        if (n > nota) { novo = rascunho; nota = n; }
+      }
       const r = registrarXerox(c, novo.join(' '), nota, Date.now(), rng);
       c = r.criatura;
       setAviso(avisoDe(r, r.xp ? `+${r.xp} XP` : 'FAMINTO: SEM XP'));
@@ -210,15 +223,16 @@ export default function CrawlerToy() {
     const { visual: v, corpo: params } = forma.current;
     const inicio = cabeca.current ?? { x: largura / 2, y: altura / 2 };
     const c = (bicho.current ??= criarCrawler({ ...params }, inicio.x, inicio.y, atual.current.criatura.seed));
-    const faminto = fomeAgora(atual.current.criatura, Date.now()) - FOME_POR_PALAVRA * pagina.current.length >= FAMINTO;
     const ef = efeitos(atual.current.criatura.skills);
+    const faminto = fomeAgora(atual.current.criatura, Date.now()) - ef.fomePorPalavra * pagina.current.length >= FAMINTO;
+    const alcance = v.alcance + ef.raio; // skill Raio longo
     c.params.velMax = params.velMax * ef.movimento * (faminto ? LENTIDAO_FAMINTO : 1);
 
     // as palavras em leitura continuam enquanto ao alcance (da boca até a borda delas); com vaga (skill "Mais
     // palavras"), pega as mais perto que estiverem ao alcance. Sem nenhuma ao alcance, vai até a mais perto.
     const b = boca(c, v);
     const lendo = escaneando.current.filter((s) => {
-      const ok = distanciaAte(b, s.p) <= v.alcance;
+      const ok = distanciaAte(b, s.p) <= alcance;
       if (!ok) s.p.el.classList.remove('dt-escaneando');
       return ok;
     });
@@ -228,9 +242,14 @@ export default function CrawlerToy() {
         .filter((p) => !lendo.some((s) => s.p === p))
         .map((p) => ({ p, d: distanciaAte(b, p) }))
         .sort((x, y) => x.d - y.d);
-      maisPerto = livres[0]?.p ?? null;
+      // para onde andar: a mais perto; com a skill Faro, cada radiano de volta conta como distância a mais
+      let melhor = Infinity;
       for (const { p, d } of livres) {
-        if (lendo.length >= ef.palavras || d > v.alcance) break;
+        const custo = d + (ef.faro ? ef.faro * voltaAte(c, b, p) : 0);
+        if (custo < melhor) { melhor = custo; maisPerto = p; }
+      }
+      for (const { p, d } of livres) {
+        if (lendo.length >= ef.palavras || d > alcance) break;
         lendo.push({ p, progresso: 0 });
         p.el.classList.add('dt-escaneando');
       }
@@ -281,7 +300,7 @@ export default function CrawlerToy() {
   };
   const abrirViveiro = () => window.dispatchEvent(new CustomEvent('ledur:dev-abrir', { detail: 'viveiro' }));
 
-  const fome = Math.max(0, Math.round(fomeAgora(criatura, agora) - FOME_POR_PALAVRA * lidasNaPagina));
+  const fome = Math.max(0, Math.round(fomeAgora(criatura, agora) - efeitos(criatura.skills).fomePorPalavra * lidasNaPagina));
   const proximo = proximoEstagio(criatura.xp);
   const pontos = pontosLivres(criatura.xp, criatura.skills);
   const marca = (ligado: boolean) => `[${ligado ? 'x' : ' '}]`;

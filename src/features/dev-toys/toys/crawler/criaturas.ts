@@ -1,5 +1,5 @@
 import { estagioDe, mutar, normalizarGenoma, sortearGenoma, type Estagio, type Genoma } from './genoma';
-import { SEM_SKILLS, aprender, nivelDe, normalizarSkills, type Skill, type Skills } from './habilidades';
+import { FOME_POR_PALAVRA, SEM_SKILLS, aprender, efeitos, nivelDe, normalizarSkills, type Skill, type Skills } from './habilidades';
 import { gravar, ler, normalizarCorpus, tirarCorpusAntigo } from './memoria';
 import { rngDe } from './sim';
 
@@ -7,9 +7,9 @@ import { rngDe } from './sim';
 // (o "ativo"). Só neste navegador (localStorage `ledur:dev-viveiro`); nada vai para o Firestore.
 
 export const MAX_CRIATURAS = 6;
-/** Fome: sobe 1 ponto a cada 10 minutos sem comer (cheia em ~17 h); cada palavra escaneada tira 2. */
+/** Fome: sobe 1 ponto a cada 10 minutos sem comer (cheia em ~17 h); cada palavra escaneada tira 2 (skills mudam os dois). */
 export const MS_POR_PONTO_DE_FOME = 10 * 60 * 1000;
-export const FOME_POR_PALAVRA = 2;
+export { FOME_POR_PALAVRA };
 /** Faminto: anda devagar e o xerox não dá experiência. Não morre. */
 export const FAMINTO = 70;
 export const BONUS_GOSTEI = 25;
@@ -45,8 +45,10 @@ export type Viveiro = { criaturas: Criatura[]; ativa: string | null; proximoNume
 export const nomeDe = (c: Pick<Criatura, 'numero'>) => `CRAWLER ${String(c.numero).padStart(2, '0')}`;
 export const estagio = (c: Criatura): Estagio => estagioDe(c.xp, c.nasceu);
 
-export function fomeAgora(c: Pick<Criatura, 'fome' | 'ultimaRefeicao'>, agora: number): number {
-  return Math.min(100, Math.max(0, c.fome + Math.max(0, agora - c.ultimaRefeicao) / MS_POR_PONTO_DE_FOME));
+/** Fome agora (0–100). Com a skill Estômago, sobe mais devagar desde a última refeição. */
+export function fomeAgora(c: Pick<Criatura, 'fome' | 'ultimaRefeicao'> & { skills?: Skills }, agora: number): number {
+  const ritmo = efeitos(c.skills ?? SEM_SKILLS).fome;
+  return Math.min(100, Math.max(0, c.fome + (Math.max(0, agora - c.ultimaRefeicao) / MS_POR_PONTO_DE_FOME) * ritmo));
 }
 
 export function novaCriatura(numero: number, seed: number, agora: number): Criatura {
@@ -68,9 +70,10 @@ export function novaCriatura(numero: number, seed: number, agora: number): Criat
   };
 }
 
-/** Comeu `palavras` palavras: a fome cai e o ovo choca. */
+/** Comeu `palavras` palavras: a fome cai (mais, com a skill Gula) e o ovo choca. */
 export function alimentar(c: Criatura, palavras: number, agora: number): Criatura {
-  return { ...c, nasceu: c.nasceu || palavras > 0, fome: Math.max(0, fomeAgora(c, agora) - FOME_POR_PALAVRA * palavras), ultimaRefeicao: agora };
+  const porPalavra = efeitos(c.skills).fomePorPalavra;
+  return { ...c, nasceu: c.nasceu || palavras > 0, fome: Math.max(0, fomeAgora(c, agora) - porPalavra * palavras), ultimaRefeicao: agora };
 }
 
 /** `subiu`: o nível novo, quando a experiência passou de um nível (cada nível dá um ponto de skill). */

@@ -389,14 +389,17 @@ test('Crawler: um nível a cada 100 XP, um ponto de skill por nível, cada skill
   assert.equal(aprender(50, SEM_SKILLS, 'leitura'), SEM_SKILLS, 'sem ponto, não aprende');
   let s = aprender(250, SEM_SKILLS, 'palavras');
   s = aprender(250, s, 'palavras');
-  assert.deepEqual(s, { leitura: 0, palavras: 2, movimento: 0 });
+  assert.deepEqual(s, { ...SEM_SKILLS, palavras: 2 });
   assert.equal(pontosLivres(250, s), 0);
   assert.equal(aprender(9000, s, 'palavras'), s, 'Mais palavras para em 2 (3 palavras)');
   for (let i = 0; i < 15; i++) s = aprender(9000, s, 'leitura');
   assert.equal(s.leitura, SKILL.leitura.max);
-  assert.deepEqual(efeitos({ leitura: 10, palavras: 2, movimento: 10 }), { leitura: 1.5, palavras: 3, movimento: 1.2 });
-  assert.deepEqual(efeitos(SEM_SKILLS), { leitura: 1, palavras: 1, movimento: 1 });
-  assert.deepEqual(normalizarSkills({ leitura: 99, palavras: -3, movimento: 'x' }), { leitura: 10, palavras: 0, movimento: 0 });
+  assert.deepEqual(
+    efeitos({ leitura: 10, palavras: 2, movimento: 10, faro: 3, raio: 5, estomago: 5, gula: 4, revisor: 2 }),
+    { leitura: 1.5, palavras: 3, movimento: 1.2, faro: 36, raio: 10, fome: 0.5, fomePorPalavra: 4, rascunhos: 3 },
+  );
+  assert.deepEqual(efeitos(SEM_SKILLS), { leitura: 1, palavras: 1, movimento: 1, faro: 0, raio: 0, fome: 1, fomePorPalavra: 2, rascunhos: 1 });
+  assert.deepEqual(normalizarSkills({ leitura: 99, palavras: -3, movimento: 'x', revisor: 7 }), { ...SEM_SKILLS, leitura: 10, revisor: 2 });
   assert.deepEqual(normalizarSkills(undefined), SEM_SKILLS);
 });
 
@@ -411,4 +414,15 @@ test('Crawler: subir de nível avisa, o ponto vai para uma skill e criaturas de 
   const antiga = normalizarViveiro({ criaturas: [{ id: 'a', numero: 1, seed: 3, xp: 340 }] }, 0).criaturas[0];
   assert.deepEqual(antiga.skills, SEM_SKILLS);
   assert.equal(pontosLivres(antiga.xp, antiga.skills), 3);
+});
+
+test('Crawler: Estômago faz a fome subir mais devagar e Gula faz cada palavra tirar mais', () => {
+  const base = { ...novaCriatura(1, 9, 0), fome: 20 };
+  const horas10 = 10 * 6 * MS_POR_PONTO_DE_FOME; // 60 pontos sem skill
+  assert.equal(fomeAgora(base, horas10), 80);
+  assert.equal(fomeAgora({ ...base, skills: { ...base.skills, estomago: 5 } }, horas10), 50);
+  assert.equal(alimentar(base, 10, 0).fome, 0);
+  const comFome = { ...base, fome: 60 };
+  assert.equal(alimentar(comFome, 10, 0).fome, 40);
+  assert.equal(alimentar({ ...comFome, skills: { ...base.skills, gula: 4 } }, 10, 0).fome, 20);
 });
