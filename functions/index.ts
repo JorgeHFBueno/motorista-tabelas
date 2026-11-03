@@ -15,7 +15,7 @@ export { fridayObrasSituacaoItem, fridayObrasSituacaoDiaria } from './fridayObra
 export { fridayAutomacoesEvento, fridayAutomacoesDatas } from './fridayAutomacoes.js';
 export { fridayAnexosMonday } from './fridayAnexosMonday.js';
 export { atualizarMeuPerfil } from './meuPerfil.js';
-export { manuscriptListTree, manuscriptGetDocument, manuscriptSearch, manuscriptGetBacklinks, manuscriptGetDocumentGraph, manuscriptGetDocumentHistory } from './manuscript.js';
+export { manuscriptListTree, manuscriptGetDocument, manuscriptSearch, manuscriptGetBacklinks, manuscriptGetDocumentGraph, manuscriptGetDocumentHistory, manuscriptGetSystemGraph, manuscriptChat } from './manuscript.js';
 
 export const api = onRequest(app);
 export const adminApi = onRequest(adminApp);

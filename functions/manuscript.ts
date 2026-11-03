@@ -3,10 +3,16 @@ import { temCredencial } from './credenciais.js';
 import { HttpsError, onCall } from 'firebase-functions/v2/https';
 import { defineSecret } from 'firebase-functions/params';
 import { db } from './firebaseAdmin.js';
+import Anthropic from '@anthropic-ai/sdk';
+import { answerManuscriptQuestion, type ManuscriptChatSource, validateChatInput } from './manuscriptChat.js';
+import { MANUSCRIPT_NAO_CORPUS, type ManuscriptSystemGraph, buildManuscriptSystemGraph, extractMarkdownLinks, manuscriptTitle, parseManuscriptDocument, resolveManuscriptLink } from './manuscriptMetadata.js';
+
+export { extractMarkdownLinks, manuscriptTitle, resolveManuscriptLink };
 
 const manuscriptGithubAppId = defineSecret('MANUSCRIPT_GITHUB_APP_ID');
 const manuscriptGithubInstallationId = defineSecret('MANUSCRIPT_GITHUB_INSTALLATION_ID');
 const manuscriptGithubPrivateKey = defineSecret('MANUSCRIPT_GITHUB_PRIVATE_KEY');
+const anthropicApiKey = defineSecret('ANTHROPIC_API_KEY');
 const OWNER = 'JorgeHFBueno';
 const REPO = 'ledur-the-manuscript';
 const BRANCH = 'main';
@@ -49,32 +55,6 @@ export function filterManuscriptTree(entries: GitTreeEntry[]): ManuscriptDocumen
     .filter((entry) => entry.path.split('/').every((part) => !part.startsWith('.') || part === '_AUDITORIA'))
     .map((entry) => ({ path: entry.path, name: entry.path.split('/').at(-1) ?? entry.path, directory: entry.path.split('/').slice(0, -1).join('/'), sha: entry.sha }))
     .sort((a, b) => a.path.localeCompare(b.path, 'pt-BR', { numeric: true }));
-}
-
-/** Resolves a Markdown link without allowing it to leave the logical repository root. */
-export function resolveManuscriptLink(sourcePath: string, href: string): { path: string; anchor?: string } | null {
-  const trimmed = href.trim();
-  if (!trimmed || trimmed.startsWith('/') || trimmed.startsWith('\\') || /^[a-z][a-z\d+.-]*:/i.test(trimmed) || trimmed.startsWith('//')) return null;
-  const [rawPath, anchor] = trimmed.split('#', 2);
-  if (!rawPath || rawPath.includes('\\') || rawPath.includes('?') || !rawPath.toLowerCase().endsWith('.md')) return null;
-  const parts = sourcePath.split('/').slice(0, -1);
-  for (const segment of rawPath.split('/')) {
-    if (!segment || segment === '.') continue;
-    if (segment === '..') { if (!parts.length) return null; parts.pop(); } else parts.push(segment);
-  }
-  const path = parts.join('/');
-  return path && path.toLowerCase().endsWith('.md') ? { path, ...(anchor ? { anchor } : {}) } : null;
-}
-
-export function extractMarkdownLinks(content: string): Array<{ href: string; offset: number }> {
-  const links: Array<{ href: string; offset: number }> = [];
-  const pattern = /!?\[[^\]]*\]\(([^\s)]+)(?:\s+[^)]*)?\)/g;
-  for (let match = pattern.exec(content); match; match = pattern.exec(content)) links.push({ href: match[1], offset: match.index });
-  return links;
-}
-
-export function manuscriptTitle(content: string, fallback: string) {
-  return /^#\s+(.+)$/m.exec(content)?.[1]?.trim() || fallback.replace(/\.md$/i, '');
 }
 
 export class ManuscriptGitHubClient {
@@ -136,12 +116,13 @@ export class ManuscriptService {
   private index: Array<{ path: string; title: string; content: string }> = [];
   private graph: LinkGraph | null = null;
   private readonly histories = new Map<string, ManuscriptDocumentHistoryResponse>();
+  private systemGraph: (ManuscriptSystemGraph & { headSha: string }) | null = null;
   constructor(private readonly github: ManuscriptGitHubClient) {}
   async listTree() {
     if (this.snapshot && this.snapshot.expiresAt > Date.now()) return { headSha: this.snapshot.headSha, documents: this.snapshot.documents };
     const { headSha, entries } = await this.github.headAndTree();
     const documents = filterManuscriptTree(entries);
-    if (this.snapshot?.headSha !== headSha) { this.indexedHead = null; this.index = []; this.graph = null; this.documents.clear(); this.histories.clear(); }
+    if (this.snapshot?.headSha !== headSha) { this.indexedHead = null; this.index = []; this.graph = null; this.documents.clear(); this.histories.clear(); this.systemGraph = null; }
     this.snapshot = { headSha, documents, expiresAt: Date.now() + TREE_TTL_MS };
     return { headSha, documents };
   }
@@ -239,6 +220,44 @@ export class ManuscriptService {
       .filter((edge) => visible.has(edge.source) && visible.has(edge.target));
     return { path, headSha: tree.headSha, nodes, edges, totalNodes: relations.length + 1, visibleNodes: nodes.length, truncated: relations.length > visibleRelations.length };
   }
+  /** Mapa do sistema: documentos e entidades do bloco de dados (00_METADADOS.md), mais os links entre documentos. */
+  async getSystemGraph(): Promise<ManuscriptSystemGraph & { headSha: string }> {
+    const tree = await this.listTree();
+    if (this.systemGraph?.headSha === tree.headSha) return this.systemGraph;
+    const links = await this.linkGraph(tree);
+    const corpus = tree.documents.filter((document) => !MANUSCRIPT_NAO_CORPUS.includes(document.path));
+    const documents = await Promise.all(corpus.map(async (document) => {
+      const { content } = await this.getDocument(document.path);
+      return { path: document.path, title: links.titles.get(document.path) ?? manuscriptTitle(content, document.name), content, links: [...new Set((links.outgoing.get(document.path) ?? []).map((edge) => edge.target))] };
+    }));
+    this.systemGraph = { headSha: tree.headSha, ...buildManuscriptSystemGraph(documents) };
+    return this.systemGraph;
+  }
+  /** Leitura do Manuscript usada pelo chat. */
+  chatSource(): ManuscriptChatSource {
+    return {
+      catalog: async () => {
+        const tree = await this.listTree();
+        const lines = await Promise.all(tree.documents.filter((document) => !MANUSCRIPT_NAO_CORPUS.includes(document.path)).map(async (document) => {
+          const { metadata } = parseManuscriptDocument((await this.getDocument(document.path)).content);
+          return metadata ? `${document.path} | ${metadata.tipo} | ${metadata.status} | ${metadata.dominios.join(', ')} | ${metadata.resumo}` : `${document.path} | sem bloco de dados`;
+        }));
+        return lines.join('\n');
+      },
+      search: async (query) => (await this.search(query, 12)).results,
+      read: async (path) => (await this.getDocument(path)).content,
+      relations: async (id) => {
+        const graph = await this.getSystemGraph();
+        const node = graph.nodes.find((item) => item.id === id);
+        if (!node) return `"${id}" não existe no mapa. Entidades são escritas como colecao:nome, function:nome, rota:/caminho ou externo:nome; documentos pelo caminho .md.`;
+        const label = (target: string) => { const other = graph.nodes.find((item) => item.id === target); return other?.kind === 'DOCUMENTO' ? `${target} (${other.label})` : target; };
+        const out = graph.edges.filter((edge) => edge.source === id).map((edge) => `${id} --${edge.relacao}--> ${label(edge.target)}`);
+        const incoming = graph.edges.filter((edge) => edge.target === id).map((edge) => `${label(edge.source)} --${edge.relacao}--> ${id}`);
+        const header = node.kind === 'DOCUMENTO' ? `${id}: ${node.label} (${node.tipo}, ${node.status ?? 'sem status'})${node.resumo ? ` — ${node.resumo}` : ''}` : `${id}${node.definidoEm ? `, definida em ${node.definidoEm}` : ', sem documento que a defina'}`;
+        return [header, ...out, ...incoming].join('\n') || header;
+      },
+    };
+  }
   async getDocumentHistory(pathInput: unknown, limitInput: unknown): Promise<ManuscriptDocumentHistoryResponse> {
     const path = validateManuscriptPath(pathInput);
     const limit = typeof limitInput === 'number' && Number.isInteger(limitInput) ? Math.min(Math.max(limitInput, 1), MAX_HISTORY_LIMIT) : DEFAULT_HISTORY_LIMIT;
@@ -276,3 +295,23 @@ export const manuscriptSearch = onCall(callableOptions, async (request) => { try
 export const manuscriptGetBacklinks = onCall(callableOptions, async (request) => { try { await assertReader(request.auth?.uid); return await service.getBacklinks(request.data?.path); } catch (error) { throw cleanError(error); } });
 export const manuscriptGetDocumentGraph = onCall(callableOptions, async (request) => { try { await assertReader(request.auth?.uid); return await service.getDocumentGraph(request.data?.path); } catch (error) { throw cleanError(error); } });
 export const manuscriptGetDocumentHistory = onCall(callableOptions, async (request) => { try { await assertReader(request.auth?.uid); return await service.getDocumentHistory(request.data?.path, request.data?.limit); } catch (error) { throw cleanError(error); } });
+export const manuscriptGetSystemGraph = onCall(callableOptions, async (request) => { try { await assertReader(request.auth?.uid); return await service.getSystemGraph(); } catch (error) { throw cleanError(error); } });
+/** Chat do Manuscript: só a credencial retr0 (decisão do responsável de 2026-11-02), paga com os créditos de API. */
+export const manuscriptChat = onCall({ ...callableOptions, secrets: [...callableOptions.secrets, anthropicApiKey], timeoutSeconds: 300, memory: '512MiB' }, async (request) => {
+  try {
+    const uid = request.auth?.uid;
+    if (!uid) throw new HttpsError('unauthenticated', 'Autenticação obrigatória.');
+    const employee = await db.collection('funcionarios').doc(uid).get();
+    if (!temCredencial(employee.data(), 'retr0')) throw new HttpsError('permission-denied', 'Acesso não autorizado.');
+    const { history, question } = validateChatInput(request.data?.historico, request.data?.pergunta);
+    const apiKey = anthropicApiKey.value();
+    if (!apiKey) throw new HttpsError('failed-precondition', 'MANUSCRIPT_CHAT_NOT_CONFIGURED');
+    const client = new Anthropic({ apiKey, maxRetries: 2 });
+    const answer = await answerManuscriptQuestion(client.beta.messages, service.chatSource(), history, question);
+    console.info('manuscriptChat', { uid, ...answer.uso, consultados: answer.consultados.length });
+    return answer;
+  } catch (error) {
+    if (error instanceof Anthropic.APIError) { console.error('manuscriptChat: Anthropic API', error.status, error.message); throw new HttpsError('unavailable', 'MANUSCRIPT_CHAT_MODEL_UNAVAILABLE'); }
+    throw cleanError(error);
+  }
+});

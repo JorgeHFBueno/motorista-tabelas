@@ -33,6 +33,7 @@ const PrazosContratuaisPage = lazy(() => import('./features/prazos-contratuais/P
 const ObrasPage = lazy(() => import('./features/obras/ObrasPage'));
 const ObraDetalhesPage = lazy(() => import('./features/obras/ObraDetalhesPage'));
 const TheManuscriptPage = lazy(() => import('./pages/TheManuscriptPage'));
+const ManuscriptMapaPage = lazy(() => import('./pages/ManuscriptMapaPage'));
 const MeuPerfilPage = lazy(() => import('./pages/MeuPerfilPage'));
 const FridayApp = lazy(() => import('./features/friday-gestao-interna/App'));
 const DevToysPage = lazy(() => import('./features/dev-toys/DevToysPage'));
@@ -79,6 +80,7 @@ export default function App() {
             <Route path="dev" element={<DevToysPage />} />
           </Route>
           <Route element={<PrivateRoute />}>
+            <Route path="the-manuscript/mapa" element={<ManuscriptMapaPage />} />
             <Route path="the-manuscript/*" element={<TheManuscriptPage />} />
             <Route path="combustivel" element={<TabelaCombustivel />} />
             <Route path="combustivel/novo" element={<CombustivelNovoPage />} />

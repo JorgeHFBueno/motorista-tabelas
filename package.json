@@ -27,6 +27,7 @@
     "test:prazos": "esbuild tests/prazos-contratuais.test.ts --bundle --platform=node --format=esm --outfile=.tmp-prazos-contratuais.test.mjs && node --test .tmp-prazos-contratuais.test.mjs",
     "test:logistica": "esbuild tests/logistica-cronograma.test.ts --bundle --platform=node --format=esm --outfile=.tmp-logistica-cronograma.test.mjs && node --test .tmp-logistica-cronograma.test.mjs",
     "test:dev-toys": "esbuild tests/dev-toys.test.ts --bundle --platform=node --format=esm --outfile=.tmp-dev-toys.test.mjs && node --test .tmp-dev-toys.test.mjs",
+    "manuscript:check": "esbuild tools/manuscript-check.ts --bundle --platform=node --format=esm --outfile=.tmp-manuscript-check.mjs && node .tmp-manuscript-check.mjs",
     "test:rules": "firebase emulators:exec --only firestore,storage --project demo-firebase-rules \"node --test tests/rules/*.test.mjs\"",
     "test:rules:firestore": "firebase emulators:exec --only firestore --project demo-firebase-rules \"node --test --test-name-pattern=^\\[firestore\\] tests/rules/*.test.mjs\"",
     "set-admin": "node scripts/setAdmin.cjs",
