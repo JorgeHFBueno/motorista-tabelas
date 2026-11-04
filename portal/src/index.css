@@ -1,0 +1,142 @@
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,100..1000;1,9..40,100..1000&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    /* Ledur Governante - Official Palette */
+    /* #12293B - Azul institucional profundo */
+    /* #2F6B98 - Azul técnico */
+    /* #5B5D5B - Cinza estrutural */
+    /* #000000 - Preto absoluto */
+    /* #FFFFFF - Branco */
+
+    --background: 0 0% 100%;
+    --foreground: 0 0% 0%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 207 53% 15%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 207 53% 15%;
+
+    /* Deep Institutional Blue #12293B */
+    --primary: 207 53% 15%;
+    --primary-foreground: 0 0% 100%;
+
+    /* Technical Blue #2F6B98 */
+    --secondary: 206 53% 39%;
+    --secondary-foreground: 0 0% 100%;
+
+    /* Structural Gray #5B5D5B */
+    --muted: 210 5% 96%;
+    --muted-foreground: 120 2% 36%;
+
+    /* Technical Blue as accent */
+    --accent: 206 53% 39%;
+    --accent-foreground: 0 0% 100%;
+
+    /* Status colors */
+    --destructive: 0 70% 45%;
+    --destructive-foreground: 0 0% 100%;
+
+    --success: 152 55% 40%;
+    --success-foreground: 0 0% 100%;
+
+    --warning: 38 80% 50%;
+    --warning-foreground: 0 0% 0%;
+
+    --border: 210 10% 90%;
+    --input: 210 10% 90%;
+    --ring: 206 53% 39%;
+
+    --radius: 0.75rem;
+
+    /* Progress bar colors */
+    --progress-bg: 210 10% 92%;
+    --progress-fill: 206 53% 39%;
+
+    /* Sidebar - Institutional Blue */
+    --sidebar-background: 207 53% 15%;
+    --sidebar-foreground: 0 0% 100%;
+    --sidebar-primary: 206 53% 39%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 207 45% 22%;
+    --sidebar-accent-foreground: 0 0% 100%;
+    --sidebar-border: 207 40% 25%;
+    --sidebar-ring: 206 53% 39%;
+
+    /* Shadows - more subtle, professional */
+    --shadow-sm: 0 1px 3px 0 hsl(0 0% 0% / 0.05);
+    --shadow-md: 0 4px 12px -2px hsl(0 0% 0% / 0.08);
+    --shadow-lg: 0 8px 24px -4px hsl(0 0% 0% / 0.1);
+  }
+
+  .dark {
+    --background: 207 53% 10%;
+    --foreground: 0 0% 95%;
+
+    --card: 207 45% 14%;
+    --card-foreground: 0 0% 95%;
+
+    --popover: 207 45% 14%;
+    --popover-foreground: 0 0% 95%;
+
+    --primary: 206 53% 39%;
+    --primary-foreground: 0 0% 100%;
+
+    --secondary: 207 40% 20%;
+    --secondary-foreground: 0 0% 95%;
+
+    --muted: 207 30% 18%;
+    --muted-foreground: 120 2% 60%;
+
+    --accent: 206 53% 39%;
+    --accent-foreground: 0 0% 100%;
+
+    --destructive: 0 62% 40%;
+    --destructive-foreground: 0 0% 95%;
+
+    --border: 207 30% 22%;
+    --input: 207 30% 22%;
+    --ring: 206 53% 39%;
+
+    --sidebar-background: 207 53% 8%;
+    --sidebar-foreground: 0 0% 95%;
+    --sidebar-primary: 206 53% 39%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 207 40% 16%;
+    --sidebar-accent-foreground: 0 0% 95%;
+    --sidebar-border: 207 30% 20%;
+    --sidebar-ring: 206 53% 39%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground antialiased;
+    font-family: 'DM Sans', sans-serif;
+  }
+}
+
+@layer utilities {
+  .shadow-card {
+    box-shadow: var(--shadow-md);
+  }
+
+  .shadow-card-hover {
+    box-shadow: var(--shadow-lg);
+  }
+
+  /* Institutional card style */
+  .card-institutional {
+    @apply bg-card border border-border rounded-lg;
+    box-shadow: var(--shadow-sm);
+  }
+}
