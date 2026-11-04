@@ -1,73 +1,44 @@
-# Welcome to your Lovable project
+# Ledur Pré-Fabricados — Central do Cliente
 
-## Project info
+Portal para clientes acompanharem suas obras (etapas, documentos, fotos, finanças e atendimento) e para a equipe Ledur administrar obras e cadastros.
 
-**URL**: https://lovable.dev/projects/REPLACE_WITH_PROJECT_ID
+## Stack
 
-## How can I edit this code?
+- Vite + React + TypeScript
+- shadcn/ui + Tailwind CSS
+- Firebase (projeto `ledur-clientes`): Auth, Firestore, Storage, Cloud Functions e Hosting
 
-There are several ways of editing your application.
+## Rodar localmente
 
-**Use Lovable**
-
-Simply visit the [Lovable Project](https://lovable.dev/projects/REPLACE_WITH_PROJECT_ID) and start prompting.
-
-Changes made via Lovable will be committed automatically to this repo.
-
-**Use your preferred IDE**
-
-If you want to work locally using your own IDE, you can clone this repo and push changes. Pushed changes will also be reflected in Lovable.
-
-The only requirement is having Node.js & npm installed - [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating)
-
-Follow these steps:
+Requer Node.js 20+.
 
 ```sh
-# Step 1: Clone the repository using the project's Git URL.
-git clone <YOUR_GIT_URL>
-
-# Step 2: Navigate to the project directory.
-cd <YOUR_PROJECT_NAME>
-
-# Step 3: Install the necessary dependencies.
-npm i
-
-# Step 4: Start the development server with auto-reloading and an instant preview.
-npm run dev
+npm ci
+npm run dev   # http://localhost:8080
 ```
 
-**Edit a file directly in GitHub**
+A configuração do Firebase tem valores padrão em `src/config/firebaseConfig.ts`.
+Para apontar para outro projeto, crie um `.env.local` com:
 
-- Navigate to the desired file(s).
-- Click the "Edit" button (pencil icon) at the top right of the file view.
-- Make your changes and commit the changes.
+```
+VITE_FIREBASE_API_KEY=
+VITE_FIREBASE_AUTH_DOMAIN=
+VITE_FIREBASE_PROJECT_ID=
+VITE_FIREBASE_STORAGE_BUCKET=
+VITE_FIREBASE_MESSAGING_SENDER_ID=
+VITE_FIREBASE_APP_ID=
+```
 
-**Use GitHub Codespaces**
+## Cloud Functions
 
-- Navigate to the main page of your repository.
-- Click on the "Code" button (green button) near the top right.
-- Select the "Codespaces" tab.
-- Click on "New codespace" to launch a new Codespace environment.
-- Edit files directly within the Codespace and commit and push your changes once you're done.
+Ficam em `functions/` (Node 22). O envio de e-mails usa o segredo `RESEND_API_KEY`, configurado no Firebase:
 
-## What technologies are used for this project?
+```sh
+firebase functions:secrets:set RESEND_API_KEY
+firebase deploy --only functions
+```
 
-This project is built with:
+## Deploy
 
-- Vite
-- TypeScript
-- React
-- shadcn-ui
-- Tailwind CSS
-
-## How can I deploy this project?
-
-Simply open [Lovable](https://lovable.dev/projects/REPLACE_WITH_PROJECT_ID) and click on Share -> Publish.
-
-## Can I connect a custom domain to my Lovable project?
-
-Yes, you can!
-
-To connect a domain, navigate to Project > Settings > Domains and click Connect Domain.
-
-Read more here: [Setting up a custom domain](https://docs.lovable.dev/features/custom-domain#custom-domain)
+Push na `main` publica no Firebase Hosting via GitHub Actions (`.github/workflows/`).
+Requer o segredo `FIREBASE_SERVICE_ACCOUNT_LEDUR_CLIENTES` no repositório.
