@@ -10,7 +10,7 @@ Portal para clientes acompanharem suas obras (etapas, documentos, fotos, finanç
 
 ## Rodar localmente
 
-Requer Node.js 20+.
+Requer Node.js 20+. Rode os comandos dentro de `portal/`.
 
 ```sh
 npm ci
@@ -40,5 +40,13 @@ firebase deploy --only functions
 
 ## Deploy
 
-Push na `main` publica no Firebase Hosting via GitHub Actions (`.github/workflows/`).
-Requer o segredo `FIREBASE_SERVICE_ACCOUNT_LEDUR_CLIENTES` no repositório.
+Durante a transição, o portal ainda publica no projeto Firebase antigo (`ledur-clientes`),
+de forma manual, a partir desta pasta:
+
+```sh
+npm run build
+firebase deploy --only hosting
+```
+
+A migração para o projeto `app-motor-api` (site próprio e domínio
+clientes.ledurprefabricados.com.br) é a próxima etapa.
