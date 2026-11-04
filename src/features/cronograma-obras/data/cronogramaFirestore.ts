@@ -35,8 +35,10 @@ export class CronogramaFirestoreRepository {
     }, (cause) => onError(cause));
   }
 
-  createAlocacaoReference() {
-    return doc(collection(this.firestore, CRONOGRAMA_COLLECTION));
+  /** With `id`, the reference of that allocation (Ctrl+Z recreates it with the same ID). */
+  createAlocacaoReference(id?: string) {
+    const alocacoes = collection(this.firestore, CRONOGRAMA_COLLECTION);
+    return id ? doc(alocacoes, id) : doc(alocacoes);
   }
 
   async createAlocacao(input: CreateAlocacao, reference = this.createAlocacaoReference()): Promise<string> {

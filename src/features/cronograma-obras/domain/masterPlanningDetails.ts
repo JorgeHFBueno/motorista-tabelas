@@ -3,7 +3,8 @@ import { addDays, calculatedEnd } from './temporal';
 import { getMestreKey } from './mestres';
 
 export type MasterPeriods = { key: string; nome: string; periods: MestrePlanejado[] };
-export type MasterSelection = { obraId: string; mestreKey: string; periods: MestrePlanejado[] };
+/** `localId`: the clicked period (the allocation Del removes). */
+export type MasterSelection = { obraId: string; mestreKey: string; localId: string; periods: MestrePlanejado[] };
 const periodStart = (item: MestrePlanejado) => item.inicio;
 const hasRealPeriod = (item: MestrePlanejado) => Boolean(item.nome.trim()) && /^\d{4}-\d{2}-\d{2}$/.test(item.inicio) && item.tempoPlanejado > 0;
 function groupRealMasterPeriods(periods: readonly MestrePlanejado[]): MasterPeriods[] {
@@ -18,7 +19,7 @@ export const mastersWithRealPeriods = masterPeriodsForObra;
 export function aggregateMastersWithRealPeriods(obras: readonly ObraCronograma[]): MasterPeriods[] { return groupRealMasterPeriods(obras.flatMap((obra) => mastersWithRealPeriods(obra).flatMap((group) => group.periods))); }
 export function masterSelectionForPeriod(obra: ObraCronograma, mestre: MestrePlanejado): MasterSelection {
   const mestreKey = mestre.mestreKey ?? getMestreKey(mestre);
-  return { obraId: obra.id, mestreKey, periods: masterPeriodsForObra(obra).find((group) => group.key === mestreKey)?.periods ?? [] };
+  return { obraId: obra.id, mestreKey, localId: mestre.localId, periods: masterPeriodsForObra(obra).find((group) => group.key === mestreKey)?.periods ?? [] };
 }
 export function startedMasterPeriods(obra: ObraCronograma, today: string): MasterPeriods[] { return masterPeriodsForObra(obra).filter((group) => group.periods.some((item) => item.inicio <= today)); }
 export function recentStartedMaster(obra: ObraCronograma, today: string): MasterPeriods | null { return startedMasterPeriods(obra, today).sort((a, b) => b.periods.filter((p) => p.inicio <= today).at(-1)!.inicio.localeCompare(a.periods.filter((p) => p.inicio <= today).at(-1)!.inicio))[0] ?? null; }

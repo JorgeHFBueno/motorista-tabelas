@@ -37,6 +37,14 @@ import {
   filterObras,
 } from "./domain/cronograma";
 import { getDirectMasterDropInterval } from "./domain/dropPlanning";
+import {
+  dropUndoFor,
+  isEditableTarget,
+  planUndo,
+  pushUndo,
+  type AlocacaoUndoSnapshot,
+  type UndoEntry,
+} from "./domain/undoStack";
 import { DEFAULT_CALENDAR_DISPLAY } from "./domain/calendarDisplay";
 import { planningYears } from "./domain/calendarYears";
 import { normalizeMestreKey, setPersistedMestreColors } from "./domain/mestres";
@@ -246,6 +254,17 @@ function withResizeDrafts(
   });
 }
 
+function undoSnapshot(alocacao: AlocacaoFirestore): AlocacaoUndoSnapshot {
+  return {
+    id: alocacao.id,
+    ...(alocacao.obraId ? { obraId: alocacao.obraId } : {}),
+    contratoId: alocacao.contratoId,
+    mestreId: alocacao.mestreId,
+    inicio: alocacao.inicio,
+    tempoPlanejado: alocacao.tempoPlanejado,
+  };
+}
+
 function withOptimisticAlocacao(
   obras: readonly ObraCronograma[],
   alocacao: AlocacaoFirestore,
@@ -318,6 +337,8 @@ export default function CronogramaObrasPage() {
   const resizeDrafts = useRef(
     new Map<string, { inicio: string; tempoPlanejado: number }>(),
   );
+  // Ctrl+Z: only this tab's own calendar actions; a reload clears it.
+  const undoStack = useRef<UndoEntry[]>([]);
   const viewTransitionRef = useRef<CronogramaViewTransition>(null);
   const transitionAppliedRef = useRef(false);
   const scheduleContentRef = useRef<HTMLDivElement>(null);
@@ -333,6 +354,8 @@ export default function CronogramaObrasPage() {
   const [masterPanel, setMasterPanel] = useState<{
     obraId: string;
     key: string;
+    /** The clicked period: the allocation Del removes. */
+    localId: string;
   } | null>(null);
   const [draggingMaster, setDraggingMaster] = useState<string | null>(null);
   const [addingMaster, setMasterDialog] = useState(false);
@@ -772,9 +795,15 @@ export default function CronogramaObrasPage() {
           withResizeDrafts(confirmedObras.current, resizeDrafts.current),
         );
         setDraggingMaster(null);
+        undoStack.current = pushUndo(undoStack.current, {
+          kind: "create",
+          mestreNome: mestreRegistro.nome,
+          alocacao: undoSnapshot(optimistic),
+        });
         void alocacoesSource
           .createAlocacao(optimistic, reference)
           .catch((cause: unknown) => {
+            undoStack.current = dropUndoFor(undoStack.current, optimistic.id);
             confirmedObras.current = confirmedObras.current.map((item) =>
               item.mestresPlanejados.some(
                 (master) => master.localId === optimistic.id,
@@ -874,9 +903,23 @@ export default function CronogramaObrasPage() {
         return;
       }
       setWriteError(null);
+      const mestreId = confirmed.mestreId ?? mestreIdFor(confirmed.nome);
+      if (mestreId)
+        undoStack.current = pushUndo(undoStack.current, {
+          kind: "update",
+          mestreNome: confirmed.nome,
+          id: next.localId,
+          mestreId,
+          before: {
+            inicio: confirmed.inicio,
+            tempoPlanejado: confirmed.tempoPlanejado,
+          },
+          after: { inicio: next.inicio, tempoPlanejado: next.tempoPlanejado },
+        });
       void alocacoesSource
         .updateAlocacao(next.localId, patch)
         .catch((cause: unknown) => {
+          undoStack.current = dropUndoFor(undoStack.current, next.localId);
           cancelResizeMaster(next.localId);
           setWriteError(
             `O redimensionamento não foi salvo: ${cause instanceof Error ? cause.message : String(cause)}`,
@@ -903,6 +946,97 @@ export default function CronogramaObrasPage() {
         );
       });
   };
+  const deleteAlocacao = (localId: string) => {
+    const alocacao = alocacoesRef.current.find((item) => item.id === localId);
+    if (!alocacao) return;
+    setWriteError(null);
+    setMasterPanel(null);
+    undoStack.current = pushUndo(undoStack.current, {
+      kind: "delete",
+      mestreNome:
+        mestres.find((mestre) => mestre.id === alocacao.mestreId)?.nome ??
+        "mestre",
+      alocacao: undoSnapshot(alocacao),
+    });
+    void alocacoesSource.deleteAlocacao(localId).catch((cause: unknown) => {
+      undoStack.current = dropUndoFor(undoStack.current, localId);
+      setWriteError(
+        `A alocação não foi removida: ${cause instanceof Error ? cause.message : String(cause)}`,
+      );
+    });
+  };
+  const undoLast = () => {
+    const entry = undoStack.current.at(-1);
+    if (!entry) return;
+    undoStack.current = undoStack.current.slice(0, -1);
+    const id = entry.kind === "update" ? entry.id : entry.alocacao.id;
+    const current = alocacoesRef.current.find((item) => item.id === id);
+    const plan = planUndo(entry, current ? undoSnapshot(current) : null);
+    if (!plan.ok) {
+      setWriteError(plan.message);
+      return;
+    }
+    setWriteError(null);
+    const fail = (cause: unknown) =>
+      setWriteError(
+        `Não foi possível desfazer: ${cause instanceof Error ? cause.message : String(cause)}`,
+      );
+    const { operation } = plan;
+    try {
+      if (operation.type === "delete") {
+        void alocacoesSource.deleteAlocacao(operation.id).catch(fail);
+      } else if (operation.type === "update") {
+        resizeDrafts.current.delete(operation.id);
+        void alocacoesSource
+          .updateAlocacao(operation.id, operation.patch)
+          .catch(fail);
+      } else {
+        const { id: recreatedId, ...alocacao } = operation.alocacao;
+        void alocacoesSource
+          .createAlocacao(
+            { ...alocacao, criadoPorFuncionarioId: criadorAtual() },
+            alocacoesSource.createAlocacaoReference(recreatedId),
+          )
+          .catch(fail);
+      }
+    } catch (cause) {
+      fail(cause);
+    }
+  };
+  const calendarShortcut = useRef<(event: KeyboardEvent) => void>(() => {});
+  useEffect(() => {
+    calendarShortcut.current = (event) => {
+      // Only the calendar: not while typing, nor with another panel open.
+      if (
+        view !== "obras" ||
+        isEditableTarget(event.target) ||
+        selectedId ||
+        mastersPanelId ||
+        contractDetails ||
+        addingMaster
+      )
+        return;
+      if (event.key === "Delete" && masterPanel) {
+        event.preventDefault();
+        deleteAlocacao(masterPanel.localId);
+        return;
+      }
+      if (
+        (event.ctrlKey || event.metaKey) &&
+        !event.shiftKey &&
+        !event.altKey &&
+        event.key.toLowerCase() === "z"
+      ) {
+        event.preventDefault();
+        undoLast();
+      }
+    };
+  });
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => calendarShortcut.current(event);
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, []);
   const createMaster = async () => {
     setNewMasterError(null);
     const cor = nextMestreColor(mestres.map((mestre) => mestre.cor.background));
@@ -1244,10 +1378,10 @@ export default function CronogramaObrasPage() {
                 setSelectedId(null);
                 setMastersPanelId(obra.id);
               }}
-              onSelectMaster={({ obraId, mestreKey }) => {
+              onSelectMaster={({ obraId, mestreKey, localId }) => {
                 setSelectedId(null);
                 setMastersPanelId(null);
-                setMasterPanel({ obraId, key: mestreKey });
+                setMasterPanel({ obraId, key: mestreKey, localId });
               }}
               onOpenContract={setContractDetails}
               onDropMaster={dropMaster}
@@ -1348,10 +1482,10 @@ export default function CronogramaObrasPage() {
             setSelectedId(null);
             setMastersPanelId(obra.id);
           }}
-          onSelectMaster={({ obraId, mestreKey }) => {
+          onSelectMaster={({ obraId, mestreKey, localId }) => {
             setSelectedId(null);
             setMastersPanelId(null);
-            setMasterPanel({ obraId, key: mestreKey });
+            setMasterPanel({ obraId, key: mestreKey, localId });
           }}
           onOpenContract={setContractDetails}
           onDropMaster={dropMaster}
@@ -1390,6 +1524,7 @@ export default function CronogramaObrasPage() {
         obra={obras.find((obra) => obra.id === masterPanel?.obraId) ?? null}
         obras={obras}
         masterKey={masterPanel?.key ?? null}
+        selectedLocalId={masterPanel?.localId ?? null}
         allKeys={masters.map(normalizeMestreKey)}
         onClose={() => setMasterPanel(null)}
       />

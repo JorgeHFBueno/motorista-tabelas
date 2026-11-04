@@ -408,6 +408,9 @@
 .co-masters-cell { align-items: center; cursor: pointer; gap: 3px; }
 .co-master-name-chip { background: var(--co-master-color); border-radius: 999px; color: #fff; font-size: .57rem; font-style: normal; font-weight: 800; max-width: 100%; overflow: hidden; padding: 3px 5px; text-overflow: ellipsis; }
 .co-period-details { display: grid; gap: 6px; list-style: none; margin: 8px 0 0; padding: 0; }.co-period-details li, .co-other-works article { background: #edf4f7; border: 1px solid #d6e3e9; border-radius: 5px; color: #31566e; font-size: .72rem; padding: 8px; }.co-other-works { display: grid; gap: 8px; }.co-other-works article { display: grid; gap: 5px; }.co-other-works span { font-variant-numeric: tabular-nums; }.co-current-work { color: #294455; display: block; font-size: .88rem; margin-bottom: 7px; }.co-drawer-body h4 { color: #637784; font-size: .66rem; letter-spacing: .04em; margin: 16px 0 0; text-transform: uppercase; }
+.co-period-details li.is-selected { background: #dceaf3; border-color: #2f6b98; box-shadow: inset 3px 0 0 #2f6b98; font-weight: 700; }
+.co-shortcut-hint { font-size: .68rem; margin: 10px 0 0; }
+.co-shortcut-hint kbd { background: #fff; border: 1px solid #c9d6de; color: #294455; border-radius: 3px; font: inherit; font-weight: 700; padding: 0 4px; }
 .co-inline-action { align-items: center; background: transparent; border: 0; color: #2f6b98; cursor: pointer; display: inline-flex; font-size: .72rem; font-weight: 750; gap: 3px; padding: 5px 0; }
 .co-form-actions { display: flex; gap: 8px; justify-content: flex-end; }
 .co-detail-grid { display: grid; gap: 0; grid-template-columns: 1fr 1fr; margin: 0 0 22px; }
