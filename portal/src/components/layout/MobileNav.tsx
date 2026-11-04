@@ -1,31 +1,23 @@
-import { Building2, Camera, FileText, FolderCog, House, LifeBuoy, Wallet, X } from "lucide-react";
+import { Building2, Camera, FileText, House, LifeBuoy, Wallet, X } from "lucide-react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { cn } from "@/lib/utils";
-import { useAuth } from "@/contexts/AuthContext";
 
 interface MobileNavProps {
   onClose: () => void;
 }
 
+const navItems = [
+  { icon: House, label: "Dashboard", path: "/" },
+  { icon: Building2, label: "Obra", path: "/obra" },
+  { icon: Wallet, label: "Finanças", path: "/financas" },
+  { icon: FileText, label: "Documentos", path: "/documentos" },
+  { icon: Camera, label: "Fotos", path: "/fotos" },
+  { icon: LifeBuoy, label: "Atendimento", path: "/atendimento" },
+];
+
 const MobileNav = ({ onClose }: MobileNavProps) => {
   const location = useLocation();
   const navigate = useNavigate();
-  const { userDoc } = useAuth();
-
-  const navItems = userDoc?.role === "cliente"
-    ? [
-        { icon: House, label: "Dashboard", path: "/cliente" },
-        { icon: Building2, label: "Obra", path: "/cliente/obra" },
-        { icon: Wallet, label: "Finanças", path: "/cliente/financas" },
-        { icon: FileText, label: "Documentos", path: "/cliente/documentos" },
-        { icon: Camera, label: "Fotos", path: "/cliente/fotos" },
-        { icon: LifeBuoy, label: "Atendimento", path: "/cliente/atendimento" },
-      ]
-    : [
-        { icon: Building2, label: "Obras", path: "/painel/obras" },
-        { icon: LifeBuoy, label: "Atendimento", path: "/painel/atendimento" },
-        { icon: FolderCog, label: "Cadastros", path: "/painel/cadastros" },
-      ];
 
   return (
     <div className="flex h-full flex-col bg-primary text-primary-foreground">
@@ -36,7 +28,7 @@ const MobileNav = ({ onClose }: MobileNavProps) => {
       <nav className="flex-1 p-4">
         <ul className="space-y-1">
           {navItems.map((item) => {
-            const isActive = item.path === "/cliente" ? location.pathname === "/cliente" : location.pathname === item.path;
+            const isActive = location.pathname === item.path;
             return (
               <li key={item.path}>
                 <button

@@ -1,11 +1,9 @@
-import { OBRA_STATUS_TEMPLATE } from "@/constants/obraStatusTemplate";
 import type {
   ObraStatusControlMode,
   ObraStatusData,
   ObraStatusEtapa,
   ObraStatusItem,
   ObraStatusProgressLabel,
-  ObraStatusResumo,
 } from "@/types/obraStatus";
 
 export const clampProgress = (value: unknown) => {
@@ -88,7 +86,7 @@ const averageProgress = (values: number[]) => {
   );
 };
 
-export const getDefaultControlModeForEtapa = ({
+const getDefaultControlModeForEtapa = ({
   id,
   nome,
 }: {
@@ -119,29 +117,6 @@ const normalizeControlMode = (
   rawMode === "percentual" || rawMode === "checklist"
     ? rawMode
     : getDefaultControlModeForEtapa(etapa);
-
-export const createStatusId = (prefix: string) =>
-  `${prefix}_${crypto.randomUUID()}`;
-
-export const createDefaultObraStatus = (): ObraStatusData =>
-  recomputeObraStatus({
-    etapas: OBRA_STATUS_TEMPLATE.map((etapa) => ({
-      id: etapa.id,
-      nome: etapa.nome,
-      ordem: etapa.ordem,
-      modoControle: etapa.modoControle,
-      progresso: 0,
-      status: "pendente",
-      itens: etapa.itens.map((nome, index) => ({
-        id: `${etapa.id}_item_${index + 1}`,
-        nome,
-        ordem: index + 1,
-        progresso: 0,
-        status: "pendente",
-      })),
-    })),
-    progressoGeral: 0,
-  });
 
 const normalizeItem = (
   rawItem: unknown,
@@ -222,7 +197,7 @@ const normalizeEtapa = (rawEtapa: unknown, index: number): ObraStatusEtapa => {
   };
 };
 
-export const recomputeObraStatus = (
+const recomputeObraStatus = (
   rawStatus: Partial<ObraStatusData> | null | undefined,
 ): ObraStatusData => {
   const etapas = Array.isArray(rawStatus?.etapas)
@@ -234,9 +209,8 @@ export const recomputeObraStatus = (
   return {
     etapas,
     progressoGeral: averageProgress(etapas.map((etapa) => etapa.progresso)),
-    updatedAt: rawStatus?.updatedAt,
-    updatedByUid: rawStatus?.updatedByUid,
-    updatedByNomeSnapshot: rawStatus?.updatedByNomeSnapshot,
+    atualizadoEm: rawStatus?.atualizadoEm,
+    atualizadoPor: rawStatus?.atualizadoPor ?? null,
   };
 };
 
@@ -246,60 +220,6 @@ export const normalizeObraStatusData = (
   if (!rawStatus || typeof rawStatus !== "object") return null;
   return recomputeObraStatus(rawStatus as Partial<ObraStatusData>);
 };
-
-export const convertLegacyFasesToStatus = (legacyFases: unknown[]): ObraStatusData =>
-  recomputeObraStatus({
-    etapas: legacyFases.map((fase, index) => {
-      const current = (fase ?? {}) as Record<string, unknown>;
-      const etapaId =
-        (typeof current.id === "string" && current.id.trim()) ||
-        `legacy_etapa_${index + 1}`;
-
-      return {
-        id: etapaId,
-        nome:
-          (typeof current.titulo === "string" && current.titulo.trim()) ||
-          (typeof current.nome === "string" && current.nome.trim()) ||
-          `Etapa ${index + 1}`,
-        ordem:
-          typeof current.ordem === "number" && Number.isFinite(current.ordem)
-            ? current.ordem
-            : index + 1,
-        itens: Array.isArray(current.itens)
-          ? current.itens.map((item, itemIndex) => {
-              const legacyItem = (item ?? {}) as Record<string, unknown>;
-              const progresso = clampProgress(
-                legacyItem.progresso ??
-                  (legacyItem.done === true
-                    ? 100
-                    : legacyItem.done === false
-                      ? 0
-                      : undefined),
-              );
-
-              return {
-                id:
-                  (typeof legacyItem.id === "string" && legacyItem.id.trim()) ||
-                  `${etapaId}_item_${itemIndex + 1}`,
-                nome:
-                  (typeof legacyItem.nome === "string" &&
-                    legacyItem.nome.trim()) ||
-                  (typeof legacyItem.label === "string" &&
-                    legacyItem.label.trim()) ||
-                  `Item ${itemIndex + 1}`,
-                ordem:
-                  typeof legacyItem.ordem === "number" &&
-                  Number.isFinite(legacyItem.ordem)
-                    ? legacyItem.ordem
-                    : itemIndex + 1,
-                progresso,
-                status: deriveProgressStatus(progresso),
-              };
-            })
-          : [],
-      };
-    }),
-  });
 
 export const deriveDashboardStatus = (
   explicitStatus: string | null | undefined,
@@ -391,13 +311,4 @@ export const deriveDeliveryLabel = (statusData: ObraStatusData | null) => {
   if (statusData.progressoGeral === 100) return "Entrega concluída";
   if (finalizando > 0) return `${finalizando} etapa(s) finalizando`;
   return `${statusData.progressoGeral}% concluído`;
-};
-
-export const deriveObraStatusResumo = (
-  statusData: ObraStatusData | null,
-): ObraStatusResumo | null => {
-  if (!statusData || statusData.etapas.length === 0) return null;
-  if (statusData.progressoGeral <= 0) return "-";
-  if (statusData.progressoGeral >= 100) return "Concluida";
-  return "Em andamento";
 };

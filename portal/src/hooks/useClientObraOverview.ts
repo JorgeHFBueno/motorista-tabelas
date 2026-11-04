@@ -1,60 +1,37 @@
 import { useMemo } from "react";
 import { useActiveObraId } from "@/hooks/useActiveObraId";
-import { useObra } from "@/hooks/useAppQueries";
-import { useObraStatus } from "@/hooks/useObraStatus";
 import {
   deriveDashboardStatus,
   deriveDashboardSummary,
   deriveDeliveryLabel,
   deriveFaseProgress,
   deriveOverallProgress,
+  normalizeObraStatusData,
 } from "@/lib/obraStatus";
 
+// Progress and team confirmations come from the active contract itself (portal-obras.progresso and .equipe).
 export const useClientObraOverview = () => {
   const {
     activeObraId,
+    activeObra,
     hasClientObra,
     isResolvingAuth,
     isResolvingUserDoc,
     isResolvingClientObra,
     isReady: isActiveObraReady,
   } = useActiveObraId();
-  const obraQuery = useObra(activeObraId ?? undefined);
-  const statusQuery = useObraStatus(activeObraId);
-  const isResolvingDashboardData = Boolean(activeObraId) && (obraQuery.isLoading || statusQuery.isLoading);
 
-  const overview = useMemo(() => {
-    const statusData = statusQuery.data ?? null;
+  return useMemo(() => {
+    const statusData = normalizeObraStatusData(activeObra?.progresso);
     const fases = statusData?.etapas ?? [];
     const progressData = deriveOverallProgress(statusData);
-    const status = deriveDashboardStatus(obraQuery.data?.statusResumo, progressData.progress, progressData.inProgressStages);
-    const isLoading = isResolvingAuth || isResolvingUserDoc || isResolvingClientObra || isResolvingDashboardData;
-    const isEmptyState = isActiveObraReady && !activeObraId && !hasClientObra;
-
-    if (import.meta.env.DEV) {
-      console.info("[useClientObraOverview] estado", {
-        activeObraId,
-        hasClientObra,
-        isResolvingAuth,
-        isResolvingUserDoc,
-        isResolvingClientObra,
-        isResolvingDashboardData,
-        isActiveObraReady,
-        obraLoading: obraQuery.isLoading,
-        obraFetched: obraQuery.isFetched,
-        statusLoading: statusQuery.isLoading,
-        statusFetched: statusQuery.isFetched,
-        fasesCount: fases.length,
-        isLoading,
-        isEmptyState,
-        hasError: Boolean(obraQuery.error ?? statusQuery.error),
-      });
-    }
+    const status = deriveDashboardStatus(null, progressData.progress, progressData.inProgressStages);
+    const isLoading = isResolvingAuth || isResolvingUserDoc || isResolvingClientObra;
 
     return {
       activeObraId,
       hasClientObra,
-      obra: obraQuery.data ?? null,
+      obra: activeObra,
       statusData,
       fases,
       faseSummaries: fases.map((fase) => ({ fase, ...deriveFaseProgress(fase) })),
@@ -63,20 +40,14 @@ export const useClientObraOverview = () => {
       summary: deriveDashboardSummary(progressData),
       deliveryDateLabel: deriveDeliveryLabel(statusData),
       isLoading,
-      error: obraQuery.error ?? statusQuery.error ?? null,
-      isEmpty: Boolean(activeObraId) && !statusQuery.isLoading && fases.length === 0,
-      isEmptyState,
+      error: null as unknown,
+      isEmpty: Boolean(activeObraId) && fases.length === 0,
+      isEmptyState: isActiveObraReady && !activeObraId,
       isResolvingAuth,
       isResolvingUserDoc,
       isResolvingClientObra,
-      isResolvingDashboardData,
+      isResolvingDashboardData: false,
       isActiveObraReady,
     };
-  }, [activeObraId, hasClientObra, isActiveObraReady, isResolvingAuth, isResolvingClientObra, isResolvingDashboardData, isResolvingUserDoc, obraQuery.data, obraQuery.error, obraQuery.isFetched, obraQuery.isLoading, statusQuery.data, statusQuery.error, statusQuery.isFetched, statusQuery.isLoading]);
-
-  return {
-    ...overview,
-    obraQuery,
-    statusQuery,
-  };
+  }, [activeObra, activeObraId, hasClientObra, isActiveObraReady, isResolvingAuth, isResolvingClientObra, isResolvingUserDoc]);
 };

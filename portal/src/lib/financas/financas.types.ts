@@ -1,5 +1,7 @@
 import type { Timestamp } from "firebase/firestore";
 
+// portal-parcelas (Manuscript portal.md). Values here are in reais and the due date is a Timestamp;
+// the service converts from cents and 'AAAA-MM-DD'.
 export const FINANCIAL_INSTALLMENT_STATUSES = [
   "pendente",
   "comprovante_enviado",
@@ -8,20 +10,10 @@ export const FINANCIAL_INSTALLMENT_STATUSES = [
 ] as const;
 
 export type FinancialInstallmentStatus = (typeof FINANCIAL_INSTALLMENT_STATUSES)[number];
-export type ParcelaFinanceiraStatus = FinancialInstallmentStatus;
-
-export interface FinancialFileReference {
-  url?: string;
-  path?: string;
-  fileName?: string;
-  contentType?: string;
-  sizeBytes?: number;
-}
 
 export interface FinancialActorReference {
   uid?: string;
   nome?: string;
-  email?: string;
 }
 
 export interface FinancialInstallment {
@@ -32,23 +24,16 @@ export interface FinancialInstallment {
   valor: number;
   vencimento?: Timestamp;
   status: FinancialInstallmentStatus;
+  // Download URLs asked when the list is loaded; not stored in Firestore.
   boletoUrl?: string;
-  boletoPath?: string;
   comprovanteUrl?: string;
-  comprovantePath?: string;
   comprovanteEnviadoEm?: Timestamp;
   comprovanteEnviadoPor?: FinancialActorReference;
-  confirmadoPagoEm?: Timestamp;
-  confirmadoPagoPor?: FinancialActorReference;
   observacaoAdmin?: string;
   observacaoCliente?: string;
   criadoEm?: Timestamp;
   atualizadoEm?: Timestamp;
-  boleto?: FinancialFileReference;
-  comprovante?: FinancialFileReference;
 }
-
-export type ParcelaFinanceira = FinancialInstallment;
 
 export interface FinancialOverviewUpcomingInstallment {
   id: string;
@@ -59,7 +44,7 @@ export interface FinancialOverviewUpcomingInstallment {
   status: FinancialInstallmentStatus;
 }
 
-export interface ObraFinancialSummary {
+export interface FinancialOverview {
   obraId: string;
   valorTotalContrato: number;
   valorPago: number;
@@ -69,64 +54,4 @@ export interface ObraFinancialSummary {
   quantidadePendentes: number;
   proximaParcela?: FinancialOverviewUpcomingInstallment;
   atualizadoEm?: Timestamp;
-}
-
-export type FinancialOverview = ObraFinancialSummary;
-
-export interface ListFinancialInstallmentsInput {
-  obraId?: string;
-  includeRejected?: boolean;
-}
-
-export interface CreateFinancialInstallmentInput {
-  obraId: string;
-  numero: number;
-  descricao: string;
-  valor: number;
-  vencimento?: Timestamp | Date | null;
-  status?: FinancialInstallmentStatus;
-  boletoUrl?: string;
-  boletoPath?: string;
-  observacaoAdmin?: string;
-}
-
-export interface UpdateFinancialInstallmentInput {
-  numero?: number;
-  descricao?: string;
-  valor?: number;
-  vencimento?: Timestamp | Date | null;
-  status?: FinancialInstallmentStatus;
-  boletoUrl?: string | null;
-  boletoPath?: string | null;
-  observacaoAdmin?: string | null;
-  observacaoCliente?: string | null;
-}
-
-export interface UploadFinancialBoletoPayload {
-  parcelaId: string;
-  obraId: string;
-  fileName: string;
-  contentType?: string;
-  sizeBytes?: number;
-  boletoUrl?: string;
-  boletoPath: string;
-}
-
-export interface SubmitFinancialReceiptPayload {
-  parcelaId: string;
-  obraId: string;
-  comprovanteUrl?: string;
-  comprovantePath: string;
-  observacaoCliente?: string;
-  comprovanteEnviadoPor?: FinancialActorReference;
-  comprovanteEnviadoEm?: Timestamp | Date | null;
-}
-
-export interface ReviewFinancialReceiptPayload {
-  parcelaId: string;
-  obraId: string;
-  aprovado: boolean;
-  observacaoAdmin?: string;
-  confirmadoPagoPor?: FinancialActorReference;
-  confirmadoPagoEm?: Timestamp | Date | null;
 }

@@ -5,6 +5,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { NEWS_CATEGORY_LABELS, type NoticiaDoc } from "@/types/noticias";
 
 const formatDate = (value: NoticiaDoc["publicadoEm"]) => {
+  if (!value) return "Data indisponível";
   try {
     return value.toDate().toLocaleDateString("pt-BR", { day: "2-digit", month: "short", year: "numeric" });
   } catch {

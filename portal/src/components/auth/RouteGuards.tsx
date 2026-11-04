@@ -1,9 +1,8 @@
-import { ReactNode, useEffect, useRef } from "react";
 import { Loader2 } from "lucide-react";
-import { Navigate, Outlet, useLocation, useParams } from "react-router-dom";
+import { Navigate, Outlet, useLocation } from "react-router-dom";
+import AcessoAviso from "@/components/auth/AcessoAviso";
 import { useAuth } from "@/contexts/AuthContext";
-import { useEnsureUserDoc } from "@/hooks/useAppQueries";
-import { toast } from "@/hooks/use-toast";
+import { useObra } from "@/contexts/ObraContext";
 
 const CenterLoader = () => (
   <div className="flex min-h-screen items-center justify-center bg-background">
@@ -11,145 +10,63 @@ const CenterLoader = () => (
   </div>
 );
 
-const CenterError = ({ message }: { message: string }) => (
-  <div className="flex min-h-screen items-center justify-center bg-background px-4">
-    <div className="max-w-lg rounded-lg border bg-card p-6 text-card-foreground shadow-sm">
-      <h2 className="text-lg font-semibold">Erro ao carregar acesso</h2>
-      <p className="mt-2 text-sm text-muted-foreground">{message}</p>
-    </div>
-  </div>
-);
-
-export const ProtectedRoute = ({ children }: { children?: ReactNode }) => {
-  const { user, userDoc, loading, authReady, userDocReady, refreshUserDoc, error } = useAuth();
+// Portal client: signed in, with an active users/{uid} and at least one contract of its CNPJ/CPF.
+// Logins that are not clients see a notice; nothing is created by the portal itself.
+export const ClientRoute = () => {
+  const { user, userDoc, loading, authReady, userDocReady, error } = useAuth();
+  const { contratos, isLoading: contratosLoading, error: contratosError } = useObra();
   const location = useLocation();
-const ensureUserDoc = useEnsureUserDoc({
-    user,
-    userDoc,
-    onEnsured: refreshUserDoc,
-    enabled: !error,
-  });
 
-  if (loading || !authReady || !userDocReady || ensureUserDoc.isPending) {
+  if (loading || !authReady || !userDocReady) {
     return <CenterLoader />;
-  }
-
-  if (error) {
-    return <CenterError message={error} />;
   }
 
   if (!user) {
     return <Navigate to="/login" replace state={{ from: location }} />;
   }
 
+  if (error) {
+    return <AcessoAviso titulo="Erro ao carregar acesso" descricao={error} />;
+  }
+
   if (!userDoc) {
-    return <Navigate to="/aguardando-liberacao" replace />;
+    return (
+      <AcessoAviso
+        titulo="Acesso não liberado"
+        descricao="Este login ainda não tem acesso ao portal do cliente. Fale com a Ledur para liberar o seu acesso."
+      />
+    );
   }
 
   if (!userDoc.ativo) {
-    return <Navigate to="/conta-desativada" replace />;
+    return (
+      <AcessoAviso
+        titulo="Conta desativada"
+        descricao="Seu acesso ao portal está desativado. Fale com a Ledur."
+      />
+    );
   }
 
-  if (children) {
-    return <>{children}</>;
+  if (contratosLoading) {
+    return <CenterLoader />;
   }
 
-  return <Outlet />;
-};
-
-export const RoleHomeRedirect = () => {
-  const { userDoc } = useAuth();
-
-  if (!userDoc) {
-    return null;
+  if (contratosError) {
+    return (
+      <AcessoAviso
+        titulo="Erro ao carregar seus contratos"
+        descricao="Não foi possível carregar seus contratos agora. Tente novamente em instantes."
+      />
+    );
   }
 
-  if (userDoc.role === "cliente") {
-        return <Navigate to={userDoc.obras.length === 0 ? "/cliente/sem-obra" : "/cliente"} replace />;
-  }
-
-  return <Navigate to="/painel/obras" replace />;
-};
-
-export const ClientRoute = ({ children }: { children?: ReactNode }) => {
-  const { userDoc } = useAuth();
-  const location = useLocation();
-
-  if (!userDoc) {
-    return null;
-  }
-
-  if (userDoc.role !== "cliente") {
-    return <Navigate to="/painel/obras" replace />;
-  }
-
-  if (userDoc.obras.length === 0 && location.pathname !== "/cliente/sem-obra") {
-    return <Navigate to="/cliente/sem-obra" replace />;
-  }
-
-  if (userDoc.obras.length > 0 && location.pathname === "/cliente/sem-obra") {
-    return <Navigate to="/cliente" replace />;
-  }
-
-  if (children) {
-    return <>{children}</>;
-  }
-
-  return <Outlet />;
-};
-
-export const StaffRoute = ({ children }: { children?: ReactNode }) => {
-  const { userDoc } = useAuth();
-
-  if (!userDoc) {
-    return null;
-  }
-
-  if (!userDoc.ativo) {
-    return <Navigate to="/conta-desativada" replace />;
-  }
-
-  if (userDoc.role === "cliente") {
-    return <Navigate to="/cliente" replace />;
-  }
-
-  if (children) {
-    return <>{children}</>;
-  }
-
-  return <Outlet />;
-};
-
-export const ObraAccessRoute = ({ children }: { children?: ReactNode }) => {
-  const { userDoc } = useAuth();
-  const { obraId } = useParams();
-  const deniedRef = useRef(false);
-
-  const hasAccess = !!userDoc && !!obraId && (userDoc.role === "admin" || userDoc.obras.includes(obraId));
-
-  useEffect(() => {
-    if (userDoc && obraId && !hasAccess && !deniedRef.current) {
-      deniedRef.current = true;
-      toast({
-        title: "Acesso negado",
-        description: "Você não tem permissão para acessar esta obra.",
-        variant: "destructive",
-      });
-    }
-  }, [hasAccess, obraId, userDoc]);
-
-  const fallbackPath = userDoc?.role === "cliente" ? "/cliente" : "/painel/obras";
-
-  if (!userDoc || !obraId) {
-    return <Navigate to={fallbackPath} replace />;
-  }
-
-  if (!hasAccess) {
-    return <Navigate to={fallbackPath} replace />;
-  }
-
-  if (children) {
-    return <>{children}</>;
+  if (contratos.length === 0) {
+    return (
+      <AcessoAviso
+        titulo="Nenhum contrato publicado"
+        descricao="Ainda não há contrato seu publicado no portal. Assim que a Ledur publicar, ele aparece aqui."
+      />
+    );
   }
 
   return <Outlet />;

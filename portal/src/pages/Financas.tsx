@@ -210,7 +210,7 @@ const Financas = () => {
 
   const overviewQuery = useFinancialOverview(activeObraId ?? undefined);
   const installmentsQuery = useFinancialInstallmentsList(activeObraId ?? undefined);
-  const submitReceiptMutation = useSubmitFinancialReceiptMutation();
+  const submitReceiptMutation = useSubmitFinancialReceiptMutation(activeObraId ?? undefined);
 
   const parcelas = useMemo(() => installmentsQuery.data ?? [], [installmentsQuery.data]);
   const overview = overviewQuery.data;
@@ -288,7 +288,7 @@ const Financas = () => {
   };
 
   const handleSubmitReceipt = async () => {
-    if (!selectedInstallment || !activeObraId) return;
+    if (!selectedInstallment || !activeObraId || !user) return;
 
     if (!selectedInstallmentCanUpload) {
       toast({
@@ -310,14 +310,12 @@ const Financas = () => {
 
     try {
       const updatedInstallment = await submitReceiptMutation.mutateAsync({
-        obraId: activeObraId,
         parcelaId: selectedInstallment.id,
         file: selectedReceiptFile,
         observacaoCliente: receiptObservation.trim() || undefined,
-        comprovanteEnviadoPor: {
-          uid: user?.uid,
-          nome: userDoc?.nome ?? user?.displayName ?? user?.email ?? undefined,
-          email: userDoc?.email ?? user?.email ?? undefined,
+        enviadoPor: {
+          uid: user.uid,
+          nome: userDoc?.nome || user.displayName || user.email || "Cliente",
         },
       });
 
@@ -621,9 +619,9 @@ const Financas = () => {
                         ? `Enviado em ${formatDateTime(selectedInstallment.comprovanteEnviadoEm)}.`
                         : "Nenhum comprovante foi enviado ainda para esta parcela."}
                     </p>
-                    {selectedInstallment.comprovanteEnviadoPor?.nome || selectedInstallment.comprovanteEnviadoPor?.email ? (
+                    {selectedInstallment.comprovanteEnviadoPor?.nome ? (
                       <p className="mt-1 text-xs text-muted-foreground">
-                        Por {selectedInstallment.comprovanteEnviadoPor?.nome ?? selectedInstallment.comprovanteEnviadoPor?.email}
+                        Por {selectedInstallment.comprovanteEnviadoPor.nome}
                       </p>
                     ) : null}
                   </div>

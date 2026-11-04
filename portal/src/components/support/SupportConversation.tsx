@@ -25,7 +25,7 @@ const SupportConversation = ({
         </div>
       ) : (
         messages.map((message) => {
-          const isAdmin = message.autorTipo === "admin";
+          const isAdmin = message.autorTipo === "equipe";
           return (
             <div
               key={message.id}

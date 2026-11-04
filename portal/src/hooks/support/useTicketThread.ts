@@ -1,22 +1,21 @@
 import { useEffect, useState } from "react";
-import {
-  markTicketReadByAdmin,
-  markTicketReadByClient,
-  subscribeTicket,
-  subscribeTicketMessages,
-} from "@/services/support/supportService";
-import type { SupportAuthorType, SupportTicket, SupportTicketMessage } from "@/types/support";
+import { markTicketReadByClient, subscribeTicket, subscribeTicketMessages } from "@/services/support/supportService";
+import type { SupportTicket, SupportTicketMessage } from "@/types/support";
 
-export const useTicketThread = (ticketId?: string | null, viewerType?: SupportAuthorType) => {
+// One ticket and its messages; opening it marks the team's answers as read by the client.
+export const useTicketThread = (ticketId?: string | null) => {
   const [ticket, setTicket] = useState<SupportTicket | null>(null);
+  const [confirmado, setConfirmado] = useState(false);
   const [messages, setMessages] = useState<SupportTicketMessage[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    setConfirmado(false);
+    setMessages([]);
+
     if (!ticketId) {
       setTicket(null);
-      setMessages([]);
       setIsLoading(false);
       return;
     }
@@ -24,46 +23,32 @@ export const useTicketThread = (ticketId?: string | null, viewerType?: SupportAu
     setIsLoading(true);
     setError(null);
 
-    const unsubscribeTicket = subscribeTicket(
+    return subscribeTicket(
       ticketId,
-      async (nextTicket) => {
+      (nextTicket, ticketConfirmado) => {
         setTicket(nextTicket);
+        setConfirmado((anterior) => anterior || (Boolean(nextTicket) && ticketConfirmado));
         setIsLoading(false);
-
-        if (!nextTicket || !viewerType) return;
-        if (viewerType === "cliente" && nextTicket.naoLidasCliente > 0) {
-          await markTicketReadByClient(ticketId);
-        }
-        if (viewerType === "admin" && nextTicket.naoLidasAdmin > 0) {
-          await markTicketReadByAdmin(ticketId);
+        if (nextTicket && ticketConfirmado && nextTicket.naoLidasCliente > 0) {
+          markTicketReadByClient(ticketId).catch(() => undefined);
         }
       },
-      (snapshotError) => {
-        setError(snapshotError.message || "Não foi possível carregar o ticket.");
+      () => {
+        setError("Não foi possível carregar o atendimento.");
         setIsLoading(false);
       },
     );
+  }, [ticketId]);
 
-    const unsubscribeMessages = subscribeTicketMessages(
-      ticketId,
-      (nextMessages) => {
-        setMessages(nextMessages);
-      },
-      (snapshotError) => {
-        setError(snapshotError.message || "Não foi possível carregar a conversa.");
-      },
-    );
+  // The message Rules read the ticket on the server, so listening starts only once the server has it
+  // (a ticket just created on this device would otherwise be refused).
+  useEffect(() => {
+    if (!ticketId || !confirmado) return;
 
-    return () => {
-      unsubscribeTicket();
-      unsubscribeMessages();
-    };
-  }, [ticketId, viewerType]);
+    return subscribeTicketMessages(ticketId, setMessages, () => {
+      setError("Não foi possível carregar a conversa.");
+    });
+  }, [ticketId, confirmado]);
 
-  return {
-    ticket,
-    messages,
-    isLoading,
-    error,
-  };
+  return { ticket, messages, isLoading, error };
 };

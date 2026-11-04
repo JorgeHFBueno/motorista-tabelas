@@ -1,3 +1,5 @@
+import type { PessoaRef } from "@/types/rbac";
+
 export type ObraStatusProgressLabel =
   | "pendente"
   | "em_andamento"
@@ -24,13 +26,11 @@ export interface ObraStatusEtapa {
   itens: ObraStatusItem[];
 }
 
+// portal-obras/{id}.progresso (Manuscript portal.md), written by adm2.
 export interface ObraStatusData {
   etapas: ObraStatusEtapa[];
   // Progresso geral por média simples das etapas; cada etapa já é média simples dos itens.
   progressoGeral: number;
-  updatedAt?: unknown;
-  updatedByUid?: string;
-  updatedByNomeSnapshot?: string;
+  atualizadoEm?: unknown;
+  atualizadoPor?: PessoaRef | null;
 }
-
-export type ObraStatusResumo = "-" | "Em andamento" | "Concluida";

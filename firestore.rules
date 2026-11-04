@@ -470,7 +470,7 @@ service cloud.firestore {
       let data = request.resource.data;
       let comprovante = data.get('comprovante', null);
       return isClienteDeAtivo(resource.data)
-        && resource.data.get('status', '') in ['pendente', 'rejeitada']
+        && resource.data.get('status', '') in ['pendente', 'rejeitado']
         && changedOnly(['status', 'comprovante', 'comprovanteEnviadoEm', 'comprovanteEnviadoPor', 'observacaoCliente', 'atualizadoEm'])
         && data.get('status', '') == 'comprovante_enviado'
         && comprovante is map

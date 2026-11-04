@@ -1,24 +1,19 @@
 # Ledur Pré-Fabricados — Central do Cliente
 
-Portal para clientes acompanharem suas obras (etapas, documentos, fotos, finanças e atendimento) e para a equipe Ledur administrar obras e cadastros.
+Site do cliente (dono da obra) para acompanhar o contrato: progresso, saída e chegada da equipe, documentos, fotos, parcelas, atendimento e notícias. A equipe trabalha na WEB principal (área do adm2).
+
+Contrato: The Manuscript, `03_APLICACAO_WEB/16_PORTAL_DO_CLIENTE.md`, `01_FIRESTORE/COLECOES/portal.md` e `users.md`.
 
 ## Stack
 
-- Vite + React + TypeScript
-- shadcn/ui + Tailwind CSS
-- Firebase (projeto `ledur-clientes`): Auth, Firestore, Storage, Cloud Functions e Hosting
+- Vite + React + TypeScript, shadcn/ui + Tailwind CSS
+- Firebase do projeto `app-motor-api`: Auth, Firestore e Storage. As Rules ficam na raiz do repositório (`firestore.rules`, `storage.rules`).
 
 ## Rodar localmente
 
 Requer Node.js 20+. Rode os comandos dentro de `portal/`.
 
-```sh
-npm ci
-npm run dev   # http://localhost:8080
-```
-
-A configuração do Firebase tem valores padrão em `src/config/firebaseConfig.ts`.
-Para apontar para outro projeto, crie um `.env.local` com:
+`.env` (fora do git) com a configuração web do `app-motor-api`:
 
 ```
 VITE_FIREBASE_API_KEY=
@@ -29,24 +24,18 @@ VITE_FIREBASE_MESSAGING_SENDER_ID=
 VITE_FIREBASE_APP_ID=
 ```
 
-## Cloud Functions
-
-Ficam em `functions/` (Node 22). O envio de e-mails usa o segredo `RESEND_API_KEY`, configurado no Firebase:
-
 ```sh
-firebase functions:secrets:set RESEND_API_KEY
-firebase deploy --only functions
+npm ci
+npm run dev            # http://localhost:8081
 ```
 
-## Deploy
-
-Durante a transição, o portal ainda publica no projeto Firebase antigo (`ledur-clientes`),
-de forma manual, a partir desta pasta:
+Com os emuladores da raiz (`firebase emulators:start --only auth,firestore,storage --project app-motor-api`) e um `.env.emulador` com `VITE_USE_FIREBASE_EMULATORS=true`:
 
 ```sh
-npm run build
-firebase deploy --only hosting
+npm run dev:emulador
 ```
 
-A migração para o projeto `app-motor-api` (site próprio e domínio
-clientes.ledurprefabricados.com.br) é a próxima etapa.
+## Pendente
+
+- `functions/` é o código antigo das Functions do portal (projeto `ledur-clientes`), mantido só como referência: elas serão reescritas no `functions/` da raiz.
+- Publicação: segundo site de Hosting do `app-motor-api` (domínio clientes.ledurprefabricados.com.br), configurado na raiz.

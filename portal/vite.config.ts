@@ -9,7 +9,8 @@ export default defineConfig({
   },
   server: {
     host: "::",
-    port: 8080,
+    // 8080 is the Firestore emulator of the repository root.
+    port: 8081,
   },
   plugins: [react()],
   resolve: {

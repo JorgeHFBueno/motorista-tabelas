@@ -211,13 +211,7 @@ const Obra = () => {
           </p>
         </motion.div>
 
-        {activeObraId ? (
-          <ExecucaoEquipeCard
-            mode="client"
-            obraId={activeObraId}
-            confirmacoes={obra?.execucaoEquipe}
-          />
-        ) : null}
+        {activeObraId ? <ExecucaoEquipeCard confirmacoes={obra?.equipe} /> : null}
 
         {!activeObraId ? (
           <div className="rounded-xl border bg-card p-4 text-sm text-muted-foreground">

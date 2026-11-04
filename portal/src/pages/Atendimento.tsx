@@ -14,10 +14,10 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { useAuth } from "@/contexts/AuthContext";
+import { useObra } from "@/contexts/ObraContext";
 import { useClientTickets } from "@/hooks/support/useClientTickets";
 import { useTicketThread } from "@/hooks/support/useTicketThread";
 import { useToast } from "@/hooks/use-toast";
-import { useObrasByIds } from "@/hooks/useAppQueries";
 import { cn } from "@/lib/utils";
 import { createSupportTicket, replySupportTicket } from "@/services/support/supportService";
 import {
@@ -40,16 +40,17 @@ const Atendimento = () => {
   const [newTicketTitle, setNewTicketTitle] = useState("");
   const [newTicketCategory, setNewTicketCategory] = useState<SupportTicketCategory>(DEFAULT_CATEGORY);
   const [newTicketPriority, setNewTicketPriority] = useState<SupportTicketPriority>(DEFAULT_PRIORITY);
-  const [newTicketObraId, setNewTicketObraId] = useState("sem_obra");
+  const { contratos: obras, obraAtivaId } = useObra();
+  const [newTicketObraId, setNewTicketObraId] = useState(obraAtivaId ?? "");
   const [newTicketDescription, setNewTicketDescription] = useState("");
   const [replyMessage, setReplyMessage] = useState("");
   const [isCreatingTicket, setIsCreatingTicket] = useState(false);
   const [isSendingReply, setIsSendingReply] = useState(false);
 
-  const { tickets, stats, isLoading, error } = useClientTickets(user?.uid);
-  const { data: obras = [] } = useObrasByIds(userDoc?.obras ?? []);
-  const { ticket: selectedTicket, messages, isLoading: isLoadingThread } = useTicketThread(selectedTicketId, "cliente");
+  const { tickets, stats, isLoading, error } = useClientTickets(userDoc?.documentos ?? []);
+  const { ticket: selectedTicket, messages, isLoading: isLoadingThread } = useTicketThread(selectedTicketId);
 
+  const obraNome = (obraId?: string | null) => obras.find((obra) => obra.id === obraId)?.nome ?? null;
   const selectedObra = useMemo(
     () => obras.find((obra) => obra.id === selectedTicket?.obraId),
     [obras, selectedTicket?.obraId],
@@ -63,10 +64,10 @@ const Atendimento = () => {
   }, [searchParams]);
 
   useEffect(() => {
-    if (obras.length === 1) {
-      setNewTicketObraId(obras[0].id);
+    if (!newTicketObraId && obraAtivaId) {
+      setNewTicketObraId(obraAtivaId);
     }
-  }, [obras]);
+  }, [newTicketObraId, obraAtivaId]);
 
   useEffect(() => {
     if (tickets.length === 0) {
@@ -101,23 +102,21 @@ const Atendimento = () => {
     setIsCreatingTicket(true);
     try {
       const obraSelecionada = obras.find((obra) => obra.id === newTicketObraId);
+      if (!obraSelecionada) throw new Error("Escolha a obra do atendimento.");
       const { ticketId } = await createSupportTicket({
-        clienteUid: user.uid,
-        clienteNome: userDoc.nome,
-        clienteEmail: user.email ?? userDoc.email ?? null,
+        obra: obraSelecionada,
+        autor: { uid: user.uid, nome: userDoc.nome || user.email || "Cliente" },
         titulo: newTicketTitle,
         descricaoInicial: newTicketDescription,
         categoria: newTicketCategory,
         prioridade: newTicketPriority,
-        obraId: newTicketObraId === "sem_obra" ? null : obraSelecionada?.id ?? null,
-        obraNome: newTicketObraId === "sem_obra" ? null : obraSelecionada?.nome ?? null,
       });
 
       setNewTicketTitle("");
       setNewTicketCategory(DEFAULT_CATEGORY);
       setNewTicketPriority(DEFAULT_PRIORITY);
       setNewTicketDescription("");
-      setNewTicketObraId(obras.length === 1 ? obras[0].id : "sem_obra");
+      setNewTicketObraId(obraAtivaId ?? "");
       setIsCreateDialogOpen(false);
       handleSelectTicket(ticketId);
       toast({ title: "Ticket aberto", description: "Seu ticket foi criado e enviado para a equipe." });
@@ -139,8 +138,8 @@ const Atendimento = () => {
     try {
       await replySupportTicket(
         selectedTicketId,
-        { uid: user.uid, nome: userDoc.nome, email: user.email ?? userDoc.email ?? null, tipo: "cliente" },
-        { mensagem: replyMessage },
+        { uid: user.uid, nome: userDoc.nome || user.email || "Cliente" },
+        replyMessage,
       );
       setReplyMessage("");
     } catch (replyError) {
@@ -220,7 +219,7 @@ const Atendimento = () => {
                       <p className="font-semibold text-foreground">{ticket.titulo}</p>
                       <p className="mt-1 line-clamp-2 text-sm text-muted-foreground">{ticket.ultimaMensagemResumo || ticket.descricaoInicial}</p>
                       <div className="mt-3 flex items-center justify-between gap-3 text-xs text-muted-foreground">
-                        <span>{ticket.obraNome ?? "Sem obra vinculada"}</span>
+                        <span>{obraNome(ticket.obraId) ?? "Obra"}</span>
                         <span>{formatSupportDateTime(ticket.ultimaMensagemEm ?? ticket.criadoEm)}</span>
                       </div>
                     </button>
@@ -273,11 +272,11 @@ const Atendimento = () => {
                   <div className="grid gap-3 rounded-2xl border bg-muted/20 p-4 lg:grid-cols-3">
                     <div>
                       <p className="text-xs uppercase tracking-wide text-muted-foreground">Cliente</p>
-                      <p className="mt-1 text-sm font-medium text-foreground">{selectedTicket.clienteNome}</p>
+                      <p className="mt-1 text-sm font-medium text-foreground">{selectedTicket.criadoPor?.nome || "Cliente"}</p>
                     </div>
                     <div>
                       <p className="text-xs uppercase tracking-wide text-muted-foreground">Obra</p>
-                      <p className="mt-1 text-sm font-medium text-foreground">{selectedObra?.nome ?? selectedTicket.obraNome ?? "Não informada"}</p>
+                      <p className="mt-1 text-sm font-medium text-foreground">{selectedObra?.nome ?? "Não informada"}</p>
                     </div>
                     <div>
                       <p className="text-xs uppercase tracking-wide text-muted-foreground">Última interação</p>
@@ -345,7 +344,6 @@ const Atendimento = () => {
                 <Select value={newTicketObraId} onValueChange={setNewTicketObraId}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="sem_obra">Sem obra específica</SelectItem>
                     {obras.map((obra) => (
                       <SelectItem key={obra.id} value={obra.id}>{obra.nome}</SelectItem>
                     ))}

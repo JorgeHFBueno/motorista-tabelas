@@ -1,6 +1,4 @@
 import {
-  addDoc,
-  deleteDoc,
   collection,
   doc,
   getDoc,
@@ -9,710 +7,172 @@ import {
   serverTimestamp,
   Timestamp,
   updateDoc,
-  where,
   type DocumentData,
-  type QueryConstraint,
-  type QueryDocumentSnapshot,
-  type Timestamp as TimestampType,
 } from "firebase/firestore";
-import { getDownloadURL, ref, uploadBytes } from "firebase/storage";
+import { ref, uploadBytes } from "firebase/storage";
 import { db, storage } from "@/lib/firebase";
 import {
+  PORTAL_COLECOES,
+  centavosParaReais,
+  dataIsoParaTimestamp,
+  filtrosDoContrato,
+  toArquivo,
+  urlDoArquivo,
+} from "@/lib/portal";
+import type { ObraDoc, PessoaRef } from "@/types/rbac";
+import {
   FINANCIAL_INSTALLMENT_STATUSES,
-  type CreateFinancialInstallmentInput,
-  type FinancialActorReference,
   type FinancialInstallment,
   type FinancialInstallmentStatus,
   type FinancialOverview,
-  type ListFinancialInstallmentsInput,
-  type SubmitFinancialReceiptPayload,
-  type ReviewFinancialReceiptPayload,
-  type UpdateFinancialInstallmentInput,
 } from "./financas.types";
 
-const FINANCIAL_INSTALLMENTS_COLLECTION = "financeiroParcelas";
-const installmentStatusSet = new Set<string>(FINANCIAL_INSTALLMENT_STATUSES);
 export const FINANCIAL_RECEIPT_ACCEPTED_TYPES = ["application/pdf", "image/jpeg", "image/png"] as const;
-const isDev = import.meta.env.DEV;
 
-const logFinancialDebug = (message: string, payload?: Record<string, unknown>) => {
-  if (!isDev) return;
-  console.info(`[FINANCAS_SERVICE] ${message}`, payload ?? {});
-};
+const statusSet = new Set<string>(FINANCIAL_INSTALLMENT_STATUSES);
 
-const logFinancialError = (message: string, payload?: Record<string, unknown>) => {
-  if (!isDev) return;
-  console.error(`[FINANCAS_SERVICE] ${message}`, payload ?? {});
-};
+const asString = (value: unknown) => (typeof value === "string" ? value.trim() : "");
+const asOptionalString = (value: unknown) => asString(value) || undefined;
+const asTimestamp = (value: unknown) => (value instanceof Timestamp ? value : undefined);
+const asNumber = (value: unknown) => (typeof value === "number" && Number.isFinite(value) ? value : 0);
 
-const isRecord = (value: unknown): value is Record<string, unknown> =>
-  typeof value === "object" && value !== null;
-
-const normalizeString = (value: unknown): string =>
-  typeof value === "string" ? value.trim() : "";
-
-const normalizeOptionalString = (value: unknown): string | undefined => {
-  const normalized = normalizeString(value);
-  return normalized || undefined;
-};
-
-const normalizeNumber = (value: unknown): number => {
-  if (typeof value === "number" && Number.isFinite(value)) {
-    return value;
-  }
-
-  if (typeof value === "string") {
-    const normalized = Number(value.replace(/\./g, "").replace(",", "."));
-    return Number.isFinite(normalized) ? normalized : 0;
-  }
-
-  return 0;
-};
-
-const isTimestamp = (value: unknown): value is TimestampType =>
-  isRecord(value) &&
-  typeof value.toDate === "function" &&
-  typeof value.toMillis === "function" &&
-  typeof value.seconds === "number" &&
-  typeof value.nanoseconds === "number";
-
-const normalizeTimestamp = (value: unknown): TimestampType | undefined => {
-  if (isTimestamp(value)) {
-    return value;
-  }
-
-  return undefined;
-};
-
-const normalizeActor = (
-  value: unknown,
-): FinancialActorReference | undefined => {
-  if (!isRecord(value)) {
-    return undefined;
-  }
-
-  const uid = normalizeOptionalString(value.uid);
-  const nome = normalizeOptionalString(value.nome);
-  const email = normalizeOptionalString(value.email);
-
-  if (!uid && !nome && !email) {
-    return undefined;
-  }
-
-  return { uid, nome, email };
-};
-
-const normalizeStatus = (value: unknown): FinancialInstallmentStatus => {
-  if (typeof value === "string" && installmentStatusSet.has(value)) {
-    return value as FinancialInstallmentStatus;
-  }
-
-  if (value === "paid") return "pago";
-  if (value === "approved") return "pago";
-  if (value === "receipt_sent") return "comprovante_enviado";
-  if (value === "rejected") return "rejeitado";
-  return "pendente";
-};
-
-const coerceFileReference = (
-  directUrl: unknown,
-  directPath: unknown,
-  nested: unknown,
-): Pick<
-  FinancialInstallment,
-  | "boleto"
-  | "boletoPath"
-  | "boletoUrl"
-  | "comprovante"
-  | "comprovantePath"
-  | "comprovanteUrl"
-> => {
-  const nestedRecord = isRecord(nested) ? nested : undefined;
-  const boletoUrl =
-    normalizeOptionalString(directUrl) ??
-    normalizeOptionalString(nestedRecord?.url);
-  const boletoPath =
-    normalizeOptionalString(directPath) ??
-    normalizeOptionalString(nestedRecord?.path);
-
-  if (!nestedRecord && !boletoUrl && !boletoPath) {
-    return {};
-  }
+const toInstallment = async (id: string, data: DocumentData): Promise<FinancialInstallment> => {
+  const numero = asNumber(data.numero);
+  const [boletoUrl, comprovanteUrl] = await Promise.all([
+    urlDoArquivo(toArquivo(data.boleto)),
+    urlDoArquivo(toArquivo(data.comprovante)),
+  ]);
+  const enviadoPor = data.comprovanteEnviadoPor as { uid?: unknown; nome?: unknown } | null | undefined;
 
   return {
+    id,
+    obraId: asString(data.obraId),
+    numero,
+    descricao: asOptionalString(data.descricao) ?? `Parcela ${numero || ""}`.trim(),
+    valor: centavosParaReais(data.valor),
+    vencimento: dataIsoParaTimestamp(data.vencimento),
+    status: statusSet.has(data.status) ? (data.status as FinancialInstallmentStatus) : "pendente",
     boletoUrl,
-    boletoPath,
-    boleto: {
-      url: boletoUrl,
-      path: boletoPath,
-      fileName: normalizeOptionalString(nestedRecord?.fileName),
-      contentType: normalizeOptionalString(nestedRecord?.contentType),
-      sizeBytes:
-        typeof nestedRecord?.sizeBytes === "number"
-          ? nestedRecord.sizeBytes
-          : undefined,
-    },
-  };
-};
-
-const coerceReceiptReference = (
-  directUrl: unknown,
-  directPath: unknown,
-  nested: unknown,
-): Pick<
-  FinancialInstallment,
-  "comprovante" | "comprovantePath" | "comprovanteUrl"
-> => {
-  const nestedRecord = isRecord(nested) ? nested : undefined;
-  const comprovanteUrl =
-    normalizeOptionalString(directUrl) ??
-    normalizeOptionalString(nestedRecord?.url);
-  const comprovantePath =
-    normalizeOptionalString(directPath) ??
-    normalizeOptionalString(nestedRecord?.path);
-
-  if (!nestedRecord && !comprovanteUrl && !comprovantePath) {
-    return {};
-  }
-
-  return {
     comprovanteUrl,
-    comprovantePath,
-    comprovante: {
-      url: comprovanteUrl,
-      path: comprovantePath,
-      fileName: normalizeOptionalString(nestedRecord?.fileName),
-      contentType: normalizeOptionalString(nestedRecord?.contentType),
-      sizeBytes:
-        typeof nestedRecord?.sizeBytes === "number"
-          ? nestedRecord.sizeBytes
-          : undefined,
-    },
+    comprovanteEnviadoEm: asTimestamp(data.comprovanteEnviadoEm),
+    comprovanteEnviadoPor: enviadoPor
+      ? { uid: asOptionalString(enviadoPor.uid), nome: asOptionalString(enviadoPor.nome) }
+      : undefined,
+    observacaoAdmin: asOptionalString(data.observacaoAdmin),
+    observacaoCliente: asOptionalString(data.observacaoCliente),
+    criadoEm: asTimestamp(data.criadoEm),
+    atualizadoEm: asTimestamp(data.atualizadoEm),
   };
 };
 
-export const mapFinancialInstallment = (
-  snap: QueryDocumentSnapshot<DocumentData>,
-): FinancialInstallment => {
-  const data = snap.data();
-  const boleto = coerceFileReference(
-    data.boletoUrl,
-    data.boletoPath,
-    data.boleto,
-  );
-  const comprovante = coerceReceiptReference(
-    data.comprovanteUrl,
-    data.comprovantePath,
-    data.comprovante,
-  );
-
-  return {
-    id: snap.id,
-    obraId: normalizeString(data.obraId),
-    numero: normalizeNumber(data.numero),
-    descricao:
-      normalizeOptionalString(data.descricao) ??
-      `Parcela ${normalizeNumber(data.numero) || ""}`.trim(),
-    valor: normalizeNumber(data.valor),
-    vencimento: normalizeTimestamp(data.vencimento),
-    status: normalizeStatus(data.status),
-    comprovanteEnviadoEm: normalizeTimestamp(data.comprovanteEnviadoEm),
-    comprovanteEnviadoPor: normalizeActor(data.comprovanteEnviadoPor),
-    confirmadoPagoEm: normalizeTimestamp(data.confirmadoPagoEm),
-    confirmadoPagoPor: normalizeActor(data.confirmadoPagoPor),
-    observacaoAdmin: normalizeOptionalString(data.observacaoAdmin),
-    observacaoCliente: normalizeOptionalString(data.observacaoCliente),
-    criadoEm: normalizeTimestamp(data.criadoEm ?? data.createdAt),
-    atualizadoEm: normalizeTimestamp(data.atualizadoEm ?? data.updatedAt),
-    ...boleto,
-    ...comprovante,
-  };
+export const listFinancialInstallments = async (obra: ObraDoc): Promise<FinancialInstallment[]> => {
+  const snapshot = await getDocs(query(collection(db, PORTAL_COLECOES.parcelas), ...filtrosDoContrato(obra)));
+  const parcelas = await Promise.all(snapshot.docs.map((item) => toInstallment(item.id, item.data())));
+  return parcelas.sort((a, b) => a.numero - b.numero);
 };
 
-export const listFinancialInstallments = async ({
-  obraId,
-  includeRejected = true,
-}: ListFinancialInstallmentsInput): Promise<FinancialInstallment[]> => {
-  const normalizedObraId = normalizeString(obraId);
-
-  if (!normalizedObraId) {
-    return [];
-  }
-
-  const constraints: QueryConstraint[] = [where("obraId", "==", normalizedObraId)];
-
-  try {
-    const snap = await getDocs(
-      query(collection(db, FINANCIAL_INSTALLMENTS_COLLECTION), ...constraints),
-    );
-    const parcelas = snap.docs
-      .map(mapFinancialInstallment)
-      .sort((left, right) => left.numero - right.numero);
-    const filtered = includeRejected
-      ? parcelas
-      : parcelas.filter((parcela) => parcela.status !== "rejeitado");
-
-    logFinancialDebug("resultado da listagem por obra", {
-      obraId: normalizedObraId,
-      total: filtered.length,
-      parcelaIds: filtered.map((parcela) => parcela.id),
-      persistedObraIds: [...new Set(filtered.map((parcela) => parcela.obraId))],
-    });
-
-    return filtered;
-  } catch (error) {
-    logFinancialError("erro ao listar parcelas por obra", { obraId: normalizedObraId, error });
-    throw error;
-  }
-};
-
-export const getFinancialInstallmentById = async (
-  id: string,
-): Promise<FinancialInstallment | null> => {
-  const parcelaId = normalizeString(id);
-
-  if (!parcelaId) {
-    return null;
-  }
-
-  const snap = await getDoc(
-    doc(db, FINANCIAL_INSTALLMENTS_COLLECTION, parcelaId),
-  );
-
-  if (!snap.exists()) {
-    return null;
-  }
-
-  return mapFinancialInstallment(snap as QueryDocumentSnapshot<DocumentData>);
-};
-
-const isPayableOpenStatus = (status: FinancialInstallmentStatus) =>
-  status === "pendente" ||
-  status === "comprovante_enviado" ||
-  status === "rejeitado";
-
-export const canClientSubmitReceiptForStatus = (
-  status: FinancialInstallmentStatus,
-) => status === "pendente" || status === "rejeitado";
-
-const assertReceiptUploadAllowed = (parcela: FinancialInstallment) => {
-  if (!canClientSubmitReceiptForStatus(parcela.status)) {
-    throw new Error(
-      parcela.status === "comprovante_enviado"
-        ? "Já existe um comprovante enviado para esta parcela aguardando análise."
-        : "Esta parcela não aceita envio de comprovante no momento.",
-    );
-  }
-};
-
-const assertReceiptReviewAllowed = (parcela: FinancialInstallment) => {
-  if (parcela.status !== "comprovante_enviado") {
-    throw new Error(
-      "Somente parcelas com comprovante enviado podem ser aprovadas ou rejeitadas.",
-    );
-  }
-};
+export const canClientSubmitReceiptForStatus = (status: FinancialInstallmentStatus) =>
+  status === "pendente" || status === "rejeitado";
 
 export const validateFinancialReceiptFile = (file: File) => {
-  const normalizedType = normalizeString(file.type).toLowerCase();
-  if (!FINANCIAL_RECEIPT_ACCEPTED_TYPES.includes(normalizedType as (typeof FINANCIAL_RECEIPT_ACCEPTED_TYPES)[number])) {
+  const type = file.type.toLowerCase();
+  if (!FINANCIAL_RECEIPT_ACCEPTED_TYPES.includes(type as (typeof FINANCIAL_RECEIPT_ACCEPTED_TYPES)[number])) {
     throw new Error("Envie um comprovante em PDF, JPG/JPEG ou PNG.");
+  }
+  if (file.size > 10 * 1024 * 1024) {
+    throw new Error("O comprovante pode ter até 10 MB.");
   }
 };
 
-export const selectUpcomingInstallment = (parcelas: FinancialInstallment[]) => {
-  return [...parcelas]
-    .filter((parcela) => isPayableOpenStatus(parcela.status))
+const isOpenStatus = (status: FinancialInstallmentStatus) => status !== "pago";
+
+const selectUpcomingInstallment = (parcelas: FinancialInstallment[]) =>
+  [...parcelas]
+    .filter((parcela) => isOpenStatus(parcela.status))
     .sort((left, right) => {
       const leftDue = left.vencimento?.toMillis() ?? Number.MAX_SAFE_INTEGER;
       const rightDue = right.vencimento?.toMillis() ?? Number.MAX_SAFE_INTEGER;
-
-      if (leftDue !== rightDue) {
-        return leftDue - rightDue;
-      }
-
-      return left.numero - right.numero;
+      return leftDue !== rightDue ? leftDue - rightDue : left.numero - right.numero;
     })[0];
-};
 
-export const buildFinancialOverview = (
-  obraId: string,
-  parcelas: FinancialInstallment[],
-  valorTotalContratoOverride?: number,
-): FinancialOverview => {
-  const valorParcelado = parcelas.reduce(
-    (acc, parcela) => acc + parcela.valor,
-    0,
-  );
+export const buildFinancialOverview = (obra: ObraDoc, parcelas: FinancialInstallment[]): FinancialOverview => {
+  const valorParcelado = parcelas.reduce((acc, parcela) => acc + parcela.valor, 0);
+  // The contract value typed by adm2 (cents); without it, the sum of the installments.
   const valorTotalContrato =
-    typeof valorTotalContratoOverride === "number" &&
-      Number.isFinite(valorTotalContratoOverride)
-      ? valorTotalContratoOverride
-      : valorParcelado;
-  const parcelasPagas = parcelas.filter((parcela) => parcela.status === "pago");
-  const valorPago = parcelasPagas.reduce(
-    (acc, parcela) => acc + parcela.valor,
-    0,
-  );
-  const quantidadePagas = parcelasPagas.length;
-  const quantidadeParcelas = parcelas.length;
-  const quantidadePendentes = parcelas.filter(
-    (parcela) => parcela.status !== "pago",
-  ).length;
-  const valorEmAberto = Math.max(valorTotalContrato - valorPago, 0);
+    typeof obra.valorContrato === "number" ? centavosParaReais(obra.valorContrato) : valorParcelado;
+  const pagas = parcelas.filter((parcela) => parcela.status === "pago");
+  const valorPago = pagas.reduce((acc, parcela) => acc + parcela.valor, 0);
   const proximaParcela = selectUpcomingInstallment(parcelas);
-  const atualizadoEm = [...parcelas]
+  const atualizadoEm = parcelas
     .map((parcela) => parcela.atualizadoEm ?? parcela.criadoEm)
-    .filter((value): value is TimestampType => Boolean(value))
+    .filter((value): value is Timestamp => Boolean(value))
     .sort((left, right) => right.toMillis() - left.toMillis())[0];
 
   return {
-    obraId,
+    obraId: obra.id,
     valorTotalContrato,
     valorPago,
-    valorEmAberto,
-    quantidadeParcelas,
-    quantidadePagas,
-    quantidadePendentes,
+    valorEmAberto: Math.max(valorTotalContrato - valorPago, 0),
+    quantidadeParcelas: parcelas.length,
+    quantidadePagas: pagas.length,
+    quantidadePendentes: parcelas.length - pagas.length,
     proximaParcela: proximaParcela
       ? {
-        id: proximaParcela.id,
-        numero: proximaParcela.numero,
-        descricao: proximaParcela.descricao,
-        valor: proximaParcela.valor,
-        vencimento: proximaParcela.vencimento,
-        status: proximaParcela.status,
-      }
+          id: proximaParcela.id,
+          numero: proximaParcela.numero,
+          descricao: proximaParcela.descricao,
+          valor: proximaParcela.valor,
+          vencimento: proximaParcela.vencimento,
+          status: proximaParcela.status,
+        }
       : undefined,
     atualizadoEm,
   };
 };
 
-const getFinancialContractValueFromObra = async (
-  obraId: string,
-): Promise<number | undefined> => {
-  const obraSnap = await getDoc(doc(db, "obras", obraId));
-  if (!obraSnap.exists()) return undefined;
+const sanitizeFileName = (fileName: string) => fileName.replace(/\s+/g, "-").replace(/[^a-zA-Z0-9._-]/g, "");
 
-  const obraData = obraSnap.data();
-  if (!("valorTotalContrato" in obraData)) return undefined;
-
-  const valorTotalContrato = normalizeNumber(obraData.valorTotalContrato);
-  return Number.isFinite(valorTotalContrato) ? valorTotalContrato : undefined;
-};
-
-export const getFinancialOverviewByObra = async (
-  obraId?: string,
-): Promise<FinancialOverview | null> => {
-  const normalizedObraId = normalizeString(obraId);
-
-  if (!normalizedObraId) {
-    return null;
-  }
-
-  try {
-    const [parcelas, valorTotalContrato] = await Promise.all([
-      listFinancialInstallments({ obraId: normalizedObraId }),
-      getFinancialContractValueFromObra(normalizedObraId),
-    ]);
-    const overview = buildFinancialOverview(normalizedObraId, parcelas, valorTotalContrato);
-    logFinancialDebug("resultado do overview por obra", {
-      obraId: normalizedObraId,
-      quantidadeParcelas: overview.quantidadeParcelas,
-      valorTotalContrato: overview.valorTotalContrato,
-      valorPago: overview.valorPago,
-    });
-    return overview;
-  } catch (error) {
-    logFinancialError("erro ao montar overview financeiro", { obraId: normalizedObraId, error });
-    throw error;
-  }
-};
-
-export const financialInstallmentStoragePaths = {
-  boleto: (obraId: string, parcelaId: string, fileName: string) =>
-    `financeiro/${obraId}/${parcelaId}/boleto/${fileName}`,
-  comprovante: (obraId: string, parcelaId: string, fileName: string) =>
-    `financeiro/${obraId}/${parcelaId}/comprovante/${fileName}`,
-};
-
-const toFirestoreDate = (value: TimestampType | Date | null | undefined) => {
-  if (value === null) return null;
-  if (value instanceof Date) return Timestamp.fromDate(value);
-  return value;
-};
-
-export const createFinancialInstallment = async (
-  input: CreateFinancialInstallmentInput,
-) => {
-  const normalizedObraId = normalizeString(input.obraId);
-
-  if (!normalizedObraId) {
-    throw new Error("Não foi possível salvar a parcela sem um obraId válido.");
-  }
-
-  const payload = {
-    obraId: normalizedObraId,
-    numero: input.numero,
-    descricao: input.descricao.trim(),
-    valor: input.valor,
-    vencimento: toFirestoreDate(input.vencimento),
-    status: input.status ?? "pendente",
-    boletoUrl: normalizeOptionalString(input.boletoUrl) ?? null,
-    boletoPath: normalizeOptionalString(input.boletoPath) ?? null,
-    observacaoAdmin: normalizeOptionalString(input.observacaoAdmin) ?? null,
-    criadoEm: serverTimestamp(),
-    atualizadoEm: serverTimestamp(),
-  };
-
-  logFinancialDebug("payload normalizado para criação de parcela", payload as Record<string, unknown>);
-  const docRef = await addDoc(collection(db, FINANCIAL_INSTALLMENTS_COLLECTION), payload);
-  logFinancialDebug("parcela criada com sucesso", { obraId: normalizedObraId, parcelaId: docRef.id });
-  return docRef;
-};
-
-export const updateFinancialInstallment = async (
-  parcelaId: string,
-  input: UpdateFinancialInstallmentInput,
-) => {
-  const payload = {
-    ...(input.numero !== undefined ? { numero: input.numero } : {}),
-    ...(input.descricao !== undefined
-      ? { descricao: input.descricao.trim() }
-      : {}),
-    ...(input.valor !== undefined ? { valor: input.valor } : {}),
-    ...(input.vencimento !== undefined
-      ? { vencimento: toFirestoreDate(input.vencimento) }
-      : {}),
-    ...(input.status !== undefined ? { status: input.status } : {}),
-    ...(input.boletoUrl !== undefined ? { boletoUrl: input.boletoUrl } : {}),
-    ...(input.boletoPath !== undefined ? { boletoPath: input.boletoPath } : {}),
-    ...(input.observacaoAdmin !== undefined
-      ? { observacaoAdmin: input.observacaoAdmin }
-      : {}),
-    ...(input.observacaoCliente !== undefined
-      ? { observacaoCliente: input.observacaoCliente }
-      : {}),
-    atualizadoEm: serverTimestamp(),
-  };
-
-  await updateDoc(
-    doc(db, FINANCIAL_INSTALLMENTS_COLLECTION, parcelaId),
-    payload,
-  );
-};
-
-export const deleteFinancialInstallment = async (parcelaId: string) => {
-  await deleteDoc(doc(db, FINANCIAL_INSTALLMENTS_COLLECTION, parcelaId));
-};
-
-const sanitizeFileName = (fileName: string) =>
-  fileName.replace(/\s+/g, "-").replace(/[^a-zA-Z0-9._-]/g, "");
-
-export const uploadFinancialBoletoFile = async ({
-  obraId,
-  parcelaId,
-  file,
-}: {
-  obraId: string;
-  parcelaId: string;
-  file: File;
-}) => {
-  const normalizedObraId = normalizeString(obraId);
-  const parcela = await getFinancialInstallmentById(parcelaId);
-
-  if (!parcela) {
-    throw new Error("Parcela financeira não encontrada.");
-  }
-
-  if (parcela.obraId !== normalizedObraId) {
-    throw new Error("A parcela informada não pertence à obra selecionada.");
-  }
-
-  const safeName = `${Date.now()}_${sanitizeFileName(file.name) || "boleto"}`;
-  const boletoPath = financialInstallmentStoragePaths.boleto(
-    normalizedObraId,
-    parcelaId,
-    safeName,
-  );
-  const storageRef = ref(storage, boletoPath);
-  await uploadBytes(storageRef, file, {
-    contentType: file.type || "application/octet-stream",
-  });
-  const boletoUrl = await getDownloadURL(storageRef);
-
-  await updateDoc(doc(db, FINANCIAL_INSTALLMENTS_COLLECTION, parcelaId), {
-    boletoUrl,
-    boletoPath,
-    boleto: {
-      url: boletoUrl,
-      path: boletoPath,
-      fileName: file.name,
-      contentType: file.type || "application/octet-stream",
-      sizeBytes: file.size,
-    },
-    atualizadoEm: serverTimestamp(),
-  });
-
-  logFinancialDebug("boleto vinculado com sucesso", { obraId: normalizedObraId, parcelaId, boletoPath });
-  
-  return { boletoUrl, boletoPath };
-};
-
-export const submitFinancialReceipt = async ({
-  parcelaId,
-  obraId,
-  comprovantePath,
-  comprovanteUrl,
-  observacaoCliente,
-  comprovanteEnviadoPor,
-}: SubmitFinancialReceiptPayload) => {
-  const parcela = await getFinancialInstallmentById(parcelaId);
-
-  if (!parcela) {
-    throw new Error("Parcela financeira não encontrada.");
-  }
-
-  if (parcela.obraId !== normalizeString(obraId)) {
-    throw new Error("A parcela informada não pertence à obra selecionada.");
-  }
-
-  assertReceiptUploadAllowed(parcela);
-
-  await updateDoc(doc(db, FINANCIAL_INSTALLMENTS_COLLECTION, parcelaId), {
-    comprovanteUrl: normalizeOptionalString(comprovanteUrl) ?? null,
-    comprovantePath: normalizeString(comprovantePath),
-    comprovante: {
-      ...(parcela.comprovante ?? {}),
-      url: normalizeOptionalString(comprovanteUrl),
-      path: normalizeString(comprovantePath),
-    },
-    comprovanteEnviadoEm: serverTimestamp(),
-    comprovanteEnviadoPor: comprovanteEnviadoPor ?? null,
-    observacaoCliente: normalizeOptionalString(observacaoCliente) ?? null,
-    status: "comprovante_enviado",
-    atualizadoEm: serverTimestamp(),
-  });
-
-  return getFinancialInstallmentById(parcelaId);
-};
-
+// The Rules accept only these fields, with the server time, for a pending or rejected installment, and the file
+// under the installment's own folder.
 export const uploadFinancialReceiptFile = async ({
-  obraId,
+  obra,
   parcelaId,
   file,
   observacaoCliente,
-  comprovanteEnviadoPor,
+  enviadoPor,
 }: {
-  obraId: string;
+  obra: ObraDoc;
   parcelaId: string;
   file: File;
   observacaoCliente?: string;
-  comprovanteEnviadoPor?: FinancialActorReference;
+  enviadoPor: PessoaRef;
 }) => {
   validateFinancialReceiptFile(file);
 
-  const parcela = await getFinancialInstallmentById(parcelaId);
-  if (!parcela) {
-    throw new Error("Parcela financeira não encontrada.");
+  const parcelaRef = doc(db, PORTAL_COLECOES.parcelas, parcelaId);
+  const atual = await getDoc(parcelaRef);
+  if (!atual.exists()) throw new Error("Parcela não encontrada.");
+  if (!canClientSubmitReceiptForStatus(atual.data().status)) {
+    throw new Error(
+      atual.data().status === "comprovante_enviado"
+        ? "Já existe um comprovante enviado para esta parcela aguardando análise."
+        : "Esta parcela não aceita envio de comprovante no momento.",
+    );
   }
 
-  if (parcela.obraId !== normalizeString(obraId)) {
-    throw new Error("A parcela informada não pertence à obra selecionada.");
-  }
+  const contentType = file.type || "application/octet-stream";
+  const path = `portal/obras/${obra.id}/parcelas/${parcelaId}/comprovante/${Date.now()}_${sanitizeFileName(file.name) || "comprovante"}`;
+  await uploadBytes(ref(storage, path), file, { contentType });
 
-  assertReceiptUploadAllowed(parcela);
-
-  const safeName = `${Date.now()}_${sanitizeFileName(file.name) || "comprovante"}`;
-  const comprovantePath = financialInstallmentStoragePaths.comprovante(
-    obraId,
-    parcelaId,
-    safeName,
-  );
-  const storageRef = ref(storage, comprovantePath);
-  await uploadBytes(storageRef, file, {
-    contentType: file.type || "application/octet-stream",
-  });
-  const comprovanteUrl = await getDownloadURL(storageRef);
-
-  await updateDoc(doc(db, FINANCIAL_INSTALLMENTS_COLLECTION, parcelaId), {
-    comprovanteUrl,
-    comprovantePath,
-    comprovante: {
-      url: comprovanteUrl,
-      path: comprovantePath,
-      fileName: file.name,
-      contentType: file.type || "application/octet-stream",
-      sizeBytes: file.size,
-    },
-    comprovanteEnviadoEm: serverTimestamp(),
-    comprovanteEnviadoPor: comprovanteEnviadoPor ?? null,
-    observacaoCliente: normalizeOptionalString(observacaoCliente) ?? null,
+  await updateDoc(parcelaRef, {
     status: "comprovante_enviado",
+    comprovante: { path, nome: file.name, contentType, bytes: file.size },
+    comprovanteEnviadoEm: serverTimestamp(),
+    comprovanteEnviadoPor: enviadoPor,
+    observacaoCliente: observacaoCliente?.trim() || null,
     atualizadoEm: serverTimestamp(),
   });
 
-  return getFinancialInstallmentById(parcelaId);
-};
-
-export const reviewFinancialReceipt = async ({
-  parcelaId,
-  obraId,
-  aprovado,
-  observacaoAdmin,
-  confirmadoPagoPor,
-}: ReviewFinancialReceiptPayload) => {
-  const parcela = await getFinancialInstallmentById(parcelaId);
-
-  if (!parcela) {
-    throw new Error("Parcela financeira não encontrada.");
-  }
-
-  if (parcela.obraId !== normalizeString(obraId)) {
-    throw new Error("A parcela informada não pertence à obra selecionada.");
-  }
-
-  assertReceiptReviewAllowed(parcela);
-
-  if (!aprovado && !normalizeOptionalString(observacaoAdmin)) {
-    throw new Error("Informe um motivo para rejeitar o comprovante.");
-  }
-
-  await updateDoc(doc(db, FINANCIAL_INSTALLMENTS_COLLECTION, parcelaId), {
-    status: aprovado ? "pago" : "rejeitado",
-    ...(aprovado
-      ? {
-          confirmadoPagoEm: serverTimestamp(),
-          confirmadoPagoPor: confirmadoPagoPor ?? null,
-          observacaoAdmin: normalizeOptionalString(observacaoAdmin) ?? null,
-        }
-      : {
-          observacaoAdmin: normalizeOptionalString(observacaoAdmin) ?? null,
-        }),
-    atualizadoEm: serverTimestamp(),
-  });
-
-  return getFinancialInstallmentById(parcelaId);
-};
-
-export const approveFinancialReceipt = async (payload: Omit<ReviewFinancialReceiptPayload, "aprovado">) =>
-  reviewFinancialReceipt({
-    ...payload,
-    aprovado: true,
-  });
-
-export const rejectFinancialReceipt = async (payload: Omit<ReviewFinancialReceiptPayload, "aprovado">) =>
-  reviewFinancialReceipt({
-    ...payload,
-    aprovado: false,
-  });
-
-export const updateFinancialContractValue = async (
-  obraId: string,
-  valorTotalContrato: number,
-) => {
-  await updateDoc(doc(db, "obras", obraId), {
-    valorTotalContrato,
-    updatedAt: serverTimestamp(),
-  });
+  const atualizado = await getDoc(parcelaRef);
+  return atualizado.exists() ? toInstallment(atualizado.id, atualizado.data()) : null;
 };

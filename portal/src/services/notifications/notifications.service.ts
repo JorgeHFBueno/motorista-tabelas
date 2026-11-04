@@ -39,13 +39,11 @@ const mapNotification = (
     titulo: normalizeString(data.titulo) || "Notificação",
     mensagem: normalizeString(data.mensagem) || "Você recebeu uma atualização.",
     lida: normalizeBoolean(data.lida),
-    createdAt: data.createdAt,
-    origemColecao: typeof data.origemColecao === "string" ? data.origemColecao : null,
-    origemId: typeof data.origemId === "string" ? data.origemId : null,
-    metadata:
-      data.metadata && typeof data.metadata === "object" && !Array.isArray(data.metadata)
-        ? (data.metadata as NotificationMetadata)
-        : undefined,
+    createdAt: data.criadoEm,
+    origemColecao: typeof data.origem?.colecao === "string" ? data.origem.colecao : null,
+    origemId: typeof data.origem?.id === "string" ? data.origem.id : null,
+    // users/{uid}/notificacoes (Manuscript users.md): the destination route is `rota`.
+    metadata: typeof data.rota === "string" ? { rotaDestino: data.rota } : undefined,
   };
 };
 
@@ -59,7 +57,7 @@ export const subscribeToNotifications = (
 ): Unsubscribe => {
   const notificationQuery = query(
     buildNotificationsCollection(uid),
-    orderBy("createdAt", "desc"),
+    orderBy("criadoEm", "desc"),
     limit(limitCount),
   );
 
@@ -87,7 +85,7 @@ export const markNotificationAsRead = async (
 };
 
 export const markAllNotificationsAsRead = async (uid: string): Promise<number> => {
-  const snap = await getDocs(query(buildNotificationsCollection(uid), orderBy("createdAt", "desc"), limit(100)));
+  const snap = await getDocs(query(buildNotificationsCollection(uid), orderBy("criadoEm", "desc"), limit(100)));
   const unreadDocs = snap.docs.filter((item) => item.data().lida !== true);
 
   if (unreadDocs.length === 0) {

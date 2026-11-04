@@ -110,7 +110,7 @@ const FinancialSummaryCard = ({ obraId, hasActiveObra = false }: FinancialSummar
               Tentar novamente
             </Button>
             <Button asChild className="font-semibold bg-secondary hover:bg-secondary/90 text-secondary-foreground">
-              <Link to="/cliente/financas">
+              <Link to="/financas">
                 Abrir financeiro
                 <ArrowRight className="w-4 h-4" />
               </Link>
@@ -126,7 +126,7 @@ const FinancialSummaryCard = ({ obraId, hasActiveObra = false }: FinancialSummar
             </p>
           </div>
           <Button asChild className="w-full sm:w-auto font-semibold bg-secondary hover:bg-secondary/90 text-secondary-foreground">
-            <Link to="/cliente/financas">
+            <Link to="/financas">
               Ver detalhes
               <ArrowRight className="w-4 h-4" />
             </Link>
@@ -207,7 +207,7 @@ const FinancialSummaryCard = ({ obraId, hasActiveObra = false }: FinancialSummar
             </div>
           </div>
           <Button asChild className="w-full sm:w-auto font-semibold bg-secondary hover:bg-secondary/90 text-secondary-foreground">
-            <Link to="/cliente/financas">
+            <Link to="/financas">
               Ver detalhes
               <ArrowRight className="w-4 h-4" />
             </Link>

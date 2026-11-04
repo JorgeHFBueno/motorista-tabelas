@@ -1,5 +1,7 @@
 import type { Timestamp } from "firebase/firestore";
+import type { PessoaRef } from "@/types/rbac";
 
+// portal-atendimentos and their mensagens (Manuscript portal.md).
 export const SUPPORT_TICKET_CATEGORIES = ["tecnico", "financeiro", "comercial", "outro"] as const;
 export const SUPPORT_TICKET_PRIORITIES = ["baixa", "media", "alta"] as const;
 export const SUPPORT_TICKET_STATUSES = [
@@ -9,41 +11,36 @@ export const SUPPORT_TICKET_STATUSES = [
   "resolvido",
   "fechado",
 ] as const;
-export const SUPPORT_AUTHOR_TYPES = ["cliente", "admin"] as const;
 
 export type SupportTicketCategory = (typeof SUPPORT_TICKET_CATEGORIES)[number];
 export type SupportTicketPriority = (typeof SUPPORT_TICKET_PRIORITIES)[number];
 export type SupportTicketStatus = (typeof SUPPORT_TICKET_STATUSES)[number];
-export type SupportAuthorType = (typeof SUPPORT_AUTHOR_TYPES)[number];
+export type SupportAuthorType = "cliente" | "equipe";
 
 export interface SupportAttachment {
   nome: string;
-  url: string;
+  path: string;
   contentType?: string | null;
 }
 
 export interface SupportTicket {
   id: string;
-  clienteUid: string;
-  clienteNome: string;
-  clienteEmail?: string | null;
-  obraId?: string | null;
-  obraNome?: string | null;
+  obraId: string;
+  clienteDocumento: string;
+  criadoPor: PessoaRef | null;
   titulo: string;
   descricaoInicial: string;
   categoria: SupportTicketCategory;
   prioridade: SupportTicketPriority;
   status: SupportTicketStatus;
-  criadoEm?: Timestamp;
-  atualizadoEm?: Timestamp;
-  criadoPorTipo: SupportAuthorType;
-  responsavelUid?: string | null;
-  responsavelNome?: string | null;
+  responsavel: PessoaRef | null;
   ultimaMensagemResumo: string;
   ultimaMensagemEm?: Timestamp;
   ultimaMensagemPorTipo: SupportAuthorType;
   naoLidasCliente: number;
-  naoLidasAdmin: number;
+  naoLidasEquipe: number;
+  criadoEm?: Timestamp;
+  atualizadoEm?: Timestamp;
 }
 
 export interface SupportTicketMessage {
@@ -54,44 +51,6 @@ export interface SupportTicketMessage {
   mensagem: string;
   criadoEm?: Timestamp;
   anexos?: SupportAttachment[];
-}
-
-export interface CreateSupportTicketInput {
-  clienteUid: string;
-  clienteNome: string;
-  clienteEmail?: string | null;
-  titulo: string;
-  descricaoInicial: string;
-  categoria: SupportTicketCategory;
-  prioridade: SupportTicketPriority;
-  obraId?: string | null;
-  obraNome?: string | null;
-}
-
-export interface ReplySupportTicketInput {
-  mensagem: string;
-}
-
-export interface UpdateSupportTicketAdminInput {
-  status?: SupportTicketStatus;
-  categoria?: SupportTicketCategory;
-  prioridade?: SupportTicketPriority;
-  responsavelUid?: string | null;
-  responsavelNome?: string | null;
-}
-
-export interface SupportActor {
-  uid: string;
-  nome: string;
-  email?: string | null;
-  tipo: SupportAuthorType;
-}
-
-export interface SupportTicketFilters {
-  status: SupportTicketStatus | "todos";
-  categoria: SupportTicketCategory | "todas";
-  prioridade: SupportTicketPriority | "todas";
-  busca: string;
 }
 
 export const SUPPORT_CATEGORY_LABELS: Record<SupportTicketCategory, string> = {
@@ -129,5 +88,4 @@ export const SUPPORT_PRIORITY_STYLES: Record<SupportTicketPriority, string> = {
   alta: "bg-rose-500/10 text-rose-700 border-rose-200",
 };
 
-export const isSupportTicketClosed = (status?: SupportTicketStatus | null) =>
-  status === "fechado";
+export const isSupportTicketClosed = (status?: SupportTicketStatus | null) => status === "fechado";

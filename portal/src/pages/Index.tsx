@@ -101,7 +101,7 @@ const Index = () => {
               statusLabel={status.label}
               summary={projectSummary}
               trendLabel={isEmpty ? "O cronograma será exibido assim que as etapas forem cadastradas." : "Dados sincronizados com a página completa da obra."}
-              ctaTo="/cliente/obra"
+              ctaTo="/obra"
               ctaLabel="Acompanhar obra"
             />
           )}

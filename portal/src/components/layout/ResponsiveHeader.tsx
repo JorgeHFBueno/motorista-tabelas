@@ -5,9 +5,11 @@ import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { sendPasswordResetEmail } from "firebase/auth";
+import { doc, serverTimestamp, updateDoc } from "firebase/firestore";
 import { useAuth } from "@/contexts/AuthContext";
 import MobileNav from "./MobileNav";
 import NotificationBell from "./NotificationBell";
+import ContratoSelector from "./ContratoSelector";
 import { useObra } from "@/contexts/ObraContext";
 import {
   DropdownMenu,
@@ -28,8 +30,7 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
-import { auth } from "@/lib/firebase";
-import { userUpdateSelfProfile } from "@/lib/functions";
+import { auth, db } from "@/lib/firebase";
 
 interface ResponsiveHeaderProps {
   pageTitle?: string;
@@ -45,11 +46,10 @@ const ResponsiveHeader = ({
   const [nome, setNome] = useState("");
   const [isSaving, setIsSaving] = useState(false);
   const [isSendingReset, setIsSendingReset] = useState(false);
-  const { obraAtiva } = useObra();
-  const { logout, userDoc, refreshUserDoc } = useAuth();
+  const { contratos } = useObra();
+  const { logout, user, userDoc, refreshUserDoc } = useAuth();
   const navigate = useNavigate();
   const { toast } = useToast();
-  const obraNome = obraAtiva?.nome ?? "Nenhuma obra selecionada";
 
   const currentEmail = auth?.currentUser?.email ?? userDoc?.email ?? null;
 
@@ -80,7 +80,9 @@ const ResponsiveHeader = ({
 
     setIsSaving(true);
     try {
-      await userUpdateSelfProfile({ nome: trimmedNome });
+      if (!user) throw new Error("Sessão expirada. Entre novamente.");
+      // The Rules let the client change only nome, with the server time.
+      await updateDoc(doc(db, "users", user.uid), { nome: trimmedNome, atualizadoEm: serverTimestamp() });
       await refreshUserDoc();
       toast({ title: "Perfil atualizado", description: "Seu nome foi atualizado com sucesso." });
       setIsUserDialogOpen(false);
@@ -120,7 +122,7 @@ const ResponsiveHeader = ({
       {/* Mobile Header */}
       <div className="lg:hidden px-4 pt-12 pb-5">
         <div className="flex items-center justify-between">
-          <motion.button
+          <motion.div
             initial={{ opacity: 0, x: -20 }}
             animate={{ opacity: 1, x: 0 }}
             className="flex items-center gap-2 bg-primary-foreground/10 hover:bg-primary-foreground/15 px-3 py-2 rounded-lg transition-colors"
@@ -128,9 +130,8 @@ const ResponsiveHeader = ({
             <div className="w-7 h-7 bg-secondary rounded flex items-center justify-center">
               <span className="text-secondary-foreground text-xs font-bold">L</span>
             </div>
-            <span className="font-medium text-sm max-w-[140px] truncate">{obraNome}</span>
-            <ChevronDown className="w-4 h-4 opacity-60" />
-          </motion.button>
+            <ContratoSelector nameClassName="max-w-[140px]" />
+          </motion.div>
 
           <motion.div
             initial={{ opacity: 0, x: 20 }}
@@ -171,7 +172,7 @@ const ResponsiveHeader = ({
             </div>
             <div>
               <img src={logoLedurBranco} alt="Ledur Pré-Fabricados" className="h-8 w-auto" />
-              <p className="text-xs text-primary-foreground/60">{obraNome}</p>
+              <ContratoSelector className="text-primary-foreground/80" nameClassName="text-xs max-w-[220px]" />
             </div>
           </div>
         </div>
@@ -209,6 +210,10 @@ const ResponsiveHeader = ({
         </div>
 
         <div className="flex items-center gap-3">
+          <ContratoSelector
+            className="p-2 px-3 bg-primary-foreground/10 hover:bg-primary-foreground/15 rounded-lg transition-colors"
+            nameClassName="max-w-[260px]"
+          />
           <NotificationBell />
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
@@ -250,17 +255,12 @@ const ResponsiveHeader = ({
               </div>
 
               <div>
-                <p className="text-sm text-muted-foreground mb-1">Tipo</p>
-                <p className="text-sm font-medium">{userDoc.tipo}</p>
-              </div>
-
-              <div>
                 <p className="text-sm text-muted-foreground mb-2">Obras</p>
                 <div className="flex flex-wrap gap-2">
-                  {userDoc.obras.length === 0 ? (
-                    <span className="text-sm text-muted-foreground">Sem obras vinculadas.</span>
+                  {contratos.length === 0 ? (
+                    <span className="text-sm text-muted-foreground">Nenhuma obra publicada.</span>
                   ) : (
-                    userDoc.obras.map((obraId) => <Badge key={obraId} variant="secondary">{obraId}</Badge>)
+                    contratos.map((contrato) => <Badge key={contrato.id} variant="secondary">{contrato.nome}</Badge>)
                   )}
                 </div>
               </div>

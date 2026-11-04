@@ -90,7 +90,8 @@ async function seed() {
       observacaoCliente: null, observacaoAdm: null, criadoEm: t, atualizadoEm: t, excluidoEm: null, excluidoPor: null,
     });
     await parcela('pp-pendente', 'pendente');
-    await parcela('pp-paga', 'paga');
+    await parcela('pp-paga', 'pago');
+    await parcela('pp-rejeitada', 'rejeitado');
 
     await setDoc(doc(db, 'portal-atendimentos', 'pa-a'), {
       obraId: 'pob-a', clienteDocumento: CNPJ_A, criadoPor: pessoa('cliente'), titulo: 'Dúvida', categoria: 'obra', status: 'aberto',
@@ -241,13 +242,16 @@ test('[firestore] portal-parcelas: the client sends the receipt of a pending ins
   const db = dbAs('cliente');
   await assertSucceeds(getDoc(doc(db, 'portal-parcelas', 'pp-pendente')));
   await assertFails(getDoc(doc(dbAs('outro'), 'portal-parcelas', 'pp-pendente')));
-  await assertFails(updateDoc(doc(db, 'portal-parcelas', 'pp-pendente'), { ...comprovante('pp-pendente'), status: 'paga' }));
+  await assertFails(updateDoc(doc(db, 'portal-parcelas', 'pp-pendente'), { ...comprovante('pp-pendente'), status: 'pago' }));
   await assertFails(updateDoc(doc(db, 'portal-parcelas', 'pp-pendente'), { ...comprovante('pp-pendente'), valor: 1 }));
   await assertFails(updateDoc(doc(db, 'portal-parcelas', 'pp-pendente'), { ...comprovante('pp-pendente'), comprovanteEnviadoPor: pessoa('socio') }));
   await assertFails(updateDoc(doc(db, 'portal-parcelas', 'pp-pendente'), comprovante('pp-paga')));
   await assertFails(updateDoc(doc(db, 'portal-parcelas', 'pp-paga'), comprovante('pp-paga')));
   await assertFails(updateDoc(doc(dbAs('outro'), 'portal-parcelas', 'pp-pendente'), { ...comprovante('pp-pendente'), comprovanteEnviadoPor: pessoa('outro') }));
   await assertSucceeds(updateDoc(doc(db, 'portal-parcelas', 'pp-pendente'), comprovante('pp-pendente')));
+  // A rejected receipt can be sent again; one already sent cannot be replaced.
+  await assertSucceeds(updateDoc(doc(db, 'portal-parcelas', 'pp-rejeitada'), comprovante('pp-rejeitada')));
+  await assertFails(updateDoc(doc(db, 'portal-parcelas', 'pp-pendente'), comprovante('pp-pendente')));
 });
 
 test('[firestore] portal-parcelas: adm2 types installments in integer cents; nobody deletes', async () => {
@@ -256,7 +260,7 @@ test('[firestore] portal-parcelas: adm2 types installments in integer cents; nob
   await assertFails(setDoc(doc(db, 'portal-parcelas', 'pp-nova'), { ...nova, valor: 750.0 + 0.5 }));
   await assertFails(setDoc(doc(dbAs('cliente'), 'portal-parcelas', 'pp-nova'), nova));
   await assertSucceeds(setDoc(doc(db, 'portal-parcelas', 'pp-nova'), nova));
-  await assertSucceeds(updateDoc(doc(db, 'portal-parcelas', 'pp-nova'), { status: 'paga', conferidoEm: serverTimestamp(), conferidoPor: pessoa('adm2') }));
+  await assertSucceeds(updateDoc(doc(db, 'portal-parcelas', 'pp-nova'), { status: 'pago', conferidoEm: serverTimestamp(), conferidoPor: pessoa('adm2') }));
   await assertFails(deleteDoc(doc(db, 'portal-parcelas', 'pp-nova')));
 });
 

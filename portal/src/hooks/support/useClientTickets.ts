@@ -2,13 +2,15 @@ import { useEffect, useMemo, useState } from "react";
 import { subscribeClientTickets } from "@/services/support/supportService";
 import type { SupportTicket } from "@/types/support";
 
-export const useClientTickets = (clientUid?: string) => {
+// Tickets of every login of the client's CNPJ/CPF.
+export const useClientTickets = (documentos: string[]) => {
   const [tickets, setTickets] = useState<SupportTicket[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const chave = documentos.join(",");
 
   useEffect(() => {
-    if (!clientUid) {
+    if (!chave) {
       setTickets([]);
       setIsLoading(false);
       return;
@@ -18,19 +20,19 @@ export const useClientTickets = (clientUid?: string) => {
     setError(null);
 
     const unsubscribe = subscribeClientTickets(
-      clientUid,
+      chave.split(","),
       (nextTickets) => {
         setTickets(nextTickets);
         setIsLoading(false);
       },
-      (snapshotError) => {
-        setError(snapshotError.message || "Não foi possível carregar seus tickets.");
+      () => {
+        setError("Não foi possível carregar seus atendimentos.");
         setIsLoading(false);
       },
     );
 
     return () => unsubscribe();
-  }, [clientUid]);
+  }, [chave]);
 
   const stats = useMemo(
     () => ({
@@ -42,10 +44,5 @@ export const useClientTickets = (clientUid?: string) => {
     [tickets],
   );
 
-  return {
-    tickets,
-    stats,
-    isLoading,
-    error,
-  };
+  return { tickets, stats, isLoading, error };
 };

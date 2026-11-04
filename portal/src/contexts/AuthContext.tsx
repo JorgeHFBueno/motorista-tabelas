@@ -4,28 +4,14 @@ import {
   signInWithEmailAndPassword,
   signOut,
 } from "firebase/auth";
-import { getApp } from "firebase/app";
 import { doc, getDoc } from "firebase/firestore";
 import { createContext, ReactNode, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import { auth, authPersistenceReady, db, firebaseInitError } from "@/lib/firebase";
 import type { UserDoc } from "@/types/rbac";
 
-const logFirestoreError = (tag: string, err: unknown) => {
-  const firestoreError = err as { code?: string; message?: string };
-  console.error(`[AuthProvider][${tag}] Firestore error`, {
-    code: firestoreError?.code ?? "unknown",
-    message: firestoreError?.message ?? "unknown",
-    rawError: err,
-  });
-};
-
-const getFirestoreErrorCode = (err: unknown): string => {
-  const firestoreError = err as { code?: string };
-  return firestoreError?.code ?? "unknown";
-};
-
 interface AuthContextData {
   user: User | null;
+  // users/{uid}; null when the login has no client profile.
   userDoc: UserDoc | null;
   loading: boolean;
   authReady: boolean;
@@ -38,11 +24,16 @@ interface AuthContextData {
 
 const AuthContext = createContext<AuthContextData | undefined>(undefined);
 
-interface AuthProviderProps {
-  children: ReactNode;
-}
+const toUserDoc = (data: Record<string, unknown>): UserDoc => ({
+  nome: typeof data.nome === "string" ? data.nome : "",
+  email: typeof data.email === "string" ? data.email : undefined,
+  documentos: Array.isArray(data.documentos)
+    ? data.documentos.filter((value): value is string => typeof value === "string" && value.length > 0)
+    : [],
+  ativo: data.ativo === true,
+});
 
-export const AuthProvider = ({ children }: AuthProviderProps) => {
+export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [user, setUser] = useState<User | null>(null);
   const [userDoc, setUserDoc] = useState<UserDoc | null>(null);
   const [authReady, setAuthReady] = useState(false);
@@ -50,67 +41,23 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const fetchUserDoc = useCallback(async (currentUser: User | null) => {
-    if (!currentUser) {
-      console.warn("[AuthProvider][getUserDoc] currentUser ausente; leitura no Firestore ignorada");
-      return null;
-    }
-
-    if (!db) {
-      throw firebaseInitError ?? new Error("Firebase indisponível.");
-    }
-
-    await currentUser.getIdToken(true);
-    const projectId = getApp().options.projectId ?? "unknown";
-    console.info("[AuthProvider][getUserDoc] user/project", {
-      uid: currentUser.uid,
-      projectId,
-    });
-
-    const userRef = doc(db, "users", currentUser.uid);
-    const snap = await getDoc(userRef);
-    console.info("[AuthProvider][getUserDoc] getUserDoc.exists", {
-      uid: currentUser.uid,
-      exists: snap.exists(),
-    });
-
-    if (!snap.exists()) {
-      return null;
-    }
-
-    return snap.data() as UserDoc;
-  }, []);
-
-  const resolveAuthUserState = useCallback(async (currentUser: User) => {
+  const loadUserDoc = useCallback(async (currentUser: User) => {
     setUserDocReady(false);
     setError(null);
 
     try {
-      const loadedUserDoc = await fetchUserDoc(currentUser);
-
-      if (loadedUserDoc) {
-        console.info("[AuthProvider] branch=return_existing", { uid: currentUser.uid });
-        setUserDoc(loadedUserDoc);
-        return;
-      }
-
-      console.info("[AuthProvider] branch=create", { uid: currentUser.uid });
-      setUserDoc(null);
+      if (!db) throw firebaseInitError ?? new Error("Firebase indisponível.");
+      const snap = await getDoc(doc(db, "users", currentUser.uid));
+      setUserDoc(snap.exists() ? toUserDoc(snap.data()) : null);
     } catch (err) {
-      const code = getFirestoreErrorCode(err);
-      logFirestoreError("getUserDoc", err);
-      console.error("[AuthProvider][getUserDoc] code", { code });
-
-      if (code === "permission-denied") {
-        setError("Sem permissão para carregar dados do usuário.");
-      } else {
-        setError("Falha ao carregar dados do usuário.");
-      }
+      // Reading one's own users/{uid} is always allowed (even when it does not exist), so this is a real failure.
+      if (import.meta.env.DEV) console.error("[AuthProvider] falha ao ler users/{uid}", err);
+      setError("Falha ao carregar dados do usuário.");
       setUserDoc(null);
     } finally {
       setUserDocReady(true);
     }
-  }, [fetchUserDoc]);
+  }, []);
 
   const refreshUserDoc = useCallback(async () => {
     if (!user) {
@@ -118,9 +65,8 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
       setUserDocReady(true);
       return;
     }
-
-    await resolveAuthUserState(user);
-  }, [resolveAuthUserState, user]);
+    await loadUserDoc(user);
+  }, [loadUserDoc, user]);
 
   useEffect(() => {
     let unsubscribe = () => {};
@@ -135,6 +81,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
         setError("Não foi possível inicializar autenticação.");
         return;
       }
+
       unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
         setUser(currentUser);
         setAuthReady(true);
@@ -146,7 +93,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
           return;
         }
 
-        await resolveAuthUserState(currentUser);
+        await loadUserDoc(currentUser);
         setLoading(false);
       });
     };
@@ -156,7 +103,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     return () => {
       unsubscribe();
     };
-  }, [resolveAuthUserState]);
+  }, [loadUserDoc]);
 
   const value = useMemo(
     () => ({
@@ -167,20 +114,16 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
       userDocReady,
       error,
       login: async (email: string, senha: string) => {
-        if (!auth) {
-          throw firebaseInitError ?? new Error("Firebase indisponível para login.");
-        }
+        if (!auth) throw firebaseInitError ?? new Error("Firebase indisponível para login.");
         await signInWithEmailAndPassword(auth, email, senha);
-      },      
+      },
       logout: async () => {
-        if (!auth) {
-          throw firebaseInitError ?? new Error("Firebase indisponível para logout.");
-        }
+        if (!auth) throw firebaseInitError ?? new Error("Firebase indisponível para logout.");
         await signOut(auth);
       },
       refreshUserDoc,
     }),
-        [authReady, error, loading, refreshUserDoc, user, userDoc, userDocReady],
+    [authReady, error, loading, refreshUserDoc, user, userDoc, userDocReady],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
