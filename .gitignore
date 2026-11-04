@@ -30,6 +30,10 @@ visual-identity-export/
 docs/patch-notes/
 docs/PROMPT.md
 
+# Claude Code: personal settings and session worktrees
+.claude/settings.local.json
+.claude/worktrees/
+
 # Local test/build output and safety backups
 .tmp-*
 .firebase/*.cache
