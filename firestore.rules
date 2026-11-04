@@ -333,25 +333,221 @@ service cloud.firestore {
       allow write: if false;
     }
 
-    // Legacy React profile. Authorization fields are immutable.
-    match /users/{uid} {
-      allow get: if signedIn() && request.auth.uid == uid;
-      allow list: if false;
+    // ================================================================ client portal (Manuscript users.md, portal.md)
 
-      allow update: if
-        signedIn()
-        && request.auth.uid == uid
-        && didNotChange([
-          'role',
-          'perfil',
-          'adm1',
-          'adm2',
-          'admin',
-          'permissions'
-        ]);
+    // A portal client is users/{uid}; clients are not employees. The account and the document are created together by a
+    // Function (Admin SDK). documentos (CNPJ/CPF, digits only) decides which contracts the client sees; only adm2 sets it.
+    function clientePath() {
+      return /databases/$(database)/documents/users/$(request.auth.uid);
+    }
+
+    function isClienteAtivo() {
+      return signedIn()
+        && exists(clientePath())
+        && get(clientePath()).data.get('ativo', false) == true;
+    }
+
+    // CNPJ/CPF of the signed-in active client; empty for anyone else.
+    function clienteDocumentos() {
+      return isClienteAtivo() ? get(clientePath()).data.get('documentos', []) : [];
+    }
+
+    // The record belongs to a contract of the client's CNPJ/CPF. Client queries filter clienteDocumento with `in`.
+    function isClienteDe(data) {
+      return data.get('clienteDocumento', '') in clienteDocumentos();
+    }
+
+    function isCnpjCpf(value) {
+      return value is string && value.matches('^([0-9]{11}|[0-9]{14})$');
+    }
+
+    function autorEhOProprio(pessoa) {
+      return pessoa is map && pessoa.get('uid', '') == request.auth.uid;
+    }
+
+    function inteiroOuNulo(value) {
+      return value == null || value is int;
+    }
+
+    match /users/{uid} {
+      allow get: if signedIn() && (request.auth.uid == uid || isAdm2());
+      allow list: if isAdm2();
+
+      // The client changes only the display name, with the server time; documentos and ativo belong to adm2.
+      allow update: if signedIn()
+        && (
+          isAdm2()
+          || (
+            request.auth.uid == uid
+            && changedOnly(['nome', 'atualizadoEm'])
+            && nonEmptyString(request.resource.data.get('nome', ''))
+            && request.resource.data.get('atualizadoEm', null) == request.time
+          )
+        );
 
       allow create, delete: if false;
+
+      // Notices to the client, written by Functions; the client only marks them as read.
+      match /notificacoes/{notificacaoId} {
+        allow read: if signedIn() && request.auth.uid == uid;
+        allow update: if signedIn()
+          && request.auth.uid == uid
+          && changedOnly(['lida'])
+          && request.resource.data.lida is bool;
+        allow create, delete: if false;
+      }
     }
+
+    // Contract shown in the portal: same ID as obras-v2. Written only by adm2; nobody deletes.
+    function validPortalObra(obraId) {
+      let data = request.resource.data;
+      return exists(/databases/$(database)/documents/obras-v2/$(obraId))
+        && isCnpjCpf(data.get('clienteDocumento', null))
+        && inteiroOuNulo(data.get('valorContrato', null));
+    }
+
+    match /portal-obras/{obraId} {
+      allow read: if isAdm2() || isClienteDe(resource.data);
+      allow create: if isAdm2()
+        && validPortalObra(obraId)
+        && autorEhOProprio(request.resource.data.get('criadoPor', null));
+      allow update: if isAdm2()
+        && validPortalObra(obraId)
+        && didNotChange(['criadoEm', 'criadoPor']);
+      allow delete: if false;
+    }
+
+    // Record of a published contract: obraId of a portal-obras document with the same clienteDocumento.
+    function portalFilhoDaObra(data) {
+      let obraId = data.get('obraId', '');
+      return nonEmptyString(obraId)
+        && exists(/databases/$(database)/documents/portal-obras/$(obraId))
+        && get(/databases/$(database)/documents/portal-obras/$(obraId)).data.get('clienteDocumento', '')
+          == data.get('clienteDocumento', null);
+    }
+
+    // The client sees what is not in the trash. excluidoEm is read directly (always present by contract) so that a
+    // query must filter excluidoEm == null to be allowed.
+    function isClienteDeAtivo(data) {
+      return isClienteDe(data) && data.excluidoEm == null;
+    }
+
+    // Documents and photos: adm2 sends and moves to the trash (excluidoEm); the client only reads.
+    function validPortalArquivoAdm2Create() {
+      return portalFilhoDaObra(request.resource.data)
+        && autorEhOProprio(request.resource.data.get('criadoPor', null));
+    }
+
+    function validPortalArquivoAdm2Update() {
+      return portalFilhoDaObra(request.resource.data)
+        && didNotChange(['obraId', 'criadoEm', 'criadoPor']);
+    }
+
+    match /portal-documentos/{documentoId} {
+      allow read: if isAdm2() || isClienteDeAtivo(resource.data);
+      allow create: if isAdm2() && validPortalArquivoAdm2Create();
+      allow update: if isAdm2() && validPortalArquivoAdm2Update();
+      allow delete: if false;
+    }
+
+    match /portal-fotos/{fotoId} {
+      allow read: if isAdm2() || isClienteDeAtivo(resource.data);
+      allow create: if isAdm2() && validPortalArquivoAdm2Create();
+      allow update: if isAdm2() && validPortalArquivoAdm2Update();
+      allow delete: if false;
+    }
+
+    // Installments typed by adm2 (money in cents). The client only sends the payment receipt of a pending or rejected
+    // installment, stored under the installment's own Storage folder.
+    function validPortalParcela() {
+      let data = request.resource.data;
+      return portalFilhoDaObra(data)
+        && data.get('valor', null) is int
+        && data.get('numero', null) is int;
+    }
+
+    function clienteEnviaComprovante(parcelaId) {
+      let data = request.resource.data;
+      let comprovante = data.get('comprovante', null);
+      return isClienteDeAtivo(resource.data)
+        && resource.data.get('status', '') in ['pendente', 'rejeitada']
+        && changedOnly(['status', 'comprovante', 'comprovanteEnviadoEm', 'comprovanteEnviadoPor', 'observacaoCliente', 'atualizadoEm'])
+        && data.get('status', '') == 'comprovante_enviado'
+        && comprovante is map
+        && comprovante.get('path', '').matches(
+          '^portal/obras/' + resource.data.obraId + '/parcelas/' + parcelaId + '/comprovante/[^/]+$'
+        )
+        && autorEhOProprio(data.get('comprovanteEnviadoPor', null))
+        && data.get('comprovanteEnviadoEm', null) == request.time
+        && data.get('atualizadoEm', null) == request.time;
+    }
+
+    match /portal-parcelas/{parcelaId} {
+      allow read: if isAdm2() || isClienteDeAtivo(resource.data);
+      allow create: if isAdm2() && validPortalParcela();
+      allow update: if (isAdm2() && validPortalParcela() && didNotChange(['obraId', 'criadoEm']))
+        || clienteEnviaComprovante(parcelaId);
+      allow delete: if false;
+    }
+
+    // Support tickets: shared by every login of the same CNPJ/CPF. The client opens a ticket for one of its contracts
+    // and updates only the last-message summary and unread counters; adm2 answers and changes the status.
+    function clienteAbreAtendimento() {
+      let data = request.resource.data;
+      return isClienteDe(data)
+        && portalFilhoDaObra(data)
+        && autorEhOProprio(data.get('criadoPor', null))
+        && data.get('status', '') == 'aberto'
+        && data.get('criadoEm', null) == request.time;
+    }
+
+    match /portal-atendimentos/{atendimentoId} {
+      allow read: if isAdm2() || isClienteDe(resource.data);
+      allow create: if clienteAbreAtendimento()
+        || (isAdm2() && portalFilhoDaObra(request.resource.data));
+      allow update: if (
+          isAdm2()
+          && portalFilhoDaObra(request.resource.data)
+          && didNotChange(['obraId', 'clienteDocumento', 'criadoPor', 'criadoEm'])
+        )
+        || (
+          isClienteDe(resource.data)
+          && changedOnly(['ultimaMensagem', 'naoLidasEquipe', 'naoLidasCliente', 'atualizadoEm'])
+          && request.resource.data.get('naoLidasEquipe', 0) is int
+          && request.resource.data.get('naoLidasCliente', 0) is int
+        );
+      allow delete: if false;
+
+      function atendimento() {
+        return get(/databases/$(database)/documents/portal-atendimentos/$(atendimentoId)).data;
+      }
+
+      // Messages are immutable; the author is the signed-in user, as client or as the team (adm2).
+      match /mensagens/{mensagemId} {
+        allow read: if isAdm2() || isClienteDe(atendimento());
+        allow create: if autorEhOProprio(request.resource.data.get('autor', null))
+          && request.resource.data.get('criadoEm', null) == request.time
+          && (
+            (isClienteDe(atendimento()) && request.resource.data.get('autorTipo', '') == 'cliente')
+            || (isAdm2() && request.resource.data.get('autorTipo', '') == 'equipe')
+          );
+        allow update, delete: if false;
+      }
+    }
+
+    // News for every active client; adm2 writes the institutional ones (external news come from Functions).
+    match /portal-noticias/{noticiaId} {
+      allow read: if isAdm2()
+        || (
+          isClienteAtivo()
+          && resource.data.status == 'publicada'
+          && resource.data.excluidoEm == null
+        );
+      allow create, update: if isAdm2();
+      allow delete: if false;
+    }
+
+    // portal-emails (e-mail queue) is Functions-only: the default deny at the end covers it.
 
     // Canonical employee identity, written only by the Admin SDK (admin API and Kiosk Functions).
     // Listing is open to active employees because the app builds the frentista and motorista pickers from it; the

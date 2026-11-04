@@ -71,7 +71,6 @@ async function seed() {
       ['inactive@example.com', { nome: 'Inactive', ativo: false, adm2: true }],
     ];
     for (const [id, data] of profiles) await setDoc(doc(db, '00-autorizados', id), data);
-    await setDoc(doc(db, 'users', 'uid-user'), { displayName: 'User', role: 'motorista' });
     await setDoc(doc(db, 'funcionarios', 'uid-user'), {
       nome: 'User', email: 'user@example.com', ativo: true,
       perfis: { frentista: false, adm2: false, motorista: true }, motorista: { ordem: 1 },
@@ -207,8 +206,6 @@ test('[firestore] profile cannot be modified by client', async () => assertFails
 test('[firestore] user registers FCM token only under normalized own profile', async () => assertSucceeds(setDoc(doc(dbAs('user'), '00-autorizados', 'user@example.com', 'fcmTokens', 'token-user'), { token: 'token-user', plataforma: 'android', atualizadoEm: 1 })));
 test('[firestore] user cannot register FCM token under another profile', async () => assertFails(setDoc(doc(dbAs('user'), '00-autorizados', 'frentista@example.com', 'fcmTokens', 'token-foreign'), { token: 'token-foreign', plataforma: 'android', atualizadoEm: 1 })));
 test('[firestore] uppercase profile path is not treated as normalized self path', async () => assertFails(setDoc(doc(dbAs('user', { email: 'User@Example.COM' }), '00-autorizados', 'User@Example.COM', 'fcmTokens', 'token-case'), { token: 'token-case', plataforma: 'android', atualizadoEm: 1 })));
-test('[firestore] user can update non-privileged legacy profile data', async () => assertSucceeds(updateDoc(doc(dbAs('user'), 'users', 'uid-user'), { displayName: 'Updated User' })));
-test('[firestore] user cannot elevate legacy profile privileges', async () => assertFails(updateDoc(doc(dbAs('user'), 'users', 'uid-user'), { role: 'adm2' })));
 test('[firestore] employee identity is readable by its owner', async () => assertSucceeds(getDoc(doc(dbAs('user'), 'funcionarios', 'uid-user'))));
 test('[firestore] employee identity is not writable by its owner', async () => assertFails(updateDoc(doc(dbAs('user'), 'funcionarios', 'uid-user'), { 'perfis.adm2': true })));
 test('[firestore] employee identity is readable by adm2 but written only by the Admin SDK', async () => {

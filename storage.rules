@@ -100,6 +100,81 @@ service firebase.storage {
       allow update: if false;
     }
 
+    // ================================================================ client portal (Manuscript portal.md)
+
+    // Portal clients live in users/{uid} (not funcionarios) and see the files of the contracts of their CNPJ/CPF.
+    // The client check runs first, so each request reads at most two Firestore documents. Nothing is overwritten or
+    // deleted (the trash is the excluidoEm field in Firestore).
+    function clientePath() {
+      return /databases/(default)/documents/users/$(request.auth.uid);
+    }
+
+    function isPortalClienteAtivo() {
+      return signedIn()
+        && firestore.exists(clientePath())
+        && firestore.get(clientePath()).data.get('ativo', false) == true;
+    }
+
+    // The signed-in active client represents the CNPJ/CPF of the given portal document (contract or ticket).
+    function isPortalClienteDe(colecao, id) {
+      let docPath = /databases/(default)/documents/$(colecao)/$(id);
+      return isPortalClienteAtivo()
+        && firestore.exists(docPath)
+        && firestore.get(docPath).data.get('clienteDocumento', '')
+          in firestore.get(clientePath()).data.get('documentos', []);
+    }
+
+    function isPortalArquivo(maxBytes) {
+      return isNewObject() && request.resource.size <= maxBytes;
+    }
+
+    function isPortalPdfOuImagem(maxBytes) {
+      return isPortalArquivo(maxBytes)
+        && (request.resource.contentType == 'application/pdf' || request.resource.contentType.matches('image/.*'));
+    }
+
+    match /portal/obras/{obraId}/documentos/{documentoId}/{arquivo} {
+      allow read: if isPortalClienteDe('portal-obras', obraId) || hasPerfil('adm2');
+      allow create: if hasPerfil('adm2') && isPortalArquivo(50 * 1024 * 1024);
+      allow update, delete: if false;
+    }
+
+    match /portal/obras/{obraId}/fotos/{fotoId}/{arquivo} {
+      allow read: if isPortalClienteDe('portal-obras', obraId) || hasPerfil('adm2');
+      allow create: if hasPerfil('adm2')
+        && isPortalArquivo(20 * 1024 * 1024)
+        && request.resource.contentType.matches('image/.*');
+      allow update, delete: if false;
+    }
+
+    match /portal/obras/{obraId}/parcelas/{parcelaId}/boleto/{arquivo} {
+      allow read: if isPortalClienteDe('portal-obras', obraId) || hasPerfil('adm2');
+      allow create: if hasPerfil('adm2') && isPortalPdfOuImagem(10 * 1024 * 1024);
+      allow update, delete: if false;
+    }
+
+    match /portal/obras/{obraId}/parcelas/{parcelaId}/comprovante/{arquivo} {
+      allow read: if isPortalClienteDe('portal-obras', obraId) || hasPerfil('adm2');
+      allow create: if (isPortalClienteDe('portal-obras', obraId) || hasPerfil('adm2'))
+        && isPortalPdfOuImagem(10 * 1024 * 1024);
+      allow update, delete: if false;
+    }
+
+    match /portal/atendimentos/{atendimentoId}/{mensagemId}/{arquivo} {
+      allow read: if isPortalClienteDe('portal-atendimentos', atendimentoId) || hasPerfil('adm2');
+      allow create: if (isPortalClienteDe('portal-atendimentos', atendimentoId) || hasPerfil('adm2'))
+        && isPortalArquivo(10 * 1024 * 1024);
+      allow update, delete: if false;
+    }
+
+    match /portal/noticias/{noticiaId}/{arquivo} {
+      allow read: if isPortalClienteAtivo() || hasPerfil('adm2');
+      allow create: if hasPerfil('adm2')
+        && isPortalArquivo(10 * 1024 * 1024)
+        && request.resource.contentType.matches('image/.*');
+      allow update, delete: if false;
+    }
+
     match /{allPaths=**} {
       allow read, write: if false;
     }
