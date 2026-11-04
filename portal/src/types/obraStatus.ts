@@ -26,7 +26,7 @@ export interface ObraStatusEtapa {
 
 export interface ObraStatusData {
   etapas: ObraStatusEtapa[];
-  // Progresso geral por media simples das etapas; cada etapa ja e media simples dos itens.
+  // Progresso geral por média simples das etapas; cada etapa já é média simples dos itens.
   progressoGeral: number;
   updatedAt?: unknown;
   updatedByUid?: string;

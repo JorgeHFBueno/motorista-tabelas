@@ -19,7 +19,7 @@ export const useAdminTickets = (filters: SupportTicketFilters) => {
         setIsLoading(false);
       },
       (snapshotError) => {
-        setError(snapshotError.message || "Nao foi possivel carregar os tickets.");
+        setError(snapshotError.message || "Não foi possível carregar os tickets.");
         setIsLoading(false);
       },
     );

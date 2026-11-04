@@ -16,7 +16,7 @@ const MobileNav = ({ onClose }: MobileNavProps) => {
     ? [
         { icon: House, label: "Dashboard", path: "/cliente" },
         { icon: Building2, label: "Obra", path: "/cliente/obra" },
-        { icon: Wallet, label: "Financas", path: "/cliente/financas" },
+        { icon: Wallet, label: "Finanças", path: "/cliente/financas" },
         { icon: FileText, label: "Documentos", path: "/cliente/documentos" },
         { icon: Camera, label: "Fotos", path: "/cliente/fotos" },
         { icon: LifeBuoy, label: "Atendimento", path: "/cliente/atendimento" },

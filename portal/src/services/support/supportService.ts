@@ -53,7 +53,7 @@ const mapTicket = (snap: QueryDocumentSnapshot<DocumentData> | { id: string; dat
     clienteEmail: normalizeString(data.clienteEmail) || null,
     obraId: normalizeString(data.obraId) || null,
     obraNome: normalizeString(data.obraNome) || null,
-    titulo: normalizeString(data.titulo) || "Ticket sem titulo",
+    titulo: normalizeString(data.titulo) || "Ticket sem título",
     descricaoInicial: normalizeString(data.descricaoInicial),
     categoria: data.categoria,
     prioridade: data.prioridade,
@@ -76,7 +76,7 @@ const mapMessage = (snap: QueryDocumentSnapshot<DocumentData>): SupportTicketMes
   return {
     id: snap.id,
     autorUid: normalizeString(data.autorUid),
-    autorNome: normalizeString(data.autorNome) || "Usuario",
+    autorNome: normalizeString(data.autorNome) || "Usuário",
     autorTipo: data.autorTipo,
     mensagem: normalizeString(data.mensagem),
     criadoEm: data.criadoEm,
@@ -348,7 +348,7 @@ export const createSupportTicket = async (
   };
 
   if (!normalizeString(input.titulo) || !normalizeString(input.descricaoInicial)) {
-    throw new Error("Informe titulo e descricao para abrir o ticket.");
+    throw new Error("Informe título e descrição para abrir o ticket.");
   }
 
   await createTicketDoc(ticketRef.id, ticketPayload);
@@ -375,12 +375,12 @@ export const replySupportTicket = async (
     const ticketDoc = await transaction.get(ticketRef);
 
     if (!ticketDoc.exists()) {
-      throw new Error("Ticket nao encontrado.");
+      throw new Error("Ticket não encontrado.");
     }
 
     const currentTicket = mapTicket(ticketDoc);
     if (currentTicket.status === "fechado") {
-      throw new Error("Este ticket ja foi fechado e nao aceita novas mensagens.");
+      throw new Error("Este ticket já foi fechado e não aceita novas mensagens.");
     }
 
     const nextStatus =
@@ -422,7 +422,7 @@ export const replySupportTicket = async (
       ticketId,
       obraId: ticketSnapshot.obraId,
       titulo: `Resposta no ticket: ${ticketSnapshot.titulo}`,
-      mensagem: `${actor.nome} respondeu um ticket de suporte.`,
+      mensagem: `${actor.nome} respondeu a um ticket de suporte.`,
       rotaDestino: `/painel/atendimento?ticket=${ticketId}`,
     });
     return;
@@ -434,7 +434,7 @@ export const replySupportTicket = async (
     obraId: ticketSnapshot.obraId,
     tipo: "suporte_ticket_resposta",
     titulo: `Resposta no ticket: ${ticketSnapshot.titulo}`,
-    mensagem: `${actor.nome} respondeu o seu ticket.`,
+    mensagem: `${actor.nome} respondeu ao seu ticket.`,
     rotaDestino: `/cliente/atendimento?ticket=${ticketId}`,
   });
 };
@@ -447,14 +447,14 @@ export const updateSupportTicketAdmin = async (
   const ticketRef = supportTicketRef(ticketId);
   const beforeSnap = await getDoc(ticketRef);
   if (!beforeSnap.exists()) {
-    throw new Error("Ticket nao encontrado.");
+    throw new Error("Ticket não encontrado.");
   }
 
   const previousTicket = mapTicket(beforeSnap as QueryDocumentSnapshot<DocumentData>);
   await runTransaction(db, async (transaction) => {
     const currentSnap = await transaction.get(ticketRef);
     if (!currentSnap.exists()) {
-      throw new Error("Ticket nao encontrado.");
+      throw new Error("Ticket não encontrado.");
     }
 
     transaction.update(ticketRef, {

@@ -24,7 +24,7 @@ export const useClientTickets = (clientUid?: string) => {
         setIsLoading(false);
       },
       (snapshotError) => {
-        setError(snapshotError.message || "Nao foi possivel carregar seus tickets.");
+        setError(snapshotError.message || "Não foi possível carregar seus tickets.");
         setIsLoading(false);
       },
     );

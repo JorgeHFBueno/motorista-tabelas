@@ -370,27 +370,27 @@ export const deriveDashboardSummary = ({
   totalItens: number;
   itensConcluidos: number;
 }) => {
-  if (totalStages === 0) return "O cronograma da obra ainda nao foi iniciado.";
+  if (totalStages === 0) return "O cronograma da obra ainda não foi iniciado.";
   if (progress === 100)
-    return `Todas as ${totalStages} etapas da obra foram concluidas.`;
+    return `Todas as ${totalStages} etapas da obra foram concluídas.`;
   if (progress === 0)
-    return "A obra ainda nao possui avancos registrados nas etapas.";
+    return "A obra ainda não possui avanços registrados nas etapas.";
 
-  return `${completedStages}/${totalStages} etapas completas e ${itensConcluidos}/${totalItens} itens concluidos ate agora.`;
+  return `${completedStages}/${totalStages} etapas completas e ${itensConcluidos}/${totalItens} itens concluídos até agora.`;
 };
 
 export const deriveDeliveryLabel = (statusData: ObraStatusData | null) => {
   if (!statusData || statusData.etapas.length === 0) {
-    return "Cronograma em atualizacao";
+    return "Cronograma em atualização";
   }
 
   const finalizando = statusData.etapas.filter(
     (etapa) => etapa.status === "finalizando",
   ).length;
 
-  if (statusData.progressoGeral === 100) return "Entrega concluida";
+  if (statusData.progressoGeral === 100) return "Entrega concluída";
   if (finalizando > 0) return `${finalizando} etapa(s) finalizando`;
-  return `${statusData.progressoGeral}% concluido`;
+  return `${statusData.progressoGeral}% concluído`;
 };
 
 export const deriveObraStatusResumo = (

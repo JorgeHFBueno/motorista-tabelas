@@ -94,7 +94,7 @@ const StaffObraStatusTab = ({ obraId, actor }: StaffObraStatusTabProps) => {
         }
         toast({
           title: "Falha ao carregar status",
-          description: "Nao foi possivel inicializar a estrutura da obra.",
+          description: "Não foi possível inicializar a estrutura da obra.",
           variant: "destructive",
         });
       });
@@ -170,7 +170,7 @@ const StaffObraStatusTab = ({ obraId, actor }: StaffObraStatusTabProps) => {
   const startEditing = (stageId: string) => {
     if (editingStageId && editingStageId !== stageId) {
       const shouldDiscard = window.confirm(
-        "Descartar alteracoes nao salvas da etapa atual?",
+        "Descartar alterações não salvas da etapa atual?",
       );
       if (!shouldDiscard) return;
     }
@@ -191,7 +191,7 @@ const StaffObraStatusTab = ({ obraId, actor }: StaffObraStatusTabProps) => {
     const currentStatus = cloneStatus(draftStatus ?? statusData);
     if (!currentStatus) return;
 
-    if (editingStageId && !window.confirm("Descartar alteracoes nao salvas e criar nova etapa?")) {
+    if (editingStageId && !window.confirm("Descartar alterações não salvas e criar nova etapa?")) {
       return;
     }
 
@@ -294,7 +294,7 @@ const StaffObraStatusTab = ({ obraId, actor }: StaffObraStatusTabProps) => {
   if (error && !workingStatus) {
     return (
       <div className="rounded-xl border bg-card p-4 text-sm text-muted-foreground">
-        Nao foi possivel carregar o status da obra agora. Tente novamente em instantes.
+        Não foi possível carregar o status da obra agora. Tente novamente em instantes.
       </div>
     );
   }
@@ -316,7 +316,7 @@ const StaffObraStatusTab = ({ obraId, actor }: StaffObraStatusTabProps) => {
               Progresso geral da obra
             </h3>
             <p className="text-sm text-muted-foreground">
-              O progresso geral e calculado por media simples das etapas; cada etapa pode usar percentual informado ou checklist.
+              O progresso geral é calculado por média simples das etapas; cada etapa pode usar percentual informado ou checklist.
             </p>
           </div>
 
@@ -494,7 +494,7 @@ const StaffObraStatusTab = ({ obraId, actor }: StaffObraStatusTabProps) => {
                           ) : (
                             <Save className="mr-2 h-4 w-4" />
                           )}
-                          Salvar alteracoes
+                          Salvar alterações
                         </Button>
                       </>
                     ) : (
@@ -516,7 +516,7 @@ const StaffObraStatusTab = ({ obraId, actor }: StaffObraStatusTabProps) => {
                       Modo de acompanhamento
                     </p>
                     <p className="text-xs text-muted-foreground">
-                      Checklist calcula o percentual pelos itens concluidos; barra de % usa o percentual informado.
+                      Checklist calcula o percentual pelos itens concluídos; barra de % usa o percentual informado.
                     </p>
                   </div>
                   <Select
@@ -539,7 +539,7 @@ const StaffObraStatusTab = ({ obraId, actor }: StaffObraStatusTabProps) => {
                 <div className="space-y-3">
                   {etapa.itens.length === 0 ? (
                     <div className="rounded-lg border border-dashed bg-muted/45 p-3 text-sm text-muted-foreground">
-                      Esta etapa ainda nao possui itens.
+                      Esta etapa ainda não possui itens.
                     </div>
                   ) : (
                     etapa.itens.map((item) => {
@@ -613,7 +613,7 @@ const StaffObraStatusTab = ({ obraId, actor }: StaffObraStatusTabProps) => {
                                       disabled={saveMutation.isPending}
                                     />
                                     <span className="text-sm text-muted-foreground">
-                                      Concluido
+                                      Concluído
                                     </span>
                                   </div>
                                 ) : (
@@ -690,7 +690,7 @@ const StaffObraStatusTab = ({ obraId, actor }: StaffObraStatusTabProps) => {
                                   disabled={saveMutation.isPending}
                                 />
                                 <span className="text-sm font-semibold text-foreground">
-                                  {item.progresso >= 100 ? "Concluido" : "Pendente"}
+                                  {item.progresso >= 100 ? "Concluído" : "Pendente"}
                                 </span>
                               </div>
                             ) : (

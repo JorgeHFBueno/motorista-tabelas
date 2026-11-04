@@ -39,7 +39,7 @@ const statusMeta = {
 
 const StagesOverview = ({
   fases = [],
-  emptyMessage = "As etapas da obra aparecerao aqui assim que o cronograma for iniciado.",
+  emptyMessage = "As etapas da obra aparecerão aqui assim que o cronograma for iniciado.",
 }: StagesOverviewProps) => {
   const completedCount = fases.filter(
     (fase) => deriveFaseProgress(fase).status === "completed",

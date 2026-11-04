@@ -39,7 +39,7 @@ const formatDateTime = (value?: { toDate?: () => Date; seconds?: number } | null
     });
   }
 
-  return "Ainda nao confirmado";
+  return "Ainda não confirmado";
 };
 
 const toInputDate = (date: Date) =>
@@ -94,26 +94,26 @@ const ConfirmationBox = ({
 
   const saveMutation = useMutation({
     mutationFn: async () => {
-      if (!obraId || !actor) throw new Error("Dados da obra indisponiveis.");
+      if (!obraId || !actor) throw new Error("Dados da obra indisponíveis.");
       const dataHora = buildDateTime(dateValue, timeValue);
-      if (!dataHora) throw new Error("Informe uma data e hora validas.");
+      if (!dataHora) throw new Error("Informe uma data e hora válidas.");
       await salvarConfirmacaoExecucaoEquipe({ obraId, tipo, dataHora, actor });
     },
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ["obra", obraId] });
       toast({
-        title: isConfirmed ? "Confirmacao atualizada" : "Confirmacao registrada",
+        title: isConfirmed ? "Confirmação atualizada" : "Confirmação registrada",
         description:
           tipo === "saida"
-            ? "Saida da equipe salva com sucesso."
+            ? "Saída da equipe salva com sucesso."
             : "Chegada da equipe salva com sucesso.",
       });
     },
     onError: (error) => {
       toast({
-        title: "Falha ao salvar confirmacao",
+        title: "Falha ao salvar confirmação",
         description:
-          error instanceof Error ? error.message : "Nao foi possivel salvar agora.",
+          error instanceof Error ? error.message : "Não foi possível salvar agora.",
         variant: "destructive",
       });
     },
@@ -136,7 +136,7 @@ const ConfirmationBox = ({
         <div>
           <h3 className="font-semibold text-foreground">{title}</h3>
           <p className="mt-1 text-sm text-muted-foreground">
-            {isConfirmed ? formatDateTime(confirmacao?.dataHora) : "Pendente de confirmacao"}
+            {isConfirmed ? formatDateTime(confirmacao?.dataHora) : "Pendente de confirmação"}
           </p>
         </div>
         <Badge variant={isConfirmed ? "default" : "outline"} className="gap-1">
@@ -152,11 +152,11 @@ const ConfirmationBox = ({
       {isConfirmed ? (
         <div className="rounded-lg border bg-background/60 p-3 text-xs text-muted-foreground">
           Registrado por {confirmacao?.confirmadoPorNome || "Equipe"}.
-          {mode === "admin" ? " Salvar novamente sobrescreve esta informacao." : ""}
+          {mode === "admin" ? " Salvar novamente sobrescreve esta informação." : ""}
         </div>
       ) : (
         <div className="rounded-lg border border-dashed bg-background/60 p-3 text-xs text-muted-foreground">
-          Ainda nao ha data e hora confirmadas.
+          Ainda não há data e hora confirmadas.
         </div>
       )}
 
@@ -195,7 +195,7 @@ const ConfirmationBox = ({
               {saveMutation.isPending ? (
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
               ) : null}
-              {isConfirmed ? "Atualizar confirmacao" : "Confirmar"}
+              {isConfirmed ? "Atualizar confirmação" : "Confirmar"}
             </Button>
           </div>
         </div>
@@ -212,9 +212,9 @@ const ExecucaoEquipeCard = ({
 }: ExecucaoEquipeCardProps) => {
   const labels =
     mode === "admin"
-      ? { saida: "Saida da equipe", chegada: "Chegada da equipe" }
+      ? { saida: "Saída da equipe", chegada: "Chegada da equipe" }
       : {
-          saida: "Saida da equipe para a Obra",
+          saida: "Saída da equipe para a Obra",
           chegada: "Chegada da equipe na Obra",
         };
 
@@ -222,11 +222,11 @@ const ExecucaoEquipeCard = ({
     <section className="rounded-xl border bg-card p-4 space-y-4">
       <div>
         <h2 className="text-lg font-semibold text-foreground">
-          Confirmacao de time de execucao
+          Confirmação de time de execução
         </h2>
         <p className="mt-1 text-sm text-muted-foreground">
           {mode === "admin"
-            ? "Registre a saida e a chegada da equipe de execucao."
+            ? "Registre a saída e a chegada da equipe de execução."
             : "Acompanhe os registros confirmados pela equipe administrativa."}
         </p>
       </div>

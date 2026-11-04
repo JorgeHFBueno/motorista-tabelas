@@ -21,7 +21,7 @@ const getErrorMessage = (error: unknown) => {
   const maybeError = error as { message?: string };
   if (typeof maybeError?.message === "string") return maybeError.message;
 
-  return "Falha ao executar operacao.";
+  return "Falha ao executar operação.";
 };
 
 export const CadastroObraForm = ({ onSuccess, submitLabel = "Criar obra" }: CadastroObraFormProps) => {
@@ -34,7 +34,7 @@ export const CadastroObraForm = ({ onSuccess, submitLabel = "Criar obra" }: Cada
   const handleCreateObra = async () => {
     const nomeLimpo = nome.trim();
     if (!nomeLimpo) {
-      toast({ title: "Nome obrigatorio", description: "Informe o nome da obra.", variant: "destructive" });
+      toast({ title: "Nome obrigatório", description: "Informe o nome da obra.", variant: "destructive" });
       return;
     }
 
@@ -60,7 +60,7 @@ export const CadastroObraForm = ({ onSuccess, submitLabel = "Criar obra" }: Cada
 
       await onSuccess?.();
     } catch (error) {
-      toast({ title: "Sem permissao para criar", description: getErrorMessage(error), variant: "destructive" });
+      toast({ title: "Sem permissão para criar", description: getErrorMessage(error), variant: "destructive" });
     } finally {
       setIsCreating(false);
     }
@@ -81,13 +81,13 @@ export const CadastroObraForm = ({ onSuccess, submitLabel = "Criar obra" }: Cada
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="ativa">Ativa</SelectItem>
-              <SelectItem value="concluida">Concluida</SelectItem>
+              <SelectItem value="concluida">Concluída</SelectItem>
             </SelectContent>
           </Select>
         </div>
       </div>
       <div className="space-y-1">
-        <Label htmlFor="descricao-obra">Descricao (opcional)</Label>
+        <Label htmlFor="descricao-obra">Descrição (opcional)</Label>
         <Input id="descricao-obra" value={descricao} onChange={(event) => setDescricao(event.target.value)} />
       </div>
       <Button onClick={() => void handleCreateObra()} disabled={isCreating}>

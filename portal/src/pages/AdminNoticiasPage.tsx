@@ -115,14 +115,14 @@ const AdminNoticiasPage = () => {
     try {
       if (editing) {
         await updateMutation.mutateAsync({id: editing.id, input: buildInput(), user: userPayload});
-        toast({title: "Noticia atualizada", description: "A noticia institucional foi atualizada."});
+        toast({title: "Notícia atualizada", description: "A notícia institucional foi atualizada."});
       } else {
         await createMutation.mutateAsync({input: buildInput(), user: userPayload});
-        toast({title: "Noticia criada", description: "A noticia institucional foi criada."});
+        toast({title: "Notícia criada", description: "A notícia institucional foi criada."});
       }
       resetForm();
     } catch (error) {
-      toast({title: "Erro", description: "Nao foi possivel salvar a noticia.", variant: "destructive"});
+      toast({title: "Erro", description: "Não foi possível salvar a notícia.", variant: "destructive"});
     }
   };
 
@@ -130,31 +130,31 @@ const AdminNoticiasPage = () => {
     try {
       const result = await refreshExternalMutation.mutateAsync();
       toast({
-        title: "Noticias externas atualizadas",
+        title: "Notícias externas atualizadas",
         description: buildRefreshSummary(result),
       });
     } catch (error) {
       toast({
-        title: "Erro na atualizacao",
-        description: "Nao foi possivel executar a ingestao externa agora.",
+        title: "Erro na atualização",
+        description: "Não foi possível executar a ingestão externa agora.",
         variant: "destructive",
       });
     }
   };
 
   return (
-    <ResponsiveLayout headerTitle="Noticias institucionais" headerSubtitle="Gerencie os conteudos institucionais e dispare a ingestao externa">
+    <ResponsiveLayout headerTitle="Notícias institucionais" headerSubtitle="Gerencie os conteúdos institucionais e dispare a ingestão externa">
       <div className="px-4 py-6 lg:px-8 lg:py-8 grid grid-cols-1 lg:grid-cols-3 gap-6">
         <Card className="lg:col-span-1">
           <CardHeader>
-            <CardTitle>{editing ? "Editar noticia" : "Nova noticia"}</CardTitle>
+            <CardTitle>{editing ? "Editar notícia" : "Nova notícia"}</CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
             <div className="rounded-lg border bg-muted/30 p-3 space-y-2">
               <div className="space-y-1">
-                <Label>Atualizacao externa</Label>
+                <Label>Atualização externa</Label>
                 <p className="text-sm text-muted-foreground">
-                  Usa a mesma pipeline do scheduler de 12h para economia, infraestrutura, logistica e inovacao.
+                  Usa a mesma pipeline do scheduler de 12h para economia, infraestrutura, logística e inovação.
                 </p>
               </div>
               <Button
@@ -162,7 +162,7 @@ const AdminNoticiasPage = () => {
                 disabled={refreshExternalMutation.isPending}
                 onClick={() => void onRefreshExternalNews()}
               >
-                {refreshExternalMutation.isPending ? "Atualizando noticias externas..." : "Atualizar noticias externas agora"}
+                {refreshExternalMutation.isPending ? "Atualizando notícias externas..." : "Atualizar notícias externas agora"}
               </Button>
               {refreshSummary && (
                 <div className="space-y-1">
@@ -174,9 +174,9 @@ const AdminNoticiasPage = () => {
               )}
             </div>
 
-            <div className="space-y-1"><Label>Titulo</Label><Input value={titulo} onChange={(e) => setTitulo(e.target.value)} /></div>
+            <div className="space-y-1"><Label>Título</Label><Input value={titulo} onChange={(e) => setTitulo(e.target.value)} /></div>
             <div className="space-y-1"><Label>Resumo</Label><Textarea value={resumo} onChange={(e) => setResumo(e.target.value)} /></div>
-            <div className="space-y-1"><Label>Conteudo (opcional)</Label><Textarea value={conteudo} onChange={(e) => setConteudo(e.target.value)} /></div>
+            <div className="space-y-1"><Label>Conteúdo (opcional)</Label><Textarea value={conteudo} onChange={(e) => setConteudo(e.target.value)} /></div>
             <div className="space-y-1"><Label>URL (opcional)</Label><Input value={url} onChange={(e) => setUrl(e.target.value)} /></div>
             <div className="space-y-1"><Label>Imagem URL (opcional)</Label><Input value={imagemUrl} onChange={(e) => setImagemUrl(e.target.value)} /></div>
             <div className="space-y-1">
@@ -191,7 +191,7 @@ const AdminNoticiasPage = () => {
                     const uploadedUrl = await uploadMutation.mutateAsync({uid: user.uid, file});
                     setImagemUrl(uploadedUrl);
                   } catch (error) {
-                    toast({title: "Erro no upload", description: "Nao foi possivel enviar a imagem.", variant: "destructive"});
+                    toast({title: "Erro no upload", description: "Não foi possível enviar a imagem.", variant: "destructive"});
                   }
                 }}
               />
@@ -206,8 +206,8 @@ const AdminNoticiasPage = () => {
                 </SelectContent>
               </Select>
             </div>
-            <div className="space-y-1"><Label>Tags (separadas por virgula)</Label><Input value={tags} onChange={(e) => setTags(e.target.value)} /></div>
-            <div className="space-y-1"><Label>Data de publicacao</Label><Input type="datetime-local" value={publicadoEm} onChange={(e) => setPublicadoEm(e.target.value)} /></div>
+            <div className="space-y-1"><Label>Tags (separadas por vírgula)</Label><Input value={tags} onChange={(e) => setTags(e.target.value)} /></div>
+            <div className="space-y-1"><Label>Data de publicação</Label><Input type="datetime-local" value={publicadoEm} onChange={(e) => setPublicadoEm(e.target.value)} /></div>
             <div className="flex items-center justify-between"><Label>Destaque</Label><Switch checked={destaque} onCheckedChange={setDestaque} /></div>
             <div className="flex gap-2">
               <Button disabled={busy} onClick={() => void onSubmit()}>{editing ? "Salvar" : "Criar"}</Button>
@@ -217,7 +217,7 @@ const AdminNoticiasPage = () => {
         </Card>
 
         <Card className="lg:col-span-2">
-          <CardHeader><CardTitle>Noticias institucionais</CardTitle></CardHeader>
+          <CardHeader><CardTitle>Notícias institucionais</CardTitle></CardHeader>
           <CardContent className="space-y-3">
             {isLoading && <p className="text-sm text-muted-foreground">Carregando...</p>}
             {data.map((item) => (
@@ -236,10 +236,10 @@ const AdminNoticiasPage = () => {
                     onClick={async () => {
                       try {
                         await deleteMutation.mutateAsync(item.id);
-                        toast({title: "Noticia excluida"});
+                        toast({title: "Notícia excluída"});
                         if (editing?.id === item.id) resetForm();
                       } catch (error) {
-                        toast({title: "Erro", description: "Nao foi possivel excluir a noticia.", variant: "destructive"});
+                        toast({title: "Erro", description: "Não foi possível excluir a notícia.", variant: "destructive"});
                       }
                     }}
                   >

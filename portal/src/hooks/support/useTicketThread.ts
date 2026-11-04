@@ -39,7 +39,7 @@ export const useTicketThread = (ticketId?: string | null, viewerType?: SupportAu
         }
       },
       (snapshotError) => {
-        setError(snapshotError.message || "Nao foi possivel carregar o ticket.");
+        setError(snapshotError.message || "Não foi possível carregar o ticket.");
         setIsLoading(false);
       },
     );
@@ -50,7 +50,7 @@ export const useTicketThread = (ticketId?: string | null, viewerType?: SupportAu
         setMessages(nextMessages);
       },
       (snapshotError) => {
-        setError(snapshotError.message || "Nao foi possivel carregar a conversa.");
+        setError(snapshotError.message || "Não foi possível carregar a conversa.");
       },
     );
 

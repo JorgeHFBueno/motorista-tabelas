@@ -123,7 +123,7 @@ const Atendimento = () => {
       toast({ title: "Ticket aberto", description: "Seu ticket foi criado e enviado para a equipe." });
     } catch (createError) {
       toast({
-        title: "Nao foi possivel abrir o ticket",
+        title: "Não foi possível abrir o ticket",
         description: createError instanceof Error ? createError.message : "Erro inesperado.",
         variant: "destructive",
       });
@@ -145,7 +145,7 @@ const Atendimento = () => {
       setReplyMessage("");
     } catch (replyError) {
       toast({
-        title: "Nao foi possivel enviar a resposta",
+        title: "Não foi possível enviar a resposta",
         description: replyError instanceof Error ? replyError.message : "Erro inesperado.",
         variant: "destructive",
       });
@@ -188,7 +188,7 @@ const Atendimento = () => {
             <Card className="rounded-2xl">
               <CardHeader>
                 <CardTitle>Meus tickets</CardTitle>
-                <CardDescription>Visao exclusiva dos tickets do cliente autenticado.</CardDescription>
+                <CardDescription>Visão exclusiva dos tickets do cliente autenticado.</CardDescription>
               </CardHeader>
               <CardContent className="space-y-3">
                 {isLoading ? (
@@ -200,7 +200,7 @@ const Atendimento = () => {
                   <div className="rounded-xl border border-destructive/30 bg-destructive/5 p-4 text-sm text-destructive">{error}</div>
                 ) : tickets.length === 0 ? (
                   <div className="rounded-xl border border-dashed p-5 text-sm text-muted-foreground">
-                    Nenhum ticket aberto ainda. Use o botao acima para iniciar o atendimento.
+                    Nenhum ticket aberto ainda. Use o botão acima para iniciar o atendimento.
                   </div>
                 ) : (
                   tickets.map((ticket) => (
@@ -215,7 +215,7 @@ const Atendimento = () => {
                       <div className="mb-3 flex flex-wrap items-center gap-2">
                         <SupportStatusBadge status={ticket.status} />
                         <SupportCategoryBadge categoria={ticket.categoria} />
-                        {ticket.naoLidasCliente > 0 ? <span className="text-xs font-medium text-primary">Nova resposta da administracao</span> : null}
+                        {ticket.naoLidasCliente > 0 ? <span className="text-xs font-medium text-primary">Nova resposta da administração</span> : null}
                       </div>
                       <p className="font-semibold text-foreground">{ticket.titulo}</p>
                       <p className="mt-1 line-clamp-2 text-sm text-muted-foreground">{ticket.ultimaMensagemResumo || ticket.descricaoInicial}</p>
@@ -237,7 +237,7 @@ const Atendimento = () => {
                   <CardTitle>{selectedTicket?.titulo ?? "Selecione um ticket"}</CardTitle>
                   <CardDescription>
                     {selectedTicket
-                      ? "Leia o historico completo e responda enquanto o ticket nao estiver fechado."
+                      ? "Leia o histórico completo e responda enquanto o ticket não estiver fechado."
                       : "Escolha um ticket na lista lateral para ver a conversa."}
                   </CardDescription>
                 </div>
@@ -265,8 +265,8 @@ const Atendimento = () => {
               ) : !selectedTicket ? (
                 <div className="flex min-h-[460px] flex-col items-center justify-center rounded-2xl border border-dashed text-center">
                   <AlertCircle className="mb-3 h-9 w-9 text-muted-foreground" />
-                  <p className="font-medium text-foreground">Ticket indisponivel</p>
-                  <p className="mt-1 max-w-md text-sm text-muted-foreground">O ticket selecionado nao esta mais acessivel para este usuario.</p>
+                  <p className="font-medium text-foreground">Ticket indisponível</p>
+                  <p className="mt-1 max-w-md text-sm text-muted-foreground">O ticket selecionado não está mais acessível para este usuário.</p>
                 </div>
               ) : (
                 <>
@@ -277,18 +277,18 @@ const Atendimento = () => {
                     </div>
                     <div>
                       <p className="text-xs uppercase tracking-wide text-muted-foreground">Obra</p>
-                      <p className="mt-1 text-sm font-medium text-foreground">{selectedObra?.nome ?? selectedTicket.obraNome ?? "Nao informada"}</p>
+                      <p className="mt-1 text-sm font-medium text-foreground">{selectedObra?.nome ?? selectedTicket.obraNome ?? "Não informada"}</p>
                     </div>
                     <div>
-                      <p className="text-xs uppercase tracking-wide text-muted-foreground">Ultima interacao</p>
+                      <p className="text-xs uppercase tracking-wide text-muted-foreground">Última interação</p>
                       <p className="mt-1 text-sm font-medium text-foreground">{formatSupportDateTime(selectedTicket.ultimaMensagemEm ?? selectedTicket.criadoEm)}</p>
                     </div>
                   </div>
 
                   <SupportConversation
                     messages={messages}
-                    emptyTitle="A conversa ainda nao tem respostas adicionais"
-                    emptyDescription="A descricao inicial foi registrada, mas ainda nao existem novas mensagens nesta thread."
+                    emptyTitle="A conversa ainda não tem respostas adicionais"
+                    emptyDescription="A descrição inicial foi registrada, mas ainda não existem novas mensagens nesta thread."
                   />
 
                   <SupportMessageComposer
@@ -297,7 +297,7 @@ const Atendimento = () => {
                     onSubmit={handleReply}
                     disabled={isSupportTicketClosed(selectedTicket.status)}
                     isSubmitting={isSendingReply}
-                    closedMessage="Este ticket foi fechado pela administracao."
+                    closedMessage="Este ticket foi fechado pela administração."
                   />
                 </>
               )}
@@ -310,11 +310,11 @@ const Atendimento = () => {
         <DialogContent className="sm:max-w-2xl">
           <DialogHeader>
             <DialogTitle>Abrir novo ticket</DialogTitle>
-            <DialogDescription>O primeiro texto enviado sera salvo como mensagem inicial da conversa.</DialogDescription>
+            <DialogDescription>O primeiro texto enviado será salvo como mensagem inicial da conversa.</DialogDescription>
           </DialogHeader>
           <div className="grid gap-4 py-2">
             <div className="grid gap-2">
-              <Label htmlFor="ticket-titulo">Titulo</Label>
+              <Label htmlFor="ticket-titulo">Título</Label>
               <Input id="ticket-titulo" value={newTicketTitle} onChange={(event) => setNewTicketTitle(event.target.value)} maxLength={120} />
             </div>
             <div className="grid gap-4 md:grid-cols-3">
@@ -345,7 +345,7 @@ const Atendimento = () => {
                 <Select value={newTicketObraId} onValueChange={setNewTicketObraId}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="sem_obra">Sem obra especifica</SelectItem>
+                    <SelectItem value="sem_obra">Sem obra específica</SelectItem>
                     {obras.map((obra) => (
                       <SelectItem key={obra.id} value={obra.id}>{obra.nome}</SelectItem>
                     ))}
@@ -354,7 +354,7 @@ const Atendimento = () => {
               </div>
             </div>
             <div className="grid gap-2">
-              <Label htmlFor="ticket-descricao">Descricao inicial</Label>
+              <Label htmlFor="ticket-descricao">Descrição inicial</Label>
               <Textarea id="ticket-descricao" value={newTicketDescription} onChange={(event) => setNewTicketDescription(event.target.value)} rows={6} />
             </div>
             <div className="flex justify-end gap-2">

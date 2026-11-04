@@ -13,23 +13,23 @@ const Sidebar = () => {
     ? [
         { icon: House, label: "Dashboard", path: "/cliente" },
         { icon: Building2, label: "Obra", path: "/cliente/obra" },
-        { icon: Wallet, label: "Financas", path: "/cliente/financas" },
+        { icon: Wallet, label: "Finanças", path: "/cliente/financas" },
         { icon: FileText, label: "Documentos", path: "/cliente/documentos" },
         { icon: Camera, label: "Fotos", path: "/cliente/fotos" },
-        { icon: Newspaper, label: "Noticias", path: "/cliente/noticias" },
+        { icon: Newspaper, label: "Notícias", path: "/cliente/noticias" },
         { icon: LifeBuoy, label: "Atendimento", path: "/cliente/atendimento" },
       ]
     : [
         { icon: Building2, label: "Obras", path: "/painel/obras" },
         { icon: LifeBuoy, label: "Atendimento", path: "/painel/atendimento" },
         { icon: FolderCog, label: "Cadastros", path: "/painel/cadastros" },
-        { icon: Newspaper, label: "Noticias", path: "/painel/noticias" },
+        { icon: Newspaper, label: "Notícias", path: "/painel/noticias" },
       ];
 
   return (
     <aside className="sticky top-0 hidden h-screen w-64 flex-col bg-primary text-primary-foreground lg:flex">
       <div className="border-b border-primary-foreground/10 p-6">
-        <img src={logoLedurBranco} alt="Ledur Pre-Fabricados" className="h-10 w-auto" />
+        <img src={logoLedurBranco} alt="Ledur Pré-Fabricados" className="h-10 w-auto" />
         <p className="text-xs text-primary-foreground/60">Command Center</p>
       </div>
 

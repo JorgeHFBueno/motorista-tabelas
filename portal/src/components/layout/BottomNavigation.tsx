@@ -11,9 +11,9 @@ const BottomNavigation = () => {
 
   const navItems = userDoc?.role === "cliente"
     ? [
-        { icon: House, label: "Inicio", path: "/cliente" },
+        { icon: House, label: "Início", path: "/cliente" },
         { icon: Building2, label: "Obra", path: "/cliente/obra" },
-        { icon: Wallet, label: "Financas", path: "/cliente/financas" },
+        { icon: Wallet, label: "Finanças", path: "/cliente/financas" },
         { icon: FileText, label: "Docs", path: "/cliente/documentos" },
         { icon: Camera, label: "Fotos", path: "/cliente/fotos" },
         { icon: LifeBuoy, label: "Suporte", path: "/cliente/atendimento" },
@@ -23,7 +23,7 @@ const BottomNavigation = () => {
         { icon: Building2, label: "Obras", path: "/painel/obras" },
         { icon: LifeBuoy, label: "Suporte", path: "/painel/atendimento" },
         { icon: FolderCog, label: "Cadastro", path: "/painel/cadastros" },
-        { icon: Newspaper, label: "Noticias", path: "/painel/noticias" },
+        { icon: Newspaper, label: "Notícias", path: "/painel/noticias" },
       ];
 
   return (

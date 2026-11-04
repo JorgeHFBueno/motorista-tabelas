@@ -19,7 +19,7 @@ const SupportMessageComposer = ({
   disabled = false,
   isSubmitting = false,
   placeholder = "Digite sua mensagem...",
-  closedMessage = "Este ticket esta fechado e nao aceita novas mensagens.",
+  closedMessage = "Este ticket está fechado e não aceita novas mensagens.",
 }: SupportMessageComposerProps) => (
   <div className="space-y-3 rounded-2xl border bg-card p-4">
     <Textarea
@@ -38,7 +38,7 @@ const SupportMessageComposer = ({
             {closedMessage}
           </span>
         ) : (
-          "As respostas ficam registradas no historico do ticket."
+          "As respostas ficam registradas no histórico do ticket."
         )}
       </p>
       <Button onClick={() => void onSubmit()} disabled={disabled || isSubmitting || !value.trim()}>

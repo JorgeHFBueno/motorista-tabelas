@@ -18,10 +18,10 @@ export const salvarConfirmacaoExecucaoEquipe = async ({
   dataHora: Date;
   actor: ExecucaoEquipeActor;
 }) => {
-  if (!obraId) throw new Error("Obra invalida.");
-  if (!actor.uid) throw new Error("Sessao expirada.");
+  if (!obraId) throw new Error("Obra inválida.");
+  if (!actor.uid) throw new Error("Sessão expirada.");
   if (Number.isNaN(dataHora.getTime())) {
-    throw new Error("Informe uma data e hora validas.");
+    throw new Error("Informe uma data e hora válidas.");
   }
 
   await updateDoc(doc(db, "obras", obraId), {

@@ -48,7 +48,7 @@ const getErrorMessage = (error: unknown) => {
   const maybeError = error as { message?: string };
   if (typeof maybeError?.message === "string") return maybeError.message;
 
-  return "Falha ao executar operacao.";
+  return "Falha ao executar operação.";
 };
 
 const isUserRole = (value: unknown): value is UserRole =>
@@ -115,7 +115,7 @@ const mapObraOptions = (snapshot: Awaited<ReturnType<typeof getDocs>>) => {
 const formatStatus = (ativo: AdminUser["ativo"]) => {
   if (ativo === true) return "Ativo";
   if (ativo === false) return "Inativo";
-  return "Nao informado";
+  return "Não informado";
 };
 
 type UsuariosCadastradosListProps = {
@@ -136,8 +136,8 @@ const UsuariosCadastradosList = ({
   <Card>
     <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
       <div>
-        <CardTitle>Usuarios cadastrados</CardTitle>
-        <CardDescription>Lista principal para gestao administrativa de acesso e obras vinculadas.</CardDescription>
+        <CardTitle>Usuários cadastrados</CardTitle>
+        <CardDescription>Lista principal para gestão administrativa de acesso e obras vinculadas.</CardDescription>
       </div>
       <div className="flex flex-col gap-2 sm:flex-row">
         <Button variant="outline" size="sm" className="gap-2" onClick={onRefresh} disabled={isLoading}>
@@ -146,7 +146,7 @@ const UsuariosCadastradosList = ({
         </Button>
         <Button size="sm" className="gap-2" onClick={onCreateUser}>
           <Plus className="h-4 w-4" />
-          Novo usuario
+          Novo usuário
         </Button>
       </div>
     </CardHeader>
@@ -160,20 +160,20 @@ const UsuariosCadastradosList = ({
             <TableHead>Tipo</TableHead>
             <TableHead>Role</TableHead>
             <TableHead>Obras</TableHead>
-            <TableHead className="text-right">Acoes</TableHead>
+            <TableHead className="text-right">Ações</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
           {isLoading ? (
             <TableRow>
               <TableCell colSpan={7} className="text-muted-foreground">
-                Carregando usuarios...
+                Carregando usuários...
               </TableCell>
             </TableRow>
           ) : users.length === 0 ? (
             <TableRow>
               <TableCell colSpan={7} className="text-muted-foreground">
-                Nenhum usuario encontrado.
+                Nenhum usuário encontrado.
               </TableCell>
             </TableRow>
           ) : (
@@ -248,8 +248,8 @@ const UsuarioCreateForm = ({
   <Card>
     <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
       <div>
-        <CardTitle>Novo usuario</CardTitle>
-        <CardDescription>Criacao via Cloud Function administrativa existente.</CardDescription>
+        <CardTitle>Novo usuário</CardTitle>
+        <CardDescription>Criação via Cloud Function administrativa existente.</CardDescription>
       </div>
       <Button variant="ghost" size="sm" className="w-full gap-2 sm:w-auto" onClick={onClose}>
         <X className="h-4 w-4" />
@@ -259,7 +259,7 @@ const UsuarioCreateForm = ({
     <CardContent className="space-y-4">
       {!isAdmin && (
         <p className="text-sm text-destructive">
-          Seu usuario atual nao e admin. A Cloud Function deve bloquear a operacao.
+          Seu usuário atual não é admin. A Cloud Function deve bloquear a operação.
         </p>
       )}
       <div className="grid gap-3 md:grid-cols-2">
@@ -321,7 +321,7 @@ const UsuarioCreateForm = ({
         </div>
       </div>
       <Button onClick={() => void onAdminCreateUser()} disabled={creatingUser}>
-        {creatingUser ? "Criando usuario..." : "Criar usuario via Function"}
+        {creatingUser ? "Criando usuário..." : "Criar usuário via Function"}
       </Button>
     </CardContent>
   </Card>
@@ -379,13 +379,13 @@ const UsuarioEditPanel = ({
   const statusMessage = (() => {
     switch (linkStatus) {
       case "checking":
-        return "Verificando vinculo...";
+        return "Verificando vínculo...";
       case "linked":
-        return "Obra ja vinculada.";
+        return "Obra já vinculada.";
       case "not_linked":
-        return "Obra disponivel para vinculo.";
+        return "Obra disponível para vínculo.";
       case "error":
-        return "Erro ao verificar vinculo.";
+        return "Erro ao verificar vínculo.";
       default:
         return "Selecione uma obra para vincular.";
     }
@@ -395,7 +395,7 @@ const UsuarioEditPanel = ({
     <Card>
       <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div>
-          <CardTitle>Editar usuario</CardTitle>
+          <CardTitle>Editar usuário</CardTitle>
           <CardDescription>
             {user.nome} - {user.email}
           </CardDescription>
@@ -408,7 +408,7 @@ const UsuarioEditPanel = ({
       <CardContent className="space-y-6">
         {!isAdmin && (
           <p className="text-sm text-destructive">
-            Seu usuario atual nao e admin. As Cloud Functions devem retornar permissao negada.
+            Seu usuário atual não é admin. As Cloud Functions devem retornar permissão negada.
           </p>
         )}
 
@@ -477,7 +477,7 @@ const UsuarioEditPanel = ({
         <div className="space-y-3 rounded-lg border p-4">
           <h3 className="font-medium">Obras vinculadas</h3>
           {linkedObras.length === 0 ? (
-            <p className="text-sm text-muted-foreground">Nenhuma obra vinculada a este usuario.</p>
+            <p className="text-sm text-muted-foreground">Nenhuma obra vinculada a este usuário.</p>
           ) : (
             <div className="space-y-2">
               {linkedObras.map((obraId) => (
@@ -565,7 +565,7 @@ const StaffCadastrosPage = () => {
       setAdminUsers(mapAdminUsers(usersSnapshot));
       setObraOptions(mapObraOptions(obrasSnapshot));
     } catch (error) {
-      console.error("[painel-cadastros] erro ao carregar opcoes", error);
+      console.error("[painel-cadastros] erro ao carregar opções", error);
       toast({ title: "Erro ao carregar cadastros", description: getErrorMessage(error), variant: "destructive" });
     } finally {
       setIsLoadingOptions(false);
@@ -650,16 +650,16 @@ const StaffCadastrosPage = () => {
         const data = userSnapshot.data() as { nome?: string; uid?: string };
         const identifier = data.nome?.trim() || data.uid?.trim() || userSnapshot.id;
         setEmailCheckStatus("exists");
-        setEmailCheckMessage(`Usuario ja existe: ${identifier}`);
+        setEmailCheckMessage(`Usuário já existe: ${identifier}`);
         return;
       }
 
       setEmailCheckStatus("available");
-      setEmailCheckMessage("Email disponivel");
+      setEmailCheckMessage("Email disponível");
     } catch (error) {
       console.error("[painel-cadastros] erro ao verificar email", error);
       setEmailCheckStatus("error");
-      setEmailCheckMessage("Nao foi possivel verificar o email agora.");
+      setEmailCheckMessage("Não foi possível verificar o email agora.");
     }
   };
 
@@ -689,8 +689,8 @@ const StaffCadastrosPage = () => {
 
     if (!email || !senha || !nomeUsuario) {
       toast({
-        title: "Campos obrigatorios",
-        description: "Preencha email, senha e nome para criar o usuario.",
+        title: "Campos obrigatórios",
+        description: "Preencha email, senha e nome para criar o usuário.",
         variant: "destructive",
       });
       return;
@@ -714,7 +714,7 @@ const StaffCadastrosPage = () => {
         obras,
       });
 
-      toast({ title: "Usuario criado", description: `UID criado: ${result.uid}` });
+      toast({ title: "Usuário criado", description: `UID criado: ${result.uid}` });
       setNovoEmail("");
       setNovaSenha("");
       setNovoNome("");
@@ -726,7 +726,7 @@ const StaffCadastrosPage = () => {
       setIsCreateUserOpen(false);
       await loadOptions();
     } catch (error) {
-      toast({ title: "Erro ao criar usuario", description: getErrorMessage(error), variant: "destructive" });
+      toast({ title: "Erro ao criar usuário", description: getErrorMessage(error), variant: "destructive" });
     } finally {
       setCreatingUser(false);
     }
@@ -736,8 +736,8 @@ const StaffCadastrosPage = () => {
     const uid = selectedEditingUid.trim();
     if (!uid) {
       toast({
-        title: "Usuario obrigatorio",
-        description: "Selecione um usuario para atualizar role/tipo/ativo.",
+        title: "Usuário obrigatório",
+        description: "Selecione um usuário para atualizar role/tipo/ativo.",
         variant: "destructive",
       });
       return;
@@ -753,7 +753,7 @@ const StaffCadastrosPage = () => {
         tipo: targetTipo,
         ativo: targetAtivo === "true",
       });
-      toast({ title: "Permissoes atualizadas", description: "Role/tipo/ativo atualizados com sucesso." });
+      toast({ title: "Permissões atualizadas", description: "Role/tipo/ativo atualizados com sucesso." });
       await loadOptions();
     } catch (error) {
       toast({ title: "Erro ao atualizar role", description: getErrorMessage(error), variant: "destructive" });
@@ -768,8 +768,8 @@ const StaffCadastrosPage = () => {
 
     if (!uid || !obraId) {
       toast({
-        title: "Campos obrigatorios",
-        description: "Selecione usuario e obra para vincular.",
+        title: "Campos obrigatórios",
+        description: "Selecione usuário e obra para vincular.",
         variant: "destructive",
       });
       return;
@@ -780,7 +780,7 @@ const StaffCadastrosPage = () => {
     try {
       setIsLinkingObra(true);
       await adminLinkObra({ uid, obraId });
-      toast({ title: "Obra vinculada", description: "A obra foi vinculada ao usuario com sucesso." });
+      toast({ title: "Obra vinculada", description: "A obra foi vinculada ao usuário com sucesso." });
       setSelectedLinkObraId("");
     } catch (error) {
       toast({ title: "Erro ao vincular obra", description: getErrorMessage(error), variant: "destructive" });
@@ -797,8 +797,8 @@ const StaffCadastrosPage = () => {
 
     if (!uid || !obraId) {
       toast({
-        title: "Campos obrigatorios",
-        description: "Selecione usuario e obra para desvincular.",
+        title: "Campos obrigatórios",
+        description: "Selecione usuário e obra para desvincular.",
         variant: "destructive",
       });
       return;
@@ -809,7 +809,7 @@ const StaffCadastrosPage = () => {
     try {
       setIsUnlinkingObra(true);
       await adminUnlinkObra({ uid, obraId });
-      toast({ title: "Obra desvinculada", description: "A obra foi desvinculada do usuario com sucesso." });
+      toast({ title: "Obra desvinculada", description: "A obra foi desvinculada do usuário com sucesso." });
       if (selectedLinkObraId === obraId) setSelectedLinkObraId("");
     } catch (error) {
       toast({ title: "Erro ao desvincular obra", description: getErrorMessage(error), variant: "destructive" });
@@ -826,14 +826,14 @@ const StaffCadastrosPage = () => {
   );
 
   return (
-    <ResponsiveLayout headerTitle="Cadastros" headerSubtitle="Obras e administracao de usuarios">
+    <ResponsiveLayout headerTitle="Cadastros" headerSubtitle="Obras e administração de usuários">
       <div className="space-y-4 px-4 py-6 lg:px-8 lg:py-8">
         <Collapsible open={isObraCadastroOpen} onOpenChange={setIsObraCadastroOpen}>
           <Card>
             <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <div>
                 <CardTitle>Cadastro de obras</CardTitle>
-                <CardDescription>Criacao basica de obras no Firestore.</CardDescription>
+                <CardDescription>Criação básica de obras no Firestore.</CardDescription>
               </div>
               <CollapsibleTrigger asChild>
                 <Button variant="outline" size="sm" className="w-full gap-2 sm:w-auto">

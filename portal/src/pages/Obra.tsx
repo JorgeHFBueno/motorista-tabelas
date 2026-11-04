@@ -100,7 +100,7 @@ const StageCard = ({
                               {item.nome}
                             </p>
                             <p className={cn("text-xs", itemTone.textClass)}>
-                              {isDone ? "Concluido" : "Pendente"}
+                              {isDone ? "Concluído" : "Pendente"}
                             </p>
                           </div>
                         </div>
@@ -183,7 +183,7 @@ const Obra = () => {
   }, [activeObraId, error]);
 
   return (
-    <ResponsiveLayout headerTitle="Obra" headerSubtitle="Acompanhamento da construcao">
+    <ResponsiveLayout headerTitle="Obra" headerSubtitle="Acompanhamento da construção">
       <div className="px-4 py-6 lg:px-8 lg:py-8 space-y-6">
         <div className="rounded-xl border bg-card p-4 text-sm text-muted-foreground">
           {!hasClientObra || !activeObraId
@@ -238,12 +238,12 @@ const Obra = () => {
         ) : error ? (
           <div className="rounded-xl border bg-card p-4 text-sm text-muted-foreground">
             {isPermissionDenied
-              ? "Sem permissao para visualizar status desta obra."
-              : "Nao foi possivel carregar o status da obra agora. Tente novamente em instantes."}
+              ? "Sem permissão para visualizar status desta obra."
+              : "Não foi possível carregar o status da obra agora. Tente novamente em instantes."}
           </div>
         ) : fases.length === 0 ? (
           <div className="rounded-xl border bg-card p-4 text-sm text-muted-foreground">
-            Status ainda nao foi iniciado.
+            Status ainda não foi iniciado.
           </div>
         ) : (
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 lg:gap-6">

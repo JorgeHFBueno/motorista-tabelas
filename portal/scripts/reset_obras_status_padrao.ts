@@ -1,7 +1,7 @@
 /**
  * Sobrescreve o campo statusObra de todas as obras com a estrutura oficial.
  *
- * Execucao sugerida fora do front-end:
+ * Execução sugerida fora do front-end:
  *  npx tsx scripts/reset_obras_status_padrao.ts
  *
  * Requer:
@@ -72,7 +72,7 @@ const resetAllObrasStatus = async () => {
 
     if (operationsInBatch >= BATCH_LIMIT) {
       await batch.commit();
-      console.log(`Lote aplicado. Obras atualizadas ate agora: ${totalUpdated}`);
+      console.log(`Lote aplicado. Obras atualizadas até agora: ${totalUpdated}`);
       batch = db.batch();
       operationsInBatch = 0;
     }

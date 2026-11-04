@@ -86,8 +86,8 @@ const StaffAtendimentoPage = () => {
   const selectedSummary = useMemo(
     () => ({
       cliente: selectedTicket?.clienteNome ?? "-",
-      obra: selectedTicket?.obraNome ?? selectedTicket?.obraId ?? "Nao informada",
-      responsavel: selectedTicket?.responsavelNome ?? "Nao atribuido",
+      obra: selectedTicket?.obraNome ?? selectedTicket?.obraId ?? "Não informada",
+      responsavel: selectedTicket?.responsavelNome ?? "Não atribuído",
     }),
     [selectedTicket],
   );
@@ -117,7 +117,7 @@ const StaffAtendimentoPage = () => {
           responsavelNome: userDoc.nome,
         },
       );
-      toast({ title: "Ticket atualizado", description: "Metadados e responsavel salvos com sucesso." });
+      toast({ title: "Ticket atualizado", description: "Metadados e responsável salvos com sucesso." });
     } catch (saveError) {
       toast({
         title: "Falha ao atualizar ticket",
@@ -152,7 +152,7 @@ const StaffAtendimentoPage = () => {
   };
 
   return (
-    <ResponsiveLayout headerTitle="Atendimento" headerSubtitle="Leitura, resposta e gestao administrativa dos tickets">
+    <ResponsiveLayout headerTitle="Atendimento" headerSubtitle="Leitura, resposta e gestão administrativa dos tickets">
       <div className="space-y-6 px-4 py-6 lg:px-8 lg:py-8">
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
           <Card className="rounded-2xl">
@@ -176,7 +176,7 @@ const StaffAtendimentoPage = () => {
           <Card className="rounded-2xl">
             <CardContent className="flex items-center gap-3 p-4">
               <div className="rounded-2xl bg-amber-500/10 p-3"><Filter className="h-5 w-5 text-amber-700" /></div>
-              <div><p className="text-2xl font-semibold">{stats.naoLidos}</p><p className="text-sm text-muted-foreground">Nao lidos</p></div>
+              <div><p className="text-2xl font-semibold">{stats.naoLidos}</p><p className="text-sm text-muted-foreground">Não lidos</p></div>
             </CardContent>
           </Card>
         </div>
@@ -237,7 +237,7 @@ const StaffAtendimentoPage = () => {
             <Card className="rounded-2xl">
               <CardHeader>
                 <CardTitle>Tickets</CardTitle>
-                <CardDescription>Ordenados pela ultima atualizacao.</CardDescription>
+                <CardDescription>Ordenados pela última atualização.</CardDescription>
               </CardHeader>
               <CardContent className="space-y-3">
                 {isLoading ? (
@@ -278,7 +278,7 @@ const StaffAtendimentoPage = () => {
                 <div>
                   <CardTitle>{selectedTicket?.titulo ?? "Selecione um ticket"}</CardTitle>
                   <CardDescription>
-                    {selectedTicket ? "Leia o historico, responda e atualize o status do atendimento." : "Selecione um ticket na lista lateral."}
+                    {selectedTicket ? "Leia o histórico, responda e atualize o status do atendimento." : "Selecione um ticket na lista lateral."}
                   </CardDescription>
                 </div>
                 {selectedTicket ? (
@@ -296,7 +296,7 @@ const StaffAtendimentoPage = () => {
               ) : isLoadingThread ? (
                 <div className="flex min-h-[520px] items-center justify-center text-sm text-muted-foreground"><Loader2 className="mr-2 h-4 w-4 animate-spin" />Carregando detalhes...</div>
               ) : !selectedTicket ? (
-                <div className="flex min-h-[520px] items-center justify-center rounded-2xl border border-dashed text-sm text-muted-foreground">O ticket selecionado nao esta mais disponivel.</div>
+                <div className="flex min-h-[520px] items-center justify-center rounded-2xl border border-dashed text-sm text-muted-foreground">O ticket selecionado não está mais disponível.</div>
               ) : (
                 <>
                   <div className="grid gap-4 rounded-2xl border bg-muted/20 p-4 md:grid-cols-3">
@@ -310,7 +310,7 @@ const StaffAtendimentoPage = () => {
                       <p className="mt-1 text-sm font-medium text-foreground">{selectedSummary.obra}</p>
                     </div>
                     <div>
-                      <p className="text-xs uppercase tracking-wide text-muted-foreground">Responsavel</p>
+                      <p className="text-xs uppercase tracking-wide text-muted-foreground">Responsável</p>
                       <p className="mt-1 text-sm font-medium text-foreground">{selectedSummary.responsavel}</p>
                     </div>
                   </div>
@@ -360,7 +360,7 @@ const StaffAtendimentoPage = () => {
                   <SupportConversation
                     messages={messages}
                     emptyTitle="Ticket sem respostas adicionais"
-                    emptyDescription="A descricao inicial foi registrada, mas ainda nao existem novas mensagens nesta thread."
+                    emptyDescription="A descrição inicial foi registrada, mas ainda não existem novas mensagens nesta thread."
                   />
 
                   <SupportMessageComposer
@@ -369,7 +369,7 @@ const StaffAtendimentoPage = () => {
                     onSubmit={handleReply}
                     disabled={isSupportTicketClosed(selectedTicket.status)}
                     isSubmitting={isSendingReply}
-                    closedMessage="Este ticket foi fechado e a thread esta encerrada."
+                    closedMessage="Este ticket foi fechado e a thread está encerrada."
                   />
                 </>
               )}

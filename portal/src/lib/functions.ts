@@ -9,7 +9,7 @@ type TrashCollection = "documentos" | "fotos";
 
 function requireFunctionsInstance() {
   if (!app) {
-    throw firebaseInitError ?? new Error("Firebase app indisponivel para Cloud Functions.");
+    throw firebaseInitError ?? new Error("Firebase app indisponível para Cloud Functions.");
   }
 
   return getFunctions(app, "southamerica-east1");
@@ -174,7 +174,7 @@ export async function adminRefreshExternalNews(): Promise<ExternalNewsRefreshRes
 
 export function getCallableErrorMessage(error: unknown, fallback: string): string {
   if (error instanceof FirebaseError && error.code === "functions/permission-denied") {
-    return "Sem permissao para mover para lixeira";
+    return "Sem permissão para mover para lixeira";
   }
 
   if (error instanceof Error && typeof error.message === "string" && error.message.trim().length > 0) {

@@ -56,13 +56,13 @@ const EMAIL_NOTIFICATION_TYPES = new Set([
 ]);
 
 const EMAIL_SUBJECT_FALLBACKS = {
-  foto_nova: "Nova foto adicionada a sua obra",
-  documento_novo: "Novo documento disponivel",
-  progresso_obra: "Atualizacao no progresso da obra",
+  foto_nova: "Nova foto adicionada à sua obra",
+  documento_novo: "Novo documento disponível",
+  progresso_obra: "Atualização no progresso da obra",
   financeiro_nova_parcela: "Nova parcela adicionada",
-  financeiro_boleto_disponivel: "Boleto disponivel",
+  financeiro_boleto_disponivel: "Boleto disponível",
   financeiro_status_alterado: "Status financeiro atualizado",
-  financeiro_vencimento_proximo: "Parcela proxima do vencimento",
+  financeiro_vencimento_proximo: "Parcela próxima do vencimento",
 };
 
 /**
@@ -495,13 +495,13 @@ function buildClientEmailDetailLines(tipo, metadata) {
 
 function buildClientEmailContent({tipo, titulo, mensagem, metadata}) {
   const safeMetadata = metadata && typeof metadata === "object" ? metadata : {};
-  const subject = normalizeString(titulo) || EMAIL_SUBJECT_FALLBACKS[tipo] || "Notificacao da sua obra";
+  const subject = normalizeString(titulo) || EMAIL_SUBJECT_FALLBACKS[tipo] || "Notificação da sua obra";
   const baseMessage = normalizeString(mensagem) || subject;
   const details = buildClientEmailDetailLines(tipo, safeMetadata);
   const hasPortalHint = Boolean(normalizeString(safeMetadata.rotaDestino));
 
   const htmlParts = [
-    "<p>Ola,</p>",
+    "<p>Olá,</p>",
     `<p>${escapeHtml(baseMessage)}</p>`,
   ];
 
@@ -514,13 +514,13 @@ function buildClientEmailContent({tipo, titulo, mensagem, metadata}) {
   }
 
   if (hasPortalHint) {
-    htmlParts.push("<p>Voce pode acessar mais detalhes pelo portal do cliente.</p>");
+    htmlParts.push("<p>Você pode acessar mais detalhes pelo portal do cliente.</p>");
   }
 
-  htmlParts.push("<p>Esta e uma notificacao automatica do sistema da Ledur Pre-Fabricados.</p>");
+  htmlParts.push("<p>Esta é uma notificação automática do sistema da Ledur Pré-Fabricados.</p>");
 
   const textParts = [
-    "Ola,",
+    "Olá,",
     "",
     baseMessage,
   ];
@@ -530,10 +530,10 @@ function buildClientEmailContent({tipo, titulo, mensagem, metadata}) {
   }
 
   if (hasPortalHint) {
-    textParts.push("", "Voce pode acessar mais detalhes pelo portal do cliente.");
+    textParts.push("", "Você pode acessar mais detalhes pelo portal do cliente.");
   }
 
-  textParts.push("", "Esta e uma notificacao automatica do sistema da Ledur Pre-Fabricados.");
+  textParts.push("", "Esta é uma notificação automática do sistema da Ledur Pré-Fabricados.");
 
   return {
     subject,
@@ -581,13 +581,13 @@ async function createClientEmailNotificationsFromEvent({
   const safeMetadata = metadata && typeof metadata === "object" ? metadata : {};
   const safeUsers = Array.isArray(users) ? users : [];
 
-  logger.info("[ClientEmailNotification] inicio da criacao", {
+  logger.info("[ClientEmailNotification] início da criação", {
     obraId: normalizedObraId || null,
     tipo: normalizedTipo || null,
   });
 
   if (!normalizedObraId || !normalizedTipo) {
-    logger.warn("[ClientEmailNotification] obraId ou tipo invalido", {
+    logger.warn("[ClientEmailNotification] obraId ou tipo inválido", {
       obraId: normalizedObraId || null,
       tipo: normalizedTipo || null,
     });
@@ -600,7 +600,7 @@ async function createClientEmailNotificationsFromEvent({
   }
 
   if (!EMAIL_NOTIFICATION_TYPES.has(normalizedTipo)) {
-    logger.info("[ClientEmailNotification] tipo nao habilitado para e-mail", {
+    logger.info("[ClientEmailNotification] tipo não habilitado para e-mail", {
       obraId: normalizedObraId,
       tipo: normalizedTipo,
     });
@@ -612,7 +612,7 @@ async function createClientEmailNotificationsFromEvent({
     return;
   }
 
-  logger.info("[ClientEmailNotification] total de usuarios", {
+  logger.info("[ClientEmailNotification] total de usuários", {
     obraId: normalizedObraId,
     tipo: normalizedTipo,
     totalUsuarios: safeUsers.length,
@@ -781,7 +781,7 @@ async function dispatchNotificationFromEvent({
       });
     }
   } else {
-    logger.info("[ClientEmailNotification] tipo nao habilitado para e-mail", {
+    logger.info("[ClientEmailNotification] tipo não habilitado para e-mail", {
       obraId: normalizedObraId,
       tipo,
     });
@@ -868,7 +868,7 @@ function getDedupeDataHoraPart(dataHora, context) {
   if (millis) return String(millis);
 
   const fallback = normalizeString(String(dataHora ?? ""));
-  logger.warn("[ExecucaoEquipeEmail] dataHora sem millis; usando fallback estavel", {
+  logger.warn("[ExecucaoEquipeEmail] dataHora sem millis; usando fallback estável", {
     ...context,
     dataHora: fallback || null,
   });
@@ -926,7 +926,7 @@ async function createExecucaoEquipeEmailNotifications({
   const normalizedObraId = normalizeString(obraId);
   const emailTipo = execucaoEquipeEmailTipo(tipo);
 
-  logger.info("[ExecucaoEquipeEmail] inicio da criacao dos emails", {
+  logger.info("[ExecucaoEquipeEmail] início da criação dos emails", {
     obraId: normalizedObraId,
     tipo: emailTipo,
     confirmadoPorNome: normalizeString(confirmadoPorNome) || null,
@@ -935,7 +935,7 @@ async function createExecucaoEquipeEmailNotifications({
   if (!normalizedObraId) return;
 
   if (dataHora === undefined || dataHora === null || dataHora === "") {
-    logger.warn("[ExecucaoEquipeEmail] ausencia de dataHora", {
+    logger.warn("[ExecucaoEquipeEmail] ausência de dataHora", {
       obraId: normalizedObraId,
       tipo: emailTipo,
     });
@@ -954,7 +954,7 @@ async function createExecucaoEquipeEmailNotifications({
     });
 
     if (users.length === 0) {
-      logger.warn("[ExecucaoEquipeEmail] ausencia de cliente vinculado", {
+      logger.warn("[ExecucaoEquipeEmail] ausência de cliente vinculado", {
         obraId: normalizedObraId,
         tipo: emailTipo,
       });
@@ -1037,7 +1037,7 @@ function getExecucaoEquipeChanges(beforeData, afterData, obraId) {
       const afterDataHoraKey = dataHoraComparable(afterConfirmacao?.dataHora);
       const afterMillis = timestampMillis(afterConfirmacao?.dataHora);
       if (afterConfirmacao?.confirmado === true && !afterDataHoraKey) {
-        logger.warn("[ExecucaoEquipeEmail] ausencia de dataHora", {obraId, tipo});
+        logger.warn("[ExecucaoEquipeEmail] ausência de dataHora", {obraId, tipo});
       }
       const changed = Boolean(
         afterConfirmacao?.confirmado === true &&
@@ -1116,12 +1116,12 @@ exports.notifyOnObraProgressUpdate = onDocumentUpdated("obras/{obraId}", async (
 
     const mensagem = diff.toggledCount > 1
       ? `A etapa '${etapa}' teve ${diff.toggledCount} itens com progresso atualizado.`
-      : `A etapa '${etapa}' teve atualizacao no andamento.`;
+      : `A etapa '${etapa}' teve atualização no andamento.`;
 
     await dispatchNotificationFromEvent({
       obraId,
       tipo: "progresso_obra",
-      titulo: "Atualizacao no progresso da obra",
+      titulo: "Atualização no progresso da obra",
       mensagem,
       origemColecao: "obras",
       origemId: obraId,
@@ -1147,10 +1147,10 @@ exports.notifyOnObraProgressUpdate = onDocumentUpdated("obras/{obraId}", async (
     await dispatchNotificationFromEvent({
       obraId,
       tipo: isSaida ? "equipe_saida_confirmada" : "equipe_chegada_confirmada",
-      titulo: isSaida ? "Equipe a caminho da obra" : "Equipe chegou a obra",
+      titulo: isSaida ? "Equipe a caminho da obra" : "Equipe chegou à obra",
       mensagem: isSaida
-        ? `A equipe de execucao teve saida confirmada para a obra ${obraNome} em ${dataHoraLabel}.`
-        : `A chegada da equipe de execucao na obra ${obraNome} foi confirmada em ${dataHoraLabel}.`,
+        ? `A equipe de execução teve saída confirmada para a obra ${obraNome} em ${dataHoraLabel}.`
+        : `A chegada da equipe de execução na obra ${obraNome} foi confirmada em ${dataHoraLabel}.`,
       origemColecao: "obras",
       origemId: obraId,
       metadata: {
@@ -1273,7 +1273,7 @@ exports.sendEmailNotification = onDocumentCreated(
     }
 
     try {
-      logger.info("[EmailNotification] Inicio do processamento", {emailId});
+      logger.info("[EmailNotification] Início do processamento", {emailId});
 
     /** @type {EmailNotificationPayload} */
     const payload = snapshot.data();
@@ -1440,7 +1440,7 @@ exports.sendEmailNotification = onDocumentCreated(
       });
       await batch.commit();
 
-      logger.info("[EmailNotification] Envio concluido", {
+      logger.info("[EmailNotification] Envio concluído", {
         emailId,
         dedupeKey: rawDedupeKey,
         lockId,

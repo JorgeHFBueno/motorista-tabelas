@@ -95,7 +95,7 @@ export interface SupportTicketFilters {
 }
 
 export const SUPPORT_CATEGORY_LABELS: Record<SupportTicketCategory, string> = {
-  tecnico: "Tecnico",
+  tecnico: "Técnico",
   financeiro: "Financeiro",
   comercial: "Comercial",
   outro: "Outro",
@@ -103,7 +103,7 @@ export const SUPPORT_CATEGORY_LABELS: Record<SupportTicketCategory, string> = {
 
 export const SUPPORT_PRIORITY_LABELS: Record<SupportTicketPriority, string> = {
   baixa: "Baixa",
-  media: "Media",
+  media: "Média",
   alta: "Alta",
 };
 
