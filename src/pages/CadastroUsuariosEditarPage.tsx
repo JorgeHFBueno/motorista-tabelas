@@ -27,11 +27,11 @@ import { useTituloPagina } from '../components/cabecalhoPagina';
 type Aviso = { message: string; severity: 'success' | 'error' } | null;
 const erroDe = (e: unknown, padrao: string) => (e instanceof Error ? e.message : padrao);
 
-// Tela central de usuários (só adm2): todas as contas do login, credenciais, situação, senha nova e exclusão das
+// Tela central de usuários (só adm2): todas as contas do login (menos as dos clientes do portal), credenciais, situação, senha nova e exclusão das
 // contas sem funcionário. Contrato: The Manuscript, funcionarios.md ("Usuários na WEB").
 export default function CadastroUsuariosEditarPage() {
-  useTituloPagina('Usuários', 'Todas as contas do login do sistema, com as credenciais de cada funcionário. Usuário novo nasce em Cadastros → Novo usuário.');
-  const { users, loading, error, updateUser, deleteUser, definirSenha } = useAdminUsers();
+  useTituloPagina('Usuários', 'Todas as contas do login do sistema, menos as dos clientes do portal, com as credenciais de cada funcionário. Usuário novo nasce em Cadastros → Novo usuário.');
+  const { users, loading, error, reload, updateUser, deleteUser, definirSenha } = useAdminUsers();
   const [search, setSearch] = useState('');
   const [soSemFuncionario, setSoSemFuncionario] = useState(false);
   const [editing, setEditing] = useState<AdminUser | null>(null);

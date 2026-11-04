@@ -32,6 +32,11 @@ const TITULOS: Array<{ padrao: string } & TituloPagina> = [
   { padrao: '/frota/analytics', titulo: 'Analytics da Frota', subtitulo: 'KPI desde 01/01/2025' },
   { padrao: '/bombas', titulo: 'Bombas', subtitulo: 'Controle e acompanhamento das bombas de combustível' },
   { padrao: '/logistica/cronograma', titulo: 'Cronograma Logístico', subtitulo: 'Quem sai, para qual obra, com qual veículo e por qual motivo' },
+  { padrao: '/portal-cliente/clientes', titulo: 'Clientes do portal', subtitulo: 'Logins dos clientes e os CNPJ/CPF que cada um representa' },
+  { padrao: '/portal-cliente/contratos', titulo: 'Contratos no portal', subtitulo: 'Contratos de obras-v2 publicados para os clientes' },
+  { padrao: '/portal-cliente/contratos/:id', titulo: 'Contrato no portal' },
+  { padrao: '/portal-cliente/atendimento', titulo: 'Atendimento do portal', subtitulo: 'Chamados abertos pelos clientes' },
+  { padrao: '/portal-cliente/noticias', titulo: 'Notícias do portal', subtitulo: 'Notícias institucionais mostradas aos clientes' },
 ];
 
 const tituloDaRota = (caminho: string): TituloPagina | null => {

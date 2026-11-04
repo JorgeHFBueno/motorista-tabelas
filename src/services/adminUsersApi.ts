@@ -58,6 +58,7 @@ const MENSAGENS: Record<string, string> = {
   employee_already_exists: 'Já existe um funcionário com este login.',
   employee_not_found: 'Esta conta não tem funcionário: cadastre em Novo usuário ou exclua a conta.',
   employee_exists: 'Funcionário não se exclui: desative-o.',
+  client_account: 'Este login é de um cliente do portal: administre-o em Portal do cliente → Clientes.',
   'auth/user-not-found': 'Usuário não encontrado no login do sistema.',
   'auth/invalid-email': 'O login informado é inválido.',
   'auth/invalid-password': 'A senha não atende aos requisitos do Firebase.',
@@ -95,6 +96,7 @@ async function requestAdminApi<T>(path: string, options: RequestInit = {}, fallb
   return response.json() as Promise<T>;
 }
 
+/** Contas do login, menos as dos clientes do portal (users/{uid}), que ficam em Portal do cliente → Clientes. */
 export async function listUsers(): Promise<AdminUser[]> {
   const data = await requestAdminApi<{ users: AdminUser[] }>('/users', {}, 'Não foi possível carregar os usuários.');
   return data.users ?? [];

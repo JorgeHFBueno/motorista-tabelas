@@ -13,6 +13,11 @@ import ConstructionIcon from '@mui/icons-material/Construction';
 import MenuBookRoundedIcon from '@mui/icons-material/MenuBookRounded';
 import ViewKanbanOutlinedIcon from '@mui/icons-material/ViewKanbanOutlined';
 import PersonOutlineRoundedIcon from '@mui/icons-material/PersonOutlineRounded';
+import HandshakeOutlinedIcon from '@mui/icons-material/HandshakeOutlined';
+import PeopleAltOutlinedIcon from '@mui/icons-material/PeopleAltOutlined';
+import DescriptionOutlinedIcon from '@mui/icons-material/DescriptionOutlined';
+import SupportAgentOutlinedIcon from '@mui/icons-material/SupportAgentOutlined';
+import NewspaperOutlinedIcon from '@mui/icons-material/NewspaperOutlined';
 import IconeDev from '../features/dev-toys/IconeDev';
 import type { AuthorizationProfile } from '../services/authorizationProfile';
 import { temAlgumaCredencial, temCredencial, type Credencial } from '../services/credenciais';
@@ -106,6 +111,20 @@ export const menuPrincipal: MenuPrincipalItem[] = [
     accent: '#3A6EA5',
     acesso: 'adm2',
     children: [{ label: 'Cronograma', to: '/logistica/cronograma', icon: <CalendarMonthIcon /> }],
+  },
+  {
+    // Lado da equipe do portal do cliente (The Manuscript, 16_PORTAL_DO_CLIENTE.md).
+    label: 'Portal do cliente',
+    icon: <HandshakeOutlinedIcon fontSize="large" />,
+    color: '#EAF2F8',
+    accent: '#2F6B98',
+    acesso: 'adm2',
+    children: [
+      { label: 'Clientes', to: '/portal-cliente/clientes', icon: <PeopleAltOutlinedIcon /> },
+      { label: 'Contratos', to: '/portal-cliente/contratos', icon: <DescriptionOutlinedIcon /> },
+      { label: 'Atendimento', to: '/portal-cliente/atendimento', icon: <SupportAgentOutlinedIcon /> },
+      { label: 'Notícias', to: '/portal-cliente/noticias', icon: <NewspaperOutlinedIcon /> },
+    ],
   },
   {
     label: 'Meu perfil',

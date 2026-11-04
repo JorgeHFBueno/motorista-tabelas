@@ -45,14 +45,16 @@ test('menu lateral abre pelo cabeçalho fora da Home e preserva acessibilidade',
   assert.match(lateral, /aria-current=\{isActiveRoute\(child\.to\) \? 'page' : undefined\}/);
 });
 
-test('header usa sino, ajuda e avatar no lugar dos links Usuário/Logout', () => {
+test('header no modelo do portal: título da tela, sino e usuário com o nome (Ajuda saiu em 2026-11-04)', () => {
   const header = source('src/components/Header.tsx');
   const topo = source('src/features/friday-gestao-interna/layout/Topo.tsx');
 
   assert.doesNotMatch(header, /<Nav\.Link onClick/);
   assert.match(header, /aria-label="Menu do usuário"/);
+  assert.match(header, /useCabecalhoPagina\(\)/);
+  assert.doesNotMatch(header, /aria-label="Ajuda"|rotulo="Ajuda"/);
   // Avisos do Friday desligados (2026-10-22): o sino do cabeçalho é o aviso padrão do sistema.
-  assert.match(header, /rotulo="Avisos"/);
+  assert.match(header, /aria-label="Avisos"/);
   assert.doesNotMatch(header, /ledur-header-avisos/);
   assert.doesNotMatch(topo, /ledur-header-avisos/);
   assert.doesNotMatch(topo, /LogoMarca|Avatar/);

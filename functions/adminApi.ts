@@ -6,11 +6,14 @@ import { FieldValue, Timestamp } from 'firebase-admin/firestore';
 import { adminAuth, db } from './firebaseAdmin.js';
 import { adminAuthMiddleware, AdminRequest } from './adminAuth.js';
 import { CREDENCIAIS, credenciaisDe, lerCredenciais, migrarPerfis, type Credenciais } from './credenciais.js';
+import { lerNovoCliente } from './portalClientes.js';
 
 // Users administration of the WEB (Cadastros), adm2 only. Contract: Manuscript funcionarios.md ("Credenciais",
 // "Usuários na WEB"). Users are born only here; each one is an Auth account plus funcionarios/{uid}.
 const adminApp = express();
 const employeesCollection = db.collection('funcionarios');
+// Client portal logins (Manuscript users.md): Auth account plus users/{uid}; a client is never an employee.
+const clientsCollection = db.collection('users');
 
 // TODO: restrict origin once hosting domain is finalized.
 adminApp.use(cors({ origin: true }));
@@ -56,11 +59,14 @@ async function formatAdminUser(user: UserRecord) {
   };
 }
 
-// GET /api/admin/users - every Auth account (up to 1000), with its employee
+// GET /api/admin/users - every Auth account (up to 1000), with its employee. Client portal logins (users/{uid}
+// without an employee) are left out: they are managed in the portal area (/api/admin/clientes).
 adminApp.get('/api/admin/users', async (_req, res) => {
   try {
-    const list = await adminAuth.listUsers(1000);
-    const users = await Promise.all(list.users.map((user) => formatAdminUser(user)));
+    const [list, clients] = await Promise.all([adminAuth.listUsers(1000), clientsCollection.select().get()]);
+    const clientUids = new Set(clients.docs.map((d) => d.id));
+    const users = (await Promise.all(list.users.map((user) => formatAdminUser(user))))
+      .filter((user) => user.funcionario || !clientUids.has(user.uid));
     res.json({ users });
   } catch (err) {
     console.error('Failed to list users', err);
@@ -99,6 +105,10 @@ adminApp.post('/api/admin/users/register', async (req: AdminRequest, res) => {
     const existingEmployee = await employeesCollection.doc(userRecord.uid).get();
     if (existingEmployee.exists) {
       res.status(409).json({ error: 'employee_already_exists' });
+      return;
+    }
+    if (reusedExistingAuth && (await clientsCollection.doc(userRecord.uid).get()).exists) {
+      res.status(409).json({ error: 'client_account' });
       return;
     }
     if (reusedExistingAuth) {
@@ -179,15 +189,99 @@ adminApp.post('/api/admin/users/:uid/senha', async (req: AdminRequest, res) => {
 });
 
 // DELETE /api/admin/users/:uid - only accounts without an employee; an employee is deactivated, never deleted.
+// A client portal login is not deleted either: it is deactivated in /api/admin/clientes/:uid.
 adminApp.delete('/api/admin/users/:uid', async (req, res) => {
   const { uid } = req.params;
   try {
     if ((await employeesCollection.doc(uid).get()).exists) { res.status(409).json({ error: 'employee_exists' }); return; }
+    if ((await clientsCollection.doc(uid).get()).exists) { res.status(409).json({ error: 'client_account' }); return; }
     await adminAuth.deleteUser(uid);
     res.json({ success: true });
   } catch (err: any) {
     console.error('Failed to delete user', err);
     res.status(err?.code === 'auth/user-not-found' ? 404 : 400).json({ error: err?.code ?? 'delete_user_failed' });
+  }
+});
+
+// POST /api/admin/clientes - client portal login: Auth account (displayName = nome) + users/{uid}. An Auth account
+// with this login that is neither an employee nor a client (for example, from the old open sign-up) is reused like in
+// /users/register: the administrator's password replaces its own, it is enabled and every open session ends.
+adminApp.post('/api/admin/clientes', async (req: AdminRequest, res) => {
+  const lido = lerNovoCliente(req.body);
+  if ('erro' in lido) { res.status(400).json({ error: lido.erro }); return; }
+  const { nome, email, password, documentos } = lido.cliente;
+
+  let createdUid: string | null = null;
+  let contaExistente = false;
+  try {
+    let userRecord: UserRecord;
+    try {
+      userRecord = await adminAuth.createUser({ email, password, displayName: nome });
+      createdUid = userRecord.uid;
+    } catch (createError: any) {
+      if (createError?.code !== 'auth/email-already-exists') throw createError;
+      userRecord = await adminAuth.getUserByEmail(email);
+      contaExistente = true;
+    }
+
+    const [employee, client] = await Promise.all([
+      employeesCollection.doc(userRecord.uid).get(),
+      clientsCollection.doc(userRecord.uid).get(),
+    ]);
+    if (employee.exists) { res.status(409).json({ error: 'employee_account' }); return; }
+    if (client.exists) { res.status(409).json({ error: 'client_already_exists' }); return; }
+    if (contaExistente) {
+      await adminAuth.updateUser(userRecord.uid, { displayName: nome, password, disabled: false });
+      await adminAuth.revokeRefreshTokens(userRecord.uid);
+    }
+
+    const criadorUid = req.user?.uid ?? '';
+    const criadorNome = (await employeesCollection.doc(criadorUid).get()).get('nome');
+    await clientsCollection.doc(userRecord.uid).create({
+      nome,
+      email,
+      documentos,
+      ativo: true,
+      criadoEm: FieldValue.serverTimestamp(),
+      atualizadoEm: FieldValue.serverTimestamp(),
+      criadoPor: {
+        uid: criadorUid,
+        nome: (typeof criadorNome === 'string' && criadorNome.trim()) || req.user?.name || req.user?.email || 'Equipe Ledur',
+      },
+    });
+
+    res.status(201).json({ uid: userRecord.uid, contaExistente });
+  } catch (err: any) {
+    if (createdUid) {
+      try {
+        await adminAuth.deleteUser(createdUid);
+      } catch (rollbackError) {
+        console.error('Failed to rollback client account after users write error', rollbackError);
+      }
+    }
+    console.error('Failed to create client', err);
+    res.status(400).json({ error: err?.code ?? err?.message ?? 'create_client_failed' });
+  }
+});
+
+// PATCH /api/admin/clientes/:uid - activates or deactivates a client: Auth disabled plus users.ativo; deactivating
+// ends every open session. Name and CNPJ/CPF are written by adm2 straight in Firestore (the Rules allow it).
+adminApp.patch('/api/admin/clientes/:uid', async (req: AdminRequest, res) => {
+  const { uid } = req.params;
+  const { ativo } = req.body ?? {};
+  if (typeof ativo !== 'boolean') { res.status(400).json({ error: 'invalid_ativo' }); return; }
+  try {
+    const clientRef = clientsCollection.doc(uid);
+    const [client, employee] = await Promise.all([clientRef.get(), employeesCollection.doc(uid).get()]);
+    if (!client.exists) { res.status(404).json({ error: 'client_not_found' }); return; }
+    if (employee.exists) { res.status(409).json({ error: 'employee_account' }); return; }
+    await adminAuth.updateUser(uid, { disabled: !ativo });
+    if (!ativo) await adminAuth.revokeRefreshTokens(uid);
+    await clientRef.update({ ativo, atualizadoEm: FieldValue.serverTimestamp() });
+    res.json({ uid, ativo });
+  } catch (err: any) {
+    console.error('Failed to update client', err);
+    res.status(err?.code === 'auth/user-not-found' ? 404 : 400).json({ error: err?.code ?? err?.message ?? 'update_client_failed' });
   }
 });
 

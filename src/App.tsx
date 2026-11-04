@@ -30,6 +30,11 @@ const BombasPage = lazy(() => import('./pages/BombasPage'));
 const AccessDeniedPage = lazy(() => import('./pages/AccessDeniedPage'));
 const CronogramaObrasPage = lazy(() => import('./features/cronograma-obras/CronogramaObrasPage'));
 const LogisticaCronogramaPage = lazy(() => import('./features/cronograma-logistica/LogisticaCronogramaPage'));
+const ClientesPortalPage = lazy(() => import('./features/portal-cliente/ClientesPortalPage'));
+const ContratosPortalPage = lazy(() => import('./features/portal-cliente/ContratosPortalPage'));
+const ContratoPortalPage = lazy(() => import('./features/portal-cliente/ContratoPortalPage'));
+const AtendimentoPortalPage = lazy(() => import('./features/portal-cliente/AtendimentoPortalPage'));
+const NoticiasPortalPage = lazy(() => import('./features/portal-cliente/NoticiasPortalPage'));
 const PrazosContratuaisPage = lazy(() => import('./features/prazos-contratuais/PrazosContratuaisPage'));
 const ObrasPage = lazy(() => import('./features/obras/ObrasPage'));
 const ObraDetalhesPage = lazy(() => import('./features/obras/ObraDetalhesPage'));
@@ -109,6 +114,12 @@ export default function App() {
               <Route path="frota/analytics" element={<FrotaAnalyticsPage />} />
               <Route path="bombas" element={<BombasPage />} />
               <Route path="logistica/cronograma" element={<LogisticaCronogramaPage />} />
+              {/* Portal do cliente, lado da equipe (só adm2): The Manuscript, 16_PORTAL_DO_CLIENTE.md. */}
+              <Route path="portal-cliente/clientes" element={<ClientesPortalPage />} />
+              <Route path="portal-cliente/contratos" element={<ContratosPortalPage />} />
+              <Route path="portal-cliente/contratos/:id" element={<ContratoPortalPage />} />
+              <Route path="portal-cliente/atendimento" element={<AtendimentoPortalPage />} />
+              <Route path="portal-cliente/noticias" element={<NoticiasPortalPage />} />
               <Route path="portfolio" element={<PortifolioPage />} />
             </Route>
           </Routes>
