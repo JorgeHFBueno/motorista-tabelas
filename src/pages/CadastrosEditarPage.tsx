@@ -20,6 +20,7 @@ import { db } from '../firebase';
 import CadastroEditModal, { type CadastroEditFormValues } from '../components/CadastroEditModal';
 import CadastroEditTable, { type CadastroRow } from '../components/CadastroEditTable';
 import CadastroUsuariosEditarPage from './CadastroUsuariosEditarPage';
+import { useTituloPagina } from '../components/cabecalhoPagina';
 import {
   getFornecedorNumeroErrorMessage,
   normalizeFornecedorNumero,
@@ -55,6 +56,7 @@ export default function CadastrosEditarPage() {
 
 function GenericCadastrosEditarPage({ cadastroTipo }: { cadastroTipo: Exclude<CadastroTipo, 'usuarios'> }) {
   const config = CADASTRO_CONFIG[cadastroTipo];
+  useTituloPagina(config ? `Editar ${config.label}` : null, config ? `Gerencie registros de ${config.label.toLowerCase()}.` : undefined);
   const [rows, setRows] = useState<CadastroRow[]>([]);
   const [loading, setLoading] = useState(false);
   const [search, setSearch] = useState('');
@@ -167,15 +169,7 @@ function GenericCadastrosEditarPage({ cadastroTipo }: { cadastroTipo: Exclude<Ca
     <Container maxWidth="lg" sx={{ py: 3 }}>
       <Stack spacing={3}>
         <Box>
-          <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2} justifyContent="space-between">
-            <Box>
-              <Typography variant="h4" gutterBottom>
-                Editar {config.label}
-              </Typography>
-              <Typography variant="body1" color="text.secondary">
-                Gerencie registros de {config.label.toLowerCase()}.
-              </Typography>
-            </Box>
+          <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2} justifyContent="flex-end">
             <Stack direction="row" spacing={1} alignItems="center">
               <Button variant="outlined" component={RouterLink} to="/cadastros">
                 Voltar

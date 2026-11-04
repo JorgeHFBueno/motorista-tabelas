@@ -46,15 +46,6 @@ export default function CadastrosPage() {
   return (
     <Container maxWidth="lg" sx={{ py: 3 }}>
       <Stack spacing={3}>
-        <Box>
-          <Typography variant="h4" gutterBottom>
-            Cadastros
-          </Typography>
-          <Typography variant="body1" color="text.secondary">
-            Administre usuarios, categorias e fornecedores do sistema.
-          </Typography>
-        </Box>
-
         <Box
           sx={{
             display: 'grid',

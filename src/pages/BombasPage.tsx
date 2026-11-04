@@ -242,11 +242,7 @@ export default function BombasPage() {
   return (
     <Container maxWidth="xl" sx={{ py: { xs: 2, md: 4 } }}>
       <Stack spacing={3}>
-        <Stack direction={{ xs: 'column', sm: 'row' }} justifyContent="space-between" gap={2} alignItems={{ sm: 'center' }}>
-          <Box>
-            <Typography variant="h4">Bombas</Typography>
-            <Typography color="text.secondary">Controle e acompanhamento das bombas de combustível</Typography>
-          </Box>
+        <Stack direction={{ xs: 'column', sm: 'row' }} justifyContent="flex-end" gap={2} alignItems={{ sm: 'center' }}>
           <Button
             variant="contained"
             startIcon={<AddRounded />}

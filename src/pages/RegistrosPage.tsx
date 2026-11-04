@@ -323,10 +323,6 @@ export default function RegistrosPage() {
 
   return (
     <Container maxWidth={false} sx={{ py: 3 }}>
-      <Typography variant="h4" gutterBottom>
-        Registros
-      </Typography>
-
       {!isOnline && (
         <Alert severity="info" sx={{ mb: 2 }}>
           Modo offline: exibindo dados em cache do Firestore. As últimas alterações podem não estar visíveis.

@@ -43,9 +43,8 @@ export default function ChecklistsPage() {
 
   return (
     <Container sx={{ py: 3 }}>
-      <Typography variant="h4" gutterBottom>Checklists</Typography>
       <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-        Checklists de veículos e máquinas, independentes dos registros de saída e chegada. Os checklists antigos (anteriores ao app novo) aparecem como “Checklist antigo”.
+        Os checklists antigos (anteriores ao app novo) aparecem como “Checklist antigo”.
       </Typography>
       {erro && <Alert severity="error" sx={{ mb: 2 }}>{erro}</Alert>}
       <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2} sx={{ mb: 2 }}>

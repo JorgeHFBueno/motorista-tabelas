@@ -1,36 +1,42 @@
-import Container from 'react-bootstrap/Container';
-import Nav from 'react-bootstrap/Nav';
-import Navbar from 'react-bootstrap/Navbar';
-import { Avatar, Box, Divider, IconButton, ListItemIcon, Menu, MenuItem, Popover, Tooltip, Typography } from '@mui/material';
+import { Box, Button, Divider, IconButton, ListItemIcon, Menu, MenuItem, Popover, Tooltip, Typography } from '@mui/material';
 import MenuRoundedIcon from '@mui/icons-material/MenuRounded';
 import PersonOutlineRoundedIcon from '@mui/icons-material/PersonOutlineRounded';
 import LogoutRoundedIcon from '@mui/icons-material/LogoutRounded';
-import { Bell, HelpCircle } from 'lucide-react';
+import ExpandMoreRoundedIcon from '@mui/icons-material/ExpandMoreRounded';
+import { Bell } from 'lucide-react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { useState, type ReactNode } from 'react';
+import { useState } from 'react';
 import MenuLateral from './MenuLateral';
 import { useAuth } from '../contexts/AuthContext';
-import { iniciais } from '../services/funcionarios';
+import { useCabecalhoPagina } from './cabecalhoPagina';
 
-// Páginas sem menu lateral: a Home já é o menu; as demais são de quem ainda não entrou. O checklist do mecânico é tela
-// cheia para celular.
+// Header in the client portal's model: menu button, page title and subtitle, notices and the signed-in user.
+// Pages without the side menu: the Home is the menu itself; the others are for whoever has not signed in yet. The mechanic's
+// checklist is full screen for phones.
 const SEM_MENU_LATERAL = ['/', '/login', '/acesso-negado'];
 const semMenuLateral = (caminho: string) => SEM_MENU_LATERAL.includes(caminho) || caminho === '/checklist' || caminho.startsWith('/checklist/');
 
-const botaoIconeSx = { color: '#fff', width: 40, height: 40, '&:hover': { bgcolor: 'rgb(255 255 255 / 0.12)' } };
+const botaoClaroSx = {
+  color: '#fff',
+  bgcolor: 'rgb(255 255 255 / 0.10)',
+  borderRadius: '8px',
+  '&:hover': { bgcolor: 'rgb(255 255 255 / 0.15)' },
+};
 
-// Botão do cabeçalho cuja função ainda não existe: abre um aviso curto.
-function BotaoEmBreve({ rotulo, icone, mensagem }: { rotulo: string; icone: ReactNode; mensagem: string }) {
+// Notices do not exist yet: the bell opens a short note.
+function BotaoAvisos() {
   const [ancora, setAncora] = useState<HTMLElement | null>(null);
   return (
     <>
-      <Tooltip title={rotulo}>
-        <IconButton aria-label={rotulo} onClick={(e) => setAncora(e.currentTarget)} sx={botaoIconeSx}>{icone}</IconButton>
+      <Tooltip title="Avisos">
+        <IconButton aria-label="Avisos" onClick={(e) => setAncora(e.currentTarget)} sx={{ ...botaoClaroSx, width: 40, height: 40 }}>
+          <Bell size={20} />
+        </IconButton>
       </Tooltip>
       <Popover open={Boolean(ancora)} anchorEl={ancora} onClose={() => setAncora(null)} anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }} transformOrigin={{ vertical: 'top', horizontal: 'right' }}>
         <Box sx={{ p: 2, maxWidth: 300 }}>
-          <Typography fontWeight={700} gutterBottom>{rotulo}</Typography>
-          <Typography variant="body2" color="text.secondary">{mensagem}</Typography>
+          <Typography fontWeight={700} gutterBottom>Avisos</Typography>
+          <Typography variant="body2" color="text.secondary">As notificações do sistema ainda serão implementadas.</Typography>
         </Box>
       </Popover>
     </>
@@ -41,6 +47,7 @@ export default function Header() {
   const { currentUser, authorizationProfile, signOut } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
+  const pagina = useCabecalhoPagina();
   const [menuLateralOpen, setMenuLateralOpen] = useState(false);
   const [menuUsuario, setMenuUsuario] = useState<HTMLElement | null>(null);
   const comMenuLateral = Boolean(currentUser) && !semMenuLateral(location.pathname);
@@ -48,27 +55,52 @@ export default function Header() {
 
   return (
     <>
-      <Navbar expand className="ledur-navbar" variant="dark">
-        <Container fluid className="gap-2">
+      <Box
+        component="header"
+        sx={{ bgcolor: 'primary.main', color: '#fff', borderBottom: '1px solid rgb(255 255 255 / 0.10)' }}
+      >
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: { xs: 1.5, md: 2 }, px: { xs: 2, md: 4 }, py: { xs: 1.5, md: 2 } }}>
           {comMenuLateral && (
             <Tooltip title="Menu">
-              <IconButton aria-label="Abrir menu" onClick={() => setMenuLateralOpen(true)} sx={{ ...botaoIconeSx, ml: -1 }}>
+              <IconButton aria-label="Abrir menu" onClick={() => setMenuLateralOpen(true)} sx={{ ...botaoClaroSx, width: 40, height: 40 }}>
                 <MenuRoundedIcon />
               </IconButton>
             </Tooltip>
           )}
-          <Navbar.Brand as={Link} to="/" className="me-auto">
-            <img src="/logo-ledur-branco.png" alt="" aria-hidden="true" />
-          </Navbar.Brand>
+
+          <Box sx={{ minWidth: 0, flex: 1 }}>
+            {pagina ? (
+              <>
+                <Typography component="h1" noWrap sx={{ fontSize: { xs: 17, md: 20 }, fontWeight: 600, lineHeight: 1.3 }}>
+                  {pagina.titulo}
+                </Typography>
+                {pagina.subtitulo && (
+                  <Typography noWrap sx={{ display: { xs: 'none', sm: 'block' }, fontSize: 14, color: 'rgb(255 255 255 / 0.70)' }}>
+                    {pagina.subtitulo}
+                  </Typography>
+                )}
+              </>
+            ) : (
+              <Box component={Link} to="/" sx={{ display: 'inline-flex' }}>
+                <Box component="img" src="/logo-ledur-branco.png" alt="Ledur" sx={{ height: 32 }} />
+              </Box>
+            )}
+          </Box>
+
           {currentUser ? (
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-              <BotaoEmBreve rotulo="Avisos" icone={<Bell size={20} />} mensagem="As notificações do sistema ainda serão implementadas." />
-              <BotaoEmBreve rotulo="Ajuda" icone={<HelpCircle size={20} />} mensagem="A ajuda do sistema ainda será implementada." />
-              <Tooltip title="Menu do usuário">
-                <IconButton aria-label="Menu do usuário" onClick={(e) => setMenuUsuario(e.currentTarget)} sx={{ ...botaoIconeSx, ml: 0.5 }}>
-                  <Avatar sx={{ width: 32, height: 32, fontSize: 13, fontWeight: 700, bgcolor: '#00a36c' }}>{iniciais(nome)}</Avatar>
-                </IconButton>
-              </Tooltip>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+              <BotaoAvisos />
+              <Button
+                aria-label="Menu do usuário"
+                onClick={(e) => setMenuUsuario(e.currentTarget)}
+                sx={{ ...botaoClaroSx, minHeight: 40, px: 1.5, gap: 1, fontWeight: 500, fontSize: 14 }}
+              >
+                <PersonOutlineRoundedIcon fontSize="small" />
+                <Box component="span" sx={{ display: { xs: 'none', md: 'inline' }, maxWidth: 220, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  {nome}
+                </Box>
+                <ExpandMoreRoundedIcon fontSize="small" sx={{ opacity: 0.7 }} />
+              </Button>
               <Menu anchorEl={menuUsuario} open={Boolean(menuUsuario)} onClose={() => setMenuUsuario(null)} anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }} transformOrigin={{ vertical: 'top', horizontal: 'right' }} slotProps={{ paper: { sx: { minWidth: 240 } } }}>
                 <Box sx={{ px: 2, py: 1 }}>
                   <Typography fontWeight={700} noWrap>{nome}</Typography>
@@ -81,19 +113,17 @@ export default function Header() {
                 </MenuItem>
                 <MenuItem onClick={() => { setMenuUsuario(null); signOut(); }}>
                   <ListItemIcon><LogoutRoundedIcon fontSize="small" /></ListItemIcon>
-                  Logout
+                  Sair
                 </MenuItem>
               </Menu>
             </Box>
-          ) : (
-            <Nav>
-              <Nav.Link as={Link} to="/login">
-                Login
-              </Nav.Link>
-            </Nav>
+          ) : location.pathname !== '/login' && (
+            <Button component={Link} to="/login" sx={{ ...botaoClaroSx, minHeight: 40, px: 2 }}>
+              Entrar
+            </Button>
           )}
-        </Container>
-      </Navbar>
+        </Box>
+      </Box>
       {comMenuLateral && <MenuLateral open={menuLateralOpen} onClose={() => setMenuLateralOpen(false)} />}
     </>
   );

@@ -207,8 +207,7 @@ export default function ObraDetalhesPage() {
 
   return (
     <Container sx={{ py: 4 }}>
-      <Stack direction={{ xs: 'column', md: 'row' }} spacing={2} justifyContent="space-between" alignItems="center">
-        <Typography variant="h4">Detalhes da Obra</Typography>
+      <Stack direction={{ xs: 'column', md: 'row' }} spacing={2} justifyContent="flex-end" alignItems="center">
         <Stack direction="row" spacing={2}>
           <Button variant="outlined" onClick={() => navigate('/engenharia/obras')}>Voltar para Obras</Button>
           <Button variant="contained" onClick={gerarRelatorio} disabled={carregandoPartes || gerando}>

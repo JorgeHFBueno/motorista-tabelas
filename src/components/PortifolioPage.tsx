@@ -121,7 +121,6 @@ export default function PortifolioPage() {
 
   return (
     <div style={{ padding: 20 }}>
-      <Typography variant="h4" gutterBottom>Meteorologia</Typography>
 
        {!isOnline && (
         <Card sx={{ mb: 2 }}>

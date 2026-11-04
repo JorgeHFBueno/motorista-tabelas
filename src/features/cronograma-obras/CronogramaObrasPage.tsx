@@ -1125,7 +1125,6 @@ export default function CronogramaObrasPage() {
           </span>
           <div>
             <div className="co-title-line">
-              <h1>Cronograma de Obras</h1>
               <span className="co-prototype">V-1.665 · MK6A</span>
               <span
                 className={`co-realtime co-realtime--${realtimeState}`}

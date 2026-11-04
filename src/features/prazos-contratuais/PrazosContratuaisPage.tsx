@@ -144,7 +144,6 @@ export default function PrazosContratuaisPage() {
     <div className={`pz-page${compacto ? ' is-compacto' : ''}`} style={cssVars}>
       <header className="pz-header">
         <div>
-          <h1>Cronograma de prazos contratuais — Obras públicas</h1>
           <p className="pz-sub">Ordem: menor prazo até o vencimento primeiro · <span className="pz-ref">Data de referência: {formatDate(hoje, true)}</span></p>
         </div>
       </header>

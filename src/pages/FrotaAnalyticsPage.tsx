@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Alert, Box, Button, CircularProgress, Container, Stack, Typography } from '@mui/material';
+import { Alert, Box, Button, CircularProgress, Container, Stack } from '@mui/material';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import FrotaAnalyticsPanel from '../components/FrotaAnalyticsPanel';
 import FrotaGastosPorVeiculo from '../components/FrotaGastosPorVeiculo';
@@ -53,11 +53,7 @@ export default function FrotaAnalyticsPage() {
 
   return (
     <Container sx={{ py: 4 }}>
-      <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2} justifyContent="space-between" alignItems={{ xs: 'flex-start', sm: 'center' }}>
-        <Box>
-          <Typography variant="h4">Analytics da Frota</Typography>
-          <Typography variant="subtitle1" color="text.secondary">KPI desde 01/01/2025</Typography>
-        </Box>
+      <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2} justifyContent="flex-end" alignItems={{ xs: 'flex-start', sm: 'center' }}>
         <Stack direction="row" spacing={1}>
           {selectedVehicle && <Button variant="text" onClick={() => setSearchParams({}, { replace: true })}>Visão geral</Button>}
           <Button variant="outlined" onClick={() => navigate('/frota/veiculos')}>Voltar para Veículos</Button>

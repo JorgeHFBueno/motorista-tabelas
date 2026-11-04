@@ -3,7 +3,10 @@ import { createTheme, type Shadows } from '@mui/material/styles';
 const primary = '#12293B';
 const secondary = '#2F6B98';
 const border = '#DDE3E8';
-const background = '#F7F9FB';
+// Same identity as the client portal (portal/src/index.css): white background, 12px cards, 10px controls.
+const background = '#FFFFFF';
+const radiusCard = 12;
+const radiusControl = 10;
 
 export const ledurTheme = createTheme({
   palette: {
@@ -53,7 +56,7 @@ export const ledurTheme = createTheme({
     button: { fontWeight: 700, letterSpacing: 0, textTransform: 'none' },
   },
   shape: {
-    borderRadius: 8,
+    borderRadius: radiusCard,
   },
   shadows: [
     'none',
@@ -77,7 +80,7 @@ export const ledurTheme = createTheme({
       },
       styleOverrides: {
         root: {
-          borderRadius: 8,
+          borderRadius: radiusControl,
           fontWeight: 700,
           minHeight: 40,
           textTransform: 'none',
@@ -102,7 +105,7 @@ export const ledurTheme = createTheme({
       styleOverrides: {
         root: {
           border: `1px solid ${border}`,
-          borderRadius: 8,
+          borderRadius: radiusCard,
           boxShadow: '0 1px 3px 0 rgb(0 0 0 / 0.05)',
           color: primary,
         },
@@ -112,7 +115,7 @@ export const ledurTheme = createTheme({
       styleOverrides: {
         root: {
           backgroundImage: 'none',
-          borderRadius: 8,
+          borderRadius: radiusCard,
         },
         elevation1: {
           border: `1px solid ${border}`,
@@ -131,7 +134,7 @@ export const ledurTheme = createTheme({
     MuiOutlinedInput: {
       styleOverrides: {
         root: {
-          borderRadius: 8,
+          borderRadius: radiusControl,
           '&:hover .MuiOutlinedInput-notchedOutline': {
             borderColor: secondary,
           },
@@ -156,7 +159,7 @@ export const ledurTheme = createTheme({
     MuiAlert: {
       styleOverrides: {
         root: {
-          borderRadius: 8,
+          borderRadius: radiusControl,
           fontWeight: 600,
         },
       },
@@ -164,7 +167,7 @@ export const ledurTheme = createTheme({
     MuiDialog: {
       styleOverrides: {
         paper: {
-          borderRadius: 8,
+          borderRadius: radiusCard,
         },
       },
     },

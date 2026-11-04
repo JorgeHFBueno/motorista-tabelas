@@ -22,17 +22,18 @@ export default function MenuLateral({ open, onClose }: { open: boolean; onClose:
 
   return (
     <>
-      <Drawer anchor="left" open={open} onClose={onClose} slotProps={{ paper: { sx: { width: 280, maxWidth: '85vw', bgcolor: 'var(--ledur-primary, #12293b)', color: '#fff' } } }}>
+      {/* Same look as the client portal's menu: logo only, active item in the technical blue. */}
+      <Drawer anchor="left" open={open} onClose={onClose} slotProps={{ paper: { sx: { width: 256, maxWidth: '85vw', bgcolor: 'primary.main', color: '#fff', borderRadius: 0 } } }}>
         <Box component="nav" aria-label="Menu principal" sx={{ height: '100%', overflowY: 'auto', display: 'flex', flexDirection: 'column' }}>
-          <Stack direction="row" alignItems="center" justifyContent="space-between" sx={{ minHeight: 64, px: 1.25, borderBottom: '1px solid rgb(255 255 255 / 0.12)' }}>
-            <Box component="img" src="/logo-ledur-branco.png" alt="Ledur" sx={{ width: 42, height: 42, objectFit: 'contain' }} />
+          <Stack direction="row" alignItems="center" justifyContent="space-between" sx={{ p: 3, borderBottom: '1px solid rgb(255 255 255 / 0.10)' }}>
+            <Box component="img" src="/logo-ledur-branco.png" alt="Ledur Pré-Fabricados" sx={{ height: 40, width: 'auto' }} />
             <Tooltip title="Fechar menu" placement="right">
-              <IconButton aria-label="Fechar menu" onClick={onClose} sx={{ color: 'inherit', '&:hover': { bgcolor: 'rgb(255 255 255 / 0.14)' } }}>
+              <IconButton aria-label="Fechar menu" onClick={onClose} sx={{ color: 'rgb(255 255 255 / 0.70)', mr: -1, '&:hover': { color: '#fff', bgcolor: 'rgb(255 255 255 / 0.10)' } }}>
                 <ChevronLeftRoundedIcon />
               </IconButton>
             </Tooltip>
           </Stack>
-          <List disablePadding sx={{ py: 1, '& .MuiListItemButton-root': { color: 'inherit', borderRadius: 1, mx: 0.75, width: 'auto', '&:hover, &:focus-visible': { bgcolor: 'rgb(255 255 255 / 0.14)' }, '&.Mui-selected, &.Mui-selected:hover': { bgcolor: 'rgb(255 255 255 / 0.22)' } } }}>
+          <List disablePadding sx={{ p: 2, display: 'flex', flexDirection: 'column', gap: 0.5, '& .MuiListItemButton-root': { color: 'rgb(255 255 255 / 0.70)', borderRadius: '8px', width: 'auto', transition: 'all 0.2s', '& .MuiListItemText-primary': { fontSize: 14 }, '&:hover, &:focus-visible': { color: '#fff', bgcolor: 'rgb(255 255 255 / 0.10)' }, '&.Mui-selected, &.Mui-selected:hover': { color: '#fff', bgcolor: 'secondary.main', '& .MuiListItemText-primary': { fontWeight: 500 } } } }}>
             {actions.map((action) => {
               const hasChildren = Boolean(action.children);
               const childIsActive = action.children?.some((child) => isActiveRoute(child.to)) ?? false;
@@ -48,17 +49,18 @@ export default function MenuLateral({ open, onClose }: { open: boolean; onClose:
 
               return (
                 <Box key={action.label}>
-                  <ListItemButton selected={hasChildren ? childIsActive : isActiveRoute(destino)} aria-current={!hasChildren && isActiveRoute(destino) ? 'page' : undefined} aria-expanded={hasChildren ? expanded : undefined} onClick={selecionar} aria-label={action.crt ? action.label : undefined} sx={{ minHeight: 48, px: 2 }}>
-                    <ListItemIcon sx={{ minWidth: 36, color: 'inherit', '& svg': { fontSize: 24 } }}>{action.icon}</ListItemIcon>
+                  {/* A group with the active page stays white; only the page itself gets the technical blue. */}
+                  <ListItemButton selected={!hasChildren && isActiveRoute(destino)} aria-current={!hasChildren && isActiveRoute(destino) ? 'page' : undefined} aria-expanded={hasChildren ? expanded : undefined} onClick={selecionar} aria-label={action.crt ? action.label : undefined} sx={{ minHeight: 44, px: 2, gap: 1.5, ...(childIsActive && { color: '#fff !important' }) }}>
+                    <ListItemIcon sx={{ minWidth: 0, color: 'inherit', '& svg': { fontSize: 20 } }}>{action.icon}</ListItemIcon>
                     {!action.crt && <ListItemText primary={action.label} />}
                     {hasChildren && <ExpandMoreIcon fontSize="small" sx={{ transform: expanded ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s ease' }} />}
                   </ListItemButton>
                   {hasChildren && (
                     <Collapse in={expanded} timeout="auto" unmountOnExit>
-                      <List disablePadding>
+                      <List disablePadding sx={{ display: 'flex', flexDirection: 'column', gap: 0.5, pt: 0.5 }}>
                         {action.children!.map((child) => (
-                          <ListItemButton key={child.label} selected={isActiveRoute(child.to)} aria-current={isActiveRoute(child.to) ? 'page' : undefined} onClick={() => ir(child.to)} sx={{ minHeight: 44, pl: 6, pr: 2 }}>
-                            <ListItemIcon sx={{ minWidth: 32, color: 'inherit' }}>{child.icon}</ListItemIcon>
+                          <ListItemButton key={child.label} selected={isActiveRoute(child.to)} aria-current={isActiveRoute(child.to) ? 'page' : undefined} onClick={() => ir(child.to)} sx={{ minHeight: 40, pl: 5, pr: 2, gap: 1.5 }}>
+                            <ListItemIcon sx={{ minWidth: 0, color: 'inherit', '& svg': { fontSize: 18 } }}>{child.icon}</ListItemIcon>
                             <ListItemText primary={child.label} />
                           </ListItemButton>
                         ))}

@@ -1,6 +1,5 @@
 import AddRounded from '@mui/icons-material/AddRounded';
 import CalendarMonthRounded from '@mui/icons-material/CalendarMonthRounded';
-import LocalShippingRounded from '@mui/icons-material/LocalShippingRounded';
 import TableRowsRounded from '@mui/icons-material/TableRowsRounded';
 import Alert from '@mui/material/Alert';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -124,13 +123,6 @@ export default function LogisticaCronogramaPage() {
   return (
     <main className="lg-pagina">
       <header className="lg-cab">
-        <div className="lg-titulo">
-          <span className="lg-titulo-icone"><LocalShippingRounded /></span>
-          <div>
-            <h1>Cronograma Logístico</h1>
-            <p>Quem sai, para qual obra, com qual veículo e por qual motivo</p>
-          </div>
-        </div>
         <nav className="lg-abas" aria-label="Visões">
           <button type="button" className={aba === 'quadro' ? 'on' : ''} onClick={() => setAba('quadro')}><TableRowsRounded fontSize="small" /> Quadro</button>
           <button type="button" className={aba === 'calendario' ? 'on' : ''} onClick={() => setAba('calendario')}><CalendarMonthRounded fontSize="small" /> Calendário</button>

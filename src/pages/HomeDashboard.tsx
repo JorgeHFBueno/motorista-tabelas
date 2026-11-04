@@ -38,15 +38,6 @@ export default function HomeDashboard() {
       }}
     >
       <Box component="main" maxWidth={960} width="100%">
-        <Stack spacing={2} textAlign="center" mb={3}>
-          <Typography variant="h4" fontWeight={700} color="text.primary">
-            Bem-vindo ao painel
-          </Typography>
-          <Typography variant="body1" color="text.secondary">
-            Escolha uma área para começar a trabalhar.
-          </Typography>
-        </Stack>
-
         {/* uma coluna no celular; a partir de sm, duas colunas independentes */}
         <Box
           sx={{

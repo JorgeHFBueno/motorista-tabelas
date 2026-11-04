@@ -159,8 +159,6 @@ export default function MeuPerfilPage() {
   return (
     <Container maxWidth="md" sx={{ py: 3 }}>
       <Stack spacing={3}>
-        <Typography variant="h4">Meu perfil</Typography>
-
         <Paper variant="outlined" sx={{ p: { xs: 2, sm: 3 } }}>
           <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2.5} alignItems={{ xs: 'flex-start', sm: 'center' }}>
             <Avatar sx={{ width: 72, height: 72, fontSize: 28, fontWeight: 700, bgcolor: '#00a36c' }}>{iniciais(nome)}</Avatar>

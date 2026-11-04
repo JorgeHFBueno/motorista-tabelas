@@ -3,7 +3,6 @@ import { Link as RouterLink } from 'react-router-dom';
 import {
   Alert,
   AlertTitle,
-  Box,
   Button,
   Container,
   Dialog,
@@ -23,6 +22,7 @@ import AdminUsersEditTable from '../components/AdminUsersEditTable';
 import useAdminUsers from '../hooks/useAdminUsers';
 import { loginDoUsuario, nomeDoUsuario, type AdminUser } from '../services/adminUsersApi';
 import { CREDENCIAIS } from '../services/credenciais';
+import { useTituloPagina } from '../components/cabecalhoPagina';
 
 type Aviso = { message: string; severity: 'success' | 'error' } | null;
 const erroDe = (e: unknown, padrao: string) => (e instanceof Error ? e.message : padrao);
@@ -30,6 +30,7 @@ const erroDe = (e: unknown, padrao: string) => (e instanceof Error ? e.message :
 // Tela central de usuários (só adm2): todas as contas do login, credenciais, situação, senha nova e exclusão das
 // contas sem funcionário. Contrato: The Manuscript, funcionarios.md ("Usuários na WEB").
 export default function CadastroUsuariosEditarPage() {
+  useTituloPagina('Usuários', 'Todas as contas do login do sistema, com as credenciais de cada funcionário. Usuário novo nasce em Cadastros → Novo usuário.');
   const { users, loading, error, updateUser, deleteUser, definirSenha } = useAdminUsers();
   const [search, setSearch] = useState('');
   const [soSemFuncionario, setSoSemFuncionario] = useState(false);
@@ -103,13 +104,7 @@ export default function CadastroUsuariosEditarPage() {
   return (
     <Container maxWidth="lg" sx={{ py: 3 }}>
       <Stack spacing={3}>
-        <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2} justifyContent="space-between">
-          <Box>
-            <Typography variant="h4" gutterBottom>Usuários</Typography>
-            <Typography variant="body1" color="text.secondary">
-              Todas as contas do login do sistema, com as credenciais de cada funcionário. Usuário novo nasce em Cadastros → Novo usuário.
-            </Typography>
-          </Box>
+        <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2} justifyContent="flex-end">
           <Stack direction="row" spacing={1} alignItems="center">
             <Button variant="contained" component={RouterLink} to="/cadastros/usuarios/novo">Novo usuário</Button>
             <Button variant="outlined" component={RouterLink} to="/cadastros">Voltar</Button>

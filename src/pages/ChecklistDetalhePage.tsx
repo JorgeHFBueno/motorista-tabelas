@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { Alert, Box, Button, Card, CardContent, Chip, CircularProgress, Container, Dialog, DialogActions, DialogContent, DialogTitle, Divider, Stack, Typography } from '@mui/material';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import { useNavigate, useParams } from 'react-router-dom';
+import { useTituloPagina } from '../components/cabecalhoPagina';
 import { arquivoDaFoto, obterChecklist, urlDaFoto, type Checklist, type ChecklistFoto, type ChecklistItem, type ChecklistStatus } from '../services/checklists.service';
 
 const dateFmt = new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
@@ -114,6 +115,8 @@ export default function ChecklistDetalhePage({ voltarPara = '/frota/checklists',
   }, [checklist]);
 
   const voltar = <Button startIcon={<ArrowBackIcon />} variant="outlined" onClick={() => navigate(voltarPara)}>{voltarRotulo}</Button>;
+  useTituloPagina(checklist ? `Checklist ${checklist.placa}` : null);
+
   if (estado === 'carregando') return <Container sx={{ py: 4 }}><CircularProgress /></Container>;
   if (estado !== 'ok' || !checklist) {
     return <Container sx={{ py: 3 }}><Stack spacing={2}>{voltar}<Alert severity={estado === 'erro' ? 'error' : 'warning'}>{estado === 'erro' ? 'Não foi possível carregar o checklist.' : 'Checklist não encontrado.'}</Alert></Stack></Container>;
@@ -136,7 +139,6 @@ export default function ChecklistDetalhePage({ voltarPara = '/frota/checklists',
       <Stack spacing={2}>
         <Stack direction="row" spacing={2} alignItems="center" flexWrap="wrap" useFlexGap>
           {voltar}
-          <Typography variant="h5">Checklist {c.placa}</Typography>
           {c.migradoDoLegado && <Chip size="small" label="Checklist antigo" />}
         </Stack>
         <Card><CardContent>

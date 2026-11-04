@@ -14,7 +14,6 @@ import {
   Paper,
   Stack,
   TextField,
-  Typography,
 } from '@mui/material';
 import useAdminUsers from '../hooks/useAdminUsers';
 import { CREDENCIAIS, semCredenciais, type Credencial, type Credenciais } from '../services/credenciais';
@@ -134,15 +133,7 @@ export default function CadastroUsuarioNovoPage() {
     <Container maxWidth="md" sx={{ py: 3 }}>
       <Stack spacing={3}>
         <Box>
-          <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2} justifyContent="space-between">
-            <Box>
-              <Typography variant="h4" gutterBottom>
-                Cadastro de usuarios
-              </Typography>
-              <Typography variant="body1" color="text.secondary">
-                Cadastre usuarios internos no Firebase Authentication e em <strong>funcionarios/{'{uid}'}</strong>.
-              </Typography>
-            </Box>
+          <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2} justifyContent="flex-end">
             <Stack direction="row" spacing={1} alignItems="center">
               <Button variant="outlined" component={RouterLink} to="/cadastros">
                 Voltar

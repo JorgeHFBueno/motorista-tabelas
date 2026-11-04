@@ -3,11 +3,11 @@ import logoLedurBranco from "@/assets/logo-ledur-branco.png";
 import { motion } from "framer-motion";
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
+import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { sendPasswordResetEmail } from "firebase/auth";
 import { doc, serverTimestamp, updateDoc } from "firebase/firestore";
 import { useAuth } from "@/contexts/AuthContext";
-import MobileNav from "./MobileNav";
+import MenuLateral from "./MenuLateral";
 import NotificationBell from "./NotificationBell";
 import ContratoSelector from "./ContratoSelector";
 import { useObra } from "@/contexts/ObraContext";
@@ -41,7 +41,7 @@ const ResponsiveHeader = ({
   pageTitle,
   pageSubtitle,
 }: ResponsiveHeaderProps) => {
-  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isUserDialogOpen, setIsUserDialogOpen] = useState(false);
   const [nome, setNome] = useState("");
   const [isSaving, setIsSaving] = useState(false);
@@ -117,21 +117,32 @@ const ResponsiveHeader = ({
     }
   };
 
+  // Same ☰ button on every screen size (same model as the main WEB).
+  const menuButton = (className: string) => (
+    <button
+      onClick={() => setIsMenuOpen(true)}
+      aria-label="Abrir menu"
+      className={`bg-primary-foreground/10 hover:bg-primary-foreground/15 rounded-lg transition-colors ${className}`}
+    >
+      <Menu className="w-5 h-5" />
+    </button>
+  );
+
   return (
     <header className="bg-primary text-primary-foreground">
       {/* Mobile Header */}
-      <div className="lg:hidden px-4 pt-12 pb-5">
-        <div className="flex items-center justify-between">
-          <motion.div
-            initial={{ opacity: 0, x: -20 }}
-            animate={{ opacity: 1, x: 0 }}
-            className="flex items-center gap-2 bg-primary-foreground/10 hover:bg-primary-foreground/15 px-3 py-2 rounded-lg transition-colors"
-          >
-            <div className="w-7 h-7 bg-secondary rounded flex items-center justify-center">
-              <span className="text-secondary-foreground text-xs font-bold">L</span>
-            </div>
-            <ContratoSelector nameClassName="max-w-[140px]" />
-          </motion.div>
+      <div className="md:hidden px-4 pt-12 pb-5">
+        <div className="flex items-center justify-between gap-2">
+          <div className="flex min-w-0 items-center gap-2">
+            {menuButton("p-2 shrink-0")}
+            <motion.div
+              initial={{ opacity: 0, x: -20 }}
+              animate={{ opacity: 1, x: 0 }}
+              className="flex min-w-0 items-center gap-2 bg-primary-foreground/10 hover:bg-primary-foreground/15 px-3 py-2 rounded-lg transition-colors"
+            >
+              <ContratoSelector nameClassName="max-w-[120px]" />
+            </motion.div>
+          </div>
 
           <motion.div
             initial={{ opacity: 0, x: 20 }}
@@ -139,7 +150,11 @@ const ResponsiveHeader = ({
             className="flex items-center gap-1.5"
           >
             <NotificationBell className="p-2" />
-            <button className="p-2 bg-primary-foreground/10 hover:bg-primary-foreground/15 rounded-lg transition-colors">
+            <button
+              aria-label="Meu usuário"
+              onClick={() => setIsUserDialogOpen(true)}
+              className="p-2 bg-primary-foreground/10 hover:bg-primary-foreground/15 rounded-lg transition-colors"
+            >
               <User className="w-5 h-5" />
             </button>
             <button
@@ -155,31 +170,20 @@ const ResponsiveHeader = ({
       {/* Tablet Header (md to lg) */}
       <div className="hidden md:flex lg:hidden px-6 py-4 items-center justify-between">
         <div className="flex items-center gap-4">
-          <Sheet open={isMobileMenuOpen} onOpenChange={setIsMobileMenuOpen}>
-            <SheetTrigger asChild>
-              <button className="p-2 bg-primary-foreground/10 hover:bg-primary-foreground/15 rounded-lg transition-colors">
-                <Menu className="w-5 h-5" />
-              </button>
-            </SheetTrigger>
-            <SheetContent side="left" className="w-72 bg-primary p-0 border-0">
-              <MobileNav onClose={() => setIsMobileMenuOpen(false)} />
-            </SheetContent>
-          </Sheet>
-
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-secondary rounded-lg flex items-center justify-center">
-              <span className="text-secondary-foreground text-lg font-bold">L</span>
-            </div>
-            <div>
-              <img src={logoLedurBranco} alt="Ledur Pré-Fabricados" className="h-8 w-auto" />
-              <ContratoSelector className="text-primary-foreground/80" nameClassName="text-xs max-w-[220px]" />
-            </div>
+          {menuButton("p-2")}
+          <div>
+            <img src={logoLedurBranco} alt="Ledur Pré-Fabricados" className="h-8 w-auto" />
+            <ContratoSelector className="text-primary-foreground/80" nameClassName="text-xs max-w-[220px]" />
           </div>
         </div>
 
         <div className="flex items-center gap-2">
           <NotificationBell />
-          <button className="p-2.5 bg-primary-foreground/10 hover:bg-primary-foreground/15 rounded-lg transition-colors">
+          <button
+            aria-label="Meu usuário"
+            onClick={() => setIsUserDialogOpen(true)}
+            className="p-2.5 bg-primary-foreground/10 hover:bg-primary-foreground/15 rounded-lg transition-colors"
+          >
             <User className="w-5 h-5" />
           </button>
           <button
@@ -193,7 +197,8 @@ const ResponsiveHeader = ({
 
       {/* Desktop Header */}
       <div className="hidden lg:flex px-8 py-4 items-center justify-between border-b border-primary-foreground/10">
-        <div>
+        <div className="flex items-center gap-4">
+          {menuButton("p-2.5")}
           {pageTitle ? (
             <div>
               <h1 className="text-xl font-semibold">{pageTitle}</h1>
@@ -231,6 +236,12 @@ const ResponsiveHeader = ({
           </DropdownMenu>
         </div>
       </div>
+      <Sheet open={isMenuOpen} onOpenChange={setIsMenuOpen}>
+        <SheetContent side="left" className="w-64 bg-primary p-0 border-0 [&>button]:hidden">
+          <SheetTitle className="sr-only">Menu</SheetTitle>
+          <MenuLateral onClose={() => setIsMenuOpen(false)} />
+        </SheetContent>
+      </Sheet>
       <Dialog open={isUserDialogOpen} onOpenChange={setIsUserDialogOpen}>
         <DialogContent>
           <DialogHeader>

@@ -273,8 +273,7 @@ export default function FrotaVeiculosPage() {
 
     return (
         <Container sx={{ py: 3 }}>
-            <Stack direction="row" spacing={2} alignItems="center" justifyContent="space-between">
-                <Typography variant="h4">Veículos</Typography>
+            <Stack direction="row" spacing={2} alignItems="center" justifyContent="flex-end">
                 <BotaoManutencaoNoErp variant="outlined" size="small" onClick={openManutencaoDialog}>
                     Adicionar manutenção
                 </BotaoManutencaoNoErp>

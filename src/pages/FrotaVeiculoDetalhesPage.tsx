@@ -1180,8 +1180,7 @@ export default function FrotaVeiculoDetalhesPage() {
 
     return (
         <Container sx={{ py: 4 }}>
-            <Stack direction={{ xs: 'column', md: 'row' }} spacing={2} justifyContent="space-between" alignItems="center">
-                <Typography variant="h4">Detalhes do Veículo</Typography>
+            <Stack direction={{ xs: 'column', md: 'row' }} spacing={2} justifyContent="flex-end" alignItems="center">
                 <Stack direction="row" spacing={2}>
                     <Button variant="outlined" onClick={() => navigate('/frota/veiculos')}>
                         Voltar para Veículos

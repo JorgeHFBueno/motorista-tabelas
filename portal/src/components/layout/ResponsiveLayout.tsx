@@ -1,6 +1,5 @@
 import { ReactNode } from "react";
 import BottomNavigation from "./BottomNavigation";
-import Sidebar from "./Sidebar";
 import ResponsiveHeader from "./ResponsiveHeader";
 
 interface ResponsiveLayoutProps {
@@ -18,10 +17,7 @@ const ResponsiveLayout = ({
 }: ResponsiveLayoutProps) => {
   return (
     <div className="min-h-screen bg-background flex w-full">
-      {/* Sidebar for desktop */}
-      <Sidebar />
-      
-      {/* Main content area */}
+      {/* Main content area; the side menu opens from the header's ☰ button */}
       <div className="flex-1 flex flex-col min-h-screen lg:max-h-screen lg:overflow-hidden">
         {/* Top header for tablet/desktop */}
         <ResponsiveHeader 

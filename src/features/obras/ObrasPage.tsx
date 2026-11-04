@@ -89,9 +89,7 @@ export default function ObrasPage() {
 
   return (
     <Container sx={{ py: 3 }}>
-      <Typography variant="h4">Obras</Typography>
-
-      <Stack direction={{ xs: 'column', md: 'row' }} spacing={2} mt={3} alignItems={{ xs: 'stretch', md: 'center' }}>
+      <Stack direction={{ xs: 'column', md: 'row' }} spacing={2} alignItems={{ xs: 'stretch', md: 'center' }}>
         <TextField
           size="small"
           placeholder="Buscar obra, sinônimo, contrato ou local"
