@@ -19,6 +19,7 @@ export { manuscriptListTree, manuscriptGetDocument, manuscriptSearch, manuscript
 export { portalAvisoDocumento, portalAvisoFoto, portalAvisoObra, portalAvisoParcelaCriada, portalAvisoParcelaAtualizada, portalAvisoMensagemAtendimento, portalAvisoStatusAtendimento, portalVencimentosDiario, portalObrasCopiaV2 } from './portalAvisos.js';
 export { portalEmailsEnviar } from './portalEmails.js';
 export { portalNoticiasColeta, portalNoticiasAtualizar } from './portalNoticias/funcoes.js';
+export { roboObras } from './roboObras.js';
 
 export const api = onRequest(app);
 export const adminApi = onRequest(adminApp);
