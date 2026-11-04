@@ -24,6 +24,8 @@ import {
 } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
 import SearchIcon from '@mui/icons-material/Search';
+import { httpsCallable } from 'firebase/functions';
+import { functions } from '../../firebase';
 import {
   alterarStatusNoticia,
   CATEGORIAS_NOTICIA,
@@ -60,6 +62,14 @@ const normalizar = (valor: string) => valor.normalize('NFD').replace(/[̀-ͯ]/g,
 const tamanho = (bytes: number) => (bytes >= 1024 * 1024 ? `${(bytes / (1024 * 1024)).toFixed(1)} MB` : `${Math.max(1, Math.round(bytes / 1024))} KB`);
 
 type Edicao = { id: string; atual: Noticia | null };
+
+// Same ingestion as the 12-hour schedule (Function portalNoticiasAtualizar, adm2 only).
+type ResumoColeta = { fontes: number; lidas: number; aceitas: number; criadas: number; atualizadas: number; ignoradas: number; rebaixadas: number };
+const buscarNoticiasExternas = httpsCallable<void, ResumoColeta>(functions, 'portalNoticiasAtualizar', { timeout: 320_000 });
+
+const textoDoResumo = (r: ResumoColeta) =>
+  `Notícias externas: ${r.criadas} novas, ${r.atualizadas} atualizadas, ${r.rebaixadas} viraram rascunho pelo limite de 5 por categoria `
+  + `(${r.fontes} fontes lidas, ${r.lidas} notícias lidas, ${r.aceitas} aceitas, ${r.ignoradas} sem mudança ou na lixeira).`;
 
 function NoticiaDialog({
   edicao,
@@ -282,6 +292,7 @@ export default function NoticiasPortalPage() {
   const [lixeira, setLixeira] = useState(false);
   const [edicao, setEdicao] = useState<Edicao | null>(null);
   const [ocupadoId, setOcupadoId] = useState<string | null>(null);
+  const [buscandoExternas, setBuscandoExternas] = useState(false);
   const [snackbar, setSnackbar] = useState<{ open: boolean; severity: 'success' | 'error'; message: string }>({ open: false, severity: 'success', message: '' });
 
   useEffect(() => ouvirNoticias(
@@ -318,6 +329,20 @@ export default function NoticiasPortalPage() {
     }
   };
 
+  const buscarExternas = async () => {
+    setBuscandoExternas(true);
+    try {
+      const { data } = await buscarNoticiasExternas();
+      setSnackbar({ open: true, severity: 'success', message: textoDoResumo(data) });
+    } catch (err) {
+      console.error('Erro ao buscar notícias externas', err);
+      const negado = (err as { code?: unknown })?.code === 'functions/permission-denied';
+      setSnackbar({ open: true, severity: 'error', message: negado ? 'Só adm2 pode buscar notícias externas.' : 'Não foi possível buscar as notícias externas. Tente novamente.' });
+    } finally {
+      setBuscandoExternas(false);
+    }
+  };
+
   return (
     <Container sx={{ py: 3 }}>
       <Stack direction={{ xs: 'column', md: 'row' }} spacing={2} alignItems={{ xs: 'stretch', md: 'center' }}>
@@ -332,6 +357,14 @@ export default function NoticiasPortalPage() {
             htmlInput: { 'aria-label': 'Buscar título, resumo ou fonte' },
           }}
         />
+        <Button
+          variant="outlined"
+          onClick={() => void buscarExternas()}
+          disabled={buscandoExternas}
+          startIcon={buscandoExternas ? <CircularProgress size={16} /> : undefined}
+        >
+          Buscar notícias externas agora
+        </Button>
         <Button variant="contained" startIcon={<AddIcon />} onClick={() => setEdicao({ id: novoIdNoticia(), atual: null })}>
           Nova notícia
         </Button>

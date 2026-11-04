@@ -16,6 +16,9 @@ export { fridayAutomacoesEvento, fridayAutomacoesDatas } from './fridayAutomacoe
 export { fridayAnexosMonday } from './fridayAnexosMonday.js';
 export { atualizarMeuPerfil } from './meuPerfil.js';
 export { manuscriptListTree, manuscriptGetDocument, manuscriptSearch, manuscriptGetBacklinks, manuscriptGetDocumentGraph, manuscriptGetDocumentHistory, manuscriptGetSystemGraph, manuscriptChat } from './manuscript.js';
+export { portalAvisoDocumento, portalAvisoFoto, portalAvisoObra, portalAvisoParcelaCriada, portalAvisoParcelaAtualizada, portalAvisoMensagemAtendimento, portalAvisoStatusAtendimento, portalVencimentosDiario, portalObrasCopiaV2 } from './portalAvisos.js';
+export { portalEmailsEnviar } from './portalEmails.js';
+export { portalNoticiasColeta, portalNoticiasAtualizar } from './portalNoticias/funcoes.js';
 
 export const api = onRequest(app);
 export const adminApi = onRequest(adminApp);
