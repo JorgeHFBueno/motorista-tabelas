@@ -688,27 +688,117 @@
   color: var(--dt-apagado);
 }
 
-/* ---- Poker ---- */
-/* casa em cima e você embaixo, à esquerda; a mesa (5 cartas) à direita, entre os dois */
-.devtoys .dt-poker-mesa {
+/* ---- Poker (mesa com 3 bots) ---- */
+.devtoys .dt-carta-mini {
+  width: calc(var(--dt-e) * 32px);
+  height: calc(var(--dt-e) * 44px);
+  padding: calc(var(--dt-e) * 2px);
+  font-size: calc(var(--dt-e) * 10px);
+}
+
+.devtoys .dt-carta-mini .dt-carta-meio {
+  font-size: calc(var(--dt-e) * 16px);
+}
+
+.devtoys .dt-carta-mini .dt-naipe {
+  width: calc(var(--dt-e) * 7px);
+  height: calc(var(--dt-e) * 7px);
+}
+
+.devtoys .dt-carta-mini .dt-naipe-grande {
+  width: calc(var(--dt-e) * 13px);
+  height: calc(var(--dt-e) * 13px);
+}
+
+.devtoys .dt-pk-bots {
   display: grid;
-  grid-template-columns: auto auto;
-  grid-template-areas: 'casa mesa' 'voce mesa';
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: calc(var(--dt-e) * 10px);
+  margin-bottom: calc(var(--dt-e) * 8px);
+}
+
+/* a mesa (5 cartas e o pote) e você, lado a lado */
+.devtoys .dt-pk-meio {
+  display: flex;
   justify-content: center;
   align-items: center;
-  column-gap: calc(var(--dt-e) * 28px);
+  gap: calc(var(--dt-e) * 20px);
+  margin-bottom: calc(var(--dt-e) * 4px);
 }
 
-.devtoys .dt-poker-casa {
-  grid-area: casa;
+.devtoys .dt-pk-assento,
+.devtoys .dt-pk-voce {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: calc(var(--dt-e) * 2px);
+  padding: calc(var(--dt-e) * 4px);
+  border: 1px dotted var(--dt-apagado);
 }
 
-.devtoys .dt-poker-voce {
-  grid-area: voce;
+.devtoys .dt-pk-assento p,
+.devtoys .dt-pk-voce p {
+  margin: 0;
 }
 
-.devtoys .dt-poker-centro {
-  grid-area: mesa;
+/* de quem é a vez, quem desistiu e quem levou */
+.devtoys .dt-pk-vez {
+  border: 1px solid var(--dt-tinta);
+  box-shadow: 0 0 0 1px var(--dt-tinta);
+}
+
+.devtoys .dt-pk-fora {
+  opacity: 0.45;
+}
+
+.devtoys .dt-pk-ganhou {
+  border: 1px solid var(--dt-tinta);
+}
+
+.devtoys .dt-pk-ganhou .dt-pk-nome {
+  color: var(--dt-papel);
+  background: var(--dt-tinta);
+  text-shadow: none;
+}
+
+.devtoys .dt-pk-nome {
+  display: flex;
+  gap: calc(var(--dt-e) * 6px);
+  padding: 0 calc(var(--dt-e) * 4px);
+  font-weight: bold;
+}
+
+.devtoys .dt-pk-marca {
+  padding: 0 calc(var(--dt-e) * 3px);
+  border: 1px solid currentColor;
+  font-size: calc(var(--dt-e) * 10px);
+}
+
+.devtoys .dt-pk-cartas {
+  display: flex;
+  gap: calc(var(--dt-e) * 4px);
+  min-height: calc(var(--dt-e) * 44px);
+}
+
+.devtoys .dt-pk-ultima {
+  min-height: calc(var(--dt-e) * 16px);
+  color: var(--dt-apagado);
+  font-size: calc(var(--dt-e) * 11px);
+}
+
+.devtoys .dt-pk-centro {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.devtoys .dt-pk-centro .dt-21-mao {
+  margin-bottom: calc(var(--dt-e) * 4px);
+}
+
+.devtoys .dt-pk-voce .dt-21-mao,
+.devtoys .dt-pk-voce .dt-21-rotulo {
+  margin-bottom: 0;
 }
 
 /* ---- tabela de prêmios (Slot) ---- */
@@ -808,6 +898,113 @@
   .devtoys .dt-slot-ganhou {
     animation: none;
   }
+}
+
+/* ---- Xadrez ---- */
+.devtoys .dt-xz-mesa {
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  gap: calc(var(--dt-e) * 20px);
+}
+
+.devtoys .dt-xz-tabuleiro {
+  display: grid;
+  grid-template-columns: repeat(8, calc(var(--dt-e) * 36px));
+  grid-auto-rows: calc(var(--dt-e) * 36px);
+  border: 1px solid var(--dt-tinta);
+}
+
+.devtoys .dt-xz-casa {
+  position: relative;
+  display: grid;
+  place-items: center;
+  background: var(--dt-papel);
+}
+
+.devtoys .dt-xz-escura {
+  background: #2b1e00;
+}
+
+/* o último lance, a peça escolhida e o rei em xeque */
+.devtoys .dt-xz-ultimo {
+  background: #4a3400;
+}
+
+.devtoys .dt-xz-selecionada {
+  box-shadow: inset 0 0 0 2px var(--dt-tinta);
+}
+
+.devtoys .dt-xz-xeque {
+  box-shadow: inset 0 0 0 2px var(--dt-vermelho);
+}
+
+.devtoys .dt-xz-casa:focus-visible {
+  outline: 1px dotted var(--dt-tinta);
+  outline-offset: -4px;
+}
+
+.devtoys .dt-xz-peca {
+  width: calc(var(--dt-e) * 26px);
+  height: calc(var(--dt-e) * 26px);
+  fill: currentColor;
+}
+
+.devtoys .dt-xz-branca {
+  color: var(--dt-tinta);
+}
+
+.devtoys .dt-xz-preta {
+  color: var(--dt-vermelho);
+}
+
+/* casas para onde a peça escolhida pode ir: ponto (vazia) ou anel (captura) */
+.devtoys .dt-xz-ponto {
+  position: absolute;
+  width: calc(var(--dt-e) * 8px);
+  height: calc(var(--dt-e) * 8px);
+  border-radius: 50%;
+  background: var(--dt-tinta);
+  opacity: 0.7;
+}
+
+.devtoys .dt-xz-anel {
+  position: absolute;
+  inset: calc(var(--dt-e) * 2px);
+  border: 2px solid var(--dt-tinta);
+  border-radius: 50%;
+}
+
+.devtoys .dt-xz-lado {
+  display: flex;
+  flex-direction: column;
+  gap: calc(var(--dt-e) * 8px);
+  width: calc(var(--dt-e) * 200px);
+}
+
+.devtoys .dt-xz-lado p {
+  margin: 0;
+}
+
+.devtoys .dt-xz-perdidas {
+  display: flex;
+  flex-wrap: wrap;
+  gap: calc(var(--dt-e) * 2px);
+  min-height: calc(var(--dt-e) * 16px);
+}
+
+.devtoys .dt-xz-mini {
+  width: calc(var(--dt-e) * 14px);
+  height: calc(var(--dt-e) * 14px);
+}
+
+.devtoys .dt-xz-aviso {
+  min-height: calc(var(--dt-e) * 44px);
+  font-weight: bold;
+}
+
+.devtoys .dt-xz-botoes {
+  justify-content: flex-start;
 }
 
 /* ---- Placar de Lideres ---- */

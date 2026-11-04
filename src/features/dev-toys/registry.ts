@@ -53,7 +53,7 @@ export const DEV_TOYS: DevToy[] = [
     nome: 'Poker',
     icone: 'M3 1h10v14H3zM4 2h8v12H4zM7 5h2v1H7zM6 6h4v1H6zM5 7h6v2H5zM7 9h2v2H7z',
     componente: lazy(() => import('./toys/poker/PokerToy')),
-    largura: 560,
+    largura: 640,
   },
   {
     id: 'slot',
@@ -61,6 +61,13 @@ export const DEV_TOYS: DevToy[] = [
     icone: 'M3 1h8v1H3zM2 3h10v12H2zM3 5h8v4H3zM4 6h1v2H4zM6 6h2v2H6zM9 6h1v2H9zM5 11h4v1H5zM12 2h3v3h-3zM13 5h1v5h-1z',
     componente: lazy(() => import('./toys/slot/SlotToy')),
     largura: 520,
+  },
+  {
+    id: 'xadrez',
+    nome: 'Xadrez',
+    icone: 'M7 0h2v1H7zM5 1h6v1H5zM7 2h2v2H7zM6 4h4v1H6zM4 5h8v3H4zM5 8h6v4H5zM3 12h10v3H3z',
+    componente: lazy(() => import('./toys/xadrez/XadrezToy')),
+    largura: 560,
   },
   {
     id: 'placar',

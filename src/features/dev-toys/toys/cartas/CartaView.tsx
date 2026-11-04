@@ -17,12 +17,14 @@ function NaipeSvg({ naipe, className }: { naipe: Naipe; className: string }) {
   );
 }
 
-export function CartaView({ carta, virada = false }: { carta: Carta; virada?: boolean }) {
-  if (virada) return <div className="dt-carta dt-carta-verso" role="img" aria-label="Carta virada" />;
+/** `pequena`: a carta menor, para as mãos dos outros jogadores à mesa. */
+export function CartaView({ carta, virada = false, pequena = false }: { carta: Carta; virada?: boolean; pequena?: boolean }) {
+  const base = pequena ? 'dt-carta dt-carta-mini' : 'dt-carta';
+  if (virada) return <div className={`${base} dt-carta-verso`} role="img" aria-label="Carta virada" />;
   const figura = carta.valor > 10;
   const vermelha = carta.naipe === 'copas' || carta.naipe === 'ouros';
   return (
-    <div className={vermelha ? 'dt-carta dt-carta-vermelha' : 'dt-carta'} role="img" aria-label={nomeDaCarta(carta)}>
+    <div className={vermelha ? `${base} dt-carta-vermelha` : base} role="img" aria-label={nomeDaCarta(carta)}>
       <span className="dt-carta-canto">
         {rotuloDe(carta)}
         <NaipeSvg naipe={carta.naipe} className="dt-naipe" />

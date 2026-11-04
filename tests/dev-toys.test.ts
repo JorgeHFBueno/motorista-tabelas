@@ -25,7 +25,11 @@ import {
   CUSTO_SKILL, FICHAS_INICIAIS, MESADA, hojeEmBrasilia, mover, normalizarCarteira, pegarMesada, pilhas, podeMesada, podePagarSkill, semFichas,
 } from '../src/features/dev-toys/toys/fichas/carteira';
 import { PLACAR_NOVO, normalizarPlacar, registrarJogada, taxaDeVitorias } from '../src/features/dev-toys/toys/fichas/jogos';
-import * as pk from '../src/features/dev-toys/toys/poker/regras';
+import * as pk from '../src/features/dev-toys/toys/poker/maos';
+import * as pm from '../src/features/dev-toys/toys/poker/mesa';
+import { chance, decidir, novoBot } from '../src/features/dev-toys/toys/poker/bots';
+import * as xz from '../src/features/dev-toys/toys/xadrez/regras';
+import { NIVEIS, escolherLance } from '../src/features/dev-toys/toys/xadrez/bot';
 import * as slot from '../src/features/dev-toys/toys/slot/regras';
 
 const sessao = (valores: Record<string, string>) => ({ getItem: (k: string) => valores[k] ?? null });
@@ -630,36 +634,104 @@ test('Poker: a melhor mão de 5 entre 7 cartas, com desempate', () => {
   assert.equal(pk.comparar(forca('2e', '3c', 'Ao', 'Ap', 'Ke', 'Kc', 'Qo'), forca('4e', '5c', 'Ao', 'Ap', 'Ke', 'Kc', 'Qo')), 0, 'mesma mão da mesa: empate');
 });
 
-test('Poker: a casa segue com par ou com alguma carta de 8 para cima', () => {
-  assert.equal(pk.casaSegue(mao5('4e', '4c')), true);
-  assert.equal(pk.casaSegue(mao5('Ae', '2c')), true, 'ás conta como alta');
-  assert.equal(pk.casaSegue(mao5('8e', '3c')), true);
-  assert.equal(pk.casaSegue(mao5('7e', '2c')), false);
-  assert.equal(pk.casaSegue(mao5('5e', '6c')), false);
+test('Poker: blinds, ordem de fala, aumento que reabre a rodada e as ruas', () => {
+  const mesa0 = pm.mesaNova([0, 1, 2, 3].map((k) => pm.novoJogador(`J${k}`, k ? 'normal' : null)));
+  let m = pm.novaMao(mesa0, rngDe(4));
+  assert.equal(m.botao, 0, 'o botão anda para o lugar 0');
+  assert.deepEqual(m.jogadores.map((j) => j.investido), [0, 5, 10, 0], 'blind pequeno à esquerda do botão, grande depois');
+  assert.equal(m.vez, 3, 'quem fala primeiro é o da esquerda do blind grande');
+  assert.ok(m.jogadores.every((j) => j.cartas.length === 2));
+  assert.equal(pm.agir(m, { tipo: 'passar' }), m, 'não dá para passar devendo');
+  m = pm.agir(m, { tipo: 'pagar' }); // 3 paga 10
+  m = pm.agir(m, { tipo: 'aumentar', total: 30 }); // 0 aumenta a 30
+  assert.deepEqual([m.maior, m.minimo, m.vez], [30, 20, 1]);
+  assert.deepEqual(m.faltam, [1, 2, 3], 'o aumento reabre a rodada para todos');
+  m = pm.agir(m, { tipo: 'desistir' }); // 1
+  m = pm.agir(m, { tipo: 'pagar' }); // 2
+  m = pm.agir(m, { tipo: 'pagar' }); // 3
+  assert.equal(m.rua, 'flop');
+  assert.equal(m.abertas, 3);
+  assert.equal(pm.pote(m), 5 + 30 + 30 + 30);
+  assert.equal(m.vez, 2, 'depois do flop fala o primeiro vivo à esquerda do botão');
+  while (m.rua !== 'fim') m = pm.agir(m, { tipo: 'passar' });
+  assert.equal(m.mostrou, true);
+  assert.equal(m.abertas, 5);
+  assert.equal(m.jogadores.reduce((t, j) => t + j.fichas, 0), 800, 'as fichas não somem nem aparecem');
 });
 
-test('Poker: distribui, decide uma vez depois do flop e paga', () => {
-  const m = pk.distribuir(pk.mesaNova(100), 20, rngDe(3));
-  assert.equal(m.fase, 'decidindo');
-  assert.equal(m.fichas, 80);
-  assert.equal(m.jogador.length + m.casa.length + m.mesa.length + m.baralho.length, 52);
-  assert.equal(pk.distribuir(pk.mesaNova(10), 20, rngDe(3)).fase, 'apostando', 'sem fichas para a aposta');
+test('Poker: todos desistem e um leva sem mostrar; potes paralelos com all-in de quem tem menos', () => {
+  let m = pm.novaMao(pm.mesaNova([0, 1, 2, 3].map((k) => pm.novoJogador(`J${k}`, null))), rngDe(5));
+  m = pm.agir(m, { tipo: 'aumentar', total: 40 });
+  while (m.rua !== 'fim') m = pm.agir(m, { tipo: 'desistir' });
+  assert.equal(m.mostrou, false);
+  assert.deepEqual(m.potes.map((p) => [p.valor, p.ganhadores]), [[55, [3]]]);
+  assert.equal(m.jogadores[3].fichas, 200 - 40 + 55);
 
-  const comCasa = (casa: string[]) => ({ ...m, casa: mao5(...casa), jogador: mao5('Ae', 'Ac'), mesa: mao5('2o', '7p', '9e', 'Jc', '4o') });
-  const desiste = pk.apostar(comCasa(['7e', '2c']));
-  assert.deepEqual([desiste.resultado, desiste.extra, desiste.fichas], ['casa-desistiu', 20, 100], 'a casa desistiu: volta o que você pôs, sem lucro');
-  const cobre = pk.apostar(comCasa(['Ke', 'Kc']));
-  assert.deepEqual([cobre.resultado, cobre.fichas], ['ganhou', 60 + 80], 'par de ases ganha de par de reis: o dobro de 40');
-  const perde = pk.apostar({ ...comCasa(['Ke', 'Kc']), jogador: mao5('3e', '5c') });
-  assert.deepEqual([perde.resultado, perde.fichas], ['perdeu', 60]);
-  const passa = pk.passar(comCasa(['5e', '6c']));
-  assert.deepEqual([passa.resultado, passa.extra, passa.fichas], ['ganhou', 0, 80 + 40], 'passando, a casa não desiste: vai ao fim');
-  const empate = pk.passar({ ...comCasa(['3o', '5p']), jogador: mao5('3e', '5c') });
-  assert.deepEqual([empate.resultado, empate.fichas], ['empate', 100]);
-  const fora = pk.desistir(comCasa(['Ke', 'Kc']));
-  assert.deepEqual([fora.resultado, fora.fichas], ['desistiu', 80]);
-  assert.equal(pk.apostar(fora), fora, 'decide uma vez');
-  assert.equal(pk.podeApostar({ ...m, fichas: 19 }), false, 'sem fichas para apostar: só passar ou desistir');
+  // investimentos 50 (all-in), 200, 200 e um que desistiu com 10: pote de 50x3+10 para todos, 150x2 só para os dois
+  const base = pm.mesaNova([50, 200, 200, 200].map((f, k) => pm.novoJogador(`J${k}`, null, f)));
+  const jogadores = base.jogadores.map((j, k) => ({ ...j, investido: [50, 200, 200, 10][k], fichas: 0, desistiu: k === 3, allIn: k < 3 }));
+  assert.deepEqual(pm.potesDe({ ...base, jogadores }), [{ valor: 160, elegiveis: [0, 1, 2] }, { valor: 300, elegiveis: [1, 2] }]);
+});
+
+test('Poker: os bots estimam a chance e jogam dentro das regras', () => {
+  assert.ok(chance(mao5('Ae', 'Ac'), [], 1, rngDe(1), 400) > 0.75, 'par de ases contra uma mão qualquer');
+  assert.ok(chance(mao5('7e', '2c'), [], 1, rngDe(1), 400) < 0.4, '7-2 contra uma mão qualquer');
+  const rng = rngDe(7);
+  let m = pm.mesaNova([0, 1, 2, 3].map(() => novoBot(rng)));
+  assert.equal(new Set(m.jogadores.map((j) => j.nome)).size, 4, 'nomes sem repetir');
+  for (let mao = 0; mao < 12; mao++) {
+    m = { ...m, jogadores: m.jogadores.map((j) => (j.fichas > 0 ? j : novoBot(rng, m.jogadores.map((x) => x.nome)))) };
+    const antes = m.jogadores.reduce((t, j) => t + j.fichas, 0);
+    m = pm.novaMao(m, rng);
+    for (let passos = 0; m.rua !== 'fim' && passos < 100; passos++) {
+      const n = pm.agir(m, decidir(m, rng, 40));
+      assert.notEqual(n, m, 'o bot só escolhe jogadas válidas');
+      m = n;
+    }
+    assert.equal(m.rua, 'fim');
+    assert.equal(m.jogadores.reduce((t, j) => t + j.fichas, 0), antes);
+  }
+});
+
+test('Xadrez: perft das posições de referência (roque, en passant, promoção e cravadas)', () => {
+  assert.deepEqual([1, 2, 3].map((n) => xz.perft(xz.deFen(xz.INICIAL), n)), [20, 400, 8902]);
+  const kiwipete = xz.deFen('r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - 0 1');
+  assert.deepEqual([1, 2].map((n) => xz.perft(kiwipete, n)), [48, 2039]);
+  assert.equal(xz.perft(xz.deFen('8/2p5/3p4/KP5r/1R3p1k/8/4P1P1/8 w - - 0 1'), 3), 2812);
+  assert.equal(xz.perft(xz.deFen('r3k2r/Pppp1ppp/1b3nbN/nP6/BBP1P3/q4N2/Pp1P2PP/R2Q1RK1 w kq - 0 1'), 2), 264);
+  assert.equal(xz.perft(xz.deFen('rnbq1k1r/pp1Pbppp/2p5/8/2B5/8/PPP1NnPP/RNBQK2R w KQ - 1 8'), 2), 1486);
+});
+
+test('Xadrez: mate, afogamento, material insuficiente, 50 lances e tripla repetição', () => {
+  assert.equal(xz.fimDe(xz.deFen('rnb1kbnr/pppp1ppp/8/4p3/6Pq/5P2/PPPPP2P/RNBQKBNR w KQkq - 1 3')), 'mate', 'mate do louco');
+  assert.equal(xz.fimDe(xz.deFen('7k/5Q2/6K1/8/8/8/8/8 b - - 0 1')), 'afogamento');
+  assert.equal(xz.fimDe(xz.deFen('7k/8/6K1/8/8/8/8/2B5 b - - 0 1')), 'material');
+  assert.equal(xz.fimDe(xz.deFen('7k/8/6K1/8/8/8/8/2R5 b - - 100 80')), 'cinquenta');
+  const p = xz.deFen(xz.INICIAL);
+  assert.equal(xz.fimDe(p, [xz.chave(p), xz.chave(p), xz.chave(p)]), 'repeticao');
+  assert.equal(xz.fimDe(p, [xz.chave(p), xz.chave(p)]), null);
+  // o roque some depois que o rei anda; en passant logo depois do avanço duplo
+  const roque = xz.deFen('r3k2r/8/8/8/8/8/8/R3K2R w KQkq - 0 1');
+  assert.ok(xz.legais(roque).some((m) => m.roque === 'curto') && xz.legais(roque).some((m) => m.roque === 'longo'));
+  const rei = xz.legais(roque).find((m) => m.peca === 'K' && !m.roque);
+  assert.ok(rei);
+  assert.equal(xz.aplicar(roque, rei).roques, 'kq');
+  assert.ok(xz.legais(xz.deFen('4k3/8/8/3pP3/8/8/8/4K3 w - d6 0 1')).some((m) => m.enPassant), 'en passant');
+});
+
+test('Xadrez: o bot de cada nível acha o mate em um e as apostas são 10, 50 e 100', () => {
+  assert.deepEqual(NIVEIS.map((n) => n.aposta), [10, 50, 100]);
+  const pastor = xz.deFen('r1bqkbnr/pppp1ppp/2n5/4p2Q/2B1P3/8/PPPP1PPP/RNB1K1NR w KQkq - 4 4');
+  for (const n of NIVEIS) {
+    const m = escolherLance(pastor, n, rngDe(3));
+    assert.equal(m && `${xz.nomeCasa(m.de)}${xz.nomeCasa(m.para)}`, 'h5f7', n.nome);
+  }
+  // no difícil, a dama não vai para uma casa onde a torre a captura de graça
+  const dama = xz.deFen('4k3/8/8/3q4/8/8/3R4/4K3 b - - 0 1');
+  const m = escolherLance(dama, NIVEIS[2], rngDe(1));
+  assert.ok(m);
+  const depois = xz.aplicar(dama, m);
+  assert.ok(!xz.legais(depois).some((r) => r.captura === 'q'), 'deixou a dama sem defesa');
 });
 
 test('Slot: a fita tem 21 símbolos espalhados, a tabela paga a linha do meio e o retorno é o ajustado (~100%)', () => {
