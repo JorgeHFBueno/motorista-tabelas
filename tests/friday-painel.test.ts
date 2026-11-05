@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { calcularWidget, intervaloAnterior, itensDoWidget, resolverJanela, type DadosQuadro, type Widget } from '../src/features/friday-gestao-interna/painel/calculo.ts';
+import { blocosDoTexto, calcularWidget, escalaEixo, intervaloAnterior, itensDoWidget, mesPorExtenso, resolverJanela, type DadosQuadro, type Widget } from '../src/features/friday-gestao-interna/painel/calculo.ts';
 import { etapasDoFunil, modeloObras, modeloVendas } from '../src/features/friday-gestao-interna/painel/modelos.ts';
 import type { Coluna, Grupo, Item } from '../src/features/friday-gestao-interna/quadro/tipos.ts';
 
@@ -221,4 +221,28 @@ test('modelo de vendas usa Etapa = Ganho e a data de fechamento', () => {
   assert.equal(receita.eixo, 'Data de fechamento');
   assert.deepEqual(receita.filtros, [{ coluna: 'Etapa', valores: ['Ganho'] }]);
   assert.equal(calcularWidget(ws.find(w => w.titulo === 'Receita ganha')!, [privados, publicos], ctxAntigo).valor, 3800);
+});
+
+test('eixo Y com passo redondo que cobre o máximo', () => {
+  assert.deepEqual(escalaEixo(2808439.75), { topo: 3000000, passo: 500000 });
+  assert.deepEqual(escalaEixo(15932861.81), { topo: 20000000, passo: 5000000 });
+  assert.deepEqual(escalaEixo(79, true), { topo: 80, passo: 20 });
+  assert.deepEqual(escalaEixo(1, true), { topo: 1, passo: 1 });
+  assert.deepEqual(escalaEixo(0), { topo: 1, passo: 1 });
+});
+
+test('mês por extenso só nos rótulos de mês', () => {
+  assert.equal(mesPorExtenso('jan/25'), 'janeiro 2025');
+  assert.equal(mesPorExtenso('dez/26'), 'dezembro 2026');
+  assert.equal(mesPorExtenso('abc/25'), 'abc/25');
+  assert.equal(mesPorExtenso('Proposta Enviada'), 'Proposta Enviada');
+});
+
+test('texto do widget: título, lista e negrito, sem interpretar HTML', () => {
+  assert.deepEqual(blocosDoTexto('# Título\n\n- **Um**: texto\n• dois\nFim <b>x</b>'), [
+    { tipo: 'titulo', partes: [{ texto: 'Título', negrito: false }] },
+    { tipo: 'item', partes: [{ texto: 'Um', negrito: true }, { texto: ': texto', negrito: false }] },
+    { tipo: 'item', partes: [{ texto: 'dois', negrito: false }] },
+    { tipo: 'paragrafo', partes: [{ texto: 'Fim <b>x</b>', negrito: false }] },
+  ]);
 });

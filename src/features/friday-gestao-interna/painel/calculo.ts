@@ -41,10 +41,34 @@ export type Widget = {
   capacidade?: number; // carga: acima disso a célula fica em alerta
   comparar?: 'periodo_anterior' | 'ano_anterior'; // numero
   tendencia?: boolean; // numero: mini gráfico dos últimos 6 meses
+  comQuantidade?: boolean; // colunas com soma ou média: mostra também a quantidade de itens, lado a lado
 };
 export type FiltroGeral = { filtros?: FiltroWidget[]; janela?: Janela };
-export type ConfigPainel = { quadros?: number[]; widgets?: Widget[]; geral?: FiltroGeral };
+// aparencia 'monday': grade de 2 colunas e gráficos como os do monday. Muda só o desenho, não o cálculo.
+export type ConfigPainel = { quadros?: number[]; widgets?: Widget[]; geral?: FiltroGeral; aparencia?: 'monday' };
 export type DadosQuadro = { quadro: Row; grupos: Grupo[]; colunas: Coluna[]; itens: Item[] };
+
+// Eixo Y: passo redondo (1, 2, 2,5 ou 5 vezes uma potência de 10) e o topo, múltiplo do passo, que cobre o máximo.
+export function escalaEixo(max: number, inteiro = false) {
+  if (!(max > 0)) return { topo: 1, passo: 1 };
+  const alvo = max / 6;
+  const potencia = 10 ** Math.floor(Math.log10(alvo));
+  let passo = [1, 2, 2.5, 5, 10].map(c => c * potencia).find(p => p >= alvo) ?? 10 * potencia;
+  if (inteiro) passo = Math.max(1, Math.ceil(passo));
+  return { topo: Math.ceil(max / passo) * passo, passo };
+}
+
+// Texto do widget: "# título", "- item" (ou "• item") e **negrito**. Sem HTML: o resto é texto puro.
+export type ParteTexto = { texto: string; negrito: boolean };
+export type BlocoTexto = { tipo: 'titulo' | 'item' | 'paragrafo'; partes: ParteTexto[] };
+export function blocosDoTexto(texto: string): BlocoTexto[] {
+  return texto.split('\n').map(l => l.trim()).filter(Boolean).map(l => {
+    const tipo: BlocoTexto['tipo'] = l.startsWith('# ') ? 'titulo' : /^[-•] /.test(l) ? 'item' : 'paragrafo';
+    const corpo = tipo === 'paragrafo' ? l : l.slice(2).trim();
+    const partes = corpo.split('**').map((t, i) => ({ texto: t, negrito: i % 2 === 1 })).filter(p => p.texto);
+    return { tipo, partes };
+  });
+}
 
 export type Fatia = { chave: string; rotulo: string; cor: string; valor: number; n: number; pilhas: Fatia[]; concluido?: boolean };
 export type EtapaFunil = { chave: string; rotulo: string; cor: string; proprio: number; acumulado: number; conversao: number | null };
@@ -72,6 +96,13 @@ type Categoria = { chave: string; rotulo: string; cor?: string; ordem: number; c
 
 const MESES = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez'];
 export const nomeMes = (aaaamm: string) => `${MESES[Number(aaaamm.slice(5, 7)) - 1]}/${aaaamm.slice(2, 4)}`;
+const MESES_EXTENSO = ['janeiro', 'fevereiro', 'março', 'abril', 'maio', 'junho', 'julho', 'agosto', 'setembro', 'outubro', 'novembro', 'dezembro'];
+// "jan/25" vira "janeiro 2025"; qualquer outro rótulo fica como está.
+export function mesPorExtenso(rotulo: string) {
+  const m = /^([a-zç]{3})\/(\d{2})$/.exec(rotulo);
+  const i = m ? MESES.indexOf(m[1]) : -1;
+  return m && i >= 0 ? `${MESES_EXTENSO[i]} 20${m[2]}` : rotulo;
+}
 
 // Tipos de coluna que podem agrupar um gráfico ou filtrar.
 export const CATEGORICAS = ['status', 'pessoa', 'lista', 'data', 'periodo', 'caixa', 'texto', 'avaliacao', 'formula', 'ligacao'];

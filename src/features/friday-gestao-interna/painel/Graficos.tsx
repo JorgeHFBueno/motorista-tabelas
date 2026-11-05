@@ -1,14 +1,15 @@
-import type { KeyboardEvent, MouseEvent } from 'react';
+import type { KeyboardEvent, MouseEvent, ReactNode } from 'react';
 import { corTexto, fmtNumero } from '../util.ts';
-import { GRUPO, type Fatia, type Intervalo, type LinhaTabela, type Resultado, type Widget } from './calculo.ts';
+import { blocosDoTexto, escalaEixo, GRUPO, mesPorExtenso, type Fatia, type Intervalo, type LinhaTabela, type ParteTexto, type Resultado, type Widget } from './calculo.ts';
 
 export type Selecao = { chave?: string; pilha?: string; bucket?: Intervalo; titulo: string };
-type Props = { w: Widget; r: Resultado; onAbrir?: (s: Selecao) => void; onItem?: (quadroId: number, itemId: number) => void };
+type Props = { w: Widget; r: Resultado; monday?: boolean; onAbrir?: (s: Selecao) => void; onItem?: (quadroId: number, itemId: number) => void };
 
+const ehReal = (unidade: string) => unidade.trim() === 'R$';
 // Gráficos do painel em SVG próprio (sem biblioteca). Cada barra/fatia mostra no "title" o valor e a quantidade.
 export function fmtValor(v: number, w: Widget, unidade: string) {
   if (w.calculo === 'contagem') return v.toLocaleString('pt-BR');
-  if (unidade === 'R$') return v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 2 });
+  if (ehReal(unidade)) return v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 2 });
   return fmtNumero(Math.round(v * 100) / 100, unidade);
 }
 // Rótulo curto para dentro do gráfico: 3,2 mi · 917 mil.
@@ -17,7 +18,7 @@ function compacto(v: number, w: Widget, unidade: string) {
   const a = Math.abs(v);
   const s = a >= 1e6 ? `${(v / 1e6).toLocaleString('pt-BR', { maximumFractionDigits: 1 })} mi`
     : a >= 1e4 ? `${Math.round(v / 1e3).toLocaleString('pt-BR')} mil` : v.toLocaleString('pt-BR', { maximumFractionDigits: 0 });
-  return unidade === 'R$' ? `R$ ${s}` : s;
+  return ehReal(unidade) ? `R$ ${s}` : s;
 }
 const dica = (f: Fatia, w: Widget, unidade: string) =>
   `${f.rotulo}: ${fmtValor(f.valor, w, unidade)}${w.calculo === 'contagem' ? '' : ` · ${f.n} ${f.n === 1 ? 'item' : 'itens'}`}`;
@@ -34,7 +35,7 @@ const curto = (s: string) => (s.length > 12 ? `${s.slice(0, 11)}…` : s);
 export function Grafico(p: Props) {
   const { w, r } = p;
   switch (w.tipo) {
-    case 'texto': return <div className="pw-texto">{w.texto || <span className="muted">Sem texto.</span>}</div>;
+    case 'texto': return w.texto ? <TextoWidget texto={w.texto} /> : <div className="pw-texto"><span className="muted">Sem texto.</span></div>;
     case 'numero': return <Numero {...p} />;
     case 'matriz': return <Matriz {...p} />;
     case 'lista': return <Lista {...p} />;
@@ -48,8 +49,27 @@ export function Grafico(p: Props) {
     case 'linha': return <Linha {...p} />;
     case 'bateria': return <Bateria {...p} />;
     case 'pivo': return <Pivo {...p} />;
-    default: return <Colunas {...p} />;
+    default: return p.monday || w.comQuantidade ? <ColunasComEixo {...p} /> : <Colunas {...p} />;
   }
+}
+
+const Partes = ({ partes }: { partes: ParteTexto[] }) => <>{partes.map((p, i) => (p.negrito ? <strong key={i}>{p.texto}</strong> : <span key={i}>{p.texto}</span>))}</>;
+
+function TextoWidget({ texto }: { texto: string }) {
+  const blocos = blocosDoTexto(texto);
+  const saida: ReactNode[] = [];
+  for (let i = 0; i < blocos.length; i++) {
+    const b = blocos[i];
+    if (b.tipo === 'titulo') saida.push(<h4 key={i} className="pw-texto-titulo"><Partes partes={b.partes} /></h4>);
+    else if (b.tipo === 'paragrafo') saida.push(<p key={i}><Partes partes={b.partes} /></p>);
+    else {
+      const itens = [];
+      for (; i < blocos.length && blocos[i].tipo === 'item'; i++) itens.push(<li key={i}><Partes partes={blocos[i].partes} /></li>);
+      i--;
+      saida.push(<ul key={`l${i}`}>{itens}</ul>);
+    }
+  }
+  return <div className="pw-texto formatado">{saida}</div>;
 }
 
 function Numero({ w, r, onAbrir }: Props) {
@@ -83,7 +103,7 @@ function Tendencia({ serie, w, unidade }: { serie: NonNullable<Resultado['serie'
   );
 }
 
-function Pizza({ w, r, onAbrir }: Props) {
+function Pizza({ w, r, monday, onAbrir }: Props) {
   const total = r.fatias.reduce((s, f) => s + Math.max(f.valor, 0), 0) || 1;
   let ang = -Math.PI / 2;
   const abrir = (f: Fatia) => onAbrir && (() => onAbrir({ chave: f.chave, titulo: `${w.titulo}: ${f.rotulo}` }));
@@ -99,15 +119,19 @@ function Pizza({ w, r, onAbrir }: Props) {
     <div className="pw-pizza">
       <svg viewBox="-90 -90 180 180" role="img" aria-label={`Pizza: ${r.fatias.map(f => dica(f, w, r.unidade)).join('; ')}`}>
         {r.fatias.map(arco)}
-        <circle cx={0} cy={0} r={46} className="pw-furo" />
+        {!monday && <circle cx={0} cy={0} r={46} className="pw-furo" />}
       </svg>
       <ul className="pw-legenda">
         {r.fatias.map(f => (
           <li key={f.chave} title={dica(f, w, r.unidade)} {...clicavel(abrir(f))}>
             <span className="pw-cor" style={{ background: f.cor }} />
-            <span className="pw-rotulo">{f.rotulo}</span>
-            <span className="pw-num">{fmtValor(f.valor, w, r.unidade)}</span>
-            <span className="pw-pct">{((Math.max(f.valor, 0) / total) * 100).toLocaleString('pt-BR', { maximumFractionDigits: 1 })}%</span>
+            {monday
+              ? <span className="pw-rotulo">{f.rotulo}: {((Math.max(f.valor, 0) / total) * 100).toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}%</span>
+              : <>
+                <span className="pw-rotulo">{f.rotulo}</span>
+                <span className="pw-num">{fmtValor(f.valor, w, r.unidade)}</span>
+                <span className="pw-pct">{((Math.max(f.valor, 0) / total) * 100).toLocaleString('pt-BR', { maximumFractionDigits: 1 })}%</span>
+              </>}
           </li>
         ))}
       </ul>
@@ -121,6 +145,87 @@ const LegendaPilhas = ({ r }: { r: Resultado }) => (r.pilhasColunas?.length ? (
 
 // De quantos em quantos rótulos mostrar no eixo, para não embolar.
 const passoRotulo = (n: number, L: number) => Math.max(1, Math.ceil(n / Math.floor(L / 62)));
+
+const COR_QUANTIDADE = '#579bfc';
+const COR_VALOR = '#ffcb00';
+
+// Colunas com eixo Y, linhas de grade e o valor inteiro em cada coluna (aparência do monday). Com comQuantidade, duas por grupo.
+function ColunasComEixo({ w, r, onAbrir }: Props) {
+  const dupla = !!w.comQuantidade && w.calculo !== 'contagem';
+  const empilha = !!w.pilha && w.calculo !== 'media' && !dupla;
+  const real = ehReal(r.unidade) && w.calculo !== 'contagem';
+  const rotulos = r.fatias.map(f => mesPorExtenso(f.rotulo));
+  const { topo, passo } = escalaEixo(Math.max(...r.fatias.map(f => Math.max(f.valor, dupla ? f.n : 0)), 0), w.calculo === 'contagem');
+  const tick = (v: number) => (real ? `R$ ${v.toLocaleString('pt-BR', { maximumFractionDigits: 0 })}` : v.toLocaleString('pt-BR'));
+  const rotuloValor = (v: number) => (real ? `R$ ${v.toLocaleString('pt-BR', { maximumFractionDigits: 2 })}` : fmtValor(v, w, r.unidade));
+  const marcas = Array.from({ length: Math.round(topo / passo) + 1 }, (_, i) => i * passo);
+  const n = r.fatias.length;
+  const L = w.largo ? 1240 : 640;
+  const esq = 34 + Math.max(...marcas.map(m => tick(m).length)) * 6.6;
+  const area = (L - esq - 28) / n;
+  const deitado = rotulos.some(t => t.length * 6.6 > area);
+  const maiorRotulo = Math.max(...rotulos.map(t => Math.min(t.length, 24)));
+  const baixo = deitado ? maiorRotulo * 5 + 20 : 26;
+  const A = 320 + baixo;
+  const base = A - baixo;
+  const altura = (v: number) => (Math.max(v, 0) / topo) * (base - 26);
+  const titulo = w.calculo === 'contagem' ? 'Quantidade' : w.valor ?? '';
+  return (
+    <>
+      <svg className="pw-colunas pw-com-eixo" viewBox={`0 0 ${L} ${A}`} role="img" aria-label={`Colunas: ${r.fatias.map(f => dica(f, w, r.unidade)).join('; ')}`}>
+        <text x={12} y={(base + 26) / 2} className="pw-txt-eixo" transform={`rotate(-90 12 ${(base + 26) / 2})`}>{titulo}</text>
+        {marcas.map(m => (
+          <g key={m}>
+            <line x1={esq} x2={L - 4} y1={base - altura(m)} y2={base - altura(m)} className="pw-grade" />
+            <text x={esq - 8} y={base - altura(m) + 4} className="pw-txt-eixo fim">{tick(m)}</text>
+          </g>
+        ))}
+        {r.fatias.map((f, i) => {
+          const x = esq + area * (i + 0.5);
+          const abrir = !empilha && onAbrir ? () => onAbrir({ chave: f.chave, titulo: `${w.titulo}: ${f.rotulo}` }) : undefined;
+          const eixo = rotulos[i].length > 24 ? `${rotulos[i].slice(0, 23)}…` : rotulos[i];
+          let topoPilha = base;
+          const largura = dupla ? Math.min(area * 0.3, 40) : Math.min(area * 0.62, 110);
+          return (
+            <g key={f.chave} {...clicavel(abrir)}>
+              <title>{dica(f, w, r.unidade)}</title>
+              {dupla && (
+                <>
+                  <rect x={x - largura - 1} y={base - altura(f.n)} width={largura} height={altura(f.n)} rx={3} fill={COR_QUANTIDADE} />
+                  <text x={x - largura / 2 - 1} y={base - altura(f.n) - 6} className="pw-txt-valor">{f.n.toLocaleString('pt-BR')}</text>
+                  <rect x={x + 1} y={base - altura(f.valor)} width={largura} height={altura(f.valor)} rx={3} fill={COR_VALOR} />
+                </>
+              )}
+              {!dupla && empilha && f.pilhas.map(p => {
+                const h = altura(p.valor);
+                topoPilha -= h;
+                return (
+                  <g key={p.chave} {...clicavel(onAbrir && (() => onAbrir({ chave: f.chave, pilha: p.chave, titulo: `${w.titulo}: ${f.rotulo} · ${p.rotulo}` })))}>
+                    <title>{f.rotulo} · {dica(p, w, r.unidade)}</title>
+                    <rect x={x - largura / 2} y={topoPilha} width={largura} height={h} fill={p.cor} />
+                    {h >= 16 && <text x={x} y={topoPilha + h / 2 + 4} className="pw-txt-valor" style={{ fill: corTexto(p.cor) }}>{fmtValor(p.valor, w, r.unidade)}</text>}
+                  </g>
+                );
+              })}
+              {!dupla && !(empilha && f.pilhas.length) && <rect x={x - largura / 2} y={base - altura(f.valor)} width={largura} height={altura(f.valor)} rx={3} fill={f.cor} />}
+              <text x={dupla ? x + largura / 2 + 1 : x} y={base - altura(f.valor) - 6} className="pw-txt-valor">{rotuloValor(f.valor)}</text>
+              {deitado
+                ? <text x={x + 4} y={base + 14} className="pw-txt-eixo fim" transform={`rotate(-45 ${x + 4} ${base + 14})`}>{eixo}</text>
+                : <text x={x} y={base + 18} className="pw-txt-eixo">{eixo}</text>}
+            </g>
+          );
+        })}
+      </svg>
+      {dupla && (
+        <ul className="pw-legenda linha">
+          <li><span className="pw-cor" style={{ background: COR_QUANTIDADE }} />Quantidade</li>
+          <li><span className="pw-cor" style={{ background: COR_VALOR }} />{w.valor}</li>
+        </ul>
+      )}
+      {empilha && <LegendaPilhas r={r} />}
+    </>
+  );
+}
 
 function Colunas({ w, r, onAbrir }: Props) {
   const max = Math.max(...r.fatias.map(f => f.valor), 0) || 1;
