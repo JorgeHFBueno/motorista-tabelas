@@ -46,13 +46,31 @@ export function comparar(a: Forca, b: Forca): number {
 
 /** A melhor mão de 5 entre as cartas dadas (5 a 7): testa cada combinação de 5. */
 export function melhorMao(cartas: Carta[]): Forca {
-  if (cartas.length <= 5) return forcaDe5(cartas);
-  let melhor: Forca | null = null;
+  return melhorDe(cartas).forca;
+}
+
+/** As 5 cartas na ordem em que se lê a mão: os grupos maiores primeiro (a trinca, depois o par), depois o valor. */
+function ordenar(m: Carta[], f: Forca): Carta[] {
+  const roda = (f[0] === 4 || f[0] === 8) && f[1] === 5; // A-2-3-4-5: o ás é a menor
+  const valor = (c: Carta) => (roda && c.valor === 1 ? 1 : alto(c.valor));
+  const vezes = (c: Carta) => m.filter((x) => x.valor === c.valor).length;
+  return m.slice().sort((a, b) => vezes(b) - vezes(a) || valor(b) - valor(a));
+}
+
+/** A melhor mão e as 5 cartas que a formam, na ordem em que se lê. */
+export function melhorCombinacao(cartas: Carta[]): { forca: Forca; cartas: Carta[] } {
+  const r = melhorDe(cartas);
+  return { forca: r.forca, cartas: ordenar(r.cartas, r.forca) };
+}
+
+function melhorDe(cartas: Carta[]): { forca: Forca; cartas: Carta[] } {
+  if (cartas.length <= 5) return { forca: forcaDe5(cartas), cartas: cartas.slice() };
+  let melhor: { forca: Forca; cartas: Carta[] } | null = null;
   const escolha: Carta[] = [];
   const andar = (de: number) => {
     if (escolha.length === 5) {
       const f = forcaDe5(escolha);
-      if (!melhor || comparar(f, melhor) > 0) melhor = f;
+      if (!melhor || comparar(f, melhor.forca) > 0) melhor = { forca: f, cartas: escolha.slice() };
       return;
     }
     for (let i = de; i <= cartas.length - (5 - escolha.length); i++) {
@@ -62,7 +80,7 @@ export function melhorMao(cartas: Carta[]): Forca {
     }
   };
   andar(0);
-  return melhor ?? forcaDe5(cartas.slice(0, 5));
+  return melhor ?? { forca: forcaDe5(cartas.slice(0, 5)), cartas: cartas.slice(0, 5) };
 }
 
 /** Nome da mão (com o royal à parte), para mostrar; com menos de 5 cartas, só par/dois pares/trinca/quadra. */
@@ -78,4 +96,32 @@ export function nomeDaMao(cartas: Carta[]): string {
   }
   const f = melhorMao(cartas);
   return f[0] === 8 && f[1] === 14 ? 'ROYAL FLUSH' : NOMES_MAO[f[0]];
+}
+
+// valor alto (2 a 14) por extenso, sem acento
+const UM: Record<number, string> = { 14: 'AS', 13: 'REI', 12: 'DAMA', 11: 'VALETE', 10: 'DEZ', 9: 'NOVE', 8: 'OITO', 7: 'SETE', 6: 'SEIS', 5: 'CINCO', 4: 'QUATRO', 3: 'TRES', 2: 'DOIS' };
+const VARIOS: Record<number, string> = { 14: 'ASES', 13: 'REIS', 12: 'DAMAS', 11: 'VALETES', 10: 'DEZ', 9: 'NOVES', 8: 'OITOS', 7: 'SETES', 6: 'SEIS', 5: 'CINCOS', 4: 'QUATROS', 3: 'TRES', 2: 'DOIS' };
+export const valorPorExtenso = (v: number) => UM[v] ?? String(v);
+
+/**
+ * A mão por extenso: "PAR DE DEZ", "DOIS PARES: REIS E SETES", "FLUSH DE COPAS ATE AS"... `contra`, a força da mão
+ * que perdeu por pouco: com a mesma categoria e o mesmo valor principal, diz a carta que desempatou.
+ */
+export function descreverMao(combinacao: { forca: Forca; cartas: Carta[] }, contra?: Forca): string {
+  const [cat, a, b] = combinacao.forca;
+  const naipe = combinacao.cartas[0]?.naipe.toUpperCase() ?? '';
+  const texto = [
+    `CARTA ALTA: ${UM[a]}`,
+    `PAR DE ${VARIOS[a]}`,
+    `DOIS PARES: ${VARIOS[a]} E ${VARIOS[b]}`,
+    `TRINCA DE ${VARIOS[a]}`,
+    `SEQUENCIA ATE ${UM[a]}`,
+    `FLUSH DE ${naipe} ATE ${UM[a]}`,
+    `FULL HOUSE: ${VARIOS[a]} COM ${VARIOS[b]}`,
+    `QUADRA DE ${VARIOS[a]}`,
+    a === 14 ? 'ROYAL FLUSH' : `STRAIGHT FLUSH ATE ${UM[a]}`,
+  ][cat];
+  if (!contra || contra[0] !== cat) return texto;
+  const k = combinacao.forca.findIndex((x, i) => x !== contra[i]);
+  return k >= 2 ? `${texto}, DESEMPATE: ${UM[combinacao.forca[k]]}` : texto;
 }

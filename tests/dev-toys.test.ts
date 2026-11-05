@@ -31,6 +31,7 @@ import { chance, decidir, novoBot } from '../src/features/dev-toys/toys/poker/bo
 import * as xz from '../src/features/dev-toys/toys/xadrez/regras';
 import { NIVEIS, escolherLance } from '../src/features/dev-toys/toys/xadrez/bot';
 import * as slot from '../src/features/dev-toys/toys/slot/regras';
+import * as rg from '../src/features/dev-toys/toys/regras/exemplos';
 
 const sessao = (valores: Record<string, string>) => ({ getItem: (k: string) => valores[k] ?? null });
 
@@ -693,6 +694,66 @@ test('Poker: os bots estimam a chance e jogam dentro das regras', () => {
   }
 });
 
+test('Poker: a mão por extenso, as 5 cartas dela e o que desempatou', () => {
+  const desc = (...cs: string[]) => pk.descreverMao(pk.melhorCombinacao(mao5(...cs)));
+  assert.equal(desc('Je', '7c', '3o', '8p', '9e', '2c', '5o'), 'CARTA ALTA: VALETE');
+  assert.equal(desc('10e', '10c', '3o', '8p', '9e', '2c', '5o'), 'PAR DE DEZ');
+  assert.equal(desc('Ke', 'Kc', '7o', '7p', '9e', '2c', '5o'), 'DOIS PARES: REIS E SETES');
+  assert.equal(desc('5e', '5c', '5o', 'Kp', '9e', '2c', 'Jo'), 'TRINCA DE CINCOS');
+  assert.equal(desc('Ae', '2c', '3o', '4p', '5e', 'Kc', 'Ko'), 'SEQUENCIA ATE CINCO', 'ás baixo');
+  assert.equal(desc('2c', '7c', '9c', 'Jc', 'Ac', 'Ae', 'Ko'), 'FLUSH DE COPAS ATE AS');
+  assert.equal(desc('Qe', 'Qc', 'Qo', '7p', '7e', '2c', '3o'), 'FULL HOUSE: DAMAS COM SETES');
+  assert.equal(desc('8e', '8c', '8o', '8p', '2e', '3e', '4c'), 'QUADRA DE OITOS');
+  assert.equal(desc('5c', '6c', '7c', '8c', '9c', 'Ae', 'Ao'), 'STRAIGHT FLUSH ATE NOVE');
+  assert.equal(desc('10e', 'Je', 'Qe', 'Ke', 'Ae', '2c', '3o'), 'ROYAL FLUSH');
+
+  const c = pk.melhorCombinacao(mao5('Ae', 'Ac', '3o', '8p', '9e', 'Kc', '5o'));
+  assert.equal(c.cartas.length, 5);
+  assert.deepEqual(c.cartas.map((x) => x.valor), [1, 1, 13, 9, 8], 'o par primeiro, depois as três maiores');
+  assert.deepEqual(pk.melhorCombinacao(mao5('5e', '9c', '5o', 'Kp', '9e', '5c', '2o')).cartas.map((x) => x.valor), [5, 5, 5, 9, 9], 'full house: a trinca, depois o par');
+  assert.deepEqual(pk.melhorCombinacao(mao5('Ae', '2c', '3o', '4p', '5e', 'Kc', 'Ko')).cartas.map((x) => x.valor), [5, 4, 3, 2, 1], 'na sequência baixa, o ás vem por último');
+  const perdeu = pk.melhorMao(mao5('Ae', 'Ac', 'Qo', '8p', '9e', '2c', '5o'));
+  const ganhou = pk.melhorCombinacao(mao5('Ae', 'Ac', 'Ko', '8p', '9e', '2c', '5o'));
+  assert.equal(pk.descreverMao(ganhou, perdeu), 'PAR DE ASES, DESEMPATE: REI');
+  assert.equal(pk.descreverMao(ganhou, pk.melhorMao(mao5('Ke', 'Kc', 'Qo', '8p', '9e', '2c', '5o'))), 'PAR DE ASES', 'par maior não precisa de desempate');
+});
+
+test('Poker: quem quebra sai da mesa; com dois, o botão põe o blind pequeno; sobrando um, não há mão', () => {
+  const base = pm.mesaNova([100, 0, 200, 0].map((f, k) => pm.novoJogador(`J${k}`, k ? 'normal' : null, f)));
+  assert.deepEqual(pm.sentados(base), [0, 2]);
+  const m = pm.novaMao(base, rngDe(3));
+  assert.equal(m.botao, 0, 'o botão pula os lugares vazios');
+  assert.deepEqual([m.pequeno, m.grande], [0, 2], 'com dois, o botão é o blind pequeno');
+  assert.deepEqual(m.jogadores.map((j) => j.cartas.length), [2, 0, 2, 0], 'lugar vazio não recebe cartas');
+  assert.deepEqual(m.jogadores.map((j) => j.investido), [5, 0, 10, 0]);
+  assert.equal(m.vez, 0, 'antes do flop, com dois, o botão fala primeiro');
+  let n = pm.agir(m, { tipo: 'pagar' });
+  n = pm.agir(n, { tipo: 'passar' });
+  assert.equal(n.rua, 'flop');
+  assert.equal(n.vez, 2, 'depois do flop, o blind grande fala primeiro');
+
+  const proxima = pm.novaMao({ ...base, botao: 0 }, rngDe(3));
+  assert.equal(proxima.botao, 2, 'o botão anda para o próximo com fichas');
+
+  const sozinho = pm.mesaNova([300, 0, 0, 0].map((f, k) => pm.novoJogador(`J${k}`, null, f)));
+  assert.equal(pm.novaMao(sozinho, rngDe(1)), sozinho, 'sobrando um, a mesa acabou');
+});
+
+test('Poker: sem repor bots, a mesa termina com um só e as fichas conservadas', () => {
+  const rng = rngDe(11);
+  let m = pm.mesaNova([0, 1, 2, 3].map(() => ({ ...novoBot(rng), estilo: 'agressivo' as const })));
+  let maos = 0;
+  while (pm.sentados(m).length > 1 && maos < 400) {
+    m = pm.novaMao(m, rng);
+    for (let passos = 0; m.rua !== 'fim' && passos < 100; passos++) m = pm.agir(m, decidir(m, rng, 30));
+    assert.equal(m.rua, 'fim');
+    assert.equal(m.jogadores.reduce((t, j) => t + j.fichas, 0), 800);
+    for (const p of m.potes.filter(() => m.mostrou)) assert.equal(p.cartas.length, 5);
+    maos++;
+  }
+  assert.equal(pm.sentados(m).length, 1, `a mesa acabou em ${maos} mãos`);
+});
+
 test('Xadrez: perft das posições de referência (roque, en passant, promoção e cravadas)', () => {
   assert.deepEqual([1, 2, 3].map((n) => xz.perft(xz.deFen(xz.INICIAL), n)), [20, 400, 8902]);
   const kiwipete = xz.deFen('r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - 0 1');
@@ -747,4 +808,28 @@ test('Slot: a fita tem 21 símbolos espalhados, a tabela paga a linha do meio e 
   const r = slot.retornoTeorico();
   assert.ok(r > 0.97 && r < 1.03, `retorno ${(100 * r).toFixed(1)}%`);
   for (const p of slot.sortearParadas(rngDe(9))) assert.ok(p >= 0 && p < 21);
+});
+
+test('Regras: os exemplos batem com os motores dos jogos', () => {
+  assert.deepEqual(rg.EXEMPLOS_21.map((e) => rg.valorNo21(e.mao)), ['17', '17 OU 7', '21 . BLACKJACK', '25 . ESTOUROU']);
+  assert.deepEqual(rg.MAOS_POKER.map((m) => m.nome), ['ROYAL FLUSH', ...[...pk.NOMES_MAO].reverse().slice(0, 9)], 'uma de cada, da maior para a menor');
+  for (let i = 1; i < rg.MAOS_POKER.length; i++) {
+    assert.ok(pk.comparar(pk.melhorMao(rg.MAOS_POKER[i - 1].mao), pk.melhorMao(rg.MAOS_POKER[i].mao)) > 0, `${rg.MAOS_POKER[i - 1].nome} ganha de ${rg.MAOS_POKER[i].nome}`);
+  }
+  assert.equal(rg.DESEMPATE_POKER.descricao, 'PAR DE ASES, DESEMPATE: REI');
+
+  const casas = (titulo: string) => rg.destinosDe(rg.EXEMPLOS_XADREZ.find((e) => e.titulo === titulo)!).map(xz.nomeCasa).sort();
+  assert.equal(casas('REI').length, 8);
+  assert.equal(casas('DAMA').length, 27);
+  assert.equal(casas('TORRE').length, 14);
+  assert.equal(casas('BISPO').length, 13);
+  assert.equal(casas('CAVALO').length, 8);
+  assert.deepEqual(casas('PEAO'), ['c5', 'd5'], 'anda uma ou captura na diagonal');
+  assert.ok(casas('ROQUE').includes('g1') && casas('ROQUE').includes('c1'), 'roque curto e longo');
+  assert.deepEqual(casas('EN PASSANT'), ['d6', 'e6']);
+  assert.deepEqual(casas('PROMOCAO'), ['a8']);
+  const fim = (titulo: string) => rg.situacaoDe(rg.EXEMPLOS_XADREZ.find((e) => e.titulo === titulo)!);
+  assert.equal(fim('XEQUE-MATE').fim, 'mate');
+  assert.ok(fim('XEQUE-MATE').xeque >= 0, 'o rei em xeque fica marcado');
+  assert.deepEqual(fim('AFOGAMENTO'), { xeque: -1, fim: 'afogamento' });
 });

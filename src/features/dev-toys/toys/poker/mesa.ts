@@ -1,10 +1,11 @@
 // Mesa de Texas Hold'em sem limite, sem DOM: você e 3 bots (decisões do responsável, 2026-11-03). Botão do dealer
 // que gira, blinds de 5 e 10, quatro rodadas de apostas (antes do flop, flop, turn e river), desistir, passar,
 // pagar, aumentar e all-in, e potes paralelos quando alguém vai all-in com menos fichas. A melhor mão de 5 entre as
-// 7 cartas leva cada pote; empate divide (a ficha que sobra vai para o primeiro depois do botão).
+// 7 cartas leva cada pote; empate divide (a ficha que sobra vai para o primeiro depois do botão). Quem fica sem
+// fichas sai da mesa: o lugar fica vazio e a mão segue com quem sobrou (com dois, o botão é o blind pequeno).
 
 import { embaralhar, novoBaralho, type Carta } from '../cartas/baralho';
-import { comparar, melhorMao, nomeDaMao } from './maos';
+import { comparar, descreverMao, melhorCombinacao, melhorMao, nomeDaMao } from './maos';
 
 export const LUGARES = 4;
 export const BLIND_PEQUENO = 5;
@@ -29,10 +30,14 @@ export type Jogador = {
   ultima: string | null;
 };
 export type Rua = 'preflop' | 'flop' | 'turn' | 'river' | 'fim';
-export type Pote = { valor: number; ganhadores: number[]; mao: string | null };
+/** `mao`: a categoria; `descricao`: por extenso; `cartas`: as 5 da mão do (primeiro) ganhador. Sem comparação, nulos. */
+export type Pote = { valor: number; ganhadores: number[]; mao: string | null; descricao: string | null; cartas: Carta[] };
 export type Mesa = {
   jogadores: Jogador[];
   botao: number;
+  /** quem pôs os blinds nesta mão (-1 antes da primeira) */
+  pequeno: number;
+  grande: number;
   baralho: Carta[];
   /** as 5 da mesa */
   comunitarias: Carta[];
@@ -55,13 +60,15 @@ export type Mesa = {
 const proximo = (i: number) => (i + 1) % LUGARES;
 export const pote = (m: Mesa) => m.jogadores.reduce((t, j) => t + j.investido, 0);
 export const vivos = (m: Mesa) => m.jogadores.map((_, i) => i).filter((i) => !m.jogadores[i].desistiu);
+/** Quem ainda tem fichas para a próxima mão. */
+export const sentados = (m: Mesa) => m.jogadores.map((_, i) => i).filter((i) => m.jogadores[i].fichas > 0);
 
 export const novoJogador = (nome: string, estilo: Estilo | null, fichas = ENTRADA): Jogador => ({
   nome, estilo, fichas, cartas: [], aposta: 0, investido: 0, desistiu: false, allIn: false, ultima: null,
 });
 
 export const mesaNova = (jogadores: Jogador[], botao = LUGARES - 1): Mesa => ({
-  jogadores, botao, baralho: [], comunitarias: [], abertas: 0, rua: 'fim', vez: -1, maior: 0, minimo: BLIND_GRANDE, faltam: [], potes: [], mostrou: false,
+  jogadores, botao, pequeno: -1, grande: -1, baralho: [], comunitarias: [], abertas: 0, rua: 'fim', vez: -1, maior: 0, minimo: BLIND_GRANDE, faltam: [], potes: [], mostrou: false,
 });
 
 /** Põe fichas na mesa (até o que o jogador tem). */
@@ -81,24 +88,31 @@ function ordem(m: Mesa, de: number): number[] {
   return r;
 }
 
-/** Nova mão: o botão anda, saem os blinds e as cartas. Todos precisam ter fichas. */
+/** Nova mão: o botão anda, saem os blinds e as cartas. Quem não tem fichas fica fora; com menos de dois, não há mão. */
 export function novaMao(m: Mesa, rng: () => number): Mesa {
-  const botao = proximo(m.botao);
+  const dentro = sentados(m);
+  if (dentro.length < 2) return m;
+  // o próximo lugar com fichas depois de `i`
+  const seguinte = (i: number) => dentro.find((x) => x > i) ?? dentro[0];
+  const botao = seguinte(m.botao);
   const b = embaralhar(novoBaralho(), rng);
   let k = 0;
-  let jogadores: Jogador[] = m.jogadores.map((j) => ({ ...j, cartas: [], aposta: 0, investido: 0, desistiu: false, allIn: false, ultima: null }));
+  // quem está fora conta como desistente: não recebe cartas nem age
+  let jogadores: Jogador[] = m.jogadores.map((j) => ({ ...j, cartas: [], aposta: 0, investido: 0, desistiu: j.fichas <= 0, allIn: false, ultima: null }));
   // duas cartas para cada, uma de cada vez, começando à esquerda do botão
   for (let volta = 0; volta < 2; volta++) {
     for (let d = 1; d <= LUGARES; d++) {
       const i = (botao + d) % LUGARES;
+      if (jogadores[i].desistiu) continue;
       jogadores[i] = { ...jogadores[i], cartas: [...jogadores[i].cartas, b[k++]] };
     }
   }
-  const pequeno = proximo(botao);
-  const grande = proximo(pequeno);
+  // com dois, o botão põe o blind pequeno
+  const pequeno = dentro.length === 2 ? botao : seguinte(botao);
+  const grande = seguinte(pequeno);
   jogadores = jogadores.map((j, i) => (i === pequeno ? { ...por(j, BLIND_PEQUENO), ultima: `BLIND ${Math.min(BLIND_PEQUENO, j.fichas)}` } : i === grande ? { ...por(j, BLIND_GRANDE), ultima: `BLIND ${Math.min(BLIND_GRANDE, j.fichas)}` } : j));
   const mesa: Mesa = {
-    jogadores, botao, baralho: b.slice(k + 5), comunitarias: b.slice(k, k + 5), abertas: 0, rua: 'preflop',
+    jogadores, botao, pequeno, grande, baralho: b.slice(k + 5), comunitarias: b.slice(k, k + 5), abertas: 0, rua: 'preflop',
     vez: -1, maior: BLIND_GRANDE, minimo: BLIND_GRANDE, faltam: [], potes: [], mostrou: false,
   };
   const faltam = ordem(mesa, proximo(grande));
@@ -189,10 +203,11 @@ function encerrar(m: Mesa, mostrar: boolean): Mesa {
   const vv = vivos(m);
   if (!mostrar && vv.length === 1) {
     const g = vv[0];
-    potes.push({ valor: pote(m), ganhadores: [g], mao: null });
+    potes.push({ valor: pote(m), ganhadores: [g], mao: null, descricao: null, cartas: [] });
     jogadores[g] = { ...jogadores[g], fichas: jogadores[g].fichas + pote(m) };
   } else {
     const forca = (i: number) => melhorMao([...m.jogadores[i].cartas, ...m.comunitarias]);
+    const combinacao = (i: number) => melhorCombinacao([...m.jogadores[i].cartas, ...m.comunitarias]);
     for (const p of potesDe(m)) {
       let ganhadores: number[] = [];
       for (const i of p.elegiveis) {
@@ -206,7 +221,13 @@ function encerrar(m: Mesa, mostrar: boolean): Mesa {
       ganhadores.forEach((g, k) => {
         jogadores[g] = { ...jogadores[g], fichas: jogadores[g].fichas + parte + (k === 0 ? p.valor - parte * ganhadores.length : 0) };
       });
-      potes.push({ valor: p.valor, ganhadores, mao: nomeDaMao([...m.jogadores[ganhadores[0]].cartas, ...m.comunitarias]) });
+      // a melhor mão entre os que perderam este pote, para dizer o que desempatou
+      const perdedores = p.elegiveis.filter((i) => !ganhadores.includes(i)).map(forca).sort((x, y) => comparar(y, x));
+      const g = ganhadores[0];
+      potes.push({
+        valor: p.valor, ganhadores, mao: nomeDaMao([...m.jogadores[g].cartas, ...m.comunitarias]),
+        descricao: descreverMao(combinacao(g), perdedores[0]), cartas: combinacao(g).cartas,
+      });
     }
   }
   // no fim por desistência, a mesa fica como estava; comparando mãos, abre tudo

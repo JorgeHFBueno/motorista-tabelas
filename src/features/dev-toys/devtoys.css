@@ -657,18 +657,25 @@
   display: flex;
   align-items: flex-end;
   gap: calc(var(--dt-e) * 6px);
+  min-width: 0;
+  max-width: 100%;
 }
 
+/* até 42 de largura; sem espaço, as pilhas encolhem juntas */
 .devtoys .dt-jogo-pilha {
   display: flex;
   flex-direction: column;
   align-items: center;
+  flex: 0 1 calc(var(--dt-e) * 42px);
+  min-width: 0;
   font-size: calc(var(--dt-e) * 10px);
   line-height: 1.2;
 }
 
 .devtoys .dt-jogo-pilha svg {
-  width: calc(var(--dt-e) * 42px);
+  display: block;
+  width: 100%;
+  height: auto;
   fill: currentColor;
 }
 
@@ -922,6 +929,52 @@
   }
 }
 
+/* lugar de um bot que quebrou */
+.devtoys .dt-pk-vazio {
+  justify-content: center;
+  min-height: calc(var(--dt-e) * 110px);
+  color: var(--dt-apagado);
+  border-style: dashed;
+}
+
+/* no fim: as cartas da mão vencedora acesas, as outras apagadas */
+.devtoys .dt-pk-usada .dt-carta {
+  box-shadow: 0 0 0 2px var(--dt-tinta);
+}
+
+.devtoys .dt-pk-sobra {
+  opacity: 0.35;
+}
+
+/* o resultado da mão, no painel */
+.devtoys .dt-pk-resultado {
+  display: flex;
+  flex-direction: column;
+  gap: calc(var(--dt-e) * 8px);
+  font-size: calc(var(--dt-e) * 13px);
+}
+
+.devtoys .dt-pk-resultado p {
+  margin: 0 0 calc(var(--dt-e) * 3px);
+}
+
+.devtoys .dt-pk-leva {
+  font-size: calc(var(--dt-e) * 17px);
+  font-weight: bold;
+}
+
+.devtoys .dt-pk-mostraram {
+  margin: 0;
+  padding: calc(var(--dt-e) * 4px) 0 0;
+  list-style: none;
+  border-top: 1px dotted var(--dt-apagado);
+  color: var(--dt-apagado);
+}
+
+.devtoys .dt-pk-mostraram span {
+  color: var(--dt-tinta);
+}
+
 .devtoys .dt-pk-centro {
   display: flex;
   flex-direction: column;
@@ -1142,6 +1195,110 @@
 
 .devtoys .dt-xz-botoes {
   justify-content: flex-start;
+}
+
+/* ---- Regras ---- */
+.devtoys .dt-regras {
+  font-size: calc(var(--dt-e) * 13px);
+}
+
+.devtoys .dt-regras-abas {
+  justify-content: flex-start;
+  padding-bottom: calc(var(--dt-e) * 6px);
+  border-bottom: 1px dotted var(--dt-apagado);
+}
+
+/* o texto rola dentro da janela */
+.devtoys .dt-regras-corpo {
+  max-height: calc(var(--dt-e) * 440px);
+  overflow-y: auto;
+  padding-right: calc(var(--dt-e) * 8px);
+}
+
+.devtoys .dt-regras h3 {
+  margin: calc(var(--dt-e) * 14px) 0 calc(var(--dt-e) * 6px);
+  font-size: calc(var(--dt-e) * 13px);
+  color: var(--dt-papel);
+  background: var(--dt-tinta);
+  text-shadow: none;
+  width: max-content;
+  padding: 0 calc(var(--dt-e) * 4px);
+}
+
+.devtoys .dt-regras p {
+  margin: 0 0 calc(var(--dt-e) * 6px);
+}
+
+.devtoys .dt-regras ul {
+  margin: calc(var(--dt-e) * 8px) 0 0;
+  padding-left: calc(var(--dt-e) * 16px);
+}
+
+.devtoys .dt-regras li {
+  margin-bottom: calc(var(--dt-e) * 4px);
+}
+
+.devtoys .dt-regras-linha {
+  display: flex;
+  align-items: center;
+  gap: calc(var(--dt-e) * 10px);
+  margin-bottom: calc(var(--dt-e) * 6px);
+}
+
+.devtoys .dt-regras-cartas {
+  display: flex;
+  flex: none;
+  gap: calc(var(--dt-e) * 3px);
+}
+
+.devtoys .dt-regras-nome {
+  flex: none;
+  width: calc(var(--dt-e) * 112px);
+  font-weight: bold;
+}
+
+.devtoys .dt-regras-linha .dt-21-pontos {
+  flex: none;
+}
+
+.devtoys .dt-regras-tabuleiros {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: calc(var(--dt-e) * 12px);
+}
+
+.devtoys .dt-regras-exemplo {
+  margin: 0;
+  font-size: calc(var(--dt-e) * 11px);
+}
+
+.devtoys .dt-regras-titulo {
+  margin-bottom: calc(var(--dt-e) * 3px);
+  font-weight: bold;
+}
+
+.devtoys .dt-regras-tabuleiro {
+  display: grid;
+  grid-template-columns: repeat(8, calc(var(--dt-e) * 18px));
+  grid-auto-rows: calc(var(--dt-e) * 18px);
+  width: max-content;
+  margin-bottom: calc(var(--dt-e) * 4px);
+  border: 1px solid var(--dt-tinta);
+}
+
+.devtoys .dt-regras-tabuleiro .dt-xz-peca {
+  width: calc(var(--dt-e) * 14px);
+  height: calc(var(--dt-e) * 14px);
+}
+
+.devtoys .dt-regras-tabuleiro .dt-xz-ponto {
+  width: calc(var(--dt-e) * 5px);
+  height: calc(var(--dt-e) * 5px);
+}
+
+.devtoys .dt-regras-tabuleiro .dt-xz-anel {
+  inset: 1px;
+  border-width: 1px;
 }
 
 /* ---- Placar de Lideres ---- */

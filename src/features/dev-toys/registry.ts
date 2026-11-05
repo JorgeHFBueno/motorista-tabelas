@@ -76,4 +76,12 @@ export const DEV_TOYS: DevToy[] = [
     componente: lazy(() => import('./toys/placar/PlacarToy')),
     largura: 400,
   },
+  {
+    id: 'regras',
+    nome: 'Regras',
+    // livro aberto
+    icone: 'M2 2h5v1H2zM9 2h5v1H9zM1 3h1v10H1zM7 3h2v11H7zM14 3h1v10h-1zM2 13h5v1H2zM9 13h5v1H9zM3 5h3v1H3zM10 5h3v1h-3zM3 7h3v1H3zM10 7h3v1h-3zM3 9h3v1H3zM10 9h3v1h-3z',
+    componente: lazy(() => import('./toys/regras/RegrasToy')),
+    largura: 600,
+  },
 ];
