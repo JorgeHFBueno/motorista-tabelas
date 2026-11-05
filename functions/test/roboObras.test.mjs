@@ -105,10 +105,10 @@ test('registrar nunca sobrescreve outro subcentro', () => {
   assert.equal(r.decidirRegistro('218', '219'), 'conflito');
 });
 
-test('token: só Bearer com o valor certo; segredo vazio nunca confere', () => {
-  assert.equal(r.tokenDoCabecalho('Bearer abc123'), 'abc123');
-  assert.equal(r.tokenDoCabecalho('bearer abc123 '), 'abc123');
-  assert.equal(r.tokenDoCabecalho('abc123'), null);
+test('token: X-Robo-Token com o valor certo; segredo vazio nunca confere', () => {
+  assert.equal(r.tokenDoCabecalho('abc123'), 'abc123');
+  assert.equal(r.tokenDoCabecalho(' abc123 '), 'abc123');
+  assert.equal(r.tokenDoCabecalho('   '), null);
   assert.equal(r.tokenDoCabecalho(undefined), null);
   assert.equal(r.tokenConfere('abc123', 'abc123'), true);
   assert.equal(r.tokenConfere('abc124', 'abc123'), false);

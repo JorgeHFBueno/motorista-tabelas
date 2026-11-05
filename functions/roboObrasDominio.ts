@@ -108,10 +108,10 @@ export function decidirRegistro(atual: unknown, novo: string): 'gravar' | 'ja_gr
   return String(atual) === novo ? 'ja_gravado' : 'conflito';
 }
 
-/** Token do cabeçalho `Authorization: Bearer <token>`; null sem ele. */
+/** Token do cabeçalho `X-Robo-Token`, sem espaços nas pontas; null sem ele. */
 export function tokenDoCabecalho(cabecalho: unknown): string | null {
-  const m = /^Bearer\s+(\S+)\s*$/i.exec(String(cabecalho ?? ''));
-  return m ? m[1] : null;
+  const t = String(cabecalho ?? '').trim();
+  return t || null;
 }
 
 /** Compara o token recebido com o esperado sem vazar o tempo de comparação. Esperado vazio nunca confere. */

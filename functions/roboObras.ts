@@ -1,6 +1,7 @@
 // Endpoint dos robôs externos de obras ("o Friday decide, o robô executa"). O robô só faz o que exige a máquina dele
 // (criar o subcentro na tela do ERP, com Playwright); a escolha das obras, a validação e a gravação ficam aqui.
-// Acesso: `Authorization: Bearer <ROBO_OBRAS_TOKEN>` (segredo próprio, revogável trocando o valor). O Admin SDK não
+// Acesso: cabeçalho `X-Robo-Token: <ROBO_OBRAS_TOKEN>` (segredo próprio, revogável trocando o valor). Não usa
+// `Authorization: Bearer`: o Cloud Run tenta validar esse cabeçalho como token do Google e responde 401. O Admin SDK não
 // passa pelas Rules: cada rota confere o token e só grava o campo que lhe cabe, pelo mesmo caminho da tela.
 // Proposta a validar na prática (2026-11-04): The Manuscript, 02_APIS_FUNCTIONS/09_ROBOS_EXTERNOS_DE_OBRAS.md.
 import { HttpsError, onRequest } from 'firebase-functions/v2/https';
@@ -95,7 +96,7 @@ const ROTAS: Record<string, (corpo: AnyRecord) => Promise<unknown>> = {
 
 /** Rotas do robô de obras (POST, corpo JSON). Sem token válido, 401 sem detalhes. */
 export const roboObras = onRequest({ region: REGIAO, secrets: [roboObrasToken], timeoutSeconds: 120, memory: '512MiB', maxInstances: 2 }, async (req, res) => {
-  if (!tokenConfere(tokenDoCabecalho(req.get('authorization')), roboObrasToken.value())) {
+  if (!tokenConfere(tokenDoCabecalho(req.get('x-robo-token')), roboObrasToken.value())) {
     res.status(401).json({ ok: false, erro: 'Não autorizado.' });
     return;
   }
