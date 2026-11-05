@@ -6,7 +6,8 @@ export default defineConfig({
   plugins: [
     react(),
     VitePWA({
-      registerType: 'autoUpdate',
+      // Versão nova fica esperando até o usuário clicar em "Atualizar agora" (PwaUpdateBanner).
+      registerType: 'prompt',
       manifest: false,
       includeAssets: [
         'logo-ledur-branco.png',
@@ -21,8 +22,6 @@ export default defineConfig({
         globIgnores: ['**/react-plotly-*.js'],
         navigateFallback: '/index.html',
         maximumFileSizeToCacheInBytes: 10 * 1024 * 1024,
-        skipWaiting: true,
-        clientsClaim: true,
       },
       devOptions: {
         enabled: false,

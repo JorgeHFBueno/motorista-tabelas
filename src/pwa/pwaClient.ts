@@ -15,6 +15,7 @@ let status: PwaStatus = { offlineReady: false, needRefresh: false, updating: fal
 const listeners = new Set<PwaListener>();
 let updateTimeout: ReturnType<typeof setTimeout> | undefined;
 let devCleanupStarted = false;
+const UPDATE_CHECK_INTERVAL_MS = 5 * 60 * 1000;
 
 function notify() {
   listeners.forEach((listener) => listener(status));
@@ -100,16 +101,24 @@ export function initPwa() {
   }
 
   const updateSW = registerSW({
+    // Só é chamado quando há uma versão nova instalada e esperando; a página não recarrega sozinha.
     onNeedRefresh() {
-      const autoUpdate = true;
-      const nextStatus = { ...status, needRefresh: !autoUpdate, updateServiceWorker: updateSW };
-      setStatus(nextStatus);
-      if (autoUpdate) {
-        startUpdate(true);
-      }
+      setStatus({ ...status, needRefresh: true, updateServiceWorker: updateSW });
     },
     onOfflineReady() {
       setStatus({ ...status, offlineReady: true, updateServiceWorker: updateSW });
+    },
+    // Abas abertas por muito tempo também descobrem o deploy novo, sem precisar recarregar.
+    onRegisteredSW(_swUrl, registration) {
+      if (!registration) return;
+      const checkForUpdate = () => {
+        if (registration.installing || !navigator.onLine) return;
+        registration.update().catch(() => undefined);
+      };
+      setInterval(checkForUpdate, UPDATE_CHECK_INTERVAL_MS);
+      document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'visible') checkForUpdate();
+      });
     },
   });
 }

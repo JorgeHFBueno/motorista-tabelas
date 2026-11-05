@@ -1,6 +1,6 @@
 import Snackbar from '@mui/material/Snackbar';
 import Alert from '@mui/material/Alert';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useLocation } from 'react-router-dom';
 import useOnlineStatus from '../hooks/useOnlineStatus';
 
@@ -23,8 +23,13 @@ export default function NetworkStatusBanner() {
     autoHideDuration: null,
   });
 
+  // "Conexão restabelecida" só depois de ter ficado offline, não a cada carregamento da página.
+  const wasOffline = useRef(!isOnline);
+
   useEffect(() => {
     if (isOnline) {
+      if (!wasOffline.current) return;
+      wasOffline.current = false;
       setBanner({
         open: true,
         message: 'Conexão restabelecida.',
@@ -32,6 +37,7 @@ export default function NetworkStatusBanner() {
         autoHideDuration: 3000,
       });
     } else {
+      wasOffline.current = true;
       setBanner({
         open: true,
         message: 'Você está offline. Algumas informações podem estar desatualizadas.',

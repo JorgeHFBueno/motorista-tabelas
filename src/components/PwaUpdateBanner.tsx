@@ -31,7 +31,9 @@ export default function PwaUpdateBanner() {
     requestPwaUpdate(true);
   };
 
-  const handleClose = () => {
+  const handleClose = (_?: unknown, reason?: string) => {
+    // Clicar em qualquer lugar da página não some com o aviso; só o botão "Depois".
+    if (reason === 'clickaway') return;
     setPwaState((prev) => ({ ...prev, needRefresh: false }));
   };
 
