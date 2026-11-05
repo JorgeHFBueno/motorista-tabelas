@@ -1,13 +1,13 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { useNavigate } from '../rotas.tsx';
 import { AlertTriangle, ArrowDown, ArrowUp, BarChart3, CalendarRange, Copy, Database, Eye, Filter, HardHat, LayoutDashboard, Lock, MoreHorizontal, Pencil, PieChart, Plus, Sparkles, Star, Trash2, X } from 'lucide-react';
-import { api, req, type Row } from '../api.ts';
+import { api, req, salvarFiltroGeralDoPainel, type Row } from '../api.ts';
 import { useNav } from '../nav.tsx';
 import { itensDoQuadro } from '../quadro/Celula.tsx';
 import { Editavel, Menu, Modal, Popover, useConfirmar, usePopover } from '../ui/base.tsx';
 import { fmtData } from '../util.ts';
 import {
-  calcularWidget, CATEGORICAS, colunasDosQuadros, DATAS, GRUPO, itensDoWidget, NUMERICAS, TEM_EIXO, TEM_PILHA, valoresDaColuna,
+  calcularWidget, CATEGORICAS, colunasDosQuadros, DATAS, geralDiferente, GRUPO, itensDoWidget, NUMERICAS, TEM_EIXO, TEM_PILHA, valoresDaColuna,
   type Atalho, type Calculo, type ConfigPainel, type Ctx, type DadosQuadro, type FiltroGeral, type FiltroWidget, type Janela, type Periodo, type TipoWidget, type Widget,
 } from './calculo.ts';
 import { Grafico, type Selecao } from './Graficos.tsx';
@@ -46,7 +46,7 @@ export default function PainelPage({ painelId }: { painelId: number }) {
   const [escolherQuadros, setEscolherQuadros] = useState(false);
   const [editarFiltros, setEditarFiltros] = useState(false);
   const [aberto, setAberto] = useState<{ w: Widget; sel: Selecao } | null>(null);
-  // Quem só vê muda o filtro geral só na própria tela; quem edita salva no painel.
+  // Mudar o filtro geral vale só na própria tela; quem edita pode salvar para todos.
   const [geralLocal, setGeralLocal] = useState<FiltroGeral | null>(null);
   const [nomesItens, setNomesItens] = useState<Map<number, string>>(new Map());
 
@@ -114,7 +114,12 @@ export default function PainelPage({ painelId }: { painelId: number }) {
   };
   const usarVendas = () => usarModelo('vendas', modeloVendas);
   const usarObras = () => usarModelo('obras', modeloObras);
-  const mudarGeral = (g: FiltroGeral) => { if (podeEditar) { setGeralLocal(null); salvar({ geral: g }); } else setGeralLocal(g); };
+  const salvarGeralParaTodos = async () => {
+    if (!geralLocal) return;
+    await salvarFiltroGeralDoPainel(painelId, geralLocal);
+    setPainel(p => (p ? { ...p, config: { ...(p.config as ConfigPainel), geral: geralLocal } } : p));
+    setGeralLocal(null);
+  };
   const irParaItem = (quadroId: number, itemId: number) => navigate(`/quadros/${quadroId}?item=${itemId}`);
   const moverWidget = (id: string, passo: number) => {
     const i = widgets.findIndex(x => x.id === id);
@@ -155,7 +160,7 @@ export default function PainelPage({ painelId }: { painelId: number }) {
             })}
           </div>
         )}
-        {dados.length > 0 && widgets.length > 0 && <BarraGeral geral={geral} dados={dados} onMudar={mudarGeral} onCondicoes={() => setEditarFiltros(true)} />}
+        {dados.length > 0 && widgets.length > 0 && <BarraGeral geral={geral} dados={dados} onMudar={setGeralLocal} onCondicoes={() => setEditarFiltros(true)} onSalvarParaTodos={podeEditar && geralLocal && geralDiferente(geralLocal, config.geral) ? salvarGeralParaTodos : undefined} />}
         {semAcesso.length > 0 && <div className="aviso-leitura"><AlertTriangle size={15} /> {semAcesso.length === 1 ? 'Um quadro deste painel não está' : `${semAcesso.length} quadros deste painel não estão`} disponíveis para você (sem acesso ou na lixeira) e ficaram fora da conta.</div>}
       </header>
 
@@ -190,7 +195,7 @@ export default function PainelPage({ painelId }: { painelId: number }) {
 
       {editando && <EditorWidget inicial={editando} monday={monday} dados={dados} ctx={ctx} geral={geral} onFechar={() => setEditando(null)} onSalvar={w => { salvarWidget(w); setEditando(null); }} />}
       {escolherQuadros && <EscolherQuadros atuais={idsQuadros} onFechar={() => setEscolherQuadros(false)} onSalvar={ids => { salvar({ quadros: ids }); setEscolherQuadros(false); }} />}
-      {editarFiltros && <CondicoesGerais inicial={geral.filtros ?? []} dados={dados} ctx={ctx} onFechar={() => setEditarFiltros(false)} onSalvar={filtros => { mudarGeral({ ...geral, filtros }); setEditarFiltros(false); }} />}
+      {editarFiltros && <CondicoesGerais inicial={geral.filtros ?? []} dados={dados} ctx={ctx} onFechar={() => setEditarFiltros(false)} onSalvar={filtros => { setGeralLocal({ ...geral, filtros }); setEditarFiltros(false); }} />}
       {aberto && <ItensAbertos {...aberto} dados={visiveis} ctx={ctx} geral={geral} onFechar={() => setAberto(null)} onItem={irParaItem} />}
     </div>
   );
@@ -244,7 +249,7 @@ function SeletorJanela({ valor, colunas, onMudar, rotuloVazio }: { valor?: Janel
   );
 }
 
-function BarraGeral({ geral, dados, onMudar, onCondicoes }: { geral: FiltroGeral; dados: DadosQuadro[]; onMudar: (g: FiltroGeral) => void; onCondicoes: () => void }) {
+function BarraGeral({ geral, dados, onMudar, onCondicoes, onSalvarParaTodos }: { geral: FiltroGeral; dados: DadosQuadro[]; onMudar: (g: FiltroGeral) => void; onCondicoes: () => void; onSalvarParaTodos?: () => void }) {
   const datas = colunasDosQuadros(dados).filter(c => DATAS.includes(c.tipo));
   const filtros = (geral.filtros ?? []).filter(f => f.valores.length);
   return (
@@ -253,6 +258,7 @@ function BarraGeral({ geral, dados, onMudar, onCondicoes }: { geral: FiltroGeral
       <SeletorJanela valor={geral.janela} colunas={datas} rotuloVazio="Qualquer data" onMudar={janela => onMudar({ ...geral, janela })} />
       <button className={`fr-btn btn-pequeno${filtros.length ? ' com-filtro' : ''}`} onClick={onCondicoes}><Filter size={14} /> Condições{filtros.length ? ` (${filtros.length})` : ''}</button>
       {(filtros.length > 0 || geral.janela) && <button className="fr-btn-link" onClick={() => onMudar({})}>Limpar</button>}
+      {onSalvarParaTodos && <button className="fr-btn btn-pequeno" title="Sem salvar, o filtro vale só nesta tela" onClick={onSalvarParaTodos}>Salvar para todos</button>}
     </div>
   );
 }

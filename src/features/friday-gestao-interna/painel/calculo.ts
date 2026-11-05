@@ -46,6 +46,13 @@ export type Widget = {
 export type FiltroGeral = { filtros?: FiltroWidget[]; janela?: Janela };
 // aparencia 'monday': grade de 2 colunas e gráficos como os do monday. Muda só o desenho, não o cálculo.
 export type ConfigPainel = { quadros?: number[]; widgets?: Widget[]; geral?: FiltroGeral; aparencia?: 'monday' };
+
+// Forma comparável do filtro: sem ligar para campos vazios nem para a ordem das chaves.
+const chaveGeral = (g: FiltroGeral | undefined) => JSON.stringify(
+  { filtros: (g?.filtros ?? []).filter(f => f.valores.length), janela: g?.janela ?? null },
+  (_, v) => (v && typeof v === 'object' && !Array.isArray(v) ? Object.fromEntries(Object.entries(v).sort(([a], [b]) => a.localeCompare(b))) : v),
+);
+export const geralDiferente = (a: FiltroGeral | undefined, b: FiltroGeral | undefined) => chaveGeral(a) !== chaveGeral(b);
 export type DadosQuadro = { quadro: Row; grupos: Grupo[]; colunas: Coluna[]; itens: Item[] };
 
 // Eixo Y: passo redondo (1, 2, 2,5 ou 5 vezes uma potência de 10) e o topo, múltiplo do passo, que cobre o máximo.
