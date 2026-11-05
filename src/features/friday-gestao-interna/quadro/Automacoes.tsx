@@ -179,7 +179,7 @@ export default function AutomacoesPage() {
   }, [quadroId]);
   useEffect(carregar, [carregar]);
 
-  const ctx: Ctx = useMemo(() => ({ colunas: q.dados?.colunas ?? [], grupos: q.dados?.grupos ?? [], usuarios: nav.usuarios, quadros: nav.quadros }), [q.dados, nav.usuarios, nav.quadros]);
+  const ctx: Ctx = useMemo(() => ({ colunas: q.dados?.colunas ?? [], grupos: q.dados?.grupos ?? [], usuarios: nav.usuarios, quadros: nav.quadros.filter(x => x.tipo !== 'painel') }), [q.dados, nav.usuarios, nav.quadros]);
   if (q.erro) return <div className="vazio-grande"><h2>Quadro não encontrado</h2></div>;
   if (!q.dados || !lista) return <div className="carregando">Carregando automações…</div>;
   const quadro = q.dados.quadro;

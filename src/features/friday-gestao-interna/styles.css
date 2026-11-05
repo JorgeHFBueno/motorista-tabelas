@@ -814,3 +814,52 @@ body.redimensionando .friday-root, body.redimensionando .friday-root * { cursor:
 .friday-root .conc-lista { max-height: 200px; overflow-y: auto; display: flex; flex-direction: column; gap: 4px; padding: 6px 0; }
 .friday-root .conc-item { display: grid; grid-template-columns: 1fr 260px; gap: 8px; align-items: center; font-size: 13px; }
 .friday-root .cel-so-leitura { color: var(--texto-2, #555); background: repeating-linear-gradient(45deg, transparent, transparent 6px, rgba(0,0,0,.025) 6px, rgba(0,0,0,.025) 12px); cursor: not-allowed; }
+
+/* Painel: números e gráficos de um ou mais quadros. */
+.friday-root .small { font-size: 12px; }
+.friday-root .pagina-painel { display: flex; flex-direction: column; min-height: 100%; padding-bottom: 32px; }
+.friday-root .pagina-painel .quadro-cab { width: auto; }
+.friday-root .painel-fontes { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 10px; }
+.friday-root .painel-grade { display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap: 16px; padding: 16px 28px 0; align-items: start; }
+.friday-root .painel-widget { background: var(--superficie); border: 1px solid var(--borda-suave); border-radius: var(--raio); padding: 14px 16px; box-shadow: var(--sombra-leve); min-width: 0; }
+.friday-root .painel-widget.largo { grid-column: 1 / -1; }
+.friday-root .painel-widget > header { display: flex; align-items: center; gap: 6px; }
+.friday-root .painel-widget h3 { font-size: 15px; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.friday-root .pw-como { margin: 2px 0 10px; font-size: 12px; color: var(--texto-3); }
+.friday-root .pw-numero { font-size: 32px; font-weight: 600; padding: 8px 0 4px; display: flex; flex-direction: column; gap: 2px; overflow-wrap: anywhere; }
+.friday-root .pw-numero small { font-size: 12px; font-weight: 400; color: var(--texto-2); }
+.friday-root .pw-vazio { color: var(--texto-2); font-size: 13px; padding: 24px 0; text-align: center; }
+.friday-root .pw-avisos { list-style: none; margin: 10px 0 0; padding: 8px 0 0; border-top: 1px dashed var(--borda-suave); font-size: 12px; color: #9a5b00; display: flex; flex-direction: column; gap: 3px; }
+.friday-root .pw-avisos li { display: flex; gap: 5px; align-items: flex-start; }
+.friday-root .pw-avisos svg { flex: none; margin-top: 2px; }
+.friday-root .pw-cor { display: inline-block; width: 10px; height: 10px; border-radius: 3px; flex: none; }
+.friday-root .pw-pizza { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
+.friday-root .pw-pizza svg { width: 160px; height: 160px; flex: none; }
+.friday-root .pw-pizza path, .friday-root .pw-pizza circle { stroke: var(--superficie); stroke-width: 1.5; }
+.friday-root .pw-furo { fill: var(--superficie); }
+.friday-root .pw-legenda { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 5px; font-size: 13px; flex: 1; min-width: 180px; }
+.friday-root .pw-legenda li { display: flex; align-items: center; gap: 6px; }
+.friday-root .pw-legenda.linha { flex-direction: row; flex-wrap: wrap; gap: 4px 12px; margin-top: 8px; font-size: 12px; }
+.friday-root .pw-rotulo { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.friday-root .pw-num { font-variant-numeric: tabular-nums; white-space: nowrap; }
+.friday-root .pw-pct { color: var(--texto-2); width: 52px; text-align: right; font-variant-numeric: tabular-nums; }
+.friday-root .pw-colunas { width: 100%; height: auto; max-height: 280px; display: block; }
+.friday-root .pw-eixo { stroke: var(--borda); }
+.friday-root .pw-txt-valor, .friday-root .pw-txt-eixo, .friday-root .pw-txt-n { text-anchor: middle; fill: var(--texto-2); font-size: 11px; }
+.friday-root .pw-txt-valor { fill: var(--texto); font-weight: 600; }
+.friday-root .pw-txt-n { font-size: 10px; fill: var(--texto-3); }
+.friday-root .pw-barras { display: flex; flex-direction: column; gap: 6px; }
+.friday-root .pw-barra-linha { display: grid; grid-template-columns: minmax(80px, 140px) 1fr auto; align-items: center; gap: 8px; font-size: 13px; }
+.friday-root .pw-barra { display: flex; height: 16px; border-radius: 3px; overflow: hidden; min-width: 2px; }
+.friday-root .pw-barra span { height: 100%; }
+.friday-root .editor-widget { display: grid; grid-template-columns: 1fr 300px; gap: 20px; }
+.friday-root .editor-previa { display: flex; flex-direction: column; gap: 6px; background: var(--superficie-2); border-radius: var(--raio); padding: 10px; align-self: start; }
+.friday-root .campos-lado { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.friday-root .seletor-tipos { display: flex; flex-wrap: wrap; gap: 4px; }
+.friday-root .seletor-tipos .chip-sub { gap: 5px; }
+.friday-root .filtro-widget { border: 1px solid var(--borda-suave); border-radius: 6px; padding: 8px; display: flex; flex-direction: column; gap: 6px; }
+.friday-root .fw-linha { display: flex; gap: 6px; align-items: center; }
+.friday-root .fw-linha .fw-op { width: 96px; flex: none; }
+.friday-root .lista-quadros-painel { max-height: 50vh; overflow: auto; margin-top: 10px; }
+.friday-root .lista-quadros-painel .check-form { margin-bottom: 8px; gap: 8px; }
+@media (max-width: 760px) { .friday-root .editor-widget, .friday-root .campos-lado { grid-template-columns: 1fr; } .friday-root .painel-grade { padding: 12px; grid-template-columns: 1fr; } }

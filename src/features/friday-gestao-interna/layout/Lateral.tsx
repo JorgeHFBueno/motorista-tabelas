@@ -1,7 +1,7 @@
 import { useEffect, useState, type CSSProperties, type ReactNode } from 'react';
 import { NavLink, useLocation, useNavigate } from '../rotas.tsx';
 import {
-  ArrowDownAZ, Archive, ChevronDown, ChevronRight, ChevronsDownUp, ChevronsLeft, ChevronsUpDown, Copy, Folder, FolderOpen, FolderPlus, Home, LayoutGrid,
+  ArrowDownAZ, Archive, ChevronDown, ChevronRight, ChevronsDownUp, ChevronsLeft, ChevronsUpDown, Copy, Folder, FolderOpen, FolderPlus, Home, LayoutDashboard, LayoutGrid,
   ListChecks, Lock, MoreHorizontal, Pencil, Plus, Search, Star, Trash2, FolderInput, CloudDownload,
 } from 'lucide-react';
 import { Permissoes } from './Permissoes.tsx';
@@ -27,7 +27,7 @@ export function Lateral({ onRecolher }: { onRecolher: () => void }) {
   const confirmar = useConfirmar();
   const [busca, setBusca] = useState('');
   const [favAberto, setFavAberto] = useState(true);
-  const [modal, setModal] = useState<null | { tipo: 'quadro' | 'pasta' | 'area' | 'renomear'; pastaId?: number | null; alvo?: Row; tabela?: string }>(null);
+  const [modal, setModal] = useState<null | { tipo: 'quadro' | 'painel' | 'pasta' | 'area' | 'renomear'; pastaId?: number | null; alvo?: Row; tabela?: string }>(null);
   const [arrastando, setArrastando] = useState<number | null>(null);
   const [soltarEm, setSoltarEm] = useState<number | 'raiz' | null>(null);
   const [permissoes, setPermissoes] = useState<{ recurso: 'area' | 'pasta' | 'quadro'; id: number; nome: string } | null>(null);
@@ -108,7 +108,7 @@ export function Lateral({ onRecolher }: { onRecolher: () => void }) {
           {!!p.restrito && <Lock size={12} className="arvore-cadeado" aria-label="restrita" />}
           {total > 0 && <span className="arvore-n" title={`${total} ${total === 1 ? 'quadro' : 'quadros'}`}>{total}</span>}
           <MenuPasta pasta={p} onPermissoes={PERMISSOES_FINAS && admin ? () => setPermissoes({ recurso: 'pasta', id: p.id, nome: p.nome }) : undefined}
-            onNovoQuadro={() => setModal({ tipo: 'quadro', pastaId: p.id })} onSubpasta={() => setModal({ tipo: 'pasta', pastaId: p.id })}
+            onNovoQuadro={() => setModal({ tipo: 'quadro', pastaId: p.id })} onNovoPainel={() => setModal({ tipo: 'painel', pastaId: p.id })} onSubpasta={() => setModal({ tipo: 'pasta', pastaId: p.id })}
             onRenomear={() => setModal({ tipo: 'renomear', alvo: p, tabela: 'pastas' })}
             onExcluir={async () => { if (await confirmar(`Excluir a pasta “${p.nome}”? Os quadros dela vão para fora das pastas.`)) { await api.remove('pastas', p.id); nav.recarregar(); } }} />
         </div>
@@ -128,7 +128,7 @@ export function Lateral({ onRecolher }: { onRecolher: () => void }) {
       style={nivelCss(nivel)} title={q.nome} draggable onDragStart={() => setArrastando(q.id)} onDragEnd={() => { setArrastando(null); setSoltarEm(null); }}
       onClick={() => navigate(`/quadros/${q.id}`)}>
       <span className="seta-vazia" />
-      <LayoutGrid size={15} />
+      <IconeQuadro q={q} />
       <span className="arvore-nome">{q.nome}</span>
       {!!q.restrito && <Lock size={12} className="arvore-cadeado" aria-label="restrito" />}
       <MenuQuadroLateral quadro={q} pastas={pastasDaArea} onMover={pid => moverQuadro(q.id, pid)}
@@ -157,7 +157,7 @@ export function Lateral({ onRecolher }: { onRecolher: () => void }) {
         </button>
         {favAberto && (favoritos.length ? favoritos.map(q => (
           <div key={q.id} className={`arvore-linha quadro${q.id === quadroAtual ? ' ativo' : ''}`} style={nivelCss(1)} title={q.nome} onClick={() => navigate(`/quadros/${q.id}`)}>
-            <LayoutGrid size={15} /><span className="arvore-nome">{q.nome}</span>
+            <IconeQuadro q={q} /><span className="arvore-nome">{q.nome}</span>
           </div>
         )) : <div className="arvore-vazia" style={{ paddingLeft: 26 }}>Marque quadros com a estrela</div>)}
       </div>
@@ -169,10 +169,11 @@ export function Lateral({ onRecolher }: { onRecolher: () => void }) {
             onExcluir={admin ? async a => { if (await confirmar(`Excluir a área “${a.nome}” com todas as pastas e quadros?`)) { await api.remove('areas', a.id); nav.recarregar(); } } : undefined} />
           <button ref={mais.ref} className="btn-icone btn-mais" aria-label="Adicionar" onClick={mais.alternar}><Plus size={16} /></button>
           {mais.aberto && (
-            <Popover ancora={mais.ref.current} onClose={mais.fechar} largura={220}>
+            <Popover ancora={mais.ref.current} onClose={mais.fechar} largura={260}>
               <div className="menu-titulo">Adicionar em {area?.nome}</div>
               <Menu onEscolher={mais.fechar} itens={[
                 { rotulo: 'Novo quadro', icone: <LayoutGrid size={15} />, onClick: () => setModal({ tipo: 'quadro', pastaId: null }) },
+                { rotulo: 'Novo painel (números e gráficos)', icone: <LayoutDashboard size={15} />, onClick: () => setModal({ tipo: 'painel', pastaId: null }) },
                 { rotulo: 'Nova pasta', icone: <FolderPlus size={15} />, onClick: () => setModal({ tipo: 'pasta', pastaId: null }) },
               ]} />
               <div className="menu-titulo">Organizar</div>
@@ -205,6 +206,14 @@ export function Lateral({ onRecolher }: { onRecolher: () => void }) {
       <div className="lateral-redim" title="Arraste para mudar a largura (duplo clique volta ao normal)"
         onMouseDown={e => { e.preventDefault(); redimensionar(e.clientX); }} onDoubleClick={larguraPadrao} />
       {modal?.tipo === 'quadro' && <NovoQuadroModal pastaId={modal.pastaId ?? null} onFechar={() => setModal(null)} />}
+      {modal?.tipo === 'painel' && (
+        <NomeModal titulo="Novo painel" rotulo="Nome do painel" onFechar={() => setModal(null)}
+          onSalvar={async nome => {
+            const p = await api.create('quadros', { nome, area_id: nav.areaId, pasta_id: modal.pastaId ?? null, tipo: 'painel', config: { quadros: [], widgets: [] } });
+            await nav.recarregar();
+            navigate(`/quadros/${p.id}`);
+          }} />
+      )}
       {modal?.tipo === 'pasta' && (
         <NomeModal titulo={modal.pastaId ? 'Nova subpasta' : 'Nova pasta'} rotulo="Nome da pasta" onFechar={() => setModal(null)}
           onSalvar={async nome => { await api.create('pastas', { area_id: nav.areaId, pasta_pai_id: modal.pastaId ?? null, nome, aberta: 1 }); nav.recarregar(); }} />
@@ -220,6 +229,9 @@ export function Lateral({ onRecolher }: { onRecolher: () => void }) {
     </aside>
   );
 }
+
+// Painel (números e gráficos) tem ícone próprio na lateral.
+export const IconeQuadro = ({ q, size = 15 }: { q: Row; size?: number }) => (q.tipo === 'painel' ? <LayoutDashboard size={size} /> : <LayoutGrid size={size} />);
 
 // ---------------------------------------------------------------- seletor de área
 function SeletorArea({ onNova, onRenomear, onExcluir, onPermissoes }: { onNova?: () => void; onRenomear?: (a: Row) => void; onExcluir?: (a: Row) => void; onPermissoes?: (a: Row) => void }) {
@@ -257,7 +269,7 @@ function SeletorArea({ onNova, onRenomear, onExcluir, onPermissoes }: { onNova?:
 }
 
 // ---------------------------------------------------------------- menus de contexto
-function MenuPasta({ pasta, onNovoQuadro, onSubpasta, onRenomear, onExcluir, onPermissoes }: { pasta: Row; onNovoQuadro: () => void; onSubpasta: () => void; onRenomear: () => void; onExcluir: () => void; onPermissoes?: () => void }) {
+function MenuPasta({ pasta, onNovoQuadro, onNovoPainel, onSubpasta, onRenomear, onExcluir, onPermissoes }: { pasta: Row; onNovoQuadro: () => void; onNovoPainel: () => void; onSubpasta: () => void; onRenomear: () => void; onExcluir: () => void; onPermissoes?: () => void }) {
   const pop = usePopover<HTMLButtonElement>();
   return (
     <>
@@ -266,6 +278,7 @@ function MenuPasta({ pasta, onNovoQuadro, onSubpasta, onRenomear, onExcluir, onP
         <Popover ancora={pop.ref.current} onClose={pop.fechar} largura={220}>
           <Menu onEscolher={pop.fechar} itens={[
             { rotulo: 'Novo quadro nesta pasta', icone: <LayoutGrid size={15} />, onClick: onNovoQuadro },
+            { rotulo: 'Novo painel nesta pasta', icone: <LayoutDashboard size={15} />, onClick: onNovoPainel },
             { rotulo: 'Nova subpasta', icone: <FolderPlus size={15} />, onClick: onSubpasta },
             { rotulo: 'Renomear pasta', icone: <Pencil size={15} />, onClick: onRenomear },
             ...(onPermissoes ? [{ rotulo: 'Permissões da pasta', icone: <Lock size={15} />, onClick: onPermissoes }] : []),
@@ -355,7 +368,7 @@ export function NovoQuadroModal({ pastaId, onFechar }: { pastaId: number | null;
         <label className="campo-form">Começar a partir de
           <select className="input-cheio" value={base} onChange={e => setBase(e.target.value ? Number(e.target.value) : '')}>
             <option value="">Quadro em branco (Responsável, Status e Data)</option>
-            {nav.quadros.map(q => <option key={q.id} value={q.id}>Estrutura de “{q.nome}”</option>)}
+            {nav.quadros.filter(q => q.tipo !== 'painel').map(q => <option key={q.id} value={q.id}>Estrutura de “{q.nome}”</option>)}
           </select>
         </label>
         {base !== '' && <label className="check-form"><input type="checkbox" className="caixa" checked={comItens} onChange={e => setComItens(e.target.checked)} /> Copiar também os itens</label>}

@@ -394,7 +394,7 @@ function CelulaLigacao({ coluna, valor, onMudar, onConfig }: CelulaProps) {
           {!alvo ? (
             <div className="pop-pessoa">
               <p className="muted fr-small">Escolha o quadro a conectar:</p>
-              {quadros.filter(q => q.id !== coluna.quadro_id && q.tipo !== 'subitens').map(q => <button key={q.id} className="pop-linha" onClick={() => onConfig({ ...coluna.config, quadro_id: q.id })}>{q.nome}</button>)}
+              {quadros.filter(q => q.id !== coluna.quadro_id && q.tipo !== 'subitens' && q.tipo !== 'painel').map(q => <button key={q.id} className="pop-linha" onClick={() => onConfig({ ...coluna.config, quadro_id: q.id })}>{q.nome}</button>)}
             </div>
           ) : (
             <div className="pop-pessoa">

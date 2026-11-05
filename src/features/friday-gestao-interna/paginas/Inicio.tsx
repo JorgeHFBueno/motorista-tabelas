@@ -1,9 +1,9 @@
 import { useState } from 'react';
 import { Link, useNavigate } from '../rotas.tsx';
-import { Folder, LayoutGrid, Plus, Star } from 'lucide-react';
+import { Folder, Plus, Star } from 'lucide-react';
 import { useNav } from '../nav.tsx';
 import { fmtData, hojeISO } from '../util.ts';
-import { NovoQuadroModal } from '../layout/Lateral.tsx';
+import { IconeQuadro, NovoQuadroModal } from '../layout/Lateral.tsx';
 import { agrupar, concluido, useMeuTrabalho } from './MeuTrabalho.tsx';
 
 export default function Inicio() {
@@ -21,7 +21,7 @@ export default function Inicio() {
 
   const Cartao = ({ q }: { q: (typeof nav.quadros)[number] }) => (
     <button className="cartao-quadro" onClick={() => navigate(`/quadros/${q.id}`)}>
-      <span className="cq-capa"><LayoutGrid size={22} /></span>
+      <span className="cq-capa"><IconeQuadro q={q} size={22} /></span>
       <span className="cq-nome">{q.nome}{q.favorito ? <Star size={13} className="cq-fav" /> : null}</span>
       <small className="muted">{nav.areas.find(a => a.id === q.area_id)?.nome}{q.pasta_id ? ` · ${nav.pastas.find(p => p.id === q.pasta_id)?.nome ?? ''}` : ''}</small>
     </button>

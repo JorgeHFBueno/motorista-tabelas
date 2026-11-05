@@ -1,11 +1,12 @@
 import { useLayoutEffect, useRef, useState } from 'react';
-import { Route, Routes } from 'react-router-dom';
+import { Route, Routes, useParams } from 'react-router-dom';
 import { NavProvider, useNav } from './nav.tsx';
 import { Navigate } from './rotas.tsx';
 import { AvisoRapidoProvider, ConfirmarProvider } from './ui/base.tsx';
 import { Lateral } from './layout/Lateral.tsx';
 import { Topo } from './layout/Topo.tsx';
 import QuadroPage from './quadro/QuadroPage.tsx';
+import PainelPage from './painel/PainelPage.tsx';
 import Inicio from './paginas/Inicio.tsx';
 import MeuTrabalho from './paginas/MeuTrabalho.tsx';
 import Arquivo from './paginas/Arquivo.tsx';
@@ -51,7 +52,7 @@ function Friday() {
         <Routes>
           <Route index element={<Inicio />} />
           <Route path="meu-trabalho" element={<MeuTrabalho />} />
-          <Route path="quadros/:id" element={<QuadroPage />} />
+          <Route path="quadros/:id" element={<QuadroOuPainel />} />
           <Route path="arquivo" element={<Arquivo />} />
           <Route path="quadros/:id/automacoes" element={<AutomacoesPage />} />
           <Route path="importar-monday" element={<ImportarMonday />} />
@@ -60,4 +61,11 @@ function Friday() {
       </main>
     </div>
   );
+}
+
+// Painéis ficam na mesma lista (e no mesmo endereço) que os quadros.
+function QuadroOuPainel() {
+  const id = Number(useParams().id);
+  const nav = useNav();
+  return nav.quadros.find(q => q.id === id)?.tipo === 'painel' ? <PainelPage key={id} painelId={id} /> : <QuadroPage />;
 }

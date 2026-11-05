@@ -38,7 +38,8 @@ const CAMPOS: Record<Recurso, string[]> = {
   areas: ['id', 'nome', 'cor', 'posicao', 'origem_id', 'restrito'],
   pastas: ['id', 'area_id', 'pasta_pai_id', 'nome', 'cor', 'posicao', 'aberta', 'origem_id', 'restrito'],
   // cadastro: chave do cadastro oficial do quadro (friday-cadastros/{chave}), gravada pela Function fridayCadastroPromover.
-  quadros: ['id', 'area_id', 'pasta_id', 'nome', 'descricao', 'posicao', 'favorito', 'nome_item', 'criado_em', 'tipo', 'quadro_pai_id', 'origem_id', 'arquivado_em', 'excluido_em', 'restrito', 'cadastro'],
+  // config: só no painel (tipo 'painel'): { quadros, widgets }.
+  quadros: ['id', 'area_id', 'pasta_id', 'nome', 'descricao', 'posicao', 'favorito', 'nome_item', 'criado_em', 'tipo', 'quadro_pai_id', 'origem_id', 'arquivado_em', 'excluido_em', 'restrito', 'cadastro', 'config'],
   grupos: ['id', 'quadro_id', 'nome', 'cor', 'posicao', 'recolhido', 'arquivado_em', 'excluido_em', 'origem_id'],
   colunas: ['id', 'quadro_id', 'titulo', 'tipo', 'config', 'largura', 'posicao', 'oculta', 'origem_id'],
   // pessoas e busca: índices do Meu trabalho e da busca (ver prefixosBusca). importado_em, monday_atualizado_em e
@@ -57,7 +58,7 @@ const CAMPOS: Record<Recurso, string[]> = {
   automacoes: ['id', 'quadro_id', 'nome', 'ativa', 'modo', 'gatilho', 'condicoes', 'acoes', 'criado_por', 'criado_em', 'atualizado_em', 'origem_id'],
   execucoes: ['id', 'automacao_id', 'quadro_id', 'item_id', 'item_nome', 'chave', 'ok', 'detalhe', 'criado_em'],
 };
-const JSON_COLS: Partial<Record<Recurso, string[]>> = { colunas: ['config'], itens: ['valores'], visoes: ['config'], atualizacoes: ['mencoes'], automacoes: ['gatilho', 'condicoes', 'acoes'] };
+const JSON_COLS: Partial<Record<Recurso, string[]>> = { quadros: ['config'], colunas: ['config'], itens: ['valores'], visoes: ['config'], atualizacoes: ['mencoes'], automacoes: ['gatilho', 'condicoes', 'acoes'] };
 // Campos que a API genérica não grava (têm rotas próprias).
 const PROTEGIDOS: Partial<Record<Recurso, string[]>> = {
   areas: ['restrito'], pastas: ['restrito'], quadros: ['restrito', 'cadastro'],
@@ -643,7 +644,7 @@ async function duplicarQuadro(id: number, corpo: unknown) {
   if (orig.cadastro && b.com_itens) throw new ErroApi(409, 'Quadro oficial: só dá para duplicar a estrutura (sem itens).');
   const novo = await inserir('quadros', {
     area_id: b.area_id ?? orig.area_id, pasta_id: b.pasta_id !== undefined ? b.pasta_id : orig.pasta_id,
-    nome: b.nome || `${orig.nome} (cópia)`, descricao: orig.descricao, nome_item: orig.nome_item,
+    nome: b.nome || `${orig.nome} (cópia)`, descricao: orig.descricao, nome_item: orig.nome_item, tipo: orig.tipo, config: orig.config,
   });
   const [colunas, visoes, grupos, itens] = await Promise.all([
     consultar('colunas', { quadro_id: id }), consultar('visoes', { quadro_id: id }), consultar('grupos', { quadro_id: id }), b.com_itens ? consultar('itens', { quadro_id: id }) : Promise.resolve([]),
@@ -1018,7 +1019,7 @@ async function criar(r: Recurso, corpo: unknown) {
   const dados = limpar(r, b);
   if (r === 'atualizacoes') dados.quadro_id = (await buscar('itens', dados.item_id))?.quadro_id ?? null;
   const row = await inserir(r, dados);
-  if (r === 'quadros' && !b.vazio) await prepararQuadro(row.id);
+  if (r === 'quadros' && !b.vazio && b.tipo !== 'painel') await prepararQuadro(row.id);
   // Item (ou subitem, quando os subitens são oficiais) criado num quadro oficial: vincula ao cadastro.
   // Num cadastro existente, a Function decide: obras-v2 cria o contrato na hora; os demais deixam o item sem vínculo até a
   // próxima conciliação. O subitem novo vira uma entrada no registro do item pai, se o pai estiver vinculado (ex.: LOTE).
