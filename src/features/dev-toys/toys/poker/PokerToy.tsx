@@ -3,7 +3,7 @@ import { CartaView } from '../cartas/CartaView';
 import { gravar, ler } from '../crawler/memoria';
 import { rngDe } from '../crawler/sim';
 import { alterarCarteira, lerCarteira, mover } from '../fichas/carteira';
-import { BarraDeFichas, SemFichas } from '../fichas/FichasView';
+import { FichasView, SemFichas } from '../fichas/FichasView';
 import { semMovimento, useCarteira, useOpcoesTeclado } from '../fichas/hooks';
 import { gravarPlacar, lerPlacar, registrarJogada } from '../fichas/jogos';
 import { decidir, novoBot } from './bots';
@@ -39,7 +39,8 @@ function Assento({ mesa, i, mostrar }: { mesa: Mesa; i: number; mostrar: boolean
   return (
     <div className={`dt-pk-assento${vez ? ' dt-pk-vez' : ''}${j.desistiu ? ' dt-pk-fora' : ''}${ganhou ? ' dt-pk-ganhou' : ''}`}>
       <p className="dt-pk-nome">{j.nome}{marca && <span className="dt-pk-marca">{marca}</span>}</p>
-      <p className="dt-jogo-legenda">{j.fichas} FICHAS{j.estilo ? ` . ${j.estilo.toUpperCase()}` : ''}</p>
+      <p className="dt-jogo-legenda">{j.fichas} FICHAS</p>
+      {j.estilo && <p className="dt-pk-estilo">{j.estilo.toUpperCase()}</p>}
       <div className="dt-pk-cartas">
         {j.cartas.map((c, k) => <CartaView key={k} carta={c} virada={!mostrar || j.desistiu} pequena />)}
       </div>
@@ -135,35 +136,49 @@ export default function PokerToy() {
 
   return (
     <div className="dt-pk dt-jogo" ref={raiz} tabIndex={-1} onKeyDown={teclas}>
-      <BarraDeFichas fichas={carteira.fichas} naMesa={eu?.fichas ?? 0} />
-      {mesa && (
-        <>
-          <div className="dt-pk-bots">
-            {[1, 2, 3].map((i) => <Assento key={i} mesa={mesa} i={i} mostrar={mostrar} />)}
-          </div>
-          <div className="dt-pk-meio">
-          <div className="dt-pk-centro">
-            <div className="dt-21-mao">
-              {mesa.comunitarias.length > 0 && mesa.comunitarias.map((c, i) => (
-                <CartaView key={`${i}-${i < Math.min(mostradas, mesa.abertas)}`} carta={c} virada={i >= Math.min(mostradas, mesa.abertas)} />
-              ))}
+      {/* a mesa: você embaixo, os bots à esquerda, em cima e à direita (a ordem de fala), as cartas no meio */}
+      <div className="dt-pk-mesa">
+        {mesa ? (
+          <>
+            {[1, 2, 3].map((i) => (
+              <div key={i} className={`dt-pk-lugar${i}`}><Assento mesa={mesa} i={i} mostrar={mostrar} /></div>
+            ))}
+            <div className="dt-pk-centro">
+              <div className="dt-21-mao">
+                {mesa.comunitarias.length > 0 && mesa.comunitarias.map((c, i) => (
+                  <CartaView key={`${i}-${i < Math.min(mostradas, mesa.abertas)}`} carta={c} virada={i >= Math.min(mostradas, mesa.abertas)} />
+                ))}
+              </div>
+              <p className="dt-jogo-legenda">POTE {potAgora}</p>
             </div>
-            <p className="dt-jogo-legenda">POTE {potAgora}</p>
-          </div>
-          <div className={`dt-pk-voce${minhaVez ? ' dt-pk-vez' : ''}`}>
-            <p className="dt-21-rotulo">
-              VOCE{mesa.botao === VOCE ? ' (D)' : ''}
-              {minha && !eu?.desistiu && <span className="dt-21-pontos">{minha}</span>}
-            </p>
-            <div className="dt-21-mao">
-              {eu?.cartas.map((c, k) => <CartaView key={k} carta={c} />)}
+            <div className={`dt-pk-voce${minhaVez ? ' dt-pk-vez' : ''}`}>
+              <p className="dt-21-rotulo">
+                VOCE{mesa.botao === VOCE ? ' (D)' : ''}
+                {minha && !eu?.desistiu && <span className="dt-21-pontos">{minha}</span>}
+              </p>
+              <div className="dt-21-mao">
+                {eu?.cartas.map((c, k) => <CartaView key={k} carta={c} />)}
+              </div>
+              <p className="dt-pk-ultima">{eu?.aposta ? `NA RODADA ${eu.aposta}` : eu?.ultima ?? ''}</p>
             </div>
-            <p className="dt-pk-ultima">{eu?.aposta ? `NA RODADA ${eu.aposta}` : eu?.ultima ?? ''}</p>
-          </div>
-          </div>
-        </>
-      )}
+          </>
+        ) : (
+          <p className="dt-pk-vazia">MESA VAZIA</p>
+        )}
+      </div>
 
+      {/* à direita: a carteira e o que você tem na mesa, o aviso e as opções */}
+      <div className="dt-pk-painel">
+        <div className="dt-pk-fichas">
+          <div>
+            <p><span className="dt-jogo-legenda">CARTEIRA</span>{carteira.fichas}</p>
+            <FichasView total={carteira.fichas} />
+          </div>
+          <div>
+            <p><span className="dt-jogo-legenda">NA MESA</span>{eu?.fichas ?? 0}</p>
+            <FichasView total={eu?.fichas ?? 0} />
+          </div>
+        </div>
       <p className="dt-jogo-aviso" aria-live="polite">{aviso}</p>
 
       <div className="dt-jogo-botoes" data-opcoes>
@@ -191,6 +206,7 @@ export default function PokerToy() {
         ) : (
           <span>{' '}</span>
         )}
+      </div>
       </div>
     </div>
   );

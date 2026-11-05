@@ -53,7 +53,7 @@ export const DEV_TOYS: DevToy[] = [
     nome: 'Poker',
     icone: 'M3 1h10v14H3zM4 2h8v12H4zM7 5h2v1H7zM6 6h4v1H6zM5 7h6v2H5zM7 9h2v2H7z',
     componente: lazy(() => import('./toys/poker/PokerToy')),
-    largura: 640,
+    largura: 800,
   },
   {
     id: 'slot',

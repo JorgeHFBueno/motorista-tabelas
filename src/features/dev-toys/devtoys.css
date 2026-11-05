@@ -710,20 +710,77 @@
   height: calc(var(--dt-e) * 13px);
 }
 
-.devtoys .dt-pk-bots {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: calc(var(--dt-e) * 10px);
-  margin-bottom: calc(var(--dt-e) * 8px);
+/* janela deitada: a mesa à esquerda, o painel (fichas, aviso e opções) à direita */
+.devtoys .dt-pk {
+  display: flex;
+  align-items: stretch;
+  gap: calc(var(--dt-e) * 14px);
 }
 
-/* a mesa (5 cartas e o pote) e você, lado a lado */
-.devtoys .dt-pk-meio {
-  display: flex;
+/* você embaixo; bots à esquerda, em cima e à direita; as cartas no meio */
+.devtoys .dt-pk-mesa {
+  flex: 1;
+  display: grid;
+  grid-template-columns: auto auto auto;
+  grid-template-areas: '. topo .' 'esq centro dir' '. voce .';
   justify-content: center;
   align-items: center;
-  gap: calc(var(--dt-e) * 20px);
-  margin-bottom: calc(var(--dt-e) * 4px);
+  justify-items: center;
+  gap: calc(var(--dt-e) * 8px) calc(var(--dt-e) * 12px);
+}
+
+.devtoys .dt-pk-lugar1 { grid-area: esq; }
+.devtoys .dt-pk-lugar2 { grid-area: topo; }
+.devtoys .dt-pk-lugar3 { grid-area: dir; }
+.devtoys .dt-pk-centro { grid-area: centro; }
+.devtoys .dt-pk-voce { grid-area: voce; }
+
+.devtoys .dt-pk-vazia {
+  grid-column: 1 / -1;
+  color: var(--dt-apagado);
+}
+
+.devtoys .dt-pk-painel {
+  display: flex;
+  flex-direction: column;
+  gap: calc(var(--dt-e) * 10px);
+  width: calc(var(--dt-e) * 200px);
+  padding-left: calc(var(--dt-e) * 14px);
+  border-left: 1px dotted var(--dt-apagado);
+}
+
+.devtoys .dt-pk-fichas {
+  display: flex;
+  flex-direction: column;
+  gap: calc(var(--dt-e) * 10px);
+  padding-bottom: calc(var(--dt-e) * 8px);
+}
+
+.devtoys .dt-pk-fichas p {
+  display: flex;
+  flex-direction: column;
+  margin: 0 0 calc(var(--dt-e) * 4px);
+}
+
+.devtoys .dt-pk-painel .dt-jogo-aviso {
+  margin: 0;
+  text-align: left;
+}
+
+.devtoys .dt-pk-painel .dt-jogo-botoes {
+  flex-direction: column;
+  align-items: flex-start;
+  gap: calc(var(--dt-e) * 6px);
+}
+
+.devtoys .dt-pk-assento {
+  width: calc(var(--dt-e) * 120px);
+  text-align: center;
+}
+
+.devtoys .dt-pk-estilo {
+  color: var(--dt-apagado);
+  font-size: calc(var(--dt-e) * 10px);
 }
 
 .devtoys .dt-pk-assento,
