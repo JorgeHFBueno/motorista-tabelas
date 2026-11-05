@@ -2,7 +2,7 @@ import { Box, Collapse, Drawer, IconButton, List, ListItemButton, ListItemIcon, 
 import ChevronLeftRoundedIcon from '@mui/icons-material/ChevronLeftRounded';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import { useState } from 'react';
-import { useLocation, useNavigate } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuthorizationProfile } from '../hooks/useAuthorizationProfile';
 import { filtrarMenuPrincipal } from './menuPrincipal';
 
@@ -26,7 +26,9 @@ export default function MenuLateral({ open, onClose }: { open: boolean; onClose:
       <Drawer anchor="left" open={open} onClose={onClose} slotProps={{ paper: { sx: { width: 256, maxWidth: '85vw', bgcolor: 'primary.main', color: '#fff', borderRadius: 0 } } }}>
         <Box component="nav" aria-label="Menu principal" sx={{ height: '100%', overflowY: 'auto', display: 'flex', flexDirection: 'column' }}>
           <Stack direction="row" alignItems="center" justifyContent="space-between" sx={{ p: 3, borderBottom: '1px solid rgb(255 255 255 / 0.10)' }}>
-            <Box component="img" src="/logo-ledur-branco.png" alt="Ledur Pré-Fabricados" sx={{ height: 40, width: 'auto' }} />
+            <Box component={Link} to="/" onClick={onClose} aria-label="Início" sx={{ display: 'inline-flex' }}>
+              <Box component="img" src="/logo-ledur-branco.png" alt="Ledur Pré-Fabricados" sx={{ height: 40, width: 'auto' }} />
+            </Box>
             <Tooltip title="Fechar menu" placement="right">
               <IconButton aria-label="Fechar menu" onClick={onClose} sx={{ color: 'rgb(255 255 255 / 0.70)', mr: -1, '&:hover': { color: '#fff', bgcolor: 'rgb(255 255 255 / 0.10)' } }}>
                 <ChevronLeftRoundedIcon />
