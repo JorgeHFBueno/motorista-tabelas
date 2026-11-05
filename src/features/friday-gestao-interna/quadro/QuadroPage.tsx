@@ -26,7 +26,9 @@ import { Calendario, Cronograma, Kanban } from './Visoes.tsx';
 const ICONE_VISAO = { tabela: Table2, kanban: IconeKanban, calendario: CalendarDays, cronograma: GanttChart };
 const NOME_VISAO = { tabela: 'Tabela', kanban: 'Kanban', calendario: 'Calendário', cronograma: 'Cronograma' };
 // Tipos de coluna que cada visão aceita como base.
-const BASE_VISAO: Record<Visao['tipo'], string[]> = { tabela: [], kanban: ['status'], calendario: ['data', 'periodo'], cronograma: ['periodo'] };
+const BASE_VISAO: Record<Visao['tipo'], string[]> = { tabela: [], kanban: ['status'], calendario: ['data', 'periodo'], cronograma: ['periodo', 'data'] };
+// Coluna padrão da visão: o primeiro tipo da lista tem prioridade (cronograma prefere período a data).
+const colunaPadrao = (tipo: Visao['tipo'], colunas: Coluna[]) => BASE_VISAO[tipo].map(t => colunas.find(c => c.tipo === t)).find(Boolean) ?? null;
 const VISAO_PADRAO = { id: 0, quadro_id: 0, tipo: 'tabela', nome: 'Tabela principal', config: {}, posicao: 0 } as Visao;
 
 export default function QuadroPage() {
@@ -40,6 +42,8 @@ export default function QuadroPage() {
   const { dados } = q;
 
   const [busca, setBusca] = useState('');
+  // Quem só vê troca mês/semana só na própria tela; quem edita salva na visão.
+  const [modoLocal, setModoLocal] = useState<'mes' | 'semana' | null>(null);
   // Filtros, ordem, agrupamento e colunas ocultas: valem na hora e só ficam salvos na visão com "Salvar na visão".
   const [rascunho, setRascunho] = useState<{ visaoId: number; e: EstadoVisao } | null>(null);
   const [selecionados, setSelecionados] = useState<Set<number>>(new Set());
@@ -99,7 +103,9 @@ export default function QuadroPage() {
   const { quadro, grupos } = dados;
   const nomeItem = String(quadro.nome_item ?? 'Item');
   const colunaBase = visao.tipo === 'tabela' ? null
-    : colunas.find(c => c.id === visao.config.coluna_id && BASE_VISAO[visao.tipo].includes(c.tipo)) ?? colunas.find(c => BASE_VISAO[visao.tipo].includes(c.tipo)) ?? null;
+    : colunas.find(c => c.id === visao.config.coluna_id && BASE_VISAO[visao.tipo].includes(c.tipo)) ?? colunaPadrao(visao.tipo, colunas);
+  // Subitens no cronograma: usam a primeira coluna de período (ou data) do quadro de subitens.
+  const colunaSub = dados.sub ? colunaPadrao('cronograma', dados.sub.colunas) : null;
   const nFiltros = totalFiltros(estado);
   // O item aberto pode ser um subitem: o painel usa as colunas dos subitens e mostra o item pai.
   const itemSel = itemAberto ? dados.itens.find(i => i.id === itemAberto) ?? dados.sub?.itens.find(i => i.id === itemAberto) : undefined;
@@ -197,6 +203,10 @@ export default function QuadroPage() {
             </select>
           </label>
         )}
+        {visao.tipo === 'cronograma' && colunaBase && quadro.permissao === 'editar' && (
+          <OpcoesCronograma colunas={colunas.filter(c => c.id !== colunaBase.id && BASE_VISAO.cronograma.includes(c.tipo))} extras={visao.config.colunas_extra ?? []} temSub={!!colunaSub} subitens={!!visao.config.subitens}
+            onMudar={m => q.atualizarVisao(visao.id, { config: { ...visao.config, ...m } })} />
+        )}
         {nFiltros > 0 && <button className="fr-btn-link" onClick={() => mudarEstado({ filtros: {}, pessoa: null })}>Limpar filtros ({nFiltros})</button>}
         {alterado && (
           <div className="salvar-visao">
@@ -227,8 +237,9 @@ export default function QuadroPage() {
           </div>
         )}
         {visao.tipo === 'kanban' && colunaBase && <Kanban {...base} coluna={colunaBase} />}
-        {visao.tipo === 'calendario' && colunaBase && <Calendario {...base} coluna={colunaBase} />}
-        {visao.tipo === 'cronograma' && colunaBase && <Cronograma {...base} coluna={colunaBase} />}
+        {visao.tipo === 'calendario' && colunaBase && <Calendario {...base} coluna={colunaBase} modo={modoLocal ?? visao.config.modo ?? 'mes'} onModo={modo => { if (quadro.permissao === 'editar') { setModoLocal(null); q.atualizarVisao(visao.id, { config: { ...visao.config, modo } }); } else setModoLocal(modo); }} />}
+        {visao.tipo === 'cronograma' && colunaBase && <Cronograma {...base} coluna={colunaBase} extras={colunas.filter(c => c.id !== colunaBase.id && (visao.config.colunas_extra ?? []).includes(c.id) && BASE_VISAO.cronograma.includes(c.tipo))}
+          sub={visao.config.subitens && colunaSub && dados.sub ? { itens: dados.sub.itens, coluna: colunaSub, colunas: dados.sub.colunas } : null} />}
       </div>
 
       {/* ---------------- seleção em lote */}
@@ -269,7 +280,7 @@ function AbasVisoes({ visoes, atual, colunas, acoes, confirmar, onEscolher }: {
   const [renomear, setRenomear] = useState<number | null>(null);
   const criar = async (tipo: Visao['tipo']) => {
     nova.fechar();
-    const base = colunas.find(c => BASE_VISAO[tipo].includes(c.tipo));
+    const base = colunaPadrao(tipo, colunas);
     const v = await acoes.criarVisao(NOME_VISAO[tipo], tipo, base?.id);
     onEscolher(v.id);
   };
@@ -594,5 +605,35 @@ function BarraSelecao({ n, grupos, comSubitens, onLimpar, onDuplicar, onMover, o
         </Popover>
       )}
     </div>
+  );
+}
+
+// Cronograma: mais colunas de data na mesma visão e subitens.
+function OpcoesCronograma({ colunas, extras, temSub, subitens, onMudar }: { colunas: Coluna[]; extras: number[]; temSub: boolean; subitens: boolean; onMudar: (m: { colunas_extra?: number[]; subitens?: boolean }) => void }) {
+  const pop = usePopover<HTMLButtonElement>();
+  if (!colunas.length && !temSub) return null;
+  const n = extras.length + (subitens ? 1 : 0);
+  return (
+    <>
+      <button ref={pop.ref} className={`fr-btn btn-pequeno${n ? ' com-filtro' : ''}`} onClick={pop.alternar}><GanttChart size={14} /> Mostrar{n ? ` (${n})` : ''}</button>
+      {pop.aberto && (
+        <Popover ancora={pop.ref.current} onClose={pop.fechar} largura={260}>
+          <div className="base-visao-opcoes">
+            {colunas.map(c => (
+              <label key={c.id} className="check-form">
+                <input type="checkbox" className="caixa" checked={extras.includes(c.id)} onChange={e => onMudar({ colunas_extra: e.target.checked ? [...extras, c.id] : extras.filter(x => x !== c.id) })} />
+                {c.titulo}
+              </label>
+            ))}
+            {temSub && (
+              <label className="check-form">
+                <input type="checkbox" className="caixa" checked={subitens} onChange={e => onMudar({ subitens: e.target.checked })} />
+                Subitens
+              </label>
+            )}
+          </div>
+        </Popover>
+      )}
+    </>
   );
 }

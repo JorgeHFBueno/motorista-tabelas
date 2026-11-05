@@ -14,7 +14,7 @@ export type Ordenacao = { colunaId: number; dir: 1 | -1 } | null;
 export type Agrupar = { coluna_id: number; ordem: 1 | -1; vazios: boolean };
 // O que fica salvo em cada visão: filtros, pessoa, ordem, agrupamento e colunas ocultas.
 export type EstadoVisao = { filtros: Record<string, string[]>; pessoa: string | null; ordenacao: Ordenacao; agrupar: Agrupar | null; ocultas: number[] };
-export type Visao = Row & { quadro_id: number; nome: string; tipo: 'tabela' | 'kanban' | 'calendario' | 'cronograma'; config: { coluna_id?: number } & Partial<EstadoVisao> };
+export type Visao = Row & { quadro_id: number; nome: string; tipo: 'tabela' | 'kanban' | 'calendario' | 'cronograma'; config: { coluna_id?: number; colunas_extra?: number[]; subitens?: boolean; modo?: 'mes' | 'semana' } & Partial<EstadoVisao> };
 // nome_item: como chamar os subitens (ex.: "Escopo da obra"); editável no cabeçalho da tabela de subitens.
 export type Sub = { quadro_id: number; grupo_id: number | null; nome_item?: string; colunas: Coluna[]; itens: Item[] };
 
