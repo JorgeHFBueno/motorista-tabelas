@@ -15,7 +15,7 @@ let status: PwaStatus = { offlineReady: false, needRefresh: false, updating: fal
 const listeners = new Set<PwaListener>();
 let updateTimeout: ReturnType<typeof setTimeout> | undefined;
 let devCleanupStarted = false;
-const UPDATE_CHECK_INTERVAL_MS = 5 * 60 * 1000;
+const UPDATE_CHECK_INTERVAL_MS = 60 * 1000;
 
 function notify() {
   listeners.forEach((listener) => listener(status));
