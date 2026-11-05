@@ -1,5 +1,17 @@
 {
   "projects": {
     "default": "app-motor-api"
+  },
+  "targets": {
+    "app-motor-api": {
+      "hosting": {
+        "frotas": [
+          "app-motor-api"
+        ],
+        "portal": [
+          "ledur-portal-cliente"
+        ]
+      }
+    }
   }
 }
