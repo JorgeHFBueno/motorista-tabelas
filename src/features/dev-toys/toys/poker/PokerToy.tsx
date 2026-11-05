@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { CartaView } from '../cartas/CartaView';
 import { gravar, ler } from '../crawler/memoria';
 import { rngDe } from '../crawler/sim';
@@ -15,8 +15,9 @@ import { BLIND_GRANDE, ENTRADA, LUGARES, agir, mesaNova, novaMao, novoJogador, o
 // navegador (`ledur:dev-poker-mesa`): fechar a janela no meio da mão perde só o que já estava no pote dela.
 const CHAVE = 'ledur:dev-poker';
 const CHAVE_MESA = 'ledur:dev-poker-mesa';
-const BOT_MS = 750;
-const REVELAR_MS = 380;
+/** Devagar o bastante para ver o que cada bot decidiu: ele "pensa" e a jogada aparece num selo que salta. */
+const BOT_MS = 1400;
+const REVELAR_MS = 650;
 const VOCE = 0;
 
 const sorteio = () => rngDe((Math.random() * 2 ** 32) >>> 0);
@@ -31,20 +32,45 @@ const lerLugar = () => {
   return v && typeof v.fichas === 'number' && v.fichas > 0 ? Math.floor(v.fichas) : 0;
 };
 
-function Assento({ mesa, i, mostrar }: { mesa: Mesa; i: number; mostrar: boolean }) {
+const marcaDe = (mesa: Mesa, i: number) =>
+  i === mesa.botao ? 'D' : i === (mesa.botao + 1) % LUGARES ? 'SB' : i === (mesa.botao + 2) % LUGARES ? 'BB' : '';
+
+/** A última jogada num selo (aceso: aumentou ou all-in; contorno: pagou, passou, blind; apagado: desistiu). */
+function Selo({ texto, pensando }: { texto: string | null; pensando: boolean }) {
+  if (pensando) return <p className="dt-pk-selo dt-pk-pensa">PENSA<span className="dt-pk-pontos">...</span></p>;
+  if (!texto) return <p className="dt-pk-selo">{' '}</p>;
+  const tipo = texto.startsWith('DESISTIU') ? 'fora' : /AUMENTOU|ALL-IN/.test(texto) ? 'forte' : 'leve';
+  return <p className={`dt-pk-selo dt-pk-selo-${tipo}`}>{texto}</p>;
+}
+
+/** Nome e fichas totais; embaixo, maior, a posição (D, SB, BB) e as fichas que ele pôs nesta rodada. */
+function Cabecalho({ mesa, i, extra }: { mesa: Mesa; i: number; extra?: ReactNode }) {
   const j = mesa.jogadores[i];
-  const marca = i === mesa.botao ? 'D' : i === (mesa.botao + 1) % LUGARES ? 'SB' : i === (mesa.botao + 2) % LUGARES ? 'BB' : '';
+  const marca = marcaDe(mesa, i);
+  return (
+    <>
+      <p className="dt-pk-nome">{j.nome}<span className="dt-pk-total">{j.fichas}</span>{extra}</p>
+      <p className="dt-pk-na-mesa" aria-label={`${j.aposta} fichas na mesa nesta rodada`}>
+        {marca && <span className="dt-pk-marca">{marca}</span>}
+        {j.aposta || '-'}
+        {j.estilo && <span className="dt-pk-estilo">{j.estilo.toUpperCase()}</span>}
+      </p>
+    </>
+  );
+}
+
+function Assento({ mesa, i, mostrar, pensando }: { mesa: Mesa; i: number; mostrar: boolean; pensando: boolean }) {
+  const j = mesa.jogadores[i];
   const vez = mesa.rua !== 'fim' && mesa.vez === i;
   const ganhou = mesa.rua === 'fim' && mesa.potes.some((p) => p.ganhadores.includes(i));
   return (
     <div className={`dt-pk-assento${vez ? ' dt-pk-vez' : ''}${j.desistiu ? ' dt-pk-fora' : ''}${ganhou ? ' dt-pk-ganhou' : ''}`}>
-      <p className="dt-pk-nome">{j.nome}{marca && <span className="dt-pk-marca">{marca}</span>}</p>
-      <p className="dt-jogo-legenda">{j.fichas} FICHAS</p>
-      {j.estilo && <p className="dt-pk-estilo">{j.estilo.toUpperCase()}</p>}
+      <Cabecalho mesa={mesa} i={i} />
       <div className="dt-pk-cartas">
         {j.cartas.map((c, k) => <CartaView key={k} carta={c} virada={!mostrar || j.desistiu} pequena />)}
       </div>
-      <p className="dt-pk-ultima">{j.aposta ? `NA RODADA ${j.aposta}` : j.ultima ?? ''}{j.aposta && j.ultima ? ` . ${j.ultima}` : ''}</p>
+      {/* a chave faz o selo saltar de novo a cada jogada nova */}
+      <Selo key={`${j.ultima}-${pensando}`} texto={j.ultima} pensando={pensando} />
     </div>
   );
 }
@@ -141,7 +167,7 @@ export default function PokerToy() {
         {mesa ? (
           <>
             {[1, 2, 3].map((i) => (
-              <div key={i} className={`dt-pk-lugar${i}`}><Assento mesa={mesa} i={i} mostrar={mostrar} /></div>
+              <div key={i} className={`dt-pk-lugar${i}`}><Assento mesa={mesa} i={i} mostrar={mostrar} pensando={vezDoBot && mesa.vez === i} /></div>
             ))}
             <div className="dt-pk-centro">
               <div className="dt-21-mao">
@@ -149,17 +175,14 @@ export default function PokerToy() {
                   <CartaView key={`${i}-${i < Math.min(mostradas, mesa.abertas)}`} carta={c} virada={i >= Math.min(mostradas, mesa.abertas)} />
                 ))}
               </div>
-              <p className="dt-jogo-legenda">POTE {potAgora}</p>
+              <p className="dt-pk-pote">POTE {potAgora}</p>
             </div>
             <div className={`dt-pk-voce${minhaVez ? ' dt-pk-vez' : ''}`}>
-              <p className="dt-21-rotulo">
-                VOCE{mesa.botao === VOCE ? ' (D)' : ''}
-                {minha && !eu?.desistiu && <span className="dt-21-pontos">{minha}</span>}
-              </p>
+              <Cabecalho mesa={mesa} i={VOCE} extra={minha && !eu?.desistiu && <span className="dt-21-pontos">{minha}</span>} />
               <div className="dt-21-mao">
                 {eu?.cartas.map((c, k) => <CartaView key={k} carta={c} />)}
               </div>
-              <p className="dt-pk-ultima">{eu?.aposta ? `NA RODADA ${eu.aposta}` : eu?.ultima ?? ''}</p>
+              <Selo key={eu?.ultima ?? '-'} texto={eu?.ultima ?? null} pensando={false} />
             </div>
           </>
         ) : (

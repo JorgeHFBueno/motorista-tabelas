@@ -158,7 +158,8 @@ function seguir(m: Mesa): Mesa {
   let mesa: Mesa = { ...m, jogadores: m.jogadores.map((j) => ({ ...j, aposta: 0 })), maior: 0, minimo: BLIND_GRANDE };
   const proxima = ({ preflop: 'flop', flop: 'turn', turn: 'river', river: null, fim: null } as const)[m.rua];
   if (!proxima) return encerrar(mesa, true);
-  mesa = { ...mesa, rua: proxima, abertas: { flop: 3, turn: 4, river: 5 }[proxima], jogadores: mesa.jogadores.map((j) => (j.desistiu || j.allIn ? j : { ...j, ultima: null })) };
+  // a última jogada de cada um continua à mostra na rua nova, até ele jogar de novo
+  mesa = { ...mesa, rua: proxima, abertas: { flop: 3, turn: 4, river: 5 }[proxima] };
   const faltam = ordem(mesa, proximo(mesa.botao));
   // com no máximo um jogador que ainda pode apostar, não há aposta: abre o resto da mesa
   if (faltam.length <= 1) return seguir({ ...mesa, faltam: [], vez: -1 });

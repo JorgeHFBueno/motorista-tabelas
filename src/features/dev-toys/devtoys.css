@@ -726,7 +726,7 @@
   justify-content: center;
   align-items: center;
   justify-items: center;
-  gap: calc(var(--dt-e) * 8px) calc(var(--dt-e) * 12px);
+  gap: calc(var(--dt-e) * 4px) calc(var(--dt-e) * 12px);
 }
 
 .devtoys .dt-pk-lugar1 { grid-area: esq; }
@@ -744,7 +744,7 @@
   display: flex;
   flex-direction: column;
   gap: calc(var(--dt-e) * 10px);
-  width: calc(var(--dt-e) * 200px);
+  width: calc(var(--dt-e) * 180px);
   padding-left: calc(var(--dt-e) * 14px);
   border-left: 1px dotted var(--dt-apagado);
 }
@@ -774,13 +774,15 @@
 }
 
 .devtoys .dt-pk-assento {
-  width: calc(var(--dt-e) * 120px);
+  width: calc(var(--dt-e) * 132px);
   text-align: center;
 }
 
 .devtoys .dt-pk-estilo {
+  margin-left: calc(var(--dt-e) * 4px);
   color: var(--dt-apagado);
-  font-size: calc(var(--dt-e) * 10px);
+  font-size: calc(var(--dt-e) * 9px);
+  font-weight: normal;
 }
 
 .devtoys .dt-pk-assento,
@@ -837,10 +839,87 @@
   min-height: calc(var(--dt-e) * 44px);
 }
 
-.devtoys .dt-pk-ultima {
-  min-height: calc(var(--dt-e) * 16px);
+/* fichas totais ao lado do nome; as da rodada embaixo, maiores */
+.devtoys .dt-pk-total {
+  font-weight: normal;
+}
+
+.devtoys .dt-pk-na-mesa {
+  display: flex;
+  align-items: center;
+  gap: calc(var(--dt-e) * 6px);
+  min-height: calc(var(--dt-e) * 24px);
+  font-size: calc(var(--dt-e) * 18px);
+  font-weight: bold;
+}
+
+.devtoys .dt-pk-pote {
+  margin: calc(var(--dt-e) * 6px) 0 0;
+  font-size: calc(var(--dt-e) * 18px);
+  font-weight: bold;
+}
+
+/* a última jogada: salta quando muda */
+.devtoys .dt-pk-selo {
+  min-height: calc(var(--dt-e) * 18px);
+  padding: 0 calc(var(--dt-e) * 6px);
+  border: 1px solid transparent;
+  font-size: calc(var(--dt-e) * 12px);
+}
+
+.devtoys .dt-pk-selo-leve,
+.devtoys .dt-pk-selo-forte,
+.devtoys .dt-pk-selo-fora {
+  animation: dt-pk-salta 520ms ease-out;
+}
+
+.devtoys .dt-pk-selo-leve {
+  border-color: var(--dt-tinta);
+}
+
+.devtoys .dt-pk-selo-forte {
+  color: var(--dt-papel);
+  background: var(--dt-tinta);
+  text-shadow: none;
+}
+
+.devtoys .dt-pk-selo-fora {
   color: var(--dt-apagado);
-  font-size: calc(var(--dt-e) * 11px);
+  border-color: var(--dt-apagado);
+}
+
+.devtoys .dt-pk-pensa {
+  color: var(--dt-apagado);
+}
+
+.devtoys .dt-pk-pontos {
+  animation: dt-pk-pisca 900ms steps(3) infinite;
+}
+
+@keyframes dt-pk-salta {
+  from {
+    opacity: 0;
+    transform: scale(1.9);
+  }
+  60% {
+    opacity: 1;
+    transform: scale(0.92);
+  }
+}
+
+@keyframes dt-pk-pisca {
+  50% {
+    opacity: 0.2;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .devtoys .dt-pk-selo-leve,
+  .devtoys .dt-pk-selo-forte,
+  .devtoys .dt-pk-selo-fora,
+  .devtoys .dt-pk-pontos {
+    animation: none;
+  }
 }
 
 .devtoys .dt-pk-centro {
@@ -850,6 +929,7 @@
 }
 
 .devtoys .dt-pk-centro .dt-21-mao {
+  flex-wrap: nowrap;
   margin-bottom: calc(var(--dt-e) * 4px);
 }
 
