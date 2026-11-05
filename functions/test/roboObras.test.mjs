@@ -58,7 +58,7 @@ test('célula sem conteúdo: rótulo vazio, lista vazia, caixa desmarcada e link
 test('obras sem subcentro: prontas, aguardando e as que ficam de fora', () => {
   const itens = [
     // pronta: Empresa (ligada) + Ano (ligada) + Nº da Licitação (livre) + Situação (livre)
-    item(1, 'ALEGRIA 147/2026', '2026-10-20', { [id('Nº da Licitação')]: '12/2026', [id('Situação')]: opcao('Situação', 'Parada') }),
+    item(1, 'ALEGRIA 147/2026', '2026-10-20', { [id('Nº da Licitação')]: '12/2026', [id('Situação')]: opcao('Situação', 'Parada') }, { origem_id: '18300000001' }),
     // aguardando: sem Empresa
     item(2, 'SÃO VENDELINO 64/2026', '2026-10-21', { [id('Nº da Licitação')]: '9/2026', [id('Situação')]: opcao('Situação', 'Parada') }),
     // aguardando: só Empresa; Pasta Servidor vazia e a fórmula não contam
@@ -79,7 +79,9 @@ test('obras sem subcentro: prontas, aguardando e as que ficam de fora', () => {
   ]);
   const res = r.obrasSemSubcentro({ itens, oficiais, colunas, campos, chaveCadastro: CHAVE, desde: r.INICIO_SUBCENTRO });
   assert.deepEqual(res.prontas.map(o => o.itemId), [1]);
+  assert.equal(res.prontas[0].mondayId, '18300000001'); // id do item no monday, para o robô continuar gravando lá
   assert.deepEqual(res.aguardando.map(o => o.itemId), [2, 3]);
+  assert.equal(res.aguardando[0].mondayId, null);
   const [p] = res.prontas;
   assert.equal(p.obraId, 'obra1');
   assert.equal(p.descricao, 'ALEGRIA 147/2026');

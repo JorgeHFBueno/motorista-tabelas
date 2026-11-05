@@ -46,7 +46,7 @@ export function camposDoRobo(campos: CampoExistente[]): { subcentro: CampoExiste
 }
 
 export type ObraAvaliada = {
-  itemId: number; obraId: string; nome: string; descricao: string; criadoEm: string;
+  itemId: number; mondayId: string | null; obraId: string; nome: string; descricao: string; criadoEm: string;
   empresa: string | null; preenchidas: number; pronta: boolean; motivo: string | null;
 };
 
@@ -74,7 +74,7 @@ export function avaliarObra(p: { item: AnyRecord; oficial: AnyRecord | undefined
     ...(preenchidas >= MINIMO_PREENCHIDAS ? [] : [`${preenchidas} coluna(s) preenchida(s); o mínimo é ${MINIMO_PREENCHIDAS}`]),
   ];
   return {
-    itemId: Number(item.id), obraId: String(item.vinculo?.id ?? ''), nome: String(item.nome ?? ''), descricao: descricaoSubcentro(item.nome),
+    itemId: Number(item.id), mondayId: item.origem_id != null ? String(item.origem_id) : null, obraId: String(item.vinculo?.id ?? ''), nome: String(item.nome ?? ''), descricao: descricaoSubcentro(item.nome),
     criadoEm: String(item.criado_em ?? ''), empresa: temEmpresa ? String(empresaTexto).trim() : null, preenchidas,
     pronta: motivos.length === 0, motivo: motivos.length ? motivos.join('; ') : null,
   };
