@@ -680,6 +680,11 @@ async function duplicarQuadro(id: number, corpo: unknown) {
  * só calcula a prévia (quantos convertem e quais ficam vazios). Campo oficial não muda de tipo nem de valores: só o
  * separador de milhar de um número (ex.: "Ano Fabricação" → número sem separador), que muda apenas a exibição.
  */
+// Grava só o filtro geral do painel: quem está com a tela aberta há tempo não sobrescreve os widgets de outra pessoa.
+export async function salvarFiltroGeralDoPainel(painelId: number, geral: unknown) {
+  await updateDoc(ref('quadros', painelId), { 'config.geral': semUndefined(geral ?? {}) } as DocumentData);
+}
+
 export async function mudarTipoColuna(colunaId: number, alvo: Alvo, aplicar = false) {
   const coluna = await buscar('colunas', colunaId);
   if (!coluna) throw new ErroApi(404, 'coluna não encontrada');

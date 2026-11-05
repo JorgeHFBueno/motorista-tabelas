@@ -44,6 +44,13 @@ export type Widget = {
 };
 export type FiltroGeral = { filtros?: FiltroWidget[]; janela?: Janela };
 export type ConfigPainel = { quadros?: number[]; widgets?: Widget[]; geral?: FiltroGeral };
+
+// Forma comparável do filtro: sem ligar para campos vazios nem para a ordem das chaves.
+const chaveGeral = (g: FiltroGeral | undefined) => JSON.stringify(
+  { filtros: (g?.filtros ?? []).filter(f => f.valores.length), janela: g?.janela ?? null },
+  (_, v) => (v && typeof v === 'object' && !Array.isArray(v) ? Object.fromEntries(Object.entries(v).sort(([a], [b]) => a.localeCompare(b))) : v),
+);
+export const geralDiferente = (a: FiltroGeral | undefined, b: FiltroGeral | undefined) => chaveGeral(a) !== chaveGeral(b);
 export type DadosQuadro = { quadro: Row; grupos: Grupo[]; colunas: Coluna[]; itens: Item[] };
 
 export type Fatia = { chave: string; rotulo: string; cor: string; valor: number; n: number; pilhas: Fatia[]; concluido?: boolean };

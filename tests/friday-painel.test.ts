@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { calcularWidget, intervaloAnterior, itensDoWidget, resolverJanela, type DadosQuadro, type Widget } from '../src/features/friday-gestao-interna/painel/calculo.ts';
+import { calcularWidget, geralDiferente, intervaloAnterior, itensDoWidget, resolverJanela, type DadosQuadro, type Widget } from '../src/features/friday-gestao-interna/painel/calculo.ts';
 import { etapasDoFunil, modeloObras, modeloVendas } from '../src/features/friday-gestao-interna/painel/modelos.ts';
 import type { Coluna, Grupo, Item } from '../src/features/friday-gestao-interna/quadro/tipos.ts';
 
@@ -221,4 +221,15 @@ test('modelo de vendas usa Etapa = Ganho e a data de fechamento', () => {
   assert.equal(receita.eixo, 'Data de fechamento');
   assert.deepEqual(receita.filtros, [{ coluna: 'Etapa', valores: ['Ganho'] }]);
   assert.equal(calcularWidget(ws.find(w => w.titulo === 'Receita ganha')!, [privados, publicos], ctxAntigo).valor, 3800);
+});
+
+test('filtro geral: só oferece salvar quando difere do que está salvo', () => {
+  const filtro = { coluna: '1', valores: ['a'] } as never;
+  assert.equal(geralDiferente({}, undefined), false);
+  assert.equal(geralDiferente({ filtros: [], janela: undefined }, {}), false);
+  assert.equal(geralDiferente({ filtros: [{ coluna: '1', valores: [] } as never] }, {}), false);
+  assert.equal(geralDiferente({ filtros: [filtro] }, { filtros: [filtro] }), false);
+  assert.equal(geralDiferente({ janela: { coluna: '2', atalho: 'este_ano' } as never }, { janela: { atalho: 'este_ano', coluna: '2' } as never }), false);
+  assert.equal(geralDiferente({ filtros: [filtro] }, {}), true);
+  assert.equal(geralDiferente({}, { janela: { coluna: '2', atalho: 'este_ano' } as never }), true);
 });
