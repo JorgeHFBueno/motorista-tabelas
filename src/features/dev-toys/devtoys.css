@@ -224,9 +224,49 @@
   visibility: hidden;
 }
 
+/* o conteúdo vai só até o pé da tela (descontando a barra de título e uma folga) e rola por dentro; mínimo de 160 */
 .devtoys .dt-conteudo {
+  max-height: max(calc(var(--dt-e) * 160px), calc(100dvh - var(--dt-topo, 0px) - var(--dt-e) * 36px));
+  overflow: auto;
   padding: calc(var(--dt-e) * 10px) calc(var(--dt-e) * 12px);
   user-select: text;
+}
+
+/* barra de rolagem do System 6: trilho xadrezado em âmbar apagado, cursor vazado com borda âmbar, sem setas */
+.devtoys ::-webkit-scrollbar {
+  width: calc(var(--dt-e) * 12px);
+  height: calc(var(--dt-e) * 12px);
+}
+
+.devtoys ::-webkit-scrollbar-track {
+  border-left: 1px solid var(--dt-tinta);
+  background: repeating-conic-gradient(var(--dt-apagado) 0 25%, var(--dt-papel) 0 50%) 0 0 / 2px 2px;
+}
+
+.devtoys ::-webkit-scrollbar-track:horizontal {
+  border-left: 0;
+  border-top: 1px solid var(--dt-tinta);
+}
+
+.devtoys ::-webkit-scrollbar-thumb {
+  background: var(--dt-papel);
+  border: 1px solid var(--dt-tinta);
+}
+
+.devtoys ::-webkit-scrollbar-thumb:hover,
+.devtoys ::-webkit-scrollbar-thumb:active {
+  background: var(--dt-tinta);
+}
+
+.devtoys ::-webkit-scrollbar-corner {
+  background: var(--dt-papel);
+}
+
+/* navegadores sem ::-webkit-scrollbar (Firefox): só as cores */
+@supports not selector(::-webkit-scrollbar) {
+  .devtoys * {
+    scrollbar-color: var(--dt-tinta) var(--dt-papel);
+  }
 }
 
 /* ---- Sobre o DEV ---- */
@@ -396,12 +436,6 @@
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: calc(var(--dt-e) * 10px);
-  /* rola dentro da janela: a altura vai até o pé da tela (barra de título, margens e uma folga de 56 px) */
-  max-height: max(calc(var(--dt-e) * 180px), calc(100dvh - var(--dt-topo, 0px) - var(--dt-e) * 56px));
-  overflow-y: auto;
-  padding-right: calc(var(--dt-e) * 4px);
-  scrollbar-gutter: stable;
-  scrollbar-color: var(--dt-tinta) var(--dt-papel);
 }
 
 .devtoys .dt-ficha {
@@ -1202,17 +1236,16 @@
   font-size: calc(var(--dt-e) * 13px);
 }
 
+/* as abas ficam paradas no topo enquanto o texto rola com a janela */
 .devtoys .dt-regras-abas {
+  position: sticky;
+  top: calc(var(--dt-e) * -10px);
+  z-index: 1;
   justify-content: flex-start;
-  padding-bottom: calc(var(--dt-e) * 6px);
+  margin-top: calc(var(--dt-e) * -10px);
+  padding: calc(var(--dt-e) * 10px) 0 calc(var(--dt-e) * 6px);
   border-bottom: 1px dotted var(--dt-apagado);
-}
-
-/* o texto rola dentro da janela */
-.devtoys .dt-regras-corpo {
-  max-height: calc(var(--dt-e) * 440px);
-  overflow-y: auto;
-  padding-right: calc(var(--dt-e) * 8px);
+  background: var(--dt-papel);
 }
 
 .devtoys .dt-regras h3 {

@@ -167,7 +167,7 @@ export default function RegrasToy() {
           </button>
         ))}
       </div>
-      <div className="dt-regras-corpo" role="tabpanel">
+      <div role="tabpanel">
         {aba === '21' ? <Regras21 /> : aba === 'poker' ? <RegrasPoker /> : <RegrasXadrez />}
       </div>
     </div>

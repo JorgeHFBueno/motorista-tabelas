@@ -52,7 +52,10 @@ export default function Desktop({ ligando, prefs, onPrefs, onReiniciar }: Props)
     setJanelas((js) => {
       const aberta = js.find((j) => j.id === id);
       if (aberta) return [...js.filter((j) => j.id !== id), aberta];
-      return [...js, { id, x: (64 + js.length * 24) * ESCALA, y: (64 + js.length * 24) * ESCALA }];
+      // em cascata, mas puxada para a esquerda o bastante para caber inteira na largura da tela
+      const largura = Math.min((DEV_TOYS.find((t) => t.id === id)?.largura ?? 0) * ESCALA, window.innerWidth - 16);
+      const x = Math.max(8, Math.min((64 + js.length * 24) * ESCALA, window.innerWidth - largura - 8));
+      return [...js, { id, x, y: (64 + js.length * 24) * ESCALA }];
     });
   }, []);
 
