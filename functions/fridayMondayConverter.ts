@@ -215,6 +215,8 @@ export type ColunaImportada = { id: number; tipoMonday: string; config: AnyRecor
 export type ContextoValor = {
   /** Opção de "tags" pelo nome (cria na config se não existir); devolve o id da opção. */
   tag?: (col: ColunaImportada, nome: string) => string;
+  /** UID do funcionário ligado ao usuário do monday (funcionarios.mondayId); sem ligação, a pessoa não entra. */
+  pessoa?: (mondayId: string) => string | undefined;
 };
 
 /** Valor de uma célula do monday no formato do Friday (null = célula vazia). Ligações devolvem os ids do monday. */
@@ -234,8 +236,13 @@ export function valorDe(col: ColunaImportada, cv: MValor, ctx: ContextoValor): u
     case 'vote': case 'auto_number': { const n = Number(cv.text); return cv.text && Number.isFinite(n) ? n : null; }
     case 'date': return v?.date ?? null;
     case 'timeline': return v?.from || v?.to ? { inicio: v.from ?? v.to, fim: v.to ?? v.from } : null;
-    // Pessoas do monday não são importadas: as pessoas do Friday são os funcionários do sistema (a coluna chega vazia).
-    case 'people': case 'person': return null;
+    // As pessoas do Friday são os funcionários do sistema: entra quem está ligado ao usuário do monday
+    // (Importar do monday → Pessoas). Equipes e pessoas sem ligação ficam de fora.
+    case 'people': case 'person': {
+      const lista = (Array.isArray(v?.personsAndTeams) ? v.personsAndTeams : v?.id != null ? [{ id: v.id, kind: 'person' }] : []) as { id: unknown; kind?: string }[];
+      const uids = lista.filter(p => p.kind !== 'team').map(p => ctx.pessoa?.(String(p.id))).filter((uid): uid is string => !!uid);
+      return uids.length ? [...new Set(uids)] : null;
+    }
     case 'phone': return v?.phone || cv.text || null;
     case 'email': return v?.email || cv.text || null;
     case 'link': return v?.url ? (v.text && v.text !== v.url ? { url: v.url, texto: v.text } : { url: v.url }) : null;

@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { httpsCallable } from 'firebase/functions';
-import { CloudDownload, LayoutGrid, Lock, RefreshCw, Search, Square } from 'lucide-react';
+import { CloudDownload, LayoutGrid, Lock, RefreshCw, Search, Square, UserRound } from 'lucide-react';
 import { functions } from '../funcoes.ts';
 import { Modal } from '../ui/base.tsx';
 import { useAuth } from '../../../contexts/AuthContext';
 import { useNav } from '../nav.tsx';
 import { useNavigate } from '../rotas.tsx';
+import ImportarPessoas from './ImportarPessoas.tsx';
 
 // Importação dos quadros do monday (Functions fridayMondayInventario e fridayMondayImportarQuadro, só adm2).
 // Um quadro por chamada: dá para acompanhar, parar e continuar depois ("puxar o que falta").
@@ -51,6 +52,7 @@ function Importador() {
   const [marcados, setMarcados] = useState<Set<string>>(new Set());
   const [execucao, setExecucao] = useState<Map<string, Execucao>>(new Map());
   const [rodando, setRodando] = useState(false);
+  const [aba, setAba] = useState<'quadros' | 'pessoas'>('quadros');
   const parar = useRef(false);
 
   const carregar = useCallback(async () => {
@@ -96,9 +98,13 @@ function Importador() {
       <header className="pagina-cab">
         <div>
           <h1><CloudDownload size={22} /> Importar do monday</h1>
-          <p className="muted">Traz os quadros do monday para o Friday (o monday só é lido). Repetir é seguro: entra o que falta, itens que ninguém mexeu no Friday são atualizados e os editados aqui são preservados. Quadros oficiais (cadeado) ficam fora do lote: atualize cada um pela prévia, e neles o monday vale.</p>
+          <div className="seletor-tipos importar-abas">
+            <button type="button" className={`chip-sub${aba === 'quadros' ? ' on' : ''}`} disabled={rodando} onClick={() => setAba('quadros')}><LayoutGrid size={13} /> Quadros</button>
+            <button type="button" className={`chip-sub${aba === 'pessoas' ? ' on' : ''}`} disabled={rodando} onClick={() => setAba('pessoas')}><UserRound size={13} /> Pessoas</button>
+          </div>
+          {aba === 'quadros' && <p className="muted">Traz os quadros do monday para o Friday (o monday só é lido). Repetir é seguro: entra o que falta, itens que ninguém mexeu no Friday são atualizados e os editados aqui são preservados. Quadros oficiais (cadeado) ficam fora do lote: atualize cada um pela prévia, e neles o monday vale.</p>}
         </div>
-        <div className="importar-acoes">
+        {aba === 'quadros' && <div className="importar-acoes">
           <button className="fr-btn" onClick={() => void carregar()} disabled={rodando}><RefreshCw size={15} /> Atualizar lista</button>
           {rodando
             ? <button className="fr-btn" onClick={() => { parar.current = true; }}><Square size={14} /> Parar depois deste</button>
@@ -106,8 +112,9 @@ function Importador() {
               <button className="fr-btn" disabled={!marcados.size} onClick={() => void importar([...marcados])}>Importar selecionados ({marcados.size})</button>
               <button className="fr-btn btn-primario" disabled={!pendentes.length} onClick={() => void importar(pendentes.map(q => q.id))}>Puxar o que falta ({pendentes.length})</button>
             </>}
-        </div>
+        </div>}
       </header>
+      {aba === 'pessoas' ? <ImportarPessoas /> : <>
       <p className="aviso-leitura">Enquanto não houver permissões por quadro no Friday, todo funcionário ativo vê os quadros importados — inclusive dados pessoais (RH, CRM, currículos).</p>
 
       {execucao.size > 0 && (
@@ -165,6 +172,7 @@ function Importador() {
           </div>
         )}
       {previa && <PreviaOficial quadro={previa} onFechar={() => setPrevia(null)} onPronto={() => void Promise.all([carregar(), nav.recarregar()])} />}
+      </>}
     </div>
   );
 }

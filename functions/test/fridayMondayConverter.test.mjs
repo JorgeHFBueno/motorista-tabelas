@@ -63,9 +63,15 @@ test('valores: pessoas, período, número, link, caixa e ligações', () => {
       { id: 'ignorada', type: 'text', text: 'x', value: null },
     ],
   };
-  // Pessoas do monday não são importadas: a coluna de pessoa chega vazia.
+  // Sem pessoas ligadas (funcionarios.mondayId), a coluna de pessoa chega vazia.
   const r = valoresDoItem(item, cols, {});
   assert.deepEqual(r.valores, { 2: { inicio: '2026-10-01', fim: '2026-10-09' }, 3: 1500.5, 4: { url: 'https://ledur.com.br', texto: 'Site' }, 5: true });
+  // Com ligação: entra o UID de quem está ligado; equipes e pessoas sem ligação ficam de fora.
+  const ligadas = new Map([['11', 'uid-ana'], ['99', 'uid-equipe']]);
+  assert.deepEqual(valoresDoItem(item, cols, { pessoa: id => ligadas.get(id) }).valores[1], ['uid-ana']);
+  const pessoaCol = { id: 1, tipoMonday: 'person', config: {} };
+  assert.deepEqual(valorDe(pessoaCol, { id: 'p', type: 'person', text: 'Ana', value: JSON.stringify({ id: 11 }) }, { pessoa: id => ligadas.get(id) }), ['uid-ana']);
+  assert.equal(valorDe(pessoaCol, { id: 'p', type: 'person', text: 'Zé', value: JSON.stringify({ id: 12 }) }, { pessoa: id => ligadas.get(id) }), null);
   assert.deepEqual(r.ligacoes, { 6: ['501', '502'] });
   const lig = resolverLigacoes(r.ligacoes, id => (id === '501' ? 77 : undefined));
   assert.deepEqual(lig.valores, { 6: [77] });

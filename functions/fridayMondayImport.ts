@@ -226,6 +226,13 @@ async function acharItensPorOrigem(ids: string[], cache: Map<string, number>) {
   }
 }
 
+/** UID do funcionário pelo id do usuário do monday (funcionarios.mondayId, ligado em Importar do monday → Pessoas). */
+async function pessoasDoMonday(): Promise<(mondayId: string) => string | undefined> {
+  const snap = await db.collection('funcionarios').where('mondayId', '!=', null).get();
+  const mapa = new Map(snap.docs.map(d => [String(d.get('mondayId')), d.id]));
+  return id => mapa.get(id);
+}
+
 type Contagem = { criados: number; atualizados: number; iguais: number; preservados: number; ignorados: number };
 async function sincronizarItens(p: {
   quadroId: number; itens: MItem[]; grupos: Map<string, number>; grupoPadrao: () => Promise<number>;
@@ -254,6 +261,7 @@ async function sincronizarItens(p: {
     if (!op) { op = { id: String(opcoes.length + 1), texto: nome, cor: '#c4c4c4' }; opcoes.push(op); colunasAlteradas.add(col.id); }
     return op.id;
   };
+  const pessoa = await pessoasDoMonday();
   const importadas = [...p.colunas.values()].map(col => col.id);
   const escrita = db.bulkWriter();
   for (const it of p.itens) {
@@ -263,7 +271,7 @@ async function sincronizarItens(p: {
     if (decisao === 'preservar') { c.preservados++; continue; }
     const itemPaiId = p.subitens ? p.itemPorOrigem.get(String(it.parent_item?.id ?? '')) ?? null : null;
     if (p.subitens && itemPaiId == null) { c.ignorados++; continue; } // subitem de item não importado
-    const conv = valoresDoItem(it, p.colunas, { tag });
+    const conv = valoresDoItem(it, p.colunas, { tag, pessoa });
     const lig = resolverLigacoes(conv.ligacoes, id => p.itemPorOrigem.get(id));
     const marca = dataLocal(it.updated_at);
     const grupoId = (it.group && p.grupos.get(it.group.id)) ?? await p.grupoPadrao();
@@ -346,7 +354,7 @@ async function planejarParteOficial(p: {
     if (!op) { op = { id: String(opcoes.length + 1), texto: nome, cor: '#c4c4c4' }; opcoes.push(op); alteradas.add(col.id); }
     return op.id;
   };
-  const ctx = { tag, rotulo: rotuloPorTexto(alteradas) };
+  const ctx = { tag, rotulo: rotuloPorTexto(alteradas), pessoa: await pessoasDoMonday() };
   const existentes = await consultar('itens', { quadro_id: p.quadroId });
   const porOrigem = new Map(existentes.filter(i => i.origem_id).map(i => [String(i.origem_id), i]));
   if (!p.sub) for (const i of existentes) p.nomes.set(Number(i.id), String(i.nome ?? ''));

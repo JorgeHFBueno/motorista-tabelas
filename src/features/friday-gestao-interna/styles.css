@@ -781,6 +781,10 @@ body.redimensionando .friday-root, body.redimensionando .friday-root * { cursor:
 /* ---------------- importar do monday ---------------- */
 .friday-root .pagina-importar h1 { display: flex; align-items: center; gap: 8px; }
 .friday-root .importar-acoes { display: flex; gap: 8px; flex-wrap: wrap; }
+.friday-root .importar-abas { margin-top: 10px; }
+.friday-root .pessoas-barra { flex-wrap: wrap; }
+.friday-root .pessoas-barra .busca-barra input { width: 220px; }
+.friday-root .importar-abas .chip-sub { height: 28px; padding: 0 12px; font-size: 13px; gap: 6px; }
 .friday-root .pagina-importar > .aviso-leitura { margin: -12px 0 16px; }
 .friday-root .importar-progresso { display: flex; flex-direction: column; gap: 4px; background: var(--superficie); border: 1px solid var(--borda-suave); border-radius: 8px; padding: 12px 14px; margin-bottom: 14px; font-size: 13px; }
 .friday-root .importar-barra { height: 6px; border-radius: 3px; background: var(--superficie-2); overflow: hidden; margin-top: 4px; }

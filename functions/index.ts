@@ -10,6 +10,7 @@ export { getVehicleErpCosts } from './vehicleReport.js';
 export { atualizarErpVeiculos, erpVeiculosDiario } from './erpVeiculos.js';
 export { syncMondaySerpMeasurements } from './mondaySerpMeasurements.js';
 export { fridayMondayInventario, fridayMondayImportarQuadro } from './fridayMondayImport.js';
+export { fridayMondayPessoas } from './fridayMondayPessoas.js';
 export { fridayCadastroCampos, fridayCadastroGravar, fridayCadastroPromover } from './fridayCadastros.js';
 export { fridayObrasSituacaoItem, fridayObrasSituacaoDiaria } from './fridayObrasSituacao.js';
 export { fridayAutomacoesEvento, fridayAutomacoesDatas } from './fridayAutomacoes.js';

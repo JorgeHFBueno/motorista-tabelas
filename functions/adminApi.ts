@@ -9,7 +9,8 @@ import { CREDENCIAIS, credenciaisDe, lerCredenciais, migrarPerfis, type Credenci
 import { lerNovoCliente } from './portalClientes.js';
 
 // Users administration of the WEB (Cadastros), adm2 only. Contract: Manuscript funcionarios.md ("Credenciais",
-// "Usuários na WEB"). Users are born only here; each one is an Auth account plus funcionarios/{uid}.
+// "Usuários na WEB"). Users are born here or, without a password, in the Friday import of monday people
+// (fridayMondayPessoas); each one is an Auth account plus funcionarios/{uid}.
 const adminApp = express();
 const employeesCollection = db.collection('funcionarios');
 // Client portal logins (Manuscript users.md): Auth account plus users/{uid}; a client is never an employee.
