@@ -303,6 +303,21 @@ export function decidirItem(existente: AnyRecord | undefined, mondayAtualizadoEm
 }
 
 /**
+ * Pessoas que faltam num item que a reimportação não regrava (igual ou preservado): as colunas de pessoa vindas do
+ * monday que estão vazias no Friday recebem os funcionários ligados (eles podem ter sido ligados depois da importação).
+ * Só completa: quem já está preenchido no Friday fica. Devolve só as colunas a preencher ({} = nada a fazer).
+ */
+export function pessoasQueFaltam(atuais: AnyRecord | undefined, novos: AnyRecord, colunasPessoa: Iterable<string>): AnyRecord {
+  const out: AnyRecord = {};
+  for (const k of colunasPessoa) {
+    if (Array.isArray(atuais?.[k]) && atuais[k].length) continue;
+    if (atuais?.[k] != null && !Array.isArray(atuais[k])) continue;
+    if (Array.isArray(novos[k]) && novos[k].length) out[k] = novos[k];
+  }
+  return out;
+}
+
+/**
  * Valores atualizados de um item intocado: as colunas que vieram do monday são substituídas (ou apagadas, se
  * vazias no monday); colunas criadas no Friday ficam como estão.
  */

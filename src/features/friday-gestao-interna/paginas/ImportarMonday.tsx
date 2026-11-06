@@ -19,7 +19,8 @@ type QuadroMonday = {
   oficial?: boolean;
 };
 type Contagem = { criados: number; atualizados: number; iguais: number; preservados: number; ignorados: number };
-type Resultado = Contagem & { quadro_id: number; itens_monday: number; subitens: Contagem; colunas_ignoradas: number };
+// pessoas: itens que já estavam no Friday e tiveram colunas de pessoa vazias completadas (não vem nos quadros oficiais).
+type Resultado = Contagem & { quadro_id: number; itens_monday: number; subitens: Contagem & { pessoas?: number }; colunas_ignoradas: number; pessoas?: number };
 type Execucao = { id: string; estado: 'fila' | 'importando' | 'ok' | 'erro'; resultado?: Resultado; erro?: string };
 
 const ROTULO: Record<Situacao, string> = { novo: 'Novo', importado: 'Importado', atualizar: 'Com novidades', erro: 'Erro' };
@@ -154,6 +155,7 @@ function Importador() {
                       {ex?.estado === 'ok' && ex.resultado && (
                         <small className="importar-resultado">
                           {ex.resultado.criados} novos, {ex.resultado.atualizados} atualizados, {ex.resultado.iguais} sem mudança, {ex.resultado.preservados} preservados
+                          {(ex.resultado.pessoas ?? 0) + (ex.resultado.subitens.pessoas ?? 0) > 0 && ` · ${(ex.resultado.pessoas ?? 0) + (ex.resultado.subitens.pessoas ?? 0)} com pessoas completadas`}
                           {ex.resultado.subitens.criados + ex.resultado.subitens.atualizados > 0 && ` · subitens: ${ex.resultado.subitens.criados} novos, ${ex.resultado.subitens.atualizados} atualizados`}
                           {ex.resultado.colunas_ignoradas > 0 && ` · ${ex.resultado.colunas_ignoradas} coluna(s) sem equivalente`}
                         </small>

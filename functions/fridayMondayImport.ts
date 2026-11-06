@@ -5,7 +5,7 @@ import { db } from './firebaseAdmin.js';
 import { mondayApiToken, MONDAY_API_VERSION } from './mondayClient.js';
 import {
   configDe, converterFormulaMonday, dataLocal, decidirItem, json, LARGURA_PADRAO, mesclarOpcoesLista, mesclarRotulosStatus,
-  mesclarValores, novoId, ordenarGrupos, pessoasDosValores, prefixosBusca, quadrosDeSubitens, resolverLigacoes, tipoFriday, tituloColuna,
+  mesclarValores, novoId, ordenarGrupos, pessoasDosValores, pessoasQueFaltam, prefixosBusca, quadrosDeSubitens, resolverLigacoes, tipoFriday, tituloColuna,
   valoresDoItem, type Alvo, type ColunaImportada, type MCol, type MItem,
 } from './fridayMondayConverter.js';
 import { gravarNoCadastro } from './fridayCadastros.js';
@@ -16,6 +16,7 @@ import { planejarAtualizacao, rotuloPorTexto, valoresNoTipoAtual, type ColunaDoQ
 // Só lê o monday (nenhuma mutation). Grava pelo Admin SDK, então não depende das Rules; por isso a autorização
 // (funcionário ativo com adm2) é verificada aqui. Repetir a importação de um quadro não duplica nada: cada registro
 // guarda o id do monday em `origem_id`. Itens intocados no Friday são atualizados; editados no Friday, preservados.
+// Em ambos, colunas de pessoa vazias recebem quem foi ligado ao usuário do monday depois da importação.
 
 type AnyRecord = Record<string, any>;
 type Row = AnyRecord & { id: number };
@@ -233,13 +234,14 @@ async function pessoasDoMonday(): Promise<(mondayId: string) => string | undefin
   return id => mapa.get(id);
 }
 
-type Contagem = { criados: number; atualizados: number; iguais: number; preservados: number; ignorados: number };
+/** pessoas: itens já no Friday (sem mudança ou preservados) que tinham coluna de pessoa vazia e foram completados. */
+type Contagem = { criados: number; atualizados: number; iguais: number; preservados: number; ignorados: number; pessoas: number };
 async function sincronizarItens(p: {
   quadroId: number; itens: MItem[]; grupos: Map<string, number>; grupoPadrao: () => Promise<number>;
-  colunas: Map<string, ColunaImportada>; colunasPessoa: Set<string>;
+  colunas: Map<string, ColunaDoQuadro>; colunasPessoa: Set<string>;
   itemPorOrigem: Map<string, number>; subitens: boolean;
 }): Promise<Contagem> {
-  const c: Contagem = { criados: 0, atualizados: 0, iguais: 0, preservados: 0, ignorados: 0 };
+  const c: Contagem = { criados: 0, atualizados: 0, iguais: 0, preservados: 0, ignorados: 0, pessoas: 0 };
   const existentes = await consultar('itens', { quadro_id: p.quadroId });
   const porOrigem = new Map(existentes.filter(i => i.origem_id).map(i => [String(i.origem_id), i]));
   const ultimaPosicao = new Map<number, number>();
@@ -263,12 +265,22 @@ async function sincronizarItens(p: {
   };
   const pessoa = await pessoasDoMonday();
   const importadas = [...p.colunas.values()].map(col => col.id);
+  // Colunas de pessoa vindas do monday que continuam de pessoa no Friday (não convertidas por "Mudar tipo…").
+  const colunasDePessoa = [...p.colunas.values()].filter(col => (col.tipoMonday === 'people' || col.tipoMonday === 'person') && col.tipo === 'pessoa').map(col => String(col.id));
   const escrita = db.bulkWriter();
   for (const it of p.itens) {
     const existente = porOrigem.get(it.id);
     const decisao = decidirItem(existente, it.updated_at);
-    if (decisao === 'igual') { c.iguais++; continue; }
-    if (decisao === 'preservar') { c.preservados++; continue; }
+    if (decisao === 'igual' || decisao === 'preservar') {
+      if (decisao === 'igual') c.iguais++; else c.preservados++;
+      const faltam = pessoasQueFaltam(existente!.valores, valoresDoItem(it, p.colunas, { pessoa }).valores, colunasDePessoa);
+      if (!Object.keys(faltam).length) continue;
+      const valores = { ...(existente!.valores ?? {}), ...faltam };
+      // Completa a importação: não conta como edição no Friday (atualizado_em não muda).
+      void escrita.update(colecao('itens').doc(String(existente!.id)), { valores, pessoas: pessoasDosValores(valores, p.colunasPessoa) });
+      c.pessoas++;
+      continue;
+    }
     const itemPaiId = p.subitens ? p.itemPorOrigem.get(String(it.parent_item?.id ?? '')) ?? null : null;
     if (p.subitens && itemPaiId == null) { c.ignorados++; continue; } // subitem de item não importado
     const conv = valoresDoItem(it, p.colunas, { tag, pessoa });
@@ -559,7 +571,7 @@ async function importarQuadro(token: string, boardId: string, uid: string, modo:
   const principal = await sincronizarItens({ quadroId: quadro.id, itens, grupos, grupoPadrao: primeiroGrupo, colunas, colunasPessoa, itemPorOrigem, subitens: false });
 
   // Subitens: quadro interno "subitens" com colunas próprias e um grupo só.
-  const sub: Contagem = { criados: 0, atualizados: 0, iguais: 0, preservados: 0, ignorados: 0 };
+  const sub: Contagem = { criados: 0, atualizados: 0, iguais: 0, preservados: 0, ignorados: 0, pessoas: 0 };
   for (const subId of quadrosDeSubitens(board.columns ?? [])) {
     const d = await gql(token, `query ($b: [ID!]) { boards(ids: $b) { ${CAMPOS_QUADRO} } }`, { b: [subId] });
     const subBoard = d.boards?.[0];
@@ -583,7 +595,7 @@ async function importarQuadro(token: string, boardId: string, uid: string, modo:
   };
   await inserir('atividades', {
     quadro_id: quadro.id, usuario_id: uid, acao: 'importou',
-    para: `do monday: ${principal.criados} novos, ${principal.atualizados} atualizados, ${principal.preservados} preservados (editados no Friday)`,
+    para: `do monday: ${principal.criados} novos, ${principal.atualizados} atualizados, ${principal.preservados} preservados (editados no Friday)${principal.pessoas ? `, ${principal.pessoas} com pessoas completadas` : ''}`,
   });
   await colecao('importacoes').doc(String(board.id)).set({ ...resultado, situacao: 'ok', mensagem: null, importado_em: dataLocal(), monday_atualizado_em: board.updated_at ?? null, por_uid: uid });
   return resultado;

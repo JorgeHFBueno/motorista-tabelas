@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {
   caminhoAnexo, comCopias, manterCopias, mimeDoNome, pendentesDoMonday,
   configDe, converterFormulaMonday, dataLocal, decidirItem, mesclarOpcoesLista, mesclarRotulosStatus, mesclarValores,
-  pessoasDosValores, prefixosBusca, quadrosDeSubitens, resolverLigacoes, tipoFriday, valorDe, valoresDoItem,
+  pessoasDosValores, pessoasQueFaltam, prefixosBusca, quadrosDeSubitens, resolverLigacoes, tipoFriday, valorDe, valoresDoItem,
 } from '../lib/fridayMondayConverter.js';
 
 const statusCol = {
@@ -89,6 +89,17 @@ test('reimportação: criar, preservar editado no Friday, igual e atualizar', ()
   assert.equal(decidirItem({ atualizado_em: 'y' }, 'b'), 'preservar');
   assert.equal(decidirItem({ importado_em: 'x', atualizado_em: 'x', monday_atualizado_em: 'a' }, 'a'), 'igual');
   assert.equal(decidirItem({ importado_em: 'x', atualizado_em: 'x', monday_atualizado_em: 'a' }, 'b'), 'atualizar');
+});
+
+test('reimportação: pessoas ligadas depois completam só as colunas de pessoa vazias', () => {
+  const novos = { 5: ['uid-a'], 6: ['uid-b'], 7: ['uid-c'], 1: 'texto do monday' };
+  // 5 vazia (array), 6 ausente: completadas; 7 já preenchida no Friday: fica; 1 não é de pessoa: ignorada.
+  assert.deepEqual(pessoasQueFaltam({ 5: [], 7: ['uid-x'], 1: 'velho' }, novos, ['5', '6', '7']), { 5: ['uid-a'], 6: ['uid-b'] });
+  assert.deepEqual(pessoasQueFaltam(undefined, { 5: ['uid-a'] }, ['5']), { 5: ['uid-a'] });
+  // Ninguém ligado no monday: nada a fazer.
+  assert.deepEqual(pessoasQueFaltam({}, {}, ['5']), {});
+  // Valor que não é lista (coluna mexida no Friday): não sobrescreve.
+  assert.deepEqual(pessoasQueFaltam({ 5: 'outro' }, { 5: ['uid-a'] }, ['5']), {});
 });
 
 test('reimportação: colunas criadas no Friday sobrevivem, as do monday são substituídas', () => {
