@@ -68,7 +68,7 @@ export function PainelItem({ item, grupo, colunas, acoes, ops, sub, pai, onAbrir
             </div>
           )}
           {aba === 'subitens' && !pai && <TabelaSubitens pai={item} sub={sub} acoes={acoes} ops={ops} usuarios={nav.usuarios} modo="painel" />}
-          {aba === 'atividade' && <RegistroAtividade filtro={{ item_id: item.id }} />}
+          {aba === 'atividade' && <RegistroAtividade filtro={{ quadro_id: item.quadro_id, item_id: item.id }} />}
         </div>
       </aside>
     </div>,

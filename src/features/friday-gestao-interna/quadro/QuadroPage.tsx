@@ -10,7 +10,7 @@ import { useAuth } from '../../../contexts/AuthContext';
 import { DesfazerOficial, GrupoOficialDialogo, TornarOficial } from './TornarOficial.tsx';
 import { NomeModal } from '../layout/Lateral.tsx';
 import { Permissoes } from '../layout/Permissoes.tsx';
-import { PERMISSOES_FINAS, useNav } from '../nav.tsx';
+import { useNav } from '../nav.tsx';
 import { Avatar, Editavel, Menu, Modal, Popover, useAvisoRapido, useConfirmar, usePopover, type ItemMenu } from '../ui/base.tsx';
 import { corTexto } from '../util.ts';
 import { exportarExcel } from './excel.ts';
@@ -543,7 +543,7 @@ function MenuQuadro({ quadro, acoes, confirmar, temOcultas, onMostrarOcultas, on
         ? { rotulo: 'Descontinuar o grupo oficial…', icone: <LockOpen size={15} />, onClick: () => setOficializar('grupo_descontinuar') }
         : { rotulo: 'Tornar o grupo oficial…', icone: <Lock size={15} />, onClick: () => setOficializar('grupo') }]),
       { rotulo: 'Desfazer oficialização…', icone: <LockOpen size={15} />, onClick: () => setOficializar('desfazer') }, 'separador' as const] : []),
-    ...(PERMISSOES_FINAS && nav.usuario?.admin ? [{ rotulo: 'Permissões do quadro', icone: <Lock size={15} />, onClick: () => setPermissoes(true) }, 'separador' as const] : []),
+    ...(nav.usuario?.admin ? [{ rotulo: 'Permissões do quadro', icone: <Lock size={15} />, onClick: () => setPermissoes(true) }, 'separador' as const] : []),
     { rotulo: 'Exportar visão atual para Excel', icone: <FileSpreadsheet size={15} />, onClick: onExportarVisao },
     { rotulo: 'Exportar quadro inteiro para Excel', icone: <Download size={15} />, onClick: onExportarTudo },
     { rotulo: 'Importar itens do Excel', icone: <Upload size={15} />, onClick: onImportar },
@@ -561,7 +561,7 @@ function MenuQuadro({ quadro, acoes, confirmar, temOcultas, onMostrarOcultas, on
     <>
       <button ref={pop.ref} className="btn-icone" aria-label="Menu do quadro" onClick={pop.alternar}><MoreHorizontal size={18} /></button>
       {pop.aberto && <Popover ancora={pop.ref.current} onClose={pop.fechar} alinhar="fim" largura={280}><Menu onEscolher={pop.fechar} itens={itens} /></Popover>}
-      {permissoes && <Permissoes recurso="quadro" id={Number(quadro.id)} nome={String(quadro.nome)} onFechar={() => { setPermissoes(false); acoes.recarregar(); }} />}
+      {permissoes && <Permissoes id={Number(quadro.id)} nome={String(quadro.nome)} onFechar={() => { setPermissoes(false); acoes.recarregar(); }} />}
       {oficializar === 'quadro' && <TornarOficial quadro={quadro} colunas={acoes.dados?.colunas ?? []} onFechar={() => setOficializar(null)} onPronto={() => { setOficializar(null); acoes.recarregar(); }} />}
       {oficializar === 'subitens' && acoes.dados?.sub && <TornarOficial quadro={quadro} colunas={acoes.dados.sub.colunas}
         subitens={{ nomeItem: String(acoes.dados.sub.nome_item || 'Subitem'), chave: quadro.oficial?.subitens === 'migrando' ? quadro.oficial.sub_chave : null }}

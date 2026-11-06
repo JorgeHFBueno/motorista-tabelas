@@ -365,7 +365,8 @@ function CelulaLink({ valor, onMudar }: CelulaProps) {
 // ---------------------------------------------------------------- conectar quadros
 const cacheItens = new Map<number, Promise<Row[]>>();
 export function itensDoQuadro(quadroId: number, renovar = false) {
-  if (renovar || !cacheItens.has(quadroId)) cacheItens.set(quadroId, api.list('itens', { quadro_id: quadroId }));
+  // Quadro ligado que a pessoa não vê: nenhum item (as tags ficam com "…").
+  if (renovar || !cacheItens.has(quadroId)) cacheItens.set(quadroId, api.list('itens', { quadro_id: quadroId }).catch(() => []));
   return cacheItens.get(quadroId)!;
 }
 function useItensDoQuadro(quadroId: number | null | undefined) {

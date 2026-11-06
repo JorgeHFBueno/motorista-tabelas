@@ -207,8 +207,9 @@ export function Atualizacoes({ item, acoes }: { item: Item; acoes: Acoes }) {
   const [lista, setLista] = useState<Row[] | null>(null);
   const [anexos, setAnexos] = useState<Row[]>([]);
   useEffect(() => {
-    Promise.all([api.list('atualizacoes', { item_id: item.id }), api.list('anexos', { item_id: item.id })]).then(([a, x]) => { setLista(a); setAnexos(x); });
-  }, [item.id]);
+    const filtro = { quadro_id: item.quadro_id, item_id: item.id };
+    Promise.all([api.list('atualizacoes', filtro), api.list('anexos', filtro)]).then(([a, x]) => { setLista(a); setAnexos(x); });
+  }, [item.id, item.quadro_id]);
   const publicado = (a: Row, novos: Row[]) => {
     setLista(l => [a, ...(l ?? [])]);
     setAnexos(x => [...novos, ...x]);
@@ -299,7 +300,7 @@ export function Arquivos({ item, onContagem }: { item: Item; onContagem?: (n: nu
   const [anexos, setAnexos] = useState<Row[] | null>(null);
   const [enviando, setEnviando] = useState<string | null>(null);
   const [arrastando, setArrastando] = useState(false);
-  useEffect(() => { api.list('anexos', { item_id: item.id }).then(setAnexos); }, [item.id]);
+  useEffect(() => { api.list('anexos', { quadro_id: item.quadro_id, item_id: item.id }).then(setAnexos); }, [item.id, item.quadro_id]);
   const avisar = useRef(onContagem);
   avisar.current = onContagem;
   useEffect(() => { if (anexos) avisar.current?.(anexos.length); }, [anexos]);

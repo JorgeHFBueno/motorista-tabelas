@@ -5,10 +5,6 @@ import { api, encerrarSessao, iniciarSessao, listarPessoas, SEM_SESSAO, type Pes
 // Quem está usando o Friday: a pessoa logada no sistema (Firebase Auth + funcionarios); id = UID.
 export type Eu = Sessao;
 
-// Permissões por área/pasta/quadro (restrito, ver/editar) chegam na etapa de credenciais.
-// Até lá os menus de permissão ficam escondidos e todos os funcionários ativos editam.
-export const PERMISSOES_FINAS = false;
-
 // Estado global: quem entrou e a navegação (pessoas, áreas de trabalho, pastas e quadros).
 type Ctx = {
   carregado: boolean;

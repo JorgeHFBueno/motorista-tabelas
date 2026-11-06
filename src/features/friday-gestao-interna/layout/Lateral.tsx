@@ -6,7 +6,7 @@ import {
 } from 'lucide-react';
 import { Permissoes } from './Permissoes.tsx';
 import { api, req, type Row } from '../api.ts';
-import { PERMISSOES_FINAS, useNav } from '../nav.tsx';
+import { useNav } from '../nav.tsx';
 import { useAuth } from '../../../contexts/AuthContext';
 import { Menu, Modal, Popover, useConfirmar, usePopover } from '../ui/base.tsx';
 import { CORES, corTexto } from '../util.ts';
@@ -30,7 +30,7 @@ export function Lateral({ onRecolher }: { onRecolher: () => void }) {
   const [modal, setModal] = useState<null | { tipo: 'quadro' | 'painel' | 'pasta' | 'area' | 'renomear'; pastaId?: number | null; alvo?: Row; tabela?: string }>(null);
   const [arrastando, setArrastando] = useState<number | null>(null);
   const [soltarEm, setSoltarEm] = useState<number | 'raiz' | null>(null);
-  const [permissoes, setPermissoes] = useState<{ recurso: 'area' | 'pasta' | 'quadro'; id: number; nome: string } | null>(null);
+  const [permissoes, setPermissoes] = useState<{ id: number; nome: string } | null>(null);
   const admin = !!nav.usuario?.admin;
   const adm2 = useAuth().authorizationProfile?.adm2 === true;
   const area = nav.areas.find(a => a.id === nav.areaId);
@@ -107,7 +107,7 @@ export function Lateral({ onRecolher }: { onRecolher: () => void }) {
           <span className="arvore-nome">{p.nome}</span>
           {!!p.restrito && <Lock size={12} className="arvore-cadeado" aria-label="restrita" />}
           {total > 0 && <span className="arvore-n" title={`${total} ${total === 1 ? 'quadro' : 'quadros'}`}>{total}</span>}
-          <MenuPasta pasta={p} onPermissoes={PERMISSOES_FINAS && admin ? () => setPermissoes({ recurso: 'pasta', id: p.id, nome: p.nome }) : undefined}
+          <MenuPasta pasta={p}
             onNovoQuadro={() => setModal({ tipo: 'quadro', pastaId: p.id })} onNovoPainel={() => setModal({ tipo: 'painel', pastaId: p.id })} onSubpasta={() => setModal({ tipo: 'pasta', pastaId: p.id })}
             onRenomear={() => setModal({ tipo: 'renomear', alvo: p, tabela: 'pastas' })}
             onExcluir={async () => { if (await confirmar(`Excluir a pasta “${p.nome}”? Os quadros dela vão para fora das pastas.`)) { await api.remove('pastas', p.id); nav.recarregar(); } }} />
@@ -132,7 +132,7 @@ export function Lateral({ onRecolher }: { onRecolher: () => void }) {
       <span className="arvore-nome">{q.nome}</span>
       {!!q.restrito && <Lock size={12} className="arvore-cadeado" aria-label="restrito" />}
       <MenuQuadroLateral quadro={q} pastas={pastasDaArea} onMover={pid => moverQuadro(q.id, pid)}
-        onPermissoes={PERMISSOES_FINAS && admin ? () => setPermissoes({ recurso: 'quadro', id: q.id, nome: q.nome }) : undefined}
+        onPermissoes={admin ? () => setPermissoes({ id: q.id, nome: q.nome }) : undefined}
         onRenomear={() => setModal({ tipo: 'renomear', alvo: q, tabela: 'quadros' })}
         onArquivar={async () => { if (await confirmar(`Arquivar o quadro “${q.nome}”? Ele sai da lateral e pode ser restaurado em Arquivo e lixeira.`, 'Arquivar')) { await req('POST', `quadros/${q.id}/arquivar`); await nav.recarregar(); if (q.id === quadroAtual) navigate('/'); } }}
         onExcluir={async () => { if (await confirmar(`Mover o quadro “${q.nome}” para a lixeira? Dá para restaurar por 30 dias.`)) { await api.remove('quadros', q.id); await nav.recarregar(); if (q.id === quadroAtual) navigate('/'); } }} />
@@ -165,7 +165,6 @@ export function Lateral({ onRecolher }: { onRecolher: () => void }) {
       <div className="lateral-secao area-secao">
         <div className="area-linha">
           <SeletorArea onNova={admin ? () => setModal({ tipo: 'area' }) : undefined} onRenomear={admin ? a => setModal({ tipo: 'renomear', alvo: a, tabela: 'areas' }) : undefined}
-            onPermissoes={PERMISSOES_FINAS && admin ? a => setPermissoes({ recurso: 'area', id: a.id, nome: a.nome }) : undefined}
             onExcluir={admin ? async a => { if (await confirmar(`Excluir a área “${a.nome}” com todas as pastas e quadros?`)) { await api.remove('areas', a.id); nav.recarregar(); } } : undefined} />
           <button ref={mais.ref} className="btn-icone btn-mais" aria-label="Adicionar" onClick={mais.alternar}><Plus size={16} /></button>
           {mais.aberto && (
@@ -192,7 +191,8 @@ export function Lateral({ onRecolher }: { onRecolher: () => void }) {
         onDragOver={e => { if (arrastando != null && e.target === e.currentTarget) { e.preventDefault(); setSoltarEm('raiz'); } }}
         onDrop={e => { if (e.target === e.currentTarget) soltar(null); }}>
         {pastasDaArea.filter(p => !p.pasta_pai_id).map(p => renderPasta(p, 0))}
-        {quadrosDaArea.filter(q => !q.pasta_id && casa(q)).map(q => renderQuadro(q, 0))}
+        {/* Quadro cuja pasta não existe mais (apagada por quem não via o quadro restrito) fica fora das pastas. */}
+        {quadrosDaArea.filter(q => (!q.pasta_id || !pastasDaArea.some(p => p.id === q.pasta_id)) && casa(q)).map(q => renderQuadro(q, 0))}
         {!quadrosDaArea.length && !pastasDaArea.length && (
           <div className="arvore-vazia grande">
             <p>Esta área ainda não tem quadros.</p>
@@ -234,7 +234,7 @@ export function Lateral({ onRecolher }: { onRecolher: () => void }) {
 export const IconeQuadro = ({ q, size = 15 }: { q: Row; size?: number }) => (q.tipo === 'painel' ? <LayoutDashboard size={size} /> : <LayoutGrid size={size} />);
 
 // ---------------------------------------------------------------- seletor de área
-function SeletorArea({ onNova, onRenomear, onExcluir, onPermissoes }: { onNova?: () => void; onRenomear?: (a: Row) => void; onExcluir?: (a: Row) => void; onPermissoes?: (a: Row) => void }) {
+function SeletorArea({ onNova, onRenomear, onExcluir }: { onNova?: () => void; onRenomear?: (a: Row) => void; onExcluir?: (a: Row) => void }) {
   const nav = useNav();
   const pop = usePopover<HTMLButtonElement>();
   const area = nav.areas.find(a => a.id === nav.areaId);
@@ -254,7 +254,6 @@ function SeletorArea({ onNova, onRenomear, onExcluir, onPermissoes }: { onNova?:
                 <span className="area-icone pequeno" style={{ background: a.cor, color: corTexto(a.cor) }}>{a.nome[0]}</span>{a.nome}
                 {!!a.restrito && <Lock size={12} className="arvore-cadeado" aria-label="restrita" />}
                 <span className="espaco" />
-                {onPermissoes && <button className="btn-icone" title="Permissões" onClick={e => { e.stopPropagation(); pop.fechar(); onPermissoes(a); }}><Lock size={13} /></button>}
                 {onRenomear && <button className="btn-icone" title="Renomear" onClick={e => { e.stopPropagation(); pop.fechar(); onRenomear(a); }}><Pencil size={13} /></button>}
                 {onExcluir && nav.areas.length > 1 && <button className="btn-icone" title="Excluir" onClick={e => { e.stopPropagation(); pop.fechar(); onExcluir(a); }}><Trash2 size={13} /></button>}
               </div>
@@ -269,7 +268,7 @@ function SeletorArea({ onNova, onRenomear, onExcluir, onPermissoes }: { onNova?:
 }
 
 // ---------------------------------------------------------------- menus de contexto
-function MenuPasta({ pasta, onNovoQuadro, onNovoPainel, onSubpasta, onRenomear, onExcluir, onPermissoes }: { pasta: Row; onNovoQuadro: () => void; onNovoPainel: () => void; onSubpasta: () => void; onRenomear: () => void; onExcluir: () => void; onPermissoes?: () => void }) {
+function MenuPasta({ pasta, onNovoQuadro, onNovoPainel, onSubpasta, onRenomear, onExcluir }: { pasta: Row; onNovoQuadro: () => void; onNovoPainel: () => void; onSubpasta: () => void; onRenomear: () => void; onExcluir: () => void }) {
   const pop = usePopover<HTMLButtonElement>();
   return (
     <>
@@ -281,7 +280,6 @@ function MenuPasta({ pasta, onNovoQuadro, onNovoPainel, onSubpasta, onRenomear, 
             { rotulo: 'Novo painel nesta pasta', icone: <LayoutDashboard size={15} />, onClick: onNovoPainel },
             { rotulo: 'Nova subpasta', icone: <FolderPlus size={15} />, onClick: onSubpasta },
             { rotulo: 'Renomear pasta', icone: <Pencil size={15} />, onClick: onRenomear },
-            ...(onPermissoes ? [{ rotulo: 'Permissões da pasta', icone: <Lock size={15} />, onClick: onPermissoes }] : []),
             'separador',
             { rotulo: 'Excluir pasta', icone: <Trash2 size={15} />, perigo: true, onClick: onExcluir },
           ]} />

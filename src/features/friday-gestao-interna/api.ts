@@ -1,6 +1,6 @@
 import {
   collection, deleteField, doc, documentId, FieldPath, getDoc, getDocs, limit, onSnapshot, query, runTransaction, setDoc, updateDoc, where, writeBatch,
-  type DocumentData, type DocumentReference,
+  type DocumentData, type DocumentReference, type QueryConstraint,
 } from 'firebase/firestore';
 import { httpsCallable } from 'firebase/functions';
 import { deleteObject, getDownloadURL, ref as refArquivo, uploadBytes } from 'firebase/storage';
@@ -19,7 +19,8 @@ import type { Coluna } from './quadro/tipos.ts';
 // sistema (funcionarios/{uid}) e aparecem nos registros pelo UID (células de pessoa, criado por, autor, @menções).
 export type Row = Record<string, any> & { id: number };
 // Pessoa do Friday = funcionário do sistema; o id é o próprio UID.
-export type Pessoa = { id: string; uid: string; nome: string; email: string | null; cor: string; ativo: boolean };
+// friday: tem a credencial escritorio ou adm2 (entra no Friday); adm2: vê todos os quadros (permissões).
+export type Pessoa = { id: string; uid: string; nome: string; email: string | null; cor: string; ativo: boolean; friday: boolean; adm2: boolean };
 
 // Disparado quando a sessão acaba (as telas voltam a pedir login).
 export const SEM_SESSAO = 'ledur:sem-sessao';
@@ -39,7 +40,8 @@ const CAMPOS: Record<Recurso, string[]> = {
   pastas: ['id', 'area_id', 'pasta_pai_id', 'nome', 'cor', 'posicao', 'aberta', 'origem_id', 'restrito'],
   // cadastro: chave do cadastro oficial do quadro (friday-cadastros/{chave}), gravada pela Function fridayCadastroPromover.
   // config: só no painel (tipo 'painel'): { quadros, widgets }.
-  quadros: ['id', 'area_id', 'pasta_id', 'nome', 'descricao', 'posicao', 'favorito', 'nome_item', 'criado_em', 'tipo', 'quadro_pai_id', 'origem_id', 'arquivado_em', 'excluido_em', 'restrito', 'cadastro', 'config'],
+  // restrito (0/1) e acesso (UIDs de funcionarios): quem vê o quadro restrito; adm2 vê todos. Mudam só pela tela de permissões.
+  quadros: ['id', 'area_id', 'pasta_id', 'nome', 'descricao', 'posicao', 'favorito', 'nome_item', 'criado_em', 'tipo', 'quadro_pai_id', 'origem_id', 'arquivado_em', 'excluido_em', 'restrito', 'acesso', 'cadastro', 'config'],
   grupos: ['id', 'quadro_id', 'nome', 'cor', 'posicao', 'recolhido', 'arquivado_em', 'excluido_em', 'origem_id'],
   colunas: ['id', 'quadro_id', 'titulo', 'tipo', 'config', 'largura', 'posicao', 'oculta', 'origem_id'],
   // pessoas e busca: índices do Meu trabalho e da busca (ver prefixosBusca). importado_em, monday_atualizado_em e
@@ -61,12 +63,15 @@ const CAMPOS: Record<Recurso, string[]> = {
 const JSON_COLS: Partial<Record<Recurso, string[]>> = { quadros: ['config'], colunas: ['config'], itens: ['valores'], visoes: ['config'], atualizacoes: ['mencoes'], automacoes: ['gatilho', 'condicoes', 'acoes'] };
 // Campos que a API genérica não grava (têm rotas próprias).
 const PROTEGIDOS: Partial<Record<Recurso, string[]>> = {
-  areas: ['restrito'], pastas: ['restrito'], quadros: ['restrito', 'cadastro'],
+  areas: ['restrito'], pastas: ['restrito'], quadros: ['restrito', 'acesso', 'cadastro'],
   atualizacoes: ['quadro_id'], anexos: ['quadro_id'], notificacoes: ['usuario_uid'],
   // vinculo: { cadastro, id } do registro oficial do item (cadastros oficiais).
   itens: ['pessoas', 'busca', 'importado_em', 'monday_atualizado_em', 'ligacoes_pendentes', 'vinculo'],
 };
 const SOMENTE_LEITURA = new Set<Recurso>(['atividades', 'execucoes']);
+// Registros que pertencem a um quadro (quadro_id). As Rules conferem o quadro de cada um, então toda consulta nessas
+// coleções diz o quadro (quadro_id == ou, para vários quadros, quadro_id in; ver deVariosQuadros).
+const DO_QUADRO = new Set<Recurso>(['grupos', 'colunas', 'itens', 'visoes', 'atualizacoes', 'atividades', 'anexos', 'automacoes', 'execucoes']);
 // Recursos que podem ser arquivados ou ir para a lixeira (em vez de sumir de vez).
 const COM_ESTADO = new Set<Recurso>(['itens', 'grupos', 'quadros']);
 const DIAS_LIXEIRA = 30;
@@ -129,9 +134,38 @@ const ref = (r: Recurso, id: unknown) => doc(db, `friday-${r}`, String(id));
 const normalizar = (v: unknown) => (typeof v === 'string' && /^-?\d+(\.\d+)?$/.test(v) ? Number(v) : v);
 
 async function consultar(r: Recurso, filtros: Record<string, unknown> = {}): Promise<Row[]> {
+  if (r === 'quadros') return consultarQuadros(filtros);
+  if (DO_QUADRO.has(r) && filtros.quadro_id == null) throw new ErroApi(500, `consulta de ${r} sem o quadro`);
   const condicoes = Object.entries(filtros).map(([k, v]) => where(k, '==', normalizar(v)));
   const snap = await getDocs(condicoes.length ? query(colecao(r), ...condicoes) : colecao(r));
   return snap.docs.map(d => d.data() as Row);
+}
+
+// Quadros que a pessoa vê: adm2 vê todos; os demais, os abertos (restrito 0) e os restritos em cuja lista estão
+// (acesso). São duas consultas porque as Rules só aceitam uma lista em que cada quadro esteja liberado.
+async function consultarQuadros(filtros: Record<string, unknown> = {}): Promise<Row[]> {
+  const condicoes = Object.entries(filtros).map(([k, v]) => where(k, '==', normalizar(v)));
+  const dados = (s: { docs: { data: () => DocumentData }[] }) => s.docs.map(d => d.data() as Row);
+  if (eu().admin) return dados(await getDocs(condicoes.length ? query(colecao('quadros'), ...condicoes) : colecao('quadros')));
+  // A lista da pessoa vem só pelo acesso (sem índice composto) e os demais filtros são conferidos aqui.
+  const casa = (q: Row) => Object.entries(filtros).every(([k, v]) => (q[k] ?? null) === (normalizar(v) ?? null));
+  const [abertos, daLista] = await Promise.all([
+    getDocs(query(colecao('quadros'), ...condicoes, where('restrito', '==', 0))),
+    getDocs(query(colecao('quadros'), where('acesso', 'array-contains', eu().uid))),
+  ]);
+  const todos = new Map(dados(abertos).map(q => [q.id, q]));
+  for (const q of dados(daLista)) if (casa(q)) todos.set(q.id, q);
+  return [...todos.values()];
+}
+
+// Registros de vários quadros (Meu trabalho, busca, arquivo): adm2 consulta tudo de uma vez; os demais, os quadros que
+// veem, de 10 em 10 (as Rules leem o quadro de cada valor do "in", e 10 é o máximo que aceitam numa consulta).
+async function deVariosQuadros(r: Recurso, condicoes: QueryConstraint[], quadroIds?: number[]): Promise<Row[]> {
+  if (eu().admin && !quadroIds) return (await getDocs(query(colecao(r), ...condicoes))).docs.map(d => d.data() as Row);
+  const ids = quadroIds ?? (await consultarQuadros()).map(q => q.id);
+  const lotes = [];
+  for (let k = 0; k < ids.length; k += 10) lotes.push(getDocs(query(colecao(r), where('quadro_id', 'in', ids.slice(k, k + 10)), ...condicoes)));
+  return (await Promise.all(lotes)).flatMap(s => s.docs.map(d => d.data() as Row));
 }
 
 function ordenar(r: Recurso, rows: Row[]): Row[] {
@@ -196,7 +230,9 @@ function limpar(r: Recurso, corpo: unknown): Record<string, unknown> {
 async function inserir(r: Recurso, dados: Record<string, unknown>): Promise<Row> {
   const escopo = r === 'itens' && dados.item_pai_id != null ? 'item_pai_id' : ESCOPO_POSICAO[r];
   if (escopo !== undefined && dados.posicao == null) {
-    const irmaos = await consultar(r, escopo ? { [escopo]: dados[escopo] ?? null } : {});
+    const filtro: Record<string, unknown> = escopo ? { [escopo]: dados[escopo] ?? null } : {};
+    if (DO_QUADRO.has(r)) filtro.quadro_id = dados.quadro_id;
+    const irmaos = await consultar(r, filtro);
     dados.posicao = Math.max(0, ...irmaos.map(x => Number(x.posicao) || 0)) + 1;
   }
   const id = novoId();
@@ -405,7 +441,8 @@ export async function listarPessoas(): Promise<Pessoa[]> {
     const f = d.data();
     const email = typeof f.email === 'string' && f.email.trim() ? f.email.trim().toLowerCase() : null;
     const nome = typeof f.nome === 'string' && f.nome.trim() ? f.nome.trim() : email ?? d.id;
-    return { id: d.id, uid: d.id, nome, email, cor: corDaPessoa(d.id), ativo: f.ativo === true };
+    const adm2 = f.perfis?.adm2 === true;
+    return { id: d.id, uid: d.id, nome, email, cor: corDaPessoa(d.id), ativo: f.ativo === true, friday: adm2 || f.perfis?.escritorio === true, adm2 };
   }).sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'));
   return usuarios;
 }
@@ -448,7 +485,8 @@ async function formatarValor(tipo: string, config: Record<string, any>, valor: u
     case 'numero': return fmtNumeroColuna(config, valor) || null;
     case 'arquivos': return (valor as { nome: string }[]).map(a => a.nome).join(', ') || null;
     case 'link': { const v = valor as { url?: string; texto?: string } | string; return typeof v === 'string' ? v : v.texto || v.url || null; }
-    case 'ligacao': return (await Promise.all((valor as number[]).map(async id => (await buscar('itens', id))?.nome ?? `#${id}`))).join(', ');
+    // Item ligado num quadro que a pessoa não vê: fica o número.
+    case 'ligacao': return (await Promise.all((valor as number[]).map(async id => (await buscar('itens', id).catch(() => undefined))?.nome ?? `#${id}`))).join(', ');
     default: return String(valor);
   }
 }
@@ -473,6 +511,27 @@ async function prepararQuadro(quadroId: number) {
   await inserir('visoes', { quadro_id: quadroId, nome: 'Tabela principal', tipo: 'tabela' });
 }
 
+const permissoesDe = (q: Row) => ({ restrito: Number(q.restrito) === 1 ? 1 : 0, acesso: Number(q.restrito) === 1 ? [...(q.acesso ?? [])] : null });
+
+// Permissões de um quadro (só adm2 muda): aberto para quem entra no Friday, ou restrito a uma lista de funcionários.
+// O quadro de subitens recebe a mesma lista. adm2 vê todos os quadros, esteja ou não na lista.
+async function lerPermissoes(quadroId: number) {
+  const q = await buscar('quadros', quadroId);
+  if (!q) throw new ErroApi(404, 'quadro não encontrado');
+  return { restrito: Number(q.restrito) === 1, lista: (q.acesso ?? []) as string[] };
+}
+async function gravarPermissoes(quadroId: number, corpo: unknown) {
+  if (!eu().admin) throw new ErroApi(403, 'Só administradores mudam as permissões dos quadros.');
+  const b = (corpo ?? {}) as { restrito?: boolean; lista?: unknown[] };
+  const lista = [...new Set((b.lista ?? []).filter((u): u is string => typeof u === 'string' && !!u))];
+  const campos = permissoesDe({ id: quadroId, restrito: b.restrito ? 1 : 0, acesso: lista });
+  const subs = await consultarQuadros({ quadro_pai_id: quadroId, tipo: 'subitens' });
+  const lote = writeBatch(db);
+  for (const id of [quadroId, ...subs.map(s => s.id)]) lote.update(ref('quadros', id), campos);
+  await lote.commit();
+  return { restrito: campos.restrito === 1, lista: campos.acesso ?? [] };
+}
+
 // Grupo onde os subitens novos entram (o quadro de subitens tem um grupo só, que o usuário não vê).
 async function grupoDoSubquadro(subId: number): Promise<number> {
   const g = ordenar('grupos', (await consultar('grupos', { quadro_id: subId })).filter(visivel))[0];
@@ -485,7 +544,8 @@ async function subquadroDe(paiId: number): Promise<Row | undefined> {
 async function garantirSubquadro(pai: Row): Promise<number> {
   const existe = await subquadroDe(pai.id);
   if (existe) return existe.id;
-  const sub = await inserir('quadros', { area_id: pai.area_id, nome: `Subitens de ${pai.nome}`, tipo: 'subitens', quadro_pai_id: pai.id, nome_item: 'Subitem' });
+  // Os subitens seguem as permissões do quadro pai.
+  const sub = await inserir('quadros', { area_id: pai.area_id, nome: `Subitens de ${pai.nome}`, tipo: 'subitens', quadro_pai_id: pai.id, nome_item: 'Subitem', ...permissoesDe(pai) });
   await inserir('grupos', { quadro_id: sub.id, nome: 'Subitens', cor: '#579bfc' });
   for (const [titulo, tipo] of [['Responsável', 'pessoa'], ['Status', 'status'], ['Data', 'data']] as const) {
     await inserir('colunas', { quadro_id: sub.id, titulo, tipo, config: configPadrao(tipo), largura: LARGURA_PADRAO[tipo] ?? 140 });
@@ -645,6 +705,7 @@ async function duplicarQuadro(id: number, corpo: unknown) {
   const novo = await inserir('quadros', {
     area_id: b.area_id ?? orig.area_id, pasta_id: b.pasta_id !== undefined ? b.pasta_id : orig.pasta_id,
     nome: b.nome || `${orig.nome} (cópia)`, descricao: orig.descricao, nome_item: orig.nome_item, tipo: orig.tipo, config: orig.config,
+    ...permissoesDe(orig), // a cópia de um quadro restrito continua restrita às mesmas pessoas
   });
   const [colunas, visoes, grupos, itens] = await Promise.all([
     consultar('colunas', { quadro_id: id }), consultar('visoes', { quadro_id: id }), consultar('grupos', { quadro_id: id }), b.com_itens ? consultar('itens', { quadro_id: id }) : Promise.resolve([]),
@@ -753,8 +814,10 @@ async function coletarExclusao(r: Recurso, row: Row, apagar: Map<string, Documen
   if (apagar.has(chave)) return;
   apagar.set(chave, ref(r, row.id));
   if (r === 'anexos' && row.arquivo) arquivos.push(String(row.arquivo));
-  const filhos = (rr: Recurso, campo: string) => consultar(rr, { [campo]: row.id });
-  const cada = async (rr: Recurso, campo: string) => { for (const x of await filhos(rr, campo)) await coletarExclusao(rr, x, apagar, soltar, arquivos); };
+  // Filhos que pertencem a um quadro são procurados no quadro deles (as Rules exigem o quadro na consulta).
+  const filhos = (rr: Recurso, campo: string, quadroId: unknown = DO_QUADRO.has(rr) ? row.quadro_id : undefined) =>
+    consultar(rr, { [campo]: row.id, ...(quadroId != null ? { quadro_id: quadroId } : {}) });
+  const cada = async (rr: Recurso, campo: string, quadroId?: unknown) => { for (const x of await filhos(rr, campo, quadroId)) await coletarExclusao(rr, x, apagar, soltar, arquivos); };
   switch (r) {
     case 'areas': await cada('pastas', 'area_id'); await cada('quadros', 'area_id'); break;
     case 'pastas':
@@ -768,7 +831,13 @@ async function coletarExclusao(r: Recurso, row: Row, apagar: Map<string, Documen
       await cada('quadros', 'quadro_pai_id');
       break;
     case 'grupos': await cada('itens', 'grupo_id'); break;
-    case 'itens': await cada('itens', 'item_pai_id'); await cada('atualizacoes', 'item_id'); await cada('anexos', 'item_id'); break;
+    case 'itens': {
+      // Os subitens ficam no quadro de subitens do quadro do item.
+      const sub = row.item_pai_id == null ? await subquadroDe(Number(row.quadro_id)) : undefined;
+      if (sub) await cada('itens', 'item_pai_id', sub.id);
+      await cada('atualizacoes', 'item_id'); await cada('anexos', 'item_id');
+      break;
+    }
     case 'atualizacoes': await cada('atualizacoes', 'resposta_de'); await cada('anexos', 'atualizacao_id'); break;
     case 'automacoes': await cada('execucoes', 'automacao_id'); break;
   }
@@ -801,8 +870,13 @@ async function tirarDaColuna(anexo: Row) {
 async function arquivo(estado: string | undefined, quadroId: number | null) {
   const lixeira = estado === 'lixeira';
   const campo = lixeira ? 'excluido_em' : 'arquivado_em';
-  const pegar = async (r: Recurso) => (await getDocs(query(colecao(r), where(campo, '!=', null)))).docs.map(d => d.data() as Row).filter(x => lixeira || x.excluido_em == null);
-  const [quadros, grupos, itens] = await Promise.all([pegar('quadros'), pegar('grupos'), pegar('itens')]);
+  const doEstado = (x: Row) => x[campo] != null && (lixeira || x.excluido_em == null);
+  // Só os quadros que a pessoa vê (com um quadro escolhido: ele e o quadro de subitens dele).
+  const visiveis = await consultarQuadros();
+  const ids = quadroId ? visiveis.filter(q => q.id === quadroId || q.quadro_pai_id === quadroId).map(q => q.id) : undefined;
+  const pegar = async (r: Recurso) => (await deVariosQuadros(r, [where(campo, '!=', null)], ids)).filter(doEstado);
+  const [grupos, itens] = await Promise.all([pegar('grupos'), pegar('itens')]);
+  const quadros = visiveis.filter(doEstado);
   const achar = memoria();
   const linhas: Row[] = [];
   for (const q of quadros) {
@@ -834,8 +908,8 @@ async function arquivo(estado: string | undefined, quadroId: number | null) {
 }
 
 // ------------------------------------------------------------------ meu trabalho, busca e avisos
-// Índices dos itens já existentes: gravados uma vez (marcador friday-meta/indices). Se não for possível gravar
-// (ex.: regras de produção), Meu trabalho e busca voltam a ler todos os itens, como antes.
+// Índices dos itens já existentes: gravados uma vez (marcador friday-meta/indices), por um adm2, que vê todos os quadros.
+// Sem eles, Meu trabalho e busca leem todos os itens dos quadros que a pessoa vê.
 // Versão 2 (pessoas por UID, 2026-10-22): as células de pessoa perdem os ids numéricos antigos (de friday-usuarios,
 // que deixou de existir) e o índice `pessoas` passa a ter só UIDs.
 const VERSAO_INDICES = 2;
@@ -847,9 +921,10 @@ function garantirIndices(): Promise<boolean> {
 async function criarIndices(): Promise<boolean> {
   const marcador = doc(db, 'friday-meta', 'indices');
   if (Number((await getDoc(marcador)).data()?.versao) >= VERSAO_INDICES) return true;
-  const [itens, colunasPessoa] = await Promise.all([todos('itens'), getDocs(query(colecao('colunas'), where('tipo', '==', 'pessoa')))]);
+  if (!eu().admin) return false;
+  const [itens, colunasPessoa] = await Promise.all([deVariosQuadros('itens', []), deVariosQuadros('colunas', [where('tipo', '==', 'pessoa')])]);
   const pessoaPorQuadro = new Map<number, Set<string>>();
-  for (const c of colunasPessoa.docs.map(d => d.data() as Row)) {
+  for (const c of colunasPessoa) {
     if (!pessoaPorQuadro.has(Number(c.quadro_id))) pessoaPorQuadro.set(Number(c.quadro_id), new Set());
     pessoaPorQuadro.get(Number(c.quadro_id))!.add(String(c.id));
   }
@@ -869,31 +944,18 @@ async function criarIndices(): Promise<boolean> {
   return true;
 }
 
-async function todos(r: Recurso) { return (await getDocs(colecao(r))).docs.map(d => d.data() as Row); }
-
 type Consulta = { quadro: (id: unknown) => Promise<Row | undefined>; grupo: (id: unknown) => Promise<Row | undefined>; item: (id: unknown) => Promise<Row | undefined>; colunas: (quadroId: unknown) => Promise<Row[]> };
 
-// Itens em que a pessoa aparece em alguma coluna "pessoa", de todos os quadros.
+// Itens em que a pessoa aparece em alguma coluna "pessoa", dos quadros que ela vê.
 async function meuTrabalho() {
   const uid = eu().id;
-  if (await garantirIndices()) {
-    // Só os itens com a pessoa no índice; quadros, grupos e colunas são lidos sob demanda.
-    const itens = (await getDocs(query(colecao('itens'), where('pessoas', 'array-contains', uid)))).docs.map(d => d.data() as Row);
-    const achar = memoria();
-    const colunas = new Map<number, Promise<Row[]>>();
-    return montarMeuTrabalho(uid, itens, {
-      quadro: id => achar('quadros', id), grupo: id => achar('grupos', id), item: id => achar('itens', id),
-      colunas: qid => { if (!colunas.has(Number(qid))) colunas.set(Number(qid), consultar('colunas', { quadro_id: qid }).then(l => ordenar('colunas', l))); return colunas.get(Number(qid))!; },
-    });
-  }
-  const [colunasSnap, itens, quadros, grupos] = await Promise.all([
-    getDocs(query(colecao('colunas'), where('tipo', 'in', ['pessoa', 'data', 'periodo', 'status']))), todos('itens'), todos('quadros'), todos('grupos'),
-  ]);
-  const porQuadro = new Map<number, Row[]>();
-  for (const c of ordenar('colunas', colunasSnap.docs.map(d => d.data() as Row))) porQuadro.set(Number(c.quadro_id), [...(porQuadro.get(Number(c.quadro_id)) ?? []), c]);
-  const Q = new Map(quadros.map(q => [q.id, q])), G = new Map(grupos.map(g => [g.id, g])), I = new Map(itens.map(i => [i.id, i]));
+  // Com os índices, só os itens com a pessoa no índice; sem eles, todos os itens. Quadros, grupos e colunas, sob demanda.
+  const itens = await deVariosQuadros('itens', (await garantirIndices()) ? [where('pessoas', 'array-contains', uid)] : []);
+  const achar = memoria();
+  const colunas = new Map<number, Promise<Row[]>>();
   return montarMeuTrabalho(uid, itens, {
-    quadro: async id => Q.get(id as number), grupo: async id => G.get(id as number), item: async id => I.get(id as number), colunas: async qid => porQuadro.get(Number(qid)) ?? [],
+    quadro: id => achar('quadros', id), grupo: id => achar('grupos', id), item: id => achar('itens', id),
+    colunas: qid => { if (!colunas.has(Number(qid))) colunas.set(Number(qid), consultar('colunas', { quadro_id: qid }).then(l => ordenar('colunas', l))); return colunas.get(Number(qid))!; },
   });
 }
 
@@ -936,12 +998,12 @@ async function busca(termo: string | undefined) {
   let candidatos: Row[];
   if (await garantirIndices()) {
     const primeira = t.split(/[^a-z0-9]+/).find(Boolean)?.slice(0, 20);
-    candidatos = primeira ? (await getDocs(query(colecao('itens'), where('busca', 'array-contains', primeira), limit(300)))).docs.map(d => d.data() as Row) : [];
+    candidatos = primeira ? await deVariosQuadros('itens', [where('busca', 'array-contains', primeira), limit(300)]) : [];
   } else {
-    if (!itensBusca || Date.now() - itensBusca.quando > 30000) itensBusca = { quando: Date.now(), lista: todos('itens') };
+    if (!itensBusca || Date.now() - itensBusca.quando > 30000) itensBusca = { quando: Date.now(), lista: deVariosQuadros('itens', []) };
     candidatos = await itensBusca.lista;
   }
-  const quadros = await todos('quadros');
+  const quadros = await consultarQuadros();
   const Q = new Map(quadros.map(q => [q.id, q]));
   const achar = memoria();
   // Cada palavra digitada precisa aparecer no nome, em qualquer ordem ("prim quad" acha "Criar o primeiro quadro").
@@ -971,10 +1033,11 @@ async function busca(termo: string | undefined) {
 export function observarAutomacoes(quadroId: number, aoRodar: () => void): () => void {
   let primeira = true;
   let espera: ReturnType<typeof setTimeout> | undefined;
-  const parar = onSnapshot(query(colecao('execucoes'), where('criado_em', '>=', agora())), snap => {
+  // Só as execuções do quadro (as Rules exigem o quadro; quadro e data juntos pediriam um índice composto).
+  const parar = onSnapshot(query(colecao('execucoes'), where('quadro_id', '==', quadroId)), snap => {
     // A primeira leitura traz o que já existia: só as mudanças seguintes contam.
     if (primeira) { primeira = false; return; }
-    const doQuadro = snap.docChanges().some(c => Number(c.doc.data().quadro_id) === quadroId && c.doc.data().detalhe !== 'rodando…');
+    const doQuadro = snap.docChanges().some(c => c.doc.data().detalhe !== 'rodando…');
     if (!doQuadro) return;
     clearTimeout(espera);
     espera = setTimeout(aoRodar, 600);
@@ -1113,7 +1176,11 @@ async function rotear(metodo: string, url: string, corpo?: unknown): Promise<unk
     if (p[1] === 'sair') return { ok: true };
     throw new ErroApi(410, 'O login do Friday é o login do sistema.');
   }
-  if (p[0] === 'admin' || p[0] === 'permissoes') throw new ErroApi(501, 'Pessoas e permissões chegam na etapa de credenciais.');
+  if (p[0] === 'admin') throw new ErroApi(501, 'Pessoas e acessos chegam na etapa de credenciais.');
+  if (p[0] === 'permissoes' && p[1] === 'quadro' && p.length === 3) {
+    if (metodo === 'GET') return lerPermissoes(Number(p[2]));
+    if (metodo === 'PUT') return gravarPermissoes(Number(p[2]), corpo);
+  }
   if (p[0] === 'busca' && metodo === 'GET') return busca(q.q);
   if (p[0] === 'meu-trabalho' && metodo === 'GET') return meuTrabalho();
   if (p[0] === 'arquivo' && metodo === 'GET') return arquivo(q.estado, Number(q.quadro_id) || null);
