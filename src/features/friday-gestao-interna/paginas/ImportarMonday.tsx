@@ -17,19 +17,7 @@ type QuadroMonday = {
   monday_atualizado_em: string | null; importado_em: string | null; quadro_id: number | null; mensagem: string | null;
   /** Quadro que virou cadastro oficial: atualiza só com prévia (fora do lote). */
   oficial?: boolean;
-  /** Quem vê o quadro no monday (null: o monday não respondeu). */
-  acesso?: { tipo: 'public' | 'private' | 'share'; membros: { id: string; nome: string; dono: boolean }[]; equipes: string[]; todaConta: boolean } | null;
 };
-
-const TIPO_ACESSO = { public: 'público', private: 'privado', share: 'compartilhável' } as const;
-/** "No monday: privado · membros: Ana (dona), Bruno · equipes: RH". Público: só o tipo. */
-function descreverAcesso(a: QuadroMonday['acesso']): string {
-  if (!a) return '';
-  if (a.tipo === 'public') return 'No monday: público';
-  const membros = a.membros.map(m => (m.dono ? `${m.nome} (dono)` : m.nome)).join(', ');
-  return [`No monday: ${TIPO_ACESSO[a.tipo]}`, a.todaConta ? 'com a conta toda inscrita' : '', membros ? `membros: ${membros}` : 'sem membros',
-    a.equipes.length ? `equipes: ${a.equipes.join(', ')}` : ''].filter(Boolean).join(' · ');
-}
 type Contagem = { criados: number; atualizados: number; iguais: number; preservados: number; ignorados: number };
 // pessoas: itens que já estavam no Friday e tiveram colunas de pessoa vazias completadas (não vem nos quadros oficiais).
 type Resultado = Contagem & { quadro_id: number; itens_monday: number; subitens: Contagem & { pessoas?: number }; colunas_ignoradas: number; pessoas?: number };
@@ -76,7 +64,7 @@ function Importador() {
 
   const filtrados = useMemo(() => {
     const t = busca.trim().toLowerCase();
-    return (quadros ?? []).filter(q => !t || `${q.nome} ${q.area} ${q.pasta ?? ''} ${descreverAcesso(q.acesso)}`.toLowerCase().includes(t));
+    return (quadros ?? []).filter(q => !t || `${q.nome} ${q.area} ${q.pasta ?? ''}`.toLowerCase().includes(t));
   }, [quadros, busca]);
   const pendentes = (quadros ?? []).filter(q => q.situacao !== 'importado' && !q.oficial);
   const [previa, setPrevia] = useState<QuadroMonday | null>(null);
@@ -139,7 +127,7 @@ function Importador() {
       )}
 
       <div className="arquivo-barra">
-        <label className="busca-barra"><Search size={15} /><input placeholder="Buscar quadro, área, pasta ou acesso (ex.: privado)" value={busca} onChange={e => setBusca(e.target.value)} /></label>
+        <label className="busca-barra"><Search size={15} /><input placeholder="Buscar quadro, área ou pasta" value={busca} onChange={e => setBusca(e.target.value)} /></label>
         {quadros && <span className="muted fr-small">{filtrados.length} de {quadros.length} quadros · {pendentes.length} para puxar</span>}
       </div>
 
@@ -164,7 +152,6 @@ function Importador() {
                         {q.itens} itens no monday{q.importado_em ? ` · importado em ${q.importado_em.slice(0, 16)}` : ''}
                         {q.situacao === 'erro' && q.mensagem ? ` · ${q.mensagem}` : ''}
                       </small>
-                      {q.acesso && <small className="muted">{descreverAcesso(q.acesso)}</small>}
                       {ex?.estado === 'ok' && ex.resultado && (
                         <small className="importar-resultado">
                           {ex.resultado.criados} novos, {ex.resultado.atualizados} atualizados, {ex.resultado.iguais} sem mudança, {ex.resultado.preservados} preservados
