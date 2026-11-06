@@ -15,7 +15,7 @@ import { db } from './firebaseAdmin.js';
 import { gravarNoCadastro } from './fridayCadastros.js';
 import { indicePessoas, valorDoOficial, type CampoOficial } from './fridayCadastroConverter.js';
 import { lerCaminho } from './fridayCadastrosExistentes.js';
-import { dataLocal, novoId, pessoasDosValores, prefixosBusca } from './fridayMondayConverter.js';
+import { dataLocal, novoId, permissoesDoQuadro, pessoasDosValores, prefixosBusca } from './fridayMondayConverter.js';
 import {
   ACOES_SUPORTADAS, chaveDaData, chaveDoEvento, comNome, condicoesValem, diaDoGatilhoData, gatilhoDispara, textoDoValor, valorDefinido,
   type Acao, type Automacao, type Coluna, type ItemVisto,
@@ -128,7 +128,8 @@ async function subquadroDe(pai: AnyRecord): Promise<{ quadroId: number; grupoId:
     quadroId = novoId();
     await colecao('quadros').doc(String(quadroId)).set({
       id: quadroId, area_id: pai.area_id ?? null, pasta_id: null, nome: `Subitens de ${pai.nome}`, descricao: null, posicao: 0, favorito: 0, nome_item: 'Subitem',
-      criado_em: t, tipo: 'subitens', quadro_pai_id: Number(pai.id), origem_id: null, arquivado_em: null, excluido_em: null, restrito: 0, cadastro: null,
+      criado_em: t, tipo: 'subitens', quadro_pai_id: Number(pai.id), origem_id: null, arquivado_em: null, excluido_em: null, cadastro: null,
+      ...permissoesDoQuadro(pai), // os subitens seguem as permissões do quadro pai
     });
     for (const [k, [titulo, tipo, config, largura]] of COLUNAS_SUBITENS.entries()) {
       const id = novoId();

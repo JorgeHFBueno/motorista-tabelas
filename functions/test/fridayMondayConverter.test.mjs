@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {
   caminhoAnexo, comCopias, manterCopias, mimeDoNome, pendentesDoMonday,
   configDe, converterFormulaMonday, dataLocal, decidirItem, mesclarOpcoesLista, mesclarRotulosStatus, mesclarValores,
-  pessoasDosValores, pessoasQueFaltam, prefixosBusca, quadrosDeSubitens, resolverLigacoes, tipoFriday, valorDe, valoresDoItem,
+  permissoesDoQuadro, pessoasDosValores, pessoasQueFaltam, prefixosBusca, quadroLiberado, quadrosDeSubitens, resolverLigacoes, tipoFriday, valorDe, valoresDoItem,
 } from '../lib/fridayMondayConverter.js';
 
 const statusCol = {
@@ -130,4 +130,18 @@ test('arquivos do monday: pendentes, troca pela cópia, reimportação mantém a
   assert.equal(caminhoAnexo(1, 2, 3, 'a/b\\c.pdf'), 'friday/1/2/3-a_b_c.pdf');
   assert.equal(mimeDoNome('Edital.PDF'), 'application/pdf');
   assert.equal(mimeDoNome('sem-extensao'), null);
+});
+
+test('permissões do quadro: restrito só para a lista, adm2 vê todos, subitens herdam', () => {
+  const aberto = { id: 1, restrito: 0, acesso: null };
+  const rh = { id: 2, restrito: 1, acesso: ['uid-ana'] };
+  assert.equal(quadroLiberado(aberto, 'uid-beto', false), true);
+  assert.equal(quadroLiberado(rh, 'uid-ana', false), true);
+  assert.equal(quadroLiberado(rh, 'uid-beto', false), false);
+  assert.equal(quadroLiberado(rh, 'uid-beto', true), true);
+  assert.equal(quadroLiberado({ id: 3, restrito: 1 }, 'uid-ana', false), false);
+  assert.equal(quadroLiberado(undefined, 'uid-ana', true), false);
+  assert.deepEqual(permissoesDoQuadro(rh), { restrito: 1, acesso: ['uid-ana'] });
+  assert.deepEqual(permissoesDoQuadro(aberto), { restrito: 0, acesso: null });
+  assert.deepEqual(permissoesDoQuadro({ restrito: 1, acesso: ['uid-ana', 7, null] }), { restrito: 1, acesso: ['uid-ana'] });
 });

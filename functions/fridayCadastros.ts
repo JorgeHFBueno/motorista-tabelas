@@ -4,7 +4,7 @@ import { FieldPath, FieldValue, Timestamp } from 'firebase-admin/firestore';
 import { db } from './firebaseAdmin.js';
 import { exigirAdm2 } from './fridayMondayImport.js';
 import { temCredencial, type Credencial } from './credenciais.js';
-import { dataLocal, novoId } from './fridayMondayConverter.js';
+import { dataLocal, novoId, quadroLiberado } from './fridayMondayConverter.js';
 import {
   cadastroExistente, caminhoDaMarca, campoComRotuloNovo, gravarCaminho, itemDoRegistro, lerCaminho, novoRegistro, valorDesativado, valorParaContrato, valorParaGravarExistente,
   valorPeloTexto, type CampoExistente, type ChaveConciliacao, type ItemConciliavel,
@@ -134,6 +134,12 @@ async function exigirFuncionarioAtivo(uid: string | undefined, ...aceitas: Crede
   const f = await db.collection('funcionarios').doc(uid).get();
   if (!temCredencial(f.data(), ...(aceitas.length ? aceitas : ['escritorio' as const]))) throw new HttpsError('permission-denied', 'Acesso não autorizado.');
   return uid;
+}
+
+/** Quadro restrito: só quem está na lista (`acesso`) ou é adm2 grava nele, como nas Rules por quadro (o Admin SDK não passa por elas). */
+async function exigirAcessoAoQuadro(uid: string, quadroId: unknown) {
+  const [f, q] = await Promise.all([db.collection('funcionarios').doc(uid).get(), db.collection('friday-quadros').doc(String(quadroId)).get()]);
+  if (!quadroLiberado(q.data(), uid, temCredencial(f.data(), 'adm2'))) throw new HttpsError('permission-denied', 'Sem acesso a este quadro do Friday.');
 }
 
 /** Recalcula o índice `pessoas` do item: colunas de pessoa livres + campos oficiais de pessoa. */
@@ -439,6 +445,12 @@ export const fridayCadastroGravar = onCall({ region: REGIAO, timeoutSeconds: 60,
     let valor = d.valor;
     if (d.registro != null) ({ itemId, colunaId, valor } = await alvoPeloRegistro(d.registro, d.campo, d.texto));
     if (!Number.isSafeInteger(itemId)) throw new HttpsError('invalid-argument', 'itemId inválido.');
+    // Pelo item, vale a permissão do quadro dele. Pelo registro (CronoObra, engenharia), vale a credencial.
+    if (d.registro == null) {
+      const item = (await db.collection('friday-itens').doc(String(itemId)).get()).data();
+      if (!item) throw new HttpsError('not-found', 'Item não encontrado.');
+      await exigirAcessoAoQuadro(uid, item.quadro_id);
+    }
     return await gravarNoCadastro(uid, itemId, op, colunaId, valor);
   } catch (e) {
     if (e instanceof HttpsError) throw e;
@@ -714,6 +726,7 @@ export const fridayCadastroCampos = onCall({ region: REGIAO, timeoutSeconds: 540
   const uid = OPERACOES_DE_FUNCIONARIO.has(op) ? await exigirFuncionarioAtivo(request.auth?.uid) : await exigirAdm2(request.auth?.uid, 'mudar os campos de um cadastro oficial');
   const quadroId = Number(d.quadroId);
   if (!Number.isSafeInteger(quadroId)) throw new HttpsError('invalid-argument', 'quadroId inválido.');
+  if (OPERACOES_DE_FUNCIONARIO.has(op)) await exigirAcessoAoQuadro(uid, quadroId);
   const colunaId = d.colunaId == null ? null : Number(d.colunaId);
   const chave = String(d.chave ?? '');
   if (op === 'adicionar' && !chaveValida(chave)) throw new HttpsError('invalid-argument', 'Chave inválida: use minúsculas, números e "_", começando por letra.');

@@ -5,7 +5,7 @@ import { db } from './firebaseAdmin.js';
 import { mondayApiToken, MONDAY_API_VERSION } from './mondayClient.js';
 import {
   configDe, converterFormulaMonday, dataLocal, decidirItem, json, LARGURA_PADRAO, mesclarOpcoesLista, mesclarRotulosStatus,
-  mesclarValores, novoId, ordenarGrupos, pessoasDosValores, pessoasQueFaltam, prefixosBusca, quadrosDeSubitens, resolverLigacoes, tipoFriday, tituloColuna,
+  mesclarValores, novoId, ordenarGrupos, permissoesDoQuadro, pessoasDosValores, pessoasQueFaltam, prefixosBusca, quadrosDeSubitens, resolverLigacoes, tipoFriday, tituloColuna,
   valoresDoItem, type Alvo, type ColunaImportada, type MCol, type MItem,
 } from './fridayMondayConverter.js';
 import { gravarNoCadastro } from './fridayCadastros.js';
@@ -576,7 +576,8 @@ async function importarQuadro(token: string, boardId: string, uid: string, modo:
     const d = await gql(token, `query ($b: [ID!]) { boards(ids: $b) { ${CAMPOS_QUADRO} } }`, { b: [subId] });
     const subBoard = d.boards?.[0];
     if (!subBoard) continue;
-    const { quadro: subQuadro } = await garantirQuadro(subBoard, { area_id: areaId, pasta_id: null, tipo: 'subitens', quadro_pai_id: quadro.id, nome_item: 'Subitem', nome: `Subitens de ${board.name}` });
+    const { quadro: subQuadro } = await garantirQuadro(subBoard, { area_id: areaId, pasta_id: null, tipo: 'subitens', quadro_pai_id: quadro.id, nome_item: 'Subitem', nome: `Subitens de ${board.name}`,
+      ...permissoesDoQuadro(quadro) }); // quadro de subitens novo segue as permissões do quadro pai
     const subColunas = await sincronizarColunas(subQuadro.id, subBoard.columns ?? []);
     const grupoSub = async () => {
       const lista = (await consultar('grupos', { quadro_id: subQuadro.id })).filter(visivel).sort((a, b) => a.posicao - b.posicao);

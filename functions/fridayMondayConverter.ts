@@ -24,6 +24,20 @@ export function novoId(): number {
   return ultimoId;
 }
 
+// ---------------------------------------------------------------- permissões do quadro (Manuscript friday.md, friday-quadros)
+/** Quadro liberado para a pessoa: aberto (restrito ≠ 1) ou restrito com o UID em `acesso`. adm2 vê todos. */
+export function quadroLiberado(quadro: AnyRecord | undefined, uid: string, adm2: boolean): boolean {
+  if (!quadro) return false;
+  if (adm2 || Number(quadro.restrito) !== 1) return true;
+  return Array.isArray(quadro.acesso) && quadro.acesso.includes(uid);
+}
+/** Permissões que um quadro de subitens (ou cópia) herda do quadro de origem. */
+export function permissoesDoQuadro(origem: AnyRecord): { restrito: 0 | 1; acesso: string[] | null } {
+  return Number(origem.restrito) === 1
+    ? { restrito: 1, acesso: (Array.isArray(origem.acesso) ? origem.acesso : []).filter((u: unknown): u is string => typeof u === 'string') }
+    : { restrito: 0, acesso: null };
+}
+
 const semAcento = (t: string) => t.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
 /** Prefixos das palavras do nome (índice `busca` dos itens), igual ao `prefixosBusca` da WEB. */
 export function prefixosBusca(nome: unknown): string[] {
