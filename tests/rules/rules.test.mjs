@@ -47,6 +47,7 @@ const identities = {
   legacyOnly: { uid: 'uid-legacy-only', email: 'legacy-only@example.com' },
   mecanico: { uid: 'uid-mecanico', email: 'mecanico@example.com' },
   escritorio: { uid: 'uid-escritorio', email: 'escritorio@example.com' },
+  escritorioFora: { uid: 'uid-escritorio-fora', email: 'escritorio-fora@example.com' },
   engenharia: { uid: 'uid-engenharia', email: 'engenharia@example.com' },
 };
 
@@ -98,6 +99,7 @@ async function seed() {
     await employeeLike('uid-inactive', 'Inactive', 'inactive@example.com', false, { adm2: true });
     await employeeLike('uid-mecanico', 'Mecanico', 'mecanico@example.com', true, { mecanico: true });
     await employeeLike('uid-escritorio', 'Escritorio', 'escritorio@example.com', true, { escritorio: true });
+    await employeeLike('uid-escritorio-fora', 'Escritorio fora', 'escritorio-fora@example.com', true, { escritorio: true });
     await employeeLike('uid-engenharia', 'Engenharia', 'engenharia@example.com', true, { engenharia: true });
     await setDoc(doc(db, '00-autorizados', 'legacy-only@example.com'), { nome: 'Legacy only', ativo: true, adm2: true });
     await setDoc(doc(db, 'veiculos-v2', 'vv-inativo'), {
@@ -149,7 +151,16 @@ async function seed() {
     await setDoc(doc(db, 'friday-importacoes', '123'), { board_id: '123', situacao: 'ok' });
     await setDoc(doc(db, 'friday-cadastros', 'pontes'), { chave: 'pontes', colecao: 'cadastro-pontes', situacao: 'ativo' });
     await setDoc(doc(db, 'cadastro-pontes', 'abc'), { nome: 'Ponte', situacao: 'ativo' });
-    await setDoc(doc(db, 'friday-anexos', '30'), { id: 30, item_id: 20 });
+    await setDoc(doc(db, 'friday-anexos', '30'), { id: 30, item_id: 20, quadro_id: 10 });
+    // Quadro restrito (permissão por quadro): só uid-escritorio na lista; o quadro de subitens copia a lista.
+    await setDoc(doc(db, 'friday-quadros', '100'), { id: 100, nome: 'RH', cadastro: null, restrito: 1, acesso: ['uid-escritorio'] });
+    await setDoc(doc(db, 'friday-quadros', '101'), { id: 101, nome: 'Subitens de RH', tipo: 'subitens', quadro_pai_id: 100, cadastro: null, restrito: 1, acesso: ['uid-escritorio'] });
+    await setDoc(doc(db, 'friday-itens', '200'), { id: 200, quadro_id: 100, nome: 'Sigiloso', valores: {}, pessoas: ['uid-escritorio', 'uid-escritorio-fora'], arquivado_em: '2026-11-06 10:00:00', vinculo: null });
+    await setDoc(doc(db, 'friday-itens', '201'), { id: 201, quadro_id: 101, item_pai_id: 200, nome: 'Subitem sigiloso', valores: {}, vinculo: null });
+    await setDoc(doc(db, 'friday-colunas', '210'), { id: 210, quadro_id: 100, titulo: 'Status', tipo: 'status' });
+    await setDoc(doc(db, 'friday-execucoes', '220'), { id: 220, quadro_id: 100, criado_em: '2026-11-06 10:00:00' });
+    await setDoc(doc(db, 'friday-anexos', '230'), { id: 230, item_id: 200, quadro_id: 100, arquivo: 'friday/100/200/230-rh.pdf' });
+    await setDoc(doc(db, 'friday-atividades', '240'), { id: 240, quadro_id: 100, item_id: 200, acao: 'criou' });
   });
 }
 
@@ -576,6 +587,17 @@ test('[storage] Friday attachments: escritorio and adm2 upload, read and delete 
   await assertFails(deleteObject(ref(storageAs('canonicalUser'), caminho)));
   await assertSucceeds(deleteObject(ref(storageAs('escritorio'), caminho)));
 });
+test('[storage] Friday attachments of a restricted board follow its list (adm2 always)', async () => {
+  const pdf = new Uint8Array([0x25, 0x50, 0x44, 0x46]);
+  const caminho = 'friday/100/200/231-rh.pdf';
+  await assertSucceeds(uploadBytes(ref(storageAs('escritorio'), caminho), pdf, { contentType: 'application/pdf' }));
+  await assertSucceeds(getBytes(ref(storageAs('escritorio'), caminho)));
+  await assertSucceeds(getBytes(ref(storageAs('adm2'), caminho)));
+  await assertFails(getBytes(ref(storageAs('escritorioFora'), caminho)));
+  await assertFails(uploadBytes(ref(storageAs('escritorioFora'), 'friday/100/200/232-x.pdf'), pdf, { contentType: 'application/pdf' }));
+  await assertFails(deleteObject(ref(storageAs('escritorioFora'), caminho)));
+  await assertSucceeds(uploadBytes(ref(storageAs('escritorioFora'), 'friday/10/20/233-aberto.pdf'), pdf, { contentType: 'application/pdf' }));
+});
 test('[storage] object delete remains denied', async () => {
   const path = 'checklists/saidas/a/delete.jpg';
   await seedStorageObject(path);
@@ -840,6 +862,52 @@ test('[firestore] funcionarios/fcmTokens: the person writes and deletes only the
   await assertFails(deleteDoc(token('canonicalAdm2', 'uid-canonical-frentista', 'tok-1')));
   await assertSucceeds(deleteDoc(token('canonicalFrentista', 'uid-canonical-frentista', 'tok-1')));
   await assertSucceeds(deleteDoc(token('canonicalInactive', 'uid-canonical-inactive', 'tok-sair')));
+});
+// Permissão por quadro (2026-11-06): restrito = só a lista (acesso); adm2 vê todos; registros seguem o quadro.
+test('[firestore] Friday: a restricted board and its records are only for its list and adm2', async () => {
+  const dentro = dbAs('escritorio'), fora = dbAs('escritorioFora'), adm = dbAs('canonicalAdm2');
+  const itens = (db) => collection(db, 'friday-itens');
+  await assertSucceeds(getDocs(query(itens(dentro), where('quadro_id', '==', 100))));
+  await assertFails(getDocs(query(itens(fora), where('quadro_id', '==', 100))));
+  await assertSucceeds(getDocs(query(itens(fora), where('quadro_id', '==', 10))));
+  await assertSucceeds(getDocs(query(itens(adm), where('quadro_id', '==', 100))));
+  await assertSucceeds(getDoc(doc(dentro, 'friday-itens', '201')));
+  await assertFails(getDoc(doc(fora, 'friday-itens', '201')));
+  await assertFails(getDoc(doc(fora, 'friday-quadros', '100')));
+  for (const col of ['friday-colunas', 'friday-execucoes', 'friday-anexos', 'friday-atividades']) {
+    await assertSucceeds(getDocs(query(collection(dentro, col), where('quadro_id', '==', 100))));
+    await assertFails(getDocs(query(collection(fora, col), where('quadro_id', '==', 100))));
+  }
+  await assertFails(setDoc(doc(fora, 'friday-itens', '202'), { id: 202, quadro_id: 100, nome: 'Intruso', valores: {}, vinculo: null }));
+  await assertSucceeds(setDoc(doc(dentro, 'friday-itens', '203'), { id: 203, quadro_id: 100, nome: 'Da lista', valores: {}, vinculo: null }));
+  await assertFails(updateDoc(doc(fora, 'friday-itens', '20'), { quadro_id: 100 }));
+  await assertFails(setDoc(doc(fora, 'friday-grupos', '204'), { id: 204, quadro_id: 100, nome: 'Grupo' }));
+  await assertFails(setDoc(doc(fora, 'friday-anexos', '205'), { id: 205, item_id: 200, quadro_id: 100, arquivo: 'friday/100/200/205-a.pdf', usuario_id: 'uid-escritorio-fora', origem_id: null }));
+});
+test('[firestore] Friday: cross-board reads must name the boards (in up to 10); lists of boards prove access', async () => {
+  const dentro = dbAs('escritorio'), fora = dbAs('escritorioFora'), adm = dbAs('canonicalAdm2');
+  const itens = (db) => collection(db, 'friday-itens');
+  await assertFails(getDocs(query(itens(dentro), where('pessoas', 'array-contains', 'uid-escritorio'))));
+  await assertSucceeds(getDocs(query(itens(adm), where('pessoas', 'array-contains', 'uid-escritorio'))));
+  await assertSucceeds(getDocs(query(itens(dentro), where('quadro_id', 'in', [10, 100]), where('pessoas', 'array-contains', 'uid-escritorio'))));
+  await assertFails(getDocs(query(itens(fora), where('quadro_id', 'in', [10, 100]), where('pessoas', 'array-contains', 'uid-escritorio-fora'))));
+  await assertSucceeds(getDocs(query(itens(dentro), where('quadro_id', 'in', [100]), where('arquivado_em', '!=', null))));
+  const quadros = (db) => collection(db, 'friday-quadros');
+  await assertSucceeds(getDocs(query(quadros(fora), where('restrito', '==', 0))));
+  await assertSucceeds(getDocs(query(quadros(dentro), where('acesso', 'array-contains', 'uid-escritorio'))));
+  await assertFails(getDocs(quadros(fora)));
+  await assertFails(getDocs(query(quadros(fora), where('restrito', '==', 1))));
+  await assertSucceeds(getDocs(quadros(adm)));
+});
+test('[firestore] Friday: only adm2 changes restrito/acesso; a restricted copy needs the creator on the list', async () => {
+  const dentro = dbAs('escritorio'), fora = dbAs('escritorioFora'), adm = dbAs('canonicalAdm2');
+  await assertFails(updateDoc(doc(dentro, 'friday-quadros', '100'), { acesso: ['uid-escritorio', 'uid-escritorio-fora'] }));
+  await assertFails(updateDoc(doc(fora, 'friday-quadros', '10'), { restrito: 1, acesso: ['uid-escritorio-fora'] }));
+  await assertSucceeds(updateDoc(doc(dentro, 'friday-quadros', '100'), { nome: 'RH 2' }));
+  await assertSucceeds(setDoc(doc(dentro, 'friday-quadros', '102'), { id: 102, nome: 'Cópia de RH', cadastro: null, restrito: 1, acesso: ['uid-escritorio'] }));
+  await assertFails(setDoc(doc(fora, 'friday-quadros', '103'), { id: 103, nome: 'Fora da lista', cadastro: null, restrito: 1, acesso: ['uid-escritorio'] }));
+  await assertSucceeds(updateDoc(doc(adm, 'friday-quadros', '102'), { acesso: ['uid-escritorio', 'uid-escritorio-fora'] }));
+  await assertSucceeds(getDoc(doc(fora, 'friday-quadros', '102')));
 });
 test('[firestore] Friday: friday-usuarios no longer exists in the rules', async () => {
   await assertFails(getDoc(doc(dbAs('canonicalFrentista'), 'friday-usuarios', 'uid-canonical-frentista')));

@@ -86,15 +86,22 @@ service firebase.storage {
       allow update, delete: if false;
     }
 
-    // Friday attachments: friday/{quadroId}/{itemId}/{anexoId}-{nome}. Same credential as the Friday in Firestore
-    // (escritorio or adm2), up to 25 MB, never overwritten; deleted together with the attachment record.
+    // Friday attachments: friday/{quadroId}/{itemId}/{anexoId}-{nome}. Same access as the board in Firestore
+    // (escritorio or adm2; a restricted board only for its "acesso" list, adm2 always), up to 25 MB, never
+    // overwritten; deleted together with the attachment record.
     function isFridayUser() {
       return hasPerfil('escritorio') || hasPerfil('adm2');
     }
 
+    function fridayBoardAllowed(quadroId) {
+      let q = firestore.get(/databases/(default)/documents/friday-quadros/$(quadroId)).data;
+      return isFridayUser()
+        && (hasPerfil('adm2') || q.restrito != 1 || request.auth.uid in q.acesso);
+    }
+
     match /friday/{quadroId}/{itemId}/{arquivo} {
-      allow read, delete: if isFridayUser();
-      allow create: if isFridayUser()
+      allow read, delete: if fridayBoardAllowed(quadroId);
+      allow create: if fridayBoardAllowed(quadroId)
         && isNewObject()
         && request.resource.size <= 25 * 1024 * 1024;
       allow update: if false;

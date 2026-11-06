@@ -1000,9 +1000,21 @@ service cloud.firestore {
 
 
     // ================================================================ Friday (/friday)
-    // Gestão interna em quadros: credencial escritorio (ou adm2). Permissões por área/pasta/quadro chegam depois.
+    // Gestão interna em quadros: credencial escritorio (ou adm2), com permissão por quadro (Manuscript friday.md).
     function fridayAccess() {
       return hasEitherPerfil('escritorio', 'adm2');
+    }
+
+    // Quadro liberado: aberto (restrito != 1) ou restrito com a pessoa em "acesso". adm2 vê todos (conferido à parte).
+    // Campos lidos direto, sem .get com padrão: numa lista sem filtro em "restrito", o padrão liberaria todos os quadros.
+    function fridayLiberado(q) {
+      return q.restrito != 1 || request.auth.uid in q.acesso;
+    }
+
+    // Registros de um quadro (quadro_id) seguem o quadro. Toda consulta diz o quadro (== ou "in" de até 10).
+    function fridayPodeQuadro(quadroId) {
+      return fridayAccess()
+        && (isAdm2() || fridayLiberado(get(/databases/$(database)/documents/friday-quadros/$(string(quadroId))).data));
     }
 
     // Pessoas do Friday: são os funcionários do sistema (funcionarios/{uid}); não há coleção própria.
@@ -1020,15 +1032,22 @@ service cloud.firestore {
 
     // Registro de atividade: só acrescenta (apagado junto com o quadro ou item).
     match /friday-atividades/{atividadeId} {
-      allow read, create, delete: if fridayAccess();
+      allow read, delete: if fridayPodeQuadro(resource.data.quadro_id);
+      allow create: if fridayPodeQuadro(request.resource.data.quadro_id);
       allow update: if false;
     }
 
-    // Quadros: "cadastro" (cadastro oficial) é gravado só pelas Functions.
+    // Quadros: "cadastro" (cadastro oficial) é gravado só pelas Functions. "restrito" e "acesso" mudam só por adm2;
+    // um quadro novo pode nascer restrito (cópia ou subitens de um restrito) se quem cria está na lista.
     match /friday-quadros/{quadroId} {
-      allow read, delete: if fridayAccess();
-      allow create: if fridayAccess() && request.resource.data.get('cadastro', null) == null;
-      allow update: if fridayAccess() && didNotChange(['cadastro']);
+      allow read, delete: if fridayAccess() && (isAdm2() || fridayLiberado(resource.data));
+      allow create: if fridayAccess()
+        && request.resource.data.get('cadastro', null) == null
+        && (isAdm2() || fridayLiberado(request.resource.data));
+      allow update: if fridayAccess()
+        && (isAdm2() || fridayLiberado(resource.data))
+        && didNotChange(['cadastro'])
+        && (isAdm2() || didNotChange(['restrito', 'acesso']));
     }
 
     // Itens: "vinculo" (cadastro oficial) e o controle da importação do monday são gravados só pelas Functions.
@@ -1036,26 +1055,39 @@ service cloud.firestore {
       return ['vinculo', 'importado_em', 'monday_atualizado_em', 'ligacoes_pendentes'];
     }
     match /friday-itens/{itemId} {
-      allow read, delete: if fridayAccess();
-      allow create: if fridayAccess()
+      allow read, delete: if fridayPodeQuadro(resource.data.quadro_id);
+      allow create: if fridayPodeQuadro(request.resource.data.quadro_id)
         && request.resource.data.get('vinculo', null) == null
         && request.resource.data.get('importado_em', null) == null
         && request.resource.data.get('monday_atualizado_em', null) == null
         && request.resource.data.get('ligacoes_pendentes', null) == null;
-      allow update: if fridayAccess() && didNotChange(fridayItemCamposDeFunction());
+      allow update: if fridayPodeQuadro(resource.data.quadro_id)
+        && fridayPodeQuadro(request.resource.data.quadro_id)
+        && didNotChange(fridayItemCamposDeFunction());
     }
 
-    // Áreas, pastas, grupos, colunas, visões, atualizações e automações.
+    // Áreas e pastas: abertas para quem entra no Friday (não há permissão por área ou pasta).
     match /{colecao}/{registroId} {
       allow read, write: if fridayAccess()
-        && colecao.matches('^friday-(areas|pastas|grupos|colunas|visoes|atualizacoes|automacoes)$');
+        && colecao.matches('^friday-(areas|pastas)$');
+    }
+
+    // Grupos, colunas, visões, atualizações e automações: seguem o quadro (mudar de quadro exige os dois).
+    match /{colecao}/{registroId} {
+      allow read, delete: if colecao.matches('^friday-(grupos|colunas|visoes|atualizacoes|automacoes)$')
+        && fridayPodeQuadro(resource.data.quadro_id);
+      allow create: if colecao.matches('^friday-(grupos|colunas|visoes|atualizacoes|automacoes)$')
+        && fridayPodeQuadro(request.resource.data.quadro_id);
+      allow update: if colecao.matches('^friday-(grupos|colunas|visoes|atualizacoes|automacoes)$')
+        && fridayPodeQuadro(resource.data.quadro_id)
+        && fridayPodeQuadro(request.resource.data.quadro_id);
     }
 
     // Anexos: registro de um arquivo enviado ao Storage (friday/<quadro>/<item>/...). Quem anexa grava o próprio uid; não há
     // edição. As cópias do monday (origem_id) são gravadas só pela Function fridayAnexosMonday (Admin SDK).
     match /friday-anexos/{anexoId} {
-      allow read, delete: if fridayAccess();
-      allow create: if fridayAccess()
+      allow read, delete: if fridayPodeQuadro(resource.data.quadro_id);
+      allow create: if fridayPodeQuadro(request.resource.data.quadro_id)
         && request.resource.data.get('usuario_id', null) == request.auth.uid
         && request.resource.data.get('arquivo', null) is string
         && request.resource.data.arquivo.matches('^friday/[0-9]+/[0-9]+/.+$')
@@ -1064,7 +1096,7 @@ service cloud.firestore {
     }
     // Execuções de automação: gravadas pelo executor (Admin SDK); a tela só lê e exclui em cascata.
     match /friday-execucoes/{execucaoId} {
-      allow read, delete: if fridayAccess();
+      allow read, delete: if fridayPodeQuadro(resource.data.quadro_id);
       allow create, update: if false;
     }
 
