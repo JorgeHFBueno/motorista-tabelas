@@ -55,7 +55,7 @@ export default function PainelPage({ painelId }: { painelId: number }) {
   const widgets = config.widgets ?? [];
   const podeEditar = painel?.permissao === 'editar';
   const geral = geralLocal ?? config.geral ?? {};
-  const monday = config.aparencia === 'monday';
+  const classica = config.aparencia === 'classica';
 
   useEffect(() => {
     setPainel(null); setErro(''); setOcultos([]); setGeralLocal(null);
@@ -144,7 +144,7 @@ export default function PainelPage({ painelId }: { painelId: number }) {
           <span className="espaco" />
           {podeEditar && <button className="fr-btn" onClick={() => setEscolherQuadros(true)}><Database size={15} /> Quadros ({idsQuadros.length})</button>}
           {podeEditar && <button className="fr-btn btn-primario" disabled={!dados.length} onClick={() => setEditando(widgetNovo())}><Plus size={15} /> Adicionar widget</button>}
-          {podeEditar && <MenuPainel onVendas={usarVendas} onObras={usarObras} podeModelo={!!dados.length} monday={monday} onAparencia={() => salvar({ aparencia: monday ? undefined : 'monday' })}
+          {podeEditar && <MenuPainel onVendas={usarVendas} onObras={usarObras} podeModelo={!!dados.length} classica={classica} onAparencia={() => salvar({ aparencia: classica ? undefined : 'classica' })}
             onExcluir={async () => { if (await confirmar(`Mover o painel “${painel.nome}” para a lixeira? Dá para restaurar por 30 dias.`)) { await api.remove('quadros', painelId); await nav.recarregar(); navigate('/'); } }} />}
         </div>
         <Editavel valor={String(painel.descricao ?? '')} placeholder="Adicionar descrição do painel" className="quadro-desc" onSalvar={v => { if (podeEditar) atualizarPainel({ descricao: v || null }); }} />
@@ -182,9 +182,9 @@ export default function PainelPage({ painelId }: { painelId: number }) {
           </div>}
         </div>
       ) : (
-        <div className={`painel-grade${monday ? ' aparencia-monday' : ''}`}>
+        <div className={`painel-grade${classica ? ' aparencia-classica' : ''}`}>
           {widgets.map((w, i) => (
-            <CartaoWidget key={w.id} w={w} monday={monday} dados={visiveis} ctx={ctx} geral={geral} podeEditar={podeEditar} primeiro={i === 0} ultimo={i === widgets.length - 1}
+            <CartaoWidget key={w.id} w={w} classica={classica} dados={visiveis} ctx={ctx} geral={geral} podeEditar={podeEditar} primeiro={i === 0} ultimo={i === widgets.length - 1}
               onAbrir={sel => setAberto({ w, sel })} onItem={irParaItem} onMover={passo => moverWidget(w.id, passo)}
               onEditar={() => setEditando(w)}
               onDuplicar={() => salvar({ widgets: [...widgets, { ...w, id: novoIdWidget(), titulo: w.titulo ? `${w.titulo} (cópia)` : '' }] })}
@@ -193,7 +193,7 @@ export default function PainelPage({ painelId }: { painelId: number }) {
         </div>
       )}
 
-      {editando && <EditorWidget inicial={editando} monday={monday} dados={dados} ctx={ctx} geral={geral} onFechar={() => setEditando(null)} onSalvar={w => { salvarWidget(w); setEditando(null); }} />}
+      {editando && <EditorWidget inicial={editando} classica={classica} dados={dados} ctx={ctx} geral={geral} onFechar={() => setEditando(null)} onSalvar={w => { salvarWidget(w); setEditando(null); }} />}
       {escolherQuadros && <EscolherQuadros atuais={idsQuadros} onFechar={() => setEscolherQuadros(false)} onSalvar={ids => { salvar({ quadros: ids }); setEscolherQuadros(false); }} />}
       {editarFiltros && <CondicoesGerais inicial={geral.filtros ?? []} dados={dados} ctx={ctx} onFechar={() => setEditarFiltros(false)} onSalvar={filtros => { setGeralLocal({ ...geral, filtros }); setEditarFiltros(false); }} />}
       {aberto && <ItensAbertos {...aberto} dados={visiveis} ctx={ctx} geral={geral} onFechar={() => setAberto(null)} onItem={irParaItem} />}
@@ -203,7 +203,7 @@ export default function PainelPage({ painelId }: { painelId: number }) {
 
 const widgetNovo = (): Widget => ({ id: novoIdWidget(), titulo: '', tipo: 'numero', calculo: 'contagem', filtros: [] });
 
-function MenuPainel({ onVendas, onObras, podeModelo, monday, onAparencia, onExcluir }: { onVendas: () => void; onObras: () => void; podeModelo: boolean; monday: boolean; onAparencia: () => void; onExcluir: () => void }) {
+function MenuPainel({ onVendas, onObras, podeModelo, classica, onAparencia, onExcluir }: { onVendas: () => void; onObras: () => void; podeModelo: boolean; classica: boolean; onAparencia: () => void; onExcluir: () => void }) {
   const pop = usePopover<HTMLButtonElement>();
   return (
     <>
@@ -215,7 +215,7 @@ function MenuPainel({ onVendas, onObras, podeModelo, monday, onAparencia, onExcl
               { rotulo: 'Acrescentar modelo de vendas', icone: <Sparkles size={15} />, onClick: onVendas },
               { rotulo: 'Acrescentar modelo de obras', icone: <HardHat size={15} />, onClick: onObras },
             ] : []),
-            { rotulo: monday ? 'Usar a aparência padrão' : 'Usar a aparência do monday', icone: <LayoutDashboard size={15} />, onClick: onAparencia },
+            { rotulo: classica ? 'Usar a aparência padrão' : 'Usar a aparência clássica', icone: <LayoutDashboard size={15} />, onClick: onAparencia },
             { rotulo: 'Excluir painel', icone: <Trash2 size={15} />, perigo: true, onClick: onExcluir },
           ]} />
         </Popover>
@@ -306,8 +306,8 @@ function CondicoesGerais({ inicial, dados, ctx, onSalvar, onFechar }: { inicial:
 }
 
 // ---------------------------------------------------------------- cartão do widget
-function CartaoWidget({ w, monday, dados, ctx, geral, podeEditar, primeiro, ultimo, onAbrir, onItem, onMover, onEditar, onDuplicar, onExcluir }: {
-  w: Widget; monday: boolean; dados: DadosQuadro[]; ctx: Ctx; geral: FiltroGeral; podeEditar: boolean; primeiro: boolean; ultimo: boolean;
+function CartaoWidget({ w, classica, dados, ctx, geral, podeEditar, primeiro, ultimo, onAbrir, onItem, onMover, onEditar, onDuplicar, onExcluir }: {
+  w: Widget; classica: boolean; dados: DadosQuadro[]; ctx: Ctx; geral: FiltroGeral; podeEditar: boolean; primeiro: boolean; ultimo: boolean;
   onAbrir: (s: Selecao) => void; onItem: (quadroId: number, itemId: number) => void; onMover: (passo: number) => void;
   onEditar: () => void; onDuplicar: () => void; onExcluir: () => void;
 }) {
@@ -335,7 +335,7 @@ function CartaoWidget({ w, monday, dados, ctx, geral, podeEditar, primeiro, ulti
         )}
       </header>
       {w.tipo !== 'texto' && <p className="pw-como">{descrever(w)}{filtros.map(f => ` · ${nomeColuna(f.coluna)} ${f.negar ? 'não é' : 'é'} ${f.valores.join(' ou ')}`).join('')}{descreverJanela(janelaUsada) ? ` · ${descreverJanela(janelaUsada)}` : ''}</p>}
-      <Grafico w={w} r={r} monday={monday} onAbrir={onAbrir} onItem={onItem} />
+      <Grafico w={w} r={r} classica={classica} onAbrir={onAbrir} onItem={onItem} />
       {(r.semEixo > 0 || r.semValor > 0 || r.faltando.length > 0 || ((w.comparar || w.tendencia) && !janelaUsada)) && (
         <ul className="pw-avisos">
           {r.semEixo > 0 && <li><AlertTriangle size={13} /> {r.semEixo} {r.semEixo === 1 ? 'item ficou' : 'itens ficaram'} de fora por não ter {nomeColuna(w.eixo)}.</li>}
@@ -392,8 +392,8 @@ function Grupo({ titulo, children }: { titulo: ReactNode; children: ReactNode })
   return <div className="campo-form">{titulo}{children}</div>;
 }
 
-function EditorWidget({ inicial, monday, dados, ctx, geral, onSalvar, onFechar }: {
-  inicial: Widget; monday: boolean; dados: DadosQuadro[]; ctx: Ctx; geral: FiltroGeral; onSalvar: (w: Widget) => void; onFechar: () => void;
+function EditorWidget({ inicial, classica, dados, ctx, geral, onSalvar, onFechar }: {
+  inicial: Widget; classica: boolean; dados: DadosQuadro[]; ctx: Ctx; geral: FiltroGeral; onSalvar: (w: Widget) => void; onFechar: () => void;
 }) {
   const [w, setW] = useState<Widget>(inicial);
   const mudar = (m: Partial<Widget>) => setW(x => ({ ...x, ...m }));
@@ -604,7 +604,7 @@ function EditorWidget({ inicial, monday, dados, ctx, geral, onSalvar, onFechar }
         </div>
         <div className="editor-previa">
           <span className="muted small">Prévia</span>
-          {previa ? <section className="painel-widget"><header><h3>{w.titulo}</h3></header><Grafico w={final} r={previa} monday={monday} /></section>
+          {previa ? <section className="painel-widget"><header><h3>{w.titulo}</h3></header><Grafico w={final} r={previa} classica={classica} /></section>
             : <p className="muted small">Preencha os campos obrigatórios para ver a prévia.</p>}
         </div>
       </div>

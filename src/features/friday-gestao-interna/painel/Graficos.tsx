@@ -3,7 +3,7 @@ import { corTexto, fmtNumero } from '../util.ts';
 import { blocosDoTexto, escalaEixo, GRUPO, mesPorExtenso, type Fatia, type Intervalo, type LinhaTabela, type ParteTexto, type Resultado, type Widget } from './calculo.ts';
 
 export type Selecao = { chave?: string; pilha?: string; bucket?: Intervalo; titulo: string };
-type Props = { w: Widget; r: Resultado; monday?: boolean; onAbrir?: (s: Selecao) => void; onItem?: (quadroId: number, itemId: number) => void };
+type Props = { w: Widget; r: Resultado; classica?: boolean; onAbrir?: (s: Selecao) => void; onItem?: (quadroId: number, itemId: number) => void };
 
 const ehReal = (unidade: string) => unidade.trim() === 'R$';
 // Gráficos do painel em SVG próprio (sem biblioteca). Cada barra/fatia mostra no "title" o valor e a quantidade.
@@ -49,7 +49,7 @@ export function Grafico(p: Props) {
     case 'linha': return <Linha {...p} />;
     case 'bateria': return <Bateria {...p} />;
     case 'pivo': return <Pivo {...p} />;
-    default: return p.monday || w.comQuantidade ? <ColunasComEixo {...p} /> : <Colunas {...p} />;
+    default: return p.classica || w.comQuantidade ? <ColunasComEixo {...p} /> : <Colunas {...p} />;
   }
 }
 
@@ -103,7 +103,7 @@ function Tendencia({ serie, w, unidade }: { serie: NonNullable<Resultado['serie'
   );
 }
 
-function Pizza({ w, r, monday, onAbrir }: Props) {
+function Pizza({ w, r, classica, onAbrir }: Props) {
   const total = r.fatias.reduce((s, f) => s + Math.max(f.valor, 0), 0) || 1;
   let ang = -Math.PI / 2;
   const abrir = (f: Fatia) => onAbrir && (() => onAbrir({ chave: f.chave, titulo: `${w.titulo}: ${f.rotulo}` }));
@@ -119,13 +119,13 @@ function Pizza({ w, r, monday, onAbrir }: Props) {
     <div className="pw-pizza">
       <svg viewBox="-90 -90 180 180" role="img" aria-label={`Pizza: ${r.fatias.map(f => dica(f, w, r.unidade)).join('; ')}`}>
         {r.fatias.map(arco)}
-        {!monday && <circle cx={0} cy={0} r={46} className="pw-furo" />}
+        {!classica && <circle cx={0} cy={0} r={46} className="pw-furo" />}
       </svg>
       <ul className="pw-legenda">
         {r.fatias.map(f => (
           <li key={f.chave} title={dica(f, w, r.unidade)} {...clicavel(abrir(f))}>
             <span className="pw-cor" style={{ background: f.cor }} />
-            {monday
+            {classica
               ? <span className="pw-rotulo">{f.rotulo}: {((Math.max(f.valor, 0) / total) * 100).toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}%</span>
               : <>
                 <span className="pw-rotulo">{f.rotulo}</span>
@@ -149,26 +149,31 @@ const passoRotulo = (n: number, L: number) => Math.max(1, Math.ceil(n / Math.flo
 const COR_QUANTIDADE = '#579bfc';
 const COR_VALOR = '#ffcb00';
 
-// Colunas com eixo Y, linhas de grade e o valor inteiro em cada coluna (aparência do monday). Com comQuantidade, duas por grupo.
+// Colunas com eixo Y, linhas de grade e o valor inteiro em cada coluna (aparência clássica). Com comQuantidade, duas por grupo:
+// a quantidade tem escala própria, no eixo da direita (na mesma escala do valor em R$, a barra dela some).
 function ColunasComEixo({ w, r, onAbrir }: Props) {
   const dupla = !!w.comQuantidade && w.calculo !== 'contagem';
   const empilha = !!w.pilha && w.calculo !== 'media' && !dupla;
   const real = ehReal(r.unidade) && w.calculo !== 'contagem';
   const rotulos = r.fatias.map(f => mesPorExtenso(f.rotulo));
-  const { topo, passo } = escalaEixo(Math.max(...r.fatias.map(f => Math.max(f.valor, dupla ? f.n : 0)), 0), w.calculo === 'contagem');
+  const { topo, passo } = escalaEixo(Math.max(...r.fatias.map(f => f.valor), 0), w.calculo === 'contagem');
+  const escalaQ = escalaEixo(Math.max(...r.fatias.map(f => f.n), 0), true);
+  const marcasQ = dupla ? Array.from({ length: Math.round(escalaQ.topo / escalaQ.passo) + 1 }, (_, i) => i * escalaQ.passo) : [];
   const tick = (v: number) => (real ? `R$ ${v.toLocaleString('pt-BR', { maximumFractionDigits: 0 })}` : v.toLocaleString('pt-BR'));
   const rotuloValor = (v: number) => (real ? `R$ ${v.toLocaleString('pt-BR', { maximumFractionDigits: 2 })}` : fmtValor(v, w, r.unidade));
   const marcas = Array.from({ length: Math.round(topo / passo) + 1 }, (_, i) => i * passo);
   const n = r.fatias.length;
   const L = w.largo ? 1240 : 640;
   const esq = 34 + Math.max(...marcas.map(m => tick(m).length)) * 6.6;
-  const area = (L - esq - 28) / n;
+  const dir = dupla ? 34 + Math.max(...marcasQ.map(m => m.toLocaleString('pt-BR').length)) * 6.6 : 28;
+  const area = (L - esq - dir) / n;
   const deitado = rotulos.some(t => t.length * 6.6 > area);
   const maiorRotulo = Math.max(...rotulos.map(t => Math.min(t.length, 24)));
   const baixo = deitado ? maiorRotulo * 5 + 20 : 26;
   const A = 320 + baixo;
   const base = A - baixo;
   const altura = (v: number) => (Math.max(v, 0) / topo) * (base - 26);
+  const alturaQ = (v: number) => (Math.max(v, 0) / escalaQ.topo) * (base - 26);
   const titulo = w.calculo === 'contagem' ? 'Quantidade' : w.valor ?? '';
   return (
     <>
@@ -180,6 +185,12 @@ function ColunasComEixo({ w, r, onAbrir }: Props) {
             <text x={esq - 8} y={base - altura(m) + 4} className="pw-txt-eixo fim">{tick(m)}</text>
           </g>
         ))}
+        {dupla && (
+          <>
+            {marcasQ.map(m => <text key={m} x={L - dir + 8} y={base - alturaQ(m) + 4} className="pw-txt-eixo inicio">{m.toLocaleString('pt-BR')}</text>)}
+            <text x={L - 12} y={(base + 26) / 2} className="pw-txt-eixo" transform={`rotate(90 ${L - 12} ${(base + 26) / 2})`}>Quantidade</text>
+          </>
+        )}
         {r.fatias.map((f, i) => {
           const x = esq + area * (i + 0.5);
           const abrir = !empilha && onAbrir ? () => onAbrir({ chave: f.chave, titulo: `${w.titulo}: ${f.rotulo}` }) : undefined;
@@ -191,8 +202,8 @@ function ColunasComEixo({ w, r, onAbrir }: Props) {
               <title>{dica(f, w, r.unidade)}</title>
               {dupla && (
                 <>
-                  <rect x={x - largura - 1} y={base - altura(f.n)} width={largura} height={altura(f.n)} rx={3} fill={COR_QUANTIDADE} />
-                  <text x={x - largura / 2 - 1} y={base - altura(f.n) - 6} className="pw-txt-valor">{f.n.toLocaleString('pt-BR')}</text>
+                  <rect x={x - largura - 1} y={base - alturaQ(f.n)} width={largura} height={alturaQ(f.n)} rx={3} fill={COR_QUANTIDADE} />
+                  <text x={x - largura / 2 - 1} y={base - alturaQ(f.n) - 6} className="pw-txt-valor">{f.n.toLocaleString('pt-BR')}</text>
                   <rect x={x + 1} y={base - altura(f.valor)} width={largura} height={altura(f.valor)} rx={3} fill={COR_VALOR} />
                 </>
               )}

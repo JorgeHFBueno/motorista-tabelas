@@ -44,8 +44,8 @@ export type Widget = {
   comQuantidade?: boolean; // colunas com soma ou média: mostra também a quantidade de itens, lado a lado
 };
 export type FiltroGeral = { filtros?: FiltroWidget[]; janela?: Janela };
-// aparencia 'monday': grade de 2 colunas e gráficos como os do monday. Muda só o desenho, não o cálculo.
-export type ConfigPainel = { quadros?: number[]; widgets?: Widget[]; geral?: FiltroGeral; aparencia?: 'monday' };
+// aparencia 'classica': grade de 2 colunas, colunas com eixo e pizza cheia. Muda só o desenho, não o cálculo.
+export type ConfigPainel = { quadros?: number[]; widgets?: Widget[]; geral?: FiltroGeral; aparencia?: 'classica' };
 
 // Forma comparável do filtro: sem ligar para campos vazios nem para a ordem das chaves.
 const chaveGeral = (g: FiltroGeral | undefined) => JSON.stringify(
