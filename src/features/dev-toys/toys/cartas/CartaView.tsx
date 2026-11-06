@@ -9,7 +9,7 @@ const NAIPE_PATH: Record<Naipe, string> = {
   paus: 'M2 0h3v2H2zM0 2h7v2H0zM0 4h2v1H0zM3 4h1v2H3zM5 4h2v1H5zM2 6h3v1H2z',
 };
 
-function NaipeSvg({ naipe, className }: { naipe: Naipe; className: string }) {
+export function NaipeSvg({ naipe, className }: { naipe: Naipe; className: string }) {
   return (
     <svg className={className} viewBox="0 0 7 7" aria-hidden="true" shapeRendering="crispEdges">
       <path d={NAIPE_PATH[naipe]} />

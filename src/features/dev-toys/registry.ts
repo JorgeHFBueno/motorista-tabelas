@@ -70,6 +70,14 @@ export const DEV_TOYS: DevToy[] = [
     largura: 560,
   },
   {
+    id: 'descarte',
+    nome: 'Descarte',
+    // duas cartas, a da frente com um +
+    icone: 'M6 1h9v1H6zM6 2h1v10H6zM14 2h1v10h-1zM6 12h9v1H6zM10 4h1v5h-1zM8 6h5v1H8zM1 3h1v12H1zM2 3h4v1H2zM2 14h8v1H2zM9 13h1v1H9z',
+    componente: lazy(() => import('./toys/descarte/DescarteToy')),
+    largura: 640,
+  },
+  {
     id: 'placar',
     nome: 'Placar de Lideres',
     icone: 'M3 1h10v1H3zM4 2h8v4H4zM7 3h2v1H7zM1 2h3v1H1zM12 2h3v1h-3zM1 3h1v2H1zM14 3h1v2h-1zM2 5h2v1H2zM12 5h2v1h-2zM5 6h6v1H5zM6 7h4v1H6zM7 8h2v3H7zM5 11h6v1H5zM4 12h8v2H4z',

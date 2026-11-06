@@ -6,7 +6,7 @@ import { gravar, ler } from '../crawler/memoria';
 
 export const CHAVE_HISTORICO = 'ledur:dev-historico';
 export const MAX_HISTORICO = 100;
-export const ORIGENS = ['21', 'POKER', 'SLOT', 'XADREZ', 'SKILL', 'MESADA'] as const;
+export const ORIGENS = ['21', 'POKER', 'SLOT', 'XADREZ', 'DESCARTE', 'SKILL', 'MESADA'] as const;
 export type Origem = (typeof ORIGENS)[number];
 
 export type Lancamento = {

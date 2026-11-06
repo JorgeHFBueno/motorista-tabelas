@@ -9,6 +9,7 @@ export const JOGOS = [
   { chave: 'ledur:dev-poker', nome: 'POKER' },
   { chave: 'ledur:dev-slot', nome: 'SLOT' },
   { chave: 'ledur:dev-xadrez', nome: 'XADREZ' },
+  { chave: 'ledur:dev-descarte', nome: 'DESCARTE' },
 ] as const;
 export type ChaveJogo = (typeof JOGOS)[number]['chave'];
 

@@ -21,8 +21,8 @@ export function novoBaralho(): Carta[] {
   return cartas;
 }
 
-/** Fisher-Yates com o sorteio dado; devolve um baralho novo. */
-export function embaralhar(cartas: Carta[], rng: () => number): Carta[] {
+/** Fisher-Yates com o sorteio dado; devolve um baralho novo (serve para qualquer carta). */
+export function embaralhar<T>(cartas: T[], rng: () => number): T[] {
   const b = cartas.slice();
   for (let i = b.length - 1; i > 0; i--) {
     const j = Math.floor(rng() * (i + 1));

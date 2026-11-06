@@ -34,6 +34,7 @@ import * as slot from '../src/features/dev-toys/toys/slot/regras';
 import * as rg from '../src/features/dev-toys/toys/regras/exemplos';
 import { ALEATORIA, retornoDe as retornoXadrez, sortearNivel } from '../src/features/dev-toys/toys/xadrez/bot';
 import { MAX_HISTORICO, acrescentar as acrescentarLancamento, normalizarHistorico, resumo } from '../src/features/dev-toys/toys/fichas/historico';
+import * as dc from '../src/features/dev-toys/toys/descarte/regras';
 
 const sessao = (valores: Record<string, string>) => ({ getItem: (k: string) => valores[k] ?? null });
 
@@ -883,4 +884,119 @@ test('Carteira: histórico com o mais novo no topo, limite e totais sem as trans
     { em: 6, origem: 'XADREZ' as const, valor: 30, detalhe: '' },
   ];
   assert.deepEqual(resumo(lista), { ganhos: 50, perdas: -10, skills: -50, mesadas: 200 });
+});
+
+// Descarte: mesa montada à mão (J0 na vez, sentido normal) e um monte de 3 de paus para as compras
+const cd = (id: number, naipe: dc.CartaD['naipe'], simbolo: dc.Simbolo): dc.CartaD => ({ id, naipe, simbolo });
+const mesaDc = (maos: dc.CartaD[][], mesa: dc.CartaD, monte: dc.CartaD[] = Array.from({ length: 10 }, (_, i) => cd(900 + i, 'paus', 3))): dc.Partida => ({
+  jogadores: maos.map((mao, i) => ({ nome: `J${i}`, mao })), monte, descarte: [mesa], naipe: mesa.naipe!, vez: 0, sentido: 1, comprou: null, vencedor: null, aviso: '',
+});
+const totalDc = (p: dc.Partida) => p.monte.length + p.descarte.length + p.jogadores.reduce((n, j) => n + j.mao.length, 0);
+const outras = () => [cd(50, 'ouros', 1), cd(51, 'ouros', 2), cd(52, 'ouros', 3)];
+
+test('Descarte: baralho de 108 e partida nova com 7 para cada e um número na mesa', () => {
+  const b = dc.baralhoDescarte();
+  assert.equal(b.length, 108);
+  assert.equal(new Set(b.map((c) => c.id)).size, 108);
+  for (const n of ['espadas', 'copas', 'ouros', 'paus']) assert.equal(b.filter((c) => c.naipe === n).length, 25);
+  assert.equal(b.filter((c) => c.naipe === null).length, 8);
+  for (let s = 1; s <= 30; s++) {
+    const p = dc.novaPartida(['VOCE', 'A', 'B', 'C'], rngDe(s));
+    assert.ok(p.jogadores.every((j) => j.mao.length === dc.MAO_INICIAL));
+    assert.equal(typeof dc.topo(p).simbolo, 'number');
+    assert.equal(p.naipe, dc.topo(p).naipe);
+    assert.equal(totalDc(p), 108);
+    assert.equal(p.vez, 0);
+  }
+});
+
+test('Descarte: serve o mesmo naipe, o mesmo símbolo ou curinga; o resto não vale', () => {
+  const mao = [cd(1, 'copas', 2), cd(2, 'paus', 7), cd(3, null, 'curinga'), cd(4, 'espadas', 5), cd(5, 'espadas', 'mais2')];
+  const p = mesaDc([mao, outras(), outras(), outras()], cd(0, 'copas', 7));
+  assert.deepEqual(dc.jogaveis(p).map((c) => c.id), [1, 2, 3]);
+  assert.equal(dc.agir(p, { tipo: 'jogar', id: 4 }, rngDe(1)), p, 'não serve: nada muda');
+  assert.equal(dc.agir(p, { tipo: 'jogar', id: 3 }, rngDe(1)), p, 'curinga sem naipe: nada muda');
+  assert.equal(dc.agir(p, { tipo: 'passar' }, rngDe(1)), p, 'passar só depois de comprar');
+  const q = dc.agir(p, { tipo: 'jogar', id: 3, naipe: 'espadas' }, rngDe(1));
+  assert.equal(q.naipe, 'espadas');
+  assert.equal(q.vez, 1);
+  assert.deepEqual(dc.jogaveis(q).map((c) => c.id), [], 'J1 só tem ouros');
+});
+
+test('Descarte: +2, +4, pula e inverte', () => {
+  const p = (c: dc.CartaD) => mesaDc([[c, ...outras()], outras(), outras(), outras()], cd(0, 'copas', 7));
+  const mais2 = dc.agir(p(cd(1, 'copas', 'mais2')), { tipo: 'jogar', id: 1 }, rngDe(1));
+  assert.deepEqual([mais2.jogadores[1].mao.length, mais2.vez], [5, 2]);
+  const mais4 = dc.agir(p(cd(1, null, 'mais4')), { tipo: 'jogar', id: 1, naipe: 'paus' }, rngDe(1));
+  assert.deepEqual([mais4.jogadores[1].mao.length, mais4.vez, mais4.naipe], [7, 2, 'paus']);
+  const pula = dc.agir(p(cd(1, 'copas', 'pula')), { tipo: 'jogar', id: 1 }, rngDe(1));
+  assert.deepEqual([pula.jogadores[1].mao.length, pula.vez], [3, 2]);
+  const inverte = dc.agir(p(cd(1, 'copas', 'inverte')), { tipo: 'jogar', id: 1 }, rngDe(1));
+  assert.deepEqual([inverte.sentido, inverte.vez], [-1, 3]);
+  // no sentido invertido, o +2 cai em quem vem antes
+  const volta = dc.agir({ ...p(cd(1, 'copas', 'mais2')), sentido: -1 }, { tipo: 'jogar', id: 1 }, rngDe(1));
+  assert.deepEqual([volta.jogadores[3].mao.length, volta.vez], [5, 2]);
+});
+
+test('Descarte: ULTIMA esquecida compra 2; zerar a mão ganha e paga 4x', () => {
+  const duas = () => mesaDc([[cd(1, 'copas', 2), cd(2, 'espadas', 9)], outras(), outras(), outras()], cd(0, 'copas', 7));
+  const gritou = dc.agir(duas(), { tipo: 'jogar', id: 1, ultima: true }, rngDe(1));
+  assert.equal(gritou.jogadores[0].mao.length, 1);
+  assert.equal(gritou.aviso, 'J0 JOGOU 2 DE COPAS. J0: ULTIMA!');
+  const gritouComAcao = mesaDc([[cd(1, 'copas', 'mais2'), cd(2, 'espadas', 9)], outras(), outras(), outras()], cd(0, 'copas', 7));
+  assert.equal(dc.agir(gritouComAcao, { tipo: 'jogar', id: 1, ultima: true }, rngDe(1)).aviso, 'J0 JOGOU +2 DE COPAS. J0: ULTIMA! J1 COMPRA 2 E PERDE A VEZ');
+  const esqueceu = dc.agir(duas(), { tipo: 'jogar', id: 1 }, rngDe(1));
+  assert.equal(esqueceu.jogadores[0].mao.length, 1 + dc.MULTA);
+  assert.match(esqueceu.aviso, /NAO GRITOU ULTIMA/);
+  const ultima = mesaDc([[cd(1, 'copas', 'mais2')], outras(), outras(), outras()], cd(0, 'copas', 7));
+  const fim = dc.agir(ultima, { tipo: 'jogar', id: 1 }, rngDe(1));
+  assert.equal(fim.vencedor, 0);
+  assert.equal(fim.jogadores[1].mao.length, 3, 'quem zera a mão encerra: o +2 não é cobrado');
+  assert.equal(dc.agir(fim, { tipo: 'comprar' }, rngDe(1)), fim, 'acabou: nada mais vale');
+  assert.deepEqual([dc.retornoDescarte(0, 10), dc.retornoDescarte(2, 10), dc.retornoDescarte(null, 10)], [40, 0, 0]);
+});
+
+test('Descarte: comprar; a comprada que serve pode ser jogada ou passada; sem monte, o descarte vira monte', () => {
+  const nao = dc.agir(mesaDc([outras(), outras(), outras(), outras()], cd(0, 'copas', 7)), { tipo: 'comprar' }, rngDe(1));
+  assert.deepEqual([nao.jogadores[0].mao.length, nao.vez, nao.comprou], [4, 1, null], '3 de paus não serve: a vez passa');
+  const serve = dc.agir(mesaDc([[cd(1, 'copas', 9), ...outras()], outras(), outras(), outras()], cd(0, 'paus', 7)), { tipo: 'comprar' }, rngDe(1));
+  assert.deepEqual([serve.vez, serve.comprou], [0, 909]);
+  assert.deepEqual(dc.jogaveis(serve).map((c) => c.id), [909], 'só a comprada');
+  assert.equal(dc.agir(serve, { tipo: 'comprar' }, rngDe(1)), serve, 'uma compra por vez');
+  assert.equal(dc.agir(serve, { tipo: 'passar' }, rngDe(1)).vez, 1);
+  assert.equal(dc.agir(serve, { tipo: 'jogar', id: 909 }, rngDe(1)).vez, 1);
+  // monte vazio: o descarte (menos a carta de cima) é embaralhado e vira monte
+  const vazio: dc.Partida = { ...mesaDc([outras(), outras(), outras(), outras()], cd(0, 'copas', 7), []), descarte: [cd(60, 'paus', 1), cd(61, 'paus', 2), cd(0, 'copas', 7)] };
+  const r = dc.agir(vazio, { tipo: 'comprar' }, rngDe(1));
+  assert.deepEqual(r.descarte.map((c) => c.id), [0]);
+  assert.equal(r.monte.length, 1);
+  assert.equal(totalDc(r), totalDc(vazio));
+});
+
+test('Descarte: o bot guarda o curinga, ataca quem está perto de ganhar e escolhe o naipe que mais tem', () => {
+  const mao = [cd(1, null, 'curinga'), cd(2, 'copas', 4), cd(3, 'copas', 'pula'), cd(4, 'espadas', 1)];
+  const calmo = dc.decidirBot(mesaDc([mao, outras(), outras(), outras()], cd(0, 'copas', 7)), rngDe(1));
+  assert.ok(calmo.tipo === 'jogar' && calmo.id !== 1);
+  const perto = dc.decidirBot(mesaDc([mao, [cd(50, 'ouros', 1), cd(51, 'ouros', 2)], outras(), outras()], cd(0, 'copas', 7)), rngDe(1));
+  assert.ok(perto.tipo === 'jogar' && perto.id === 3, 'pula quem tem 2 cartas');
+  const so = dc.decidirBot(mesaDc([[cd(1, null, 'curinga'), cd(2, 'paus', 4), cd(3, 'paus', 5), cd(4, 'espadas', 1)], outras(), outras(), outras()], cd(0, 'copas', 7)), rngDe(1));
+  assert.deepEqual(so.tipo === 'jogar' && [so.id, so.naipe], [1, 'paus']);
+  assert.deepEqual(dc.decidirBot(mesaDc([outras(), outras(), outras(), outras()], cd(0, 'copas', 7)), rngDe(1)), { tipo: 'comprar' });
+});
+
+test('Descarte: 300 partidas só de bots terminam, sem perder carta', () => {
+  for (let s = 1; s <= 300; s++) {
+    const rng = rngDe(s);
+    let p = dc.novaPartida(['A', 'B', 'C', 'D'], rng);
+    let passos = 0;
+    while (p.vencedor === null && passos < 5000) {
+      const q = dc.agir(p, dc.decidirBot(p, rng), rng);
+      assert.notEqual(q, p, `semente ${s}: o bot fez uma jogada que não vale`);
+      p = q;
+      passos++;
+    }
+    assert.notEqual(p.vencedor, null, `semente ${s} não terminou`);
+    assert.equal(p.jogadores[p.vencedor!].mao.length, 0);
+    assert.equal(totalDc(p), 108);
+  }
 });

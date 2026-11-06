@@ -1334,6 +1334,158 @@
   border-width: 1px;
 }
 
+/* ---- Descarte (3 bots) ---- */
+.devtoys .dt-dc-bots {
+  display: flex;
+  gap: calc(var(--dt-e) * 8px);
+  margin-bottom: calc(var(--dt-e) * 10px);
+}
+
+.devtoys .dt-dc-bot {
+  flex: 1;
+  min-width: 0;
+  padding: calc(var(--dt-e) * 4px);
+  border: 1px dotted var(--dt-apagado);
+  text-align: center;
+  font-size: calc(var(--dt-e) * 12px);
+}
+
+.devtoys .dt-dc-bot p {
+  margin: 0;
+}
+
+/* quem está na vez (ou quem ganhou): moldura cheia e nome invertido */
+.devtoys .dt-dc-davez {
+  border: 1px solid var(--dt-tinta);
+}
+
+.devtoys .dt-dc-davez .dt-dc-nome {
+  color: var(--dt-papel);
+  background: var(--dt-tinta);
+  text-shadow: none;
+}
+
+.devtoys .dt-dc-bot .dt-dc-versos {
+  display: flex;
+  justify-content: center;
+  height: calc(var(--dt-e) * 20px);
+  margin: calc(var(--dt-e) * 4px) 0;
+}
+
+.devtoys .dt-dc-verso {
+  flex: none;
+  width: calc(var(--dt-e) * 12px);
+  height: calc(var(--dt-e) * 18px);
+  border: 1px solid var(--dt-tinta);
+  border-radius: calc(var(--dt-e) * 2px);
+  background-color: var(--dt-papel);
+  background-image: repeating-conic-gradient(var(--dt-apagado) 0 25%, var(--dt-papel) 0 50%);
+  background-size: 4px 4px;
+}
+
+.devtoys .dt-dc-verso + .dt-dc-verso {
+  margin-left: calc(var(--dt-e) * -4px);
+}
+
+.devtoys .dt-dc-ultima,
+.devtoys .dt-dc-vermelho {
+  color: var(--dt-vermelho);
+}
+
+.devtoys .dt-dc-centro {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: calc(var(--dt-e) * 18px);
+  margin-bottom: calc(var(--dt-e) * 8px);
+}
+
+.devtoys .dt-dc-pilha {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: calc(var(--dt-e) * 4px);
+}
+
+.devtoys .dt-dc-vale {
+  display: flex;
+  flex-direction: column;
+  gap: calc(var(--dt-e) * 2px);
+  font-size: calc(var(--dt-e) * 13px);
+}
+
+.devtoys .dt-dc-vale svg {
+  fill: currentColor;
+  vertical-align: middle;
+}
+
+.devtoys .dt-dc-registro {
+  min-height: calc(var(--dt-e) * 58px);
+  margin: 0 0 calc(var(--dt-e) * 8px);
+  padding: 0;
+  list-style: none;
+  text-align: center;
+  color: var(--dt-apagado);
+  font-size: calc(var(--dt-e) * 11px);
+}
+
+.devtoys .dt-dc-registro li:first-child {
+  color: var(--dt-tinta);
+}
+
+.devtoys .dt-dc-mao {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: calc(var(--dt-e) * 6px);
+  min-height: calc(var(--dt-e) * 72px);
+  margin-bottom: calc(var(--dt-e) * 12px);
+}
+
+.devtoys .dt-dc-mao .dt-carta {
+  transition: transform 120ms ease-out;
+}
+
+/* a carta que serve sobe ao passar o mouse ou com o foco */
+.devtoys .dt-dc-mao button:not(:disabled):hover .dt-carta,
+.devtoys .dt-dc-mao button:focus-visible .dt-carta,
+.devtoys .dt-dc-comprada .dt-carta {
+  transform: translateY(calc(var(--dt-e) * -6px));
+  box-shadow: 0 0 0 1px var(--dt-tinta);
+}
+
+.devtoys .dt-dc-mao button:focus-visible {
+  outline: none;
+}
+
+/* na sua vez, o que não serve fica apagado */
+.devtoys .dt-dc-apagada .dt-carta {
+  opacity: 0.4;
+}
+
+.devtoys .dt-dc-naipes {
+  display: grid;
+  grid-template-columns: repeat(2, auto);
+  gap: calc(var(--dt-e) * 3px);
+  place-items: center;
+  font-size: calc(var(--dt-e) * 13px);
+}
+
+.devtoys .dt-dc-naipes b {
+  grid-column: 1 / -1;
+}
+
+.devtoys .dt-carta-mini .dt-dc-naipes {
+  gap: calc(var(--dt-e) * 1px);
+  font-size: calc(var(--dt-e) * 9px);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .devtoys .dt-dc-mao .dt-carta {
+    transition: none;
+  }
+}
+
 /* ---- Carteira ---- */
 .devtoys .dt-carteira {
   font-size: calc(var(--dt-e) * 13px);

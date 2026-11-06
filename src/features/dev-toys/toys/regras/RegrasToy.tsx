@@ -3,6 +3,8 @@ import type { Carta } from '../cartas/baralho';
 import { CartaView } from '../cartas/CartaView';
 import { APOSTAS } from '../fichas/carteira';
 import { useOpcoesTeclado } from '../fichas/hooks';
+import { CartaDescarteView } from '../descarte/CartaDescarteView';
+import { MAO_INICIAL, MULTA, PREMIO, type CartaD } from '../descarte/regras';
 import { BLIND_GRANDE, BLIND_PEQUENO, ENTRADA } from '../poker/mesa';
 import { BANCA_PARA } from '../vinteum/regras';
 import { ALEATORIA, NIVEIS } from '../xadrez/bot';
@@ -15,6 +17,7 @@ const ABAS = [
   { id: '21', nome: '21' },
   { id: 'poker', nome: 'POKER' },
   { id: 'xadrez', nome: 'XADREZ' },
+  { id: 'descarte', nome: 'DESCARTE' },
 ] as const;
 type Aba = (typeof ABAS)[number]['id'];
 
@@ -147,6 +150,73 @@ function RegrasXadrez() {
   );
 }
 
+const dc = (naipe: CartaD['naipe'], simbolo: CartaD['simbolo']): CartaD => ({ id: 0, naipe, simbolo });
+const MESA_DC = dc('copas', 7);
+const SERVE_DC = [
+  { cartas: [dc('copas', 2)], texto: 'Mesmo naipe.' },
+  { cartas: [dc('paus', 7)], texto: 'Mesmo numero (ou o mesmo simbolo de acao).' },
+  { cartas: [dc(null, 'curinga'), dc(null, 'mais4')], texto: 'Curinga serve sempre.' },
+];
+const CARTAS_DC = [
+  { nome: '+2', carta: dc('ouros', 'mais2'), texto: 'O proximo compra 2 e perde a vez.' },
+  { nome: 'INVERTE', carta: dc('espadas', 'inverte'), texto: 'Inverte o sentido da mesa.' },
+  { nome: 'PULA', carta: dc('paus', 'pula'), texto: 'O proximo perde a vez.' },
+  { nome: 'CURINGA', carta: dc(null, 'curinga'), texto: 'Serve sempre; quem joga escolhe o naipe que passa a valer.' },
+  { nome: 'CURINGA +4', carta: dc(null, 'mais4'), texto: 'Curinga, e o proximo compra 4 e perde a vez.' },
+];
+
+function MaoDescarte({ cartas }: { cartas: CartaD[] }) {
+  return <span className="dt-regras-cartas">{cartas.map((c, i) => <CartaDescarteView key={i} carta={c} pequena />)}</span>;
+}
+
+function RegrasDescarte() {
+  return (
+    <>
+      <h3>OBJETIVO</h3>
+      <p>Ser o primeiro a zerar a mao. Os quatro naipes fazem o papel das cores.</p>
+      <h3>O QUE SERVE</h3>
+      <div className="dt-regras-linha">
+        <span className="dt-regras-nome">MESA</span>
+        <MaoDescarte cartas={[MESA_DC]} />
+        <span>A carta de cima do descarte.</span>
+      </div>
+      {SERVE_DC.map((e) => (
+        <div key={e.texto} className="dt-regras-linha">
+          <span className="dt-regras-nome">SERVE</span>
+          <MaoDescarte cartas={e.cartas} />
+          <span>{e.texto}</span>
+        </div>
+      ))}
+      <div className="dt-regras-linha">
+        <span className="dt-regras-nome">NAO</span>
+        <MaoDescarte cartas={[dc('espadas', 5)]} />
+        <span>Outro naipe e outro numero.</span>
+      </div>
+      <h3>AS CARTAS DE ACAO</h3>
+      {CARTAS_DC.map((e) => (
+        <div key={e.texto} className="dt-regras-linha">
+          <span className="dt-regras-nome">{e.nome}</span>
+          <MaoDescarte cartas={[e.carta]} />
+          <span>{e.texto}</span>
+        </div>
+      ))}
+      <h3>A PARTIDA</h3>
+      <ul>
+        <li>Voce e 3 bots, {MAO_INICIAL} cartas para cada. A primeira carta da mesa e sempre um numero, e voce comeca.</li>
+        <li>Na sua vez, jogue uma carta que sirva. Sem nenhuma (ou se preferir), COMPRE uma: se ela servir, pode joga-la ou PASSAR; se nao, a vez passa.</li>
+        <li>O curinga +4 pode ser jogado a qualquer hora, e +2 e +4 nao se acumulam.</li>
+        <li>Ao ficar com 1 carta, grite ULTIMA: com 2 na mao, aperte [ULTIMA!] antes de jogar. Quem esquece compra {MULTA}. Os bots as vezes esquecem.</li>
+        <li>Acabou o monte, o descarte (menos a carta de cima) e embaralhado e vira monte.</li>
+      </ul>
+      <h3>PAGAMENTO</h3>
+      <ul>
+        <li>A aposta ({APOSTAS.join(', ')} fichas) sai ao distribuir. Quem zera a mao primeiro leva as quatro apostas: ganhando, voce recebe {PREMIO} vezes a sua.</li>
+        <li>Desistir, ou fechar a janela no meio, perde a aposta.</li>
+      </ul>
+    </>
+  );
+}
+
 export default function RegrasToy() {
   const [aba, setAba] = useState<Aba>('21');
   const { raiz, teclas } = useOpcoesTeclado(aba);
@@ -168,7 +238,7 @@ export default function RegrasToy() {
         ))}
       </div>
       <div role="tabpanel">
-        {aba === '21' ? <Regras21 /> : aba === 'poker' ? <RegrasPoker /> : <RegrasXadrez />}
+        {aba === '21' ? <Regras21 /> : aba === 'poker' ? <RegrasPoker /> : aba === 'xadrez' ? <RegrasXadrez /> : <RegrasDescarte />}
       </div>
     </div>
   );
