@@ -290,7 +290,7 @@ const service = new ManuscriptService(new ManuscriptGitHubClient(() => ({ appId:
 async function assertReader(uid: string | undefined) {
   if (!uid) throw new HttpsError('unauthenticated', 'Autenticação obrigatória.');
   const employee = await db.collection('funcionarios').doc(uid).get();
-  if (!temCredencial(employee.data())) throw new HttpsError('permission-denied', 'Acesso não autorizado.'); // adm2 only
+  if (!temCredencial(employee.data(), 'autor')) throw new HttpsError('permission-denied', 'Acesso não autorizado.'); // autor (ou adm2)
 }
 const callableOptions = { region: 'southamerica-east1', secrets: [manuscriptGithubAppId, manuscriptGithubInstallationId, manuscriptGithubPrivateKey], timeoutSeconds: 60 };
 export const manuscriptListTree = onCall(callableOptions, async (request) => { try { await assertReader(request.auth?.uid); return await service.listTree(); } catch (error) { throw cleanError(error); } });
@@ -300,13 +300,13 @@ export const manuscriptGetBacklinks = onCall(callableOptions, async (request) =>
 export const manuscriptGetDocumentGraph = onCall(callableOptions, async (request) => { try { await assertReader(request.auth?.uid); return await service.getDocumentGraph(request.data?.path); } catch (error) { throw cleanError(error); } });
 export const manuscriptGetDocumentHistory = onCall(callableOptions, async (request) => { try { await assertReader(request.auth?.uid); return await service.getDocumentHistory(request.data?.path, request.data?.limit); } catch (error) { throw cleanError(error); } });
 export const manuscriptGetSystemGraph = onCall(callableOptions, async (request) => { try { await assertReader(request.auth?.uid); return await service.getSystemGraph(); } catch (error) { throw cleanError(error); } });
-/** Chat do Manuscript: só a credencial retr0 (decisão do responsável de 2026-11-02), paga com os créditos de API. */
+/** Chat do Manuscript: credencial retr0 ou autor (ou adm2, que tem autor de graça; 2026-11-06), pago com os créditos de API. */
 export const manuscriptChat = onCall({ ...callableOptions, secrets: [...callableOptions.secrets, anthropicApiKey], timeoutSeconds: 300, memory: '512MiB' }, async (request, response) => {
   try {
     const uid = request.auth?.uid;
     if (!uid) throw new HttpsError('unauthenticated', 'Autenticação obrigatória.');
     const employee = await db.collection('funcionarios').doc(uid).get();
-    if (!temCredencial(employee.data(), 'retr0')) throw new HttpsError('permission-denied', 'Acesso não autorizado.');
+    if (!temCredencial(employee.data(), 'retr0', 'autor')) throw new HttpsError('permission-denied', 'Acesso não autorizado.');
     const { history, question } = validateChatInput(request.data?.historico, request.data?.pergunta);
     const apiKey = anthropicApiKey.value();
     if (!apiKey) throw new HttpsError('failed-precondition', 'MANUSCRIPT_CHAT_NOT_CONFIGURED');

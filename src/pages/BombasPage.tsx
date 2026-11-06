@@ -40,6 +40,7 @@ import {
   type FuelMovement,
 } from '../services/bombasService';
 import { useAuth } from '../contexts/AuthContext';
+import { temCredencial } from '../services/credenciais';
 import { useAuthorizationProfile } from '../hooks/useAuthorizationProfile';
 import {
   DIESEL_PATIO_ID,
@@ -78,7 +79,7 @@ function bombaName(bomba: Bomba): string {
 export default function BombasPage() {
   const { currentUser } = useAuth();
   const { profile, loading: authorizationLoading } = useAuthorizationProfile();
-  const canRegister = profile?.adm2 === true;
+  const canRegister = temCredencial(profile, 'logistica', 'mecanico');
   const [bombas, setBombas] = useState<Bomba[]>([]);
   const [selectedId, setSelectedId] = useState('');
   const [movements, setMovements] = useState<FuelMovement[]>([]);
@@ -193,7 +194,7 @@ export default function BombasPage() {
 
   const handleSave = async () => {
     if (saving) return;
-    if (!canRegister) return setFormError('Entrada de diesel permitida somente para usuários adm2.');
+    if (!canRegister) return setFormError('Entrada de diesel permitida somente para logística, mecânico ou adm2.');
     if (!selectedBomba || selectedBomba.id !== DIESEL_PATIO_ID) {
       return setFormError('O fluxo Flutter permite entrada somente na bomba diesel_patio.');
     }
@@ -338,7 +339,7 @@ export default function BombasPage() {
                 </Stack>
               </Paper>
             </Box>
-            {!canRegister && !authorizationLoading && <Alert severity="info">A consulta está disponível, mas novas entradas exigem perfil adm2.</Alert>}
+            {!canRegister && !authorizationLoading && <Alert severity="info">A consulta está disponível, mas novas entradas exigem logística, mecânico ou adm2.</Alert>}
             {selectedId !== DIESEL_PATIO_ID && <Alert severity="info">Esta bomba pode ser consultada. O Flutter só define entrada de estoque para diesel_patio.</Alert>}
           </>
         )}

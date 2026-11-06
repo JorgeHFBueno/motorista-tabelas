@@ -26,11 +26,10 @@ import KeyOutlinedIcon from '@mui/icons-material/KeyOutlined';
 import BlockOutlinedIcon from '@mui/icons-material/BlockOutlined';
 import CheckCircleOutlineIcon from '@mui/icons-material/CheckCircleOutline';
 import CloseIcon from '@mui/icons-material/Close';
-import { definirSenha } from '../../services/adminUsersApi';
-import { contarContratosPorDocumento, criarCliente, definirClienteAtivo, listarClientes, salvarCliente } from './clientesApi';
+import { contarContratosPorDocumento, criarCliente, definirClienteAtivo, definirSenhaCliente, listarClientes, salvarCliente } from './clientesApi';
 import { apenasDigitos, formatarDocumento, normalizarDocumento, type ClientePortal } from './portalDominio';
 
-// Clientes do portal (só adm2): login de cada cliente e os CNPJ/CPF que ele representa. Contrato: The Manuscript,
+// Clientes do portal (engenharia, escritorio ou adm2): login de cada cliente e os CNPJ/CPF que ele representa. Contrato: The Manuscript,
 // 01_FIRESTORE/COLECOES/users.md e 03_APLICACAO_WEB/16_PORTAL_DO_CLIENTE.md ("Telas do adm2 na WEB").
 
 type Aviso = { message: string; severity: 'success' | 'error' } | null;
@@ -230,7 +229,7 @@ export default function ClientesPortalPage() {
   const salvarSenha = () => senhaDe && executar(async () => {
     if (senha.length < 6) throw new Error('A senha precisa ter ao menos 6 caracteres.');
     if (senha !== confirmacao) throw new Error('As senhas não coincidem.');
-    await definirSenha(senhaDe.uid, senha);
+    await definirSenhaCliente(senhaDe.uid, senha);
     setAviso({ severity: 'success', message: `Senha de ${senhaDe.nome} definida; as sessões abertas foram encerradas.` });
     setSenhaDe(null);
   }, 'Erro ao definir a senha.');

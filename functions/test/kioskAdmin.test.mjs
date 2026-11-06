@@ -11,6 +11,8 @@ function fixture() {
   const employees = new Map([
     ['admin', { ativo: true, perfis: { adm2: true }, nome: 'Admin' }],
     ['common', { ativo: true, perfis: {}, nome: 'Common' }],
+    ['escritorio', { ativo: true, perfis: { escritorio: true }, nome: 'Escritorio' }],
+    ['logisticaOnly', { ativo: true, perfis: { logistica: true }, nome: 'Logistica' }],
     ['inactiveAdmin', { ativo: false, perfis: { adm2: true } }],
     ['target', { ativo: true, perfis: { frentista: true }, nome: 'Target' }],
     ['inactiveTarget', { ativo: false, perfis: { frentista: true }, nome: 'Inactive' }],
@@ -31,7 +33,7 @@ function fixture() {
   return { service: createKioskAdminService(store), credentials, audits };
 }
 
-test('authorization permits only active funcionarios adm2, with no legacy fallback', async () => {
+test('authorization permits only active funcionarios with escritorio or adm2 (Cadastros), with no legacy fallback', async () => {
   const { service } = fixture();
   await assert.rejects(() => service.provision(undefined, { uid: 'target' }), (error) => error.code === 'unauthenticated');
   await assert.rejects(() => service.revoke(undefined, { uid: 'target' }), (error) => error.code === 'unauthenticated');
@@ -39,7 +41,9 @@ test('authorization permits only active funcionarios adm2, with no legacy fallba
   await errorCode(() => service.provision('common', { uid: 'target' }));
   await errorCode(() => service.provision('inactiveAdmin', { uid: 'target' }));
   await errorCode(() => service.provision('legacyOnly', { uid: 'target' }));
+  await errorCode(() => service.provision('logisticaOnly', { uid: 'target' }));
   await service.provision('admin', { uid: 'target' });
+  await service.provision('escritorio', { uid: 'target' });
 });
 
 test('provision validates targets, creates a 256-bit payload, hashes only its token, and preserves PIN', async () => {

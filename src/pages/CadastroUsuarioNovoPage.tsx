@@ -16,7 +16,8 @@ import {
   TextField,
 } from '@mui/material';
 import useAdminUsers from '../hooks/useAdminUsers';
-import { CREDENCIAIS, semCredenciais, type Credencial, type Credenciais } from '../services/credenciais';
+import { CREDENCIAIS, CREDENCIAIS_SO_ADM2, semCredenciais, type Credencial, type Credenciais } from '../services/credenciais';
+import { useAuth } from '../contexts/AuthContext';
 
 type UsuarioFormState = {
   nome: string;
@@ -86,6 +87,7 @@ export default function CadastroUsuarioNovoPage() {
   const navigate = useNavigate();
   const { registerAuthorizedUser } = useAdminUsers({ loadOnMount: false, refreshOnChange: false });
   const [form, setForm] = useState<UsuarioFormState>(DEFAULT_FORM);
+  const souAdm2 = useAuth().authorizationProfile?.adm2 === true;
   const [errors, setErrors] = useState<UsuarioFormErrors>({});
   const [saving, setSaving] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
@@ -220,6 +222,7 @@ export default function CadastroUsuarioNovoPage() {
                     control={(
                       <Checkbox
                         checked={form.credenciais[c.chave]}
+                        disabled={!souAdm2 && CREDENCIAIS_SO_ADM2.includes(c.chave)}
                         onChange={(event) => {
                           const marcada = event.target.checked;
                           setForm((prev) => ({ ...prev, credenciais: { ...prev.credenciais, [c.chave as Credencial]: marcada } }));
@@ -232,7 +235,7 @@ export default function CadastroUsuarioNovoPage() {
                   />
                 ))}
               </FormGroup>
-              <FormHelperText>{errors.credenciais ?? 'Cada credencial libera as suas telas; a pessoa pode ter várias. O adm2 entra em tudo.'}</FormHelperText>
+              <FormHelperText>{errors.credenciais ?? 'Cada credencial libera as suas telas; a pessoa pode ter várias. O adm2 entra em tudo e só ele dá adm2 ou retr0.'}</FormHelperText>
             </FormControl>
 
             {submitError && <Alert severity="error">{submitError}</Alert>}

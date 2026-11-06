@@ -29,8 +29,8 @@ export type MenuPrincipalItem = {
   color: string;
   accent: string;
   to?: string;
-  // Quem vê: 'qualquer' credencial, só 'adm2', ou uma credencial (o adm2 vê tudo, salvo as exclusivas, como retr0).
-  acesso: 'qualquer' | 'adm2' | Exclude<Credencial, 'adm2'>;
+  // Quem vê: 'qualquer' credencial ou as credenciais da área (o adm2 vê tudo, salvo as exclusivas, como retr0).
+  acesso: 'qualquer' | Exclude<Credencial, 'adm2'>[];
   children?: Array<{ label: string; to: string; icon: ReactNode }>;
   // Item desenhado como telinha CRT, só com o ícone (área DEV): card escuro na Home, sem texto no menu lateral.
   crt?: true;
@@ -43,7 +43,7 @@ export const menuPrincipal: MenuPrincipalItem[] = [
     color: '#EDF3F7',
     accent: '#174F76',
     to: '/the-manuscript/mapa',
-    acesso: 'adm2',
+    acesso: ['autor'],
   },
   {
     label: 'Friday',
@@ -51,7 +51,7 @@ export const menuPrincipal: MenuPrincipalItem[] = [
     color: '#EAF4FF',
     accent: '#1F4E8C',
     to: '/friday',
-    acesso: 'escritorio',
+    acesso: ['escritorio'],
   },
   {
     label: 'Cadastros',
@@ -59,14 +59,14 @@ export const menuPrincipal: MenuPrincipalItem[] = [
     color: '#EAF2F8',
     accent: '#2F6B98',
     to: '/cadastros',
-    acesso: 'adm2',
+    acesso: ['escritorio'],
   },
   {
     label: 'Frota',
     icon: <DirectionsCarFilledIcon fontSize="large" />,
     color: '#EEF5F1',
     accent: '#2E9D6F',
-    acesso: 'adm2',
+    acesso: ['mecanico', 'logistica'],
     // Ordem em grade de duas colunas: Veículos | Registros, Checklists | KPI.
     children: [
       { label: 'Veículos', to: '/frota/veiculos', icon: <LocalShippingOutlinedIcon /> },
@@ -82,7 +82,7 @@ export const menuPrincipal: MenuPrincipalItem[] = [
     color: '#EEF5F1',
     accent: '#2E9D6F',
     to: '/checklist',
-    acesso: 'mecanico',
+    acesso: ['mecanico'],
   },
   {
     label: 'Combustível',
@@ -90,14 +90,14 @@ export const menuPrincipal: MenuPrincipalItem[] = [
     color: '#FFF6E8',
     accent: '#E79A25',
     to: '/combustivel',
-    acesso: 'adm2',
+    acesso: ['logistica'],
   },
   {
     label: 'Engenharia',
     icon: <EngineeringIcon fontSize="large" />,
     color: '#F2F0FA',
     accent: '#6B5CA5',
-    acesso: 'engenharia',
+    acesso: ['engenharia'],
     children: [
       { label: 'Cronograma', to: '/engenharia/cronograma', icon: <CalendarMonthIcon /> },
       { label: 'Prazos contratuais', to: '/engenharia/prazos', icon: <EventBusyIcon /> },
@@ -109,7 +109,7 @@ export const menuPrincipal: MenuPrincipalItem[] = [
     icon: <LocalShippingOutlinedIcon fontSize="large" />,
     color: '#EEF3FA',
     accent: '#3A6EA5',
-    acesso: 'adm2',
+    acesso: ['logistica', 'mecanico'],
     children: [{ label: 'Cronograma', to: '/logistica/cronograma', icon: <CalendarMonthIcon /> }],
   },
   {
@@ -118,7 +118,7 @@ export const menuPrincipal: MenuPrincipalItem[] = [
     icon: <HandshakeOutlinedIcon fontSize="large" />,
     color: '#EAF2F8',
     accent: '#2F6B98',
-    acesso: 'adm2',
+    acesso: ['engenharia', 'escritorio'],
     children: [
       { label: 'Clientes', to: '/portal-cliente/clientes', icon: <PeopleAltOutlinedIcon /> },
       { label: 'Contratos', to: '/portal-cliente/contratos', icon: <DescriptionOutlinedIcon /> },
@@ -140,7 +140,7 @@ export const menuPrincipal: MenuPrincipalItem[] = [
     color: '#080603',
     accent: '#FFB000',
     to: '/dev',
-    acesso: 'retr0',
+    acesso: ['retr0'],
     crt: true,
   },
 ];
@@ -150,7 +150,6 @@ export const menuPrincipal: MenuPrincipalItem[] = [
 export function filtrarMenuPrincipal(profile: AuthorizationProfile | null): MenuPrincipalItem[] {
   return menuPrincipal.filter((item) => {
     if (item.acesso === 'qualquer') return temAlgumaCredencial(profile);
-    if (item.acesso === 'adm2') return temCredencial(profile);
-    return temCredencial(profile, item.acesso);
+    return temCredencial(profile, ...item.acesso);
   });
 }

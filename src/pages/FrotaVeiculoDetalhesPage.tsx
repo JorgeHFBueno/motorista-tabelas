@@ -58,6 +58,7 @@ import {
     motoristaNome,
 } from '../components/manutencaoFormShared';
 import { useAuth } from '../contexts/AuthContext';
+import { temCredencial } from '../services/credenciais';
 import { db } from '../firebase';
 import { normalizeFornecedorNumero } from '../services/fornecedores.service';
 import { normalizarMovimentoCombustivel } from '../services/combustivel-normalizer';
@@ -297,7 +298,7 @@ async function fetchManutencoes(item: ItemFrotaV2): Promise<LinhaEvento[]> {
 export default function FrotaVeiculoDetalhesPage() {
     const { id } = useParams();
     const navigate = useNavigate();
-    const { isAdmin } = useAuth();
+    const isAdmin = temCredencial(useAuth().authorizationProfile, 'mecanico', 'logistica');
 
     const [veiculo, setVeiculo] = useState<ItemFrotaV2 | null>(null);
     const [nomeEditado, setNomeEditado] = useState<string | null>(null); // null = fora da edição

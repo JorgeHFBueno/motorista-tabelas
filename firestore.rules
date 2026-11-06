@@ -45,6 +45,65 @@ service cloud.firestore {
       return hasPerfil('adm2');
     }
 
+    // WEB area open to adm2 and to up to two credentials (repeat the key to use only one); one read of the profile.
+    function temArea(a, b) {
+      let perfis = isAuthorized() ? employee().get('perfis', {}) : {};
+      return perfis.get('adm2', false) == true || perfis.get(a, false) == true || perfis.get(b, false) == true;
+    }
+
+    // Client portal, team side (WEB /portal-cliente): engenharia, escritorio or adm2.
+    function isEquipePortal() {
+      return temArea('engenharia', 'escritorio');
+    }
+
+    // WEB Frota (/frota/*): mecanico, logistica or adm2.
+    function isFrota() {
+      return temArea('mecanico', 'logistica');
+    }
+
+    // WEB Bombas and Logística: logistica, mecanico or adm2 (Combustível, logistica only, is temArea('logistica', 'logistica')).
+    function isLogistica() {
+      return temArea('logistica', 'mecanico');
+    }
+
+    // WEB Engenharia (/engenharia/*): engenharia or adm2.
+    function isEngenharia() {
+      return temArea('engenharia', 'engenharia');
+    }
+
+    // Who picks people from funcionarios (the whole document comes back): app pickers (frentista, mecanico, Kiosk),
+    // Friday (escritorio), Combustível/Frota/Bombas/Logística (logistica, mecanico) and adm2. Not motorista,
+    // engenharia, autor or retr0 alone.
+    function lePessoas() {
+      let perfis = isAuthorized() ? employee().get('perfis', {}) : {};
+      return perfis.get('adm2', false) == true
+        || perfis.get('frentista', false) == true
+        || perfis.get('mecanico', false) == true
+        || perfis.get('escritorio', false) == true
+        || perfis.get('logistica', false) == true;
+    }
+
+    // Activity of the signed-in person: driver or author, in any of the shapes the app queries (Histórico). Direct
+    // field access on purpose: a missing field or another shape is an error absorbed by ||, and each app query
+    // (equality on one of these fields) is provable.
+    function atividadeDoProprio(data) {
+      return data.motorista.uid == request.auth.uid
+        || data.motorista == request.auth.uid
+        || data.motoristaUid == request.auth.uid
+        || data.criadoPor.uid == request.auth.uid
+        || data.criadoPorUid == request.auth.uid;
+    }
+
+    // Fuel record of the signed-in person (app Histórico: frentista, motorista/operador or author; legacy uid and
+    // motoristaUid).
+    function combustivelDoProprio(data) {
+      return data.frentista.uid == request.auth.uid
+        || data.motoristaOperador.uid == request.auth.uid
+        || data.criadoPor.uid == request.auth.uid
+        || data.motoristaUid == request.auth.uid
+        || data.uid == request.auth.uid;
+    }
+
     function isFrentista() {
       return hasPerfil('frentista');
     }
@@ -230,10 +289,11 @@ service cloud.firestore {
         && (!(preco is map) || intOrNull(preco.get('precoLitro', null)));
     }
 
-    // Saída V2 (frentista or adm2, Kiosk included): item, obra and people by ID; the frentista holds frentista or adm2.
+    // Saída V2 (frentista or adm2, Kiosk included; logistica in the WEB Combustível): item, obra and people by ID; the
+    // frentista holds frentista or adm2.
     function validFuelV2Create() {
       let data = request.resource.data;
-      return hasEitherPerfil('frentista', 'adm2')
+      return temArea('frentista', 'logistica')
         && data.get('tipo', '') == 'saida'
         && data.get('data', null) is timestamp
         && validFuelCriadoPor(data)
@@ -258,7 +318,7 @@ service cloud.firestore {
         && validFuelMedidor(data);
     }
 
-    // Entrada V2 (adm2). montanteSnapshot is an integer or null (the app writes null).
+    // Entrada V2 (WEB Bombas: logistica, mecanico or adm2). montanteSnapshot is an integer or null (the app writes null).
     function validFuelEntradaV2Create() {
       let data = request.resource.data;
       return data.get('tipo', '') == 'entrada'
@@ -336,7 +396,7 @@ service cloud.firestore {
     // ================================================================ client portal (Manuscript users.md, portal.md)
 
     // A portal client is users/{uid}; clients are not employees. The account and the document are created together by a
-    // Function (Admin SDK). documentos (CNPJ/CPF, digits only) decides which contracts the client sees; only adm2 sets it.
+    // Function (Admin SDK). documentos (CNPJ/CPF, digits only) decides which contracts the client sees; only the team (engenharia, escritorio, adm2) sets it.
     function clientePath() {
       return /databases/$(database)/documents/users/$(request.auth.uid);
     }
@@ -370,13 +430,13 @@ service cloud.firestore {
     }
 
     match /users/{uid} {
-      allow get: if signedIn() && (request.auth.uid == uid || isAdm2());
-      allow list: if isAdm2();
+      allow get: if signedIn() && (request.auth.uid == uid || isEquipePortal());
+      allow list: if isEquipePortal();
 
-      // The client changes only the display name, with the server time; documentos and ativo belong to adm2.
+      // The client changes only the display name, with the server time; documentos and ativo belong to the team.
       allow update: if signedIn()
         && (
-          isAdm2()
+          isEquipePortal()
           || (
             request.auth.uid == uid
             && changedOnly(['nome', 'atualizadoEm'])
@@ -398,7 +458,7 @@ service cloud.firestore {
       }
     }
 
-    // Contract shown in the portal: same ID as obras-v2. Written only by adm2; nobody deletes.
+    // Contract shown in the portal: same ID as obras-v2. Written only by the team; nobody deletes.
     function validPortalObra(obraId) {
       let data = request.resource.data;
       return exists(/databases/$(database)/documents/obras-v2/$(obraId))
@@ -407,11 +467,11 @@ service cloud.firestore {
     }
 
     match /portal-obras/{obraId} {
-      allow read: if isAdm2() || isClienteDe(resource.data);
-      allow create: if isAdm2()
+      allow read: if isEquipePortal() || isClienteDe(resource.data);
+      allow create: if isEquipePortal()
         && validPortalObra(obraId)
         && autorEhOProprio(request.resource.data.get('criadoPor', null));
-      allow update: if isAdm2()
+      allow update: if isEquipePortal()
         && validPortalObra(obraId)
         && didNotChange(['criadoEm', 'criadoPor']);
       allow delete: if false;
@@ -432,32 +492,32 @@ service cloud.firestore {
       return isClienteDe(data) && data.excluidoEm == null;
     }
 
-    // Documents and photos: adm2 sends and moves to the trash (excluidoEm); the client only reads.
-    function validPortalArquivoAdm2Create() {
+    // Documents and photos: the team sends and moves to the trash (excluidoEm); the client only reads.
+    function validPortalArquivoEquipeCreate() {
       return portalFilhoDaObra(request.resource.data)
         && autorEhOProprio(request.resource.data.get('criadoPor', null));
     }
 
-    function validPortalArquivoAdm2Update() {
+    function validPortalArquivoEquipeUpdate() {
       return portalFilhoDaObra(request.resource.data)
         && didNotChange(['obraId', 'criadoEm', 'criadoPor']);
     }
 
     match /portal-documentos/{documentoId} {
-      allow read: if isAdm2() || isClienteDeAtivo(resource.data);
-      allow create: if isAdm2() && validPortalArquivoAdm2Create();
-      allow update: if isAdm2() && validPortalArquivoAdm2Update();
+      allow read: if isEquipePortal() || isClienteDeAtivo(resource.data);
+      allow create: if isEquipePortal() && validPortalArquivoEquipeCreate();
+      allow update: if isEquipePortal() && validPortalArquivoEquipeUpdate();
       allow delete: if false;
     }
 
     match /portal-fotos/{fotoId} {
-      allow read: if isAdm2() || isClienteDeAtivo(resource.data);
-      allow create: if isAdm2() && validPortalArquivoAdm2Create();
-      allow update: if isAdm2() && validPortalArquivoAdm2Update();
+      allow read: if isEquipePortal() || isClienteDeAtivo(resource.data);
+      allow create: if isEquipePortal() && validPortalArquivoEquipeCreate();
+      allow update: if isEquipePortal() && validPortalArquivoEquipeUpdate();
       allow delete: if false;
     }
 
-    // Installments typed by adm2 (money in cents). The client only sends the payment receipt of a pending or rejected
+    // Installments typed by the team (money in cents). The client only sends the payment receipt of a pending or rejected
     // installment, stored under the installment's own Storage folder.
     function validPortalParcela() {
       let data = request.resource.data;
@@ -483,15 +543,15 @@ service cloud.firestore {
     }
 
     match /portal-parcelas/{parcelaId} {
-      allow read: if isAdm2() || isClienteDeAtivo(resource.data);
-      allow create: if isAdm2() && validPortalParcela();
-      allow update: if (isAdm2() && validPortalParcela() && didNotChange(['obraId', 'criadoEm']))
+      allow read: if isEquipePortal() || isClienteDeAtivo(resource.data);
+      allow create: if isEquipePortal() && validPortalParcela();
+      allow update: if (isEquipePortal() && validPortalParcela() && didNotChange(['obraId', 'criadoEm']))
         || clienteEnviaComprovante(parcelaId);
       allow delete: if false;
     }
 
     // Support tickets: shared by every login of the same CNPJ/CPF. The client opens a ticket for one of its contracts
-    // and updates only the last-message summary and unread counters; adm2 answers and changes the status.
+    // and updates only the last-message summary and unread counters; the team answers and changes the status.
     function clienteAbreAtendimento() {
       let data = request.resource.data;
       return isClienteDe(data)
@@ -502,11 +562,11 @@ service cloud.firestore {
     }
 
     match /portal-atendimentos/{atendimentoId} {
-      allow read: if isAdm2() || isClienteDe(resource.data);
+      allow read: if isEquipePortal() || isClienteDe(resource.data);
       allow create: if clienteAbreAtendimento()
-        || (isAdm2() && portalFilhoDaObra(request.resource.data));
+        || (isEquipePortal() && portalFilhoDaObra(request.resource.data));
       allow update: if (
-          isAdm2()
+          isEquipePortal()
           && portalFilhoDaObra(request.resource.data)
           && didNotChange(['obraId', 'clienteDocumento', 'criadoPor', 'criadoEm'])
         )
@@ -522,39 +582,40 @@ service cloud.firestore {
         return get(/databases/$(database)/documents/portal-atendimentos/$(atendimentoId)).data;
       }
 
-      // Messages are immutable; the author is the signed-in user, as client or as the team (adm2).
+      // Messages are immutable; the author is the signed-in user, as client or as the team.
       match /mensagens/{mensagemId} {
-        allow read: if isAdm2() || isClienteDe(atendimento());
+        allow read: if isEquipePortal() || isClienteDe(atendimento());
         allow create: if autorEhOProprio(request.resource.data.get('autor', null))
           && request.resource.data.get('criadoEm', null) == request.time
           && (
             (isClienteDe(atendimento()) && request.resource.data.get('autorTipo', '') == 'cliente')
-            || (isAdm2() && request.resource.data.get('autorTipo', '') == 'equipe')
+            || (isEquipePortal() && request.resource.data.get('autorTipo', '') == 'equipe')
           );
         allow update, delete: if false;
       }
     }
 
-    // News for every active client; adm2 writes the institutional ones (external news come from Functions).
+    // News for every active client; the team writes the institutional ones (external news come from Functions).
     match /portal-noticias/{noticiaId} {
-      allow read: if isAdm2()
+      allow read: if isEquipePortal()
         || (
           isClienteAtivo()
           && resource.data.status == 'publicada'
           && resource.data.excluidoEm == null
         );
-      allow create, update: if isAdm2();
+      allow create, update: if isEquipePortal();
       allow delete: if false;
     }
 
     // portal-emails (e-mail queue) is Functions-only: the default deny at the end covers it.
 
     // Canonical employee identity, written only by the Admin SDK (admin API and Kiosk Functions).
-    // Listing is open to active employees because the app builds the frentista and motorista pickers from it; the
-    // whole document is returned (a name-only projection is a pending improvement).
+    // Listing (and reading another person) is open to who picks people (lePessoas: the app's frentista and motorista
+    // pickers, Friday, Combustível, Frota, Bombas, Logística); the whole document is returned (a name-only projection
+    // is a pending improvement).
     match /funcionarios/{uid} {
-      allow get: if signedIn() && (request.auth.uid == uid || isAdm2());
-      allow list: if isAuthorized();
+      allow get: if signedIn() && (request.auth.uid == uid || lePessoas());
+      allow list: if lePessoas();
       // A pessoa ativa só grava o próprio último acesso, com a hora do servidor (a WEB, ao abrir); o resto é das Functions.
       allow update: if isAuthorized()
         && request.auth.uid == uid
@@ -598,13 +659,13 @@ service cloud.firestore {
 
     // monday projection (obras and subitems), written only by the monday Functions.
     match /monday-obras/{obraId} {
-      allow read: if isAuthorized();
+      allow read: if isEngenharia();
       allow write: if false;
     }
 
     // Master builders used by the CronoObra planning (document id normalized from the name).
     match /monday-mestres/{mestreId} {
-      allow read: if isAuthorized();
+      allow read: if isEngenharia();
       allow create, update: if hasEitherPerfil('engenharia', 'adm2')
         && request.resource.data.keys().hasOnly(['nome', 'cor'])
         && nonEmptyString(request.resource.data.nome)
@@ -637,33 +698,34 @@ service cloud.firestore {
     }
 
     match /monday-cronograma/{alocacaoId} {
-      allow read: if isAuthorized();
-      allow create: if isAuthorized()
+      allow read: if isEngenharia();
+      allow create: if isEngenharia()
         && validCronogramaAlocacao(request.resource.data)
         && request.resource.data.criadoPorFuncionarioId == request.auth.uid;
-      allow update: if isAuthorized()
+      allow update: if isEngenharia()
         && validCronogramaAlocacao(request.resource.data)
         && didNotChange(['criadoPorFuncionarioId', 'criadoEm', 'obraId', 'contratoId']);
-      allow delete: if isAuthorized();
+      allow delete: if isEngenharia();
     }
 
     // ERP balances are written exclusively by the Admin SDK Function.
     match /monday-serp/{idObra} {
-      allow read: if isAuthorized();
+      allow read: if isEngenharia();
       allow write: if false;
     }
 
-    // ERP (Query 47) guardado por veículo: só a Function grava; valores e fornecedores, então só adm2 lê (2026-11-02).
+    // ERP (Query 47) guardado por veículo: só a Function grava; valores e fornecedores, então só a Frota lê.
     match /erp-veiculos/{veiculoId} {
-      allow read: if isAdm2();
+      allow read: if isFrota();
       allow write: if false;
     }
 
 
     // ================================================================ fleet and registrations
 
+    // Legacy (no reader in the current WEB or app): only adm2 reads.
     match /veiculos/{veiculoId} {
-      allow read: if isAuthorized();
+      allow read: if isAdm2();
       allow create: if isAdm2();
 
       // Operational users may only update shared mileage state.
@@ -688,6 +750,19 @@ service cloud.firestore {
       allow create: if isAdm2();
       allow update: if
         isAdm2()
+        // WEB Frota (vehicle detail): only the name and the initial meter with its date and origin.
+        || (
+          isFrota()
+          && changedOnly(['identificacao'])
+          && request.resource.data.identificacao.diff(resource.data.get('identificacao', {})).affectedKeys().hasOnly(['nome'])
+          && nonEmptyString(request.resource.data.identificacao.nome)
+        )
+        || (
+          isFrota()
+          && changedOnly(['operacional'])
+          && request.resource.data.operacional.diff(resource.data.get('operacional', {})).affectedKeys()
+            .hasOnly(['quilometragemInicial', 'dataQuilometragemInicial', 'origemQuilometragemInicial'])
+        )
         || (
           isAuthorized()
           && changedOnly(['operacional'])
@@ -704,8 +779,9 @@ service cloud.firestore {
       allow delete: if false;
     }
 
+    // Legacy (no reader in the current WEB or app): only adm2 reads.
     match /obras/{obraId} {
-      allow read: if isAuthorized();
+      allow read: if isAdm2();
       allow create, update, delete: if isAdm2();
     }
 
@@ -726,8 +802,9 @@ service cloud.firestore {
         );
     }
 
+    // Legacy (no reader in the current WEB or app): only adm2 reads.
     match /motoristas/{motoristaId} {
-      allow read: if isAuthorized();
+      allow read: if isAdm2();
       allow write: if false;
     }
 
@@ -736,24 +813,26 @@ service cloud.firestore {
       allow write: if false;
     }
 
+    // Categories and suppliers of the old WEB maintenance records (no cadastro screen since 2026-11-06; new
+    // maintenance lives in the ERP). Frota reads them to name old records and in the KPI.
     match /notas-categorias/{documentId} {
-      allow read: if isAdm2();
-      allow create, update, delete: if isAdm2();
+      allow read: if isFrota();
+      allow create, update, delete: if isFrota();
     }
 
     match /notas-fornecedores/{documentId} {
-      allow read: if isAdm2();
-      allow create, update, delete: if isAdm2();
+      allow read: if isFrota();
+      allow create, update, delete: if isFrota();
     }
 
     match /notas-fornecedores-numeros/{documentId} {
-      allow read: if isAdm2();
-      allow create, update, delete: if isAdm2();
+      allow read: if isFrota();
+      allow create, update, delete: if isFrota();
     }
 
     match /app-metadata/notas-fornecedores-numero {
-      allow read: if isAdm2();
-      allow create, update: if isAdm2();
+      allow read: if isFrota();
+      allow create, update: if isFrota();
       allow delete: if false;
     }
 
@@ -761,8 +840,11 @@ service cloud.firestore {
     // ================================================================ activities
 
     match /atividades/{atividadeId} {
-      // Both clients perform broad administrative/operational listings.
-      allow read: if isAuthorized();
+      // Full listings: Frota (WEB) and Engenharia (obra detail, by id_obra). Everyone else reads their own (app
+      // Histórico) and, in the app's send transaction, the id about to be created (resource == null).
+      allow get: if isFrota() || isEngenharia()
+        || (isAuthorized() && (resource == null || atividadeDoProprio(resource.data)));
+      allow list: if isFrota() || isEngenharia() || (isAuthorized() && atividadeDoProprio(resource.data));
 
       // V2 and migrated activities carry driver and author snapshots; mecanico/adm2 register for another driver.
       allow create: if
@@ -795,7 +877,8 @@ service cloud.firestore {
       allow update, delete: if false;
 
       match /checklist_saida/{itemId} {
-        allow read: if isAuthorized();
+        allow read: if isFrota() || isEngenharia()
+          || (isAuthorized() && atividadeDoProprio(get(/databases/$(database)/documents/atividades/$(atividadeId)).data));
 
         allow create: if
           isAuthorized()
@@ -805,7 +888,8 @@ service cloud.firestore {
       }
 
       match /checklist_chegada/{itemId} {
-        allow read: if isAuthorized();
+        allow read: if isFrota() || isEngenharia()
+          || (isAuthorized() && atividadeDoProprio(get(/databases/$(database)/documents/atividades/$(atividadeId)).data));
 
         // Catalog version and payload shape are application concerns.
         allow create: if
@@ -858,7 +942,7 @@ service cloud.firestore {
     }
 
     match /checklists-v2/{checklistId} {
-      allow read: if isMecanico() || isAdm2();
+      allow read: if isFrota();
       allow create: if (isMecanico() || isAdm2()) && validChecklistV2Create() && validChecklistV2Pessoas(checklistId);
       allow update, delete: if false;
     }
@@ -867,30 +951,35 @@ service cloud.firestore {
     // ================================================================ fuel
 
     match /03-combustivel/{registroId} {
-      // Current WEB and Flutter flows require broad reads.
-      allow read: if isAuthorized();
+      // Full reads: Combustível, Bombas and Frota (WEB: logistica, mecanico), Engenharia (obra detail), frentista and
+      // the Kiosk (app: last record and entries, unfiltered). Everyone else reads their own (app Histórico).
+      allow read: if isLogistica() || isEngenharia() || isFrentista()
+        || (isAuthorized() && combustivelDoProprio(resource.data));
 
       allow create: if
         isAuthorized()
         && (
           validFuelV2Create()
           || validFuelAjusteV2Create()
-          || (isAdm2() && validFuelEntradaV2Create())
+          || (isLogistica() && validFuelEntradaV2Create())
           || validLegacyFuelCreate()
         );
 
-      // Corrections: adm2 (WEB document inspector), the Admin SDK (WEB /combustivel API) or the administrative claim.
-      allow update, delete: if isAdm2() || hasAdminClaim();
+      // Corrections: Combustível (logistica or adm2: adjustments replaced by lançamentos, document inspector), the Admin
+      // SDK (WEB /combustivel API) or the administrative claim.
+      allow update, delete: if temArea('logistica', 'logistica') || hasAdminClaim();
     }
 
     match /bombas/{bombaId} {
-      allow read: if isAuthorized();
+      // WEB Bombas/Combustível (logistica, mecanico, adm2), the app's frentista and the Kiosk.
+      allow read: if isLogistica() || isFrentista();
 
-      // The frentista modifies only the shared fuel state.
+      // The frentista (app, Kiosk) and the WEB Bombas/Combustível (logistica, mecanico) modify only the shared fuel
+      // state; adm2 anything.
       allow update: if
         isAdm2()
         || (
-          isFrentista()
+          (isFrentista() || isLogistica())
           && changedOnly([
             'montanteAtual',
             'estoqueAtual',
@@ -980,17 +1069,17 @@ service cloud.firestore {
 
     // ================================================================ maintenance
 
-    // adm2 edits and deletes maintenance records (WEB document inspector); the claim keeps working.
+    // Frota (mecanico, logistica, adm2) edits and deletes maintenance records (WEB document inspector); the claim keeps working.
     match /manutencoes/{manutencaoId} {
-      allow read: if isAdm2() || hasAdminClaim();
-      allow create: if isAdm2();
-      allow update, delete: if isAdm2() || hasAdminClaim();
+      allow read: if isFrota() || hasAdminClaim();
+      allow create: if isFrota();
+      allow update, delete: if isFrota() || hasAdminClaim();
     }
 
     match /manutencoes-legado/{manutencaoId} {
-      allow read: if isAdm2() || hasAdminClaim();
+      allow read: if isFrota() || hasAdminClaim();
       allow create: if false;
-      allow update, delete: if isAdm2() || hasAdminClaim();
+      allow update, delete: if isFrota() || hasAdminClaim();
     }
 
     match /dev_obras_locais/{documentId} {
@@ -1169,7 +1258,7 @@ service cloud.firestore {
 
 
     // ================================================================ Logística (/logistica/cronograma)
-    // Cronograma Logístico (The Manuscript, 01_FIRESTORE/COLECOES/logistica.md): só adm2 lê e grava.
+    // Cronograma Logístico (The Manuscript, 01_FIRESTORE/COLECOES/logistica.md): logistica, mecanico ou adm2 lê e grava.
     function logisticaDataOuNula(value) {
       return value == null || (value is string && value.matches('^\\d{4}-\\d{2}-\\d{2}$'));
     }
@@ -1206,8 +1295,8 @@ service cloud.firestore {
     }
 
     match /logistica-semanas/{semanaId} {
-      allow read: if isAdm2();
-      allow create: if isAdm2()
+      allow read: if isLogistica();
+      allow create: if isLogistica()
         && semanaId.matches('^\\d{4}-W\\d{2}$')
         && request.resource.data.keys().hasOnly(['schemaVersion', 'inicio', 'fim', 'abertura', 'criadoPorUid', 'criadoEm'])
         && request.resource.data.schemaVersion == 1
@@ -1221,15 +1310,15 @@ service cloud.firestore {
     }
 
     match /logistica-programacoes/{programacaoId} {
-      allow read: if isAdm2();
-      allow create: if isAdm2()
+      allow read: if isLogistica();
+      allow create: if isLogistica()
         && validLogisticaProgramacao(request.resource.data)
         && request.resource.data.criadoPorUid == request.auth.uid
         && request.resource.data.criadoEm == request.time;
-      allow update: if isAdm2()
+      allow update: if isLogistica()
         && validLogisticaProgramacao(request.resource.data)
         && didNotChange(['semanaId', 'criadoPorUid', 'criadoEm']);
-      allow delete: if isAdm2();
+      allow delete: if isLogistica();
     }
 
 

@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { credenciaisDe, lerCredenciais, migrarPerfis, temAlgumaCredencial, temCredencial } from '../lib/credenciais.js';
+import { CREDENCIAIS_SO_ADM2, credenciaisDe, lerCredenciais, mesclarCredenciais, migrarPerfis, temAlgumaCredencial, temCredencial, temCredencialSoAdm2 } from '../lib/credenciais.js';
 
 test('each flow checks its own credential and adm2 enters everything', () => {
   assert.equal(temCredencial({ ativo: true, perfis: { frentista: true } }, 'frentista'), true);
@@ -27,7 +27,7 @@ test('entry needs an active employee with at least one credential', () => {
 
 test('credentials sent by the WEB are booleans; unknown keys are dropped', () => {
   assert.deepEqual(lerCredenciais({ motorista: true, frentista: false, inventado: true }),
-    { adm2: false, motorista: true, frentista: false, mecanico: false, escritorio: false, engenharia: false, retr0: false });
+    { adm2: false, motorista: true, frentista: false, mecanico: false, escritorio: false, engenharia: false, logistica: false, autor: false, retr0: false });
   assert.equal(lerCredenciais({ motorista: 'sim' }), null);
   assert.equal(lerCredenciais(null), null);
   assert.equal(lerCredenciais([true]), null);
@@ -36,8 +36,33 @@ test('credentials sent by the WEB are booleans; unknown keys are dropped', () =>
 
 test('migration: frentista comes from adm1; adm1 and user leave the document', () => {
   assert.deepEqual(migrarPerfis({ adm1: true, adm2: false, user: false, motorista: true }),
-    { perfis: { adm2: false, motorista: true, frentista: true, mecanico: false, escritorio: false, engenharia: false, retr0: false }, mudou: true });
+    { perfis: { adm2: false, motorista: true, frentista: true, mecanico: false, escritorio: false, engenharia: false, logistica: false, autor: false, retr0: false }, mudou: true });
   assert.equal(migrarPerfis({ adm2: true, user: false }).mudou, true);
-  assert.equal(migrarPerfis({ adm2: true, motorista: false, frentista: false, mecanico: false, escritorio: false, engenharia: false, retr0: false }).mudou, false);
+  assert.equal(migrarPerfis({ adm2: true, motorista: false, frentista: false, mecanico: false, escritorio: false, engenharia: false, logistica: false, autor: false, retr0: false }).mudou, false);
   assert.equal(migrarPerfis({ frentista: true }).mudou, false);
+});
+
+test('area credentials of 2026-11-06: logistica and autor are plain credentials adm2 gets for free', () => {
+  assert.equal(temCredencial({ ativo: true, perfis: { logistica: true } }, 'mecanico', 'logistica'), true);
+  assert.equal(temCredencial({ ativo: true, perfis: { autor: true } }, 'retr0', 'autor'), true, 'Manuscript chat');
+  assert.equal(temCredencial({ ativo: true, perfis: { adm2: true } }, 'retr0', 'autor'), true, 'adm2 enters the chat through autor');
+  assert.equal(temCredencial({ ativo: true, perfis: { logistica: true } }), false, 'logistica is not adm2');
+  assert.equal(temAlgumaCredencial({ ativo: true, perfis: { autor: true } }), true);
+});
+
+test('only adm2 manages adm2 and retr0 (Cadastros is also open to escritorio)', () => {
+  assert.deepEqual(CREDENCIAIS_SO_ADM2, ['adm2', 'retr0']);
+  assert.equal(temCredencialSoAdm2(credenciaisDe({ adm2: true })), true);
+  assert.equal(temCredencialSoAdm2(credenciaisDe({ retr0: true })), true);
+  assert.equal(temCredencialSoAdm2(credenciaisDe({ escritorio: true, logistica: true, autor: true })), false);
+  assert.equal(temCredencialSoAdm2(null), false);
+});
+
+test('PATCH keeps the credentials left out (the app DEV screen sends only the ones it knows)', () => {
+  const atuais = { adm2: false, motorista: true, retr0: true, autor: true, logistica: true };
+  const app = { adm2: false, motorista: false, frentista: true, mecanico: false, escritorio: false, engenharia: false };
+  assert.deepEqual(mesclarCredenciais(atuais, app),
+    { adm2: false, motorista: false, frentista: true, mecanico: false, escritorio: false, engenharia: false, logistica: true, autor: true, retr0: true });
+  assert.equal(mesclarCredenciais(atuais, { autor: false }).autor, false, 'a key sent replaces the current one');
+  assert.equal(mesclarCredenciais(atuais, { autor: 'nao' }), null);
 });

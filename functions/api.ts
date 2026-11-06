@@ -2,6 +2,7 @@ import express, { Request, Response, NextFunction, Router } from 'express';
 import cors from 'cors';
 import type { DecodedIdToken } from 'firebase-admin/auth';
 import { adminAuth, db } from './firebaseAdmin.js';
+import { temCredencial } from './credenciais.js';
 
 interface AuthRequest extends Request {
   user?: DecodedIdToken & { admin?: boolean };
@@ -26,9 +27,16 @@ async function verifyIdToken(
   }
 }
 
-function verifyAdmin(req: AuthRequest, res: Response, next: NextFunction) {
-  if (req.user?.admin || req.user?.isAdmin) return next();
-  res.status(403).json({ error: 'Forbidden' });
+// WEB Combustível (/combustivel): active employee with logistica (or adm2). The Admin SDK skips the Rules, so the
+// credential is checked here.
+async function verifyCombustivel(req: AuthRequest, res: Response, next: NextFunction) {
+  try {
+    const funcionario = await db.collection('funcionarios').doc(req.user!.uid).get();
+    if (temCredencial(funcionario.data(), 'logistica')) return next();
+    res.status(403).json({ error: 'Forbidden' });
+  } catch {
+    res.status(503).json({ error: 'authorization_unavailable' });
+  }
 }
 
 const app = express();
@@ -37,7 +45,7 @@ app.use(express.json());
 
 // sub-router protegido
 const router: Router = express.Router();
-router.use(verifyIdToken);
+router.use(verifyIdToken, verifyCombustivel);
 
 const collection = db.collection('03-combustivel');
 
@@ -96,7 +104,7 @@ router.put('/combustivel/:id', async (req: AuthRequest, res) => {
   }
 });
 
-router.delete('/combustivel/:id', verifyAdmin, async (req, res) => {
+router.delete('/combustivel/:id', async (req, res) => {
   try {
     await collection.doc(req.params.id).delete();
     res.status(204).end();

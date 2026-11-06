@@ -7,7 +7,7 @@ declare module "express-serve-static-core" {
     authorization?: {
       exists: boolean;
       ativo: boolean;
-      credenciais: Record<'adm2' | 'motorista' | 'frentista' | 'mecanico' | 'escritorio' | 'engenharia' | 'retr0', boolean>;
+      credenciais: Record<'adm2' | 'motorista' | 'frentista' | 'mecanico' | 'escritorio' | 'engenharia' | 'logistica' | 'autor' | 'retr0', boolean>;
     };
   }
 }

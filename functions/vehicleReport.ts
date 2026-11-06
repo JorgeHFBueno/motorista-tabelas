@@ -49,10 +49,10 @@ export async function queryErp(queryId: typeof VEHICLE_ERP_QUERY_ALLOWLIST[numbe
   } finally { clearTimeout(timer); }
 }
 
-/** Mirrors the /frota policy: active employee with adm2 (the WEB administrative screens are adm2-only). */
+/** Mirrors the /frota policy: active employee with mecanico or logistica (or adm2). */
 export async function assertFrotaAuthorization(uid: string) {
   const employee = await db.collection('funcionarios').doc(uid).get();
-  if (!temCredencial(employee.data())) {
+  if (!temCredencial(employee.data(), 'mecanico', 'logistica')) {
     throw new HttpsError('permission-denied', 'Acesso não autorizado.');
   }
 }

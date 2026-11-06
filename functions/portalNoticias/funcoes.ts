@@ -83,12 +83,12 @@ export const portalNoticiasColeta = onSchedule(
   },
 );
 
-/** "Buscar notícias externas agora": active employee with credential adm2. Returns the run summary. */
+/** "Buscar notícias externas agora": active employee with engenharia or escritorio (or adm2). Returns the run summary. */
 export const portalNoticiasAtualizar = onCall({ region: REGIAO, timeoutSeconds: 300, memory: '512MiB' }, async (request): Promise<ResumoColeta> => {
   const uid = request.auth?.uid;
   if (!uid) throw new HttpsError('unauthenticated', 'Autenticação obrigatória.');
   const funcionario = await db.collection('funcionarios').doc(uid).get();
-  if (!temCredencial(funcionario.data(), 'adm2')) throw new HttpsError('permission-denied', 'Acesso não autorizado.');
+  if (!temCredencial(funcionario.data(), 'engenharia', 'escritorio')) throw new HttpsError('permission-denied', 'Acesso não autorizado.');
   try {
     return await coletar('manual', uid);
   } catch (e) {

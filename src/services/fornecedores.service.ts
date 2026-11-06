@@ -4,7 +4,6 @@ import {
   getDocs,
   runTransaction,
   serverTimestamp,
-  type DocumentData,
 } from 'firebase/firestore';
 import { db } from '../firebase';
 
@@ -98,65 +97,6 @@ export const createFornecedorComNumero = async (values: { nome: string; descrica
     }, { merge: true });
 
     return { id: fornecedorRef.id, numero: nextNumero };
-  });
-};
-
-export const updateFornecedorCadastro = async (values: {
-  id: string;
-  nome: string;
-  descricao: string;
-  numero: unknown;
-  numeroAtual?: unknown;
-}) => {
-  const numero = normalizeFornecedorNumero(values.numero);
-  if (!numero) {
-    throw new FornecedorNumeroInvalidoError();
-  }
-
-  const { usedNumeros } = await collectUsedNumeros();
-  const outrosIdsComMesmoNumero = (usedNumeros.get(numero) ?? []).filter((id) => id !== values.id);
-  if (outrosIdsComMesmoNumero.length > 0) {
-    throw new FornecedorNumeroDuplicadoError(numero);
-  }
-
-  return runTransaction(db, async (transaction) => {
-    const fornecedorRef = doc(db, FORNECEDORES_COLLECTION, values.id);
-    const numeroRef = doc(db, FORNECEDORES_NUMEROS_COLLECTION, String(numero));
-    const fornecedorSnap = await transaction.get(fornecedorRef);
-    const numeroSnap = await transaction.get(numeroRef);
-
-    if (!fornecedorSnap.exists()) {
-      throw new Error('Fornecedor nao encontrado.');
-    }
-
-    const currentData = fornecedorSnap.data() as DocumentData;
-    const numeroAtual = normalizeFornecedorNumero(values.numeroAtual) ?? normalizeFornecedorNumero(currentData.numero);
-    const numeroAtualRef = numeroAtual && numeroAtual !== numero
-      ? doc(db, FORNECEDORES_NUMEROS_COLLECTION, String(numeroAtual))
-      : null;
-    const numeroAtualSnap = numeroAtualRef ? await transaction.get(numeroAtualRef) : null;
-
-    if (numeroSnap.exists()) {
-      const indexedFornecedorId = numeroSnap.data().fornecedorId;
-      if (indexedFornecedorId && indexedFornecedorId !== values.id) {
-        throw new FornecedorNumeroDuplicadoError(numero);
-      }
-    }
-
-    if (numeroAtualSnap?.exists() && numeroAtualSnap.data().fornecedorId === values.id) {
-      transaction.delete(numeroAtualRef!);
-    }
-
-    transaction.update(fornecedorRef, {
-      ...getCadastroPayload(values.nome, values.descricao),
-      numero,
-      updatedAt: serverTimestamp(),
-    });
-    transaction.set(numeroRef, {
-      fornecedorId: values.id,
-      numero,
-      updatedAt: serverTimestamp(),
-    }, { merge: true });
   });
 };
 

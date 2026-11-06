@@ -3,7 +3,7 @@ import { app } from '../firebase';
 import type { Credenciais } from './credenciais';
 import { descreverLogin, formatarCelular } from './loginIdentifier';
 
-// Usuários da WEB (Cadastros, só adm2), pela Function adminApi. Contrato: The Manuscript, funcionarios.md.
+// Usuários da WEB (Cadastros: escritorio ou adm2), pela Function adminApi. Contrato: The Manuscript, funcionarios.md.
 export type FuncionarioResumo = {
   nome: string | null;
   email: string | null;
@@ -47,7 +47,9 @@ const MENSAGENS: Record<string, string> = {
   invalid_token: 'Sua sessão expirou. Faça login novamente.',
   expired_token: 'Sua sessão expirou. Faça login novamente.',
   authorization_unavailable: 'Não foi possível verificar sua autorização agora. Tente novamente.',
-  forbidden: 'Seu usuário não tem a credencial adm2 ativa para administrar usuários.',
+  forbidden: 'Seu usuário não tem a credencial desta área (Cadastros: escritório; Portal do cliente: engenharia ou escritório).',
+  forbidden_credencial: 'Só o adm2 dá ou tira as credenciais adm2 e retr0.',
+  protected_account: 'Esta conta tem adm2 ou retr0: só o adm2 a altera ou define a senha dela.',
   missing_nome: 'Informe o nome.',
   missing_email: 'Informe um login válido.',
   missing_password: 'Informe a senha inicial.',
@@ -55,6 +57,7 @@ const MENSAGENS: Record<string, string> = {
   invalid_credenciais: 'Marque ao menos uma credencial.',
   invalid_ativo: 'Informe a situação do usuário.',
   cannot_remove_own_adm2: 'Você não pode tirar a sua própria credencial adm2 nem se desativar.',
+  cannot_remove_own_access: 'Você não pode tirar a sua própria credencial escritório nem se desativar.',
   employee_already_exists: 'Já existe um funcionário com este login.',
   employee_not_found: 'Esta conta não tem funcionário: cadastre em Novo usuário ou exclua a conta.',
   employee_exists: 'Funcionário não se exclui: desative-o.',

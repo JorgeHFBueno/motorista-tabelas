@@ -14,6 +14,8 @@ import {
   doc,
   getDoc,
   getDocs,
+  limit,
+  orderBy,
   query,
   runTransaction,
   setDoc,
@@ -49,6 +51,8 @@ const identities = {
   escritorio: { uid: 'uid-escritorio', email: 'escritorio@example.com' },
   escritorioFora: { uid: 'uid-escritorio-fora', email: 'escritorio-fora@example.com' },
   engenharia: { uid: 'uid-engenharia', email: 'engenharia@example.com' },
+  logistica: { uid: 'uid-logistica', email: 'logistica@example.com' },
+  autor: { uid: 'uid-autor', email: 'autor@example.com' },
 };
 
 function dbAs(name, tokenOverrides = {}) {
@@ -101,6 +105,8 @@ async function seed() {
     await employeeLike('uid-escritorio', 'Escritorio', 'escritorio@example.com', true, { escritorio: true });
     await employeeLike('uid-escritorio-fora', 'Escritorio fora', 'escritorio-fora@example.com', true, { escritorio: true });
     await employeeLike('uid-engenharia', 'Engenharia', 'engenharia@example.com', true, { engenharia: true });
+    await employeeLike('uid-logistica', 'Logistica', 'logistica@example.com', true, { logistica: true });
+    await employeeLike('uid-autor', 'Autor', 'autor@example.com', true, { autor: true });
     await setDoc(doc(db, '00-autorizados', 'legacy-only@example.com'), { nome: 'Legacy only', ativo: true, adm2: true });
     await setDoc(doc(db, 'veiculos-v2', 'vv-inativo'), {
       schemaVersion: 2, cadastro: { ativo: false }, identificacao: { categoria: 'PLACA', identificador: 'OLD1A23', nome: 'Caminhão parado' },
@@ -183,26 +189,28 @@ test('[firestore] unauthenticated is denied operational data', async () => {
 });
 test('[firestore] authenticated profile missing is denied', async () => assertFails(getDoc(doc(dbAs('missing'), 'veiculos', 'v1'))));
 test('[firestore] inactive profile is denied', async () => assertFails(getDoc(doc(dbAs('inactive'), 'veiculos', 'v1'))));
-test('[firestore] canonical active adm1 is authorized', async () => assertSucceeds(getDoc(doc(dbAs('canonicalFrentista'), 'veiculos', 'v1'))));
-test('[firestore] canonical active adm2 is authorized', async () => assertSucceeds(getDoc(doc(dbAs('canonicalAdm2'), 'veiculos', 'v1'))));
+test('[firestore] canonical active adm1 is authorized', async () => assertSucceeds(getDoc(doc(dbAs('canonicalFrentista'), 'motivos', 'm1'))));
+test('[firestore] canonical active adm2 is authorized', async () => assertSucceeds(getDoc(doc(dbAs('canonicalAdm2'), 'motivos', 'm1'))));
 
-test('[firestore] erp-veiculos: só adm2 lê; ninguém grava pelo cliente', async () => {
+test('[firestore] erp-veiculos: a Frota (mecanico, logistica, adm2) lê; ninguém grava pelo cliente', async () => {
   await assertSucceeds(getDoc(doc(dbAs('canonicalAdm2'), 'erp-veiculos', 'vv1')));
+  await assertSucceeds(getDoc(doc(dbAs('mecanico'), 'erp-veiculos', 'vv1')));
+  await assertSucceeds(getDoc(doc(dbAs('logistica'), 'erp-veiculos', 'vv1')));
   await assertFails(getDoc(doc(dbAs('canonicalFrentista'), 'erp-veiculos', 'vv1')));
   await assertFails(getDoc(doc(dbAs('engenharia'), 'erp-veiculos', 'vv1')));
   await assertFails(getDoc(doc(env.unauthenticatedContext().firestore(), 'erp-veiculos', 'vv1')));
   await assertFails(setDoc(doc(dbAs('canonicalAdm2'), 'erp-veiculos', 'vv1'), { status: 'ok' }));
   await assertFails(setDoc(doc(dbAs('canonicalAdm2'), 'erp-veiculos', 'novo'), { status: 'ok' }));
 });
-test('[firestore] canonical active user without admin permission is operationally authorized', async () => assertSucceeds(getDoc(doc(dbAs('canonicalUser'), 'veiculos', 'v1'))));
-test('[firestore] canonical inactive employee is denied', async () => assertFails(getDoc(doc(dbAs('canonicalInactive'), 'veiculos', 'v1'))));
+test('[firestore] canonical active user without admin permission is operationally authorized', async () => assertSucceeds(getDoc(doc(dbAs('canonicalUser'), 'motivos', 'm1'))));
+test('[firestore] canonical inactive employee is denied', async () => assertFails(getDoc(doc(dbAs('canonicalInactive'), 'motivos', 'm1'))));
 test('[firestore] canonical employee denies legacy privilege elevation', async () => assertFails(setDoc(doc(dbAs('canonicalPrecedence'), 'configuracoes', 'canonical-precedence'), { enabled: true })));
-test('[firestore] canonical inactive employee denies legacy authorization', async () => assertFails(getDoc(doc(dbAs('canonicalInactivePrecedence'), 'veiculos', 'v1'))));
-test('[firestore] normal authorized reads vehicle', async () => assertSucceeds(getDoc(doc(dbAs('user'), 'veiculos', 'v1'))));
-test('[firestore] adm1 remains an authorized operational user', async () => assertSucceeds(getDoc(doc(dbAs('frentista'), 'veiculos', 'v1'))));
+test('[firestore] canonical inactive employee denies legacy authorization', async () => assertFails(getDoc(doc(dbAs('canonicalInactivePrecedence'), 'motivos', 'm1'))));
+test('[firestore] normal authorized reads reasons', async () => assertSucceeds(getDoc(doc(dbAs('user'), 'motivos', 'm1'))));
+test('[firestore] adm1 remains an authorized operational user', async () => assertSucceeds(getDoc(doc(dbAs('frentista'), 'motivos', 'm1'))));
 test('[firestore] legacy-only profile (00-autorizados, no funcionarios) is denied, even active adm2', async () => {
   const db = dbAs('legacyOnly');
-  await assertFails(getDoc(doc(db, 'veiculos', 'v1')));
+  await assertFails(getDoc(doc(db, 'motivos', 'm1')));
   await assertFails(getDocs(collection(db, 'notificacoes')));
   await assertFails(setDoc(doc(db, 'configuracoes', 'legacy-only'), { enabled: true }));
   await assertFails(getDocs(collection(db, 'funcionarios')));
@@ -229,7 +237,7 @@ test('[firestore] employee identity cannot be created by client', async () => as
   createdAt: Timestamp.fromMillis(1), updatedAt: Timestamp.fromMillis(1),
 })));
 
-const cronogramaAlocacao = (criadoPorFuncionarioId = 'uid-user') => ({
+const cronogramaAlocacao = (criadoPorFuncionarioId = 'uid-engenharia') => ({
   obraId: '13053086105', contratoId: '12806288209', mestreId: 'dine',
   inicio: '2026-09-01', tempoPlanejado: 7, criadoPorFuncionarioId,
   criadoEm: Timestamp.fromMillis(1), atualizadoEm: Timestamp.fromMillis(1),
@@ -239,13 +247,15 @@ test('[firestore] cronograma denies unauthenticated and missing-profile clients'
   await assertFails(getDoc(doc(env.unauthenticatedContext().firestore(), 'monday-cronograma', 'allocation')));
   await assertFails(getDoc(doc(dbAs('missing'), 'monday-cronograma', 'allocation')));
 });
-test('[firestore] cronograma authorized user reads and creates own allocation', async () => {
-  const db = dbAs('user'); const reference = doc(db, 'monday-cronograma', 'allocation-own');
+test('[firestore] cronograma: engenharia reads and creates own allocation; other credentials cannot', async () => {
+  await assertFails(setDoc(doc(dbAs('user'), 'monday-cronograma', 'allocation-motorista'), cronogramaAlocacao('uid-user')));
+  await assertFails(getDocs(collection(dbAs('user'), 'monday-cronograma')));
+  const db = dbAs('engenharia'); const reference = doc(db, 'monday-cronograma', 'allocation-own');
   await assertSucceeds(setDoc(reference, cronogramaAlocacao()));
   await assertSucceeds(getDoc(reference));
 });
 test('[firestore] cronograma rejects forged creator and immutable authorship changes', async () => {
-  const db = dbAs('user'); const forged = doc(db, 'monday-cronograma', 'allocation-forged');
+  const db = dbAs('engenharia'); const forged = doc(db, 'monday-cronograma', 'allocation-forged');
   await assertFails(setDoc(forged, cronogramaAlocacao('uid-other')));
   const owned = doc(db, 'monday-cronograma', 'allocation-immutable');
   await assertSucceeds(setDoc(owned, cronogramaAlocacao()));
@@ -253,7 +263,7 @@ test('[firestore] cronograma rejects forged creator and immutable authorship cha
   await assertFails(updateDoc(owned, { criadoEm: Timestamp.fromMillis(2) }));
 });
 test('[firestore] cronograma authorized update and delete preserve the valid schema', async () => {
-  const db = dbAs('user'); const reference = doc(db, 'monday-cronograma', 'allocation-crud');
+  const db = dbAs('engenharia'); const reference = doc(db, 'monday-cronograma', 'allocation-crud');
   await assertSucceeds(setDoc(reference, cronogramaAlocacao()));
   await assertSucceeds(updateDoc(reference, { inicio: '2026-09-08', tempoPlanejado: 14, atualizadoEm: Timestamp.fromMillis(2) }));
   await assertSucceeds(deleteDoc(reference));
@@ -281,7 +291,26 @@ test('[firestore] adm2 creates activity for another driver', async () => assertS
 test('[firestore] activity forged creator is denied', async () => assertFails(setDoc(doc(dbAs('user'), 'atividades', 'forged-activity'), {
   tipo: 'saida', motoristaUid: 'uid-user', criadoPorUid: 'uid-other',
 })));
-test('[firestore] authorized reads activity', async () => assertSucceeds(getDoc(doc(dbAs('user'), 'atividades', 'historic'))));
+test('[firestore] atividades: the driver reads their own (Histórico) and the id about to be created; not others', async () => {
+  const db = dbAs('user');
+  await assertSucceeds(getDoc(doc(db, 'atividades', 'historic')));
+  await assertSucceeds(getDoc(doc(db, 'atividades', 'ainda-nao-existe')));
+  for (const campo of ['motorista.uid', 'motorista', 'motoristaUid', 'criadoPor.uid', 'criadoPorUid']) {
+    await assertSucceeds(getDocs(query(collection(db, 'atividades'), where(campo, '==', 'uid-user'), limit(60))));
+  }
+  await assertFails(getDocs(collection(db, 'atividades')));
+  await assertFails(getDocs(query(collection(db, 'atividades'), where('motoristaUid', '==', 'uid-frentista'))));
+  await assertSucceeds(getDocs(collection(db, 'atividades', 'historic', 'checklist_saida')));
+  await assertFails(getDoc(doc(dbAs('frentista'), 'atividades', 'historic')));
+  await assertFails(getDocs(collection(dbAs('frentista'), 'atividades', 'historic', 'checklist_saida')));
+  await assertFails(getDocs(collection(dbAs('autor'), 'atividades')));
+});
+test('[firestore] atividades: Frota (mecanico, logistica, adm2) and Engenharia list everything', async () => {
+  for (const quem of ['mecanico', 'logistica', 'adm2', 'engenharia']) {
+    await assertSucceeds(getDocs(collection(dbAs(quem), 'atividades')));
+    await assertSucceeds(getDocs(collection(dbAs(quem), 'atividades', 'historic', 'checklist_saida')));
+  }
+});
 test('[firestore] activity update is denied', async () => assertFails(updateDoc(doc(dbAs('adm2'), 'atividades', 'historic'), { motivo: 'changed' })));
 test('[firestore] activity delete is denied', async () => assertFails(deleteDoc(doc(dbAs('adm2'), 'atividades', 'historic'))));
 test('[firestore] checklist creator UID must match', async () => assertSucceeds(setDoc(doc(dbAs('user'), 'atividades', 'new-activity', 'checklist_saida', 'ok'), { criadoPorUid: 'uid-user' })));
@@ -335,6 +364,36 @@ test('[firestore] old WEB diesel entry shape (responsavel) is denied', async () 
   estoqueAntes: 34000, estoqueAposMovimento: 84000, montanteSnapshot: 491264,
 })));
 test('[firestore] fuel forged creator is denied', async () => assertFails(setDoc(doc(dbAs('adm2'), '03-combustivel', 'fuel-forged-author'), { criadoPorUid: 'uid-user', motoristaUid: 'uid-user' })));
+test('[firestore] 03-combustivel: frentista, Kiosk and the WEB areas read everything; others only their own', async () => {
+  for (const quem of ['frentista', 'logistica', 'mecanico', 'engenharia', 'adm2']) {
+    await assertSucceeds(getDocs(query(collection(dbAs(quem), '03-combustivel'), orderBy('data', 'desc'), limit(1))));
+  }
+  await assertSucceeds(getDocs(query(collection(dbAs('frentista'), '03-combustivel'), where('tipo', '==', 'entrada'))));
+  const db = dbAs('user');
+  await assertSucceeds(getDoc(doc(db, '03-combustivel', 'fuel-existing')));
+  for (const campo of ['frentista.uid', 'motoristaOperador.uid', 'criadoPor.uid']) {
+    await assertSucceeds(getDocs(query(collection(db, '03-combustivel'), where(campo, '==', 'uid-user'), limit(60))));
+  }
+  await assertFails(getDocs(query(collection(db, '03-combustivel'), orderBy('data', 'desc'), limit(1))));
+  await assertFails(getDoc(doc(dbAs('canonicalUser'), '03-combustivel', 'fuel-existing')));
+  await assertFails(getDocs(collection(dbAs('escritorio'), '03-combustivel')));
+});
+test('[firestore] bombas: frentista and the WEB areas read; logistica/mecanico change only the fuel state', async () => {
+  await assertFails(getDoc(doc(dbAs('user'), 'bombas', 'diesel_patio')));
+  await assertFails(getDoc(doc(dbAs('engenharia'), 'bombas', 'diesel_patio')));
+  for (const quem of ['frentista', 'logistica', 'mecanico', 'adm2']) await assertSucceeds(getDoc(doc(dbAs(quem), 'bombas', 'diesel_patio')));
+  await assertSucceeds(updateDoc(doc(dbAs('logistica'), 'bombas', 'diesel_patio'), { estoqueAtual: 4990, atualizadoEm: Timestamp.fromMillis(9) }));
+  await assertFails(updateDoc(doc(dbAs('mecanico'), 'bombas', 'diesel_patio'), { nomeBomba: 'Outra' }));
+  await assertFails(updateDoc(doc(dbAs('escritorio'), 'bombas', 'diesel_patio'), { estoqueAtual: 1 }));
+});
+test('[firestore] veiculos-v2: Frota (mecanico, logistica) renames and sets the initial meter; nothing else', async () => {
+  const ref_ = (quem) => doc(dbAs(quem), 'veiculos-v2', 'vv-inativo');
+  await assertSucceeds(updateDoc(ref_('mecanico'), { 'identificacao.nome': 'Caminhão novo nome' }));
+  await assertSucceeds(updateDoc(ref_('logistica'), { 'operacional.quilometragemInicial': 1000, 'operacional.dataQuilometragemInicial': null, 'operacional.origemQuilometragemInicial': 'manual' }));
+  await assertFails(updateDoc(ref_('mecanico'), { 'identificacao.identificador': 'XXX0000' }));
+  await assertFails(updateDoc(ref_('logistica'), { 'cadastro.ativo': true }));
+  await assertFails(updateDoc(ref_('engenharia'), { 'identificacao.nome': 'Não' }));
+});
 test('[firestore] normal fuel update is denied', async () => assertFails(updateDoc(doc(dbAs('user'), '03-combustivel', 'fuel-existing'), { lf: 30 })));
 test('[firestore] normal fuel delete is denied', async () => assertFails(deleteDoc(doc(dbAs('user'), '03-combustivel', 'fuel-existing'))));
 test('[firestore] custom claim admin updates fuel', async () => assertSucceeds(updateDoc(doc(dbAs('admin'), '03-combustivel', 'fuel-existing'), { lf: 31 })));
@@ -342,6 +401,8 @@ test('[firestore] custom claim admin deletes fuel', async () => { await setDoc(d
 test('[firestore] adm2 corrects and deletes fuel records (WEB document inspector); adm1 cannot', async () => {
   await setDoc(doc(dbAs('user'), '03-combustivel', 'fuel-adm2-inspector'), { lf: 1 });
   await assertFails(updateDoc(doc(dbAs('canonicalFrentista'), '03-combustivel', 'fuel-adm2-inspector'), { lf: 2 }));
+  await assertFails(updateDoc(doc(dbAs('mecanico'), '03-combustivel', 'fuel-adm2-inspector'), { lf: 2 }));
+  await assertSucceeds(updateDoc(doc(dbAs('logistica'), '03-combustivel', 'fuel-adm2-inspector'), { lf: 4 }));
   await assertSucceeds(updateDoc(doc(dbAs('canonicalAdm2'), '03-combustivel', 'fuel-adm2-inspector'), { lf: 3 }));
   await assertFails(deleteDoc(doc(dbAs('canonicalFrentista'), '03-combustivel', 'fuel-adm2-inspector')));
   await assertSucceeds(deleteDoc(doc(dbAs('canonicalAdm2'), '03-combustivel', 'fuel-adm2-inspector')));
@@ -472,14 +533,19 @@ test('[firestore] owner can add a future notification field', async () => assert
 test('[firestore] adm2 writes own read receipt', async () => assertSucceeds(setDoc(doc(dbAs('adm2'), 'notificacoes', 'own-note', 'leituras', 'uid-adm2'), { versaoLida: 1 })));
 test('[firestore] adm2 cannot write read receipt for another UID', async () => assertFails(setDoc(doc(dbAs('adm2'), 'notificacoes', 'own-note', 'leituras', 'uid-user'), { versaoLida: 1 })));
 
-test('[firestore] authorized reads works', async () => assertSucceeds(getDoc(doc(dbAs('user'), 'obras', 'o1'))));
+test('[firestore] legacy obras: only adm2 reads (2026-11-06)', async () => { await assertFails(getDoc(doc(dbAs('user'), 'obras', 'o1'))); await assertFails(getDoc(doc(dbAs('engenharia'), 'obras', 'o1'))); await assertSucceeds(getDoc(doc(dbAs('adm2'), 'obras', 'o1'))); });
 test('[firestore] only adm2 writes works', async () => assertFails(updateDoc(doc(dbAs('user'), 'obras', 'o1'), { nome: 'No' })));
 test('[firestore] adm2 writes works', async () => assertSucceeds(updateDoc(doc(dbAs('adm2'), 'obras', 'o1'), { nome: 'Yes' })));
 for (const path of ['notas-categorias/cat1', 'notas-fornecedores/f1', 'notas-fornecedores-numeros/1', 'app-metadata/notas-fornecedores-numero']) {
   test(`[firestore] normal denied administrative catalog ${path}`, async () => assertFails(getDoc(doc(dbAs('user'), ...path.split('/')))));
   test(`[firestore] adm2 reads administrative catalog ${path}`, async () => assertSucceeds(getDoc(doc(dbAs('adm2'), ...path.split('/')))));
+  test(`[firestore] Frota (mecanico, logistica) reads catalog ${path}; engenharia cannot`, async () => {
+    await assertSucceeds(getDoc(doc(dbAs('mecanico'), ...path.split('/'))));
+    await assertSucceeds(getDoc(doc(dbAs('logistica'), ...path.split('/'))));
+    await assertFails(getDoc(doc(dbAs('engenharia'), ...path.split('/'))));
+  });
 }
-test('[firestore] authorized reads motorists and reasons', async () => { await assertSucceeds(getDoc(doc(dbAs('user'), 'motoristas', 'm1'))); await assertSucceeds(getDoc(doc(dbAs('user'), 'motivos', 'm1'))); });
+test('[firestore] legacy motoristas: only adm2 reads; motivos stay open to employees', async () => { await assertFails(getDoc(doc(dbAs('user'), 'motoristas', 'm1'))); await assertSucceeds(getDoc(doc(dbAs('adm2'), 'motoristas', 'm1'))); await assertSucceeds(getDoc(doc(dbAs('user'), 'motivos', 'm1'))); });
 test('[firestore] clients cannot write motorists', async () => assertFails(updateDoc(doc(dbAs('adm2'), 'motoristas', 'm1'), { ativo: false })));
 test('[firestore] only adm2 reads maintenance', async () => { await assertFails(getDoc(doc(dbAs('user'), 'manutencoes', 'maint1'))); await assertSucceeds(getDoc(doc(dbAs('adm2'), 'manutencoes', 'maint1'))); });
 test('[firestore] only adm2 creates maintenance', async () => { await assertFails(setDoc(doc(dbAs('user'), 'manutencoes', 'maint-user'), { status: 'A' })); await assertSucceeds(setDoc(doc(dbAs('adm2'), 'manutencoes', 'maint-adm2'), { status: 'A' })); });
@@ -625,9 +691,16 @@ test('[storage] inactive legacy profile is denied even carrying adm2', async () 
 });
 
 // ------------------------------------------------------------------ revisão das Rules (2026-10-20)
-test('[firestore] active employees list funcionarios (app pickers); legacy-only and inactive cannot', async () => {
-  await assertSucceeds(getDocs(collection(dbAs('canonicalUser'), 'funcionarios')));
-  await assertSucceeds(getDocs(collection(dbAs('user'), 'funcionarios')));
+test('[firestore] who picks people lists funcionarios (app pickers, Friday, Frota/Logística); others cannot', async () => {
+  for (const quem of ['frentista', 'mecanico', 'escritorio', 'logistica', 'adm2']) {
+    await assertSucceeds(getDocs(collection(dbAs(quem), 'funcionarios')));
+    await assertSucceeds(getDoc(doc(dbAs(quem), 'funcionarios', 'uid-user')));
+  }
+  for (const quem of ['user', 'canonicalUser', 'engenharia', 'autor']) {
+    await assertFails(getDocs(collection(dbAs(quem), 'funcionarios')));
+    await assertFails(getDoc(doc(dbAs(quem), 'funcionarios', 'uid-frentista')));
+  }
+  await assertSucceeds(getDoc(doc(dbAs('user'), 'funcionarios', 'uid-user')));
   await assertFails(getDocs(collection(dbAs('legacyOnly'), 'funcionarios')));
   await assertFails(getDocs(collection(dbAs('canonicalInactive'), 'funcionarios')));
   await assertFails(getDocs(collection(env.unauthenticatedContext().firestore(), 'funcionarios')));
@@ -683,7 +756,8 @@ test('[firestore] monday-obras: read by employees, written only by Functions', a
   await assertFails(setDoc(doc(dbAs('canonicalAdm2'), 'monday-obras', 'mo2'), { nome: 'X' }));
 });
 test('[firestore] monday-mestres: adm2 creates {nome, cor}; nothing else', async () => {
-  await assertSucceeds(getDocs(collection(dbAs('canonicalUser'), 'monday-mestres')));
+  await assertSucceeds(getDocs(collection(dbAs('engenharia'), 'monday-mestres')));
+  await assertFails(getDocs(collection(dbAs('canonicalUser'), 'monday-mestres')));
   await assertSucceeds(setDoc(doc(dbAs('canonicalAdm2'), 'monday-mestres', 'joao'), { nome: 'João', cor: '#abcdef' }));
   await assertFails(setDoc(doc(dbAs('canonicalAdm2'), 'monday-mestres', 'maria'), { nome: 'Maria', cor: '#abcdef', extra: 1 }));
   await assertFails(setDoc(doc(dbAs('canonicalUser'), 'monday-mestres', 'pedro'), { nome: 'Pedro', cor: '#abcdef' }));

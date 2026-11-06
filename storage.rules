@@ -23,9 +23,29 @@ service firebase.storage {
         && firestore.get(employeePath()).data.get('perfis', {}).get(perfil, false) == true;
     }
 
-    // Mechanic checklist (app): mechanics and adm2.
+    // WEB area open to adm2 and to up to two credentials (repeat the key to use only one); one read of the profile.
+    function temArea(a, b) {
+      return isAuthorized()
+        && (
+          firestore.get(employeePath()).data.get('perfis', {}).get('adm2', false) == true
+          || firestore.get(employeePath()).data.get('perfis', {}).get(a, false) == true
+          || firestore.get(employeePath()).data.get('perfis', {}).get(b, false) == true
+        );
+    }
+
+    // Mechanic checklist (app): mechanics and adm2 send the photos.
     function isChecklistV2User() {
       return hasPerfil('mecanico') || hasPerfil('adm2');
+    }
+
+    // Reading them: the checklist (mecanico) and Frota on the WEB (mecanico, logistica), adm2 included.
+    function isChecklistV2Reader() {
+      return temArea('mecanico', 'logistica');
+    }
+
+    // Client portal, team side (WEB /portal-cliente): engenharia, escritorio or adm2.
+    function isEquipePortal() {
+      return temArea('engenharia', 'escritorio');
     }
 
     // Writing over an existing object is evaluated as create; resource == null keeps files from being replaced.
@@ -75,13 +95,13 @@ service firebase.storage {
     // Mechanic checklist photos <itemId>_<n>.jpg (the app keeps them under 1 MB) and thumbnails. The app checks
     // whether a file already exists before re-sending and downloads photos to the gallery; never overwritten.
     match /checklists-v2/{checklistId}/{arquivo} {
-      allow read: if isChecklistV2User();
+      allow read: if isChecklistV2Reader();
       allow create: if isChecklistV2User() && isChecklistV2Jpeg(2 * 1024 * 1024, arquivo);
       allow update, delete: if false;
     }
 
     match /checklists-v2/{checklistId}/miniaturas/{arquivo} {
-      allow read: if isChecklistV2User();
+      allow read: if isChecklistV2Reader();
       allow create: if isChecklistV2User() && isChecklistV2Jpeg(200 * 1024, arquivo);
       allow update, delete: if false;
     }
@@ -141,42 +161,42 @@ service firebase.storage {
     }
 
     match /portal/obras/{obraId}/documentos/{documentoId}/{arquivo} {
-      allow read: if isPortalClienteDe('portal-obras', obraId) || hasPerfil('adm2');
-      allow create: if hasPerfil('adm2') && isPortalArquivo(50 * 1024 * 1024);
+      allow read: if isPortalClienteDe('portal-obras', obraId) || isEquipePortal();
+      allow create: if isEquipePortal() && isPortalArquivo(50 * 1024 * 1024);
       allow update, delete: if false;
     }
 
     match /portal/obras/{obraId}/fotos/{fotoId}/{arquivo} {
-      allow read: if isPortalClienteDe('portal-obras', obraId) || hasPerfil('adm2');
-      allow create: if hasPerfil('adm2')
+      allow read: if isPortalClienteDe('portal-obras', obraId) || isEquipePortal();
+      allow create: if isEquipePortal()
         && isPortalArquivo(20 * 1024 * 1024)
         && request.resource.contentType.matches('image/.*');
       allow update, delete: if false;
     }
 
     match /portal/obras/{obraId}/parcelas/{parcelaId}/boleto/{arquivo} {
-      allow read: if isPortalClienteDe('portal-obras', obraId) || hasPerfil('adm2');
-      allow create: if hasPerfil('adm2') && isPortalPdfOuImagem(10 * 1024 * 1024);
+      allow read: if isPortalClienteDe('portal-obras', obraId) || isEquipePortal();
+      allow create: if isEquipePortal() && isPortalPdfOuImagem(10 * 1024 * 1024);
       allow update, delete: if false;
     }
 
     match /portal/obras/{obraId}/parcelas/{parcelaId}/comprovante/{arquivo} {
-      allow read: if isPortalClienteDe('portal-obras', obraId) || hasPerfil('adm2');
-      allow create: if (isPortalClienteDe('portal-obras', obraId) || hasPerfil('adm2'))
+      allow read: if isPortalClienteDe('portal-obras', obraId) || isEquipePortal();
+      allow create: if (isPortalClienteDe('portal-obras', obraId) || isEquipePortal())
         && isPortalPdfOuImagem(10 * 1024 * 1024);
       allow update, delete: if false;
     }
 
     match /portal/atendimentos/{atendimentoId}/{mensagemId}/{arquivo} {
-      allow read: if isPortalClienteDe('portal-atendimentos', atendimentoId) || hasPerfil('adm2');
-      allow create: if (isPortalClienteDe('portal-atendimentos', atendimentoId) || hasPerfil('adm2'))
+      allow read: if isPortalClienteDe('portal-atendimentos', atendimentoId) || isEquipePortal();
+      allow create: if (isPortalClienteDe('portal-atendimentos', atendimentoId) || isEquipePortal())
         && isPortalArquivo(10 * 1024 * 1024);
       allow update, delete: if false;
     }
 
     match /portal/noticias/{noticiaId}/{arquivo} {
-      allow read: if isPortalClienteAtivo() || hasPerfil('adm2');
-      allow create: if hasPerfil('adm2')
+      allow read: if isPortalClienteAtivo() || isEquipePortal();
+      allow create: if isEquipePortal()
         && isPortalArquivo(10 * 1024 * 1024)
         && request.resource.contentType.matches('image/.*');
       allow update, delete: if false;

@@ -1,6 +1,6 @@
 // ERP guardado por veículo (Manuscript 01_FIRESTORE/COLECOES/erp-veiculos.md): as linhas da Query 47 de cada veículo com
 // placa, de 01/01/2025 até hoje, em erp-veiculos/{veiculoId}. Atualizado todo dia às 03:00 (Brasília) e por "Atualizar
-// agora" (adm2). O KPI e o detalhe do veículo leem daqui, sem consultar o ERP a cada visita. Só a Function grava.
+// agora" (Frota). O KPI e o detalhe do veículo leem daqui, sem consultar o ERP a cada visita. Só a Function grava.
 import { HttpsError, onCall } from 'firebase-functions/v2/https';
 import { onSchedule } from 'firebase-functions/v2/scheduler';
 import * as logger from 'firebase-functions/logger';
@@ -83,7 +83,7 @@ export const erpVeiculosDiario = onSchedule({ schedule: 'every day 03:00', timeZ
   logger.info('erp-veiculos:diario', resumo);
 });
 
-/** "Atualizar agora" (adm2): os veículos pedidos ou, sem `veiculoIds`, toda a frota com placa. */
+/** "Atualizar agora" (Frota: mecanico, logistica ou adm2): os veículos pedidos ou, sem `veiculoIds`, toda a frota com placa. */
 export const atualizarErpVeiculos = onCall({ region: REGIAO, secrets: [erpToken], timeoutSeconds: 300 }, async (request) => {
   if (!request.auth) throw new HttpsError('unauthenticated', 'Autenticação obrigatória.');
   await assertFrotaAuthorization(request.auth.uid);

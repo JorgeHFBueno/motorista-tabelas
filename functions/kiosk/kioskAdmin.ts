@@ -51,9 +51,9 @@ function requireProvisionInput(data: unknown): string {
   return requireUid((data as { uid?: unknown }).uid);
 }
 
+// Kiosk credentials are managed in Cadastros: escritorio (or adm2).
 function isActiveAdmin(employee: Employee): boolean {
-  return employee?.ativo === true
-    && (employee.perfis as Record<string, unknown> | undefined)?.adm2 === true;
+  return temCredencial(employee, 'escritorio');
 }
 
 function isQrConfigured(credential: Credential): boolean {

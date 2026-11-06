@@ -35,6 +35,8 @@ const identities = {
   semPerfil: 'uid-portal-sem-perfil',
   adm2: 'uid-portal-adm2',
   engenharia: 'uid-portal-engenharia',
+  escritorio: 'uid-portal-escritorio',
+  frentista: 'uid-portal-frentista', // employee without the portal area
 };
 
 function dbAs(name) {
@@ -56,6 +58,8 @@ async function seed() {
     });
     await funcionario(identities.adm2, { adm2: true });
     await funcionario(identities.engenharia, { engenharia: true });
+    await funcionario(identities.escritorio, { escritorio: true });
+    await funcionario(identities.frentista, { frentista: true });
 
     const cliente = (uid, documentos, ativo = true) => setDoc(doc(db, 'users', uid), {
       nome: uid, email: `${uid}@example.com`, documentos, ativo, criadoEm: t, atualizadoEm: t, criadoPor: pessoa('adm2'),
@@ -124,11 +128,13 @@ after(async () => env?.cleanup());
 
 // ---------------------------------------------------------------- users
 
-test('[firestore] portal users: the client reads only its own profile; adm2 reads and lists', async () => {
+test('[firestore] portal users: the client reads only its own profile; the team (engenharia, escritorio, adm2) reads and lists', async () => {
   await assertSucceeds(getDoc(doc(dbAs('cliente'), 'users', identities.cliente)));
   await assertFails(getDoc(doc(dbAs('cliente'), 'users', identities.outro)));
   await assertFails(getDocs(collection(dbAs('cliente'), 'users')));
-  await assertFails(getDocs(collection(dbAs('engenharia'), 'users')));
+  await assertFails(getDocs(collection(dbAs('frentista'), 'users')));
+  await assertSucceeds(getDocs(collection(dbAs('engenharia'), 'users')));
+  await assertSucceeds(getDoc(doc(dbAs('escritorio'), 'users', identities.cliente)));
   await assertSucceeds(getDoc(doc(dbAs('adm2'), 'users', identities.cliente)));
   await assertSucceeds(getDocs(collection(dbAs('adm2'), 'users')));
 });
@@ -172,7 +178,9 @@ test('[firestore] portal-obras: the client and partners of the same CNPJ read th
   await assertFails(getDoc(doc(dbAs('cliente'), 'portal-obras', 'pob-b')));
   await assertFails(getDoc(doc(dbAs('inativo'), 'portal-obras', 'pob-a')));
   await assertFails(getDoc(doc(dbAs('semPerfil'), 'portal-obras', 'pob-a')));
-  await assertFails(getDoc(doc(dbAs('engenharia'), 'portal-obras', 'pob-a')));
+  await assertFails(getDoc(doc(dbAs('frentista'), 'portal-obras', 'pob-a')));
+  await assertSucceeds(getDoc(doc(dbAs('engenharia'), 'portal-obras', 'pob-a')));
+  await assertSucceeds(getDoc(doc(dbAs('escritorio'), 'portal-obras', 'pob-a')));
   await assertSucceeds(getDoc(doc(dbAs('adm2'), 'portal-obras', 'pob-b')));
 });
 
@@ -190,7 +198,7 @@ test('[firestore] portal-obras: adm2 publishes an obras-v2 contract with a valid
   await assertFails(setDoc(doc(db, 'portal-obras', 'pob-nova'), { ...base, clienteDocumento: '12.345.678/0001-95' }));
   await assertFails(setDoc(doc(db, 'portal-obras', 'pob-nova'), { ...base, valorContrato: 1234.56 }));
   await assertFails(setDoc(doc(db, 'portal-obras', 'pob-nova'), { ...base, criadoPor: pessoa('cliente') }));
-  await assertFails(setDoc(doc(dbAs('engenharia'), 'portal-obras', 'pob-nova'), { ...base, criadoPor: pessoa('engenharia') }));
+  await assertFails(setDoc(doc(dbAs('frentista'), 'portal-obras', 'pob-nova'), { ...base, criadoPor: pessoa('frentista') }));
   await assertSucceeds(setDoc(doc(db, 'portal-obras', 'pob-nova'), base));
   await assertSucceeds(updateDoc(doc(db, 'portal-obras', 'pob-nova'), { valorContrato: null }));
   await assertFails(updateDoc(doc(db, 'portal-obras', 'pob-nova'), { criadoPor: pessoa('engenharia') }));
@@ -304,7 +312,8 @@ test('[firestore] portal-noticias: active clients read the published ones; adm2 
   await assertSucceeds(getDoc(doc(db, 'portal-noticias', 'pn-publicada')));
   await assertFails(getDoc(doc(db, 'portal-noticias', 'pn-rascunho')));
   await assertFails(getDoc(doc(dbAs('inativo'), 'portal-noticias', 'pn-publicada')));
-  await assertFails(getDoc(doc(dbAs('engenharia'), 'portal-noticias', 'pn-publicada')));
+  await assertFails(getDoc(doc(dbAs('frentista'), 'portal-noticias', 'pn-publicada')));
+  await assertSucceeds(getDoc(doc(dbAs('engenharia'), 'portal-noticias', 'pn-rascunho')));
   await assertSucceeds(getDocs(query(collection(db, 'portal-noticias'), where('status', '==', 'publicada'), where('excluidoEm', '==', null))));
   await assertFails(getDocs(collection(db, 'portal-noticias')));
   await assertFails(setDoc(doc(db, 'portal-noticias', 'pn-cliente'), { titulo: 'x', status: 'publicada' }));
@@ -337,7 +346,9 @@ storageTest('[storage] portal: adm2 sends contract files; clients of the CNPJ/CP
   await assertSucceeds(getBytes(ref(storageAs('socio'), caminho)));
   await assertFails(getBytes(ref(storageAs('outro'), caminho)));
   await assertFails(getBytes(ref(storageAs('inativo'), caminho)));
-  await assertFails(getBytes(ref(storageAs('engenharia'), caminho)));
+  await assertFails(getBytes(ref(storageAs('frentista'), caminho)));
+  await assertSucceeds(getBytes(ref(storageAs('engenharia'), caminho)));
+  await assertSucceeds(getBytes(ref(storageAs('escritorio'), caminho)));
   await assertFails(deleteObject(ref(storageAs('adm2'), caminho)));
   await assertFails(uploadBytes(ref(storageAs('adm2'), 'portal/obras/pob-a/fotos/pf-a/foto.pdf'), pdf, { contentType: 'application/pdf' }));
 });

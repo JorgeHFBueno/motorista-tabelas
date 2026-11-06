@@ -9,11 +9,11 @@ test('menu Engenharia disponibiliza Cronograma, Prazos e Obras para a credencial
   const home = source('src/pages/HomeDashboard.tsx');
 
   assert.match(menu, /label: 'Engenharia'/);
-  assert.match(menu, /acesso: 'engenharia'/);
+  assert.match(menu, /acesso: \['engenharia'\]/);
   // /engenharia/obras voltou em 2026-10-30 como a lista de obras-v2 (a conciliação antiga saiu em 2026-10-27).
   assert.match(menu, /label: 'Obras', to: '\/engenharia\/obras'/);
   assert.match(menu, /label: 'Cronograma', to: '\/engenharia\/cronograma'/);
-  assert.match(menu, /return temCredencial\(profile, item\.acesso\)/);
+  assert.match(menu, /return temCredencial\(profile, \.\.\.item\.acesso\)/);
   assert.match(menu, /CalendarMonthIcon/);
   assert.match(menu, /label: 'Prazos contratuais', to: '\/engenharia\/prazos'/);
   assert.match(home, /<Collapse in=\{expandedGroup === action\.label\}/);
@@ -22,14 +22,14 @@ test('menu Engenharia disponibiliza Cronograma, Prazos e Obras para a credencial
   assert.match(home, /fontSize: 18, fontWeight: 700/);
 });
 
-test('Home não tem menu lateral nem o card Portifólio, e a rota /portfolio continua existindo', () => {
+test('Home não tem menu lateral nem o card Portifólio, e a rota /portfolio saiu (2026-11-06)', () => {
   const menu = source('src/components/menuPrincipal.tsx');
   const home = source('src/pages/HomeDashboard.tsx');
   const app = source('src/App.tsx');
 
   assert.doesNotMatch(menu, /Portif/);
   assert.doesNotMatch(home, /<Drawer|home-sidebar-collapsed/);
-  assert.match(app, /path="portfolio" element=\{<PortifolioPage \/>\}/);
+  assert.doesNotMatch(app, /portfolio|Portifolio/);
 });
 
 test('menu lateral abre pelo cabeçalho fora da Home e preserva acessibilidade', () => {

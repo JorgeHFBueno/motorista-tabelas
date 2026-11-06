@@ -6,7 +6,6 @@ import {
   type FuncionarioDocument,
 } from '../src/services/authorizationProfileCore';
 import { resolveAuthorizationSession } from '../src/services/authorizationSession';
-import { isAdm2Authorized } from '../src/services/webAuthorization';
 import { temAlgumaCredencial, temCredencial } from '../src/services/credenciais';
 import { isKioskCredentialEligible } from '../src/services/kioskCredentialEligibility';
 
@@ -32,14 +31,14 @@ test('credentials: each WEB area checks its own and adm2 enters everything (cred
   const engenharia = await load(canonicalData(true, { engenharia: true }));
   const motorista = await load(canonicalData(true, { motorista: true }));
 
-  assert.equal(isAdm2Authorized(adm2), true);
+  assert.equal(temCredencial(adm2), true);
   assert.equal(temCredencial(adm2, 'escritorio'), true);
   assert.equal(temCredencial(adm2, 'engenharia'), true);
 
   assert.equal(temCredencial(escritorio, 'escritorio'), true);
   assert.equal(temCredencial(escritorio, 'engenharia'), false);
   assert.equal(temCredencial(escritorio), false, 'without accepted credentials, only adm2');
-  assert.equal(isAdm2Authorized(escritorio), false);
+  assert.equal(temCredencial(escritorio), false);
 
   assert.equal(temCredencial(engenharia, 'engenharia'), true);
   assert.equal(temCredencial(engenharia, 'escritorio'), false);
@@ -64,15 +63,39 @@ test('retr0 is exclusive: only who holds it enters /dev, not even adm2 (2026-10-
   assert.equal(temCredencial(inativo, 'retr0'), false);
 });
 
+test('area credentials of 2026-11-06: logistica, autor, mecanico, escritorio, engenharia; adm2 still enters all', async () => {
+  const adm2 = await load(canonicalData(true, { adm2: true }));
+  const logistica = await load(canonicalData(true, { logistica: true }));
+  const autor = await load(canonicalData(true, { autor: true }));
+  const mecanico = await load(canonicalData(true, { mecanico: true }));
+
+  assert.equal(logistica.logistica, true);
+  assert.equal(autor.autor, true);
+  assert.equal(temAlgumaCredencial(logistica), true);
+  assert.equal(temAlgumaCredencial(autor), true);
+
+  // Frota, Bombas and Logística accept mecanico and logistica; Combustível only logistica.
+  assert.equal(temCredencial(logistica, 'mecanico', 'logistica'), true);
+  assert.equal(temCredencial(mecanico, 'mecanico', 'logistica'), true);
+  assert.equal(temCredencial(mecanico, 'logistica'), false);
+  assert.equal(temCredencial(logistica), false, 'logistica is not adm2');
+
+  // The Manuscript: autor; its chat: retr0 or autor (adm2 enters through autor).
+  assert.equal(temCredencial(autor, 'autor'), true);
+  assert.equal(temCredencial(autor, 'retr0', 'autor'), true);
+  assert.equal(temCredencial(adm2, 'retr0', 'autor'), true);
+  assert.equal(temCredencial(logistica, 'autor'), false);
+});
+
 test('adm1, user, inactive and missing funcionarios have no WEB entry', async () => {
   const adm1 = await load(canonicalData(true, { adm1: true, user: true }));
   const inactive = await load(canonicalData(false, { adm2: true }));
   const missing = await load();
 
   assert.equal(temAlgumaCredencial(adm1), false, 'adm1 and user are no longer read');
-  assert.equal(isAdm2Authorized(adm1), false);
+  assert.equal(temCredencial(adm1), false);
   assert.equal(temAlgumaCredencial(inactive), false);
-  assert.equal(isAdm2Authorized(inactive), false);
+  assert.equal(temCredencial(inactive), false);
   assert.equal(temAlgumaCredencial(missing), false);
   assert.equal(missing.exists, false);
 });
@@ -84,9 +107,9 @@ test('legacy authorization never grants or overrides canonical permission', asyn
   const canonicalAllowed = await load(canonicalData(true, { adm2: true }));
 
   assert.equal(legacy.adm2, true);
-  assert.equal(isAdm2Authorized(noFuncionario), false);
-  assert.equal(isAdm2Authorized(canonicalDenied), false);
-  assert.equal(isAdm2Authorized(canonicalAllowed), true);
+  assert.equal(temCredencial(noFuncionario), false);
+  assert.equal(temCredencial(canonicalDenied), false);
+  assert.equal(temCredencial(canonicalAllowed), true);
 });
 
 test('reader uses Firebase Auth UID literally and preserves dots, underscores, and case', async () => {

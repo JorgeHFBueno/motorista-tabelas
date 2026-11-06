@@ -15,7 +15,8 @@ import {
   TextField,
 } from '@mui/material';
 import { loginDoUsuario, nomeDoUsuario, type AdminUser } from '../services/adminUsersApi';
-import { CREDENCIAIS, semCredenciais, type Credencial, type Credenciais } from '../services/credenciais';
+import { CREDENCIAIS, CREDENCIAIS_SO_ADM2, semCredenciais, type Credencial, type Credenciais } from '../services/credenciais';
+import { useAuth } from '../contexts/AuthContext';
 
 export type AdminUserEditValues = { ativo: boolean; credenciais: Credenciais };
 
@@ -32,6 +33,7 @@ interface AdminUserEditModalProps {
 export default function AdminUserEditModal({ open, user, onClose, onSave, saving, submitError }: AdminUserEditModalProps) {
   const [ativo, setAtivo] = useState(true);
   const [credenciais, setCredenciais] = useState<Credenciais>(semCredenciais());
+  const souAdm2 = useAuth().authorizationProfile?.adm2 === true;
 
   useEffect(() => {
     setAtivo(user?.funcionario?.ativo ?? true);
@@ -56,7 +58,7 @@ export default function AdminUserEditModal({ open, user, onClose, onSave, saving
               {CREDENCIAIS.map((c) => (
                 <FormControlLabel
                   key={c.chave}
-                  control={<Checkbox checked={credenciais[c.chave]} onChange={(e) => setCredenciais((prev) => ({ ...prev, [c.chave as Credencial]: e.target.checked }))} />}
+                  control={<Checkbox checked={credenciais[c.chave] === true} disabled={!souAdm2 && CREDENCIAIS_SO_ADM2.includes(c.chave)} onChange={(e) => setCredenciais((prev) => ({ ...prev, [c.chave as Credencial]: e.target.checked }))} />}
                   label={<><strong>{c.rotulo}</strong> — {c.descricao}</>}
                 />
               ))}

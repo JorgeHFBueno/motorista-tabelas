@@ -18,9 +18,10 @@ export interface AdminRequest extends Request {
   authorization?: AdminAuthorization;
 }
 
-// Firebase Auth proves identity; funcionarios/{auth.uid} grants access. Administrative endpoints: adm2 only.
-export function adminAuthMiddleware(req: AdminRequest, res: Response, next: NextFunction) {
-  return autorizar(req, res, next, []);
+// Firebase Auth proves identity; funcionarios/{auth.uid} grants access. Each group of endpoints accepts the
+// credentials of its WEB area; adm2 always enters (no credential: adm2 only).
+export function exigirCredenciais(...aceitas: Credencial[]) {
+  return (req: AdminRequest, res: Response, next: NextFunction) => autorizar(req, res, next, aceitas);
 }
 
 async function autorizar(

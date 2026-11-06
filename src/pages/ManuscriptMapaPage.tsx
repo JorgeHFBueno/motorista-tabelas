@@ -60,7 +60,7 @@ function Details({ graph, node, onSelect, onClose }: { graph: ManuscriptSystemGr
 export default function ManuscriptMapaPage() {
   const navigate = useNavigate();
   const { authorizationProfile } = useAuth();
-  const chatEnabled = temCredencial(authorizationProfile, 'retr0');
+  const chatEnabled = temCredencial(authorizationProfile, 'retr0', 'autor');
   const [params, setParams] = useSearchParams();
   const [graph, setGraph] = useState<ManuscriptSystemGraphResponse | null>(null);
   const [error, setError] = useState('');

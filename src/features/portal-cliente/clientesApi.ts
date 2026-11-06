@@ -3,8 +3,8 @@ import { collection, doc, getDocs, serverTimestamp, updateDoc } from 'firebase/f
 import { app, db } from '../../firebase';
 import { PORTAL_COLECOES, type ClientePortal } from './portalDominio';
 
-// Clientes do portal (users/{uid}), só adm2. Contrato: The Manuscript, 01_FIRESTORE/COLECOES/users.md.
-// A conta do login nasce e é ativada/desativada pela Function adminApi; nome e CNPJ/CPF o adm2 grava direto no Firestore.
+// Clientes do portal (users/{uid}), pela equipe: engenharia, escritorio ou adm2. Contrato: The Manuscript, 01_FIRESTORE/COLECOES/users.md.
+// A conta do login nasce e é ativada/desativada pela Function adminApi; nome e CNPJ/CPF a equipe grava direto no Firestore.
 
 const API_BASE = '/api/admin';
 
@@ -13,7 +13,7 @@ const MENSAGENS: Record<string, string> = {
   invalid_token: 'Sua sessão expirou. Faça login novamente.',
   expired_token: 'Sua sessão expirou. Faça login novamente.',
   authorization_unavailable: 'Não foi possível verificar sua autorização agora. Tente novamente.',
-  forbidden: 'Seu usuário não tem a credencial adm2 ativa para administrar clientes.',
+  forbidden: 'Seu usuário não tem a credencial engenharia ou escritório para administrar clientes.',
   missing_nome: 'Informe o nome.',
   missing_email: 'Informe um e-mail válido para o login.',
   invalid_password: 'A senha precisa ter ao menos 6 caracteres.',
@@ -66,6 +66,11 @@ export function criarCliente(input: NovoClienteInput) {
   return requestApi<{ uid: string; contaExistente: boolean }>('/clientes', { method: 'POST', body: JSON.stringify(input) }, 'Erro ao cadastrar o cliente.');
 }
 
+/** Senha nova do login do cliente; as sessões abertas dele são encerradas. */
+export async function definirSenhaCliente(uid: string, password: string): Promise<void> {
+  await requestApi(`/clientes/${encodeURIComponent(uid)}/senha`, { method: 'POST', body: JSON.stringify({ password }) }, 'Erro ao definir a senha.');
+}
+
 /** Ativa ou desativa o login; ao desativar, as sessões abertas do cliente são encerradas. */
 export async function definirClienteAtivo(uid: string, ativo: boolean): Promise<void> {
   await requestApi(`/clientes/${encodeURIComponent(uid)}`, { method: 'PATCH', body: JSON.stringify({ ativo }) }, 'Erro ao alterar a situação do cliente.');
@@ -100,7 +105,7 @@ export async function contarContratosPorDocumento(): Promise<Map<string, number>
   return contagem;
 }
 
-/** Nome e CNPJ/CPF, gravados pelo adm2 (as Rules permitem); os CNPJ/CPF definem quais contratos o cliente vê. */
+/** Nome e CNPJ/CPF, gravados pela equipe (as Rules permitem); os CNPJ/CPF definem quais contratos o cliente vê. */
 export function salvarCliente(uid: string, dados: { nome: string; documentos: string[] }) {
   return updateDoc(doc(db, PORTAL_COLECOES.clientes, uid), { nome: dados.nome, documentos: dados.documentos, atualizadoEm: serverTimestamp() });
 }

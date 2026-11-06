@@ -10,6 +10,8 @@ export interface AuthorizationProfile {
   mecanico: boolean;
   escritorio: boolean;
   engenharia: boolean;
+  logistica: boolean;
+  autor: boolean;
   retr0: boolean;
   id: string | null;
   nome: string | null;
@@ -34,6 +36,8 @@ export function emptyAuthorizationProfile(): AuthorizationProfile {
     mecanico: false,
     escritorio: false,
     engenharia: false,
+    logistica: false,
+    autor: false,
     retr0: false,
     id: null,
     nome: null,
@@ -62,6 +66,8 @@ export function createAuthorizationProfileReader(readFuncionario: ReadFuncionari
       mecanico: profiles.mecanico === true,
       escritorio: profiles.escritorio === true,
       engenharia: profiles.engenharia === true,
+      logistica: profiles.logistica === true,
+      autor: profiles.autor === true,
       retr0: profiles.retr0 === true,
       id: employeeDoc.id,
       nome: typeof data.nome === 'string' && data.nome.trim() ? data.nome.trim() : null,

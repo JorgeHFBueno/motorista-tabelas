@@ -10,7 +10,6 @@ import {
   Typography,
 } from '@mui/material';
 import { Link as RouterLink, useLocation, useNavigate } from 'react-router-dom';
-import CadastroBasicoForm from '../components/CadastroBasicoForm';
 
 export default function CadastrosPage() {
   const location = useLocation();
@@ -81,63 +80,6 @@ export default function CadastrosPage() {
                 </Button>
                 <Button variant="outlined" component={RouterLink} to="/cadastros/usuarios/kiosk">
                   Credenciais Kiosk
-                </Button>
-              </Stack>
-            </Stack>
-          </Paper>
-
-          <Paper elevation={1} sx={cardPaperSx}>
-            <Stack
-              direction={{ xs: 'column', sm: 'row' }}
-              justifyContent="space-between"
-              spacing={2}
-              mb={2}
-              alignItems={{ sm: 'center' }}
-            >
-              <Box>
-                <Typography variant="h6">Categorias</Typography>
-                <Typography variant="body2" color="text.secondary">
-                  Cadastro de categorias para manutencoes.
-                </Typography>
-              </Box>
-              <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} sx={cardActionStackSx}>
-                <CadastroBasicoForm
-                  buttonLabel="Cadastrar"
-                  dialogTitle="Adicionar categoria"
-                  collectionName="notas-categorias"
-                  successMessage="Categoria cadastrada com sucesso."
-                />
-                <Button variant="outlined" component={RouterLink} to="/cadastros/editar/categorias">
-                  Editar
-                </Button>
-              </Stack>
-            </Stack>
-          </Paper>
-
-          <Paper elevation={1} sx={cardPaperSx}>
-            <Stack
-              direction={{ xs: 'column', sm: 'row' }}
-              justifyContent="space-between"
-              spacing={2}
-              mb={2}
-              alignItems={{ sm: 'center' }}
-            >
-              <Box>
-                <Typography variant="h6">Fornecedores</Typography>
-                <Typography variant="body2" color="text.secondary">
-                  Cadastro de fornecedores para manutencoes.
-                </Typography>
-              </Box>
-              <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} sx={cardActionStackSx}>
-                <CadastroBasicoForm
-                  buttonLabel="Cadastrar"
-                  dialogTitle="Adicionar fornecedor"
-                  collectionName="notas-fornecedores"
-                  successMessage="Fornecedor cadastrado com sucesso."
-                  autoGenerateFornecedorNumero
-                />
-                <Button variant="outlined" component={RouterLink} to="/cadastros/editar/fornecedores">
-                  Editar
                 </Button>
               </Stack>
             </Stack>

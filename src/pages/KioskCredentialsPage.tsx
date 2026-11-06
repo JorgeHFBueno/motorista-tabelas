@@ -3,6 +3,7 @@ import { Link as RouterLink, Navigate } from 'react-router-dom';
 import { DataGrid, type GridColDef } from '@mui/x-data-grid';
 import { Alert, Box, Button, CircularProgress, Container, Dialog, DialogActions, DialogContent, DialogTitle, Paper, Snackbar, Stack, TextField, Typography } from '@mui/material';
 import { useAuth } from '../contexts/AuthContext';
+import { temCredencial } from '../services/credenciais';
 import { useAuthorizationProfile } from '../hooks/useAuthorizationProfile';
 import useAdminUsers from '../hooks/useAdminUsers';
 import KioskQrDialog from '../components/kiosk/KioskQrDialog';
@@ -30,7 +31,7 @@ export default function KioskCredentialsPage() {
   const [submitting, setSubmitting] = useState(false);
   const [qrCredential, setQrCredential] = useState<ProvisionKioskCredentialResponse | null>(null);
   const [snackbar, setSnackbar] = useState<string | null>(null);
-  const authorized = profile?.ativo === true && profile.adm2 === true;
+  const authorized = temCredencial(profile, 'escritorio');
   const employees = useMemo(() => kioskCredentialEligibleUsers(users), [users]);
 
   const loadStatuses = useCallback(async () => {

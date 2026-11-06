@@ -1,4 +1,4 @@
-// Client portal, team side (adm2). Contract: The Manuscript, 01_FIRESTORE/COLECOES/portal.md and users.md;
+// Client portal, team side (engenharia, escritorio or adm2; "adm2" in this area's comments means that team). Contract: The Manuscript, 01_FIRESTORE/COLECOES/portal.md and users.md;
 // screens: 03_APLICACAO_WEB/16_PORTAL_DO_CLIENTE.md. Pure domain: no Firebase here, so it can be tested in Node.
 
 export const PORTAL_COLECOES = {

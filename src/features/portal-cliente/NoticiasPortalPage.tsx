@@ -63,7 +63,7 @@ const tamanho = (bytes: number) => (bytes >= 1024 * 1024 ? `${(bytes / (1024 * 1
 
 type Edicao = { id: string; atual: Noticia | null };
 
-// Same ingestion as the 12-hour schedule (Function portalNoticiasAtualizar, adm2 only).
+// Same ingestion as the 12-hour schedule (Function portalNoticiasAtualizar: engenharia, escritorio or adm2).
 type ResumoColeta = { fontes: number; lidas: number; aceitas: number; criadas: number; atualizadas: number; ignoradas: number; rebaixadas: number };
 const buscarNoticiasExternas = httpsCallable<void, ResumoColeta>(functions, 'portalNoticiasAtualizar', { timeout: 320_000 });
 
@@ -337,7 +337,7 @@ export default function NoticiasPortalPage() {
     } catch (err) {
       console.error('Erro ao buscar notícias externas', err);
       const negado = (err as { code?: unknown })?.code === 'functions/permission-denied';
-      setSnackbar({ open: true, severity: 'error', message: negado ? 'Só adm2 pode buscar notícias externas.' : 'Não foi possível buscar as notícias externas. Tente novamente.' });
+      setSnackbar({ open: true, severity: 'error', message: negado ? 'Só engenharia, escritório ou adm2 podem buscar notícias externas.' : 'Não foi possível buscar as notícias externas. Tente novamente.' });
     } finally {
       setBuscandoExternas(false);
     }

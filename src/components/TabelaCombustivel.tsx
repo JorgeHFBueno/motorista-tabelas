@@ -9,6 +9,7 @@ import { useNavigate } from 'react-router-dom';
 import type { Registro } from '../types';
 import useCombustivel from '../hooks/useCombustivel';
 import { useAuth } from '../contexts/AuthContext';
+import { temCredencial } from '../services/credenciais';
 import * as XLSX from 'xlsx';
 import useOnlineStatus from '../hooks/useOnlineStatus';
 import { formatarHorimetroX10, formatarKm, formatarLitrosX10 } from '../utils/formatters';
@@ -72,7 +73,7 @@ export default function TabelaCombustivel() {
   const { data: rows, loading, remove } = useCombustivel();
   const principalGridApiRef = useGridApiRef();
   const navigate = useNavigate();
-  const { isAdmin } = useAuth();
+  const isAdmin = temCredencial(useAuth().authorizationProfile, 'logistica');
   const { isOnline } = useOnlineStatus();
 
   const [view, setView] = useState<View>('principal');

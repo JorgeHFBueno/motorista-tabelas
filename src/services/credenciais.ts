@@ -7,9 +7,11 @@ export const CREDENCIAIS = [
   { chave: 'adm2', rotulo: 'Adm2', descricao: 'Administração: entra em tudo, no app e na WEB' },
   { chave: 'motorista', rotulo: 'Motorista', descricao: 'Saída e Chegada no app; aparece na lista de motoristas' },
   { chave: 'frentista', rotulo: 'Frentista', descricao: 'Combustível no app e no Kiosk' },
-  { chave: 'mecanico', rotulo: 'Mecânico', descricao: 'Checklist no app e na WEB (/checklist)' },
-  { chave: 'escritorio', rotulo: 'Escritório', descricao: 'Friday, na WEB' },
-  { chave: 'engenharia', rotulo: 'Engenharia', descricao: 'Telas de Engenharia, na WEB' },
+  { chave: 'mecanico', rotulo: 'Mecânico', descricao: 'Checklist no app e na WEB; Frota, Bombas e Logística, na WEB' },
+  { chave: 'escritorio', rotulo: 'Escritório', descricao: 'Friday, Cadastros e Portal do cliente, na WEB' },
+  { chave: 'engenharia', rotulo: 'Engenharia', descricao: 'Engenharia e Portal do cliente, na WEB' },
+  { chave: 'logistica', rotulo: 'Logística', descricao: 'Frota, Combustível, Bombas e Logística, na WEB' },
+  { chave: 'autor', rotulo: 'Autor', descricao: 'The Manuscript e o chat do Manuscript, na WEB' },
   { chave: 'retr0', rotulo: 'Retr0', descricao: 'Área DEV (/dev), na WEB; nem o adm2 entra sem ela' },
 ] as const;
 
@@ -21,6 +23,10 @@ export const semCredenciais = (): Credenciais =>
 
 // Credenciais que o adm2 não ganha de graça: só quem as tem entra (retr0: área DEV, decisão do responsável em 2026-10-30).
 export const CREDENCIAIS_EXCLUSIVAS: readonly Credencial[] = ['retr0'];
+
+// Credenciais que só o adm2 dá ou tira; conta que tem uma delas só o adm2 muda (Cadastros também abre para escritorio).
+// A adminApi confere o mesmo (functions/credenciais.ts).
+export const CREDENCIAIS_SO_ADM2: readonly Credencial[] = ['adm2', ...CREDENCIAIS_EXCLUSIVAS];
 
 /** Funcionário ativo com uma das credenciais aceitas (o adm2 entra, salvo nas exclusivas; sem aceitas, só o adm2). */
 export function temCredencial(profile: AuthorizationProfile | null, ...aceitas: Credencial[]): boolean {

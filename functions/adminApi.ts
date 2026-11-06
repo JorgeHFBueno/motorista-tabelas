@@ -4,8 +4,8 @@ import type { UserRecord } from 'firebase-admin/auth';
 import { FieldValue, Timestamp } from 'firebase-admin/firestore';
 
 import { adminAuth, db } from './firebaseAdmin.js';
-import { adminAuthMiddleware, AdminRequest } from './adminAuth.js';
-import { CREDENCIAIS, credenciaisDe, lerCredenciais, migrarPerfis, type Credenciais } from './credenciais.js';
+import { exigirCredenciais, AdminRequest } from './adminAuth.js';
+import { CREDENCIAIS, credenciaisDe, lerCredenciais, mesclarCredenciais, migrarPerfis, temCredencialSoAdm2, type Credencial, type Credenciais } from './credenciais.js';
 import { lerNovoCliente } from './portalClientes.js';
 
 // Users administration of the WEB (Cadastros), adm2 only. Contract: Manuscript funcionarios.md ("Credenciais",
@@ -20,8 +20,14 @@ const clientsCollection = db.collection('users');
 adminApp.use(cors({ origin: true }));
 adminApp.use(express.json());
 
-// Protect all admin routes with Firebase Auth plus funcionarios/{uid}.perfis.adm2.
-adminApp.use('/api/admin', adminAuthMiddleware);
+// Firebase Auth plus the credentials of each WEB area in funcionarios/{uid}.perfis, by the first segment after
+// /api/admin (adm2 always enters): users (Cadastros) = escritorio; clientes (Portal do cliente) = engenharia,
+// escritorio; anything else (maintenance) = adm2 only.
+const CREDENCIAIS_DA_ROTA = new Map<string, Credencial[]>([['users', ['escritorio']], ['clientes', ['engenharia', 'escritorio']]]);
+adminApp.use('/api/admin', (req: AdminRequest, res, next) =>
+  exigirCredenciais(...(CREDENCIAIS_DA_ROTA.get(req.path.split('/')[1]) ?? []))(req, res, next));
+
+const ehAdm2 = (req: AdminRequest) => req.authorization?.credenciais.adm2 === true;
 
 const PHONE_LOGIN_DOMAIN = '@example.com';
 
@@ -87,6 +93,7 @@ adminApp.post('/api/admin/users/register', async (req: AdminRequest, res) => {
   if (!normalizedEmail) { res.status(400).json({ error: 'missing_email' }); return; }
   if (!passwordValue) { res.status(400).json({ error: 'missing_password' }); return; }
   if (!perfis || !algumaCredencial(perfis)) { res.status(400).json({ error: 'invalid_credenciais' }); return; }
+  if (!ehAdm2(req) && temCredencialSoAdm2(perfis)) { res.status(403).json({ error: 'forbidden_credencial' }); return; }
 
   let createdUid: string | null = null;
   let reusedExistingAuth = false;
@@ -151,15 +158,21 @@ adminApp.post('/api/admin/users/register', async (req: AdminRequest, res) => {
 adminApp.patch('/api/admin/users/:uid', async (req: AdminRequest, res) => {
   const { uid } = req.params;
   const { ativo, credenciais } = req.body ?? {};
-  const perfis = lerCredenciais(credenciais);
   if (typeof ativo !== 'boolean') { res.status(400).json({ error: 'invalid_ativo' }); return; }
-  if (!perfis) { res.status(400).json({ error: 'invalid_credenciais' }); return; }
-  if (uid === req.user?.uid && (!ativo || !perfis.adm2)) { res.status(400).json({ error: 'cannot_remove_own_adm2' }); return; }
+  if (!lerCredenciais(credenciais)) { res.status(400).json({ error: 'invalid_credenciais' }); return; }
 
   try {
     const employeeRef = employeesCollection.doc(uid);
     const employee = await employeeRef.get();
     if (!employee.exists) { res.status(404).json({ error: 'employee_not_found' }); return; }
+    // Credentials left out of the request keep their current value.
+    const perfis = mesclarCredenciais(employee.get('perfis'), credenciais)!;
+    if (uid === req.user?.uid && (!ativo || !(ehAdm2(req) ? perfis.adm2 : perfis.escritorio))) {
+      res.status(400).json({ error: ehAdm2(req) ? 'cannot_remove_own_adm2' : 'cannot_remove_own_access' });
+      return;
+    }
+    if (!ehAdm2(req) && temCredencialSoAdm2(credenciaisDe(employee.get('perfis')))) { res.status(403).json({ error: 'protected_account' }); return; }
+    if (!ehAdm2(req) && temCredencialSoAdm2(perfis)) { res.status(403).json({ error: 'forbidden_credencial' }); return; }
     await adminAuth.updateUser(uid, { disabled: !ativo });
     await employeeRef.update({
       ativo,
@@ -174,12 +187,17 @@ adminApp.patch('/api/admin/users/:uid', async (req: AdminRequest, res) => {
   }
 });
 
-// POST /api/admin/users/:uid/senha - new password set by adm2 (there is no "forgot my password"); ends every session.
+// POST /api/admin/users/:uid/senha - new password set in Cadastros (there is no "forgot my password"); ends every
+// session. Only adm2 sets the password of an account holding adm2 or retr0.
 adminApp.post('/api/admin/users/:uid/senha', async (req: AdminRequest, res) => {
   const { uid } = req.params;
   const password = typeof req.body?.password === 'string' ? req.body.password.trim() : '';
   if (password.length < 6) { res.status(400).json({ error: 'invalid_password' }); return; }
   try {
+    if (!ehAdm2(req) && temCredencialSoAdm2(credenciaisDe((await employeesCollection.doc(uid).get()).get('perfis')))) {
+      res.status(403).json({ error: 'protected_account' });
+      return;
+    }
     await adminAuth.updateUser(uid, { password });
     await adminAuth.revokeRefreshTokens(uid);
     res.json({ ok: true });
@@ -266,7 +284,7 @@ adminApp.post('/api/admin/clientes', async (req: AdminRequest, res) => {
 });
 
 // PATCH /api/admin/clientes/:uid - activates or deactivates a client: Auth disabled plus users.ativo; deactivating
-// ends every open session. Name and CNPJ/CPF are written by adm2 straight in Firestore (the Rules allow it).
+// ends every open session. Name and CNPJ/CPF are written by the team (engenharia, escritorio, adm2) straight in Firestore (the Rules allow it).
 adminApp.patch('/api/admin/clientes/:uid', async (req: AdminRequest, res) => {
   const { uid } = req.params;
   const { ativo } = req.body ?? {};
@@ -283,6 +301,25 @@ adminApp.patch('/api/admin/clientes/:uid', async (req: AdminRequest, res) => {
   } catch (err: any) {
     console.error('Failed to update client', err);
     res.status(err?.code === 'auth/user-not-found' ? 404 : 400).json({ error: err?.code ?? err?.message ?? 'update_client_failed' });
+  }
+});
+
+// POST /api/admin/clientes/:uid/senha - new password of a client portal login (Portal do cliente: engenharia,
+// escritorio, adm2); ends every open session. Only client accounts: an employee's password is set in Cadastros.
+adminApp.post('/api/admin/clientes/:uid/senha', async (req: AdminRequest, res) => {
+  const { uid } = req.params;
+  const password = typeof req.body?.password === 'string' ? req.body.password.trim() : '';
+  if (password.length < 6) { res.status(400).json({ error: 'invalid_password' }); return; }
+  try {
+    const [client, employee] = await Promise.all([clientsCollection.doc(uid).get(), employeesCollection.doc(uid).get()]);
+    if (!client.exists) { res.status(404).json({ error: 'client_not_found' }); return; }
+    if (employee.exists) { res.status(409).json({ error: 'employee_account' }); return; }
+    await adminAuth.updateUser(uid, { password });
+    await adminAuth.revokeRefreshTokens(uid);
+    res.json({ ok: true });
+  } catch (err: any) {
+    console.error('Failed to set client password', err);
+    res.status(err?.code === 'auth/user-not-found' ? 404 : 400).json({ error: err?.code ?? 'set_password_failed' });
   }
 });
 

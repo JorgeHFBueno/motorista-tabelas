@@ -13,7 +13,6 @@ import {
   resolveAuthorizationSession,
   type AuthorizationSessionState,
 } from '../services/authorizationSession';
-import { isAdm2Authorized } from '../services/webAuthorization';
 
 interface AuthContextType {
   currentUser: User | null;
@@ -21,7 +20,6 @@ interface AuthContextType {
   authorizationLoading: boolean;
   authorizationProfile: AuthorizationProfile | null;
   authorizationError: Error | null;
-  isAdmin: boolean;
   signIn: (email: string, password: string) => Promise<void>;
   signOut: () => Promise<void>;
   // Lê de novo funcionarios/{uid} (ex.: depois de trocar o nome em Meu perfil).
@@ -34,7 +32,6 @@ const AuthContext = createContext<AuthContextType>({
   authorizationLoading: true,
   authorizationProfile: null,
   authorizationError: null,
-  isAdmin: false,
   signIn: async () => {},
   signOut: async () => {},
   refreshAuthorizationProfile: async () => {},
@@ -113,7 +110,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     authorizationLoading: resolvedAuthorization.loading,
     authorizationProfile: resolvedAuthorization.profile,
     authorizationError: resolvedAuthorization.error,
-    isAdmin: isAdm2Authorized(resolvedAuthorization.profile),
     signIn: async (email, password) => {
       await signInWithEmailAndPassword(auth, email, password);
     },
