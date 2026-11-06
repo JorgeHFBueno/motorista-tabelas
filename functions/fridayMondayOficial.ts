@@ -1,5 +1,5 @@
 // Reimportação do monday num quadro oficial ligado a um cadastro existente (ex.: GESTÃO DE OBRAS → obras-v2).
-// Decisão de 2026-10-29: o monday continua sendo editado por um tempo e vale nos conflitos. Um item (ou subitem) que
+// Decisão de 2026-10-29: na reimportação, o monday vale nos conflitos. Um item (ou subitem) que
 // mudou no monday desde a última importação tem as colunas vindas do monday regravadas, mesmo que tenha sido editado no
 // Friday; as ligadas vão para o cadastro pela mesma validação da tela. Funções puras, sem Firestore: o plano serve à
 // prévia (nada é gravado) e à gravação. Contrato: The Manuscript, 03_APLICACAO_WEB/13_FRIDAY_GESTAO_INTERNA.md e
