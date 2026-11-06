@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {
   caminhoAnexo, comCopias, manterCopias, mimeDoNome, pendentesDoMonday,
   configDe, converterFormulaMonday, dataLocal, decidirItem, mesclarOpcoesLista, mesclarRotulosStatus, mesclarValores,
-  pessoasDosValores, pessoasQueFaltam, prefixosBusca, quadrosDeSubitens, resolverLigacoes, tipoFriday, valorDe, valoresDoItem,
+  acessoDoQuadro, pessoasDosValores, pessoasQueFaltam, prefixosBusca, quadrosDeSubitens, resolverLigacoes, tipoFriday, valorDe, valoresDoItem,
 } from '../lib/fridayMondayConverter.js';
 
 const statusCol = {
@@ -130,4 +130,13 @@ test('arquivos do monday: pendentes, troca pela cópia, reimportação mantém a
   assert.equal(caminhoAnexo(1, 2, 3, 'a/b\\c.pdf'), 'friday/1/2/3-a_b_c.pdf');
   assert.equal(mimeDoNome('Edital.PDF'), 'application/pdf');
   assert.equal(mimeDoNome('sem-extensao'), null);
+});
+
+test('acesso do quadro no monday: tipo, membros (donos marcados), equipes e toda a conta', () => {
+  assert.deepEqual(acessoDoQuadro({
+    board_kind: 'private', owners: [{ id: 2 }],
+    subscribers: [{ id: 2, name: 'Bruno' }, { id: 1, name: 'Ana' }],
+    team_subscribers: [{ id: -1, name: 'Everyone' }, { id: 9, name: 'RH' }],
+  }), { tipo: 'private', membros: [{ id: '1', nome: 'Ana', dono: false }, { id: '2', nome: 'Bruno', dono: true }], equipes: ['RH'], todaConta: true });
+  assert.deepEqual(acessoDoQuadro({}), { tipo: 'public', membros: [], equipes: [], todaConta: false });
 });

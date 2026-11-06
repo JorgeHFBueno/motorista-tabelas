@@ -4,7 +4,7 @@ import type { Query } from 'firebase-admin/firestore';
 import { db } from './firebaseAdmin.js';
 import { mondayApiToken, MONDAY_API_VERSION } from './mondayClient.js';
 import {
-  configDe, converterFormulaMonday, dataLocal, decidirItem, json, LARGURA_PADRAO, mesclarOpcoesLista, mesclarRotulosStatus,
+  acessoDoQuadro, configDe, converterFormulaMonday, dataLocal, decidirItem, json, LARGURA_PADRAO, mesclarOpcoesLista, mesclarRotulosStatus,
   mesclarValores, novoId, ordenarGrupos, pessoasDosValores, pessoasQueFaltam, prefixosBusca, quadrosDeSubitens, resolverLigacoes, tipoFriday, tituloColuna,
   valoresDoItem, type Alvo, type ColunaImportada, type MCol, type MItem,
 } from './fridayMondayConverter.js';
@@ -632,6 +632,16 @@ async function inventario(token: string) {
       if (d.folders.length < 100) break;
     }
   } catch (e) { logger.warn('friday-monday:pastas', { mensagem: String(e) }); } // só nomes de pasta na tela
+  // Quem vê cada quadro no monday (só para mostrar; base das permissões por quadro). Consulta à parte: se o monday
+  // recusar, a lista sai sem o acesso.
+  const acessos = new Map<string, ReturnType<typeof acessoDoQuadro>>();
+  try {
+    for (let page = 1; ; page++) {
+      const d = await gql(token, 'query ($p: Int!) { boards(limit: 50, page: $p, state: active) { id board_kind owners { id } subscribers { id name } team_subscribers { id name } } }', { p: page });
+      for (const b of d.boards) acessos.set(String(b.id), acessoDoQuadro(b));
+      if (d.boards.length < 50) break;
+    }
+  } catch (e) { logger.warn('friday-monday:acesso', { mensagem: String(e) }); }
   const importacoes = new Map((await colecao('importacoes').get()).docs.map(d => [d.id, d.data()]));
   // Quadros do Friday que viraram cadastro oficial: a tela atualiza só com prévia (fora do "Puxar o que falta").
   const oficiais = new Set((await colecao('quadros').where('cadastro', '!=', null).get()).docs.map(d => String(d.data().origem_id ?? '')).filter(Boolean));
@@ -642,6 +652,7 @@ async function inventario(token: string) {
       id: String(b.id), nome: b.name, itens: b.items_count ?? 0, monday_atualizado_em: b.updated_at ?? null,
       area: b.workspace?.name ?? 'Principal', pasta: b.board_folder_id ? pastas.get(String(b.board_folder_id)) ?? null : null,
       situacao, importado_em: imp?.importado_em ?? null, quadro_id: imp?.quadro_id ?? null, mensagem: imp?.mensagem ?? null, oficial: oficiais.has(String(b.id)),
+      acesso: acessos.get(String(b.id)) ?? null,
     };
   }).sort((a, b) => a.area.localeCompare(b.area) || String(a.pasta ?? '').localeCompare(String(b.pasta ?? '')) || a.nome.localeCompare(b.nome));
   return { quadros, gerado_em: dataLocal() };

@@ -333,3 +333,24 @@ export const ordenarGrupos = <T extends { position: string }>(grupos: T[]) => [.
 
 /** Ids dos quadros de subitens apontados pela coluna "subtasks" do quadro. */
 export const quadrosDeSubitens = (colunas: MCol[]) => colunas.filter(c => c.type === 'subtasks').flatMap(c => ((json(c.settings_str)?.boardIds ?? []) as unknown[]).map(String));
+
+// ---------------------------------------------------------------- acesso do quadro no monday
+export type AcessoMonday = {
+  /** public: toda a conta vê; private: só os membros; share: membros e convidados de fora. */
+  tipo: 'public' | 'private' | 'share';
+  membros: { id: string; nome: string; dono: boolean }[];
+  /** Equipes do monday inscritas no quadro (sem equivalente no Friday). */
+  equipes: string[];
+  /** A equipe "toda a conta" (id -1) está inscrita: na prática, aberto a todos. */
+  todaConta: boolean;
+};
+/** Quem vê o quadro no monday (board_kind, owners, subscribers, team_subscribers), só para mostrar. */
+export function acessoDoQuadro(b: AnyRecord): AcessoMonday {
+  const tipo = b.board_kind === 'private' || b.board_kind === 'share' ? b.board_kind : 'public';
+  const donos = new Set(((b.owners ?? []) as AnyRecord[]).map(o => String(o?.id)));
+  const membros = ((b.subscribers ?? []) as AnyRecord[]).filter(s => s?.id != null)
+    .map(s => ({ id: String(s.id), nome: String(s.name ?? ''), dono: donos.has(String(s.id)) }))
+    .sort((x, y) => x.nome.localeCompare(y.nome));
+  const times = (b.team_subscribers ?? []) as AnyRecord[];
+  return { tipo, membros, equipes: times.filter(t => String(t?.id) !== '-1').map(t => String(t?.name ?? '')).sort(), todaConta: times.some(t => String(t?.id) === '-1') };
+}
