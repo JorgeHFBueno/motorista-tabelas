@@ -75,7 +75,7 @@
 .devtoys .dt-menubar {
   position: absolute;
   inset: 0 0 auto;
-  height: calc(var(--dt-e) * 40px); /* o dobro da barra do System 6 (decisão do responsável) */
+  height: calc(var(--dt-e) * 26px); /* mais alta que a do System 6 (20), mais baixa que a de antes (40): decisões do responsável */
   display: flex;
   align-items: stretch;
   padding: 0 calc(var(--dt-e) * 10px);
@@ -136,7 +136,7 @@
 /* ---- ícones do Desktop (à direita, como os discos do Finder) ---- */
 .devtoys .dt-icones {
   position: absolute;
-  top: calc(var(--dt-e) * 56px);
+  top: calc(var(--dt-e) * 42px);
   right: calc(var(--dt-e) * 16px);
   bottom: calc(var(--dt-e) * 16px);
   display: flex;
@@ -1332,6 +1332,85 @@
 .devtoys .dt-regras-tabuleiro .dt-xz-anel {
   inset: 1px;
   border-width: 1px;
+}
+
+/* ---- Carteira ---- */
+.devtoys .dt-carteira {
+  font-size: calc(var(--dt-e) * 13px);
+}
+
+.devtoys .dt-carteira p {
+  margin: 0 0 calc(var(--dt-e) * 6px);
+}
+
+.devtoys .dt-carteira-topo {
+  display: flex;
+  align-items: flex-end;
+  gap: calc(var(--dt-e) * 16px);
+  margin-bottom: calc(var(--dt-e) * 8px);
+}
+
+.devtoys .dt-carteira-total {
+  display: flex;
+  flex-direction: column;
+  font-size: calc(var(--dt-e) * 28px);
+  font-weight: bold;
+  line-height: 1.1;
+}
+
+.devtoys .dt-carteira h3 {
+  width: max-content;
+  margin: calc(var(--dt-e) * 12px) 0 calc(var(--dt-e) * 6px);
+  padding: 0 calc(var(--dt-e) * 4px);
+  font-size: calc(var(--dt-e) * 13px);
+  color: var(--dt-papel);
+  background: var(--dt-tinta);
+  text-shadow: none;
+}
+
+.devtoys .dt-carteira-resumo {
+  display: flex;
+  flex-wrap: wrap;
+  gap: calc(var(--dt-e) * 16px);
+}
+
+.devtoys .dt-carteira table {
+  width: 100%;
+  margin-bottom: calc(var(--dt-e) * 8px);
+  border-collapse: collapse;
+  font-size: calc(var(--dt-e) * 11px);
+}
+
+.devtoys .dt-carteira th {
+  color: var(--dt-apagado);
+  text-align: left;
+  font-weight: normal;
+}
+
+.devtoys .dt-carteira th,
+.devtoys .dt-carteira td {
+  padding: calc(var(--dt-e) * 2px) calc(var(--dt-e) * 6px);
+  border-bottom: 1px dotted var(--dt-apagado);
+  white-space: nowrap;
+}
+
+.devtoys .dt-carteira td:nth-child(3) {
+  white-space: normal;
+}
+
+.devtoys .dt-carteira th:last-child,
+.devtoys .dt-carteira td:last-child {
+  text-align: right;
+  font-weight: bold;
+}
+
+.devtoys .dt-carteira-menos {
+  color: var(--dt-vermelho);
+}
+
+/* sentar e levantar no poker: as fichas só mudam de lugar */
+.devtoys .dt-carteira-transferencia {
+  color: var(--dt-apagado);
 }
 
 /* ---- Placar de Lideres ---- */

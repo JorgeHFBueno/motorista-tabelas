@@ -1,4 +1,5 @@
-import { MESADA, alterarCarteira, hojeEmBrasilia, pegarMesada, pilhas, podeMesada, type Carteira } from './carteira';
+import { MESADA, alterarCarteira, hojeEmBrasilia, lerCarteira, pegarMesada, pilhas, podeMesada, type Carteira } from './carteira';
+import { anotar } from './historico';
 
 // Fichas desenhadas em pilhas, uma por valor (100, 50, 10, 5), vistas de lado, em pixels. Cada pilha mostra até
 // MAX_PILHA fichas; acima disso, um "+" no topo (o número exato fica no texto ao lado). As pilhas encolhem juntas
@@ -58,10 +59,15 @@ export function BarraDeFichas({ fichas, naMesa }: { fichas: number; naMesa: numb
 /** Sem fichas para a menor aposta: a mesada do dia, ou o aviso de que ela já foi. */
 export function SemFichas({ carteira }: { carteira: Carteira }) {
   if (!podeMesada(carteira, hojeEmBrasilia())) return <span>SEM FICHAS. MESADA DE NOVO AMANHA</span>;
+  const pegar = () => {
+    const antes = lerCarteira().fichas;
+    const depois = alterarCarteira((c) => pegarMesada(c, hojeEmBrasilia())).fichas;
+    if (depois > antes) anotar('MESADA', depois - antes, 'MESADA DO DIA');
+  };
   return (
     <>
       <span>SEM FICHAS.</span>
-      <button type="button" data-principal onClick={() => alterarCarteira((c) => pegarMesada(c, hojeEmBrasilia()))}>
+      <button type="button" data-principal onClick={pegar}>
         [Mesada de {MESADA}]
       </button>
     </>

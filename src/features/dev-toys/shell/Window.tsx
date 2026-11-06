@@ -14,7 +14,7 @@ type Props = {
   children: ReactNode;
 };
 
-const ALTURA_MENU = 40 * ESCALA;
+const ALTURA_MENU = 26 * ESCALA;
 const SOBRA = 48 * ESCALA; // pedaço da janela que sempre fica na tela para poder puxá-la de volta
 
 // Janela no estilo System 6: arrasta pela barra de título listrada e fecha pela caixinha da esquerda.

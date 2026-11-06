@@ -2,15 +2,16 @@ import { useEffect, useRef, useState, type KeyboardEvent } from 'react';
 import { rngDe } from '../crawler/sim';
 import { alterarCarteira, lerCarteira, mover, semFichas } from '../fichas/carteira';
 import { BarraDeFichas, SemFichas } from '../fichas/FichasView';
+import { anotar } from '../fichas/historico';
 import { useCarteira, useOpcoesTeclado } from '../fichas/hooks';
 import { gravarPlacar, lerPlacar, registrarJogada, type PlacarJogo } from '../fichas/jogos';
-import { NIVEIS, escolherLance } from './bot';
+import { ALEATORIA, NIVEIS, escolherLance, retornoDe, sortearNivel } from './bot';
 import { PecaView } from './PecaView';
 import { INICIAL, aplicar, chave, corDe, deFen, emXeque, fimDe, legais, nomeCasa, type Fim, type Lance, type Posicao } from './regras';
 
 // Xadrez contra o bot, com as fichas da carteira: você joga de brancas. Cada nível tem a sua aposta (FACIL 10,
 // MEDIO 50, DIFICIL 100); vitória paga o dobro, empate devolve, derrota (ou desistir, ou fechar a janela no meio)
-// perde. O peão que chega ao fim vira dama. Teclado: setas andam pelo tabuleiro e Enter escolhe a peça e a casa.
+// perde. ALEATORIA sorteia um dos três às cegas (só aparece no fim): entra de graça e a vitória paga 30. O peão que chega ao fim vira dama. Teclado: setas andam pelo tabuleiro e Enter escolhe a peça e a casa.
 const CHAVE = 'ledur:dev-xadrez';
 const PENSAR_MS = 250;
 
@@ -25,9 +26,12 @@ const FRASE_FIM: Record<Fim, string> = {
 };
 
 type Resultado = 'ganhou' | 'perdeu' | 'empate';
-type Partida = { pos: Posicao; historico: string[]; ultimo: Lance | null; aposta: number; nivel: number; fim: Fim | 'desistiu' | null; resultado: Resultado | null };
-
-const retornoDe = (r: Resultado, aposta: number) => (r === 'ganhou' ? 2 * aposta : r === 'empate' ? aposta : 0);
+/** `nivel`: o do bot (na ALEATORIA, o sorteado); `aleatoria`: entrou pela ALEATORIA. */
+type Partida = { pos: Posicao; historico: string[]; ultimo: Lance | null; aposta: number; nivel: number; aleatoria: boolean; fim: Fim | 'desistiu' | null; resultado: Resultado | null };
+/** As opções: os três níveis e, por último, a ALEATORIA. */
+const OPCOES = [...NIVEIS, ALEATORIA];
+const I_ALEATORIA = NIVEIS.length;
+const nomeDaPartida = (pt: Partida) => `${NIVEIS[pt.nivel].nome}${pt.aleatoria ? ' (ALEATORIA)' : ''}`;
 
 /** Peças que cada lado já perdeu, comparando com o começo. */
 function perdidas(tab: string[]) {
@@ -41,7 +45,9 @@ function perdidas(tab: string[]) {
 
 export default function XadrezToy() {
   const carteira = useCarteira();
-  const [nivel, setNivel] = useState(0);
+  const [escolha, setNivel] = useState(0);
+  // nível que não cabe na carteira cai na ALEATORIA (de graça)
+  const nivel = OPCOES[escolha].aposta > carteira.fichas ? I_ALEATORIA : escolha;
   const [partida, setPartida] = useState<Partida | null>(null);
   const [selecionada, setSelecionada] = useState<number | null>(null);
   const tabuleiro = useRef<HTMLDivElement>(null);
@@ -56,24 +62,29 @@ export default function XadrezToy() {
     // mate: perde quem está na vez (sem saída); os outros fins são empate
     const resultado: Resultado | null = !fim ? null : fim === 'mate' ? (pos.vez === 'p' ? 'ganhou' : 'perdeu') : 'empate';
     if (resultado) {
-      alterarCarteira((c) => mover(c, retornoDe(resultado, pt.aposta)));
-      guardar(registrarJogada(lerPlacar(CHAVE), pt.aposta, retornoDe(resultado, pt.aposta)));
+      const volta = retornoDe(resultado, pt.aposta, pt.aleatoria);
+      alterarCarteira((c) => mover(c, volta));
+      guardar(registrarJogada(lerPlacar(CHAVE), pt.aposta, volta));
+      anotar('XADREZ', volta - pt.aposta, `${nomeDaPartida(pt)} . ${resultado.toUpperCase()}`);
     }
     return { ...pt, pos, historico, ultimo: m, fim, resultado };
   };
 
   const comecar = () => {
-    const aposta = NIVEIS[nivel].aposta;
+    const aleatoria = nivel === I_ALEATORIA;
+    const aposta = OPCOES[nivel].aposta;
     if (lerCarteira().fichas < aposta) return;
-    alterarCarteira((c) => mover(c, -aposta));
+    if (aposta) alterarCarteira((c) => mover(c, -aposta));
     const pos = deFen(INICIAL);
-    setPartida({ pos, historico: [chave(pos)], ultimo: null, aposta, nivel, fim: null, resultado: null });
+    const doBot = aleatoria ? sortearNivel(Math.random) : nivel;
+    setPartida({ pos, historico: [chave(pos)], ultimo: null, aposta, nivel: doBot, aleatoria, fim: null, resultado: null });
     setSelecionada(null);
     window.setTimeout(() => tabuleiro.current?.querySelector<HTMLButtonElement>('[data-casa="52"]')?.focus(), 0);
   };
   const desistir = () => {
     if (!partida || partida.resultado) return;
     guardar(registrarJogada(lerPlacar(CHAVE), partida.aposta, 0));
+    anotar('XADREZ', -partida.aposta, `${nomeDaPartida(partida)} . DESISTIU`);
     setPartida({ ...partida, fim: 'desistiu', resultado: 'perdeu' });
   };
 
@@ -116,9 +127,12 @@ export default function XadrezToy() {
   const pos = partida?.pos ?? deFen(INICIAL);
   const xeque = partida && !partida.resultado && emXeque(pos) ? pos.tab.indexOf(pos.vez === 'b' ? 'K' : 'k') : -1;
   const [perdeuBranca, perdeuPreta] = perdidas(pos.tab);
+  // sem fichas, ainda dá para jogar a ALEATORIA (de graça) ou pegar a mesada
   const quebrado = (!partida || !!partida.resultado) && semFichas(carteira);
   const { raiz, teclas } = useOpcoesTeclado(`${partida ? (partida.resultado ? 'fim' : 'jogo') : 'nada'}-${quebrado}`);
-  const ganho = partida?.resultado ? retornoDe(partida.resultado, partida.aposta) - partida.aposta : 0;
+  const ganho = partida?.resultado ? retornoDe(partida.resultado, partida.aposta, partida.aleatoria) - partida.aposta : 0;
+  // na ALEATORIA, o nível fica escondido até o fim
+  const nomeBot = !partida ? '' : partida.aleatoria && !partida.resultado ? '???' : nomeDaPartida(partida);
 
   const aviso = !partida
     ? 'ESCOLHA O NIVEL'
@@ -158,7 +172,7 @@ export default function XadrezToy() {
           })}
         </div>
         <div className="dt-xz-lado">
-          <p className="dt-jogo-legenda">BOT {partida ? NIVEIS[partida.nivel].nome : ''}</p>
+          <p className="dt-jogo-legenda">BOT {nomeBot}</p>
           <div className="dt-xz-perdidas">{perdeuBranca.map((x, i) => <PecaView key={i} p={x} className="dt-xz-mini" />)}</div>
           <p className="dt-xz-aviso" aria-live="polite">{aviso}</p>
           <div className="dt-xz-perdidas">{perdeuPreta.map((x, i) => <PecaView key={i} p={x} className="dt-xz-mini" />)}</div>
@@ -166,11 +180,10 @@ export default function XadrezToy() {
           <div className="dt-jogo-botoes dt-xz-botoes" data-opcoes>
             {partida && !partida.resultado ? (
               <button type="button" onClick={desistir}>[Desistir]</button>
-            ) : quebrado ? (
-              <SemFichas carteira={carteira} />
             ) : (
               <>
-                {NIVEIS.map((n, i) => (
+                {quebrado && <SemFichas carteira={carteira} />}
+                {OPCOES.map((n, i) => (
                   <button
                     key={n.nome}
                     type="button"
@@ -179,10 +192,10 @@ export default function XadrezToy() {
                     disabled={n.aposta > carteira.fichas}
                     onClick={() => setNivel(i)}
                   >
-                    [{n.nome} {n.aposta}]
+                    [{n.nome} {'premio' in n ? `GRATIS, PAGA ${n.premio}` : n.aposta}]
                   </button>
                 ))}
-                <button type="button" data-principal onClick={comecar} disabled={NIVEIS[nivel].aposta > carteira.fichas}>[Jogar]</button>
+                <button type="button" data-principal onClick={comecar} disabled={OPCOES[nivel].aposta > carteira.fichas}>[Jogar]</button>
               </>
             )}
           </div>

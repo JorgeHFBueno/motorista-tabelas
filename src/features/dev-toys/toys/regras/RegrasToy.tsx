@@ -5,7 +5,7 @@ import { APOSTAS } from '../fichas/carteira';
 import { useOpcoesTeclado } from '../fichas/hooks';
 import { BLIND_GRANDE, BLIND_PEQUENO, ENTRADA } from '../poker/mesa';
 import { BANCA_PARA } from '../vinteum/regras';
-import { NIVEIS } from '../xadrez/bot';
+import { ALEATORIA, NIVEIS } from '../xadrez/bot';
 import { PecaView } from '../xadrez/PecaView';
 import { deFen } from '../xadrez/regras';
 import { DESEMPATE_POKER, EXEMPLOS_21, EXEMPLOS_XADREZ, MAOS_POKER, destinosDe, situacaoDe, valorNo21, type ExemploXadrez } from './exemplos';
@@ -141,7 +141,7 @@ function RegrasXadrez() {
       <ul>
         <li>Xeque: o rei esta atacado, e o lance seguinte tem que tira-lo do ataque.</li>
         <li>Tambem empata: 50 lances sem captura nem lance de peao, a mesma posicao 3 vezes, ou pecas que nao dao mate (rei contra rei, por exemplo).</li>
-        <li>No jogo, voce e as brancas contra o bot. {NIVEIS.map((n) => `${n.nome} ${n.aposta}`).join(', ')} fichas: vitoria paga o dobro, empate devolve, derrota perde.</li>
+        <li>No jogo, voce e as brancas contra o bot. {NIVEIS.map((n) => `${n.nome} ${n.aposta}`).join(', ')} fichas: vitoria paga o dobro, empate devolve, derrota perde. {ALEATORIA.nome}: um dos tres, sorteado as cegas (so aparece no fim); entra de graca e a vitoria paga {ALEATORIA.premio}.</li>
       </ul>
     </>
   );

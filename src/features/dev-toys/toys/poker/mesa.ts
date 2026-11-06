@@ -5,7 +5,7 @@
 // fichas sai da mesa: o lugar fica vazio e a mão segue com quem sobrou (com dois, o botão é o blind pequeno).
 
 import { embaralhar, novoBaralho, type Carta } from '../cartas/baralho';
-import { comparar, descreverMao, melhorCombinacao, melhorMao, nomeDaMao } from './maos';
+import { cartasQueFazem, comparar, descreverMao, melhorCombinacao, melhorMao, nomeDaMao } from './maos';
 
 export const LUGARES = 4;
 export const BLIND_PEQUENO = 5;
@@ -30,8 +30,11 @@ export type Jogador = {
   ultima: string | null;
 };
 export type Rua = 'preflop' | 'flop' | 'turn' | 'river' | 'fim';
-/** `mao`: a categoria; `descricao`: por extenso; `cartas`: as 5 da mão do (primeiro) ganhador. Sem comparação, nulos. */
-export type Pote = { valor: number; ganhadores: number[]; mao: string | null; descricao: string | null; cartas: Carta[] };
+/**
+ * `mao`: a categoria; `descricao`: por extenso; `cartas`: as 5 da mão do (primeiro) ganhador; `destaque`: as que
+ * fazem a mão de cada ganhador (sem os kickers, a não ser o que desempatou). Sem comparação, nulos e vazios.
+ */
+export type Pote = { valor: number; ganhadores: number[]; mao: string | null; descricao: string | null; cartas: Carta[]; destaque: Carta[] };
 export type Mesa = {
   jogadores: Jogador[];
   botao: number;
@@ -203,7 +206,7 @@ function encerrar(m: Mesa, mostrar: boolean): Mesa {
   const vv = vivos(m);
   if (!mostrar && vv.length === 1) {
     const g = vv[0];
-    potes.push({ valor: pote(m), ganhadores: [g], mao: null, descricao: null, cartas: [] });
+    potes.push({ valor: pote(m), ganhadores: [g], mao: null, descricao: null, cartas: [], destaque: [] });
     jogadores[g] = { ...jogadores[g], fichas: jogadores[g].fichas + pote(m) };
   } else {
     const forca = (i: number) => melhorMao([...m.jogadores[i].cartas, ...m.comunitarias]);
@@ -227,6 +230,7 @@ function encerrar(m: Mesa, mostrar: boolean): Mesa {
       potes.push({
         valor: p.valor, ganhadores, mao: nomeDaMao([...m.jogadores[g].cartas, ...m.comunitarias]),
         descricao: descreverMao(combinacao(g), perdedores[0]), cartas: combinacao(g).cartas,
+        destaque: ganhadores.flatMap((x) => cartasQueFazem(combinacao(x), perdedores[0])),
       });
     }
   }

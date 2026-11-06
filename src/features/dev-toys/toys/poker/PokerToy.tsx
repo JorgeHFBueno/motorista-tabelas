@@ -5,6 +5,7 @@ import { gravar, ler } from '../crawler/memoria';
 import { rngDe } from '../crawler/sim';
 import { alterarCarteira, lerCarteira, mover } from '../fichas/carteira';
 import { FichasView, SemFichas } from '../fichas/FichasView';
+import { anotar } from '../fichas/historico';
 import { semMovimento, useCarteira, useOpcoesTeclado } from '../fichas/hooks';
 import { gravarPlacar, lerPlacar, registrarJogada } from '../fichas/jogos';
 import { decidir, novoBot } from './bots';
@@ -80,7 +81,7 @@ function Cabecalho({ mesa, i, extra }: { mesa: Mesa; i: number; extra?: ReactNod
   );
 }
 
-/** No fim, com as mãos à mostra: carta que entra na mão vencedora fica acesa; as outras, apagadas. */
+/** No fim, com as mãos à mostra: carta que faz a mão vencedora fica acesa; as outras (kickers inclusive), apagadas. */
 function Cartas({ cartas, usadas, virada, pequena }: { cartas: Carta[]; usadas: Set<string> | null; virada: (k: number) => boolean; pequena?: boolean }) {
   return (
     <>
@@ -142,7 +143,9 @@ function Resultado({ mesa }: { mesa: Mesa }) {
             {mesa.potes.length > 1 && <span className="dt-pk-estilo">{k ? `PARALELO ${k}` : 'PRINCIPAL'}</span>}
           </p>
           <p>{p.descricao}</p>
-          <div className="dt-pk-cartas">{p.cartas.map((c, n) => <CartaView key={n} carta={c} pequena />)}</div>
+          <div className="dt-pk-cartas">
+            <Cartas cartas={p.cartas} usadas={new Set(p.destaque.map(chaveCarta))} virada={() => false} pequena />
+          </div>
         </div>
       ))}
       {outros.length > 0 && (
@@ -180,7 +183,10 @@ export default function PokerToy() {
     setMesa(nova);
     if (nova.rua === 'fim' && de.rua !== 'fim') {
       const eu = nova.jogadores[VOCE];
-      gravarPlacar(CHAVE, registrarJogada(lerPlacar(CHAVE), eu.investido, eu.investido + eu.fichas - inicioMao.current));
+      const volta = eu.investido + eu.fichas - inicioMao.current;
+      gravarPlacar(CHAVE, registrarJogada(lerPlacar(CHAVE), eu.investido, volta));
+      // mão em que você não pôs nada (desistiu sem blind) não entra no histórico
+      if (eu.investido || volta) anotar('POKER', volta - eu.investido, `POS ${eu.investido} . ${eu.desistiu ? 'DESISTIU' : `VOLTOU ${volta}`}`);
     }
   };
 
@@ -196,6 +202,7 @@ export default function PokerToy() {
     const entrada = Math.min(ENTRADA, lerCarteira().fichas);
     if (entrada < 2 * BLIND_GRANDE) return;
     alterarCarteira((c) => mover(c, -entrada));
+    anotar('POKER', -entrada, 'SENTOU: FICHAS PARA A MESA', true);
     proximaMao(mesaNova(comBots(novoJogador('VOCE', null, entrada))));
   };
   const proximaMao = (m: Mesa) => {
@@ -209,6 +216,7 @@ export default function PokerToy() {
     if (!mesa || mesa.rua !== 'fim') return;
     const fichas = mesa.jogadores[VOCE].fichas;
     alterarCarteira((c) => mover(c, fichas));
+    anotar('POKER', fichas, 'LEVANTOU: FICHAS DA MESA', true);
     setMesa(null);
   };
   const jogar = (a: Acao) => { if (mesa && mesa.vez === VOCE && !revelando) aplicar(mesa, agir(mesa, a)); };
@@ -227,10 +235,8 @@ export default function PokerToy() {
   const potTotal = o && mesa ? Math.max(o.minimo, Math.min(o.maximo, mesa.maior + potAgora + o.pagar)) : 0;
   const minha = eu && eu.cartas.length ? nomeDaMao([...eu.cartas, ...mesa!.comunitarias.slice(0, Math.min(mostradas, 5))]) : null;
   const mostrar = !!mesa && mesa.rua === 'fim' && mesa.mostrou && !revelando;
-  // as cartas da mão que levou o pote principal (dividindo, as de todos que dividem)
-  const usadas = mostrar && mesa
-    ? new Set(mesa.potes[0]?.ganhadores.flatMap((g) => melhorCombinacao([...mesa.jogadores[g].cartas, ...mesa.comunitarias]).cartas.map(chaveCarta)))
-    : null;
+  // as cartas que fazem a mão que levou o pote principal (dividindo, as de todos que dividem)
+  const usadas = mostrar && mesa?.potes[0] ? new Set(mesa.potes[0].destaque.map(chaveCarta)) : null;
 
   const aviso = !mesa
     ? `SENTE COM ATE ${ENTRADA} FICHAS . BLINDS 5/10`

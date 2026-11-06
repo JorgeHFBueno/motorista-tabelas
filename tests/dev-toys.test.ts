@@ -32,6 +32,8 @@ import * as xz from '../src/features/dev-toys/toys/xadrez/regras';
 import { NIVEIS, escolherLance } from '../src/features/dev-toys/toys/xadrez/bot';
 import * as slot from '../src/features/dev-toys/toys/slot/regras';
 import * as rg from '../src/features/dev-toys/toys/regras/exemplos';
+import { ALEATORIA, retornoDe as retornoXadrez, sortearNivel } from '../src/features/dev-toys/toys/xadrez/bot';
+import { MAX_HISTORICO, acrescentar as acrescentarLancamento, normalizarHistorico, resumo } from '../src/features/dev-toys/toys/fichas/historico';
 
 const sessao = (valores: Record<string, string>) => ({ getItem: (k: string) => valores[k] ?? null });
 
@@ -832,4 +834,53 @@ test('Regras: os exemplos batem com os motores dos jogos', () => {
   assert.equal(fim('XEQUE-MATE').fim, 'mate');
   assert.ok(fim('XEQUE-MATE').xeque >= 0, 'o rei em xeque fica marcado');
   assert.deepEqual(fim('AFOGAMENTO'), { xeque: -1, fim: 'afogamento' });
+});
+
+test('Poker: o destaque é só o que faz a mão (o par, não os kickers), mais a carta que desempatou', () => {
+  const valores = (cs: Carta[]) => cs.map((c) => c.valor);
+  // o caso da tela: par de seis com A, 10 e 8 de kickers
+  const par = pk.melhorCombinacao(mao5('6p', '10o', '7c', '8p', '4o', '6c', 'Ac'));
+  assert.deepEqual(valores(pk.cartasQueFazem(par)), [6, 6]);
+  assert.deepEqual(valores(pk.cartasQueFazem(pk.melhorCombinacao(mao5('Ke', 'Kc', '7o', '7p', '9e', '2c', '5o')))), [13, 13, 7, 7]);
+  assert.deepEqual(valores(pk.cartasQueFazem(pk.melhorCombinacao(mao5('5e', '5c', '5o', 'Kp', '9e', '2c', 'Jo')))), [5, 5, 5]);
+  assert.equal(pk.cartasQueFazem(pk.melhorCombinacao(mao5('2c', '7c', '9c', 'Jc', 'Ac', 'Ae', 'Ko'))).length, 5, 'flush: as 5');
+  assert.deepEqual(valores(pk.cartasQueFazem(pk.melhorCombinacao(mao5('Je', '7c', '3o', '8p', '9e', '2c', '5o')))), [11], 'carta alta: só ela');
+  // mesmo par de ases: o rei desempatou e acende junto
+  const ganhou = pk.melhorCombinacao(mao5('Ae', 'Ac', 'Ko', '8p', '9e', '2c', '5o'));
+  assert.deepEqual(valores(pk.cartasQueFazem(ganhou, pk.melhorMao(mao5('Ae', 'Ac', 'Qo', '8p', '9e', '2c', '5o')))), [1, 1, 13]);
+
+  // na mesa, o pote guarda o destaque
+  const base = pm.mesaNova([0, 1, 2, 3].map((k) => pm.novoJogador(`J${k}`, null)));
+  let m = pm.novaMao(base, rngDe(9));
+  while (m.rua !== 'fim') m = pm.agir(m, m.vez === m.grande || pm.opcoes(m).podePassar ? { tipo: 'passar' } : { tipo: 'pagar' });
+  for (const p of m.potes) {
+    assert.ok(p.destaque.length >= 1 && p.destaque.length <= 5 * p.ganhadores.length);
+    assert.ok(p.destaque.every((c) => p.ganhadores.some((g) => [...m.jogadores[g].cartas, ...m.comunitarias].includes(c))));
+  }
+});
+
+test('Xadrez: a ALEATORIA sorteia um dos três níveis, entra de graça e a vitória paga 30', () => {
+  assert.deepEqual([ALEATORIA.aposta, ALEATORIA.premio], [0, 30]);
+  const sorteados = new Set(Array.from({ length: 60 }, (_, i) => sortearNivel(rngDe(i + 1))));
+  assert.deepEqual([...sorteados].sort(), [0, 1, 2]);
+  assert.deepEqual(['ganhou', 'empate', 'perdeu'].map((r) => retornoXadrez(r as 'ganhou', 0, true)), [30, 0, 0]);
+  assert.deepEqual(['ganhou', 'empate', 'perdeu'].map((r) => retornoXadrez(r as 'ganhou', 50)), [100, 50, 0], 'os pagos seguem iguais');
+});
+
+test('Carteira: histórico com o mais novo no topo, limite e totais sem as transferências', () => {
+  assert.deepEqual(normalizarHistorico('lixo'), []);
+  assert.deepEqual(normalizarHistorico([{ em: 1, origem: 'XYZ', valor: 5 }, { em: 2, origem: 'SLOT', valor: 9.6, detalhe: 'APOSTA 10' }]), [{ em: 2, origem: 'SLOT', valor: 10, detalhe: 'APOSTA 10' }]);
+  let h = normalizarHistorico([]);
+  for (let i = 0; i < MAX_HISTORICO + 5; i++) h = acrescentarLancamento(h, { em: i, origem: '21', valor: 1, detalhe: '' });
+  assert.equal(h.length, MAX_HISTORICO);
+  assert.equal(h[0].em, MAX_HISTORICO + 4, 'o mais novo primeiro');
+  const lista = [
+    { em: 1, origem: '21' as const, valor: 20, detalhe: '' },
+    { em: 2, origem: 'SLOT' as const, valor: -10, detalhe: '' },
+    { em: 3, origem: 'POKER' as const, valor: -200, detalhe: 'SENTOU', transferencia: true },
+    { em: 4, origem: 'SKILL' as const, valor: -50, detalhe: '' },
+    { em: 5, origem: 'MESADA' as const, valor: 200, detalhe: '' },
+    { em: 6, origem: 'XADREZ' as const, valor: 30, detalhe: '' },
+  ];
+  assert.deepEqual(resumo(lista), { ganhos: 50, perdas: -10, skills: -50, mesadas: 200 });
 });

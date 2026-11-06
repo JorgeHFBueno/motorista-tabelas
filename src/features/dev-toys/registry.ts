@@ -77,6 +77,14 @@ export const DEV_TOYS: DevToy[] = [
     largura: 400,
   },
   {
+    id: 'carteira',
+    nome: 'Carteira',
+    // carteira com o fecho
+    icone: 'M2 3h10v1H2zM1 4h1v10H1zM1 14h14v1H1zM14 6h1v8h-1zM2 5h12v1H2zM10 8h5v4h-5zM11 9h3v2h-3zM12 1h1v2h-1zM3 1h9v1H3z',
+    componente: lazy(() => import('./toys/carteira/CarteiraToy')),
+    largura: 520,
+  },
+  {
     id: 'regras',
     nome: 'Regras',
     // livro aberto

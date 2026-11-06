@@ -12,6 +12,16 @@ export const NIVEIS = [
 ] as const;
 export type Nivel = (typeof NIVEIS)[number];
 
+/** ALEATORIA: um dos três níveis, sorteado às cegas; não custa nada para entrar e a vitória paga PREMIO. */
+export const ALEATORIA = { nome: 'ALEATORIA', aposta: 0, premio: 30 } as const;
+export const sortearNivel = (rng: () => number) => Math.floor(rng() * NIVEIS.length);
+
+/** O que volta para a carteira no fim: vitória paga o dobro da aposta (na ALEATORIA, o prêmio), empate devolve. */
+export function retornoDe(resultado: 'ganhou' | 'perdeu' | 'empate', aposta: number, aleatoria = false): number {
+  if (aleatoria) return resultado === 'ganhou' ? ALEATORIA.premio : 0;
+  return resultado === 'ganhou' ? 2 * aposta : resultado === 'empate' ? aposta : 0;
+}
+
 const VALOR: Record<string, number> = { p: 100, n: 320, b: 330, r: 500, q: 900, k: 0 };
 const MATE = 100000;
 

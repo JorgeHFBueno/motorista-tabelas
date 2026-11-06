@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { rngDe } from '../crawler/sim';
 import { APOSTAS, alterarCarteira, lerCarteira, mover, semFichas } from '../fichas/carteira';
 import { BarraDeFichas, SemFichas } from '../fichas/FichasView';
+import { anotar } from '../fichas/historico';
 import { semMovimento, useCarteira, useOpcoesTeclado } from '../fichas/hooks';
 import { gravarPlacar, lerPlacar, registrarJogada, type PlacarJogo } from '../fichas/jogos';
 import { FITA, PREMIOS, premioDe, linhaDe, retornoDe, simboloEm, sortearParadas, type Simbolo } from './regras';
@@ -57,6 +58,7 @@ export default function SlotToy() {
     const p = registrarJogada(placar, placar.aposta, retorno);
     setPlacar(p);
     gravarPlacar(CHAVE, p);
+    anotar('SLOT', retorno - placar.aposta, `APOSTA ${placar.aposta}${retorno ? ` . PREMIO ${retorno}` : ''}`);
     const inicio = performance.now() - (semMovimento() ? PARA_MS[2] : 0);
     setGiro({ paradas, aposta: placar.aposta, retorno, inicio });
     setAgora(performance.now());

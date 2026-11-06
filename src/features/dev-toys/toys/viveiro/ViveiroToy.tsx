@@ -9,6 +9,7 @@ import { NOME_ESTAGIO, NOME_PLANO, paramsDe, proximoEstagio, raiosDe, visualDe }
 import { desenharCrawler, desenharOvo } from '../crawler/render';
 import { criarCrawler } from '../crawler/sim';
 import { CUSTO_SKILL, alterarCarteira, lerCarteira, mover, podePagarSkill } from '../fichas/carteira';
+import { anotar } from '../fichas/historico';
 import { useCarteira } from '../fichas/hooks';
 
 const RL = 170; // retrato, px a 100%
@@ -58,6 +59,7 @@ function Skills({ c }: { c: Criatura }) {
     const nova = salva && aprenderSkill(salva, k);
     if (!salva || !nova || nova === salva) return;
     alterarCarteira((cart) => mover(cart, -CUSTO_SKILL));
+    anotar('SKILL', -CUSTO_SKILL, `${SKILL[k].nome} . ${nomeDe(salva)}`);
     gravarViveiro(atualizar(v, nova));
   };
   const semDinheiro = !podePagarSkill(carteira);

@@ -3,6 +3,7 @@ import { CartaView } from '../cartas/CartaView';
 import { rngDe } from '../crawler/sim';
 import { APOSTAS, alterarCarteira, lerCarteira, mover, semFichas } from '../fichas/carteira';
 import { BarraDeFichas, SemFichas } from '../fichas/FichasView';
+import { anotar } from '../fichas/historico';
 import { semMovimento, useCarteira, useOpcoesTeclado } from '../fichas/hooks';
 import { gravarPlacar, lerPlacar, registrarJogada, type PlacarJogo } from '../fichas/jogos';
 import { distribuir, dobrar, mesaNova, parar, pedir, podeDobrar, pontos, retorno, type Mesa, type Resultado } from './regras';
@@ -44,7 +45,11 @@ export default function VinteUmToy() {
     if (nova === de) return;
     alterarCarteira((c) => mover(c, nova.fichas - de.fichas));
     setMesa(nova);
-    if (nova.fase === 'fim' && nova.resultado) guardar(registrarJogada(placar, nova.aposta, retorno(nova.resultado, nova.aposta)));
+    if (nova.fase === 'fim' && nova.resultado) {
+      const volta = retorno(nova.resultado, nova.aposta);
+      guardar(registrarJogada(placar, nova.aposta, volta));
+      anotar('21', volta - nova.aposta, `APOSTA ${nova.aposta} . ${FRASE[nova.resultado]}`);
+    }
   };
   const acao = (f: (m: Mesa) => Mesa) => { const m = agora(); jogar(m, f(m)); };
   const novaMao = () => {

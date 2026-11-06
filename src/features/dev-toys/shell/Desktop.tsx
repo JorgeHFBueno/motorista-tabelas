@@ -25,7 +25,7 @@ type Props = { ligando: boolean; prefs: PrefsDev; onPrefs: (prefs: PrefsDev) => 
 // Desktop da área DEV: barra de menus, ícones dos brinquedos e janelas (a última da lista fica na frente).
 export default function Desktop({ ligando, prefs, onPrefs, onReiniciar }: Props) {
   const navigate = useNavigate();
-  const [janelas, setJanelas] = useState<Aberta[]>(() => [{ id: DEV_TOYS[0].id, x: 64 * ESCALA, y: 64 * ESCALA }]);
+  const [janelas, setJanelas] = useState<Aberta[]>(() => [{ id: DEV_TOYS[0].id, x: 64 * ESCALA, y: 40 * ESCALA }]);
   const [menu, setMenu] = useState<string | null>(null);
   const [selecionado, setSelecionado] = useState<string | null>(null);
   const [hora, setHora] = useState(horaAgora);
@@ -55,7 +55,7 @@ export default function Desktop({ ligando, prefs, onPrefs, onReiniciar }: Props)
       // em cascata, mas puxada para a esquerda o bastante para caber inteira na largura da tela
       const largura = Math.min((DEV_TOYS.find((t) => t.id === id)?.largura ?? 0) * ESCALA, window.innerWidth - 16);
       const x = Math.max(8, Math.min((64 + js.length * 24) * ESCALA, window.innerWidth - largura - 8));
-      return [...js, { id, x, y: (64 + js.length * 24) * ESCALA }];
+      return [...js, { id, x, y: (40 + js.length * 24) * ESCALA }];
     });
   }, []);
 

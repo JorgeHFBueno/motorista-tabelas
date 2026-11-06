@@ -104,6 +104,22 @@ const VARIOS: Record<number, string> = { 14: 'ASES', 13: 'REIS', 12: 'DAMAS', 11
 export const valorPorExtenso = (v: number) => UM[v] ?? String(v);
 
 /**
+ * As cartas que fazem a mão, entre as 5: o par, os dois pares, a trinca, a quadra; as 5 na sequência, no flush e no
+ * full house; na carta alta, só ela. Os kickers ficam de fora, a não ser o que desempatou contra `contra`.
+ */
+export function cartasQueFazem(combinacao: { forca: Forca; cartas: Carta[] }, contra?: Forca): Carta[] {
+  const { forca, cartas } = combinacao;
+  const cat = forca[0];
+  const vezes = (c: Carta) => cartas.filter((x) => x.valor === c.valor).length;
+  let fazem = cat === 4 || cat === 5 || cat === 6 || cat === 8 ? cartas.slice() : cat === 0 ? cartas.slice(0, 1) : cartas.filter((c) => vezes(c) > 1);
+  if (contra && contra[0] === cat) {
+    const k = forca.findIndex((x, i) => x !== contra[i]);
+    if (k >= 2) fazem = [...fazem, ...cartas.filter((c) => alto(c.valor) === forca[k] && !fazem.includes(c))];
+  }
+  return fazem;
+}
+
+/**
  * A mão por extenso: "PAR DE DEZ", "DOIS PARES: REIS E SETES", "FLUSH DE COPAS ATE AS"... `contra`, a força da mão
  * que perdeu por pouco: com a mesma categoria e o mesmo valor principal, diz a carta que desempatou.
  */
