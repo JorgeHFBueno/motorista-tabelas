@@ -32,7 +32,7 @@ Everyone, owner included:
 
 1. Run `git pull --ff-only` in this repository and in `ledur-the-manuscript` before starting a task, and again right before committing or pushing. If the pull fails (diverged history, conflict, or local changes in the way), stop and report it. Never force-push, reset, or discard someone else's work to make it pass.
 2. Reply to people in Brazilian Portuguese. Commit messages follow the style of the recent history (`feat(scope): ...`, `fix(scope): ...`, `docs(scope): ...`).
-3. Report times in Brasília time (America/Sao_Paulo, UTC-3, no DST), converting UTC timestamps from Firebase/Cloud logs, for example "16:30 (Brasília)".
+3. Report times in Brasília time (America/Sao_Paulo, UTC-3, no DST), converting UTC timestamps from Firebase/Cloud logs, for example "16:30 (Brasília)". In Git Bash on Windows, `TZ=America/Sao_Paulo date` silently prints UTC; use `TZ=UTC+3 date` or convert by hand.
 
 Collaborators:
 
@@ -84,6 +84,7 @@ Some failures already exist on `main`. Compare against a baseline (for example `
 - `npm --prefix functions test`: the build works, but `node --test test/*.test.mjs` gets no glob expansion under cmd. Run the node part from bash.
 - `npm run test:rules`: the glob `tests/rules/*.test.mjs` is not expanded under `emulators:exec` on Windows, and port 8080 may already be in use. Use a temporary config (for example `.tmp-rules-firebase.json` with firestore 8181, storage 9299, hub 4410, logging 4510, UI disabled), list the test files explicitly in `npx firebase emulators:exec --config <it> --only firestore,storage --project demo-firebase-rules "node --test tests/rules/<file>.test.mjs ..."`, and delete the config afterwards.
 - Functions emulator: the local `npx firebase` (firebase-tools 13) cannot load Functions built on `firebase-functions` 7 (workers die with "functions.config() has been removed"), and firebase-tools 15 needs Java 21 for the Firestore emulator. Run Firestore with `npx firebase emulators:start --only firestore` (temporary config with free ports) and Functions with a global firebase-tools 15 (`emulators:exec --only functions`, other hub/logging ports), with `FIRESTORE_EMULATOR_HOST` and `FUNCTIONS_DISCOVERY_TIMEOUT=60` set. Secrets for the emulator go in `functions/.secret.local` (ignored by `*.local`); delete it afterwards.
+- `firebase deploy --only functions:<name>` may fail with "User code failed to load ... Timeout after 10000". Set `FUNCTIONS_DISCOVERY_TIMEOUT=60` and run it again.
 - `firestore.rules` declares no `monday-obras`/`monday-mestres` match, so `/engenharia/cronograma` gets permission-denied on the emulator. Load a temporary read rule into the emulator through its REST API instead of editing the file.
 
 ## Bug Fixes
