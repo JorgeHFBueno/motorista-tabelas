@@ -313,6 +313,49 @@ test('[firestore] atividades: Frota (mecanico, logistica, adm2) and Engenharia l
   }
 });
 test('[firestore] activity update is denied', async () => assertFails(updateDoc(doc(dbAs('adm2'), 'atividades', 'historic'), { motivo: 'changed' })));
+test('[firestore] KM normalization: logistica and adm2 correct only an activity km, as a non-negative integer', async () => {
+  await env.withSecurityRulesDisabled(async (ctx) => {
+    await setDoc(doc(ctx.firestore(), 'veiculos-v2', 'vv-normalizacao'), {
+      schemaVersion: 2, cadastro: { ativo: true }, identificacao: { categoria: 'PLACA', identificador: 'NOR1M23', nome: 'Caminhão normalização' },
+      operacional: { quilometragemUltima: 1812730 },
+    });
+    await setDoc(doc(ctx.firestore(), 'atividades', 'km-errado'), { schemaVersion: 2, tipo: 'saida', item_frota_id: 'vv-normalizacao', km: 1807831, motivo: 'obra' });
+  });
+  const ref_ = (quem) => doc(dbAs(quem), 'atividades', 'km-errado');
+  await assertSucceeds(updateDoc(ref_('logistica'), { km: 180783 }));
+  await assertSucceeds(updateDoc(ref_('adm2'), { km: 180784 }));
+  await assertFails(updateDoc(ref_('mecanico'), { km: 180785 }));
+  await assertFails(updateDoc(ref_('user'), { km: 180785 }));
+  await assertFails(updateDoc(ref_('logistica'), { km: 180785, motivo: 'outro' }));
+  await assertFails(updateDoc(ref_('logistica'), { km: 180785.5 }));
+  await assertFails(updateDoc(ref_('logistica'), { km: -1 }));
+  await assertFails(updateDoc(ref_('logistica'), { km: '180785' }));
+  await assertFails(deleteDoc(ref_('logistica')));
+});
+test('[firestore] KM normalization: logistica sets the last meter reading in either direction; nothing else', async () => {
+  const ref_ = (quem) => doc(dbAs(quem), 'veiculos-v2', 'vv-normalizacao');
+  await assertSucceeds(updateDoc(ref_('logistica'), { 'operacional.quilometragemUltima': 50000 }));
+  await assertSucceeds(updateDoc(ref_('logistica'), { 'operacional.quilometragemUltima': 50001 }));
+  await assertFails(updateDoc(ref_('logistica'), { 'operacional.quilometragemUltima': 40000, 'operacional.dataUltimaAtualizacao': Timestamp.fromMillis(9) }));
+  await assertFails(updateDoc(ref_('logistica'), { 'operacional.quilometragemUltima': 40000.5 }));
+  await assertFails(updateDoc(ref_('logistica'), { 'operacional.quilometragemUltima': -1 }));
+  await assertFails(updateDoc(ref_('engenharia'), { 'operacional.quilometragemUltima': 40000 }));
+  await assertFails(updateDoc(ref_('canonicalUser'), { 'operacional.quilometragemUltima': 40000 }));
+});
+test('[firestore] KM normalization: one transaction corrects activity, fuel and the last reading', async () => {
+  await env.withSecurityRulesDisabled(async (ctx) => {
+    const db = ctx.firestore();
+    await setDoc(doc(db, 'atividades', 'km-tx'), { schemaVersion: 2, tipo: 'chegada', item_frota_id: 'vv-normalizacao', km: 2000000 });
+    await setDoc(doc(db, '03-combustivel', 'km-tx'), { schemaVersion: 2, tipo: 'saida', item_frota_id: 'vv-normalizacao', quilometragem: 2000100 });
+  });
+  const db = dbAs('logistica');
+  await assertSucceeds(runTransaction(db, async (tx) => {
+    for (const [c, id] of [['atividades', 'km-tx'], ['03-combustivel', 'km-tx'], ['veiculos-v2', 'vv-normalizacao']]) await tx.get(doc(db, c, id));
+    tx.update(doc(db, 'atividades', 'km-tx'), { km: 200000 });
+    tx.update(doc(db, '03-combustivel', 'km-tx'), { quilometragem: 200010 });
+    tx.update(doc(db, 'veiculos-v2', 'vv-normalizacao'), { 'operacional.quilometragemUltima': 200010 });
+  }));
+});
 test('[firestore] activity delete is denied', async () => assertFails(deleteDoc(doc(dbAs('adm2'), 'atividades', 'historic'))));
 test('[firestore] checklist creator UID must match', async () => assertSucceeds(setDoc(doc(dbAs('user'), 'atividades', 'new-activity', 'checklist_saida', 'ok'), { criadoPorUid: 'uid-user' })));
 test('[firestore] checklist output accepts future additional field', async () => assertSucceeds(setDoc(doc(dbAs('user'), 'atividades', 'new-activity', 'checklist_saida', 'future'), { criadoPorUid: 'uid-user', futureSensor: true })));

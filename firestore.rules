@@ -763,6 +763,15 @@ service cloud.firestore {
           && request.resource.data.operacional.diff(resource.data.get('operacional', {})).affectedKeys()
             .hasOnly(['quilometragemInicial', 'dataQuilometragemInicial', 'origemQuilometragemInicial'])
         )
+        // WEB Frota KM normalization (logistica or adm2): the last meter reading, in either direction.
+        || (
+          temArea('logistica', 'logistica')
+          && changedOnly(['operacional'])
+          && request.resource.data.operacional.diff(resource.data.get('operacional', {})).affectedKeys()
+            .hasOnly(['quilometragemUltima'])
+          && request.resource.data.operacional.quilometragemUltima is int
+          && request.resource.data.operacional.quilometragemUltima >= 0
+        )
         || (
           isAuthorized()
           && changedOnly(['operacional'])
@@ -873,8 +882,14 @@ service cloud.firestore {
           )
         );
 
-      // Activity history is immutable.
-      allow update, delete: if false;
+      // Activity history is immutable, except the odometer reading corrected by the WEB Frota KM normalization
+      // (logistica or adm2), as a non-negative integer.
+      allow update: if
+        temArea('logistica', 'logistica')
+        && changedOnly(['km'])
+        && request.resource.data.km is int
+        && request.resource.data.km >= 0;
+      allow delete: if false;
 
       match /checklist_saida/{itemId} {
         allow read: if isFrota() || isEngenharia()

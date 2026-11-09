@@ -40,6 +40,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import type { ChartPoint } from '../components/FrotaCharts';
 import ManutencaoDialog from '../components/ManutencaoDialog';
 import ManutencaoDetailPanel from '../components/ManutencaoDetailPanel';
+import NormalizacaoKmDialog from '../components/NormalizacaoKmDialog';
 import ManutencoesList, {
     RegistrosFiltros,
     type FonteEvento,
@@ -298,7 +299,11 @@ async function fetchManutencoes(item: ItemFrotaV2): Promise<LinhaEvento[]> {
 export default function FrotaVeiculoDetalhesPage() {
     const { id } = useParams();
     const navigate = useNavigate();
-    const isAdmin = temCredencial(useAuth().authorizationProfile, 'mecanico', 'logistica');
+    const { authorizationProfile } = useAuth();
+    const isAdmin = temCredencial(authorizationProfile, 'mecanico', 'logistica');
+    // Correções de KM/horímetro: quem já corrige 03-combustivel (Rules: logistica ou adm2).
+    const podeNormalizarKm = temCredencial(authorizationProfile, 'logistica');
+    const [normalizacaoAberta, setNormalizacaoAberta] = useState(false);
 
     const [veiculo, setVeiculo] = useState<ItemFrotaV2 | null>(null);
     const [nomeEditado, setNomeEditado] = useState<string | null>(null); // null = fora da edição
@@ -1255,6 +1260,11 @@ export default function FrotaVeiculoDetalhesPage() {
                             <Box>
                                 <Typography variant="body2" color="text.secondary">{medidor} último</Typography>
                                 <Typography sx={{ fontSize: { xs: 22, sm: 28 }, fontWeight: 700 }}>{medidorTexto(veiculo)}</Typography>
+                                {isAdmin && (
+                                    <Button size="small" sx={{ ml: -0.5, px: 0.5 }} onClick={() => setNormalizacaoAberta(true)}>
+                                        Normalizar {medidor === 'KM' ? 'KM' : 'horímetro'}
+                                    </Button>
+                                )}
                             </Box>
                             <Box>
                                 <Typography variant="body2" color="text.secondary">Última atualização</Typography>
@@ -1427,6 +1437,24 @@ export default function FrotaVeiculoDetalhesPage() {
                     </form>
                 )}
             </Dialog>
+
+            {veiculo && (
+                <NormalizacaoKmDialog
+                    open={normalizacaoAberta}
+                    veiculo={veiculo}
+                    podeAplicar={podeNormalizarKm}
+                    onClose={() => setNormalizacaoAberta(false)}
+                    onAplicado={(kmUltimo) => {
+                        // Objeto novo: as fontes já carregadas (atividades, abastecimentos) são lidas de novo.
+                        setVeiculo((atual) => (atual ? { ...atual, quilometragemUltima: kmUltimo } : atual));
+                        cacheRef.current.clear();
+                        setSelectedDocId(null);
+                        setSelectedCollection(null);
+                        setSelectedTipo(null);
+                        setSelectedDocData(null);
+                    }}
+                />
+            )}
 
             <ManutencaoDialog
                 open={manutencaoOpen}
