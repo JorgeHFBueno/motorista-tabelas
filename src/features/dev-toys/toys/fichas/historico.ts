@@ -6,7 +6,7 @@ import { gravar, ler } from '../crawler/memoria';
 
 export const CHAVE_HISTORICO = 'ledur:dev-historico';
 export const MAX_HISTORICO = 100;
-export const ORIGENS = ['21', 'POKER', 'SLOT', 'XADREZ', 'DESCARTE', 'SKILL', 'MESADA'] as const;
+export const ORIGENS = ['21', 'POKER', 'SLOT', 'XADREZ', 'NEO', 'SKILL', 'MESADA'] as const;
 export type Origem = (typeof ORIGENS)[number];
 
 export type Lancamento = {
@@ -21,7 +21,9 @@ export type Lancamento = {
 };
 
 const lancamento = (v: unknown): Lancamento | null => {
-  const x = v && typeof v === 'object' ? (v as Record<string, unknown>) : null;
+  const x = v && typeof v === 'object' ? { ...(v as Record<string, unknown>) } : null;
+  // o NEO se chamava Descarte
+  if (x?.origem === 'DESCARTE') x.origem = 'NEO';
   if (!x || typeof x.em !== 'number' || !ORIGENS.includes(x.origem as Origem) || typeof x.valor !== 'number' || !Number.isFinite(x.valor)) return null;
   return {
     em: x.em, origem: x.origem as Origem, valor: Math.round(x.valor), detalhe: typeof x.detalhe === 'string' ? x.detalhe : '',

@@ -1,6 +1,6 @@
 import { NAIPES, embaralhar, type Naipe } from '../cartas/baralho';
 
-// Descarte: jogo de cartas de esvaziar a mão, você contra 3 bots. Os quatro naipes do baralho comum fazem o papel
+// NEO: jogo de cartas de esvaziar a mão, você contra 3 bots. Os quatro naipes do baralho comum fazem o papel
 // de cores (a tela do DEV é âmbar). Joga quem combinar naipe ou símbolo com a carta da mesa; curinga vale sempre e
 // escolhe o naipe. Ações: +2 (o próximo compra 2 e perde a vez), inverte (o sentido), pula (o próximo) e curinga +4.
 // Quem fica com uma carta grita ULTIMA; quem esquece compra 2. Quem zera a mão primeiro ganha. Sem DOM; o sorteio
@@ -10,17 +10,18 @@ export const ACOES = ['mais2', 'inverte', 'pula'] as const;
 export type Acao = (typeof ACOES)[number];
 export type Simbolo = number | Acao | 'curinga' | 'mais4';
 /** `naipe` null: curinga (vale qualquer naipe). */
-export type CartaD = { id: number; naipe: Naipe | null; simbolo: Simbolo };
+export type CartaNeo = { id: number; naipe: Naipe | null; simbolo: Simbolo };
 
-export type JogadorD = { nome: string; mao: CartaD[] };
+/** `ultima`: a última coisa que ele fez (o selo no lugar dele). */
+export type JogadorNeo = { nome: string; mao: CartaNeo[]; ultima: string | null };
 
 export type Partida = {
   /** 0 = você */
-  jogadores: JogadorD[];
+  jogadores: JogadorNeo[];
   /** compra: o topo é o fim da lista */
-  monte: CartaD[];
+  monte: CartaNeo[];
   /** a carta da mesa é a última */
-  descarte: CartaD[];
+  descarte: CartaNeo[];
   /** o naipe que vale agora (o da carta da mesa, ou o escolhido no curinga) */
   naipe: Naipe;
   vez: number;
@@ -43,8 +44,8 @@ export const PREMIO = 4;
 export const BOT_ESQUECE = 0.1;
 
 /** 108 cartas: por naipe, um 0, dois de cada 1 a 9 e duas de cada ação; mais 4 curingas e 4 curingas +4. */
-export function baralhoDescarte(): CartaD[] {
-  const b: CartaD[] = [];
+export function baralhoNeo(): CartaNeo[] {
+  const b: CartaNeo[] = [];
   let id = 0;
   for (const naipe of NAIPES) {
     b.push({ id: id++, naipe, simbolo: 0 });
@@ -62,7 +63,7 @@ export function baralhoDescarte(): CartaD[] {
 
 const SIMBOLO: Record<string, string> = { mais2: '+2', inverte: 'INVERTE', pula: 'PULA', curinga: 'CURINGA', mais4: 'CURINGA +4' };
 /** Nome da carta, sem acento (avisos e leitores de tela). */
-export const nomeDaCartaD = (c: CartaD) => (c.naipe ? `${SIMBOLO[c.simbolo] ?? c.simbolo} DE ${c.naipe.toUpperCase()}` : SIMBOLO[c.simbolo]);
+export const nomeDaCartaNeo = (c: CartaNeo) => (c.naipe ? `${SIMBOLO[c.simbolo] ?? c.simbolo} DE ${c.naipe.toUpperCase()}` : SIMBOLO[c.simbolo]);
 
 export const topo = (p: Partida) => p.descarte[p.descarte.length - 1];
 /** Quem joga `passos` lugares adiante, no sentido de agora. */
@@ -71,19 +72,19 @@ export const proximo = (p: Partida, passos = 1) => {
   return (((p.vez + p.sentido * passos) % n) + n) % n;
 };
 /** A carta serve na mesa: curinga, o naipe que vale ou o mesmo símbolo da carta da mesa. */
-export const serve = (c: CartaD, p: Partida) => c.naipe === null || c.naipe === p.naipe || c.simbolo === topo(p).simbolo;
+export const serve = (c: CartaNeo, p: Partida) => c.naipe === null || c.naipe === p.naipe || c.simbolo === topo(p).simbolo;
 
 /** As cartas que quem está na vez pode jogar (depois de comprar, só a comprada). */
-export function jogaveis(p: Partida): CartaD[] {
+export function jogaveis(p: Partida): CartaNeo[] {
   if (p.vencedor !== null) return [];
   return p.jogadores[p.vez].mao.filter((c) => (p.comprou === null || c.id === p.comprou) && serve(c, p));
 }
 
 /** Tira `n` cartas do monte para `quem`; sem monte, embaralha o descarte (menos a carta da mesa) e segue. */
-function tirar(p: Partida, quem: number, n: number, rng: () => number): { p: Partida; novas: CartaD[] } {
+function tirar(p: Partida, quem: number, n: number, rng: () => number): { p: Partida; novas: CartaNeo[] } {
   let monte = p.monte.slice();
   let descarte = p.descarte;
-  const novas: CartaD[] = [];
+  const novas: CartaNeo[] = [];
   for (let k = 0; k < n; k++) {
     if (!monte.length) {
       if (descarte.length <= 1) break;
@@ -98,13 +99,15 @@ function tirar(p: Partida, quem: number, n: number, rng: () => number): { p: Par
 
 /** Partida nova: 7 cartas para cada um e a primeira carta da mesa, sempre um número. Você começa. */
 export function novaPartida(nomes: string[], rng: () => number): Partida {
-  const monte = embaralhar(baralhoDescarte(), rng);
-  const jogadores = nomes.map((nome) => ({ nome, mao: monte.splice(-MAO_INICIAL) }));
+  const monte = embaralhar(baralhoNeo(), rng);
+  const jogadores = nomes.map((nome) => ({ nome, mao: monte.splice(-MAO_INICIAL), ultima: null }));
   let i = monte.length - 1;
   while (typeof monte[i].simbolo !== 'number') i--;
   const [primeira] = monte.splice(i, 1);
   return { jogadores, monte, descarte: [primeira], naipe: primeira.naipe!, vez: 0, sentido: 1, comprou: null, vencedor: null, aviso: '' };
 }
+
+const marcar = (p: Partida, i: number, ultima: string): Partida => ({ ...p, jogadores: p.jogadores.map((j, k) => (k === i ? { ...j, ultima } : j)) });
 
 /** Aplica a jogada de quem está na vez; jogada que não vale devolve a mesma partida. */
 export function agir(p: Partida, a: Jogada, rng: () => number): Partida {
@@ -115,12 +118,12 @@ export function agir(p: Partida, a: Jogada, rng: () => number): Partida {
   if (a.tipo === 'comprar') {
     if (p.comprou !== null) return p;
     const { p: q, novas } = tirar(p, quem, 1, rng);
-    if (novas[0] && serve(novas[0], q)) return { ...q, comprou: novas[0].id, aviso: `${nome} COMPROU 1` };
-    return { ...q, vez: proximo(q), comprou: null, aviso: `${nome} COMPROU 1 E PASSOU` };
+    if (novas[0] && serve(novas[0], q)) return { ...marcar(q, quem, 'COMPROU 1'), comprou: novas[0].id, aviso: `${nome} COMPROU 1` };
+    return { ...marcar(q, quem, 'COMPROU 1 E PASSOU'), vez: proximo(q), comprou: null, aviso: `${nome} COMPROU 1 E PASSOU` };
   }
   if (a.tipo === 'passar') {
     if (p.comprou === null) return p;
-    return { ...p, vez: proximo(p), comprou: null, aviso: `${nome} PASSOU` };
+    return { ...marcar(p, quem, 'PASSOU'), vez: proximo(p), comprou: null, aviso: `${nome} PASSOU` };
   }
 
   const c = p.jogadores[quem].mao.find((x) => x.id === a.id);
@@ -129,17 +132,17 @@ export function agir(p: Partida, a: Jogada, rng: () => number): Partida {
   const mao = p.jogadores[quem].mao.filter((x) => x !== c);
   let q: Partida = {
     ...p,
-    jogadores: p.jogadores.map((j, i) => (i === quem ? { ...j, mao } : j)),
+    jogadores: p.jogadores.map((j, i) => (i === quem ? { ...j, mao, ultima: `JOGOU ${nomeDaCartaNeo(c)}` } : j)),
     descarte: [...p.descarte, c],
     naipe,
     comprou: null,
   };
-  const partes = [`${nome} JOGOU ${nomeDaCartaD(c)}${c.naipe ? '' : `, VALE ${naipe.toUpperCase()}`}`];
+  const partes = [`${nome} JOGOU ${nomeDaCartaNeo(c)}${c.naipe ? '' : `, VALE ${naipe.toUpperCase()}`}`];
   if (!mao.length) return { ...q, vencedor: quem, aviso: `${partes[0]}. ${nome} ZEROU A MAO!` };
   if (mao.length === 1) {
     if (a.ultima) partes.push(`${nome}: ULTIMA!`);
     else {
-      q = tirar(q, quem, MULTA, rng).p;
+      q = marcar(tirar(q, quem, MULTA, rng).p, quem, `ESQUECEU A ULTIMA: +${MULTA}`);
       partes.push(`NAO GRITOU ULTIMA: COMPRA ${MULTA}`);
     }
   }
@@ -155,11 +158,12 @@ export function agir(p: Partida, a: Jogada, rng: () => number): Partida {
   const nomeAlvo = q.jogadores[alvo].nome;
   if (c.simbolo === 'pula') {
     partes.push(`${nomeAlvo} PERDE A VEZ`);
+    q = marcar(q, alvo, 'PERDEU A VEZ');
     passos = 2;
   }
   if (c.simbolo === 'mais2' || c.simbolo === 'mais4') {
     const n = c.simbolo === 'mais2' ? 2 : 4;
-    q = tirar(q, alvo, n, rng).p;
+    q = marcar(tirar(q, alvo, n, rng).p, alvo, `COMPROU ${n}, PERDEU A VEZ`);
     partes.push(`${nomeAlvo} COMPRA ${n} E PERDE A VEZ`);
     passos = 2;
   }
@@ -168,7 +172,7 @@ export function agir(p: Partida, a: Jogada, rng: () => number): Partida {
 }
 
 /** O naipe que mais aparece nas cartas (empate, o primeiro); sem nenhum, sorteia. */
-export function naipeMaisForte(cartas: CartaD[], rng: () => number): Naipe {
+export function naipeMaisForte(cartas: CartaNeo[], rng: () => number): Naipe {
   const conta = NAIPES.map((n) => cartas.filter((c) => c.naipe === n).length);
   const maior = Math.max(...conta);
   return maior > 0 ? NAIPES[conta.indexOf(maior)] : NAIPES[Math.floor(rng() * NAIPES.length)];
@@ -184,7 +188,7 @@ export function decidirBot(p: Partida, rng: () => number): Jogada {
   const opcoes = jogaveis(p);
   if (!opcoes.length) return p.comprou !== null ? { tipo: 'passar' } : { tipo: 'comprar' };
   const pertoDeGanhar = p.jogadores[proximo(p)].mao.length <= 2;
-  const nota = (c: CartaD) => {
+  const nota = (c: CartaNeo) => {
     const ataque = c.simbolo === 'mais2' || c.simbolo === 'mais4' || c.simbolo === 'pula';
     let s = c.naipe === null ? (c.simbolo === 'mais4' ? -12 : -10) : mao.filter((x) => x.naipe === c.naipe).length + (typeof c.simbolo === 'number' ? 0 : 1);
     if (pertoDeGanhar && ataque) s += 30;
@@ -197,4 +201,4 @@ export function decidirBot(p: Partida, rng: () => number): Jogada {
 }
 
 /** O que volta das fichas apostadas: quem zera a mão leva as quatro apostas. */
-export const retornoDescarte = (vencedor: number | null, aposta: number) => (vencedor === 0 ? PREMIO * aposta : 0);
+export const retornoNeo = (vencedor: number | null, aposta: number) => (vencedor === 0 ? PREMIO * aposta : 0);

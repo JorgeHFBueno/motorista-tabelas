@@ -34,7 +34,7 @@ import * as slot from '../src/features/dev-toys/toys/slot/regras';
 import * as rg from '../src/features/dev-toys/toys/regras/exemplos';
 import { ALEATORIA, retornoDe as retornoXadrez, sortearNivel } from '../src/features/dev-toys/toys/xadrez/bot';
 import { MAX_HISTORICO, acrescentar as acrescentarLancamento, normalizarHistorico, resumo } from '../src/features/dev-toys/toys/fichas/historico';
-import * as dc from '../src/features/dev-toys/toys/descarte/regras';
+import * as dc from '../src/features/dev-toys/toys/neo/regras';
 
 const sessao = (valores: Record<string, string>) => ({ getItem: (k: string) => valores[k] ?? null });
 
@@ -886,16 +886,16 @@ test('Carteira: histórico com o mais novo no topo, limite e totais sem as trans
   assert.deepEqual(resumo(lista), { ganhos: 50, perdas: -10, skills: -50, mesadas: 200 });
 });
 
-// Descarte: mesa montada à mão (J0 na vez, sentido normal) e um monte de 3 de paus para as compras
-const cd = (id: number, naipe: dc.CartaD['naipe'], simbolo: dc.Simbolo): dc.CartaD => ({ id, naipe, simbolo });
-const mesaDc = (maos: dc.CartaD[][], mesa: dc.CartaD, monte: dc.CartaD[] = Array.from({ length: 10 }, (_, i) => cd(900 + i, 'paus', 3))): dc.Partida => ({
-  jogadores: maos.map((mao, i) => ({ nome: `J${i}`, mao })), monte, descarte: [mesa], naipe: mesa.naipe!, vez: 0, sentido: 1, comprou: null, vencedor: null, aviso: '',
+// NEO: mesa montada à mão (J0 na vez, sentido normal) e um monte de 3 de paus para as compras
+const cd = (id: number, naipe: dc.CartaNeo['naipe'], simbolo: dc.Simbolo): dc.CartaNeo => ({ id, naipe, simbolo });
+const mesaDc = (maos: dc.CartaNeo[][], mesa: dc.CartaNeo, monte: dc.CartaNeo[] = Array.from({ length: 10 }, (_, i) => cd(900 + i, 'paus', 3))): dc.Partida => ({
+  jogadores: maos.map((mao, i) => ({ nome: `J${i}`, mao, ultima: null })), monte, descarte: [mesa], naipe: mesa.naipe!, vez: 0, sentido: 1, comprou: null, vencedor: null, aviso: '',
 });
 const totalDc = (p: dc.Partida) => p.monte.length + p.descarte.length + p.jogadores.reduce((n, j) => n + j.mao.length, 0);
 const outras = () => [cd(50, 'ouros', 1), cd(51, 'ouros', 2), cd(52, 'ouros', 3)];
 
-test('Descarte: baralho de 108 e partida nova com 7 para cada e um número na mesa', () => {
-  const b = dc.baralhoDescarte();
+test('NEO: baralho de 108 e partida nova com 7 para cada e um número na mesa', () => {
+  const b = dc.baralhoNeo();
   assert.equal(b.length, 108);
   assert.equal(new Set(b.map((c) => c.id)).size, 108);
   for (const n of ['espadas', 'copas', 'ouros', 'paus']) assert.equal(b.filter((c) => c.naipe === n).length, 25);
@@ -910,7 +910,7 @@ test('Descarte: baralho de 108 e partida nova com 7 para cada e um número na me
   }
 });
 
-test('Descarte: serve o mesmo naipe, o mesmo símbolo ou curinga; o resto não vale', () => {
+test('NEO: serve o mesmo naipe, o mesmo símbolo ou curinga; o resto não vale', () => {
   const mao = [cd(1, 'copas', 2), cd(2, 'paus', 7), cd(3, null, 'curinga'), cd(4, 'espadas', 5), cd(5, 'espadas', 'mais2')];
   const p = mesaDc([mao, outras(), outras(), outras()], cd(0, 'copas', 7));
   assert.deepEqual(dc.jogaveis(p).map((c) => c.id), [1, 2, 3]);
@@ -923,8 +923,8 @@ test('Descarte: serve o mesmo naipe, o mesmo símbolo ou curinga; o resto não v
   assert.deepEqual(dc.jogaveis(q).map((c) => c.id), [], 'J1 só tem ouros');
 });
 
-test('Descarte: +2, +4, pula e inverte', () => {
-  const p = (c: dc.CartaD) => mesaDc([[c, ...outras()], outras(), outras(), outras()], cd(0, 'copas', 7));
+test('NEO: +2, +4, pula e inverte', () => {
+  const p = (c: dc.CartaNeo) => mesaDc([[c, ...outras()], outras(), outras(), outras()], cd(0, 'copas', 7));
   const mais2 = dc.agir(p(cd(1, 'copas', 'mais2')), { tipo: 'jogar', id: 1 }, rngDe(1));
   assert.deepEqual([mais2.jogadores[1].mao.length, mais2.vez], [5, 2]);
   const mais4 = dc.agir(p(cd(1, null, 'mais4')), { tipo: 'jogar', id: 1, naipe: 'paus' }, rngDe(1));
@@ -938,7 +938,7 @@ test('Descarte: +2, +4, pula e inverte', () => {
   assert.deepEqual([volta.jogadores[3].mao.length, volta.vez], [5, 2]);
 });
 
-test('Descarte: ULTIMA esquecida compra 2; zerar a mão ganha e paga 4x', () => {
+test('NEO: ULTIMA esquecida compra 2; zerar a mão ganha e paga 4x', () => {
   const duas = () => mesaDc([[cd(1, 'copas', 2), cd(2, 'espadas', 9)], outras(), outras(), outras()], cd(0, 'copas', 7));
   const gritou = dc.agir(duas(), { tipo: 'jogar', id: 1, ultima: true }, rngDe(1));
   assert.equal(gritou.jogadores[0].mao.length, 1);
@@ -953,10 +953,10 @@ test('Descarte: ULTIMA esquecida compra 2; zerar a mão ganha e paga 4x', () => 
   assert.equal(fim.vencedor, 0);
   assert.equal(fim.jogadores[1].mao.length, 3, 'quem zera a mão encerra: o +2 não é cobrado');
   assert.equal(dc.agir(fim, { tipo: 'comprar' }, rngDe(1)), fim, 'acabou: nada mais vale');
-  assert.deepEqual([dc.retornoDescarte(0, 10), dc.retornoDescarte(2, 10), dc.retornoDescarte(null, 10)], [40, 0, 0]);
+  assert.deepEqual([dc.retornoNeo(0, 10), dc.retornoNeo(2, 10), dc.retornoNeo(null, 10)], [40, 0, 0]);
 });
 
-test('Descarte: comprar; a comprada que serve pode ser jogada ou passada; sem monte, o descarte vira monte', () => {
+test('NEO: comprar; a comprada que serve pode ser jogada ou passada; sem monte, o descarte vira monte', () => {
   const nao = dc.agir(mesaDc([outras(), outras(), outras(), outras()], cd(0, 'copas', 7)), { tipo: 'comprar' }, rngDe(1));
   assert.deepEqual([nao.jogadores[0].mao.length, nao.vez, nao.comprou], [4, 1, null], '3 de paus não serve: a vez passa');
   const serve = dc.agir(mesaDc([[cd(1, 'copas', 9), ...outras()], outras(), outras(), outras()], cd(0, 'paus', 7)), { tipo: 'comprar' }, rngDe(1));
@@ -973,7 +973,7 @@ test('Descarte: comprar; a comprada que serve pode ser jogada ou passada; sem mo
   assert.equal(totalDc(r), totalDc(vazio));
 });
 
-test('Descarte: o bot guarda o curinga, ataca quem está perto de ganhar e escolhe o naipe que mais tem', () => {
+test('NEO: o bot guarda o curinga, ataca quem está perto de ganhar e escolhe o naipe que mais tem', () => {
   const mao = [cd(1, null, 'curinga'), cd(2, 'copas', 4), cd(3, 'copas', 'pula'), cd(4, 'espadas', 1)];
   const calmo = dc.decidirBot(mesaDc([mao, outras(), outras(), outras()], cd(0, 'copas', 7)), rngDe(1));
   assert.ok(calmo.tipo === 'jogar' && calmo.id !== 1);
@@ -984,7 +984,7 @@ test('Descarte: o bot guarda o curinga, ataca quem está perto de ganhar e escol
   assert.deepEqual(dc.decidirBot(mesaDc([outras(), outras(), outras(), outras()], cd(0, 'copas', 7)), rngDe(1)), { tipo: 'comprar' });
 });
 
-test('Descarte: 300 partidas só de bots terminam, sem perder carta', () => {
+test('NEO: 300 partidas só de bots terminam, sem perder carta', () => {
   for (let s = 1; s <= 300; s++) {
     const rng = rngDe(s);
     let p = dc.novaPartida(['A', 'B', 'C', 'D'], rng);
@@ -999,4 +999,16 @@ test('Descarte: 300 partidas só de bots terminam, sem perder carta', () => {
     assert.equal(p.jogadores[p.vencedor!].mao.length, 0);
     assert.equal(totalDc(p), 108);
   }
+});
+
+test('NEO: o selo de cada um guarda a última coisa que ele fez; o histórico antigo do Descarte vira NEO', () => {
+  const p = mesaDc([[cd(1, 'copas', 'mais2'), ...outras()], outras(), outras(), outras()], cd(0, 'copas', 7));
+  const q = dc.agir(p, { tipo: 'jogar', id: 1 }, rngDe(1));
+  assert.deepEqual(q.jogadores.map((j) => j.ultima), ['JOGOU +2 DE COPAS', 'COMPROU 2, PERDEU A VEZ', null, null]);
+  const pula = dc.agir(mesaDc([[cd(1, 'copas', 'pula'), ...outras()], outras(), outras(), outras()], cd(0, 'copas', 7)), { tipo: 'jogar', id: 1 }, rngDe(1));
+  assert.equal(pula.jogadores[1].ultima, 'PERDEU A VEZ');
+  const esqueceu = dc.agir(mesaDc([[cd(1, 'copas', 2), cd(2, 'espadas', 9)], outras(), outras(), outras()], cd(0, 'copas', 7)), { tipo: 'jogar', id: 1 }, rngDe(1));
+  assert.equal(esqueceu.jogadores[0].ultima, `ESQUECEU A ULTIMA: +${dc.MULTA}`);
+  assert.equal(dc.agir(mesaDc([outras(), outras(), outras(), outras()], cd(0, 'copas', 7)), { tipo: 'comprar' }, rngDe(1)).jogadores[0].ultima, 'COMPROU 1 E PASSOU');
+  assert.equal(normalizarHistorico([{ em: 1, origem: 'DESCARTE', valor: -10, detalhe: 'APOSTA 10' }])[0].origem, 'NEO');
 });

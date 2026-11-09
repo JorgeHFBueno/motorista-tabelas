@@ -3,8 +3,8 @@ import type { Carta } from '../cartas/baralho';
 import { CartaView } from '../cartas/CartaView';
 import { APOSTAS } from '../fichas/carteira';
 import { useOpcoesTeclado } from '../fichas/hooks';
-import { CartaDescarteView } from '../descarte/CartaDescarteView';
-import { MAO_INICIAL, MULTA, PREMIO, type CartaD } from '../descarte/regras';
+import { CartaNeoView } from '../neo/CartaNeoView';
+import { MAO_INICIAL, MULTA, PREMIO, type CartaNeo } from '../neo/regras';
 import { BLIND_GRANDE, BLIND_PEQUENO, ENTRADA } from '../poker/mesa';
 import { BANCA_PARA } from '../vinteum/regras';
 import { ALEATORIA, NIVEIS } from '../xadrez/bot';
@@ -17,7 +17,7 @@ const ABAS = [
   { id: '21', nome: '21' },
   { id: 'poker', nome: 'POKER' },
   { id: 'xadrez', nome: 'XADREZ' },
-  { id: 'descarte', nome: 'DESCARTE' },
+  { id: 'neo', nome: 'NEO' },
 ] as const;
 type Aba = (typeof ABAS)[number]['id'];
 
@@ -150,7 +150,7 @@ function RegrasXadrez() {
   );
 }
 
-const dc = (naipe: CartaD['naipe'], simbolo: CartaD['simbolo']): CartaD => ({ id: 0, naipe, simbolo });
+const dc = (naipe: CartaNeo['naipe'], simbolo: CartaNeo['simbolo']): CartaNeo => ({ id: 0, naipe, simbolo });
 const MESA_DC = dc('copas', 7);
 const SERVE_DC = [
   { cartas: [dc('copas', 2)], texto: 'Mesmo naipe.' },
@@ -165,11 +165,11 @@ const CARTAS_DC = [
   { nome: 'CURINGA +4', carta: dc(null, 'mais4'), texto: 'Curinga, e o proximo compra 4 e perde a vez.' },
 ];
 
-function MaoDescarte({ cartas }: { cartas: CartaD[] }) {
-  return <span className="dt-regras-cartas">{cartas.map((c, i) => <CartaDescarteView key={i} carta={c} pequena />)}</span>;
+function MaoNeo({ cartas }: { cartas: CartaNeo[] }) {
+  return <span className="dt-regras-cartas">{cartas.map((c, i) => <CartaNeoView key={i} carta={c} pequena />)}</span>;
 }
 
-function RegrasDescarte() {
+function RegrasNeo() {
   return (
     <>
       <h3>OBJETIVO</h3>
@@ -177,26 +177,26 @@ function RegrasDescarte() {
       <h3>O QUE SERVE</h3>
       <div className="dt-regras-linha">
         <span className="dt-regras-nome">MESA</span>
-        <MaoDescarte cartas={[MESA_DC]} />
+        <MaoNeo cartas={[MESA_DC]} />
         <span>A carta de cima do descarte.</span>
       </div>
       {SERVE_DC.map((e) => (
         <div key={e.texto} className="dt-regras-linha">
           <span className="dt-regras-nome">SERVE</span>
-          <MaoDescarte cartas={e.cartas} />
+          <MaoNeo cartas={e.cartas} />
           <span>{e.texto}</span>
         </div>
       ))}
       <div className="dt-regras-linha">
         <span className="dt-regras-nome">NAO</span>
-        <MaoDescarte cartas={[dc('espadas', 5)]} />
+        <MaoNeo cartas={[dc('espadas', 5)]} />
         <span>Outro naipe e outro numero.</span>
       </div>
       <h3>AS CARTAS DE ACAO</h3>
       {CARTAS_DC.map((e) => (
         <div key={e.texto} className="dt-regras-linha">
           <span className="dt-regras-nome">{e.nome}</span>
-          <MaoDescarte cartas={[e.carta]} />
+          <MaoNeo cartas={[e.carta]} />
           <span>{e.texto}</span>
         </div>
       ))}
@@ -238,7 +238,7 @@ export default function RegrasToy() {
         ))}
       </div>
       <div role="tabpanel">
-        {aba === '21' ? <Regras21 /> : aba === 'poker' ? <RegrasPoker /> : aba === 'xadrez' ? <RegrasXadrez /> : <RegrasDescarte />}
+        {aba === '21' ? <Regras21 /> : aba === 'poker' ? <RegrasPoker /> : aba === 'xadrez' ? <RegrasXadrez /> : <RegrasNeo />}
       </div>
     </div>
   );

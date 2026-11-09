@@ -70,12 +70,12 @@ export const DEV_TOYS: DevToy[] = [
     largura: 560,
   },
   {
-    id: 'descarte',
-    nome: 'Descarte',
+    id: 'neo',
+    nome: 'NEO',
     // duas cartas, a da frente com um +
     icone: 'M6 1h9v1H6zM6 2h1v10H6zM14 2h1v10h-1zM6 12h9v1H6zM10 4h1v5h-1zM8 6h5v1H8zM1 3h1v12H1zM2 3h4v1H2zM2 14h8v1H2zM9 13h1v1H9z',
-    componente: lazy(() => import('./toys/descarte/DescarteToy')),
-    largura: 640,
+    componente: lazy(() => import('./toys/neo/NeoToy')),
+    largura: 820, // a mesa do poker
   },
   {
     id: 'placar',

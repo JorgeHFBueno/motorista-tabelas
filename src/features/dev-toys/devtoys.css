@@ -1334,48 +1334,29 @@
   border-width: 1px;
 }
 
-/* ---- Descarte (3 bots) ---- */
-.devtoys .dt-dc-bots {
-  display: flex;
-  gap: calc(var(--dt-e) * 8px);
-  margin-bottom: calc(var(--dt-e) * 10px);
+/* ---- NEO (na mesa do poker, 3 bots) ---- */
+/* a sua mão ocupa a largura da mesa */
+.devtoys .dt-neo .dt-pk-mesa {
+  grid-template-areas: '. topo .' 'esq centro dir' 'voce voce voce';
+  align-content: start;
 }
 
-.devtoys .dt-dc-bot {
-  flex: 1;
-  min-width: 0;
-  padding: calc(var(--dt-e) * 4px);
-  border: 1px dotted var(--dt-apagado);
-  text-align: center;
-  font-size: calc(var(--dt-e) * 12px);
+.devtoys .dt-neo-voce {
+  max-width: 100%;
 }
 
-.devtoys .dt-dc-bot p {
-  margin: 0;
-}
-
-/* quem está na vez (ou quem ganhou): moldura cheia e nome invertido */
-.devtoys .dt-dc-davez {
-  border: 1px solid var(--dt-tinta);
-}
-
-.devtoys .dt-dc-davez .dt-dc-nome {
-  color: var(--dt-papel);
-  background: var(--dt-tinta);
-  text-shadow: none;
-}
-
-.devtoys .dt-dc-bot .dt-dc-versos {
-  display: flex;
+/* as cartas dos bots: viradas, uma sobre a outra; no fim, à mostra */
+.devtoys .dt-neo-cartas {
+  flex-wrap: wrap;
   justify-content: center;
-  height: calc(var(--dt-e) * 20px);
-  margin: calc(var(--dt-e) * 4px) 0;
+  align-items: center;
+  max-width: 100%;
 }
 
-.devtoys .dt-dc-verso {
+.devtoys .dt-neo-verso {
   flex: none;
-  width: calc(var(--dt-e) * 12px);
-  height: calc(var(--dt-e) * 18px);
+  width: calc(var(--dt-e) * 16px);
+  height: calc(var(--dt-e) * 24px);
   border: 1px solid var(--dt-tinta);
   border-radius: calc(var(--dt-e) * 2px);
   background-color: var(--dt-papel);
@@ -1383,87 +1364,96 @@
   background-size: 4px 4px;
 }
 
-.devtoys .dt-dc-verso + .dt-dc-verso {
-  margin-left: calc(var(--dt-e) * -4px);
+.devtoys .dt-neo-cartas .dt-neo-verso + .dt-neo-verso {
+  margin-left: calc(var(--dt-e) * -10px);
 }
 
-.devtoys .dt-dc-ultima,
-.devtoys .dt-dc-vermelho {
+.devtoys .dt-neo-ultima,
+.devtoys .dt-neo-vermelho {
   color: var(--dt-vermelho);
 }
 
-.devtoys .dt-dc-centro {
+.devtoys .dt-neo-pilhas {
   display: flex;
-  justify-content: center;
-  align-items: center;
-  gap: calc(var(--dt-e) * 18px);
-  margin-bottom: calc(var(--dt-e) * 8px);
+  gap: calc(var(--dt-e) * 14px);
 }
 
-.devtoys .dt-dc-pilha {
+.devtoys .dt-neo-pilha {
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: calc(var(--dt-e) * 4px);
 }
 
-.devtoys .dt-dc-vale {
+.devtoys .dt-neo-vale {
   display: flex;
-  flex-direction: column;
-  gap: calc(var(--dt-e) * 2px);
-  font-size: calc(var(--dt-e) * 13px);
+  align-items: center;
+  gap: calc(var(--dt-e) * 4px);
+  margin: calc(var(--dt-e) * 6px) 0 0;
+  font-size: calc(var(--dt-e) * 15px);
+  font-weight: bold;
 }
 
-.devtoys .dt-dc-vale svg {
+.devtoys .dt-neo svg {
   fill: currentColor;
-  vertical-align: middle;
 }
 
-.devtoys .dt-dc-registro {
-  min-height: calc(var(--dt-e) * 58px);
-  margin: 0 0 calc(var(--dt-e) * 8px);
-  padding: 0;
-  list-style: none;
-  text-align: center;
-  color: var(--dt-apagado);
-  font-size: calc(var(--dt-e) * 11px);
-}
-
-.devtoys .dt-dc-registro li:first-child {
-  color: var(--dt-tinta);
-}
-
-.devtoys .dt-dc-mao {
+.devtoys .dt-neo-mao {
   display: flex;
   flex-wrap: wrap;
   justify-content: center;
   gap: calc(var(--dt-e) * 6px);
+  max-width: calc(var(--dt-e) * 560px);
   min-height: calc(var(--dt-e) * 72px);
-  margin-bottom: calc(var(--dt-e) * 12px);
+  padding-top: calc(var(--dt-e) * 6px);
 }
 
-.devtoys .dt-dc-mao .dt-carta {
+.devtoys .dt-neo-mao .dt-carta {
   transition: transform 120ms ease-out;
 }
 
-/* a carta que serve sobe ao passar o mouse ou com o foco */
-.devtoys .dt-dc-mao button:not(:disabled):hover .dt-carta,
-.devtoys .dt-dc-mao button:focus-visible .dt-carta,
-.devtoys .dt-dc-comprada .dt-carta {
+/* a carta que serve sobe ao passar o mouse ou com o foco; a comprada e o curinga escolhido ficam erguidos */
+.devtoys .dt-neo-mao button:not(:disabled):hover .dt-carta,
+.devtoys .dt-neo-mao button:focus-visible .dt-carta,
+.devtoys .dt-neo-erguida .dt-carta {
   transform: translateY(calc(var(--dt-e) * -6px));
   box-shadow: 0 0 0 1px var(--dt-tinta);
 }
 
-.devtoys .dt-dc-mao button:focus-visible {
+.devtoys .dt-neo-mao button:focus-visible {
   outline: none;
 }
 
 /* na sua vez, o que não serve fica apagado */
-.devtoys .dt-dc-apagada .dt-carta {
+.devtoys .dt-neo-apagada .dt-carta {
   opacity: 0.4;
 }
 
-.devtoys .dt-dc-naipes {
+.devtoys .dt-neo-lances {
+  margin: calc(var(--dt-e) * 2px) 0 0;
+  padding: 0;
+  list-style: none;
+  color: var(--dt-apagado);
+  font-size: calc(var(--dt-e) * 11px);
+}
+
+.devtoys .dt-neo-lances li {
+  margin-bottom: calc(var(--dt-e) * 3px);
+}
+
+.devtoys .dt-neo-lances li:first-child {
+  color: var(--dt-tinta);
+}
+
+.devtoys .dt-neo-apostas {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: calc(var(--dt-e) * 6px);
+}
+
+/* curinga: os quatro naipes no meio */
+.devtoys .dt-neo-naipes {
   display: grid;
   grid-template-columns: repeat(2, auto);
   gap: calc(var(--dt-e) * 3px);
@@ -1471,17 +1461,17 @@
   font-size: calc(var(--dt-e) * 13px);
 }
 
-.devtoys .dt-dc-naipes b {
+.devtoys .dt-neo-naipes b {
   grid-column: 1 / -1;
 }
 
-.devtoys .dt-carta-mini .dt-dc-naipes {
+.devtoys .dt-carta-mini .dt-neo-naipes {
   gap: calc(var(--dt-e) * 1px);
   font-size: calc(var(--dt-e) * 9px);
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .devtoys .dt-dc-mao .dt-carta {
+  .devtoys .dt-neo-mao .dt-carta {
     transition: none;
   }
 }
