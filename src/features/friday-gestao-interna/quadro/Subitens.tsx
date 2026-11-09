@@ -77,13 +77,18 @@ export function TabelaSubitens({ pai, sub, acoes, ops, usuarios, modo, focarNovo
                 <td className="tq-nome">
                   <div className="nome-item">
                     <Editavel valor={it.nome} className="nome-texto" onSalvar={v => v && acoes.renomearItem(it.id, v)} />
-                    <MenuSubitem item={it} ops={ops} onAbrir={abrirItem ? () => abrirItem(it.id) : undefined} onDuplicar={() => acoes.duplicarItens([it.id])} />
-                    {abrirItem && <button className="abrir-item" onClick={() => abrirItem(it.id)} title="Abrir"><Maximize2 size={13} /> Abrir</button>}
-                    {abrirItem && (
-                      <button className={`bolha${it.n_atualizacoes ? ' com' : ''}`} onClick={() => abrirItem(it.id)} title="Atualizações" aria-label={`${it.n_atualizacoes ?? 0} atualizações`}>
-                        {it.n_atualizacoes ? <><MessageCircle size={17} /><span>{it.n_atualizacoes}</span></> : <MessageCirclePlus size={17} />}
-                      </button>
-                    )}
+                    {/* "⋯" e "Abrir" por cima do fim do nome ao passar o mouse, como na tabela principal. */}
+                    <span className="fim-linha">
+                      <span className="acoes-linha">
+                        <MenuSubitem item={it} ops={ops} onAbrir={abrirItem ? () => abrirItem(it.id) : undefined} onDuplicar={() => acoes.duplicarItens([it.id])} />
+                        {abrirItem && <button className="abrir-item" onClick={() => abrirItem(it.id)} title="Abrir"><Maximize2 size={13} /> Abrir</button>}
+                      </span>
+                      {abrirItem && (
+                        <button className={`bolha${it.n_atualizacoes ? ' com' : ''}`} onClick={() => abrirItem(it.id)} title="Atualizações" aria-label={`${it.n_atualizacoes ?? 0} atualizações`}>
+                          {it.n_atualizacoes ? <><MessageCircle size={17} /><span>{it.n_atualizacoes}</span></> : <MessageCirclePlus size={17} />}
+                        </button>
+                      )}
+                    </span>
                   </div>
                 </td>
                 {colunas.map(c => (

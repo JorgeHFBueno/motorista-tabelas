@@ -256,12 +256,17 @@ export function Tabela({ grupos: gruposReais, colunas: colunasVisiveis, todasCol
                           </button>
                           <Editavel valor={i.nome} travado={i.nome_travado ? NOME_TRAVADO : undefined} onSalvar={v => v && acoes.renomearItem(i.id, v)} className="nome-texto" />
                           {nSub.get(i.id) ? <button className={`chip-sub${abertos.has(i.id) ? ' on' : ''}`} onClick={() => alternarSubs(i.id)} title="Mostrar ou recolher os subitens">{nSub.get(i.id)} <ListTree size={13} /></button> : null}
-                          <MenuLinha item={i} ops={ops} onAbrir={() => abrirItem(i.id)} onDuplicar={() => acoes.duplicarItens([i.id])}
-                            onSubitem={() => { alternarSubs(i.id, true); setFocoSub(i.id); }} />
-                          <button className="abrir-item" onClick={() => abrirItem(i.id)} title="Abrir"><Maximize2 size={13} /> Abrir</button>
-                          <button className={`bolha${i.n_atualizacoes ? ' com' : ''}`} onClick={() => abrirItem(i.id)} title="Atualizações" aria-label={`${i.n_atualizacoes ?? 0} atualizações`}>
-                            {i.n_atualizacoes ? <><MessageCircle size={17} /><span>{i.n_atualizacoes}</span></> : <MessageCirclePlus size={17} />}
-                          </button>
+                          {/* "⋯" e "Abrir" aparecem por cima do fim do nome ao passar o mouse (como no monday), sem ocupar largura. */}
+                          <span className="fim-linha">
+                            <span className="acoes-linha">
+                              <MenuLinha item={i} ops={ops} onAbrir={() => abrirItem(i.id)} onDuplicar={() => acoes.duplicarItens([i.id])}
+                                onSubitem={() => { alternarSubs(i.id, true); setFocoSub(i.id); }} />
+                              <button className="abrir-item" onClick={() => abrirItem(i.id)} title="Abrir"><Maximize2 size={13} /> Abrir</button>
+                            </span>
+                            <button className={`bolha${i.n_atualizacoes ? ' com' : ''}`} onClick={() => abrirItem(i.id)} title="Atualizações" aria-label={`${i.n_atualizacoes ?? 0} atualizações`}>
+                              {i.n_atualizacoes ? <><MessageCircle size={17} /><span>{i.n_atualizacoes}</span></> : <MessageCirclePlus size={17} />}
+                            </button>
+                          </span>
                         </div>
                       </td>
                       {colunas.map(c => (
