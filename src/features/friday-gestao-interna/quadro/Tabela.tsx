@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from 'react';
+import { useMemo, useRef, useState, type MouseEvent as EventoMouse } from 'react';
 import {
   AlarmClock, Archive, ArrowDownAZ, ArrowLeft, ArrowRight, ArrowUpAZ, CalendarDays, Check, ChevronDown, ChevronRight, Copy, EyeOff, FileSpreadsheet, GripVertical, Group, ListTree, Maximize2,
   Lock, LockOpen, MessageCircle, Shuffle, MessageCirclePlus, Sigma, MoreHorizontal, Palette, Pencil, Plus, Trash2,
@@ -21,11 +21,11 @@ import type { Acoes } from './useQuadro.ts';
 export type { Ordenacao };
 export type Agrupamento = { grupos: GrupoVirtual[]; grupoDe: Map<number, number[]> } | null;
 
-const LARGURA_NOME = 360;
+const LARGURA_NOME = 360; // coluna do item, quando o quadro ainda não tem largura salva (config.largura_nome)
 const LIMITE_INICIAL = 60;
 
 export function Tabela({ grupos: gruposReais, colunas, todasColunas, itens, sub, acoes, ops, usuarios, nomeItem, selecionados, setSelecionados, abrirItem, setOrdenacao,
-  onOcultar, onAgrupar, onExportarGrupo, agrupamento }: {
+  onOcultar, onAgrupar, onExportarGrupo, agrupamento, larguraNome, onLarguraNome }: {
   grupos: Grupo[];
   colunas: Coluna[];
   todasColunas: Coluna[];
@@ -44,6 +44,8 @@ export function Tabela({ grupos: gruposReais, colunas, todasColunas, itens, sub,
   onExportarGrupo: (g: Grupo, itens: Item[]) => void;
   // "Agrupar por": grupos virtuais (um por valor da coluna) no lugar dos grupos do quadro.
   agrupamento: Agrupamento;
+  larguraNome?: number;
+  onLarguraNome: (largura: number) => void;
 }) {
   const virtual = !!agrupamento;
   const grupos: (Grupo | GrupoVirtual)[] = agrupamento?.grupos ?? gruposReais;
@@ -53,6 +55,7 @@ export function Tabela({ grupos: gruposReais, colunas, todasColunas, itens, sub,
   const [focoSub, setFocoSub] = useState<number | null>(null);
   const alternarSubs = (id: number, abrir?: boolean) => setAbertos(s => { const n = new Set(s); if (abrir ?? !n.has(id)) n.add(id); else n.delete(id); return n; });
   const [larguras, setLarguras] = useState<Record<number, number>>({});
+  const [nomeArrastando, setNomeArrastando] = useState<number | null>(null);
   const [arrastando, setArrastando] = useState<number | null>(null);
   const [alvo, setAlvo] = useState<{ grupoId: number; antesDe: number | null } | null>(null);
   // Grupos grandes mostram os itens em partes (desempenho com milhares de linhas).
@@ -64,7 +67,8 @@ export function Tabela({ grupos: gruposReais, colunas, todasColunas, itens, sub,
   const aoCriar = (c: Coluna) => { if (c.tipo === 'formula') setEditorFormula(c); };
 
   const largura = (c: Coluna) => larguras[c.id] ?? c.largura ?? 140;
-  const larguraTotal = 40 + LARGURA_NOME + colunas.reduce((s, c) => s + largura(c), 0) + 60;
+  const larguraItem = nomeArrastando ?? larguraNome ?? LARGURA_NOME;
+  const larguraTotal = 40 + larguraItem + colunas.reduce((s, c) => s + largura(c), 0) + 60;
   const porGrupo = useMemo(() => {
     const m = new Map<number, Item[]>();
     for (const i of itens) {
@@ -94,19 +98,34 @@ export function Tabela({ grupos: gruposReais, colunas, todasColunas, itens, sub,
   };
 
   // Redimensionar coluna arrastando a borda do cabeçalho.
-  const iniciarResize = (c: Coluna, x0: number) => {
-    const w0 = largura(c);
+  const arrastarBorda = (x0: number, w0: number, min: number, max: number, aoMover: (w: number) => void, aoSoltar: (w: number) => void) => {
     let w = w0;
-    const mover = (e: MouseEvent) => { w = Math.max(70, Math.min(600, w0 + e.clientX - x0)); setLarguras(l => ({ ...l, [c.id]: w })); };
+    const mover = (e: MouseEvent) => { w = Math.max(min, Math.min(max, w0 + e.clientX - x0)); aoMover(w); };
     const soltar = () => {
       document.removeEventListener('mousemove', mover);
       document.removeEventListener('mouseup', soltar);
       document.body.classList.remove('redimensionando');
-      if (w !== w0) acoes.atualizarColuna(c.id, { largura: Math.round(w) });
+      if (w !== w0) aoSoltar(Math.round(w));
     };
     document.body.classList.add('redimensionando');
     document.addEventListener('mousemove', mover);
     document.addEventListener('mouseup', soltar);
+  };
+  const iniciarResize = (c: Coluna, x0: number) =>
+    arrastarBorda(x0, largura(c), 70, 600, w => setLarguras(l => ({ ...l, [c.id]: w })), w => acoes.atualizarColuna(c.id, { largura: w }));
+  // A coluna do item vale para o quadro todo (todos os grupos), como as outras colunas.
+  const iniciarResizeNome = (x0: number) =>
+    arrastarBorda(x0, larguraItem, 200, 900, setNomeArrastando, w => { onLarguraNome(w); setNomeArrastando(null); });
+
+  // Hover: o texto cortado (…) aparece inteiro na dica, no nome do item e em qualquer célula.
+  const dicaTextoCortado = (e: EventoMouse<HTMLTableSectionElement>) => {
+    const td = (e.target as HTMLElement).closest('td');
+    if (!td || !(td.classList.contains('tq-cel') || td.classList.contains('tq-nome'))) return;
+    const alvo = td.querySelector<HTMLElement>('.nome-texto') ?? td;
+    const cortado = [alvo, ...alvo.querySelectorAll<HTMLElement>('*')].some(el => el.scrollWidth > el.clientWidth + 1);
+    const texto = alvo.innerText.trim();
+    if (cortado && texto) alvo.title = texto;
+    else alvo.removeAttribute('title');
   };
 
   const soltarItem = (grupoId: number, antesDe: number | null) => {
@@ -122,7 +141,7 @@ export function Tabela({ grupos: gruposReais, colunas, todasColunas, itens, sub,
   const colgroup = (
     <colgroup>
       <col style={{ width: 40 }} />
-      <col style={{ width: LARGURA_NOME }} />
+      <col style={{ width: larguraItem }} />
       {colunas.map(c => <col key={c.id} style={{ width: largura(c) }} />)}
       <col style={{ width: 60 }} />
     </colgroup>
@@ -159,7 +178,10 @@ export function Tabela({ grupos: gruposReais, colunas, todasColunas, itens, sub,
                       <input type="checkbox" className="caixa" checked={todosSel} aria-label="Selecionar todos do grupo"
                         onChange={() => { const s = new Set(selecionados); lista.forEach(i => (todosSel ? s.delete(i.id) : s.add(i.id))); setSelecionados(s); }} />
                     </th>
-                    <th className="tq-nome fixo">{nomeItem}</th>
+                    <th className="tq-nome fixo">
+                      {nomeItem}
+                      <span className="redim" onMouseDown={e => { e.preventDefault(); iniciarResizeNome(e.clientX); }} />
+                    </th>
                     {colunas.map((c, ci) => (
                       <CabecalhoColuna key={c.id} coluna={c} acoes={acoes} confirmar={confirmar} setOrdenacao={setOrdenacao} onFormula={setEditorFormula} aoCriar={aoCriar}
                         onOcultar={() => onOcultar(c.id)} onAgrupar={() => onAgrupar(c.id)}
@@ -168,7 +190,7 @@ export function Tabela({ grupos: gruposReais, colunas, todasColunas, itens, sub,
                     <th className="tq-mais"><AdicionarColuna acoes={acoes} aoCriar={aoCriar} /></th>
                   </tr>
                 </thead>
-                <tbody>
+                <tbody onMouseOver={dicaTextoCortado}>
                   {lista.slice(0, limiteDe(g.id)).map(i => [
                     <tr key={i.id}
                       className={`${selecionados.has(i.id) ? 'sel' : ''}${alvo?.grupoId === g.id && alvo.antesDe === i.id ? ' alvo-antes' : ''}${arrastando === i.id ? ' arrastando' : ''}`}

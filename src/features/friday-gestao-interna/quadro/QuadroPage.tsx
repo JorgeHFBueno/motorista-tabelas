@@ -226,6 +226,7 @@ export default function QuadroPage() {
             onOcultar={id => mudarEstado({ ocultas: [...estado.ocultas, id] })}
             onAgrupar={id => mudarEstado({ agrupar: { coluna_id: id, ordem: 1, vazios: false } })}
             onExportarGrupo={(g, lista) => exportar(g.nome, lista, colunasVisiveis)}
+            larguraNome={Number(quadro.config?.largura_nome) || undefined} onLarguraNome={w => q.atualizarQuadro({ config: { ...(quadro.config ?? {}), largura_nome: w } })}
             agrupamento={agrupamento} />
         )}
         {visao.tipo !== 'tabela' && !colunaBase && (

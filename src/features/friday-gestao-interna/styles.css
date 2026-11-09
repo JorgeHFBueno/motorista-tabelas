@@ -212,6 +212,9 @@ body.redimensionando .friday-root, body.redimensionando .friday-root * { cursor:
 .friday-root .tq th, .friday-root .tq td { border-bottom: 1px solid var(--borda-suave); border-right: 1px solid var(--borda-suave); height: 36px; padding: 0; background: var(--superficie); }
 .friday-root .tq thead th { border-top: 1px solid var(--borda-suave); font-weight: 400; color: var(--texto-2); font-size: 13px; position: relative; }
 .friday-root .tq .fixo { position: sticky; z-index: 2; }
+/* Cabeçalho das colunas fica no topo ao rolar o quadro (vale dentro de cada grupo). */
+.friday-root .tq:not(.tq-sub) thead th { position: sticky; top: 0; z-index: 3; }
+.friday-root .tq:not(.tq-sub) thead th.fixo { z-index: 4; }
 .friday-root .tq .tq-sel { left: 0; text-align: center; border-left: 6px solid var(--cor-grupo); }
 .friday-root .tq thead .tq-sel { border-top-left-radius: 6px; }
 .friday-root .tq .tq-nome { left: 40px; text-align: left; padding: 0 0 0 8px; }
