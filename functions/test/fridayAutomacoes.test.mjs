@@ -84,3 +84,18 @@ test('webhook e avisos não são ações do executor; textos legíveis e chaves'
   assert.equal(r.chaveDoEvento(3, 99), 'atividade:99:3');
   assert.equal(r.chaveDaData(3, 5, '2026-10-29'), 'data:3:5:2026-10-29');
 });
+
+test('"sair de" um rótulo de status: compara o rótulo anterior (texto da atividade); controle de tempo no histórico', () => {
+  const status = { id: 7, tipo: 'status', config: { rotulos: [{ id: '0', texto: '' }, { id: '1', texto: 'Em andamento' }, { id: '2', texto: 'Feito' }] } };
+  const g = { tipo: 'coluna_muda', coluna_id: 7, de: ['1'], para: [] };
+  const feito = item({ 7: '2' });
+  assert.equal(r.gatilhoDispara(g, { acao: 'alterou', coluna_id: 7, de: 'Em andamento' }, feito, [status]), true);
+  assert.equal(r.gatilhoDispara(g, { acao: 'alterou', coluna_id: 7, de: 'Feito' }, item({ 7: '1' }), [status]), false, 'vinha de outro rótulo');
+  assert.equal(r.gatilhoDispara(g, { acao: 'alterou', coluna_id: 7, de: null }, feito, [status]), false, 'vinha vazio');
+  assert.equal(r.gatilhoDispara({ ...g, de: ['0'] }, { acao: 'alterou', coluna_id: 7, de: null }, feito, [status]), true, 'vazio = rótulo 0');
+  assert.equal(r.gatilhoDispara({ ...g, de: [] }, { acao: 'alterou', coluna_id: 7, de: 'Feito' }, feito, [status]), true, 'sem "de" vale qualquer anterior');
+  const tempo = { id: 9, tipo: 'tempo', config: {} };
+  const sessoes = [{ id: 'a', inicio: '2026-11-09T08:00:00.000Z', fim: '2026-11-09T09:30:00.000Z', por: 'u1' }];
+  assert.equal(r.textoDoValor(tempo, { sessoes }), '1h 30m');
+  assert.equal(r.textoDoValor(tempo, { sessoes: [...sessoes, { id: 'b', inicio: '2026-11-09T10:00:00.000Z', fim: null, por: 'u1' }] }).endsWith('(cronômetro ligado)'), true);
+});

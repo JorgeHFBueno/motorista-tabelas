@@ -3,6 +3,7 @@ import { hojeISO } from '../util.ts';
 import { itensDoQuadro } from './Celula.tsx';
 import { calcular, textoResultado } from './formula.ts';
 import { textoDoValor, type Coluna, type Grupo, type Item, type Sub } from './tipos.ts';
+import { duracaoSessao, sessoesDe, totalSegundos, type Sessao } from './tempo.ts';
 import { porPosicao } from './useQuadro.ts';
 
 const carregar = async () => (await import('exceljs')).default;
@@ -19,6 +20,7 @@ function valorExcel(c: Coluna, item: Item, colunas: Coluna[], nomeUsuario: (id: 
     case 'data': return typeof v === 'string' && /^\d{4}-\d{2}-\d{2}/.test(v) ? dataExcel(v) : null;
     case 'periodo': return v?.inicio || v?.fim ? `${dataBR(v.inicio ?? v.fim)} - ${dataBR(v.fim ?? v.inicio)}` : null;
     case 'caixa': return v ? 'Sim' : null;
+    case 'tempo': return sessoesDe(v).length ? totalSegundos(v) / 86400 : null; // duração do Excel (fração do dia)
     case 'link': {
       const url = typeof v === 'string' ? v : v?.url;
       if (!url) return null;
@@ -37,8 +39,17 @@ function valorExcel(c: Coluna, item: Item, colunas: Coluna[], nomeUsuario: (id: 
 function formatoColuna(c: Coluna): string | undefined {
   if (c.tipo === 'data') return 'dd/mm/yyyy';
   if (c.tipo === 'numero' && c.config.unidade === 'R$') return '"R$" #,##0.00';
+  if (c.tipo === 'tempo') return FMT_DURACAO;
   return undefined;
 }
+const FMT_DURACAO = '[h]:mm:ss';
+const FMT_DATA_HORA = 'dd/mm/yyyy hh:mm';
+// Data e hora do Excel na hora local de quem exporta (o Excel não guarda fuso).
+const dataHoraExcel = (iso: string) => { const d = new Date(iso); return new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate(), d.getHours(), d.getMinutes(), d.getSeconds())); };
+const linhaSessao = (item: string, coluna: string | null, s: Sessao, nomeUsuario: (id: unknown) => string): Celula[] => [
+  item, ...(coluna == null ? [] : [coluna]), s.por == null ? '' : nomeUsuario(s.por), dataHoraExcel(s.inicio), s.fim ? dataHoraExcel(s.fim) : 'rodando',
+  duracaoSessao(s) / 86400, s.manual ? 'Sim' : '',
+];
 
 // Uma aba com os itens (Nome, Grupo e as colunas) e, se houver, uma aba "Subitens".
 export async function exportarExcel(o: {
@@ -73,6 +84,14 @@ export async function exportarExcel(o: {
     [undefined, undefined, ...o.colunas.map(formatoColuna)],
     o.itens.map(i => [i.nome, grupoNome.get(i.grupo_id) ?? '', ...o.colunas.map(c => valorExcel(c, i, o.todasColunas, o.nomeUsuario, nomesLigados))]));
 
+  // Controle de tempo: uma linha por sessão (quem, início, fim, duração), para somar por pessoa ou por mês.
+  const colsTempo = o.colunas.filter(c => c.tipo === 'tempo');
+  const sessoes = o.itens.flatMap(i => colsTempo.flatMap(c => sessoesDe(i.valores[c.id]).map(s => linhaSessao(i.nome, c.titulo, s, o.nomeUsuario))));
+  if (sessoes.length) {
+    montar('Sessões de tempo', [o.nomeItem, 'Coluna', 'Iniciada por', 'Início', 'Fim', 'Duração', 'Lançada à mão'], [40, 22, 24, 18, 18, 12, 14],
+      [undefined, undefined, undefined, FMT_DATA_HORA, FMT_DATA_HORA, FMT_DURACAO, undefined], sessoes);
+  }
+
   // Subitens dos itens exportados, na ordem dos itens.
   const ordem = new Map(o.itens.map((i, k) => [i.id, k]));
   const subs = (o.sub?.itens ?? []).filter(s => ordem.has(s.item_pai_id!)).sort((a, b) => ordem.get(a.item_pai_id!)! - ordem.get(b.item_pai_id!)! || porPosicao(a, b));
@@ -86,15 +105,36 @@ export async function exportarExcel(o: {
       subs.map(s => [nomePai.get(s.item_pai_id!) ?? '', s.nome, ...colsSub.map(c => valorExcel(c, s, o.sub!.colunas, o.nomeUsuario, nomesLigados))]));
   }
 
+  await baixar(wb, o.arquivo);
+}
+
+async function baixar(wb: { xlsx: { writeBuffer: () => Promise<ArrayBuffer | Uint8Array> } }, arquivo: string) {
   const buf = await wb.xlsx.writeBuffer();
   const url = URL.createObjectURL(new Blob([buf], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }));
   const a = document.createElement('a');
   a.href = url;
-  a.download = `${o.arquivo.replace(/[\\/:*?"<>|]/g, '-').slice(0, 120)} ${hojeISO()}.xlsx`;
+  a.download = `${arquivo.replace(/[\\/:*?"<>|]/g, '-').slice(0, 120)} ${hojeISO()}.xlsx`;
   document.body.appendChild(a);
   a.click();
   a.remove();
   setTimeout(() => URL.revokeObjectURL(url), 10000);
+}
+
+// Registro de tempo de um item: uma linha por sessão.
+export async function exportarSessoesTempo(o: { arquivo: string; linhas: { item: string; sessao: Sessao }[]; nomeUsuario: (id: unknown) => string }) {
+  const ExcelJS = await carregar();
+  const wb = new ExcelJS.Workbook();
+  wb.creator = 'Ledur gestão';
+  wb.created = new Date();
+  const ws = wb.addWorksheet('Registro de tempo', { views: [{ state: 'frozen', ySplit: 1 }] });
+  const formatos = [undefined, undefined, FMT_DATA_HORA, FMT_DATA_HORA, FMT_DURACAO, undefined];
+  ws.columns = ['Item', 'Iniciada por', 'Início', 'Fim', 'Duração', 'Lançada à mão'].map((t, k) => ({ header: t, key: `k${k}`, width: [40, 24, 18, 18, 12, 14][k], style: formatos[k] ? { numFmt: formatos[k] } : {} }));
+  for (const l of [...o.linhas].sort((a, b) => a.sessao.inicio.localeCompare(b.sessao.inicio))) ws.addRow(linhaSessao(l.item, null, l.sessao, o.nomeUsuario));
+  const total = ws.addRow(['Total', '', '', '', o.linhas.reduce((t, l) => t + duracaoSessao(l.sessao), 0) / 86400, '']);
+  total.font = { bold: true };
+  ws.getRow(1).font = { bold: true };
+  ws.getRow(1).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE6E9EF' } };
+  await baixar(wb, o.arquivo);
 }
 
 // ---------------------------------------------------------------- leitura (importação)

@@ -9,6 +9,7 @@ import { functions } from './funcoes.ts';
 import { CORES, fmtNumeroColuna, NOME_TRAVADO, nomeEspelhado } from './util.ts';
 import { converterColuna, nomeDoAlvo, type Alvo } from './quadro/mudarTipo.ts';
 import type { Coluna } from './quadro/tipos.ts';
+import { ErroTempo, fmtDuracao, lerTempo, operarTempo, sessaoAberta, semSessaoAberta, totalSegundos, type OpTempo } from './quadro/tempo.ts';
 
 // Camada de dados do Friday. As telas chamam req()/api como se houvesse um servidor (/api/...); aqui cada
 // chamada é atendida direto no Firestore, nas coleções "friday-<recurso>". O login é o do sistema (Firebase
@@ -484,6 +485,7 @@ async function formatarValor(tipo: string, config: Record<string, any>, valor: u
     case 'caixa': return valor ? 'marcado' : null;
     case 'numero': return fmtNumeroColuna(config, valor) || null;
     case 'arquivos': return (valor as { nome: string }[]).map(a => a.nome).join(', ') || null;
+    case 'tempo': return lerTempo(valor).sessoes.length ? `${fmtDuracao(totalSegundos(valor))}${sessaoAberta(valor) ? ' (cronômetro ligado)' : ''}` : null;
     case 'link': { const v = valor as { url?: string; texto?: string } | string; return typeof v === 'string' ? v : v.texto || v.url || null; }
     // Item ligado num quadro que a pessoa não vê: fica o número.
     case 'ligacao': return (await Promise.all((valor as number[]).map(async id => (await buscar('itens', id).catch(() => undefined))?.nome ?? `#${id}`))).join(', ');
@@ -682,12 +684,24 @@ async function importar(quadroId: number, corpo: unknown) {
   return { criados, subitens: subCriados, grupos: gruposCriados };
 }
 
+// Valores de um item copiado: o cronômetro ligado não vai junto (o mesmo tempo seria contado duas vezes).
+function valoresDaCopia(valores: Record<string, unknown> | undefined, colunas: Row[]) {
+  const v = { ...(valores ?? {}) };
+  for (const c of colunas) {
+    const k = String(c.id);
+    if (c.tipo !== 'tempo' || v[k] == null) continue;
+    const t = semSessaoAberta(v[k]);
+    if (t) v[k] = t; else delete v[k];
+  }
+  return v;
+}
+
 async function duplicarItem(id: number) {
   const item = await buscar('itens', id);
   if (!item) throw new ErroApi(404, 'item não encontrado');
   const nome = `${item.nome} (cópia)`;
-  const completoItem = await comOficiais(item);
-  const novo = await inserir('itens', { quadro_id: item.quadro_id, grupo_id: item.grupo_id, item_pai_id: item.item_pai_id, nome, posicao: Number(item.posicao) + 0.5, valores: completoItem.valores ?? {}, criado_por: eu().id });
+  const [completoItem, colunas] = await Promise.all([comOficiais(item), consultar('colunas', { quadro_id: item.quadro_id })]);
+  const novo = await inserir('itens', { quadro_id: item.quadro_id, grupo_id: item.grupo_id, item_pai_id: item.item_pai_id, nome, posicao: Number(item.posicao) + 0.5, valores: valoresDaCopia(completoItem.valores, colunas), criado_por: eu().id });
   // A cópia de um item vinculado também vira registro: num cadastro existente, a Function decide (obras-v2 cria o contrato
   // na hora; os demais deixam o item sem vínculo até a conciliação); a cópia de um subitem vira uma entrada nova no
   // registro do item pai (ex.: LOTE de obras-v2).
@@ -755,7 +769,7 @@ async function duplicarQuadro(id: number, corpo: unknown) {
     const ng = await inserir('grupos', { quadro_id: novo.id, nome: g.nome, cor: g.cor, posicao: g.posicao });
     if (!b.com_itens) continue;
     for (const it of ordenar('itens', itens.filter(i => i.grupo_id === g.id && i.item_pai_id == null))) {
-      const valores = Object.fromEntries(Object.entries(it.valores ?? {}).map(([k, x]) => [String(mapaCol.get(k) ?? k), x]));
+      const valores = Object.fromEntries(Object.entries(valoresDaCopia(it.valores, colunas)).map(([k, x]) => [String(mapaCol.get(k) ?? k), x]));
       copias.push({ ...padrao('itens'), id: novoId(), quadro_id: novo.id, grupo_id: ng.id, nome: it.nome, posicao: it.posicao, valores, criado_por: eu().id, busca: prefixosBusca(it.nome), pessoas: pessoasDosValores(valores, pessoasNovas) } as Row);
     }
   }
@@ -791,10 +805,12 @@ export async function mudarTipoColuna(colunaId: number, alvo: Alvo, aplicar = fa
 
 // Altera o valor de uma célula (item x coluna) e registra a atividade.
 async function definirValor(itemId: number, corpo: unknown) {
-  const { coluna_id, valor } = (corpo ?? {}) as { coluna_id?: number; valor?: unknown };
+  const { coluna_id, valor: recebido } = (corpo ?? {}) as { coluna_id?: number; valor?: unknown };
   const [item, coluna] = await Promise.all([buscar('itens', itemId), buscar('colunas', coluna_id)]);
   if (!item || !coluna) throw new ErroApi(404, 'item ou coluna não encontrado');
   if (coluna.quadro_id !== item.quadro_id) throw new ErroApi(400, 'a coluna não pertence ao quadro do item');
+  // Controle de tempo pela rota genérica (ex.: importação): só sessões válidas. Iniciar e parar usam a rota /tempo.
+  const valor = coluna.tipo === 'tempo' ? (lerTempo(recebido).sessoes.length ? lerTempo(recebido) : null) : recebido;
   const chave = String(coluna.id);
   const oficial = item.vinculo ? await campoOficialDa(coluna) : null;
   if (oficial?.campo.somente_leitura) throw new ErroApi(409, `“${coluna.titulo}” é só leitura: o valor vem do cadastro ${oficial.registro.nome}.`);
@@ -820,6 +836,37 @@ async function definirValor(itemId: number, corpo: unknown) {
     await registrar({ quadro_id: item.quadro_id, item_id: item.id, item_nome: item.nome, acao: 'alterou', coluna_id: coluna.id, coluna_titulo: coluna.titulo, de, para });
   }
   return { ...atual, valores, atualizado_em, pessoas };
+}
+
+// Controle de tempo: iniciar, parar, lançar, corrigir ou apagar uma sessão. A conta é feita numa transação sobre o
+// valor gravado (não sobre o que a tela tinha), para duas pessoas não apagarem a sessão uma da outra.
+async function operarTempoItem(itemId: number, corpo: unknown) {
+  const { coluna_id, ...op } = (corpo ?? {}) as { coluna_id?: number } & OpTempo;
+  const [item, coluna] = await Promise.all([buscar('itens', itemId), buscar('colunas', coluna_id)]);
+  if (!item || !coluna) throw new ErroApi(404, 'item ou coluna não encontrado');
+  if (coluna.quadro_id !== item.quadro_id || coluna.tipo !== 'tempo') throw new ErroApi(400, 'a coluna não é de controle de tempo deste quadro');
+  const chave = String(coluna.id);
+  const atualizado_em = agora();
+  let antes: unknown;
+  let depois: unknown;
+  try {
+    await runTransaction(db, async t => {
+      const s = await t.get(ref('itens', itemId));
+      if (!s.exists()) throw new ErroApi(404, 'item não encontrado');
+      antes = s.data().valores?.[chave];
+      depois = operarTempo(antes, op as OpTempo, eu().id);
+      t.update(ref('itens', itemId), new FieldPath('valores', chave), depois == null ? deleteField() : depois, 'atualizado_em', atualizado_em);
+    });
+  } catch (e) {
+    if (e instanceof ErroTempo) throw new ErroApi(400, e.message);
+    throw e;
+  }
+  const config = coluna.config ?? {};
+  const [de, para] = await Promise.all([formatarValor('tempo', config, antes), formatarValor('tempo', config, depois)]);
+  if (de !== para) await registrar({ quadro_id: item.quadro_id, item_id: item.id, item_nome: item.nome, acao: 'alterou', coluna_id: coluna.id, coluna_titulo: coluna.titulo, de, para });
+  const valores = { ...(item.valores ?? {}) };
+  if (depois == null) delete valores[chave]; else valores[chave] = depois;
+  return { ...item, valores, atualizado_em };
 }
 
 // ------------------------------------------------------------------ arquivo, lixeira e exclusão definitiva
@@ -1222,6 +1269,7 @@ async function rotear(metodo: string, url: string, corpo?: unknown): Promise<unk
   if ((p[0] === 'quadros' || p[0] === 'pastas') && p[2] === 'mover-area' && metodo === 'POST') return moverParaArea(p[0], Number(p[1]), corpo);
   if (p[0] === 'itens' && p[2] === 'duplicar' && metodo === 'POST') return duplicarItem(Number(p[1]));
   if (p[0] === 'itens' && p[2] === 'valor' && metodo === 'PATCH') return definirValor(Number(p[1]), corpo);
+  if (p[0] === 'itens' && p[2] === 'tempo' && metodo === 'POST') return operarTempoItem(Number(p[1]), corpo);
   if (p.length === 3 && (p[2] === 'arquivar' || p[2] === 'restaurar') && metodo === 'POST') return mudarEstado(recurso(p[0]), Number(p[1]), p[2]);
   const r = recurso(p[0]);
   if (p.length === 1 && metodo === 'GET') return listar(r, q);

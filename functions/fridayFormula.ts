@@ -2,6 +2,7 @@
 // src/features/friday-gestao-interna/quadro/formula.ts, para a fórmula dar o mesmo resultado na tela e no servidor.
 // Não edite aqui: mude o original e copie de novo o trecho abaixo do marcador. O teste
 // tests/friday-formula-servidor.test.ts (npm run test:friday-formula) falha se as duas cópias divergirem.
+import { sessoesDe, totalHoras } from './fridayTempo.js';
 
 // Tipos mínimos do quadro usados pelo cálculo (no original, vêm de quadro/tipos.ts).
 export type Rotulo = { id: string; texto: string; cor?: string };
@@ -320,6 +321,7 @@ function valorReferencia(c: Coluna, item: Item, mod: string, ctx: Contexto, pilh
     }
     case 'numero': case 'avaliacao': return v == null || v === '' ? '' : Number(v) / (c.config?.x10 ? 10 : 1);
     case 'caixa': return !!v;
+    case 'tempo': return sessoesDe(v).length ? totalHoras(v) : ''; // horas com decimais (1h30 = 1,5)
     case 'link': return v ? (typeof v === 'string' ? v : v.url ?? '') : '';
     case 'arquivos': return ((v ?? []) as { nome: string }[]).map(a => a.nome).join(', ');
     case 'ligacao': return ((v ?? []) as number[]).length;

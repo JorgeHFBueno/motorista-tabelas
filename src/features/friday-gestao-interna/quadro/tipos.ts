@@ -1,9 +1,10 @@
 import {
-  AlignLeft, Calendar, CalendarRange, CheckSquare, CircleDot, Hash, Link2, List, Mail, Paperclip, Phone, Sigma, Star, Text, UserRound, Workflow,
+  AlignLeft, Calendar, CalendarRange, CheckSquare, CircleDot, Hash, Link2, List, Mail, Paperclip, Phone, Sigma, Star, Text, Timer, UserRound, Workflow,
   type LucideIcon,
 } from 'lucide-react';
 import type { Row } from '../api.ts';
 import { calcular, textoResultado } from './formula.ts';
+import { fmtDuracao, sessoesDe, totalSegundos } from './tempo.ts';
 
 // concluido: o rótulo conta como "feito" (Meu trabalho, atrasos, cronograma com ✓, filtro de concluídos).
 export type Rotulo = { id: string; texto: string; cor: string; concluido?: boolean };
@@ -18,7 +19,7 @@ export type Visao = Row & { quadro_id: number; nome: string; tipo: 'tabela' | 'k
 // nome_item: como chamar os subitens (ex.: "Escopo da obra"); editável no cabeçalho da tabela de subitens.
 export type Sub = { quadro_id: number; grupo_id: number | null; nome_item?: string; colunas: Coluna[]; itens: Item[] };
 
-export type TipoColuna = 'status' | 'texto' | 'texto_longo' | 'numero' | 'pessoa' | 'data' | 'periodo' | 'lista' | 'telefone' | 'email' | 'link' | 'caixa' | 'avaliacao' | 'ligacao' | 'formula' | 'arquivos';
+export type TipoColuna = 'status' | 'texto' | 'texto_longo' | 'numero' | 'pessoa' | 'data' | 'periodo' | 'lista' | 'telefone' | 'email' | 'link' | 'caixa' | 'avaliacao' | 'ligacao' | 'formula' | 'arquivos' | 'tempo';
 
 // Catálogo de tipos de coluna. "grupo" organiza o menu de adicionar coluna.
 export const TIPOS: { tipo: TipoColuna; rotulo: string; icone: LucideIcon; cor: string; descricao: string; grupo: 'essencial' | 'util'; busca?: string }[] = [
@@ -32,6 +33,7 @@ export const TIPOS: { tipo: TipoColuna; rotulo: string; icone: LucideIcon; cor: 
   { tipo: 'periodo', rotulo: 'Período', icone: CalendarRange, cor: '#784bd1', descricao: 'Início e fim (cronograma)', grupo: 'util', busca: 'timeline cronograma gantt início fim' },
   { tipo: 'caixa', rotulo: 'Caixa de seleção', icone: CheckSquare, cor: '#037f4c', descricao: 'Marcar / desmarcar', grupo: 'util', busca: 'checkbox feito check' },
   { tipo: 'ligacao', rotulo: 'Conectar quadros', icone: Workflow, cor: '#bb3354', descricao: 'Itens de outro quadro', grupo: 'util', busca: 'relação ligação vínculo' },
+  { tipo: 'tempo', rotulo: 'Controle de tempo', icone: Timer, cor: '#0073ea', descricao: 'Cronômetro e registro de horas', grupo: 'util', busca: 'time tracking cronômetro horas apontamento relógio duração' },
   { tipo: 'formula', rotulo: 'Fórmula', icone: Sigma, cor: '#2f9e8f', descricao: 'Cálculos como no Excel', grupo: 'util', busca: 'cálculo excel conta if soma' },
   { tipo: 'texto_longo', rotulo: 'Texto longo', icone: AlignLeft, cor: '#cab641', descricao: 'Anotações', grupo: 'util', busca: 'observação descrição notas' },
   { tipo: 'avaliacao', rotulo: 'Avaliação', icone: Star, cor: '#ff642e', descricao: 'Estrelas', grupo: 'util', busca: 'nota rating estrela' },
@@ -70,6 +72,7 @@ export function textoDoValor(c: Coluna, v: any, nomeUsuario: (id: unknown) => st
     case 'link': return typeof v === 'string' ? v : v.texto || v.url || '';
     case 'caixa': return v ? '1' : '';
     case 'arquivos': return (v as { nome: string }[]).map(a => a.nome).join(', ');
+    case 'tempo': return sessoesDe(v).length ? fmtDuracao(totalSegundos(v)) : '';
     default: return String(v);
   }
 }
@@ -93,6 +96,7 @@ export function chaveCelula(c: Coluna, item: Item, colunas: Coluna[], nomeUsuari
   if (c.tipo === 'numero' || c.tipo === 'avaliacao') return Number(v);
   if (c.tipo === 'status') return (c.config.rotulos as Rotulo[]).findIndex(r => r.id === String(v));
   if (c.tipo === 'periodo') return v.inicio ?? '';
+  if (c.tipo === 'tempo') return totalSegundos(v);
   return textoDoValor(c, v, nomeUsuario).toLowerCase();
 }
 

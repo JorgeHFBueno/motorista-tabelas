@@ -960,3 +960,50 @@ body.redimensionando .friday-root, body.redimensionando .friday-root * { cursor:
 .friday-root .gt-linha.gt-extra .gt-nome { padding-left: 26px; color: var(--texto-3); font-size: 12px; font-style: italic; }
 .friday-root .gt-linha.gt-sub .gt-barra, .friday-root .gt-linha.gt-extra .gt-barra { opacity: 0.72; top: 9px; height: 18px; padding: 0 8px; font-size: 11px; line-height: 18px; }
 @media (max-width: 760px) { .friday-root .editor-widget, .friday-root .campos-lado { grid-template-columns: 1fr; } .friday-root .painel-grade, .friday-root .painel-grade.aparencia-classica { padding: 12px; grid-template-columns: 1fr; } .friday-root .aparencia-classica .pw-numero { font-size: 36px; min-height: 110px; } .friday-root .aparencia-classica .pw-pizza { flex-wrap: wrap; gap: 16px; } }
+
+/* ---------------------------------------------------------------- controle de tempo */
+.friday-root .cel-tempo { justify-content: center; gap: 8px; }
+.friday-root .tempo-botao { width: 22px; height: 22px; border-radius: 4px; border: 0; background: var(--primaria); color: #fff; display: inline-flex; align-items: center; justify-content: center; cursor: pointer; flex: none; padding: 0; }
+.friday-root .tempo-botao:hover { background: var(--primaria-hover); }
+.friday-root .tempo-botao:disabled { opacity: 0.5; cursor: default; }
+.friday-root .cel-tempo.ligado .tempo-botao { background: var(--acento); }
+.friday-root .tempo-total { font-variant-numeric: tabular-nums; min-width: 56px; }
+.friday-root .cel-tempo.ligado .tempo-total { font-weight: 600; }
+.friday-root .registro-tempo { padding: 10px 14px 12px; display: flex; flex-direction: column; gap: 10px; }
+.friday-root .registro-tempo-topo { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.friday-root .registro-tempo-topo strong { font-size: 15px; }
+.friday-root .registro-tempo-topo .fr-btn-link:disabled { color: var(--texto-3); cursor: default; }
+.friday-root .registro-tempo-vazio { display: flex; justify-content: center; padding: 36px 0; }
+.friday-root .registro-tempo-resumo { font-size: 12px; }
+.friday-root .registro-tempo-resumo strong { color: var(--texto); }
+.friday-root .registro-tempo-lista { list-style: none; margin: 0; padding: 0; max-height: 300px; overflow-y: auto; border-top: 1px solid var(--borda-suave); }
+.friday-root .registro-tempo-lista li { display: flex; align-items: center; gap: 10px; padding: 7px 2px; border-bottom: 1px solid var(--borda-suave); }
+.friday-root .registro-tempo-lista li.ligada { background: #fff4ec; }
+.friday-root .registro-tempo-quando { flex: 1; min-width: 0; display: flex; flex-direction: column; font-size: 13px; }
+.friday-root .registro-tempo-quando small { font-size: 12px; display: flex; align-items: center; gap: 6px; }
+.friday-root .registro-tempo-tag { font-size: 10px; padding: 0 5px; border-radius: 8px; background: var(--superficie-2); border: 1px solid var(--borda-suave); color: var(--texto-2); }
+.friday-root .registro-tempo-dur { font-variant-numeric: tabular-nums; font-size: 13px; white-space: nowrap; display: inline-flex; align-items: center; gap: 5px; }
+.friday-root .registro-tempo-acoes { display: inline-flex; }
+.friday-root .registro-tempo-add { align-self: flex-start; }
+.friday-root .avatar-vazio { width: 24px; height: 24px; background: var(--texto-3); font-size: 11px; }
+.friday-root .ponto-ligado { width: 7px; height: 7px; border-radius: 50%; background: var(--acento); animation: piscar 1.2s infinite; }
+@keyframes piscar { 50% { opacity: 0.25; } }
+.friday-root .tempo-semana-topo { display: flex; align-items: center; justify-content: center; gap: 10px; font-weight: 600; }
+.friday-root .tempo-semana-topo .btn-icone:disabled { opacity: 0.3; cursor: default; }
+.friday-root .tempo-semana { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; }
+.friday-root .tempo-dia { display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 4px 0; border: 0; border-radius: 4px; background: none; cursor: pointer; color: var(--texto); }
+.friday-root .tempo-dia small { color: var(--texto-2); font-size: 11px; }
+.friday-root .tempo-dia span { font-weight: 600; }
+.friday-root .tempo-dia:hover:not(:disabled) { background: var(--hover); }
+.friday-root .tempo-dia:disabled { color: var(--texto-3); cursor: default; }
+.friday-root .tempo-dia.hoje span { text-decoration: underline; }
+.friday-root .tempo-dia.ativo { background: var(--primaria); color: #fff; }
+.friday-root .tempo-dia.ativo small { color: #fff; }
+.friday-root .tempo-calendario { display: flex; justify-content: center; }
+.friday-root .tempo-calendario input { height: 32px; border: 1px solid var(--borda); border-radius: 4px; padding: 0 8px; }
+.friday-root .tempo-horas { display: flex; gap: 14px; justify-content: center; }
+.friday-root .tempo-horas label { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: var(--texto-2); }
+.friday-root .tempo-horas input { height: 34px; border: 1px solid var(--borda); border-radius: 4px; padding: 0 8px; font-size: 14px; }
+.friday-root .tempo-rodape { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.friday-root .tempo-duracao { font-variant-numeric: tabular-nums; font-weight: 600; }
+.friday-root .tempo-erro { color: var(--perigo); font-size: 12px; }

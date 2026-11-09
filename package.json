@@ -25,6 +25,7 @@
     "test:friday-automacoes": "esbuild tests/friday-importar-automacoes.test.ts --bundle --platform=node --format=esm --outfile=.tmp-friday-importar-automacoes.test.mjs && node --test .tmp-friday-importar-automacoes.test.mjs",
     "test:friday-formula": "esbuild tests/friday-formula-servidor.test.ts --bundle --platform=node --format=esm --outfile=.tmp-friday-formula.test.mjs && node --test .tmp-friday-formula.test.mjs",
     "test:friday-painel": "esbuild tests/friday-painel.test.ts --bundle --platform=node --format=esm --outfile=.tmp-friday-painel.test.mjs && node --test .tmp-friday-painel.test.mjs",
+    "test:friday-tempo": "esbuild tests/friday-tempo.test.ts --bundle --platform=node --format=esm --outfile=.tmp-friday-tempo.test.mjs && node --test .tmp-friday-tempo.test.mjs",
     "test:obras": "esbuild tests/obras-engenharia.test.ts --bundle --platform=node --format=esm --outfile=.tmp-obras-engenharia.test.mjs && node --test .tmp-obras-engenharia.test.mjs",
     "test:prazos": "esbuild tests/prazos-contratuais.test.ts --bundle --platform=node --format=esm --outfile=.tmp-prazos-contratuais.test.mjs && node --test .tmp-prazos-contratuais.test.mjs",
     "test:logistica": "esbuild tests/logistica-cronograma.test.ts --bundle --platform=node --format=esm --outfile=.tmp-logistica-cronograma.test.mjs && node --test .tmp-logistica-cronograma.test.mjs",

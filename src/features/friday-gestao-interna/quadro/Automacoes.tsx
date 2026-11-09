@@ -39,7 +39,7 @@ const ACOES: { tipo: Acao['tipo']; rotulo: string }[] = [
 ];
 // Tipos que podem ser gatilho "quando mudar", ter valor definido por ação e ser usados em condições.
 const GATILHO_COLUNA = ['status', 'lista', 'pessoa', 'caixa', 'data', 'periodo', 'texto', 'numero', 'texto_longo', 'telefone', 'email', 'link', 'avaliacao', 'arquivos'];
-const DEFINIVEIS = ['status', 'lista', 'pessoa', 'data', 'texto', 'texto_longo', 'numero', 'caixa', 'telefone', 'email', 'avaliacao'];
+const DEFINIVEIS = ['status', 'lista', 'pessoa', 'data', 'texto', 'texto_longo', 'numero', 'caixa', 'telefone', 'email', 'avaliacao', 'tempo'];
 const CONDICIONAVEIS = ['status', 'lista', 'pessoa', 'caixa', 'data', 'periodo', 'texto', 'texto_longo', 'numero', 'telefone', 'email', 'link', 'avaliacao'];
 const COM_VALORES = ['status', 'lista', 'pessoa', 'caixa'];
 
@@ -81,7 +81,7 @@ function fraseGatilho(g: Gatilho, ctx: Ctx): ReactNode {
   switch (g.tipo) {
     case 'item_criado': return <>Quando um item for <B>criado</B>{grupo && <> no grupo <B>{grupo.nome}</B></>}</>;
     case 'item_movido': return <>Quando um item for <B>movido</B>{grupo ? <> para <B>{grupo.nome}</B></> : ' de grupo'}</>;
-    case 'coluna_muda': return <>Quando <B>{col?.titulo ?? '[coluna]'}</B> mudar{g.para?.length ? <> para <B>{nomesDe(col, g.para, ctx)}</B></> : ''}</>;
+    case 'coluna_muda': return <>Quando <B>{col?.titulo ?? '[coluna]'}</B> {g.de?.length ? <>sair de <B>{nomesDe(col, g.de, ctx)}</B></> : 'mudar'}{g.para?.length ? <> para <B>{nomesDe(col, g.para, ctx)}</B></> : ''}</>;
     case 'data_chega': {
       const d = Number(g.dias ?? 0);
       const nome = <B>{col?.titulo ?? '[data]'}{col?.tipo === 'periodo' ? (g.ponta === 'inicio' ? ' (início)' : ' (fim)') : ''}</B>;
@@ -100,6 +100,7 @@ function fraseAcao(a: Acao, ctx: Ctx): ReactNode {
   const col = ctx.colunas.find(c => c.id === a.coluna_id);
   switch (a.tipo) {
     case 'definir': {
+      if (col?.tipo === 'tempo') return <>{a.valor === 'parar' ? 'pare' : a.valor === 'iniciar' ? 'inicie' : '[inicie ou pare]'} o cronômetro de <B>{col.titulo}</B></>;
       if (a.valor == null) return <>limpe <B>{col?.titulo ?? '[coluna]'}</B></>;
       let v: ReactNode = String(a.valor);
       if (COM_VALORES.includes(col?.tipo ?? '')) v = nomesDe(col, col?.tipo === 'caixa' ? (a.valor ? '1' : '0') : a.valor, ctx).replace(/ ou /g, ', ');
@@ -129,13 +130,14 @@ function Frase({ a, ctx }: { a: Automacao; ctx: Ctx }) {
 }
 
 // O que falta preencher (null = pronto para salvar).
-function pendencia(a: Automacao): string | null {
+function pendencia(a: Automacao, ctx: Ctx): string | null {
   const g = a.gatilho;
   if ((g.tipo === 'coluna_muda' || g.tipo === 'data_chega') && !g.coluna_id) return 'Escolha a coluna do “Quando”.';
   for (const c of a.condicoes) if (precisaValor(c.op) && (c.valor == null || c.valor === '' || (Array.isArray(c.valor) && !c.valor.length))) return 'Complete as condições (ou remova as que sobraram).';
   if (!a.acoes.length) return 'Adicione pelo menos uma ação.';
   for (const x of a.acoes) {
     if (x.tipo === 'definir' && !x.coluna_id) return 'Escolha a coluna que a ação vai mudar.';
+    if (x.tipo === 'definir' && ctx.colunas.find(c => c.id === x.coluna_id)?.tipo === 'tempo' && x.valor !== 'iniciar' && x.valor !== 'parar') return 'Escolha se a ação inicia ou para o cronômetro.';
     if (x.tipo === 'mover' && !x.grupo_id) return 'Escolha o grupo de destino.';
     if (x.tipo === 'notificar' && !(x.para?.length) && !x.coluna_pessoa) return 'Escolha quem vai ser avisado.';
     if (x.tipo === 'criar_item' && !x.quadro_id) return 'Escolha o quadro onde o item vai ser criado.';
@@ -149,12 +151,19 @@ function modelos(ctx: Ctx, quadroId: number): { titulo: string; a: Automacao }[]
   const st = statusPrincipal(ctx.colunas);
   const feitos = ((st?.config.rotulos ?? []) as Rotulo[]).filter(r => r.concluido).map(r => r.id);
   const pessoaCol = ctx.colunas.find(c => c.tipo === 'pessoa');
+  const tempo = ctx.colunas.find(c => c.tipo === 'tempo');
+  const andamento = ((st?.config.rotulos ?? []) as Rotulo[]).filter(r => /andamento|trabalhando|fazendo|execu/i.test(r.texto)).map(r => r.id);
   const base = (gatilho: Gatilho, acoes: Acao[]): Automacao => ({ quadro_id: quadroId, modo: 'todas', gatilho, condicoes: [], acoes });
   return [
     { titulo: 'Quando o status mudar, mover o item para um grupo', a: base({ tipo: 'coluna_muda', coluna_id: st?.id, para: [] }, [{ tipo: 'mover' }]) },
     { titulo: 'Quando ficar concluído, arquivar o item', a: base({ tipo: 'coluna_muda', coluna_id: st?.id, para: feitos }, [{ tipo: 'arquivar' }]) },
     { titulo: 'Quando um item for criado, atribuir quem criou', a: base({ tipo: 'item_criado' }, [{ tipo: 'definir', coluna_id: pessoaCol?.id, valor: ['0'], modo: 'adicionar' }]) },
     { titulo: 'Quando um item for criado, criar subitens de etapas', a: base({ tipo: 'item_criado' }, [{ tipo: 'subitem', nome: 'Etapa 1' }]) },
+    // Só com um rótulo de andamento no status: sem ele, os dois modelos valeriam para qualquer mudança.
+    ...(tempo && andamento.length ? [
+      { titulo: 'Quando o status mudar para em andamento, iniciar o cronômetro', a: base({ tipo: 'coluna_muda', coluna_id: st?.id, para: andamento }, [{ tipo: 'definir', coluna_id: tempo.id, valor: 'iniciar' }]) },
+      { titulo: 'Quando o status sair de em andamento, parar o cronômetro', a: base({ tipo: 'coluna_muda', coluna_id: st?.id, de: andamento, para: [] }, [{ tipo: 'definir', coluna_id: tempo.id, valor: 'parar' }]) },
+    ] : []),
   ];
 }
 
@@ -303,7 +312,7 @@ function CartaoAutomacao({ a, ctx, onAlternar, onEditar, onDuplicar, onExcluir }
 function EditorAutomacao({ inicial, ctx, onSalvar, onFechar }: { inicial: Automacao; ctx: Ctx; onSalvar: (a: Automacao) => Promise<void>; onFechar: () => void }) {
   const [a, setA] = useState<Automacao>(inicial);
   const [salvando, setSalvando] = useState(false);
-  const falta = pendencia(a);
+  const falta = pendencia(a, ctx);
   const g = a.gatilho;
   const setG = (m: Partial<Gatilho>) => setA(x => ({ ...x, gatilho: { ...x.gatilho, ...m } }));
   const colG = ctx.colunas.find(c => c.id === g.coluna_id);
@@ -465,6 +474,13 @@ function ValorAcao({ col, acao, ctx, onMudar }: { col: Coluna; acao: Acao; ctx: 
         </select>
         <Escolha opcoes={opcoesDe(col, ctx, col.tipo === 'pessoa')} valor={((acao.valor ?? []) as unknown[]).map(String)} onMudar={v => onMudar({ valor: v })} />
       </div>
+    );
+  }
+  if (col.tipo === 'tempo') {
+    return (
+      <select value={String(acao.valor ?? '')} onChange={e => onMudar({ valor: e.target.value || undefined })}>
+        <option value="">Escolha…</option><option value="iniciar">iniciar o cronômetro</option><option value="parar">parar o cronômetro</option>
+      </select>
     );
   }
   if (col.tipo === 'caixa') {

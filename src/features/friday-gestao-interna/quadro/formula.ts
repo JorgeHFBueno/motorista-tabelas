@@ -2,6 +2,7 @@
 // Referências a colunas são guardadas como {@<id>} ou {@<id>#Mod} (Mod: Labels, Start, End) e
 // mostradas ao usuário como {Título da coluna}. {@nome}, {@criado} e {@atualizado} vêm do próprio item.
 // Sem dependências do navegador: também roda no Node (validação contra os valores do monday).
+import { sessoesDe, totalHoras } from './tempo.ts';
 import type { Coluna, Item, Rotulo } from './tipos.ts';
 
 export type Valor = number | string | boolean;
@@ -314,6 +315,7 @@ function valorReferencia(c: Coluna, item: Item, mod: string, ctx: Contexto, pilh
     }
     case 'numero': case 'avaliacao': return v == null || v === '' ? '' : Number(v) / (c.config?.x10 ? 10 : 1);
     case 'caixa': return !!v;
+    case 'tempo': return sessoesDe(v).length ? totalHoras(v) : ''; // horas com decimais (1h30 = 1,5)
     case 'link': return v ? (typeof v === 'string' ? v : v.url ?? '') : '';
     case 'arquivos': return ((v ?? []) as { nome: string }[]).map(a => a.nome).join(', ');
     case 'ligacao': return ((v ?? []) as number[]).length;

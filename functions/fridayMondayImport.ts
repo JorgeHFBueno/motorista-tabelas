@@ -96,6 +96,10 @@ const CAMPOS_ITEM = `
     ... on MirrorValue { display_value }
     ... on BoardRelationValue { linked_item_ids }
     ... on DependencyValue { linked_item_ids }
+    ... on TimeTrackingValue {
+      running started_at
+      history { id status started_at ended_at started_user_id ended_user_id manually_entered_start_date manually_entered_start_time manually_entered_end_date manually_entered_end_time }
+    }
   }`;
 const CAMPOS_QUADRO = 'id name description type board_folder_id updated_at items_count workspace { id name } groups { id title color position } columns { id title type settings_str }';
 

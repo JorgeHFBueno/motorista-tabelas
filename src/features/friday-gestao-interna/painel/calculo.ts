@@ -1,3 +1,4 @@
+import { sessaoAberta, sessoesDe, totalHoras } from '../quadro/tempo.ts';
 import type { Row } from '../api.ts';
 import { calcular } from '../quadro/formula.ts';
 import { itemConcluido, rotuloDe, textoCelula, vazio, type Coluna, type Grupo, type Item, type Rotulo } from '../quadro/tipos.ts';
@@ -113,7 +114,7 @@ export function mesPorExtenso(rotulo: string) {
 
 // Tipos de coluna que podem agrupar um gráfico ou filtrar.
 export const CATEGORICAS = ['status', 'pessoa', 'lista', 'data', 'periodo', 'caixa', 'texto', 'avaliacao', 'formula', 'ligacao'];
-export const NUMERICAS = ['numero', 'formula', 'avaliacao'];
+export const NUMERICAS = ['numero', 'formula', 'avaliacao', 'tempo']; // tempo entra em horas (1h30 = 1,5)
 export const DATAS = ['data', 'periodo'];
 
 // ---------------------------------------------------------------- datas
@@ -207,6 +208,7 @@ function categorias(d: DadosQuadro, item: Item, titulo: string, ctx: Ctx, period
       return k ? [{ ...k, ordem: 0 }] : [];
     }
     case 'caixa': return [{ chave: v ? 'Marcado' : 'Não marcado', rotulo: v ? 'Marcado' : 'Não marcado', ordem: v ? 0 : 1 }];
+    case 'tempo': return sessaoAberta(v) ? [{ chave: 'Cronômetro ligado', rotulo: 'Cronômetro ligado', ordem: 0 }] : [{ chave: 'Com tempo', rotulo: 'Com tempo', ordem: 1 }];
     default: return [{ chave: String(v), rotulo: String(v), ordem: 0 }];
   }
 }
@@ -216,6 +218,7 @@ function numero(d: DadosQuadro, item: Item, titulo: string, ctx: Ctx): number | 
   if (!c) return undefined;
   const v = c.tipo === 'formula' ? calcular(c, item, { colunas: d.colunas, nomeUsuario: ctx.nomeUsuario }).valor : item.valores[c.id];
   if (vazio(v)) return null;
+  if (c.tipo === 'tempo') return sessoesDe(v).length ? totalHoras(v) : null;
   const n = Number(v);
   return Number.isFinite(n) ? n : null;
 }

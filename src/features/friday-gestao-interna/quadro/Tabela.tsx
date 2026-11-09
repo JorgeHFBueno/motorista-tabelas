@@ -16,6 +16,7 @@ import { alvosPara } from './mudarTipo.ts';
 import { MudarTipoDialogo } from './MudarTipo.tsx';
 import { CampoOficialDialogo, TIPOS_OFICIAIS } from './TornarOficial.tsx';
 import { ehPrazo, infoTipo, type Coluna, type Grupo, type Item, type Ordenacao, type Rotulo, type Sub } from './tipos.ts';
+import { fmtDuracao, totalSegundos } from './tempo.ts';
 import type { Acoes } from './useQuadro.ts';
 
 export type { Ordenacao };
@@ -224,7 +225,7 @@ export function Tabela({ grupos: gruposReais, colunas, todasColunas, itens, sub,
                       {colunas.map(c => (
                         <td key={c.id} className={`tq-cel tipo-${c.tipo}`}>
                           <Celula coluna={c} valor={i.valores[c.id]} usuarios={usuarios} item={i} colunas={todasColunas}
-                            onMudar={v => acoes.definirValor(i.id, c.id, v)} onConfig={config => acoes.atualizarColuna(c.id, { config })} />
+                            onMudar={v => acoes.definirValor(i.id, c.id, v)} onTempo={op => acoes.tempo(i.id, c.id, op)} onConfig={config => acoes.atualizarColuna(c.id, { config })} />
                         </td>
                       ))}
                       <td />
@@ -484,6 +485,10 @@ export function Resumo({ coluna, itens }: { coluna: Coluna; itens: Item[] }) {
       return <div className="resumo-datas">{fmtData(ds[0])}{ds.length > 1 && ds[0] !== ds.at(-1) ? ` – ${fmtData(ds.at(-1))}` : ''}</div>;
     }
     case 'caixa': return vals.length ? <div className="resumo-num"><strong>{vals.length}/{itens.length}</strong></div> : null;
+    case 'tempo': {
+      const seg = vals.reduce((t: number, v) => t + totalSegundos(v), 0);
+      return vals.length ? <div className="resumo-num"><strong>{fmtDuracao(seg)}</strong><small>soma</small></div> : null;
+    }
     default: return null;
   }
 }

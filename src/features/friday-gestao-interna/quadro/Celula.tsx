@@ -7,12 +7,16 @@ import { IconeTipo, urlArquivo } from './Atualizacoes.tsx';
 import { Avatar, Popover, usePopover } from '../ui/base.tsx';
 import { CORES, corTexto, diasEntre, fmtData, fmtDataComAno, fmtNumeroColuna, hojeISO, somarDias } from '../util.ts';
 import { ehPrazo, itemConcluido, rotuloDe, vazio, type Coluna, type Item, type Rotulo } from './tipos.ts';
+import { CelulaTempo } from './CelulaTempo.tsx';
+import type { OpTempo } from './tempo.ts';
 
 export type CelulaProps = {
   coluna: Coluna;
   valor: any;
   onMudar: (v: unknown) => void;
   onConfig: (config: Record<string, any>) => void;
+  // Controle de tempo: grava numa transação (iniciar/parar, lançar, corrigir, apagar). Sem isto, a célula só mostra.
+  onTempo?: (op: OpTempo) => Promise<void>;
   usuarios: Pessoa[];
   modo?: 'tabela' | 'painel';
   // Necessários para fórmulas (que leem outras colunas do item) e arquivos.
@@ -41,6 +45,7 @@ export function Celula(p: CelulaProps) {
     case 'ligacao': return <CelulaLigacao {...p} />;
     case 'formula': return <CelulaFormula {...p} />;
     case 'arquivos': return <CelulaArquivos {...p} />;
+    case 'tempo': return <CelulaTempo coluna={p.coluna} valor={p.valor} usuarios={p.usuarios} item={p.item} onTempo={p.onTempo} />;
     default: return <CelulaTexto {...p} />;
   }
 }

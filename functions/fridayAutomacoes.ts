@@ -16,6 +16,7 @@ import { gravarNoCadastro } from './fridayCadastros.js';
 import { indicePessoas, valorDoOficial, type CampoOficial } from './fridayCadastroConverter.js';
 import { lerCaminho } from './fridayCadastrosExistentes.js';
 import { dataLocal, novoId, permissoesDoQuadro, pessoasDosValores, prefixosBusca } from './fridayMondayConverter.js';
+import { operarTempo } from './fridayTempo.js';
 import {
   ACOES_SUPORTADAS, chaveDaData, chaveDoEvento, comNome, condicoesValem, diaDoGatilhoData, gatilhoDispara, textoDoValor, valorDefinido,
   type Acao, type Automacao, type Coluna, type ItemVisto,
@@ -31,8 +32,9 @@ const visivel = (x: AnyRecord | undefined) => !!x && x.arquivado_em == null && x
 const hojeLocal = () => dataLocal().slice(0, 10);
 
 // ---------------------------------------------------------------- leitura do item (valores livres + oficiais)
-type Contexto = { colunas: Coluna[]; cadastros: Map<string, Promise<AnyRecord | undefined>>; nomes: Map<string, string> };
-const novoContexto = (colunas: Coluna[]): Contexto => ({ colunas, cadastros: new Map(), nomes: new Map() });
+// quem: quem fez a mudança que disparou a automação (null na rodada de datas); vira o "iniciada por" do cronômetro.
+type Contexto = { colunas: Coluna[]; cadastros: Map<string, Promise<AnyRecord | undefined>>; nomes: Map<string, string>; quem: string | null };
+const novoContexto = (colunas: Coluna[], quem: string | null = null): Contexto => ({ colunas, cadastros: new Map(), nomes: new Map(), quem });
 const colunasDo = async (quadroId: number) => (await colecao('colunas').where('quadro_id', '==', quadroId).get()).docs.map(d => d.data() as Coluna);
 
 function registroDe(ctx: Contexto, chave: string) {
@@ -158,6 +160,23 @@ async function fazerAcao(acao: Acao, a: Automacao, itemId: number, ctx: Contexto
   if (acao.tipo === 'definir') {
     const coluna = ctx.colunas.find(c => c.id === Number(acao.coluna_id));
     if (!coluna) throw new Error('a coluna da ação não existe mais neste quadro');
+    // Controle de tempo: liga ou desliga o cronômetro com a hora do servidor; nunca apaga as sessões.
+    if (coluna.tipo === 'tempo') {
+      if (acao.valor !== 'iniciar' && acao.valor !== 'parar') throw new Error('escolha iniciar ou parar o cronômetro');
+      const op = { acao: acao.valor } as const;
+      const chave = String(coluna.id);
+      const mudou = await db.runTransaction(async t => {
+        const antes = (await t.get(ref)).data()?.valores?.[chave];
+        const valor = operarTempo(antes, op, ctx.quem);
+        if (JSON.stringify(antes ?? null) === JSON.stringify(valor ?? null)) return null;
+        t.update(ref, new FieldPath('valores', chave), valor == null ? FieldValue.delete() : valor, 'atualizado_em', dataLocal());
+        return { antes, valor };
+      });
+      if (!mudou) return `${coluna.titulo}: já estava assim`;
+      const [de, para] = [textoDoValor(coluna, mudou.antes), textoDoValor(coluna, mudou.valor)];
+      await registrar({ quadro_id: quadroId, item_id: itemId, item_nome: item.nome, acao: 'alterou', coluna_id: coluna.id, coluna_titulo: coluna.titulo, de, para }, a.id);
+      return `${coluna.titulo}: ${op.acao === 'iniciar' ? 'cronômetro iniciado' : 'cronômetro parado'}`;
+    }
     const lido = await lerItem(ctx, item);
     const valor = valorDefinido(acao, coluna, lido.visto, hojeLocal());
     const antes = lido.visto.valores[String(coluna.id)];
@@ -268,11 +287,11 @@ export const fridayAutomacoesEvento = onDocumentCreated({ document: 'friday-ativ
   if (!automacoes.length) return;
   const item = await ler('itens', at.item_id);
   if (!visivel(item) || Number(item!.quadro_id) !== Number(at.quadro_id)) return;
-  const ctx = novoContexto(await colunasDo(Number(item!.quadro_id)));
+  const ctx = novoContexto(await colunasDo(Number(item!.quadro_id)), at.usuario_id == null ? null : String(at.usuario_id));
   const { visto } = await lerItem(ctx, item!);
   const hoje = hojeLocal();
   for (const a of automacoes.sort((x, y) => x.id - y.id)) {
-    if (!gatilhoDispara(a.gatilho, { acao: at.acao, coluna_id: at.coluna_id }, visto, ctx.colunas) || !condicoesValem(a, visto, ctx.colunas, hoje)) continue;
+    if (!gatilhoDispara(a.gatilho, { acao: at.acao, coluna_id: at.coluna_id, de: at.de }, visto, ctx.colunas) || !condicoesValem(a, visto, ctx.colunas, hoje)) continue;
     await executar(a, item!, chaveDoEvento(a.id, Number(at.id)), ctx);
   }
 });

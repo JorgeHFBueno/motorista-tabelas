@@ -1,9 +1,18 @@
 // Conversão monday → Friday (coleções friday-*). Funções puras, sem Firestore nem rede, para serem testadas.
 // Portado do importador do protótipo "Ledur Gestão" (ledur-app-monday/server/src/importar.ts), adaptado ao modelo
 // do Friday no Firestore (ids numéricos, datas locais em texto, índices pessoas/busca).
+import { lerTempo, type Sessao, type ValorTempo } from './fridayTempo.js';
 
 export type MCol = { id: string; title: string; type: string; settings_str: string };
-export type MValor = { id: string; type: string; text: string | null; value: string | null; display_value?: string | null; linked_item_ids?: string[] };
+// Sessão do histórico do controle de tempo (TimeTrackingValue.history).
+export type MSessao = {
+  id: string; status?: string; started_at: string | null; ended_at: string | null; started_user_id?: string | null; ended_user_id?: string | null;
+  manually_entered_start_date?: boolean; manually_entered_start_time?: boolean; manually_entered_end_date?: boolean; manually_entered_end_time?: boolean;
+};
+export type MValor = {
+  id: string; type: string; text: string | null; value: string | null; display_value?: string | null; linked_item_ids?: string[];
+  running?: boolean; started_at?: string | null; history?: MSessao[];
+};
 export type MItem = { id: string; name: string; created_at: string; updated_at: string; group: { id: string } | null; parent_item: { id: string } | null; column_values: MValor[] };
 export type Rotulo = { id: string; texto: string; cor: string; concluido?: boolean };
 type AnyRecord = Record<string, any>;
@@ -60,7 +69,7 @@ export function pessoasDosValores(valores: AnyRecord | undefined, colunasPessoa:
 export const TIPO: Record<string, string | null> = {
   status: 'status', dropdown: 'lista', tags: 'lista', text: 'texto', long_text: 'texto_longo', numbers: 'numero',
   date: 'data', timeline: 'periodo', people: 'pessoa', person: 'pessoa', phone: 'telefone', email: 'email', link: 'link',
-  checkbox: 'caixa', rating: 'avaliacao', board_relation: 'ligacao', dependency: 'ligacao', time_tracking: 'numero',
+  checkbox: 'caixa', rating: 'avaliacao', board_relation: 'ligacao', dependency: 'ligacao', time_tracking: 'tempo',
   file: 'arquivos', formula: 'formula', mirror: 'texto', location: 'texto', hour: 'texto', week: 'texto', country: 'texto',
   world_clock: 'texto', color_picker: 'texto', vote: 'numero', auto_number: 'numero',
   name: null, subtasks: null, item_id: null, button: null, last_updated: null, creation_log: null, progress: null, unsupported: null, doc: null, direct_doc: null,
@@ -91,7 +100,6 @@ export function configDe(c: MCol): AnyRecord {
       const unidade = u.symbol === 'custom' ? u.custom_unit ?? '' : u.symbol === 'none' ? '' : u.symbol ?? '';
       return { unidade, resumo: 'soma' };
     }
-    case 'time_tracking': return { unidade: 'h', resumo: 'soma' };
     case 'date': return s.date_format === 'WITH_YEAR' ? { com_ano: true } : {};
     case 'vote': case 'auto_number': return { unidade: '', resumo: 'nenhum' };
     case 'rating': return { maximo: Number(s.limit ?? 5) };
@@ -218,14 +226,15 @@ export function converterFormulaMonday(formula: string, mapa: Map<string, Alvo>)
     if (alvo.tipoMonday === 'creation_log') return '{@criado}';
     if (alvo.tipoMonday === 'last_updated') return '{@atualizado}';
     if (alvo.id == null) return `{?${idMonday}}`;
-    // Controle de tempo: o monday entrega segundos; o Friday guarda horas.
+    // Controle de tempo: o monday entrega segundos; no Friday a fórmula recebe horas.
     if (alvo.tipoMonday === 'time_tracking') return `({@${alvo.id}}*3600)`;
     return `{@${alvo.id}${mod ? `#${mod}` : ''}}`;
   });
 }
 
 // ---------------------------------------------------------------- valores das células
-export type ColunaImportada = { id: number; tipoMonday: string; config: AnyRecord };
+// tipo: tipo da coluna no Friday, quando já existe (ex.: controle de tempo importado antes como número de horas).
+export type ColunaImportada = { id: number; tipoMonday: string; config: AnyRecord; tipo?: string };
 export type ContextoValor = {
   /** Opção de "tags" pelo nome (cria na config se não existir); devolve o id da opção. */
   tag?: (col: ColunaImportada, nome: string) => string;
@@ -262,13 +271,38 @@ export function valorDe(col: ColunaImportada, cv: MValor, ctx: ContextoValor): u
     case 'link': return v?.url ? (v.text && v.text !== v.url ? { url: v.url, texto: v.text } : { url: v.url }) : null;
     case 'checkbox': return v?.checked === true || v?.checked === 'true' ? true : null;
     case 'rating': return v?.rating ? Number(v.rating) : null;
-    case 'time_tracking': { const s = Number(v?.duration ?? 0); return s > 0 ? Math.round((s / 3600) * 100) / 100 : null; }
+    case 'time_tracking': {
+      // Coluna importada antes como número (horas): continua número; as novas são de controle de tempo.
+      if (col.tipo === 'numero') { const s = Number(v?.duration ?? 0); return s > 0 ? Math.round((s / 3600) * 100) / 100 : null; }
+      return tempoDoMonday(cv, v, ctx);
+    }
     case 'formula': case 'mirror': return (cv.display_value ?? cv.text ?? '').trim() || null;
     case 'file': return arquivosDoMonday(v);
     case 'board_relation': case 'dependency': return cv.linked_item_ids?.length ? cv.linked_item_ids.map(String) : null;
     default: return cv.text?.trim() || null;
   }
 }
+// Controle de tempo: as sessões do histórico do monday (quem ligou, início, fim, lançada à mão).
+// Sem histórico (valor antigo): uma sessão só com o total, terminando na última mudança.
+function tempoDoMonday(cv: MValor, v: any, ctx: ContextoValor): ValorTempo | null {
+  const pessoa = (id: unknown) => (id == null ? null : ctx.pessoa?.(String(id)) ?? null);
+  let sessoes: Sessao[];
+  if (Array.isArray(cv.history)) {
+    sessoes = cv.history.filter(h => h.started_at && h.ended_at && (h.status ?? 'active') === 'active').map(h => ({
+      id: `m${h.id}`, inicio: h.started_at!, fim: h.ended_at!, por: pessoa(h.started_user_id), fim_por: pessoa(h.ended_user_id),
+      ...(h.manually_entered_start_date || h.manually_entered_start_time || h.manually_entered_end_date || h.manually_entered_end_time ? { manual: true } : {}),
+    }));
+    if (cv.running && cv.started_at) sessoes.push({ id: 'm-rodando', inicio: cv.started_at, fim: null, por: null });
+  } else {
+    const seg = Number(v?.duration ?? 0);
+    const fim = Date.parse(v?.changed_at ?? '');
+    if (!(seg > 0) || !Number.isFinite(fim)) return null;
+    sessoes = [{ id: 'm-total', inicio: new Date(fim - seg * 1000).toISOString(), fim: new Date(fim).toISOString(), por: null, manual: true }];
+  }
+  const t = lerTempo({ sessoes });
+  return t.sessoes.length ? t : null;
+}
+
 export const ehLigacao = (tipoMonday: string) => tipoMonday === 'board_relation' || tipoMonday === 'dependency';
 
 export type ValoresConvertidos = { valores: AnyRecord; ligacoes: Record<string, string[]> };

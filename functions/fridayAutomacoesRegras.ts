@@ -2,10 +2,12 @@
 // Funções puras, sem Firestore, usadas pelo executor (fridayAutomacoes.ts) e testadas em functions/test.
 // O modelo é o da tela (src/features/friday-gestao-interna/quadro/Automacoes.tsx).
 // Contrato: The Manuscript, 03_APLICACAO_WEB/13_FRIDAY_GESTAO_INTERNA.md e 01_FIRESTORE/COLECOES/friday.md.
+import { fmtDuracao, sessaoAberta, sessoesDe, totalSegundos } from './fridayTempo.js';
 
 type AnyRecord = Record<string, any>;
 
-export type Gatilho = { tipo: 'item_criado' | 'coluna_muda' | 'item_movido' | 'data_chega'; coluna_id?: number; grupo_id?: number | null; para?: string[]; dias?: number; ponta?: 'inicio' | 'fim' };
+// de: coluna_muda de status: só quando o rótulo anterior era um destes (ex.: "sair de em andamento").
+export type Gatilho = { tipo: 'item_criado' | 'coluna_muda' | 'item_movido' | 'data_chega'; coluna_id?: number; grupo_id?: number | null; para?: string[]; de?: string[]; dias?: number; ponta?: 'inicio' | 'fim' };
 export type Condicao = { alvo: number | 'grupo'; op: string; valor?: unknown };
 export type Acao = {
   tipo: string; coluna_id?: number; valor?: unknown; modo?: 'substituir' | 'adicionar'; grupo_id?: number | null; quadro_id?: number;
@@ -16,7 +18,8 @@ export type Coluna = { id: number; titulo?: string; tipo: string; config?: AnyRe
 /** Item como a tela vê: valores das colunas livres e oficiais juntos. */
 export type ItemVisto = { id: number; nome?: string; grupo_id?: number | null; criado_por?: string | null; valores: AnyRecord };
 /** Mudança registrada em friday-atividades (a tela grava uma para cada criação, valor alterado e item movido). */
-export type Evento = { acao: string; coluna_id?: number | null };
+// de: texto do valor anterior, como gravado na atividade (no status, o texto do rótulo).
+export type Evento = { acao: string; coluna_id?: number | null; de?: string | null };
 
 /** Ações que o executor faz. "notificar" (avisos desligados) e "webhook" (o Friday é interno) não rodam. */
 export const ACOES_SUPORTADAS = new Set(['definir', 'mover', 'subitem', 'arquivar', 'criar_item']);
@@ -52,6 +55,12 @@ export function gatilhoDispara(g: Gatilho, evento: Evento, item: ItemVisto, colu
     case 'coluna_muda': {
       if (evento.acao !== 'alterou' || g.coluna_id == null || Number(evento.coluna_id) !== Number(g.coluna_id)) return false;
       const coluna = colunas.find(c => c.id === Number(g.coluna_id));
+      if (g.de?.length) {
+        // A atividade guarda o rótulo anterior como texto: volta ao id ("" ou sem valor = rótulo vazio '0').
+        if (coluna?.tipo !== 'status') return false;
+        const anterior = ((coluna.config?.rotulos ?? []) as AnyRecord[]).find(r => (r.texto || null) === (evento.de || null));
+        if (!g.de.includes(String(anterior?.id ?? (evento.de ? '' : '0')))) return false;
+      }
       return bateCom(coluna, item.valores[String(g.coluna_id)], g.para);
     }
     default: return false;
@@ -148,6 +157,7 @@ export function textoDoValor(coluna: Coluna, v: unknown, nomePessoa: (uid: strin
     case 'lista': return lista(v).map(id => ((coluna.config?.opcoes ?? []) as AnyRecord[]).find(o => String(o.id) === id)?.texto ?? id).join(', ');
     case 'pessoa': return lista(v).map(nomePessoa).join(', ');
     case 'caixa': return v ? 'marcado' : null;
+    case 'tempo': return sessoesDe(v).length ? `${fmtDuracao(totalSegundos(v))}${sessaoAberta(v) ? ' (cronômetro ligado)' : ''}` : null;
     default: return String(v);
   }
 }

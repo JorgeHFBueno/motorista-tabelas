@@ -89,7 +89,7 @@ export function TabelaSubitens({ pai, sub, acoes, ops, usuarios, modo, focarNovo
                 {colunas.map(c => (
                   <td key={c.id} className={`tq-cel tipo-${c.tipo}`}>
                     <Celula coluna={c} valor={it.valores[c.id]} usuarios={usuarios} item={it} colunas={todas}
-                      onMudar={v => acoes.definirValor(it.id, c.id, v)} onConfig={config => acoes.atualizarColuna(c.id, { config })} />
+                      onMudar={v => acoes.definirValor(it.id, c.id, v)} onTempo={op => acoes.tempo(it.id, c.id, op)} onConfig={config => acoes.atualizarColuna(c.id, { config })} />
                   </td>
                 ))}
                 <td />

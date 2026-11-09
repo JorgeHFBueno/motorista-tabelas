@@ -1,5 +1,6 @@
 // Filtros, ordenação e "agrupar por" de uma visão. Tudo calculado no navegador sobre os itens do quadro.
 import { CORES, fmtNumeroColuna, hojeISO, inicioDaSemana, somarDias } from '../util.ts';
+import { sessaoAberta } from './tempo.ts';
 import { itemConcluido, rotuloDe, textoCelula, vazio, type Agrupar, type Coluna, type EstadoVisao, type Grupo, type Item, type Rotulo, type Visao } from './tipos.ts';
 
 export type Contexto = { colunas: Coluna[]; nomeUsuario: (id: unknown) => string; eu: string | null; hoje?: string };
@@ -80,6 +81,11 @@ export function opcoesFiltro(c: Coluna, itens: Item[], ctx: Contexto): Opcao[] {
     }
     case 'data': case 'periodo': return PERIODOS.map(p => ({ ...p, n: conta(p.chave), especial: true }));
     case 'caixa': return [{ chave: '1', rotulo: 'Marcado', n: conta('1') }, { chave: '__vazio', rotulo: 'Desmarcado', n: conta('__vazio') }];
+    case 'tempo': return [
+      { chave: '__ligado', rotulo: 'Cronômetro ligado', n: conta('__ligado') },
+      { chave: '__com', rotulo: 'Com tempo registrado', n: conta('__com') },
+      { chave: '__vazio', rotulo: 'Sem tempo', n: conta('__vazio') },
+    ];
     default: {
       if (COM_VAZIO_OU_NAO.has(c.tipo)) return [{ chave: '__com', rotulo: 'Preenchido', n: conta('__com') }, { chave: '__vazio', rotulo: 'Vazio', n: conta('__vazio') }];
       const cont = new Map<string, number>();
@@ -105,6 +111,7 @@ function casa(c: Coluna, i: Item, k: string, ctx: Contexto): boolean {
     case 'pessoa': return ((v ?? []) as string[]).includes(k === '__eu' ? (ctx.eu ?? '') : k);
     case 'data': case 'periodo': { const r = intervalo(c, v); return !!r && noPeriodo(k, r, hoje, itemConcluido(i, ctx.colunas)); }
     case 'caixa': return k === '1' ? !!v : !v;
+    case 'tempo': return k === '__ligado' && !!sessaoAberta(v);
     default: return k.startsWith('t:') && textoCelula(c, i, ctx.colunas, ctx.nomeUsuario) === k.slice(2);
   }
 }

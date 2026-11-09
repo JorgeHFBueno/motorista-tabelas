@@ -60,7 +60,7 @@ export function PainelItem({ item, grupo, colunas, acoes, ops, sub, pai, onAbrir
                     <span className="campo-rotulo"><Ic size={14} /> {c.titulo}</span>
                     <div className={`campo-valor tipo-${c.tipo}`}>
                       <Celula modo="painel" coluna={c} valor={item.valores[c.id]} usuarios={nav.usuarios} item={item} colunas={colunas}
-                        onMudar={v => acoes.definirValor(item.id, c.id, v)} onConfig={config => acoes.atualizarColuna(c.id, { config })} />
+                        onMudar={v => acoes.definirValor(item.id, c.id, v)} onTempo={op => acoes.tempo(item.id, c.id, op)} onConfig={config => acoes.atualizarColuna(c.id, { config })} />
                     </div>
                   </div>
                 );

@@ -7,6 +7,7 @@
 import { valorDoOficial } from './fridayCadastroConverter.js';
 import { campoComRotuloNovo, lerCaminho, valorParaGravarExistente, type CampoExistente } from './fridayCadastrosExistentes.js';
 import { json, manterCopias, valorDe, type ColunaImportada, type ContextoValor, type MItem, type MValor } from './fridayMondayConverter.js';
+import { fmtDuracao, totalSegundos } from './fridayTempo.js';
 
 type AnyRecord = Record<string, any>;
 /** Coluna do quadro vinda do monday, com o tipo e a configuração que ela tem hoje no Friday (pode ter mudado de tipo). */
@@ -96,6 +97,7 @@ export function textoDoValor(col: { tipo: string; config?: AnyRecord }, v: unkno
     case 'arquivos': t = `${(v as unknown[]).length} arquivo(s)`; break;
     case 'pessoa': t = `${(v as unknown[]).length} pessoa(s)`; break;
     case 'link': t = String((v as AnyRecord).texto ?? (v as AnyRecord).url ?? ''); break;
+    case 'tempo': t = fmtDuracao(totalSegundos(v)); break;
     default: t = typeof v === 'object' ? JSON.stringify(v) : String(v);
   }
   return t.length > 120 ? `${t.slice(0, 117)}…` : t;

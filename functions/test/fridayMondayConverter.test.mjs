@@ -145,3 +145,25 @@ test('permissões do quadro: restrito só para a lista, adm2 vê todos, subitens
   assert.deepEqual(permissoesDoQuadro(aberto), { restrito: 0, acesso: null });
   assert.deepEqual(permissoesDoQuadro({ restrito: 1, acesso: ['uid-ana', 7, null] }), { restrito: 1, acesso: ['uid-ana'] });
 });
+
+test('controle de tempo do monday: sessões do histórico; coluna já importada como número continua em horas', () => {
+  assert.equal(tipoFriday('time_tracking'), 'tempo');
+  const pessoa = id => (id === '11' ? 'uid-ana' : undefined);
+  const cv = {
+    id: 't', type: 'time_tracking', text: '02:00:00', value: JSON.stringify({ running: false, duration: 7200, changed_at: '2026-11-09T12:00:00Z' }),
+    running: false, started_at: null,
+    history: [
+      { id: '1', status: 'active', started_at: '2026-11-09T08:00:00Z', ended_at: '2026-11-09T09:00:00Z', started_user_id: '11', ended_user_id: '11' },
+      { id: '2', status: 'active', started_at: '2026-11-09T10:00:00Z', ended_at: '2026-11-09T11:00:00Z', started_user_id: '99', manually_entered_end_time: true },
+      { id: '3', status: 'deleted', started_at: '2026-11-09T06:00:00Z', ended_at: '2026-11-09T07:00:00Z' },
+    ],
+  };
+  const v = valorDe({ id: 5, tipoMonday: 'time_tracking', config: {}, tipo: 'tempo' }, cv, { pessoa });
+  assert.deepEqual(v.sessoes.map(s => [s.id, s.por, !!s.manual]), [['m1', 'uid-ana', false], ['m2', null, true]]);
+  assert.equal(valorDe({ id: 5, tipoMonday: 'time_tracking', config: {}, tipo: 'numero' }, cv, { pessoa }), 2, 'coluna antiga em horas');
+  // Sem histórico (valor antigo): uma sessão com o total, terminando na última mudança.
+  const semHist = valorDe({ id: 5, tipoMonday: 'time_tracking', config: {} }, { ...cv, history: undefined }, {});
+  assert.deepEqual(semHist.sessoes.map(s => [s.inicio, s.fim]), [['2026-11-09T10:00:00.000Z', '2026-11-09T12:00:00.000Z']]);
+  const rodando = valorDe({ id: 5, tipoMonday: 'time_tracking', config: {} }, { ...cv, running: true, started_at: '2026-11-09T11:30:00Z' }, {});
+  assert.equal(rodando.sessoes.filter(s => !s.fim).length, 1);
+});

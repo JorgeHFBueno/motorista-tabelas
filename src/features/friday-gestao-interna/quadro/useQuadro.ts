@@ -3,6 +3,7 @@ import { api, observarAutomacoes, req, type Row } from '../api.ts';
 import { useAvisoRapido } from '../ui/base.tsx';
 import { posEntre } from '../util.ts';
 import type { Coluna, Grupo, Item, Sub, TipoColuna, Visao } from './tipos.ts';
+import type { OpTempo } from './tempo.ts';
 
 // sub: quadro de subitens (colunas próprias) com os subitens dos itens visíveis.
 export type Dados = { quadro: Row; grupos: Grupo[]; colunas: Coluna[]; itens: Item[]; visoes: Visao[]; sub: Sub | null };
@@ -156,6 +157,13 @@ export function useQuadro(quadroId: number) {
         return { ...i, valores };
       })));
       return gravar(req('PATCH', `itens/${itemId}/valor`, { coluna_id: colunaId, valor }));
+    },
+    // Controle de tempo: a conta é feita numa transação sobre o valor gravado (api.ts) e volta o item. Erros voltam
+    // para quem chamou (o registro de tempo mostra a mensagem, como "o fim precisa ser depois do início"); a tela
+    // recarrega, porque o erro pode vir de uma sessão que outra pessoa já mudou.
+    tempo: async (itemId: number, colunaId: number, op: OpTempo) => {
+      const it = await req<Item>('POST', `itens/${itemId}/tempo`, { coluna_id: colunaId, ...op }).catch(e => { recarregar(); throw e; });
+      mudar(d => comItens(d, l => l.map(i => (i.id === itemId ? { ...i, valores: it.valores } : i))));
     },
     moverItem: (id: number, grupoId: number, posicao: number) => {
       mudar(d => ({ ...d, itens: d.itens.map(i => (i.id === id ? { ...i, grupo_id: grupoId, posicao } : i)) }));
