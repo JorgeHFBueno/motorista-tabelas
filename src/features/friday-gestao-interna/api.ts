@@ -697,6 +697,33 @@ async function duplicarItem(id: number) {
 }
 
 // Duplica a estrutura de um quadro (grupos, colunas, visões) e, se pedido, os itens.
+// Mover quadro ou pasta para outra área de trabalho (só adm2). A pasta leva as subpastas e os quadros de dentro;
+// o quadro leva o quadro interno dos subitens. O que foi movido entra na raiz da área de destino, no fim da lista.
+async function moverParaArea(r: 'quadros' | 'pastas', id: number, corpo: unknown) {
+  if (!eu().admin) throw new ErroApi(403, 'Só administradores movem pastas e quadros para outra área de trabalho.');
+  const areaId = Number((corpo as { area_id?: unknown } | undefined)?.area_id);
+  if (!(await buscar('areas', areaId))) throw new ErroApi(404, 'Área de trabalho não encontrada.');
+  const raiz = await buscar(r, id);
+  if (!raiz) throw new ErroApi(404, r === 'pastas' ? 'Pasta não encontrada.' : 'Quadro não encontrado.');
+  if (raiz.area_id === areaId) return { movidos: 0 };
+  const origem = raiz.area_id;
+  // Tudo é lido da área de origem: adm2 vê todos os quadros, inclusive os restritos e os de subitens.
+  const [pastasOrigem, quadrosOrigem] = await Promise.all([consultar('pastas', { area_id: origem }), consultar('quadros', { area_id: origem })]);
+  const pastas = new Set<number>();
+  if (r === 'pastas') {
+    const juntar = (pid: number) => { pastas.add(pid); pastasOrigem.filter(p => p.pasta_pai_id === pid).forEach(p => juntar(p.id)); };
+    juntar(id);
+  }
+  const quadros = new Set<number>(r === 'quadros' ? [id] : quadrosOrigem.filter(q => pastas.has(q.pasta_id)).map(q => q.id));
+  for (const q of quadrosOrigem) if (q.tipo === 'subitens' && quadros.has(q.quadro_pai_id)) quadros.add(q.id);
+  const fim = Math.max(0, ...(await consultar(r, { area_id: areaId })).map(x => Number(x.posicao) || 0)) + 1;
+  const ops: ((lote: ReturnType<typeof writeBatch>) => void)[] = [];
+  for (const pid of pastas) ops.push(l => l.update(ref('pastas', pid), pid === id ? { area_id: areaId, pasta_pai_id: null, posicao: fim } : { area_id: areaId }));
+  for (const qid of quadros) ops.push(l => l.update(ref('quadros', qid), r === 'quadros' && qid === id ? { area_id: areaId, pasta_id: null, posicao: fim } : { area_id: areaId }));
+  await emLotes(ops);
+  return { movidos: pastas.size + quadros.size };
+}
+
 async function duplicarQuadro(id: number, corpo: unknown) {
   const orig = await buscar('quadros', id);
   if (!orig) throw new ErroApi(404, 'quadro não encontrado');
@@ -1192,6 +1219,7 @@ async function rotear(metodo: string, url: string, corpo?: unknown): Promise<unk
     if (p[2] === 'duplicar' && metodo === 'POST') return duplicarQuadro(id, corpo);
     if (p[2] === 'automacoes' && metodo === 'GET') return automacoesDoQuadro(id);
   }
+  if ((p[0] === 'quadros' || p[0] === 'pastas') && p[2] === 'mover-area' && metodo === 'POST') return moverParaArea(p[0], Number(p[1]), corpo);
   if (p[0] === 'itens' && p[2] === 'duplicar' && metodo === 'POST') return duplicarItem(Number(p[1]));
   if (p[0] === 'itens' && p[2] === 'valor' && metodo === 'PATCH') return definirValor(Number(p[1]), corpo);
   if (p.length === 3 && (p[2] === 'arquivar' || p[2] === 'restaurar') && metodo === 'POST') return mudarEstado(recurso(p[0]), Number(p[1]), p[2]);

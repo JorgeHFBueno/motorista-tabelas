@@ -1141,8 +1141,8 @@ service cloud.firestore {
       allow update: if false;
     }
 
-    // Quadros: "cadastro" (cadastro oficial) é gravado só pelas Functions. "restrito" e "acesso" mudam só por adm2;
-    // um quadro novo pode nascer restrito (cópia ou subitens de um restrito) se quem cria está na lista.
+    // Quadros: "cadastro" (cadastro oficial) é gravado só pelas Functions. "restrito", "acesso" e a área de trabalho
+    // (area_id) mudam só por adm2; um quadro novo pode nascer restrito (cópia ou subitens de um restrito) se quem cria está na lista.
     match /friday-quadros/{quadroId} {
       allow read, delete: if fridayAccess() && (isAdm2() || fridayLiberado(resource.data));
       allow create: if fridayAccess()
@@ -1151,7 +1151,7 @@ service cloud.firestore {
       allow update: if fridayAccess()
         && (isAdm2() || fridayLiberado(resource.data))
         && didNotChange(['cadastro'])
-        && (isAdm2() || didNotChange(['restrito', 'acesso']));
+        && (isAdm2() || didNotChange(['restrito', 'acesso', 'area_id']));
     }
 
     // Itens: "vinculo" (cadastro oficial) e o controle da importação do monday são gravados só pelas Functions.
@@ -1170,10 +1170,14 @@ service cloud.firestore {
         && didNotChange(fridayItemCamposDeFunction());
     }
 
-    // Áreas e pastas: abertas para quem entra no Friday (não há permissão por área ou pasta).
+    // Áreas e pastas: abertas para quem entra no Friday (não há permissão por área ou pasta). Mover pasta para outra
+    // área (area_id) é só de adm2.
     match /{colecao}/{registroId} {
-      allow read, write: if fridayAccess()
+      allow read, create, delete: if fridayAccess()
         && colecao.matches('^friday-(areas|pastas)$');
+      allow update: if fridayAccess()
+        && colecao.matches('^friday-(areas|pastas)$')
+        && (isAdm2() || didNotChange(['area_id']));
     }
 
     // Grupos, colunas, visões, atualizações e automações: seguem o quadro (mudar de quadro exige os dois).

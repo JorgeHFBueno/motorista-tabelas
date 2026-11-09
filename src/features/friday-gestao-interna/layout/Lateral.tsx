@@ -62,6 +62,18 @@ export function Lateral({ onRecolher }: { onRecolher: () => void }) {
     await api.update('quadros', quadroId, { pasta_id: pastaId });
     nav.recarregar();
   };
+  // Mover para outra área de trabalho: só adm2 (as Rules também conferem). A pasta leva o que está dentro.
+  const outrasAreas = admin ? nav.areas.filter(a => a.id !== nav.areaId) : [];
+  const moverArea = async (r: 'quadros' | 'pastas', alvo: Row, areaId: number) => {
+    const destino = nav.areas.find(a => a.id === areaId)?.nome ?? 'outra área';
+    if (r === 'pastas') {
+      const n = contar(alvo.id);
+      const conteudo = n ? `, com ${n} ${n === 1 ? 'quadro' : 'quadros'} e as subpastas,` : '';
+      if (!(await confirmar(`Mover a pasta “${alvo.nome}”${conteudo} para a área “${destino}”?`, 'Mover'))) return;
+    }
+    await req('POST', `${r}/${alvo.id}/mover-area`, { area_id: areaId });
+    await nav.recarregar();
+  };
   const soltar = (pastaId: number | null) => {
     if (arrastando != null) moverQuadro(arrastando, pastaId);
     setArrastando(null);
@@ -107,7 +119,7 @@ export function Lateral({ onRecolher }: { onRecolher: () => void }) {
           <span className="arvore-nome">{p.nome}</span>
           {!!p.restrito && <Lock size={12} className="arvore-cadeado" aria-label="restrita" />}
           {total > 0 && <span className="arvore-n" title={`${total} ${total === 1 ? 'quadro' : 'quadros'}`}>{total}</span>}
-          <MenuPasta pasta={p}
+          <MenuPasta pasta={p} areas={outrasAreas} onMoverArea={aid => moverArea('pastas', p, aid)}
             onNovoQuadro={() => setModal({ tipo: 'quadro', pastaId: p.id })} onNovoPainel={() => setModal({ tipo: 'painel', pastaId: p.id })} onSubpasta={() => setModal({ tipo: 'pasta', pastaId: p.id })}
             onRenomear={() => setModal({ tipo: 'renomear', alvo: p, tabela: 'pastas' })}
             onExcluir={async () => { if (await confirmar(`Excluir a pasta “${p.nome}”? Os quadros dela vão para fora das pastas.`)) { await api.remove('pastas', p.id); nav.recarregar(); } }} />
@@ -131,7 +143,7 @@ export function Lateral({ onRecolher }: { onRecolher: () => void }) {
       <IconeQuadro q={q} />
       <span className="arvore-nome">{q.nome}</span>
       {!!q.restrito && <Lock size={12} className="arvore-cadeado" aria-label="restrito" />}
-      <MenuQuadroLateral quadro={q} pastas={pastasDaArea} onMover={pid => moverQuadro(q.id, pid)}
+      <MenuQuadroLateral quadro={q} pastas={pastasDaArea} onMover={pid => moverQuadro(q.id, pid)} areas={outrasAreas} onMoverArea={aid => moverArea('quadros', q, aid)}
         onPermissoes={admin ? () => setPermissoes({ id: q.id, nome: q.nome }) : undefined}
         onRenomear={() => setModal({ tipo: 'renomear', alvo: q, tabela: 'quadros' })}
         onArquivar={async () => { if (await confirmar(`Arquivar o quadro “${q.nome}”? Ele sai da lateral e pode ser restaurado em Arquivo e lixeira.`, 'Arquivar')) { await req('POST', `quadros/${q.id}/arquivar`); await nav.recarregar(); if (q.id === quadroAtual) navigate('/'); } }}
@@ -268,38 +280,58 @@ function SeletorArea({ onNova, onRenomear, onExcluir }: { onNova?: () => void; o
 }
 
 // ---------------------------------------------------------------- menus de contexto
-function MenuPasta({ pasta, onNovoQuadro, onNovoPainel, onSubpasta, onRenomear, onExcluir }: { pasta: Row; onNovoQuadro: () => void; onNovoPainel: () => void; onSubpasta: () => void; onRenomear: () => void; onExcluir: () => void }) {
+function MenuPasta({ pasta, areas, onMoverArea, onNovoQuadro, onNovoPainel, onSubpasta, onRenomear, onExcluir }: { pasta: Row; areas: Row[]; onMoverArea: (areaId: number) => void; onNovoQuadro: () => void; onNovoPainel: () => void; onSubpasta: () => void; onRenomear: () => void; onExcluir: () => void }) {
   const pop = usePopover<HTMLButtonElement>();
+  const [moverArea, setMoverArea] = useState(false);
   return (
     <>
       <button ref={pop.ref} className="btn-icone arvore-menu" aria-label={`Menu da pasta ${pasta.nome}`} onClick={e => { e.stopPropagation(); pop.alternar(); }}><MoreHorizontal size={15} /></button>
       {pop.aberto && (
-        <Popover ancora={pop.ref.current} onClose={pop.fechar} largura={220}>
-          <Menu onEscolher={pop.fechar} itens={[
-            { rotulo: 'Novo quadro nesta pasta', icone: <LayoutGrid size={15} />, onClick: onNovoQuadro },
-            { rotulo: 'Novo painel nesta pasta', icone: <LayoutDashboard size={15} />, onClick: onNovoPainel },
-            { rotulo: 'Nova subpasta', icone: <FolderPlus size={15} />, onClick: onSubpasta },
-            { rotulo: 'Renomear pasta', icone: <Pencil size={15} />, onClick: onRenomear },
-            'separador',
-            { rotulo: 'Excluir pasta', icone: <Trash2 size={15} />, perigo: true, onClick: onExcluir },
-          ]} />
+        <Popover ancora={pop.ref.current} onClose={() => { pop.fechar(); setMoverArea(false); }} largura={240}>
+          {moverArea ? <MenuAreas areas={areas} onEscolher={id => { pop.fechar(); setMoverArea(false); onMoverArea(id); }} /> : (
+            <Menu onEscolher={() => { if (!moverArea) pop.fechar(); }} itens={[
+              { rotulo: 'Novo quadro nesta pasta', icone: <LayoutGrid size={15} />, onClick: onNovoQuadro },
+              { rotulo: 'Novo painel nesta pasta', icone: <LayoutDashboard size={15} />, onClick: onNovoPainel },
+              { rotulo: 'Nova subpasta', icone: <FolderPlus size={15} />, onClick: onSubpasta },
+              { rotulo: 'Renomear pasta', icone: <Pencil size={15} />, onClick: onRenomear },
+              ...(areas.length ? [{ rotulo: 'Mover para área de trabalho', icone: <FolderInput size={15} />, onClick: () => setTimeout(() => { pop.abrir(); setMoverArea(true); }) }] : []),
+              'separador',
+              { rotulo: 'Excluir pasta', icone: <Trash2 size={15} />, perigo: true, onClick: onExcluir },
+            ]} />
+          )}
         </Popover>
       )}
     </>
   );
 }
 
-function MenuQuadroLateral({ quadro, pastas, onMover, onRenomear, onArquivar, onExcluir, onPermissoes }: { quadro: Row; pastas: Row[]; onMover: (pastaId: number | null) => void; onRenomear: () => void; onArquivar: () => void; onExcluir: () => void; onPermissoes?: () => void }) {
+// Áreas de destino do "Mover para área de trabalho" (pasta ou quadro).
+function MenuAreas({ areas, onEscolher }: { areas: Row[]; onEscolher: (areaId: number) => void }) {
+  return (
+    <>
+      <div className="menu-titulo">Mover para a área</div>
+      <div className="menu">
+        {areas.map(a => (
+          <button key={a.id} className="menu-item area-op" onClick={() => onEscolher(a.id)}>
+            <span className="area-icone pequeno" style={{ background: a.cor, color: corTexto(a.cor) }}>{a.nome[0]}</span>{a.nome}
+          </button>
+        ))}
+      </div>
+    </>
+  );
+}
+
+function MenuQuadroLateral({ quadro, pastas, onMover, areas, onMoverArea, onRenomear, onArquivar, onExcluir, onPermissoes }: { quadro: Row; pastas: Row[]; onMover: (pastaId: number | null) => void; areas: Row[]; onMoverArea: (areaId: number) => void; onRenomear: () => void; onArquivar: () => void; onExcluir: () => void; onPermissoes?: () => void }) {
   const nav = useNav();
   const navigate = useNavigate();
   const pop = usePopover<HTMLButtonElement>();
-  const [mover, setMover] = useState(false);
+  const [mover, setMover] = useState<false | 'pasta' | 'area'>(false);
   return (
     <>
       <button ref={pop.ref} className="btn-icone arvore-menu" aria-label={`Menu do quadro ${quadro.nome}`} onClick={e => { e.stopPropagation(); pop.alternar(); }}><MoreHorizontal size={15} /></button>
       {pop.aberto && (
         <Popover ancora={pop.ref.current} onClose={() => { pop.fechar(); setMover(false); }} largura={230}>
-          {mover ? (
+          {mover === 'area' ? <MenuAreas areas={areas} onEscolher={id => { pop.fechar(); setMover(false); onMoverArea(id); }} /> : mover ? (
             <>
               <div className="menu-titulo">Mover para</div>
               <Menu onEscolher={pop.fechar} itens={[
@@ -310,7 +342,8 @@ function MenuQuadroLateral({ quadro, pastas, onMover, onRenomear, onArquivar, on
           ) : (
             <Menu onEscolher={() => { if (!mover) pop.fechar(); }} itens={[
               { rotulo: 'Renomear', icone: <Pencil size={15} />, onClick: onRenomear },
-              { rotulo: 'Mover para pasta', icone: <FolderInput size={15} />, onClick: () => setTimeout(() => { pop.abrir(); setMover(true); }) },
+              { rotulo: 'Mover para pasta', icone: <FolderInput size={15} />, onClick: () => setTimeout(() => { pop.abrir(); setMover('pasta'); }) },
+              ...(areas.length ? [{ rotulo: 'Mover para área de trabalho', icone: <FolderInput size={15} />, onClick: () => setTimeout(() => { pop.abrir(); setMover('area'); }) }] : []),
               { rotulo: quadro.favorito ? 'Remover dos favoritos' : 'Adicionar aos favoritos', icone: <Star size={15} />, onClick: () => api.update('quadros', quadro.id, { favorito: quadro.favorito ? 0 : 1 }).then(nav.recarregar) },
               { rotulo: 'Duplicar', icone: <Copy size={15} />, onClick: async () => { const n = await req<{ id: number }>('POST', `quadros/${quadro.id}/duplicar`, {}); await nav.recarregar(); navigate(`/quadros/${n.id}`); } },
               ...(onPermissoes ? [{ rotulo: 'Permissões', icone: <Lock size={15} />, onClick: onPermissoes }] : []),

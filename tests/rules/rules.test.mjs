@@ -152,6 +152,8 @@ async function seed() {
     await setDoc(doc(db, 'erp-veiculos', 'vv1'), { schemaVersion: 1, placa: 'ABC1D23', status: 'ok', linhas: [] });
     await setDoc(doc(db, 'kioskCredentials', 'uid-user'), { pinHash: 'x' });
     await setDoc(doc(db, 'friday-quadros', '10'), { id: 10, nome: 'Quadro', cadastro: null, restrito: 0 });
+    await setDoc(doc(db, 'friday-quadros', '15'), { id: 15, nome: 'Quadro da área 1', area_id: 1, pasta_id: 50, cadastro: null, restrito: 0 });
+    await setDoc(doc(db, 'friday-pastas', '50'), { id: 50, nome: 'Pasta', area_id: 1, pasta_pai_id: null });
     await setDoc(doc(db, 'friday-quadros', '11'), { id: 11, nome: 'Quadro oficial', cadastro: 'pontes', restrito: 0 });
     await setDoc(doc(db, 'friday-itens', '20'), { id: 20, quadro_id: 10, nome: 'Item', valores: {}, vinculo: null, importado_em: null });
     await setDoc(doc(db, 'friday-itens', '21'), { id: 21, quadro_id: 11, nome: 'Item oficial', valores: {}, vinculo: { cadastro: 'pontes', id: 'abc' } });
@@ -922,6 +924,18 @@ test('[firestore] Friday: boards cannot be created official nor have "cadastro" 
   await assertSucceeds(updateDoc(doc(db, 'friday-quadros', '11'), { nome: 'Renomeado' }));
   await assertFails(updateDoc(doc(db, 'friday-quadros', '11'), { cadastro: null }));
   await assertFails(updateDoc(doc(db, 'friday-quadros', '10'), { cadastro: 'pontes' }));
+});
+test('[firestore] Friday: only adm2 moves folders and boards to another workspace (area_id)', async () => {
+  const esc = dbAs('escritorio');
+  await assertSucceeds(updateDoc(doc(esc, 'friday-pastas', '50'), { nome: 'Renomeada', posicao: 2 }));
+  await assertSucceeds(updateDoc(doc(esc, 'friday-quadros', '15'), { pasta_id: null }));
+  await assertFails(updateDoc(doc(esc, 'friday-pastas', '50'), { area_id: 2 }));
+  await assertFails(updateDoc(doc(esc, 'friday-quadros', '15'), { area_id: 2 }));
+  const adm = dbAs('adm2');
+  await assertSucceeds(updateDoc(doc(adm, 'friday-pastas', '50'), { area_id: 2, pasta_pai_id: null }));
+  await assertSucceeds(updateDoc(doc(adm, 'friday-quadros', '15'), { area_id: 2 }));
+  await assertSucceeds(setDoc(doc(esc, 'friday-pastas', '51'), { id: 51, nome: 'Nova', area_id: 2, pasta_pai_id: null }));
+  await assertSucceeds(deleteDoc(doc(esc, 'friday-pastas', '51')));
 });
 test('[firestore] Friday: items keep "vinculo" and import control written only by Functions', async () => {
   const db = dbAs('escritorio');
