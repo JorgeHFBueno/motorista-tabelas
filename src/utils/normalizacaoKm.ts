@@ -160,6 +160,15 @@ export function sugestaoPorDigitos(l: Pick<LeituraAnalisada, 'valor' | 'alertas'
   return Number.isSafeInteger(valor) ? valor : null;
 }
 
+/** A linha do tempo com os valores das alterações preparadas (o `valorBruto` continua o guardado), para a análise
+ * mostrar só o que falta conferir: o que já foi corrigido deixa de ser sinalizado e os vizinhos voltam a ser comparados. */
+export function comAlteracoes(linha: LeituraKm[], alteracoes: ReadonlyMap<string, AlteracaoKm>): LeituraKm[] {
+  return linha.map((l) => {
+    const preparada = alteracoes.get(l.key);
+    return preparada ? { ...l, valor: preparada.valorNovo } : l;
+  });
+}
+
 /** Referência padrão para os dígitos: a mediana das leituras inteiras, que poucas leituras erradas não movem (o KM
  * último pode ser justamente o valor inflado). Sem leituras, null. */
 export function referenciaPadrao(leituras: LeituraKm[]): number | null {

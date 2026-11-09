@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import {
-  aplicarAlteracoesKm, analisarLeituras, chaveKm, ErroNormalizacaoKm, leiturasDeAtividade, leiturasDeCombustivel, lerNovoKm,
+  aplicarAlteracoesKm, analisarLeituras, chaveKm, comAlteracoes, ErroNormalizacaoKm, leiturasDeAtividade, leiturasDeCombustivel, lerNovoKm,
   MAX_ALTERACOES_POR_LOTE, montarLinhaDoTempo, referenciaPadrao, sugestaoKmUltimo, sugestaoPorDigitos,
   type AlteracaoKm, type ColecaoKm, type LeituraKm, type TransacaoKm,
 } from '../src/utils/normalizacaoKm';
@@ -46,6 +46,17 @@ test('valor inválido não quebra a análise', () => {
 test('bloco real de sete dígitos é marcado em todas as ocorrências', () => {
   const r = rodar([180710, 180711, 1807831, 1807831, 1808091, 1808091, 1812730], 201983);
   assert.deepEqual(r.map((l) => l.suspeito), [false, false, true, true, true, true, true]);
+});
+
+test('com as alterações preparadas, o corrigido sai dos sinalizados e o retrocesso escondido aparece', () => {
+  const linha = [184000, 1845000, 18460, 184700].map((v, i) => leitura(v, i));
+  const antes = analisarLeituras(linha, { kmReferencia: 403022 });
+  assert.deepEqual(antes.map(codigos), [[], ['MAIS_DIGITOS_QUE_REFERENCIA'], [], []]);
+  const preparadas = new Map<string, AlteracaoKm>([[linha[1].key, { key: linha[1].key, collection: 'atividades', documentId: 'd1', field: 'km', valorOriginal: 1845000, valorNovo: 184500 }]]);
+  const depois = analisarLeituras(comAlteracoes(linha, preparadas), { kmReferencia: 403022 });
+  assert.deepEqual(depois.map((l) => l.suspeito), [false, false, true, false]);
+  assert.deepEqual(depois[2].alertas, [{ codigo: 'RETROCESSO_LOCAL' }, { codigo: 'SUGESTAO_MULTIPLICAR', multiplicador: 10, valor: 184600 }]);
+  assert.equal(depois[1].valorBruto, 1845000);
 });
 
 // ---- sugestões

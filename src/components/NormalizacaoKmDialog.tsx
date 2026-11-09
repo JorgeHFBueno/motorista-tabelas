@@ -30,6 +30,7 @@ import {
     analisarLeituras,
     chaveKm,
     lerNovoKm,
+    comAlteracoes,
     montarLinhaDoTempo,
     referenciaPadrao,
     sugestaoKmUltimo,
@@ -49,8 +50,9 @@ type Alvo = Pick<AlteracaoKm, 'collection' | 'documentId' | 'field' | 'valorOrig
 const numero = new Intl.NumberFormat('pt-BR');
 const dataHora = new Intl.DateTimeFormat('pt-BR', { dateStyle: 'short', timeStyle: 'short' });
 const formatar = (v: unknown) => (typeof v === 'number' ? numero.format(v) : String(v ?? '—'));
-// Só leituras com valor numérico são editáveis (o campo fica desabilitado nas outras).
-const alvoDaLeitura = (l: LeituraAnalisada): Alvo => ({ collection: l.collection, documentId: l.documentId, field: l.field, valorOriginal: l.valor as number, rotulo: l.rotulo, data: l.data });
+// Só leituras com valor numérico são editáveis (o campo fica desabilitado nas outras). O original é o guardado
+// (`valorBruto`): `valor` pode já ser o preparado.
+const alvoDaLeitura = (l: LeituraAnalisada): Alvo => ({ collection: l.collection, documentId: l.documentId, field: l.field, valorOriginal: l.valorBruto as number, rotulo: l.rotulo, data: l.data });
 
 function prioridade(l: LeituraAnalisada): string | null {
     const multiplicar = l.alertas.find((a) => a.codigo === 'SUGESTAO_MULTIPLICAR');
@@ -167,7 +169,9 @@ export default function NormalizacaoKmDialog({ open, veiculo, podeAplicar, onClo
 
     const { linha, semData } = useMemo(() => montarLinhaDoTempo(leituras ?? []), [leituras]);
     const kmReferencia = useMemo(() => { const lido = lerNovoKm(referencia); return lido.ok ? lido.valor : null; }, [referencia]);
-    const analisadas = useMemo(() => analisarLeituras(linha, { kmReferencia }), [linha, kmReferencia]);
+    // Com os valores preparados: o que já foi corrigido sai dos sinalizados e o que falta (retrocessos que as leituras
+    // com dígitos a mais escondiam) aparece.
+    const analisadas = useMemo(() => analisarLeituras(comAlteracoes(linha, alteracoes), { kmReferencia }), [linha, alteracoes, kmReferencia]);
     const visiveis = useMemo(() => (soSinalizados ? analisadas.filter((l) => l.suspeito) : analisadas), [analisadas, soSinalizados]);
     const sinalizados = useMemo(() => analisadas.filter((l) => l.suspeito).length, [analisadas]);
 
@@ -177,6 +181,15 @@ export default function NormalizacaoKmDialog({ open, veiculo, podeAplicar, onClo
 
     const valorDoCampo = (key: string, sugestao: number | null) =>
         rascunhos.get(key) ?? (alteracoes.has(key) ? String(alteracoes.get(key)!.valorNovo) : sugestao === null ? '' : String(sugestao));
+
+    // Campos preenchidos (sugestões incluídas), válidos e diferentes do guardado, ainda fora das alterações preparadas.
+    const mudaria = (key: string, texto: string, original: unknown) => {
+        if (alteracoes.has(key) || !texto.trim()) return false;
+        const lido = lerNovoKm(texto);
+        return lido.ok && lido.valor !== original;
+    };
+    const pendentes = analisadas.filter((l) => l.valor !== null && mudaria(l.key, valorDoCampo(l.key, sugestaoPorDigitos(l)), l.valorBruto)).length
+        + (kmUltimo !== null && mudaria(chaveUltimo, valorDoCampo(chaveUltimo, sugestaoUltimo), kmUltimo) ? 1 : 0);
 
     const alvoUltimo = (): Alvo => ({ collection: 'veiculos-v2', documentId: veiculo.id, field: 'operacional.quilometragemUltima', valorOriginal: kmUltimo as number, rotulo: `${medidor} último (cadastro)`, data: null });
 
@@ -292,6 +305,15 @@ export default function NormalizacaoKmDialog({ open, veiculo, podeAplicar, onClo
                             helperText="Começa na mediana das leituras; troque pelo valor do painel, se souber."
                             slotProps={{ htmlInput: { inputMode: 'numeric' } }}
                         />
+                        {podeAplicar && (
+                            <Tooltip title="Prepara todos os campos preenchidos, inclusive as sugestões de dígitos. Nada é gravado até Aplicar.">
+                                <span>
+                                    <Button variant="contained" onClick={salvarTodos} disabled={!leituras || aplicando || pendentes === 0} sx={{ whiteSpace: 'nowrap' }}>
+                                        Salvar todos ({pendentes})
+                                    </Button>
+                                </span>
+                            </Tooltip>
+                        )}
                         <FormControlLabel control={<Switch checked={soSinalizados} onChange={(event) => setSoSinalizados(event.target.checked)} />} label="Só sinalizados" />
                         {leituras && (
                             <Typography variant="body2">
@@ -368,13 +390,7 @@ export default function NormalizacaoKmDialog({ open, veiculo, podeAplicar, onClo
                         )
                     )}
 
-                    {podeAplicar ? (
-                        <Box>
-                            <Button variant="outlined" onClick={salvarTodos} disabled={!leituras || aplicando}>Salvar todos</Button>
-                        </Box>
-                    ) : (
-                        <Alert severity="info">Só a Logística e o adm2 gravam correções de {medidorNoTexto}.</Alert>
-                    )}
+                    {!podeAplicar && <Alert severity="info">Só a Logística e o adm2 gravam correções de {medidorNoTexto}.</Alert>}
 
                     <Paper variant="outlined" sx={{ p: 2 }}>
                         <Typography variant="subtitle2" gutterBottom>Alterações preparadas ({preparadas.length})</Typography>
