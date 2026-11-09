@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { api, observarAutomacoes, req, type Row } from '../api.ts';
 import { useAvisoRapido } from '../ui/base.tsx';
 import { posEntre } from '../util.ts';
-import type { Coluna, Grupo, Item, Sub, TipoColuna, Visao } from './tipos.ts';
+import { colunaDoMenu, type Coluna, type Grupo, type Item, type Sub, type TipoMenu, type Visao } from './tipos.ts';
 import type { OpTempo } from './tempo.ts';
 
 // sub: quadro de subitens (colunas próprias) com os subitens dos itens visíveis.
@@ -101,17 +101,17 @@ export function useQuadro(quadroId: number) {
     },
 
     // ---------------- colunas (do quadro ou dos subitens)
-    criarColuna: async (tipo: TipoColuna, titulo: string, aposPosicao?: number) => {
+    criarColuna: async (tipoMenu: TipoMenu, titulo: string, aposPosicao?: number) => {
       const cs = dados?.colunas ?? [];
       const idx = aposPosicao == null ? cs.length - 1 : cs.findIndex(c => c.posicao === aposPosicao);
       const posicao = posEntre(cs[idx]?.posicao ?? null, cs[idx + 1]?.posicao ?? null);
-      const c = (await api.create('colunas', { quadro_id: quadroId, tipo, titulo, posicao })) as Coluna;
+      const c = (await api.create('colunas', { quadro_id: quadroId, ...colunaDoMenu(tipoMenu), titulo, posicao })) as Coluna;
       mudar(d => ({ ...d, colunas: [...d.colunas, c].sort(porPosicao) }));
       return c;
     },
-    criarColunaSub: async (tipo: TipoColuna, titulo: string) => {
+    criarColunaSub: async (tipoMenu: TipoMenu, titulo: string) => {
       const s = await garantirSub();
-      const c = (await api.create('colunas', { quadro_id: s.quadro_id, tipo, titulo })) as Coluna;
+      const c = (await api.create('colunas', { quadro_id: s.quadro_id, ...colunaDoMenu(tipoMenu), titulo })) as Coluna;
       mudar(d => (d.sub ? { ...d, sub: { ...d.sub, colunas: [...d.sub.colunas, c].sort(porPosicao) } } : d));
       return c;
     },

@@ -1,19 +1,51 @@
 // Filtros, ordenação e "agrupar por" de uma visão. Tudo calculado no navegador sobre os itens do quadro.
 import { CORES, fmtNumeroColuna, hojeISO, inicioDaSemana, somarDias } from '../util.ts';
 import { sessaoAberta } from './tempo.ts';
-import { itemConcluido, rotuloDe, textoCelula, vazio, type Agrupar, type Coluna, type EstadoVisao, type Grupo, type Item, type Rotulo, type Visao } from './tipos.ts';
+import {
+  chaveCelula, itemConcluido, rotuloDe, textoCelula, vazio, type Agrupar, type Coluna, type CriterioOrdem, type EstadoVisao, type Grupo, type Item, type Ordenacao, type Rotulo, type Visao,
+} from './tipos.ts';
 
 export type Contexto = { colunas: Coluna[]; nomeUsuario: (id: unknown) => string; eu: string | null; hoje?: string };
 
 // ---------------------------------------------------------------- estado salvo na visão
+// Ordenação gravada: lista de critérios; a de visões antigas é um critério só (objeto) ou nula.
+export function lerOrdenacao(v: unknown): Ordenacao {
+  const lista = Array.isArray(v) ? v : v && typeof v === 'object' ? [v] : [];
+  const vistos = new Set<number>();
+  return lista.flatMap(o => {
+    const colunaId = Number((o as CriterioOrdem)?.colunaId);
+    if (!Number.isFinite(colunaId) || vistos.has(colunaId)) return [];
+    vistos.add(colunaId);
+    return [{ colunaId, dir: (o as CriterioOrdem).dir === -1 ? -1 : 1 } as CriterioOrdem];
+  });
+}
 export function normalizar(e: EstadoVisao): EstadoVisao {
   const filtros = Object.fromEntries(Object.entries(e.filtros ?? {}).filter(([, v]) => v.length).sort(([a], [b]) => a.localeCompare(b)).map(([k, v]) => [k, [...v].sort()]));
-  return { filtros, pessoa: e.pessoa ?? null, ordenacao: e.ordenacao ?? null, agrupar: e.agrupar ?? null, ocultas: [...new Set(e.ocultas ?? [])].sort((a, b) => a - b) };
+  return { filtros, pessoa: e.pessoa ?? null, ordenacao: lerOrdenacao(e.ordenacao), agrupar: e.agrupar ?? null, ocultas: [...new Set(e.ocultas ?? [])].sort((a, b) => a - b) };
+}
+
+// Ordena pelos critérios, um depois do outro; vazio fica no fim em qualquer direção. Empate em todos: `desempate`
+// (a posição manual). Critério de coluna que não existe mais é ignorado.
+export function ordenarItens(lista: Item[], ordem: Ordenacao, colunas: Coluna[], nomeUsuario: (id: unknown) => string, desempate: (a: Item, b: Item) => number): Item[] {
+  const criterios = ordem.flatMap(o => { const col = colunas.find(c => c.id === o.colunaId); return col ? [{ col, dir: o.dir }] : []; });
+  if (!criterios.length) return [...lista].sort(desempate);
+  const chaves = new Map(lista.map(i => [i.id, criterios.map(({ col }) => chaveCelula(col, i, colunas, nomeUsuario))]));
+  return [...lista].sort((a, z) => {
+    const ka = chaves.get(a.id)!, kz = chaves.get(z.id)!;
+    for (let k = 0; k < criterios.length; k++) {
+      const x = ka[k], y = kz[k];
+      if (x === y) continue;
+      if (x === '') return 1;
+      if (y === '') return -1;
+      return (x < y ? -1 : 1) * criterios[k].dir;
+    }
+    return desempate(a, z);
+  });
 }
 // Visões antigas não têm "ocultas": vale o que estava marcado nas colunas.
 export function estadoDaVisao(v: Visao, colunas: Coluna[]): EstadoVisao {
   const c = v.config ?? {};
-  return normalizar({ filtros: c.filtros ?? {}, pessoa: c.pessoa ?? null, ordenacao: c.ordenacao ?? null, agrupar: c.agrupar ?? null, ocultas: c.ocultas ?? colunas.filter(x => x.oculta).map(x => x.id) });
+  return normalizar({ filtros: c.filtros ?? {}, pessoa: c.pessoa ?? null, ordenacao: lerOrdenacao(c.ordenacao), agrupar: c.agrupar ?? null, ocultas: c.ocultas ?? colunas.filter(x => x.oculta).map(x => x.id) });
 }
 export const mesmoEstado = (a: EstadoVisao, b: EstadoVisao) => JSON.stringify(normalizar(a)) === JSON.stringify(normalizar(b));
 export const totalFiltros = (e: EstadoVisao) => Object.values(e.filtros).reduce((s, v) => s + v.length, 0) + (e.pessoa ? 1 : 0);

@@ -10,7 +10,7 @@ import { Avatar, Menu, Modal, Popover, useConfirmar, usePopover } from '../ui/ba
 import { corTexto } from '../util.ts';
 import { tempoRelativo } from './Atualizacoes.tsx';
 import { lerAutomacoesMonday, type Importada } from './importarAutomacoes.ts';
-import { ehPrazo, infoTipo, statusPrincipal, type Coluna, type Grupo, type Rotulo } from './tipos.ts';
+import { ehPrazo, infoColuna, statusPrincipal, type Coluna, type Grupo, type Rotulo } from './tipos.ts';
 import { useQuadro } from './useQuadro.ts';
 
 // ---------------------------------------------------------------- modelo (o executor é a Function functions/fridayAutomacoes.ts)
@@ -339,7 +339,7 @@ function EditorAutomacao({ inicial, ctx, onSalvar, onFechar }: { inicial: Automa
           {g.tipo === 'coluna_muda' && (
             <select value={g.coluna_id ?? ''} onChange={e => setG({ coluna_id: Number(e.target.value) || undefined, para: [], de: [] })}>
               <option value="">Escolha a coluna…</option>
-              {colsDe(GATILHO_COLUNA).map(c => <option key={c.id} value={c.id}>{c.titulo} ({infoTipo(c.tipo).rotulo.toLowerCase()})</option>)}
+              {colsDe(GATILHO_COLUNA).map(c => <option key={c.id} value={c.id}>{c.titulo} ({infoColuna(c).rotulo.toLowerCase()})</option>)}
             </select>
           )}
           {(g.tipo === 'item_criado' || g.tipo === 'item_movido') && (

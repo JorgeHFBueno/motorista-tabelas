@@ -3,7 +3,7 @@ import { mudarTipoColuna } from '../api.ts';
 import { Modal, useAvisoRapido } from '../ui/base.tsx';
 import { fmtNumeroColuna } from '../util.ts';
 import { alvosPara, nomeDoAlvo, type Conversao } from './mudarTipo.ts';
-import { infoTipo, type Coluna, type Rotulo } from './tipos.ts';
+import { infoColuna, type Coluna, type Rotulo } from './tipos.ts';
 
 // "Mudar tipo…" da coluna: escolhe o tipo novo, mostra a prévia da conversão (quantos valores convertem e quais ficam
 // vazios) e só então grava. Ex.: "Cap. de Carga Liq." importada como texto → Número ×10.
@@ -50,7 +50,7 @@ export function MudarTipoDialogo({ coluna, onFechar, onPronto }: { coluna: Colun
     <Modal titulo={`Mudar o tipo de “${coluna.titulo}”`} largura={560} onClose={() => { if (!ocupado) onFechar(); }}
       rodape={<div className="form-acoes"><button type="button" className="fr-btn" disabled={ocupado} onClick={onFechar}>Cancelar</button>
         <button className="fr-btn btn-primario" disabled={!previa || ocupado} onClick={() => void aplicar()}>{ocupado ? 'Convertendo…' : 'Mudar tipo'}</button></div>}>
-      <p className="muted fr-small">Hoje: <strong>{infoTipo(coluna.tipo).rotulo}{coluna.config.x10 ? ' ×10' : ''}</strong>. {coluna.oficial
+      <p className="muted fr-small">Hoje: <strong>{infoColuna(coluna).rotulo}{coluna.config.x10 ? ' ×10' : ''}</strong>. {coluna.oficial
         ? 'Campo oficial: só a exibição muda; os valores no cadastro ficam iguais.'
         : 'Os valores de todos os itens (inclusive arquivados) são convertidos para o tipo novo.'}</p>
       <label className="campo-form">Novo tipo

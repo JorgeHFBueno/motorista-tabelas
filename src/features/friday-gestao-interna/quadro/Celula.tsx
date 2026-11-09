@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { AlertCircle, AlertTriangle, Check, CheckCircle2, Circle, Download, ExternalLink, Lock, Paperclip, Pencil, Plus, Search, Star, Trash2, Upload, UserPlus, X } from 'lucide-react';
 import { api, copiarArquivosMonday, enviarArquivo, type Pessoa, type Row } from '../api.ts';
 import { useNav } from '../nav.tsx';
@@ -8,6 +8,7 @@ import { Avatar, Popover, usePopover } from '../ui/base.tsx';
 import { CORES, corTexto, diasEntre, fmtData, fmtDataComAno, fmtNumeroColuna, hojeISO, somarDias } from '../util.ts';
 import { ehPrazo, itemConcluido, rotuloDe, vazio, type Coluna, type Item, type Rotulo } from './tipos.ts';
 import { CelulaTempo } from './CelulaTempo.tsx';
+import { ColaboradoresDoQuadro } from './colaboradores.ts';
 import type { OpTempo } from './tempo.ts';
 
 export type CelulaProps = {
@@ -160,9 +161,12 @@ export function EditorRotulos({ rotulos, onSalvar, onFechar, comVazio, semCor, c
 }
 
 // ---------------------------------------------------------------- pessoa
-function CelulaPessoa({ valor, onMudar, usuarios }: CelulaProps) {
+function CelulaPessoa({ coluna, valor, onMudar, usuarios }: CelulaProps) {
   const pop = usePopover<HTMLDivElement>();
   const [busca, setBusca] = useState('');
+  const colaboradores = useContext(ColaboradoresDoQuadro);
+  // Quem já está marcado aparece sempre (mesmo sem acesso hoje); para escolher, a coluna Colaboradores só oferece o quadro.
+  const opcoes = coluna.config.colaboradores && colaboradores ? colaboradores : usuarios;
   const ids = (valor ?? []) as string[];
   const sel = usuarios.filter(u => ids.includes(u.id));
   const alternar = (id: string) => onMudar(ids.includes(id) ? ids.filter(x => x !== id) : [...ids, id]);
@@ -178,7 +182,7 @@ function CelulaPessoa({ valor, onMudar, usuarios }: CelulaProps) {
           <div className="pop-pessoa">
             {sel.length > 0 && <div className="chips">{sel.map(u => <span key={u.id} className="chip"><Avatar nome={u.nome} cor={u.cor} tamanho={18} />{u.nome}<button aria-label={`Remover ${u.nome}`} onClick={() => alternar(u.id)}><X size={12} /></button></span>)}</div>}
             <div className="busca-pop"><Search size={14} /><input autoFocus placeholder="Buscar pessoas" value={busca} onChange={e => setBusca(e.target.value)} /></div>
-            {usuarios.filter(u => u.ativo && !ids.includes(u.id) && u.nome.toLowerCase().includes(busca.toLowerCase())).map(u => (
+            {opcoes.filter(u => u.ativo && !ids.includes(u.id) && u.nome.toLowerCase().includes(busca.toLowerCase())).map(u => (
               <button key={u.id} className="pop-linha" onClick={() => alternar(u.id)}><Avatar nome={u.nome} cor={u.cor} tamanho={24} />{u.nome}</button>
             ))}
           </div>

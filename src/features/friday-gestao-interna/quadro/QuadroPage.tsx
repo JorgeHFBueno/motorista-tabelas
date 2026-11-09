@@ -2,10 +2,10 @@ import { useCallback, useMemo, useState } from 'react';
 import { useParams, useSearchParams } from 'react-router-dom';
 import { useNavigate } from '../rotas.tsx';
 import {
-  Activity, Archive, ArchiveRestore, ArrowDownUp, CalendarDays, ChevronDown, Columns3, Copy, Download, EyeOff, FileSpreadsheet, Filter, FolderInput, GanttChart, Group,
+  Activity, Archive, ArchiveRestore, ArrowDownUp, CalendarDays, ChevronDown, Columns3, Copy, Download, EyeOff, FileSpreadsheet, Filter, FolderInput, GanttChart, GripVertical, Group,
   Eye, Kanban as IconeKanban, Lock, LockOpen, MoreHorizontal, Pencil, Plus, Search, Star, Table2, Trash2, Upload, UserRound, X, Zap,
 } from 'lucide-react';
-import { req } from '../api.ts';
+import { req, type Pessoa, type Row } from '../api.ts';
 import { useAuth } from '../../../contexts/AuthContext';
 import { DesfazerOficial, GrupoOficialDialogo, TornarOficial } from './TornarOficial.tsx';
 import { NomeModal } from '../layout/Lateral.tsx';
@@ -14,12 +14,13 @@ import { useNav } from '../nav.tsx';
 import { Avatar, Editavel, Menu, Modal, Popover, useAvisoRapido, useConfirmar, usePopover, type ItemMenu } from '../ui/base.tsx';
 import { corTexto } from '../util.ts';
 import { exportarExcel } from './excel.ts';
-import { AGRUPAVEIS, agruparItens, aplicarFiltros, estadoDaVisao, filtravel, mesmoEstado, normalizar, opcoesFiltro, totalFiltros, type Contexto } from './filtros.ts';
+import { AGRUPAVEIS, agruparItens, aplicarFiltros, estadoDaVisao, filtravel, lerOrdenacao, mesmoEstado, normalizar, opcoesFiltro, ordenarItens, totalFiltros, type Contexto } from './filtros.ts';
+import { ColaboradoresDoQuadro } from './colaboradores.ts';
 import { ImportarExcel } from './ImportarExcel.tsx';
 import { PainelItem, RegistroAtividade } from './PainelItem.tsx';
 import type { OpsItens } from './Subitens.tsx';
 import { Tabela } from './Tabela.tsx';
-import { chaveCelula, infoTipo, textoCelula, type Agrupar, type Coluna, type EstadoVisao, type Grupo, type Item, type Ordenacao, type Visao } from './tipos.ts';
+import { infoColuna, infoTipo, pessoasDoQuadro, textoCelula, type Agrupar, type Coluna, type EstadoVisao, type Grupo, type Item, type Ordenacao, type Visao } from './tipos.ts';
 import { porPosicao, useQuadro } from './useQuadro.ts';
 import { Calendario, Cronograma, Kanban } from './Visoes.tsx';
 
@@ -80,16 +81,7 @@ export default function QuadroPage() {
       ? dados.itens.filter(i => i.nome.toLowerCase().includes(b) || paisComSub.has(i.id) || colunas.some(c => textoCelula(c, i, colunas, nav.nomeUsuario).toLowerCase().includes(b)))
       : dados.itens;
     lista = aplicarFiltros(lista, estado, ctx);
-    const o = estado.ordenacao;
-    const col = o && colunas.find(c => c.id === o.colunaId);
-    if (!col) return [...lista].sort(porPosicao);
-    const chave = new Map(lista.map(i => [i.id, chaveCelula(col, i, colunas, nav.nomeUsuario)]));
-    return [...lista].sort((a, z) => {
-      const ka = chave.get(a.id)!, kz = chave.get(z.id)!;
-      if (ka === '' && kz !== '') return 1;
-      if (kz === '' && ka !== '') return -1;
-      return (ka < kz ? -1 : ka > kz ? 1 : 0) * o!.dir;
-    });
+    return ordenarItens(lista, estado.ordenacao, colunas, nav.nomeUsuario, porPosicao);
   }, [dados, busca, estado, ctx, colunas, nav.nomeUsuario]);
 
   const agrupamento = useMemo(
@@ -146,6 +138,13 @@ export default function QuadroPage() {
     else escolherVisao((await q.criarVisao('Tabela principal', 'tabela', undefined, config)).id);
     setRascunho(null);
   };
+  // Ordenação rápida (cabeçalho da coluna, como no monday): "salvar" grava só a ordenação na visão; o resto do que
+  // mudou na tela continua como rascunho. Sem visão salva ainda, grava tudo (cria a visão).
+  const ordenacaoAlterada = JSON.stringify(estado.ordenacao) !== JSON.stringify(salvo.ordenacao);
+  const salvarOrdenacao = async () => {
+    if (!visao.id) return salvarNaVisao();
+    await q.atualizarVisao(visao.id, { config: { ...visao.config, ordenacao: estado.ordenacao } });
+  };
 
   const novoItem = async () => {
     const g = grupos[0] ?? (await q.criarGrupo('Grupo 1'));
@@ -153,7 +152,9 @@ export default function QuadroPage() {
     abrirItem(it.id);
   };
 
+  const colaboradores = pessoasDoQuadro(quadro, nav.usuarios);
   return (
+    <ColaboradoresDoQuadro.Provider value={colaboradores}>
     <div className={`pagina-quadro visao-${visao.tipo}${quadro.permissao === 'ver' ? ' somente-leitura' : ''}`}>
       {/* ---------------- cabeçalho */}
       <header className="quadro-cab">
@@ -166,7 +167,7 @@ export default function QuadroPage() {
             <Star size={18} />
           </button>
           <span className="espaco" />
-          <span className="avatares qc-pessoas">{nav.usuarios.filter(u => u.ativo).slice(0, 4).map(u => <Avatar key={u.id} nome={u.nome} cor={u.cor} tamanho={28} />)}</span>
+          <PessoasDoQuadro quadro={quadro} pessoas={colaboradores} onPermissoes={() => q.recarregar()} />
           <button className="fr-btn" onClick={() => navigate(`/quadros/${quadroId}/automacoes`)} title="Regras automáticas do quadro">
             <Zap size={15} className="ic-auto" /> Automações{quadro.n_automacoes ? ` / ${quadro.n_automacoes}` : ''}
           </button>
@@ -222,7 +223,8 @@ export default function QuadroPage() {
       <div className="quadro-conteudo">
         {visao.tipo === 'tabela' && (
           <Tabela grupos={grupos} colunas={colunasVisiveis} todasColunas={colunas} itens={itensFiltrados} sub={dados.sub} acoes={q} ops={ops} usuarios={nav.usuarios} nomeItem={nomeItem}
-            selecionados={selecionados} setSelecionados={setSelecionados} abrirItem={abrirItem} setOrdenacao={ordenacao => mudarEstado({ ordenacao })}
+            selecionados={selecionados} setSelecionados={setSelecionados} abrirItem={abrirItem}
+            ordenacao={estado.ordenacao} setOrdenacao={ordenacao => mudarEstado({ ordenacao })} ordenacaoAlterada={ordenacaoAlterada} onSalvarOrdenacao={salvarOrdenacao}
             onOcultar={id => mudarEstado({ ocultas: [...estado.ocultas, id] })}
             onAgrupar={id => mudarEstado({ agrupar: { coluna_id: id, ordem: 1, vazios: false } })}
             onExportarGrupo={(g, lista) => exportar(g.nome, lista, colunasVisiveis)}
@@ -269,6 +271,7 @@ export default function QuadroPage() {
           onSalvar={async nome => { const v = await q.criarVisao(nome, visao.tipo, visao.config.coluna_id, normalizar(estado)); setRascunho(null); escolherVisao(v.id); }} />
       )}
     </div>
+    </ColaboradoresDoQuadro.Provider>
   );
 }
 
@@ -285,7 +288,7 @@ function AbasVisoes({ visoes, atual, colunas, acoes, confirmar, onEscolher }: {
     const v = await acoes.criarVisao(NOME_VISAO[tipo], tipo, base?.id);
     onEscolher(v.id);
   };
-  const filtrada = (v: Visao) => { const c = v.config ?? {}; return Object.values(c.filtros ?? {}).some(x => x.length) || !!c.pessoa || !!c.agrupar || !!c.ordenacao; };
+  const filtrada = (v: Visao) => { const c = v.config ?? {}; return Object.values(c.filtros ?? {}).some(x => x.length) || !!c.pessoa || !!c.agrupar || lerOrdenacao(c.ordenacao).length > 0; };
   return (
     <nav className="abas-visoes">
       {visoes.map(v => {
@@ -405,7 +408,7 @@ function FiltroCompleto({ colunas, grupos, itens, estado, ctx, mostrando, nomeIt
               </div>
             )}
             {cols.map(c => {
-              const Ic = infoTipo(c.tipo).icone;
+              const Ic = infoColuna(c).icone;
               const marcadas = estado.filtros[String(c.id)] ?? [];
               const ops = opcoesFiltro(c, itens, ctx).filter(o => o.n > 0 || o.especial || c.tipo === 'status' || marcadas.includes(o.chave));
               return (
@@ -438,24 +441,76 @@ function BotaoOpcao({ on, rotulo, n, cor, especial, usuario, onClick }: { on: bo
   );
 }
 
-function OrdenarMenu({ colunas, ordenacao, setOrdenacao }: { colunas: Coluna[]; ordenacao: Ordenacao; setOrdenacao: (o: Ordenacao) => void }) {
+// Pessoas com acesso ao quadro (cabeçalho): as primeiras na pilha; o clique abre a lista. Administrador: "Permissões".
+function PessoasDoQuadro({ quadro, pessoas, onPermissoes }: { quadro: Row; pessoas: Pessoa[]; onPermissoes: () => void }) {
+  const nav = useNav();
   const pop = usePopover<HTMLButtonElement>();
-  const col = colunas.find(c => c.id === ordenacao?.colunaId);
+  const [permissoes, setPermissoes] = useState(false);
+  const restrito = !!quadro.restrito;
   return (
     <>
-      <button ref={pop.ref} className={`fr-btn btn-barra${ordenacao ? ' ativo' : ''}`} onClick={pop.alternar}><ArrowDownUp size={15} /> Ordenar{col ? `: ${col.titulo}` : ''}</button>
+      <button ref={pop.ref} className="qc-pessoas" onClick={pop.alternar} title={`${pessoas.length} ${pessoas.length === 1 ? 'pessoa tem' : 'pessoas têm'} acesso a este quadro`}>
+        <span className="avatares">{pessoas.slice(0, 4).map(u => <Avatar key={u.id} nome={u.nome} cor={u.cor} tamanho={28} />)}</span>
+        {pessoas.length > 4 && <span className="avatar-mais">+{pessoas.length - 4}</span>}
+      </button>
       {pop.aberto && (
-        <Popover ancora={pop.ref.current} onClose={pop.fechar} largura={300}>
+        <Popover ancora={pop.ref.current} onClose={pop.fechar} alinhar="fim" largura={300}>
+          <div className="menu-titulo">Quem tem acesso ({pessoas.length})</div>
+          <p className="muted fr-small pessoas-quadro-nota">
+            {restrito ? <><Lock size={12} /> Restrito: as pessoas da lista e os administradores.</> : 'Aberto: todos que entram no Friday.'}
+          </p>
+          <div className="pessoas-quadro">
+            {pessoas.map(u => (
+              <div key={u.id} className="perm-linha">
+                <Avatar nome={u.nome} cor={u.cor} tamanho={24} />
+                <span className="perm-nome">{u.nome}</span>
+                {restrito && u.adm2 && <small className="muted">administrador</small>}
+              </div>
+            ))}
+          </div>
+          {nav.usuario?.admin && (
+            <div className="pessoas-quadro-acoes"><button className="fr-btn btn-pequeno" onClick={() => { pop.fechar(); setPermissoes(true); }}><Lock size={13} /> Permissões do quadro</button></div>
+          )}
+        </Popover>
+      )}
+      {permissoes && <Permissoes id={Number(quadro.id)} nome={String(quadro.nome)} onFechar={() => { setPermissoes(false); onPermissoes(); }} />}
+    </>
+  );
+}
+
+// Ordenar por vários critérios, como no monday: valem na ordem da lista (arraste pela alça para trocar a ordem).
+function OrdenarMenu({ colunas, ordenacao, setOrdenacao }: { colunas: Coluna[]; ordenacao: Ordenacao; setOrdenacao: (o: Ordenacao) => void }) {
+  const pop = usePopover<HTMLButtonElement>();
+  const [arrastando, setArrastando] = useState<number | null>(null);
+  const validos = ordenacao.filter(o => colunas.some(c => c.id === o.colunaId));
+  const livres = (atual?: number) => colunas.filter(c => c.id === atual || !validos.some(o => o.colunaId === c.id));
+  const trocar = (k: number, m: Partial<Ordenacao[number]>) => setOrdenacao(validos.map((o, j) => (j === k ? { ...o, ...m } : o)));
+  const mover = (de: number, para: number) => { const l = [...validos]; const [o] = l.splice(de, 1); l.splice(para, 0, o); setOrdenacao(l); };
+  const rotulo = validos.length === 1 ? `: ${colunas.find(c => c.id === validos[0].colunaId)?.titulo}` : validos.length > 1 ? ` / ${validos.length}` : '';
+  return (
+    <>
+      <button ref={pop.ref} className={`fr-btn btn-barra${validos.length ? ' ativo' : ''}`} onClick={pop.alternar}><ArrowDownUp size={15} /> Ordenar{rotulo}</button>
+      {pop.aberto && (
+        <Popover ancora={pop.ref.current} onClose={pop.fechar} largura={420}>
           <div className="menu-titulo">Ordenar por</div>
-          <div className="ordenar">
-            <select value={ordenacao?.colunaId ?? ''} onChange={e => setOrdenacao(e.target.value ? { colunaId: Number(e.target.value), dir: ordenacao?.dir ?? 1 } : null)}>
-              <option value="">Posição manual</option>
-              {colunas.map(c => <option key={c.id} value={c.id}>{c.titulo}</option>)}
-            </select>
-            {ordenacao && (
-              <select value={ordenacao.dir} onChange={e => setOrdenacao({ ...ordenacao, dir: Number(e.target.value) as 1 | -1 })}>
-                <option value={1}>Crescente</option><option value={-1}>Decrescente</option>
-              </select>
+          <div className="ordenar-lista">
+            {!validos.length && <p className="muted fr-small">Sem ordenação: os itens ficam na posição manual.</p>}
+            {validos.map((o, k) => (
+              <div key={o.colunaId} className={`ordenar-linha${arrastando === k ? ' arrastando' : ''}`}
+                onDragOver={e => { if (arrastando != null) e.preventDefault(); }}
+                onDrop={() => { if (arrastando != null && arrastando !== k) mover(arrastando, k); setArrastando(null); }}>
+                <span className="alca" draggable onDragStart={() => setArrastando(k)} onDragEnd={() => setArrastando(null)} title="Arraste para mudar a ordem"><GripVertical size={14} /></span>
+                <select value={o.colunaId} onChange={e => trocar(k, { colunaId: Number(e.target.value) })} aria-label={`Critério ${k + 1}`}>
+                  {livres(o.colunaId).map(c => <option key={c.id} value={c.id}>{c.titulo}</option>)}
+                </select>
+                <select value={o.dir} onChange={e => trocar(k, { dir: Number(e.target.value) as 1 | -1 })} aria-label={`Direção do critério ${k + 1}`}>
+                  <option value={1}>Crescente</option><option value={-1}>Decrescente</option>
+                </select>
+                <button className="btn-icone" onClick={() => setOrdenacao(validos.filter((_, j) => j !== k))} aria-label={`Remover critério ${k + 1}`}><X size={14} /></button>
+              </div>
+            ))}
+            {livres().length > 0 && (
+              <button className="fr-btn-link" onClick={() => setOrdenacao([...validos, { colunaId: livres()[0].id, dir: 1 }])}><Plus size={14} /> Novo critério</button>
             )}
           </div>
         </Popover>
@@ -477,7 +532,7 @@ function AgruparMenu({ colunas, agrupar, setAgrupar }: { colunas: Coluna[]; agru
           <div className="ordenar agrupar">
             <select value={agrupar?.coluna_id ?? ''} onChange={e => setAgrupar(e.target.value ? { coluna_id: Number(e.target.value), ordem: agrupar?.ordem ?? 1, vazios: agrupar?.vazios ?? false } : null)}>
               <option value="">Grupos do quadro (padrão)</option>
-              {opcoes.map(c => <option key={c.id} value={c.id}>{c.titulo} ({infoTipo(c.tipo).rotulo.toLowerCase()})</option>)}
+              {opcoes.map(c => <option key={c.id} value={c.id}>{c.titulo} ({infoColuna(c).rotulo.toLowerCase()})</option>)}
             </select>
             {agrupar && (
               <>
@@ -506,11 +561,11 @@ function OcultarMenu({ colunas, ocultas, setOcultas }: { colunas: Coluna[]; ocul
           <div className="menu-titulo">Colunas visíveis nesta visão {n > 0 && <button className="fr-btn-link fr-small" onClick={() => setOcultas([])}>Mostrar todas</button>}</div>
           <div className="lista-check">
             {colunas.map(c => {
-              const Ic = infoTipo(c.tipo).icone;
+              const Ic = infoColuna(c).icone;
               const oculta = ocultas.includes(c.id);
               return (
                 <label key={c.id}><input type="checkbox" className="caixa" checked={!oculta} onChange={() => setOcultas(oculta ? ocultas.filter(x => x !== c.id) : [...ocultas, c.id])} />
-                  <span className="tipo-ic" style={{ background: infoTipo(c.tipo).cor, color: corTexto(infoTipo(c.tipo).cor) }}><Ic size={12} /></span>{c.titulo}</label>
+                  <span className="tipo-ic" style={{ background: infoColuna(c).cor, color: corTexto(infoColuna(c).cor) }}><Ic size={12} /></span>{c.titulo}</label>
               );
             })}
           </div>

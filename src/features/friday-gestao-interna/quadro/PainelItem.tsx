@@ -8,7 +8,7 @@ import { NOME_TRAVADO } from '../util.ts';
 import { Celula } from './Celula.tsx';
 import { Arquivos, Atualizacoes } from './Atualizacoes.tsx';
 import { TabelaSubitens, type OpsItens } from './Subitens.tsx';
-import { infoTipo, type Coluna, type Grupo, type Item, type Sub } from './tipos.ts';
+import { infoColuna, type Coluna, type Grupo, type Item, type Sub } from './tipos.ts';
 import type { Acoes } from './useQuadro.ts';
 
 type Aba = 'atualizacoes' | 'arquivos' | 'campos' | 'subitens' | 'atividade';
@@ -54,7 +54,7 @@ export function PainelItem({ item, grupo, colunas, acoes, ops, sub, pai, onAbrir
           {aba === 'campos' && (
             <div className="campos">
               {colunas.map(c => {
-                const Ic = infoTipo(c.tipo).icone;
+                const Ic = infoColuna(c).icone;
                 return (
                   <div key={c.id} className="campo">
                     <span className="campo-rotulo"><Ic size={14} /> {c.titulo}</span>

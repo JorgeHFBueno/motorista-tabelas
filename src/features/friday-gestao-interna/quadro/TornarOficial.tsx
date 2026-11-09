@@ -4,7 +4,7 @@ import { httpsCallable } from 'firebase/functions';
 import { camposOficiais } from '../api.ts';
 import { functions } from '../funcoes.ts';
 import { Modal, useAvisoRapido } from '../ui/base.tsx';
-import { infoTipo, type Coluna } from './tipos.ts';
+import { infoColuna, type Coluna } from './tipos.ts';
 
 // "Tornar oficial" (cadastros oficiais, modo novo): escolhe nome e chave do cadastro e as colunas que viram campo
 // oficial. A promoção é feita pela Function fridayCadastroPromover (só adm2). Também usado para tornar os subitens
@@ -90,7 +90,7 @@ export function TornarOficial({ quadro, colunas, subitens, onFechar, onPronto }:
       {!retomada && (
         <div className="oficial-colunas">
           {aceitas.map(c => {
-            const Icone = infoTipo(c.tipo).icone;
+            const Icone = infoColuna(c).icone;
             const k = marcadas[c.id];
             const problema = k != null && (!chaveValida(k) ? 'chave inválida' : RESERVADAS.has(k) ? 'chave reservada' : repetidas.has(k) ? 'chave repetida' : '');
             return (

@@ -1,8 +1,8 @@
 import {
-  AlignLeft, Calendar, CalendarRange, CheckSquare, CircleDot, Hash, Link2, List, Mail, Paperclip, Phone, Sigma, Star, Text, Timer, UserRound, Workflow,
+  AlignLeft, Calendar, CalendarRange, CheckSquare, CircleDot, Hash, Link2, List, Mail, Paperclip, Phone, Sigma, Star, Text, Timer, UserRound, UsersRound, Workflow,
   type LucideIcon,
 } from 'lucide-react';
-import type { Row } from '../api.ts';
+import type { Pessoa, Row } from '../api.ts';
 import { calcular, textoResultado } from './formula.ts';
 import { fmtDuracao, sessoesDe, totalSegundos } from './tempo.ts';
 
@@ -11,7 +11,10 @@ export type Rotulo = { id: string; texto: string; cor: string; concluido?: boole
 export type Coluna = Row & { quadro_id: number; titulo: string; tipo: TipoColuna; config: Record<string, any>; largura: number; posicao: number; oculta: number };
 export type Grupo = Row & { quadro_id: number; nome: string; cor: string; posicao: number; recolhido: number };
 export type Item = Row & { quadro_id: number; grupo_id: number; item_pai_id: number | null; nome: string; posicao: number; valores: Record<string, any>; n_atualizacoes?: number; n_subitens?: number; n_anexos?: number };
-export type Ordenacao = { colunaId: number; dir: 1 | -1 } | null;
+// Ordenação da visão: critérios na ordem em que valem (empate no primeiro decide o segundo…). Lista vazia = posição
+// manual. Visões salvas antes guardam um critério só ({ colunaId, dir }); filtros.ts (lerOrdenacao) lê os dois jeitos.
+export type CriterioOrdem = { colunaId: number; dir: 1 | -1 };
+export type Ordenacao = CriterioOrdem[];
 export type Agrupar = { coluna_id: number; ordem: 1 | -1; vazios: boolean };
 // O que fica salvo em cada visão: filtros, pessoa, ordem, agrupamento e colunas ocultas.
 export type EstadoVisao = { filtros: Record<string, string[]>; pessoa: string | null; ordenacao: Ordenacao; agrupar: Agrupar | null; ocultas: number[] };
@@ -21,13 +24,20 @@ export type Sub = { quadro_id: number; grupo_id: number | null; nome_item?: stri
 
 export type TipoColuna = 'status' | 'texto' | 'texto_longo' | 'numero' | 'pessoa' | 'data' | 'periodo' | 'lista' | 'telefone' | 'email' | 'link' | 'caixa' | 'avaliacao' | 'ligacao' | 'formula' | 'arquivos' | 'tempo';
 
+// Tipos do menu de adicionar coluna. "Colaboradores" é uma coluna de pessoa (tipo `pessoa`, `config.colaboradores`)
+// que só oferece quem tem acesso ao quadro; o resto do sistema (Meu trabalho, filtros, automações) a trata como pessoa.
+export type TipoMenu = TipoColuna | 'colaboradores';
+export const colunaDoMenu = (t: TipoMenu): { tipo: TipoColuna; config?: Record<string, unknown> } =>
+  (t === 'colaboradores' ? { tipo: 'pessoa', config: { colaboradores: true } } : { tipo: t });
+
 // Catálogo de tipos de coluna. "grupo" organiza o menu de adicionar coluna.
-export const TIPOS: { tipo: TipoColuna; rotulo: string; icone: LucideIcon; cor: string; descricao: string; grupo: 'essencial' | 'util'; busca?: string }[] = [
+export const TIPOS: { tipo: TipoMenu; rotulo: string; icone: LucideIcon; cor: string; descricao: string; grupo: 'essencial' | 'util'; busca?: string }[] = [
   { tipo: 'status', rotulo: 'Status', icone: CircleDot, cor: '#00a36c', descricao: 'Rótulos coloridos', grupo: 'essencial', busca: 'situação etapa andamento' },
   { tipo: 'lista', rotulo: 'Lista suspensa', icone: List, cor: '#0086c0', descricao: 'Uma ou mais opções', grupo: 'essencial', busca: 'dropdown opções tags etiquetas' },
   { tipo: 'texto', rotulo: 'Texto', icone: Text, cor: '#ffcb00', descricao: 'Texto curto', grupo: 'essencial' },
   { tipo: 'data', rotulo: 'Data', icone: Calendar, cor: '#a25ddc', descricao: 'Um dia', grupo: 'essencial', busca: 'prazo vencimento dia' },
-  { tipo: 'pessoa', rotulo: 'Pessoa', icone: UserRound, cor: '#579bfc', descricao: 'Responsáveis', grupo: 'essencial', busca: 'responsável dono pessoas equipe' },
+  { tipo: 'pessoa', rotulo: 'Pessoa', icone: UserRound, cor: '#579bfc', descricao: 'Qualquer pessoa do sistema', grupo: 'essencial', busca: 'responsável dono pessoas equipe' },
+  { tipo: 'colaboradores', rotulo: 'Colaboradores', icone: UsersRound, cor: '#4eccc6', descricao: 'Só quem tem acesso ao quadro', grupo: 'essencial', busca: 'pessoas do quadro membros equipe responsável' },
   { tipo: 'numero', rotulo: 'Números', icone: Hash, cor: '#fdab3d', descricao: 'Valores, quantidades, R$', grupo: 'essencial', busca: 'valor dinheiro quantidade horas km' },
   { tipo: 'arquivos', rotulo: 'Arquivos', icone: Paperclip, cor: '#ff642e', descricao: 'Documentos e fotos', grupo: 'util', busca: 'anexo documento pdf foto imagem contrato art' },
   { tipo: 'periodo', rotulo: 'Período', icone: CalendarRange, cor: '#784bd1', descricao: 'Início e fim (cronograma)', grupo: 'util', busca: 'timeline cronograma gantt início fim' },
@@ -42,6 +52,12 @@ export const TIPOS: { tipo: TipoColuna; rotulo: string; icone: LucideIcon; cor: 
   { tipo: 'link', rotulo: 'Link', icone: Link2, cor: '#579bfc', descricao: 'Endereço web', grupo: 'util', busca: 'url site pasta servidor' },
 ];
 export const infoTipo = (t: string) => TIPOS.find(x => x.tipo === t) ?? TIPOS[2];
+// Ícone e nome do tipo de uma coluna existente (a de pessoa marcada como colaboradores aparece como "Colaboradores").
+export const infoColuna = (c: Pick<Coluna, 'tipo' | 'config'>) => infoTipo(c.tipo === 'pessoa' && c.config?.colaboradores ? 'colaboradores' : c.tipo);
+
+// Quem tem acesso ao quadro: aberto, todos que entram no Friday; restrito, a lista `acesso` e os administradores (adm2).
+export const pessoasDoQuadro = (quadro: Row | undefined, usuarios: Pessoa[]) =>
+  usuarios.filter(u => u.ativo && u.friday && (!quadro?.restrito || u.adm2 || ((quadro.acesso ?? []) as string[]).includes(u.id)));
 
 export const rotuloDe = (c: Coluna, v: unknown): Rotulo | undefined =>
   (c.config.rotulos as Rotulo[] | undefined)?.find(r => r.id === String(v ?? '0')) ?? (c.config.rotulos as Rotulo[] | undefined)?.find(r => r.id === '0');

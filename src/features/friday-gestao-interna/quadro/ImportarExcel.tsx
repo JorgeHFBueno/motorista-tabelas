@@ -4,7 +4,7 @@ import { req, type Pessoa, type Row } from '../api.ts';
 import { Modal } from '../ui/base.tsx';
 import { CORES, fmtData, hojeISO } from '../util.ts';
 import { lerPlanilhas, type Bruto, type Planilha } from './excel.ts';
-import { infoTipo, type Coluna, type Grupo, type Rotulo, type Sub, type TipoColuna } from './tipos.ts';
+import { infoColuna, infoTipo, type Coluna, type Grupo, type Rotulo, type Sub, type TipoColuna } from './tipos.ts';
 import type { Acoes } from './useQuadro.ts';
 
 // Tipos que dá para preencher a partir de uma planilha (fórmula, arquivos e ligações não).
@@ -274,7 +274,7 @@ export function ImportarExcel({ quadroId, nomeItem, colunas, grupos, sub, acoes,
                       <option value="nome">Nome do {nomeItem.toLowerCase()}</option>
                       <option value="grupo">Grupo</option>
                       <optgroup label="Colunas do quadro">
-                        {importaveis.map(c => <option key={c.id} value={`col:${c.id}`}>{c.titulo} ({infoTipo(c.tipo).rotulo.toLowerCase()})</option>)}
+                        {importaveis.map(c => <option key={c.id} value={`col:${c.id}`}>{c.titulo} ({infoColuna(c).rotulo.toLowerCase()})</option>)}
                       </optgroup>
                       <optgroup label="Criar coluna nova">
                         {TIPOS_NOVOS.map(t => <option key={t} value={`novo:${t}`}>Nova coluna: {infoTipo(t).rotulo}</option>)}

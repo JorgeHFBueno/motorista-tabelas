@@ -9,7 +9,7 @@ import { itensCampoOficial } from './Tabela.tsx';
 import { alvosPara } from './mudarTipo.ts';
 import { MudarTipoDialogo } from './MudarTipo.tsx';
 import { CampoOficialDialogo } from './TornarOficial.tsx';
-import { infoTipo, type Coluna, type Item, type Sub } from './tipos.ts';
+import { infoColuna, infoTipo, type Coluna, type Item, type Sub } from './tipos.ts';
 import { porPosicao, type Acoes } from './useQuadro.ts';
 
 // Arquivar e excluir com aviso de "Desfazer" (definido na página do quadro).
@@ -136,7 +136,7 @@ function CabecalhoSub({ coluna, acoes, confirmar }: { coluna: Coluna; acoes: Aco
   const [campoOficial, setCampoOficial] = useState<'adicionar' | 'descontinuar' | null>(null);
   const [mudarTipo, setMudarTipo] = useState(false);
   const adm2 = useAuth().authorizationProfile?.adm2 === true;
-  const Ic = infoTipo(coluna.tipo).icone;
+  const Ic = infoColuna(coluna).icone;
   return (
     <th className="tq-col">
       <div className="col-cab">
@@ -147,7 +147,7 @@ function CabecalhoSub({ coluna, acoes, confirmar }: { coluna: Coluna; acoes: Aco
       </div>
       {pop.aberto && (
         <Popover ancora={pop.ref.current} onClose={pop.fechar} largura={220}>
-          <div className="menu-titulo"><Ic size={14} /> {infoTipo(coluna.tipo).rotulo} (subitens)</div>
+          <div className="menu-titulo"><Ic size={14} /> {infoColuna(coluna).rotulo} (subitens)</div>
           <Menu onEscolher={pop.fechar} itens={[
             { rotulo: 'Renomear', icone: <Pencil size={15} />, onClick: () => setRenomear(true) },
             ...(alvosPara(coluna).length ? [{ rotulo: 'Mudar tipo…', icone: <Shuffle size={15} />, onClick: () => setMudarTipo(true) }] : []),

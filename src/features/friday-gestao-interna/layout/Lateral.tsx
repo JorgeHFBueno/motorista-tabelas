@@ -261,6 +261,8 @@ function SeletorArea({ onNova, onRenomear, onExcluir }: { onNova?: () => void; o
         <Popover ancora={pop.ref.current} onClose={pop.fechar} largura={260}>
           <div className="menu-titulo">Áreas de trabalho</div>
           <div className="menu">
+            {/* Muitas áreas: a lista rola e "Nova área de trabalho" fica sempre visível embaixo. */}
+            <div className="areas-lista">
             {nav.areas.map(a => (
               <div key={a.id} className={`menu-item area-op${a.id === nav.areaId ? ' ativo' : ''}`} onClick={() => { nav.setAreaId(a.id); pop.fechar(); }}>
                 <span className="area-icone pequeno" style={{ background: a.cor, color: corTexto(a.cor) }}>{a.nome[0]}</span>{a.nome}
@@ -270,6 +272,7 @@ function SeletorArea({ onNova, onRenomear, onExcluir }: { onNova?: () => void; o
                 {onExcluir && nav.areas.length > 1 && <button className="btn-icone" title="Excluir" onClick={e => { e.stopPropagation(); pop.fechar(); onExcluir(a); }}><Trash2 size={13} /></button>}
               </div>
             ))}
+            </div>
             {onNova && <div className="menu-sep" />}
             {onNova && <button className="menu-item" onClick={() => { pop.fechar(); onNova(); }}><span className="menu-icone"><Plus size={15} /></span>Nova área de trabalho</button>}
           </div>

@@ -27,6 +27,8 @@ export function Popover({ ancora, onClose, children, largura, alinhar = 'inicio'
     left = Math.max(8, Math.min(left, window.innerWidth - c.width - 8));
     let top = a.bottom + 6;
     if (top + c.height > window.innerHeight - 8 && a.top - c.height - 6 > 8) top = a.top - c.height - 6;
+    // Não cabe nem embaixo nem em cima (ex.: lista de áreas no meio da tela): sobe o necessário para caber na janela.
+    else if (top + c.height > window.innerHeight - 8) top = window.innerHeight - 8 - c.height;
     setPos({ top: Math.max(8, top), left });
   }, [ancora, alinhar]);
 

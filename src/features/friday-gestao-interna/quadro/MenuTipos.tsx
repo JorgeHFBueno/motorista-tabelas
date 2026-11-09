@@ -1,10 +1,10 @@
 import { useState } from 'react';
 import { Search } from 'lucide-react';
 import { corTexto } from '../util.ts';
-import { TIPOS, type TipoColuna } from './tipos.ts';
+import { TIPOS, type TipoMenu } from './tipos.ts';
 
 // Escolha do tipo de uma coluna nova (com busca sem diferenciar acentos: "formula" acha "Fórmula").
-export function MenuTipos({ onEscolher }: { onEscolher: (t: TipoColuna) => void }) {
+export function MenuTipos({ onEscolher }: { onEscolher: (t: TipoMenu) => void }) {
   const [busca, setBusca] = useState('');
   const sa = (x: string) => x.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
   const b = sa(busca.trim());

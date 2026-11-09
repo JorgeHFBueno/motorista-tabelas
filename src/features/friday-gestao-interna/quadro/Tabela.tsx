@@ -1,6 +1,6 @@
 import { useMemo, useRef, useState, type MouseEvent as EventoMouse } from 'react';
 import {
-  AlarmClock, Archive, ArrowDownAZ, ArrowLeft, ArrowRight, ArrowUpAZ, CalendarDays, Check, ChevronDown, ChevronRight, Copy, EyeOff, FileSpreadsheet, GripVertical, Group, ListTree, Maximize2,
+  AlarmClock, Archive, ArrowDown, ArrowDownAZ, ArrowDownUp, ArrowLeft, ArrowRight, ArrowUp, ArrowUpAZ, CalendarDays, Check, ChevronDown, ChevronRight, Copy, EyeOff, FileSpreadsheet, GripVertical, Group, ListTree, Maximize2,
   Lock, LockOpen, MessageCircle, Shuffle, MessageCirclePlus, Sigma, MoreHorizontal, Palette, Pencil, Plus, Trash2,
 } from 'lucide-react';
 import { useAuth } from '../../../contexts/AuthContext';
@@ -15,7 +15,7 @@ import { TabelaSubitens, type OpsItens } from './Subitens.tsx';
 import { alvosPara } from './mudarTipo.ts';
 import { MudarTipoDialogo } from './MudarTipo.tsx';
 import { CampoOficialDialogo, TIPOS_OFICIAIS } from './TornarOficial.tsx';
-import { ehPrazo, infoTipo, type Coluna, type Grupo, type Item, type Ordenacao, type Rotulo, type Sub } from './tipos.ts';
+import { ehPrazo, infoColuna, infoTipo, type Coluna, type Grupo, type Item, type Ordenacao, type Rotulo, type Sub } from './tipos.ts';
 import { fmtDuracao, totalSegundos } from './tempo.ts';
 import type { Acoes } from './useQuadro.ts';
 
@@ -25,8 +25,8 @@ export type Agrupamento = { grupos: GrupoVirtual[]; grupoDe: Map<number, number[
 const LARGURA_NOME = 360; // coluna do item, quando o quadro ainda não tem largura salva (config.largura_nome)
 const LIMITE_INICIAL = 60;
 
-export function Tabela({ grupos: gruposReais, colunas, todasColunas, itens, sub, acoes, ops, usuarios, nomeItem, selecionados, setSelecionados, abrirItem, setOrdenacao,
-  onOcultar, onAgrupar, onExportarGrupo, agrupamento, larguraNome, onLarguraNome }: {
+export function Tabela({ grupos: gruposReais, colunas, todasColunas, itens, sub, acoes, ops, usuarios, nomeItem, selecionados, setSelecionados, abrirItem,
+  ordenacao, setOrdenacao, ordenacaoAlterada, onSalvarOrdenacao, onOcultar, onAgrupar, onExportarGrupo, agrupamento, larguraNome, onLarguraNome }: {
   grupos: Grupo[];
   colunas: Coluna[];
   todasColunas: Coluna[];
@@ -39,7 +39,11 @@ export function Tabela({ grupos: gruposReais, colunas, todasColunas, itens, sub,
   selecionados: Set<number>;
   setSelecionados: (s: Set<number>) => void;
   abrirItem: (id: number, aba?: string) => void;
+  ordenacao: Ordenacao;
   setOrdenacao: (o: Ordenacao) => void;
+  // A ordenação da tela difere da salva na visão: o cabeçalho da coluna ordenada mostra "limpar" e "salvar".
+  ordenacaoAlterada: boolean;
+  onSalvarOrdenacao: () => void;
   onOcultar: (colunaId: number) => void;
   onAgrupar: (colunaId: number) => void;
   onExportarGrupo: (g: Grupo, itens: Item[]) => void;
@@ -117,6 +121,30 @@ export function Tabela({ grupos: gruposReais, colunas, todasColunas, itens, sub,
   // A coluna do item vale para o quadro todo (todos os grupos), como as outras colunas.
   const iniciarResizeNome = (x0: number) =>
     arrastarBorda(x0, larguraItem, 200, 900, setNomeArrastando, w => { onLarguraNome(w); setNomeArrastando(null); });
+  // Duplo clique na borda: a coluna à esquerda dela fica do tamanho do conteúdo (como no monday). Mede as linhas
+  // visíveis de todos os grupos com a coluna estreita: o que transborda (texto cortado com "…") soma à largura.
+  const raiz = useRef<HTMLDivElement>(null);
+  const larguraDoConteudo = (indice: number, min: number, max: number) => {
+    const tabelas = [...(raiz.current?.querySelectorAll<HTMLTableElement>(':scope > section > table.tq') ?? [])];
+    const cols = tabelas.map(t => t.querySelector<HTMLElement>(`:scope > colgroup > col:nth-child(${indice + 1})`));
+    const antes = cols.map(c => c?.style.width ?? '');
+    cols.forEach(c => { if (c) c.style.width = `${min}px`; });
+    let w = min;
+    for (const t of tabelas) for (const tr of t.rows) {
+      if (tr.cells.length !== colunas.length + 3) continue; // linhas com células mescladas (subitens, novo item)
+      const td = tr.cells[indice];
+      const cortado = Math.max(0, ...[...td.querySelectorAll<HTMLElement>('*')].map(el => el.scrollWidth - el.clientWidth));
+      w = Math.max(w, td.scrollWidth + cortado);
+    }
+    cols.forEach((c, k) => { if (c) c.style.width = antes[k]; });
+    return Math.min(max, Math.ceil(w) + 4);
+  };
+  const ajustarNome = () => onLarguraNome(larguraDoConteudo(1, 200, 900));
+  const ajustarColuna = (c: Coluna, indice: number) => {
+    const w = larguraDoConteudo(indice, 70, 600);
+    setLarguras(l => ({ ...l, [c.id]: w }));
+    if (w !== c.largura) acoes.atualizarColuna(c.id, { largura: w });
+  };
 
   // Hover: o texto cortado (…) aparece inteiro na dica, no nome do item e em qualquer célula.
   const dicaTextoCortado = (e: EventoMouse<HTMLTableSectionElement>) => {
@@ -149,7 +177,7 @@ export function Tabela({ grupos: gruposReais, colunas, todasColunas, itens, sub,
   );
 
   return (
-    <div className="tabela-quadro" style={{ width: `max(${larguraTotal}px, calc(100cqw - 56px))` }}>
+    <div ref={raiz} className="tabela-quadro" style={{ width: `max(${larguraTotal}px, calc(100cqw - 56px))` }}>
       {grupos.map(g => {
         const lista = porGrupo.get(g.id) ?? [];
         const todosSel = lista.length > 0 && lista.every(i => selecionados.has(i.id));
@@ -181,12 +209,14 @@ export function Tabela({ grupos: gruposReais, colunas, todasColunas, itens, sub,
                     </th>
                     <th className="tq-nome fixo">
                       {nomeItem}
-                      <span className="redim" onMouseDown={e => { e.preventDefault(); iniciarResizeNome(e.clientX); }} />
+                      <span className="redim" title="Arraste para ajustar; clique duas vezes para caber o conteúdo"
+                        onMouseDown={e => { e.preventDefault(); iniciarResizeNome(e.clientX); }} onDoubleClick={ajustarNome} />
                     </th>
                     {colunas.map((c, ci) => (
-                      <CabecalhoColuna key={c.id} coluna={c} acoes={acoes} confirmar={confirmar} setOrdenacao={setOrdenacao} onFormula={setEditorFormula} aoCriar={aoCriar}
+                      <CabecalhoColuna key={c.id} coluna={c} acoes={acoes} confirmar={confirmar} onFormula={setEditorFormula} aoCriar={aoCriar}
+                        ordenacao={ordenacao} setOrdenacao={setOrdenacao} ordenacaoAlterada={ordenacaoAlterada} onSalvarOrdenacao={onSalvarOrdenacao}
                         onOcultar={() => onOcultar(c.id)} onAgrupar={() => onAgrupar(c.id)}
-                        anterior={colunas[ci - 1]} proxima={colunas[ci + 1]} onResize={x => iniciarResize(c, x)} />
+                        anterior={colunas[ci - 1]} proxima={colunas[ci + 1]} onResize={x => iniciarResize(c, x)} onAjustar={() => ajustarColuna(c, ci + 2)} />
                     ))}
                     <th className="tq-mais"><AdicionarColuna acoes={acoes} aoCriar={aoCriar} /></th>
                   </tr>
@@ -335,25 +365,39 @@ function CabecalhoGrupo({ grupo, total, acoes, confirmar, nomeItem, virtual, rec
 }
 
 // ---------------------------------------------------------------- cabeçalho da coluna
-function CabecalhoColuna({ coluna, acoes, confirmar, setOrdenacao, anterior, proxima, onResize, onFormula, aoCriar, onOcultar, onAgrupar }: {
-  coluna: Coluna; acoes: Acoes; confirmar: ReturnType<typeof useConfirmar>; setOrdenacao: (o: Ordenacao) => void;
+function CabecalhoColuna({ coluna, acoes, confirmar, ordenacao, setOrdenacao, ordenacaoAlterada, onSalvarOrdenacao, anterior, proxima, onResize, onAjustar, onFormula, aoCriar, onOcultar, onAgrupar }: {
+  coluna: Coluna; acoes: Acoes; confirmar: ReturnType<typeof useConfirmar>;
+  ordenacao: Ordenacao; setOrdenacao: (o: Ordenacao) => void; ordenacaoAlterada: boolean; onSalvarOrdenacao: () => void;
   onFormula: (c: Coluna) => void; aoCriar: (c: Coluna) => void; onOcultar: () => void; onAgrupar: () => void;
-  anterior?: Coluna; proxima?: Coluna; onResize: (x: number) => void;
+  anterior?: Coluna; proxima?: Coluna; onResize: (x: number) => void; onAjustar: () => void;
 }) {
+  // Ordenação rápida: a seta ordena só por esta coluna (crescente, depois decrescente), na hora; "salvar" grava na visão.
+  const dir = ordenacao.find(o => o.colunaId === coluna.id)?.dir;
+  const ordenarRapido = () => setOrdenacao([{ colunaId: coluna.id, dir: dir === 1 ? -1 : 1 }]);
   const menu = usePopover<HTMLButtonElement>();
   const [renomear, setRenomear] = useState(false);
   const [tipos, setTipos] = useState(false);
   const [campoOficial, setCampoOficial] = useState<'adicionar' | 'descontinuar' | null>(null);
   const [mudarTipo, setMudarTipo] = useState(false);
   const adm2 = useAuth().authorizationProfile?.adm2 === true;
-  const Icone = infoTipo(coluna.tipo).icone;
+  const Icone = infoColuna(coluna).icone;
   const trocar = (outra?: Coluna) => {
     if (!outra) return;
     acoes.atualizarColuna(coluna.id, { posicao: outra.posicao });
     acoes.atualizarColuna(outra.id, { posicao: coluna.posicao });
   };
   return (
-    <th className="tq-col">
+    <th className={`tq-col${dir ? ' ordenada' : ''}${dir && ordenacaoAlterada ? ' com-ordem-rapida' : ''}`}>
+      {dir && ordenacaoAlterada && (
+        <div className="ordem-rapida">
+          <button onClick={() => setOrdenacao(ordenacao.filter(o => o.colunaId !== coluna.id))} title="Tirar esta ordenação">limpar</button>
+          <button onClick={onSalvarOrdenacao} title="Salvar a ordenação na visão">salvar</button>
+        </div>
+      )}
+      <button className="btn-icone col-ordem" onClick={ordenarRapido} aria-label={`Ordenar por ${coluna.titulo}`}
+        title={dir === 1 ? 'Crescente (clique para decrescente)' : dir === -1 ? 'Decrescente (clique para crescente)' : 'Ordenar por esta coluna'}>
+        {dir === 1 ? <ArrowUp size={13} /> : dir === -1 ? <ArrowDown size={13} /> : <ArrowDownUp size={13} />}
+      </button>
       <div className="col-cab">
         <Editavel key={renomear ? 'r' : 'n'} iniciarEditando={renomear} valor={coluna.titulo} className="col-titulo"
           onSalvar={v => { setRenomear(false); if (v) acoes.atualizarColuna(coluna.id, { titulo: v }); }} />
@@ -362,21 +406,22 @@ function CabecalhoColuna({ coluna, acoes, confirmar, setOrdenacao, anterior, pro
           : `Campo oficial do cadastro “${coluna.oficial.nome}” (${coluna.oficial.chave}). Pode renomear; não pode excluir.`}><Lock size={12} /></span>}
         <button ref={menu.ref} className="btn-icone col-menu" aria-label={`Menu da coluna ${coluna.titulo}`} onClick={menu.alternar}><MoreHorizontal size={15} /></button>
       </div>
-      <span className="redim" onMouseDown={e => { e.preventDefault(); onResize(e.clientX); }} />
+      <span className="redim" title="Arraste para ajustar; clique duas vezes para caber o conteúdo"
+        onMouseDown={e => { e.preventDefault(); onResize(e.clientX); }} onDoubleClick={onAjustar} />
       {menu.aberto && (
         <Popover ancora={menu.ref.current} onClose={() => { menu.fechar(); setTipos(false); }} largura={240}>
           {tipos ? (
             <MenuTipos onEscolher={async t => { menu.fechar(); setTipos(false); aoCriar(await acoes.criarColuna(t, infoTipo(t).rotulo, coluna.posicao)); }} />
           ) : (
             <>
-              <div className="menu-titulo"><Icone size={14} /> {infoTipo(coluna.tipo).rotulo}</div>
+              <div className="menu-titulo"><Icone size={14} /> {infoColuna(coluna).rotulo}</div>
               <Menu onEscolher={menu.fechar} itens={[
                 ...(coluna.tipo === 'formula' ? [{ rotulo: 'Editar fórmula', icone: <Sigma size={15} />, onClick: () => onFormula(coluna) }] : []),
                 { rotulo: 'Renomear', icone: <Pencil size={15} />, onClick: () => setRenomear(true) },
                 // Campo oficial não muda de tipo; só aparece quando há um tipo compatível para converter.
                 ...(alvosPara(coluna).length ? [{ rotulo: 'Mudar tipo…', icone: <Shuffle size={15} />, onClick: () => setMudarTipo(true) }] : []),
-                { rotulo: 'Ordenar crescente', icone: <ArrowDownAZ size={15} />, onClick: () => setOrdenacao({ colunaId: coluna.id, dir: 1 }) },
-                { rotulo: 'Ordenar decrescente', icone: <ArrowUpAZ size={15} />, onClick: () => setOrdenacao({ colunaId: coluna.id, dir: -1 }) },
+                { rotulo: 'Ordenar crescente', icone: <ArrowDownAZ size={15} />, onClick: () => setOrdenacao([{ colunaId: coluna.id, dir: 1 }]) },
+                { rotulo: 'Ordenar decrescente', icone: <ArrowUpAZ size={15} />, onClick: () => setOrdenacao([{ colunaId: coluna.id, dir: -1 }]) },
                 ...(coluna.tipo === 'data' ? [
                   { rotulo: 'É prazo (mostra atraso)', icone: <AlarmClock size={15} />, ativo: ehPrazo(coluna), sub: ehPrazo(coluna) ? <Check size={14} className="menu-check" /> : undefined,
                     onClick: () => acoes.atualizarColuna(coluna.id, { config: { ...coluna.config, prazo: !ehPrazo(coluna) } }) },

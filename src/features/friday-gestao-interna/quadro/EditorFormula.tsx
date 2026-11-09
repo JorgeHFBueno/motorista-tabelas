@@ -3,7 +3,7 @@ import { AlertTriangle, CheckCircle2, Search } from 'lucide-react';
 import { useNav } from '../nav.tsx';
 import { Modal } from '../ui/base.tsx';
 import { analisar, calcular, COLUNAS_DO_ITEM, FUNCOES, paraIds, paraTitulos, textoResultado } from './formula.ts';
-import { infoTipo, type Coluna, type Item } from './tipos.ts';
+import { infoColuna, type Coluna, type Item } from './tipos.ts';
 
 // Editor de fórmula: o usuário escreve com {Título da coluna}; o app guarda com os ids.
 export function EditorFormula({ coluna, colunas, itens, onSalvar, onFechar }: {
@@ -75,7 +75,7 @@ export function EditorFormula({ coluna, colunas, itens, onSalvar, onFechar }: {
           <div className="menu-titulo">Colunas — clique para inserir</div>
           <div className="ef-colunas">
             {outras.map(c => {
-              const Ic = infoTipo(c.tipo).icone;
+              const Ic = infoColuna(c).icone;
               return (
                 <span key={c.id} className="ef-col">
                   <button onClick={() => inserir(`{${c.titulo}}`)} title={`Inserir {${c.titulo}}`}><Ic size={13} /> {c.titulo}</button>
