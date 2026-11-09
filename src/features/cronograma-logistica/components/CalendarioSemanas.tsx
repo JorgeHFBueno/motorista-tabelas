@@ -33,14 +33,17 @@ function montarLinhas(programacoes: readonly Programacao[], dias: readonly Civil
     for (const motorista of cadastros.motoristas) linhas.set(motorista.id, { chave: motorista.id, nome: motorista.nome, programacoes: [] });
   }
   const semRecurso: Programacao[] = [];
+  // Por veículo, a programação com mais de um veículo aparece na linha de cada um.
   for (const programacao of noAlcance) {
-    const ref = por === 'motorista' ? programacao.motorista : programacao.veiculo;
-    if (!ref) { semRecurso.push(programacao); continue; }
-    const chave = 'uid' in ref ? ref.uid : ref.id;
-    const nome = 'uid' in ref ? cadastros.nomePessoa(ref.uid, ref.nome) : cadastros.nomeVeiculo(ref.id, ref.nome);
-    const linha = linhas.get(chave) ?? { chave, nome, programacoes: [] };
-    linha.programacoes.push(programacao);
-    linhas.set(chave, linha);
+    const recursos = por === 'motorista'
+      ? (programacao.motorista ? [{ chave: programacao.motorista.uid, nome: cadastros.nomePessoa(programacao.motorista.uid, programacao.motorista.nome) }] : [])
+      : programacao.veiculos.map((veiculo) => ({ chave: veiculo.id, nome: cadastros.nomeVeiculo(veiculo.id, veiculo.nome) }));
+    if (!recursos.length) { semRecurso.push(programacao); continue; }
+    for (const { chave, nome } of recursos) {
+      const linha = linhas.get(chave) ?? { chave, nome, programacoes: [] };
+      linha.programacoes.push(programacao);
+      linhas.set(chave, linha);
+    }
   }
   const ordenadas = [...linhas.values()].sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'));
   if (semRecurso.length) ordenadas.push({ chave: '__sem__', nome: por === 'motorista' ? 'Sem motorista' : 'Sem veículo', programacoes: semRecurso });
@@ -110,10 +113,11 @@ export function CalendarioSemanas({ programacoes, hoje, cadastros, conflitos, ac
                     const lista = conflitos.get(programacao.id) ?? [];
                     const obra = programacao.obra ? cadastros.nomeObra(programacao.obra.id, programacao.obra.nome) : null;
                     const outro = por === 'motorista'
-                      ? (programacao.veiculo ? cadastros.nomeVeiculo(programacao.veiculo.id, programacao.veiculo.nome) : null)
+                      ? programacao.veiculos.map((veiculo) => cadastros.nomeVeiculo(veiculo.id, veiculo.nome)).join(', ')
                       : (programacao.motorista ? cadastros.nomePessoa(programacao.motorista.uid, programacao.motorista.nome) : null);
                     const texto = [obra, programacao.item].filter(Boolean).join(' · ');
-                    const titulo = [programacao.item, obra && `Obra: ${obra}`, outro && `${por === 'motorista' ? 'Veículo' : 'Motorista'}: ${outro}`, programacao.status && `Status: ${programacao.status}`, ...lista.map((conflito) => `⚠ ${textoConflito(conflito)}`)].filter(Boolean).join('\n');
+                    const rotuloOutro = por === 'motorista' ? (programacao.veiculos.length > 1 ? 'Veículos' : 'Veículo') : 'Motorista';
+                    const titulo = [programacao.item, obra && `Obra: ${obra}`, outro && `${rotuloOutro}: ${outro}`, programacao.status && `Status: ${programacao.status}`, ...lista.map((conflito) => `⚠ ${textoConflito(conflito)}`)].filter(Boolean).join('\n');
                     return (
                       <button
                         type="button"

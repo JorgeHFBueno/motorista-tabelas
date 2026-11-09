@@ -9,14 +9,15 @@ import { listObrasAtivas } from '../../services/obras.service';
 import { listItensFrota } from '../../services/veiculos.service';
 import { itemFrotaLabel, obraLabel, temPerfil, type ItemFrotaV2, type ObraV2, type PessoaV2 } from '../../utils/cadastrosV2';
 import { CalendarioSemanas } from './components/CalendarioSemanas';
-import type { AcoesLogistica, CadastrosLogistica } from './components/contexto';
+import type { AbaPainel, AcoesLogistica, CadastrosLogistica } from './components/contexto';
 import { PainelProgramacao } from './components/PainelProgramacao';
 import { QuadroSemanas } from './components/QuadroSemanas';
 import {
-  abrirSemana, atualizarProgramacao, criarProgramacao, excluirProgramacao, observarProgramacoes, observarSemanas,
+  abrirSemana, atualizarProgramacao, criarProgramacao, excluirProgramacao, observarObservacoes, observarProgramacoes,
+  observarSemanas,
 } from './data/logisticaFirestore';
 import { conflitosPorProgramacao } from './domain/conflitos';
-import type { Programacao, Semana } from './domain/models';
+import type { Observacao, Programacao, Semana } from './domain/models';
 import { hojeCivil, organizarSemanas, proximaSemanaParaAbrir, rotuloSemana, semanaIdDe } from './domain/semanas';
 import './logistica.css';
 
@@ -34,9 +35,11 @@ export default function LogisticaCronogramaPage() {
   const [aba, setAba] = useState<Aba>('quadro');
   const [semanas, setSemanas] = useState<Semana[] | null>(null);
   const [programacoes, setProgramacoes] = useState<Programacao[] | null>(null);
+  const [observacoes, setObservacoes] = useState<Observacao[]>([]);
   const [cadastrosBrutos, setCadastrosBrutos] = useState<{ pessoas: PessoaV2[]; veiculos: ItemFrotaV2[]; obras: ObraV2[] } | null>(null);
   const [erro, setErro] = useState<string | null>(null);
   const [abertaId, setAbertaId] = useState<string | null>(null);
+  const [abaPainel, setAbaPainel] = useState<AbaPainel>('programacao');
   const [abrindo, setAbrindo] = useState(false);
   const tentouAbrirAtual = useRef<string | null>(null);
   const hoje = hojeCivil();
@@ -46,7 +49,8 @@ export default function LogisticaCronogramaPage() {
     const falha = (error: Error) => setErro(`Não foi possível ler o cronograma: ${error.message}`);
     const pararSemanas = observarSemanas(setSemanas, falha);
     const pararProgramacoes = observarProgramacoes(setProgramacoes, falha);
-    return () => { pararSemanas(); pararProgramacoes(); };
+    const pararObservacoes = observarObservacoes(setObservacoes, (error) => setErro(`Não foi possível ler as observações: ${error.message}`));
+    return () => { pararSemanas(); pararProgramacoes(); pararObservacoes(); };
   }, []);
 
   useEffect(() => {
@@ -94,6 +98,15 @@ export default function LogisticaCronogramaPage() {
     return mapa;
   }, [lista]);
 
+  // Observações por programação, da mais nova para a mais antiga (a que ainda não tem horário do servidor vem antes).
+  const observacoesPor = useMemo(() => {
+    const mapa = new Map<string, Observacao[]>();
+    for (const observacao of observacoes) mapa.set(observacao.programacaoId, [...(mapa.get(observacao.programacaoId) ?? []), observacao]);
+    for (const itens of mapa.values()) itens.sort((a, b) => (b.criadoEm ?? Infinity) - (a.criadoEm ?? Infinity));
+    return mapa;
+  }, [observacoes]);
+  const nObservacoes = useMemo(() => new Map([...observacoesPor].map(([id, itens]) => [id, itens.length])), [observacoesPor]);
+
   const idsAbertos = useMemo(() => (semanas ?? []).map((semana) => semana.id), [semanas]);
   const grupos = organizarSemanas(idsAbertos, hoje);
   const proxima = proximaSemanaParaAbrir(idsAbertos, hoje);
@@ -108,7 +121,7 @@ export default function LogisticaCronogramaPage() {
       setAbertaId((aberta) => (aberta === programacao.id ? null : aberta));
       excluirProgramacao(programacao.id).catch(falhar('excluir a programação'));
     },
-    abrir: setAbertaId,
+    abrir: (id, aba = 'programacao') => { setAbertaId(id); setAbaPainel(aba); },
   }), [uid, falhar]);
 
   const iniciarNovaSemana = () => {
@@ -119,6 +132,7 @@ export default function LogisticaCronogramaPage() {
 
   const carregando = semanas === null || programacoes === null;
   const aberta = abertaId ? lista.find((programacao) => programacao.id === abertaId) ?? null : null;
+  const eu = { uid, nome: cadastros.nomePessoa(uid, currentUser?.displayName || currentUser?.email || '') };
 
   return (
     <main className="lg-pagina">
@@ -155,13 +169,24 @@ export default function LogisticaCronogramaPage() {
             cadastros={cadastros}
             conflitos={conflitos}
             acoes={acoes}
+            nObservacoes={nObservacoes}
           />
         </>
       ) : (
         <CalendarioSemanas programacoes={lista} hoje={hoje} cadastros={cadastros} conflitos={conflitos} acoes={acoes} />
       )}
 
-      <PainelProgramacao programacao={aberta} cadastros={cadastros} conflitos={conflitos} acoes={acoes} onFechar={() => setAbertaId(null)} />
+      <PainelProgramacao
+        programacao={aberta}
+        aba={abaPainel}
+        onAba={setAbaPainel}
+        observacoes={aberta ? observacoesPor.get(aberta.id) ?? [] : []}
+        eu={eu}
+        cadastros={cadastros}
+        conflitos={conflitos}
+        acoes={acoes}
+        onFechar={() => setAbertaId(null)}
+      />
     </main>
   );
 }

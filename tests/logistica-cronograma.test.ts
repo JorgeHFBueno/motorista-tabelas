@@ -1,6 +1,8 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import type { Programacao } from '../src/features/cronograma-logistica/domain/models';
+import { veiculosDoDocumento, type Programacao } from '../src/features/cronograma-logistica/domain/models';
+import { posicaoAoSoltar } from '../src/features/cronograma-logistica/domain/ordem';
+import { COR_SEM_STATUS, STATUS_LOGISTICA, etiquetaDoStatus } from '../src/features/cronograma-logistica/domain/status';
 import {
   diasDoCalendario, inicioDaSemanaId, organizarSemanas, proximaSemanaParaAbrir, rotuloSemana, semanaIdDe, semanaIdValido,
 } from '../src/features/cronograma-logistica/domain/semanas';
@@ -9,7 +11,7 @@ import { barrasDaLinha } from '../src/features/cronograma-logistica/domain/calen
 
 const programacao = (id: string, extra: Partial<Programacao> = {}): Programacao => ({
   id, semanaId: '2026-W45', item: `Item ${id}`, status: '', inicio: null, fim: null,
-  motorista: null, auxiliar: null, veiculo: null, obra: null, posicao: 0, ...extra,
+  motorista: null, auxiliar: null, veiculos: [], obra: null, posicao: 0, ...extra,
 });
 
 test('semana ISO de segunda a domingo, inclusive nas viradas de ano', () => {
@@ -59,9 +61,9 @@ test('período: um só lado vale como um dia; sem datas não há período', () =
 
 test('conflito: mesma pessoa (motorista ou auxiliar) ou mesmo veículo no mesmo dia', () => {
   const lista = [
-    programacao('a', { item: 'Transporte', inicio: '2026-11-02', fim: '2026-11-04', motorista: { uid: 'u1', nome: 'Ederson' }, veiculo: { id: 'v1', nome: 'TRK-8I95' } }),
+    programacao('a', { item: 'Transporte', inicio: '2026-11-02', fim: '2026-11-04', motorista: { uid: 'u1', nome: 'Ederson' }, veiculos: [{ id: 'v1', nome: 'TRK-8I95' }] }),
     programacao('b', { item: 'Montagem', inicio: '2026-11-04', fim: '2026-11-06', auxiliar: { uid: 'u1', nome: 'Ederson' } }),
-    programacao('c', { item: 'Buscar', inicio: '2026-11-03', fim: null, veiculo: { id: 'v1', nome: 'TRK-8I95' } }),
+    programacao('c', { item: 'Buscar', inicio: '2026-11-03', fim: null, veiculos: [{ id: 'v2', nome: 'IVF-8072' }, { id: 'v1', nome: 'TRK-8I95' }] }),
     programacao('d', { item: 'Sem data', motorista: { uid: 'u1', nome: 'Ederson' } }),
     programacao('e', { item: 'Outro dia', inicio: '2026-11-09', motorista: { uid: 'u1', nome: 'Ederson' } }),
   ];
@@ -90,4 +92,34 @@ test('calendário: barras recortadas aos 28 dias e empilhadas quando se sobrepõ
     ['b', 1, 3, 1, false, false],
     ['c', 4, 27, 0, false, true],
   ]);
+});
+
+test('veículos: lista sem repetir, até 4; o documento antigo com um só veículo continua lido', () => {
+  assert.deepEqual(veiculosDoDocumento({ veiculo: { id: 'v1', nome: 'TRK' } }), [{ id: 'v1', nome: 'TRK' }]);
+  assert.deepEqual(veiculosDoDocumento({ veiculo: null }), []);
+  assert.deepEqual(veiculosDoDocumento({}), []);
+  assert.deepEqual(veiculosDoDocumento({ veiculos: [], veiculo: { id: 'v1', nome: 'TRK' } }), []);
+  assert.deepEqual(
+    veiculosDoDocumento({ veiculos: [{ id: 'a', nome: 'A' }, { id: 'a', nome: 'A' }, null, { id: 'b' }, { id: 'c', nome: 'C' }, { id: 'd', nome: 'D' }, { id: 'e', nome: 'E' }] }).map((v) => v.id),
+    ['a', 'b', 'c', 'd'],
+  );
+});
+
+test('status: as 15 etiquetas do quadro; texto fora da lista fica cinza', () => {
+  assert.equal(STATUS_LOGISTICA.length, 15);
+  assert.equal(new Set(STATUS_LOGISTICA.map((etiqueta) => etiqueta.nome)).size, 15);
+  assert.equal(etiquetaDoStatus('Em viagem').cor, '#fdbc64');
+  assert.deepEqual(etiquetaDoStatus('Programado'), { nome: 'Programado', cor: COR_SEM_STATUS });
+  assert.equal(etiquetaDoStatus('').cor, COR_SEM_STATUS);
+});
+
+test('arrastar: a nova posição fica entre os vizinhos; soltar no mesmo lugar não grava', () => {
+  const linhas = [{ id: 'a', posicao: 10 }, { id: 'b', posicao: 20 }, { id: 'c', posicao: 30 }];
+  assert.equal(posicaoAoSoltar(linhas, 'c', 'a'), -990);   // para o topo
+  assert.equal(posicaoAoSoltar(linhas, 'a', 'c'), 25);     // entre b e c
+  assert.equal(posicaoAoSoltar(linhas, 'a', null), 1030);  // para o fim
+  assert.equal(posicaoAoSoltar(linhas, 'b', 'c'), null);   // já está antes de c
+  assert.equal(posicaoAoSoltar(linhas, 'c', null), null);  // já é a última
+  assert.equal(posicaoAoSoltar(linhas, 'b', 'b'), null);
+  assert.equal(posicaoAoSoltar(linhas, 'b', 'x'), null);   // alvo de outra semana
 });

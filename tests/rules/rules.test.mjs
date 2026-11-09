@@ -11,6 +11,7 @@ import {
   serverTimestamp,
   collection,
   deleteDoc,
+  deleteField,
   doc,
   getDoc,
   getDocs,
@@ -653,6 +654,20 @@ test('[storage] Friday attachments: escritorio and adm2 upload, read and delete 
   await assertFails(deleteObject(ref(storageAs('canonicalUser'), caminho)));
   await assertSucceeds(deleteObject(ref(storageAs('escritorio'), caminho)));
 });
+test('[storage] Logística: arquivos das observações (logistica, mecanico, adm2), até 25 MB, sem sobrescrever', async () => {
+  const foto = new Uint8Array([0xff, 0xd8, 0xff]);
+  const caminho = 'logistica/observacoes/o1/1-carga.jpg';
+  await assertSucceeds(uploadBytes(ref(storageAs('logistica'), caminho), foto, { contentType: 'image/jpeg' }));
+  await assertSucceeds(getBytes(ref(storageAs('mecanico'), caminho)));
+  await assertSucceeds(getBytes(ref(storageAs('adm2'), caminho)));
+  await assertFails(uploadBytes(ref(storageAs('logistica'), caminho), foto, { contentType: 'image/jpeg' }));
+  await assertFails(getBytes(ref(storageAs('engenharia'), caminho)));
+  await assertFails(uploadBytes(ref(storageAs('engenharia'), 'logistica/observacoes/o1/2-x.jpg'), foto, { contentType: 'image/jpeg' }));
+  await assertFails(uploadBytes(ref(storageAs('logistica'), 'logistica/observacoes/o1/3-grande.bin'), new Uint8Array(25 * 1024 * 1024 + 1)));
+  await assertFails(uploadBytes(ref(storageAs('logistica'), 'logistica/fora.jpg'), foto, { contentType: 'image/jpeg' }));
+  await assertFails(deleteObject(ref(storageAs('engenharia'), caminho)));
+  await assertSucceeds(deleteObject(ref(storageAs('adm2'), caminho)));
+});
 test('[storage] Friday attachments of a restricted board follow its list (adm2 always)', async () => {
   const pdf = new Uint8Array([0x25, 0x50, 0x44, 0x46]);
   const caminho = 'friday/100/200/231-rh.pdf';
@@ -1254,4 +1269,66 @@ test('[firestore] logistica: só adm2 lê, cria semana no formato e programaçã
   await assertFails(updateDoc(doc(dbAs('canonicalFrentista'), 'logistica-programacoes', 'lp1'), { status: 'x' }));
   await assertFails(deleteDoc(doc(dbAs('engenharia'), 'logistica-programacoes', 'lp1')));
   await assertSucceeds(deleteDoc(doc(adm2, 'logistica-programacoes', 'lp1')));
+});
+
+test('[firestore] logistica: vários veículos (até 4) e o campo antigo veiculo continua aceito', async () => {
+  const adm2 = dbAs('canonicalAdm2');
+  const v = (id) => ({ id, nome: `Veículo ${id}` });
+  const { veiculo: _antigo, ...semVeiculo } = {
+    schemaVersion: 1, semanaId: '2026-W45', item: 'Transporte de pilares', status: 'Em viagem', inicio: '2026-11-03', fim: '2026-11-04',
+    motorista: null, auxiliar: null, veiculo: null, obra: null, posicao: 1.5,
+    criadoPorUid: 'uid-canonical-adm2', criadoEm: serverTimestamp(), atualizadoPorUid: 'uid-canonical-adm2', atualizadoEm: serverTimestamp(),
+  };
+  const nova = (veiculos) => ({ ...semVeiculo, veiculos });
+  const alterou = { atualizadoPorUid: 'uid-canonical-adm2', atualizadoEm: serverTimestamp() };
+
+  await assertSucceeds(setDoc(doc(adm2, 'logistica-programacoes', 'lv1'), nova([v('a'), v('b')])));
+  await assertSucceeds(setDoc(doc(adm2, 'logistica-programacoes', 'lv2'), nova([])));
+  await assertSucceeds(setDoc(doc(dbAs('logistica'), 'logistica-programacoes', 'lv3'), { ...nova([v('a'), v('b'), v('c'), v('d')]), criadoPorUid: 'uid-logistica', atualizadoPorUid: 'uid-logistica' }));
+  await assertFails(setDoc(doc(adm2, 'logistica-programacoes', 'lv4'), nova([v('a'), v('b'), v('c'), v('d'), v('e')])));
+  await assertFails(setDoc(doc(adm2, 'logistica-programacoes', 'lv4'), nova([null])));
+  await assertFails(setDoc(doc(adm2, 'logistica-programacoes', 'lv4'), nova([{ id: 'a' }])));
+  await assertFails(setDoc(doc(adm2, 'logistica-programacoes', 'lv4'), nova([{ uid: 'a', nome: 'A' }])));
+  await assertFails(setDoc(doc(adm2, 'logistica-programacoes', 'lv4'), nova(v('a'))));
+
+  // Documento de antes (um só veículo em `veiculo`): continua editável e passa para a lista apagando o campo antigo.
+  await assertSucceeds(updateDoc(doc(adm2, 'logistica-programacoes', 'lp2'), { status: 'Finalizado', ...alterou }));
+  await assertSucceeds(updateDoc(doc(adm2, 'logistica-programacoes', 'lp2'), { veiculos: [v('a'), v('b')], veiculo: deleteField(), ...alterou }));
+  await assertSucceeds(updateDoc(doc(adm2, 'logistica-programacoes', 'lv1'), { posicao: -998.25, ...alterou }));
+  await assertFails(updateDoc(doc(adm2, 'logistica-programacoes', 'lv1'), { veiculos: [v('a'), 'b'], ...alterou }));
+});
+
+test('[firestore] logistica: observações com texto ou arquivos, do próprio autor, sem edição', async () => {
+  const adm2 = dbAs('canonicalAdm2');
+  await setDoc(doc(adm2, 'logistica-programacoes', 'lo-prog'), {
+    schemaVersion: 1, semanaId: '2026-W45', item: 'Buscar carreta', status: '', inicio: null, fim: null,
+    motorista: null, auxiliar: null, veiculos: [], obra: null, posicao: 1,
+    criadoPorUid: 'uid-canonical-adm2', criadoEm: serverTimestamp(), atualizadoPorUid: 'uid-canonical-adm2', atualizadoEm: serverTimestamp(),
+  });
+  const anexo = (n) => ({ caminho: `logistica/observacoes/o2/${n}-foto.jpg`, url: 'https://exemplo/foto.jpg', nome: 'foto.jpg', tipo: 'image/jpeg', tamanho: 10 });
+  const obs = (extra = {}) => ({
+    schemaVersion: 1, programacaoId: 'lo-prog', texto: 'Carga amarrada, sai às 7h', anexos: [],
+    autor: { uid: 'uid-canonical-adm2', nome: 'Adm' }, criadoEm: serverTimestamp(), ...extra,
+  });
+
+  await assertSucceeds(setDoc(doc(adm2, 'logistica-observacoes', 'o1'), obs()));
+  await assertSucceeds(setDoc(doc(adm2, 'logistica-observacoes', 'o2'), obs({ texto: '', anexos: [anexo(1), anexo(2)] })));
+  await assertSucceeds(setDoc(doc(dbAs('logistica'), 'logistica-observacoes', 'o3'), obs({ autor: { uid: 'uid-logistica', nome: 'Logística' } })));
+  await assertFails(setDoc(doc(adm2, 'logistica-observacoes', 'o4'), obs({ texto: '' })));
+  await assertFails(setDoc(doc(adm2, 'logistica-observacoes', 'o4'), obs({ autor: { uid: 'uid-logistica', nome: 'Outro' } })));
+  await assertFails(setDoc(doc(adm2, 'logistica-observacoes', 'o4'), obs({ programacaoId: 'nao-existe' })));
+  await assertFails(setDoc(doc(adm2, 'logistica-observacoes', 'o4'), obs({ anexos: Array.from({ length: 11 }, (_, i) => anexo(i)) })));
+  await assertFails(setDoc(doc(adm2, 'logistica-observacoes', 'o4'), obs({ texto: 'x'.repeat(2001) })));
+  await assertFails(setDoc(doc(adm2, 'logistica-observacoes', 'o4'), obs({ extra: true })));
+  await assertFails(setDoc(doc(adm2, 'logistica-observacoes', 'o4'), obs({ criadoEm: Timestamp.fromMillis(1) })));
+  for (const outro of ['canonicalFrentista', 'engenharia', 'escritorio']) {
+    await assertFails(getDoc(doc(dbAs(outro), 'logistica-observacoes', 'o1')));
+    await assertFails(setDoc(doc(dbAs(outro), 'logistica-observacoes', 'o5'), obs()));
+  }
+  await assertSucceeds(getDoc(doc(dbAs('logistica'), 'logistica-observacoes', 'o1')));
+  await assertSucceeds(getDocs(query(collection(dbAs('mecanico'), 'logistica-observacoes'), where('programacaoId', '==', 'lo-prog'))));
+  await assertFails(updateDoc(doc(adm2, 'logistica-observacoes', 'o1'), { texto: 'mudou' }));
+  await assertFails(deleteDoc(doc(dbAs('engenharia'), 'logistica-observacoes', 'o1')));
+  // Quem exclui a programação apaga também as observações dos outros.
+  await assertSucceeds(deleteDoc(doc(dbAs('logistica'), 'logistica-observacoes', 'o1')));
 });

@@ -35,7 +35,7 @@ export function conflitosPorProgramacao(
     if (!periodo) continue;
     const recursos = new Set<string>();
     for (const pessoa of [programacao.motorista, programacao.auxiliar]) if (pessoa) recursos.add(`p:${pessoa.uid}`);
-    if (programacao.veiculo) recursos.add(`v:${programacao.veiculo.id}`);
+    for (const veiculo of programacao.veiculos) recursos.add(`v:${veiculo.id}`);
     for (const dia of diasDoPeriodo(periodo)) {
       for (const recurso of recursos) {
         const chave = `${dia}|${recurso}`;
@@ -57,7 +57,7 @@ export function conflitosPorProgramacao(
         if (vistos.has(marca)) continue;
         vistos.add(marca);
         const ref = tipo === 'veiculo'
-          ? programacao.veiculo!
+          ? programacao.veiculos.find((veiculo) => veiculo.id === id)!
           : [programacao.motorista, programacao.auxiliar].find((pessoa) => pessoa?.uid === id)!;
         const retrato = ref.nome;
         resultado.set(programacao.id, [

@@ -127,6 +127,17 @@ service firebase.storage {
       allow update: if false;
     }
 
+    // Cronograma Logístico: arquivos das observações, logistica/observacoes/{observacaoId}/{arquivo}. logistica,
+    // mecanico or adm2 (the same as logistica-observacoes in Firestore), up to 25 MB, never overwritten; deleted
+    // together with the observation or the programação.
+    match /logistica/observacoes/{observacaoId}/{arquivo} {
+      allow read, delete: if temArea('logistica', 'mecanico');
+      allow create: if temArea('logistica', 'mecanico')
+        && isNewObject()
+        && request.resource.size <= 25 * 1024 * 1024;
+      allow update: if false;
+    }
+
     // ================================================================ client portal (Manuscript portal.md)
 
     // Portal clients live in users/{uid} (not funcionarios) and see the files of the contracts of their CNPJ/CPF.

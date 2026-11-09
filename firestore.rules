@@ -1272,10 +1272,21 @@ service cloud.firestore {
           && value.nome.size() <= 200);
     }
 
+    // Um a quatro veículos {id, nome}, ou nenhum.
+    function logisticaVeiculos(value) {
+      return value is list
+        && value.size() <= 4
+        && (value.size() < 1 || (value[0] != null && logisticaRef(value[0], 'id')))
+        && (value.size() < 2 || (value[1] != null && logisticaRef(value[1], 'id')))
+        && (value.size() < 3 || (value[2] != null && logisticaRef(value[2], 'id')))
+        && (value.size() < 4 || (value[3] != null && logisticaRef(value[3], 'id')));
+    }
+
+    // `veiculos` (lista) substitui `veiculo` (um só); os documentos de antes continuam válidos até a WEB gravar a lista.
     function validLogisticaProgramacao(data) {
       return data.keys().hasOnly([
-          'schemaVersion', 'semanaId', 'item', 'status', 'inicio', 'fim', 'motorista', 'auxiliar', 'veiculo', 'obra',
-          'posicao', 'criadoPorUid', 'criadoEm', 'atualizadoPorUid', 'atualizadoEm'
+          'schemaVersion', 'semanaId', 'item', 'status', 'inicio', 'fim', 'motorista', 'auxiliar', 'veiculo', 'veiculos',
+          'obra', 'posicao', 'criadoPorUid', 'criadoEm', 'atualizadoPorUid', 'atualizadoEm'
         ])
         && data.schemaVersion == 1
         && data.semanaId is string
@@ -1287,7 +1298,8 @@ service cloud.firestore {
         && (data.inicio == null || data.fim == null || data.fim >= data.inicio)
         && logisticaRef(data.motorista, 'uid')
         && logisticaRef(data.auxiliar, 'uid')
-        && logisticaRef(data.veiculo, 'id')
+        && (!('veiculo' in data) || logisticaRef(data.veiculo, 'id'))
+        && (!('veiculos' in data) || logisticaVeiculos(data.veiculos))
         && logisticaRef(data.obra, 'id')
         && data.posicao is number
         && data.atualizadoPorUid == request.auth.uid
@@ -1318,6 +1330,27 @@ service cloud.firestore {
       allow update: if isLogistica()
         && validLogisticaProgramacao(request.resource.data)
         && didNotChange(['semanaId', 'criadoPorUid', 'criadoEm']);
+      allow delete: if isLogistica();
+    }
+
+    // Observação de uma programação: texto e/ou até 10 arquivos (Storage logistica/observacoes/), autor = quem grava.
+    // Não se edita; qualquer um da área exclui (a WEB mostra a lixeira só ao autor e apaga as da programação excluída).
+    match /logistica-observacoes/{observacaoId} {
+      allow read: if isLogistica();
+      allow create: if isLogistica()
+        && request.resource.data.keys().hasOnly(['schemaVersion', 'programacaoId', 'texto', 'anexos', 'autor', 'criadoEm'])
+        && request.resource.data.schemaVersion == 1
+        && request.resource.data.programacaoId is string
+        && exists(/databases/$(database)/documents/logistica-programacoes/$(request.resource.data.programacaoId))
+        && request.resource.data.texto is string && request.resource.data.texto.size() <= 2000
+        && request.resource.data.anexos is list && request.resource.data.anexos.size() <= 10
+        && (request.resource.data.texto.size() > 0 || request.resource.data.anexos.size() > 0)
+        && request.resource.data.autor is map
+        && request.resource.data.autor.keys().hasOnly(['uid', 'nome'])
+        && request.resource.data.autor.uid == request.auth.uid
+        && request.resource.data.autor.nome is string && request.resource.data.autor.nome.size() <= 200
+        && request.resource.data.criadoEm == request.time;
+      allow update: if false;
       allow delete: if isLogistica();
     }
 
