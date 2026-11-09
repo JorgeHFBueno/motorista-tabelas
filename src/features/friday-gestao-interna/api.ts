@@ -798,7 +798,8 @@ export async function mudarTipoColuna(colunaId: number, alvo: Alvo, aplicar = fa
   const r = converterColuna(coluna as Coluna, alvo, itens.map(i => ({ id: i.id, nome: String(i.nome ?? ''), v: i.valores?.[String(colunaId)] })));
   if (!aplicar) return r;
   await emLotes(r.mudancas.map(m => lote => lote.update(ref('itens', m.id), new FieldPath('valores', String(colunaId)), m.valor == null ? deleteField() : m.valor)));
-  await updateDoc(ref('colunas', colunaId), { tipo: alvo.tipo, config: r.config });
+  // A coluna fixada (menu "Fixar") continua fixada no tipo novo.
+  await updateDoc(ref('colunas', colunaId), { tipo: alvo.tipo, config: { ...r.config, ...(coluna.config?.fixa ? { fixa: true } : {}) } });
   await registrar({ quadro_id: coluna.quadro_id, acao: 'alterou', coluna_id: colunaId, coluna_titulo: coluna.titulo, de: `tipo ${coluna.tipo}${coluna.config?.x10 ? ' ×10' : ''}`, para: `tipo ${nomeDoAlvo(alvo)}` });
   return r;
 }

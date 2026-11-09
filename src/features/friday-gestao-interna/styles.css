@@ -230,6 +230,8 @@ body.redimensionando .friday-root, body.redimensionando .friday-root * { cursor:
 .friday-root .tq .tq-sel { left: 0; text-align: center; border-left: 6px solid var(--cor-grupo); }
 .friday-root .tq thead .tq-sel { border-top-left-radius: 6px; }
 .friday-root .tq .tq-nome { left: 40px; text-align: left; padding: 0 0 0 8px; }
+/* colunas fixadas (menu da coluna "Fixar"): param ao rolar para o lado, depois do item; a última tem uma sombra */
+.friday-root .tq .ultima-fixa { box-shadow: 4px 0 6px -4px rgba(0, 0, 0, 0.18); }
 .friday-root .tq tbody tr:hover td { background: var(--superficie-2); }
 .friday-root .tq tbody tr.sel td { background: var(--selecao); }
 .friday-root .tq tr.alvo-antes td { box-shadow: inset 0 2px 0 var(--primaria); }

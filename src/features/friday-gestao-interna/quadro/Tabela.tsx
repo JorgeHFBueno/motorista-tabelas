@@ -1,7 +1,7 @@
 import { useMemo, useRef, useState, type MouseEvent as EventoMouse } from 'react';
 import {
   AlarmClock, Archive, ArrowDown, ArrowDownAZ, ArrowDownUp, ArrowLeft, ArrowRight, ArrowUp, ArrowUpAZ, CalendarDays, Check, ChevronDown, ChevronRight, Copy, EyeOff, FileSpreadsheet, GripVertical, Group, ListTree, Maximize2,
-  Lock, LockOpen, MessageCircle, Shuffle, MessageCirclePlus, Sigma, MoreHorizontal, Palette, Pencil, Plus, Trash2,
+  Lock, LockOpen, MessageCircle, Shuffle, MessageCirclePlus, Sigma, MoreHorizontal, Palette, Pencil, Pin, PinOff, Plus, Trash2,
 } from 'lucide-react';
 import { useAuth } from '../../../contexts/AuthContext';
 import type { Pessoa } from '../api.ts';
@@ -22,10 +22,11 @@ import type { Acoes } from './useQuadro.ts';
 export type { Ordenacao };
 export type Agrupamento = { grupos: GrupoVirtual[]; grupoDe: Map<number, number[]> } | null;
 
+const ehFixa = (c: Coluna) => !!c.config?.fixa; // coluna fixada (config.fixa), para todos que abrem o quadro
 const LARGURA_NOME = 360; // coluna do item, quando o quadro ainda não tem largura salva (config.largura_nome)
 const LIMITE_INICIAL = 60;
 
-export function Tabela({ grupos: gruposReais, colunas, todasColunas, itens, sub, acoes, ops, usuarios, nomeItem, selecionados, setSelecionados, abrirItem,
+export function Tabela({ grupos: gruposReais, colunas: colunasVisiveis, todasColunas, itens, sub, acoes, ops, usuarios, nomeItem, selecionados, setSelecionados, abrirItem,
   ordenacao, setOrdenacao, ordenacaoAlterada, onSalvarOrdenacao, onOcultar, onAgrupar, onExportarGrupo, agrupamento, larguraNome, onLarguraNome }: {
   grupos: Grupo[];
   colunas: Coluna[];
@@ -72,8 +73,17 @@ export function Tabela({ grupos: gruposReais, colunas, todasColunas, itens, sub,
   const aoCriar = (c: Coluna) => { if (c.tipo === 'formula') setEditorFormula(c); };
 
   const largura = (c: Coluna) => larguras[c.id] ?? c.largura ?? 140;
+  // "Fixar" (menu da coluna): as colunas fixadas vêm logo depois do item e ficam paradas ao rolar para o lado, como o item.
+  const colunas = useMemo(() => [...colunasVisiveis.filter(ehFixa), ...colunasVisiveis.filter(c => !ehFixa(c))], [colunasVisiveis]);
   const larguraItem = nomeArrastando ?? larguraNome ?? LARGURA_NOME;
   const larguraTotal = 40 + larguraItem + colunas.reduce((s, c) => s + largura(c), 0) + 60;
+  const fixas = colunas.filter(ehFixa);
+  const esquerda = new Map<number, number>();
+  fixas.reduce((x, c) => { esquerda.set(c.id, x); return x + largura(c); }, 40 + larguraItem);
+  const classeFixa = (c: Coluna) => (esquerda.has(c.id) ? ` fixo coluna-fixa${c.id === fixas[fixas.length - 1].id ? ' ultima-fixa' : ''}` : '');
+  const estiloFixa = (c: Coluna) => (esquerda.has(c.id) ? { left: esquerda.get(c.id) } : undefined);
+  // Mover para a esquerda/direita só troca com uma vizinha do mesmo lado (fixada com fixada, livre com livre).
+  const vizinha = (k: number, c: Coluna) => (colunas[k] && ehFixa(colunas[k]) === ehFixa(c) ? colunas[k] : undefined);
   const porGrupo = useMemo(() => {
     const m = new Map<number, Item[]>();
     for (const i of itens) {
@@ -172,7 +182,8 @@ export function Tabela({ grupos: gruposReais, colunas, todasColunas, itens, sub,
       <col style={{ width: 40 }} />
       <col style={{ width: larguraItem }} />
       {colunas.map(c => <col key={c.id} style={{ width: largura(c) }} />)}
-      <col style={{ width: 60 }} />
+      {/* Sem largura: a sobra da tela fica com a coluna do "+", e as colunas mantêm a largura delas (também ao medir o conteúdo). */}
+      <col />
     </colgroup>
   );
 
@@ -193,7 +204,7 @@ export function Tabela({ grupos: gruposReais, colunas, todasColunas, itens, sub,
                   <tr className="tq-recolhido">
                     <td className="tq-sel" />
                     <td className="tq-nome fixo"><strong style={{ color: g.cor }}>{g.nome}</strong> <span className="muted">{lista.length} {lista.length === 1 ? nomeItem.toLowerCase() : 'itens'}</span></td>
-                    {colunas.map(c => <td key={c.id} className="tq-resumo"><Resumo coluna={c} itens={lista} /></td>)}
+                    {colunas.map(c => <td key={c.id} className={`tq-resumo${classeFixa(c)}`} style={estiloFixa(c)}><Resumo coluna={c} itens={lista} /></td>)}
                     <td />
                   </tr>
                 </tbody>
@@ -216,7 +227,8 @@ export function Tabela({ grupos: gruposReais, colunas, todasColunas, itens, sub,
                       <CabecalhoColuna key={c.id} coluna={c} acoes={acoes} confirmar={confirmar} onFormula={setEditorFormula} aoCriar={aoCriar}
                         ordenacao={ordenacao} setOrdenacao={setOrdenacao} ordenacaoAlterada={ordenacaoAlterada} onSalvarOrdenacao={onSalvarOrdenacao}
                         onOcultar={() => onOcultar(c.id)} onAgrupar={() => onAgrupar(c.id)}
-                        anterior={colunas[ci - 1]} proxima={colunas[ci + 1]} onResize={x => iniciarResize(c, x)} onAjustar={() => ajustarColuna(c, ci + 2)} />
+                        anterior={vizinha(ci - 1, c)} proxima={vizinha(ci + 1, c)} onResize={x => iniciarResize(c, x)} onAjustar={() => ajustarColuna(c, ci + 2)}
+                        classeFixa={classeFixa(c)} estiloFixa={estiloFixa(c)} />
                     ))}
                     <th className="tq-mais"><AdicionarColuna acoes={acoes} aoCriar={aoCriar} /></th>
                   </tr>
@@ -253,7 +265,7 @@ export function Tabela({ grupos: gruposReais, colunas, todasColunas, itens, sub,
                         </div>
                       </td>
                       {colunas.map(c => (
-                        <td key={c.id} className={`tq-cel tipo-${c.tipo}`}>
+                        <td key={c.id} className={`tq-cel tipo-${c.tipo}${classeFixa(c)}`} style={estiloFixa(c)}>
                           <Celula coluna={c} valor={i.valores[c.id]} usuarios={usuarios} item={i} colunas={todasColunas}
                             onMudar={v => acoes.definirValor(i.id, c.id, v)} onTempo={op => acoes.tempo(i.id, c.id, op)} onConfig={config => acoes.atualizarColuna(c.id, { config })} />
                         </td>
@@ -291,7 +303,7 @@ export function Tabela({ grupos: gruposReais, colunas, todasColunas, itens, sub,
                   <tr className="tq-rodape">
                     <td className="tq-sel-vazio fixo" />
                     <td className="tq-nome-vazio fixo" />
-                    {colunas.map(c => <td key={c.id} className="tq-resumo"><Resumo coluna={c} itens={lista} /></td>)}
+                    {colunas.map(c => <td key={c.id} className={`tq-resumo${classeFixa(c)}`} style={estiloFixa(c)}><Resumo coluna={c} itens={lista} /></td>)}
                     <td />
                   </tr>
                 </tbody>
@@ -365,11 +377,13 @@ function CabecalhoGrupo({ grupo, total, acoes, confirmar, nomeItem, virtual, rec
 }
 
 // ---------------------------------------------------------------- cabeçalho da coluna
-function CabecalhoColuna({ coluna, acoes, confirmar, ordenacao, setOrdenacao, ordenacaoAlterada, onSalvarOrdenacao, anterior, proxima, onResize, onAjustar, onFormula, aoCriar, onOcultar, onAgrupar }: {
+function CabecalhoColuna({ coluna, acoes, confirmar, ordenacao, setOrdenacao, ordenacaoAlterada, onSalvarOrdenacao, anterior, proxima, onResize, onAjustar, onFormula, aoCriar, onOcultar, onAgrupar,
+  classeFixa, estiloFixa }: {
   coluna: Coluna; acoes: Acoes; confirmar: ReturnType<typeof useConfirmar>;
   ordenacao: Ordenacao; setOrdenacao: (o: Ordenacao) => void; ordenacaoAlterada: boolean; onSalvarOrdenacao: () => void;
   onFormula: (c: Coluna) => void; aoCriar: (c: Coluna) => void; onOcultar: () => void; onAgrupar: () => void;
   anterior?: Coluna; proxima?: Coluna; onResize: (x: number) => void; onAjustar: () => void;
+  classeFixa: string; estiloFixa?: { left: number | undefined };
 }) {
   // Ordenação rápida: a seta ordena só por esta coluna (crescente, depois decrescente), na hora; "salvar" grava na visão.
   const dir = ordenacao.find(o => o.colunaId === coluna.id)?.dir;
@@ -387,7 +401,7 @@ function CabecalhoColuna({ coluna, acoes, confirmar, ordenacao, setOrdenacao, or
     acoes.atualizarColuna(outra.id, { posicao: coluna.posicao });
   };
   return (
-    <th className={`tq-col${dir ? ' ordenada' : ''}${dir && ordenacaoAlterada ? ' com-ordem-rapida' : ''}`}>
+    <th className={`tq-col${dir ? ' ordenada' : ''}${dir && ordenacaoAlterada ? ' com-ordem-rapida' : ''}${classeFixa}`} style={estiloFixa}>
       {dir && ordenacaoAlterada && (
         <div className="ordem-rapida">
           <button onClick={() => setOrdenacao(ordenacao.filter(o => o.colunaId !== coluna.id))} title="Tirar esta ordenação">limpar</button>
@@ -428,6 +442,8 @@ function CabecalhoColuna({ coluna, acoes, confirmar, ordenacao, setOrdenacao, or
                   { rotulo: 'Mostrar sempre o ano', icone: <CalendarDays size={15} />, ativo: !!coluna.config.com_ano, sub: coluna.config.com_ano ? <Check size={14} className="menu-check" /> : undefined,
                     onClick: () => acoes.atualizarColuna(coluna.id, { config: { ...coluna.config, com_ano: !coluna.config.com_ano } }) },
                 ] : []),
+                { rotulo: ehFixa(coluna) ? 'Desafixar coluna' : 'Fixar coluna', icone: ehFixa(coluna) ? <PinOff size={15} /> : <Pin size={15} />,
+                  onClick: () => acoes.atualizarColuna(coluna.id, { config: { ...coluna.config, fixa: !ehFixa(coluna) } }) },
                 { rotulo: 'Mover para a esquerda', icone: <ArrowLeft size={15} />, onClick: () => trocar(anterior) },
                 { rotulo: 'Mover para a direita', icone: <ArrowRight size={15} />, onClick: () => trocar(proxima) },
                 { rotulo: 'Adicionar coluna à direita', icone: <Plus size={15} />, onClick: () => setTimeout(() => { menu.abrir(); setTipos(true); }) },
