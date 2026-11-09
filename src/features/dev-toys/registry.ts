@@ -78,6 +78,14 @@ export const DEV_TOYS: DevToy[] = [
     largura: 820, // a mesa do poker
   },
   {
+    id: 'protocolo',
+    nome: 'PROTOCOLO',
+    // tabuleiro: as cartas do outro em cima, uma linha no meio, as suas embaixo
+    icone: 'M1 1h14v1H1zM1 14h14v1H1zM1 2h1v12H1zM14 2h1v12h-1zM3 3h2v3H3zM7 3h2v3H7zM2 8h12v1H2zM3 10h2v3H3zM7 10h2v3H7zM11 10h2v3h-2z',
+    componente: lazy(() => import('./toys/protocolo/ProtocoloToy')),
+    largura: 900,
+  },
+  {
     id: 'placar',
     nome: 'Placar de Lideres',
     icone: 'M3 1h10v1H3zM4 2h8v4H4zM7 3h2v1H7zM1 2h3v1H1zM12 2h3v1h-3zM1 3h1v2H1zM14 3h1v2h-1zM2 5h2v1H2zM12 5h2v1h-2zM5 6h6v1H5zM6 7h4v1H6zM7 8h2v3H7zM5 11h6v1H5zM4 12h8v2H4z',

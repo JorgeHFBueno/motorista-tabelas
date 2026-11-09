@@ -35,6 +35,8 @@ import * as rg from '../src/features/dev-toys/toys/regras/exemplos';
 import { ALEATORIA, retornoDe as retornoXadrez, sortearNivel } from '../src/features/dev-toys/toys/xadrez/bot';
 import { MAX_HISTORICO, acrescentar as acrescentarLancamento, normalizarHistorico, resumo } from '../src/features/dev-toys/toys/fichas/historico';
 import * as dc from '../src/features/dev-toys/toys/neo/regras';
+import * as pt from '../src/features/dev-toys/toys/protocolo/regras';
+import * as ptBot from '../src/features/dev-toys/toys/protocolo/bot';
 
 const sessao = (valores: Record<string, string>) => ({ getItem: (k: string) => valores[k] ?? null });
 
@@ -1011,4 +1013,166 @@ test('NEO: o selo de cada um guarda a última coisa que ele fez; o histórico an
   assert.equal(esqueceu.jogadores[0].ultima, `ESQUECEU A ULTIMA: +${dc.MULTA}`);
   assert.equal(dc.agir(mesaDc([outras(), outras(), outras(), outras()], cd(0, 'copas', 7)), { tipo: 'comprar' }, rngDe(1)).jogadores[0].ultima, 'COMPROU 1 E PASSOU');
   assert.equal(normalizarHistorico([{ em: 1, origem: 'DESCARTE', valor: -10, detalhe: 'APOSTA 10' }])[0].origem, 'NEO');
+});
+
+// PROTOCOLO: cartas de verdade dos baralhos, numa mesa montada à mão (você na vez, rodada 1)
+const ptDeck = { MAINFRAME: pt.deckDe('MAINFRAME', 0), ENXAME: pt.deckDe('ENXAME', 100) };
+const ptCartas = (f: pt.Faccao, nome: string) => ptDeck[f].filter((c) => c.nome === nome);
+const ptC = (f: pt.Faccao, nome: string, k = 0) => ptCartas(f, nome)[k];
+const ptLado = (nome: string, faccao: pt.Faccao, mao: pt.Carta[], baralho: pt.Carta[] = []): pt.Lado => ({
+  nome, faccao, mao, baralho, descarte: [], campo: { cpu: [], rede: [], disco: [] }, trompa: { cpu: null, rede: null, disco: null }, vidas: 2, passou: false, liderUsado: false, ultima: null,
+});
+const ptMesa = (a: pt.Lado, b: pt.Lado): pt.Partida => ({
+  lados: [a, b], vez: 0, primeiro: 0, rodada: 1, clima: { cpu: null, rede: null, disco: null }, fase: 'jogo', trocas: 0, pendente: null, rodadas: [], vencedor: null, aviso: '',
+});
+const ptMF = (mao: pt.Carta[], baralho: pt.Carta[] = []) => ptLado('VOCE', 'MAINFRAME', mao, baralho);
+const ptEN = (mao: pt.Carta[], baralho: pt.Carta[] = []) => ptLado('BOT', 'ENXAME', mao, baralho);
+const ptJoga = (p: pt.Partida, j: pt.Jogada) => { const q = pt.agir(p, j, rngDe(1)); assert.notEqual(q, p, `jogada não valeu: ${JSON.stringify(j)}`); return q; };
+
+test('PROTOCOLO: baralhos de 30 (22 unidades) e partida nova com 10 cartas e até 2 trocas', () => {
+  for (const f of pt.FACCOES) {
+    const d = pt.deckDe(f);
+    assert.equal(d.length, 30);
+    assert.equal(d.filter((c) => c.tipo === 'unidade').length, 22);
+    assert.equal(new Set(d.map((c) => c.id)).size, 30);
+  }
+  let p = pt.novaPartida('MAINFRAME', 'ENXAME', 'BOT', rngDe(3));
+  assert.equal(p.fase, 'troca');
+  assert.deepEqual(p.lados.map((l) => [l.mao.length, l.baralho.length, l.vidas]), [[10, 20, 2], [10, 20, 2]]);
+  p = ptJoga(p, { tipo: 'trocar', id: p.lados[0].mao[0].id });
+  p = ptJoga(p, { tipo: 'trocar', id: p.lados[0].mao[0].id });
+  assert.equal(pt.agir(p, { tipo: 'trocar', id: p.lados[0].mao[0].id }, rngDe(1)), p, 'só 2 trocas');
+  assert.deepEqual([p.lados[0].mao.length, p.lados[0].baralho.length], [10, 20]);
+  p = ptJoga(p, { tipo: 'pronto' });
+  assert.equal(p.fase, 'jogo');
+});
+
+test('PROTOCOLO: força com clima, CLUSTER, CACHE, OVERCLOCK e herói', () => {
+  const servidores = ptCartas('MAINFRAME', 'SERVIDOR');
+  let p = ptMesa(ptMF([...servidores, ptC('MAINFRAME', 'ADMIN'), ptC('MAINFRAME', 'RAID'), ptC('MAINFRAME', 'NOBREAK'), ptC('MAINFRAME', 'OVERCLOCK')]), ptEN(ptCartas('ENXAME', 'SPAM'), [ptC('ENXAME', 'SUPERAQUECIMENTO')]));
+  // o bot só passa: você joga tudo
+  p = ptJoga(p, { tipo: 'jogar', id: servidores[0].id });
+  p = ptJoga(p, { tipo: 'passar' });
+  for (const c of [servidores[1], servidores[2], ptC('MAINFRAME', 'ADMIN'), ptC('MAINFRAME', 'RAID'), ptC('MAINFRAME', 'NOBREAK')]) p = ptJoga(p, { tipo: 'jogar', id: c.id });
+  assert.equal(pt.totalFileira(p, 0, 'cpu'), 3 * 12 + 10, 'três SERVIDOR de 4 valem 12 cada; ADMIN 10');
+  assert.equal(pt.totalFileira(p, 0, 'disco'), 7 + 4, 'RAID 6 +1 do CACHE; o NOBREAK não se soma');
+  p = ptJoga(p, { tipo: 'jogar', id: ptC('MAINFRAME', 'OVERCLOCK').id, fileira: 'disco' });
+  assert.equal(pt.totalFileira(p, 0, 'disco'), 22);
+  assert.deepEqual(pt.fileirasPara(ptC('MAINFRAME', 'OVERCLOCK'), p.lados[0]), ['cpu', 'rede']);
+  // clima na CPU: a unidade vira 1 (e o CLUSTER multiplica o 1); o herói não muda
+  p = { ...p, clima: { ...p.clima, cpu: { carta: ptC('ENXAME', 'SUPERAQUECIMENTO'), dono: 1 } } };
+  assert.equal(pt.totalFileira(p, 0, 'cpu'), 3 * 3 + 10);
+});
+
+test('PROTOCOLO: MALWARE vai para o outro lado e compra 2; FORK puxa as iguais; ágil escolhe a fileira', () => {
+  const baralho = [ptC('MAINFRAME', 'GERADOR'), ptC('MAINFRAME', 'TORRE')];
+  let p = ptMesa(ptMF([ptC('MAINFRAME', 'AUDITOR'), ptC('MAINFRAME', 'PROXY')], baralho), ptEN([ptC('ENXAME', 'ZUMBI', 0), ptC('ENXAME', 'EXPLOIT')], [ptC('ENXAME', 'ZUMBI', 1), ptC('ENXAME', 'ZUMBI', 2), ptC('ENXAME', 'DDOS')]));
+  p = ptJoga(p, { tipo: 'jogar', id: ptC('MAINFRAME', 'AUDITOR').id });
+  assert.deepEqual(p.lados[1].campo.cpu.map((c) => c.nome), ['AUDITOR']);
+  assert.equal(pt.total(p, 1), 5, 'os pontos do MALWARE são do outro lado');
+  assert.deepEqual(p.lados[0].mao.map((c) => c.nome).sort(), ['GERADOR', 'PROXY', 'TORRE']);
+  assert.equal(p.vez, 1);
+  p = ptJoga(p, { tipo: 'jogar', id: ptC('ENXAME', 'ZUMBI', 0).id });
+  assert.deepEqual(p.lados[1].campo.cpu.map((c) => c.nome), ['AUDITOR', 'ZUMBI', 'ZUMBI', 'ZUMBI']);
+  assert.deepEqual(p.lados[1].baralho.map((c) => c.nome), ['DDOS']);
+  assert.equal(pt.agir(p, { tipo: 'jogar', id: ptC('MAINFRAME', 'PROXY').id, fileira: 'disco' }, rngDe(1)), p, 'ágil não vai no DISCO');
+  p = ptJoga(p, { tipo: 'jogar', id: ptC('MAINFRAME', 'PROXY').id, fileira: 'rede' });
+  assert.equal(pt.totalFileira(p, 0, 'rede'), 4);
+});
+
+test('PROTOCOLO: BACKUP revive do descarte; CTRL+Z devolve à mão; KILL -9 destrói as mais fortes; REBOOT limpa', () => {
+  const firewall = ptC('MAINFRAME', 'FIREWALL');
+  const eu = ptMF([ptC('MAINFRAME', 'TECNICO'), ptC('MAINFRAME', 'CTRL+Z'), ptC('MAINFRAME', 'KILL -9'), ptC('MAINFRAME', 'REBOOT')]);
+  eu.descarte = [firewall, ptC('MAINFRAME', 'ADMIN')];
+  let p = ptMesa(eu, ptEN([ptC('ENXAME', 'DDOS')]));
+  p = ptJoga(p, { tipo: 'jogar', id: ptC('MAINFRAME', 'TECNICO').id });
+  assert.equal(p.pendente, 0);
+  assert.deepEqual(pt.revivivel(p.lados[0]).map((c) => c.nome), ['FIREWALL'], 'herói não revive');
+  assert.equal(pt.agir(p, { tipo: 'passar' }, rngDe(1)), p, 'primeiro escolhe o que reviver');
+  p = ptJoga(p, { tipo: 'reviver', id: firewall.id });
+  assert.deepEqual([p.lados[0].campo.cpu.map((c) => c.nome), p.vez, p.pendente], [['FIREWALL'], 1, null]);
+  p = ptJoga(p, { tipo: 'jogar', id: ptC('ENXAME', 'DDOS').id });
+  p = ptJoga(p, { tipo: 'jogar', id: ptC('MAINFRAME', 'CTRL+Z').id, alvo: firewall.id });
+  assert.ok(p.lados[0].mao.includes(firewall));
+  assert.deepEqual(p.lados[0].campo.cpu.map((c) => c.nome), ['CTRL+Z']);
+  assert.equal(pt.total(p, 0), 5, 'o CTRL+Z vale 0');
+  // sem cartas nem líder, o bot passou sozinho; KILL -9 leva o DDOS (8), a maior do campo
+  assert.deepEqual([p.lados[1].passou, p.lados[1].ultima, p.vez], [true, 'PASSOU (SEM CARTAS)', 0]);
+  p = ptJoga(p, { tipo: 'jogar', id: ptC('MAINFRAME', 'KILL -9').id });
+  assert.deepEqual([p.lados[1].campo.disco.length, p.lados[1].descarte.map((c) => c.nome)], [0, ['DDOS']]);
+  p = { ...p, clima: { cpu: null, rede: { carta: ptC('ENXAME', 'LAG'), dono: 1 }, disco: null } };
+  p = ptJoga(p, { tipo: 'jogar', id: ptC('MAINFRAME', 'REBOOT').id });
+  assert.equal(p.clima.rede, null);
+  assert.ok(p.lados[1].descarte.some((c) => c.nome === 'LAG'), 'o clima volta para o descarte de quem jogou');
+});
+
+test('PROTOCOLO: rodadas, vidas, passivas e o fim da partida', () => {
+  const geradores = [ptC('MAINFRAME', 'GERADOR'), ptC('MAINFRAME', 'TORRE')];
+  let p = ptMesa(ptMF([...geradores, ptC('MAINFRAME', 'RAID')], [ptC('MAINFRAME', 'SWITCH')]), ptEN([ptC('ENXAME', 'DDOS'), ptC('ENXAME', 'SPOOFER'), ptC('ENXAME', 'EXPLOIT')]));
+  p = ptJoga(p, { tipo: 'jogar', id: geradores[0].id });
+  p = ptJoga(p, { tipo: 'jogar', id: ptC('ENXAME', 'SPOOFER').id });
+  p = ptJoga(p, { tipo: 'passar' });
+  // você passou: o bot segue sozinho
+  p = ptJoga(p, { tipo: 'jogar', id: ptC('ENXAME', 'EXPLOIT').id });
+  assert.equal(p.vez, 1);
+  p = ptJoga(p, { tipo: 'passar' });
+  assert.equal(p.fase, 'placar');
+  assert.deepEqual(p.rodadas, [{ pontos: [8, 9], vencedor: 1 }]);
+  assert.deepEqual(p.lados.map((l) => l.vidas), [1, 2]);
+  p = ptJoga(p, { tipo: 'seguir' });
+  assert.deepEqual([p.fase, p.rodada, p.vez], ['jogo', 2, 1], 'quem venceu começa');
+  // ENXAME: uma unidade sua fica no campo
+  assert.equal(pt.total(p, 1) > 0, true);
+  assert.equal(p.lados[0].mao.length, 2, 'o MAINFRAME perdeu: não compra');
+  // a partida acaba quando alguém fica sem vida
+  const fim = { ...p, lados: [{ ...p.lados[0], vidas: 0 }, p.lados[1]] as pt.Partida['lados'], fase: 'placar' as const, rodadas: [...p.rodadas, { pontos: [0, 9], vencedor: 1 } as pt.Rodada] };
+  const acabou = ptJoga(fim, { tipo: 'seguir' });
+  assert.deepEqual([acabou.fase, acabou.vencedor], ['fim', 1]);
+  assert.deepEqual([pt.retornoProtocolo(0, 50), pt.retornoProtocolo(null, 50), pt.retornoProtocolo(1, 50)], [100, 50, 0]);
+  // empate na rodada: os dois perdem uma vida; MAINFRAME que vence compra 1
+  let e = ptMesa(ptMF([ptC('MAINFRAME', 'FIREWALL')], [ptC('MAINFRAME', 'SWITCH')]), ptEN([ptC('ENXAME', 'EXPLOIT')]));
+  e = ptJoga(ptJoga(e, { tipo: 'passar' }), { tipo: 'passar' });
+  assert.deepEqual([e.rodadas[0].vencedor, e.lados.map((l) => l.vidas)], [null, [1, 1]]);
+  let v = ptMesa(ptMF([ptC('MAINFRAME', 'FIREWALL')], [ptC('MAINFRAME', 'SWITCH')]), ptEN([ptC('ENXAME', 'SPAM')]));
+  v = ptJoga(v, { tipo: 'jogar', id: ptC('MAINFRAME', 'FIREWALL').id });
+  v = ptJoga(ptJoga(v, { tipo: 'passar' }), { tipo: 'passar' });
+  v = ptJoga(v, { tipo: 'seguir' });
+  assert.deepEqual(v.lados[0].mao.map((c) => c.nome), ['SWITCH']);
+});
+
+test('PROTOCOLO: líderes de uso único', () => {
+  let p = ptMesa(ptMF([ptC('MAINFRAME', 'RAID')]), ptEN([ptC('ENXAME', 'SPAM')], [ptC('ENXAME', 'LAG')]));
+  p = ptJoga(p, { tipo: 'jogar', id: ptC('MAINFRAME', 'RAID').id });
+  assert.ok(pt.liderPode(p, 1));
+  p = ptJoga(p, { tipo: 'lider' });
+  assert.equal(p.clima.rede?.carta.nome, 'LAG');
+  assert.equal(pt.liderPode(p, 1), false);
+  p = ptJoga(p, { tipo: 'lider' });
+  assert.equal(pt.totalFileira(p, 0, 'disco'), 12, 'OVERCLOCK do líder no DISCO');
+  assert.equal(pt.liderPode(p, 0), false);
+});
+
+test('PROTOCOLO: partidas entre bots terminam sem jogada inválida; o DIFICIL ganha mais do FACIL', () => {
+  let dificil = 0;
+  let facil = 0;
+  for (let s = 1; s <= 12; s++) {
+    for (const [f0, f1] of [['MAINFRAME', 'ENXAME'], ['ENXAME', 'MAINFRAME']] as Array<[pt.Faccao, pt.Faccao]>) {
+      const rng = rngDe(s);
+      let p = pt.novaPartida(f0, f1, 'BOT', rng);
+      let passos = 0;
+      while (p.fase !== 'fim' && passos++ < 400) {
+        const quem = p.fase === 'jogo' ? (p.pendente ?? p.vez) : 0;
+        const q = pt.agir(p, ptBot.decidirBot(p, rng, ptBot.NIVEIS[quem === 0 ? 2 : 0]), rng);
+        assert.notEqual(q, p, `semente ${s}: jogada que não vale`);
+        p = q;
+      }
+      assert.equal(p.fase, 'fim');
+      assert.ok(p.rodadas.length >= 2 && p.rodadas.length <= 3);
+      const cartas = p.lados.reduce((n, l) => n + l.mao.length + l.baralho.length + l.descarte.length + pt.FILEIRAS.reduce((m, f) => m + l.campo[f].length, 0), 0);
+      assert.equal(cartas, 60, 'nenhuma carta some');
+      if (p.vencedor === 0) dificil++;
+      else if (p.vencedor === 1) facil++;
+    }
+  }
+  assert.ok(dificil > facil, `DIFICIL ${dificil} x FACIL ${facil}`);
 });

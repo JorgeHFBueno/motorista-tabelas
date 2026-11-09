@@ -1476,6 +1476,277 @@
   }
 }
 
+/* ---- PROTOCOLO (fileiras contra um bot) ---- */
+/* três colunas: os lados à esquerda, o tabuleiro no meio, o painel à direita */
+.devtoys .dt-pt {
+  display: flex;
+  align-items: stretch;
+  gap: calc(var(--dt-e) * 12px);
+}
+
+.devtoys .dt-pt-lados {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: calc(var(--dt-e) * 8px);
+  width: calc(var(--dt-e) * 150px);
+  flex: none;
+}
+
+.devtoys .dt-pt-info {
+  display: flex;
+  flex-direction: column;
+  gap: calc(var(--dt-e) * 3px);
+  padding: calc(var(--dt-e) * 5px);
+  border: 1px dotted var(--dt-apagado);
+  font-size: calc(var(--dt-e) * 11px);
+}
+
+.devtoys .dt-pt-info p {
+  margin: 0;
+}
+
+.devtoys .dt-pt-passou {
+  opacity: 0.7;
+}
+
+.devtoys .dt-pt-total {
+  display: flex;
+  align-items: center;
+  gap: calc(var(--dt-e) * 6px);
+  font-size: calc(var(--dt-e) * 26px);
+  font-weight: bold;
+  line-height: 1;
+}
+
+.devtoys .dt-pt-contas {
+  color: var(--dt-apagado);
+  font-size: calc(var(--dt-e) * 10px);
+}
+
+.devtoys .dt-pt-vidas {
+  display: flex;
+  gap: calc(var(--dt-e) * 4px);
+}
+
+/* vida: losango cheio; perdida, só o contorno */
+.devtoys .dt-pt-vida {
+  width: calc(var(--dt-e) * 9px);
+  height: calc(var(--dt-e) * 9px);
+  background: var(--dt-vermelho);
+  transform: rotate(45deg);
+}
+
+.devtoys .dt-pt-vida-perdida {
+  background: none;
+  border: 1px solid var(--dt-apagado);
+}
+
+.devtoys .dt-pt-rodadas {
+  font-size: calc(var(--dt-e) * 11px);
+}
+
+.devtoys .dt-pt-rodadas p {
+  margin: 0 0 calc(var(--dt-e) * 2px);
+}
+
+.devtoys .dt-pt-tabuleiro {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: calc(var(--dt-e) * 3px);
+}
+
+.devtoys .dt-pt-meus {
+  display: flex;
+  flex-direction: column;
+  gap: calc(var(--dt-e) * 3px);
+}
+
+/* fileira: rótulo com o total, X2 e clima, as cartas */
+.devtoys .dt-pt-linha {
+  display: flex;
+  align-items: center;
+  gap: calc(var(--dt-e) * 6px);
+  width: 100%;
+  min-height: calc(var(--dt-e) * 60px);
+  padding: calc(var(--dt-e) * 1px) calc(var(--dt-e) * 4px);
+  border: 1px dotted var(--dt-apagado);
+  text-align: left;
+}
+
+/* clima na fileira: hachurada */
+.devtoys .dt-pt-com-clima {
+  background-image: repeating-linear-gradient(135deg, transparent 0 6px, color-mix(in srgb, var(--dt-vermelho) 22%, transparent) 6px 7px);
+}
+
+.devtoys .dt-pt-rotulo {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  flex: none;
+  width: calc(var(--dt-e) * 40px);
+  font-size: calc(var(--dt-e) * 9px);
+}
+
+.devtoys .dt-pt-rotulo b {
+  font-size: calc(var(--dt-e) * 17px);
+}
+
+.devtoys .dt-pt-extras {
+  display: flex;
+  flex-direction: column;
+  gap: calc(var(--dt-e) * 2px);
+  flex: none;
+  width: calc(var(--dt-e) * 44px);
+}
+
+.devtoys .dt-pt-tag {
+  padding: 0 calc(var(--dt-e) * 2px);
+  color: var(--dt-papel);
+  background: var(--dt-tinta);
+  font-size: calc(var(--dt-e) * 8px);
+  text-align: center;
+  text-shadow: none;
+}
+
+.devtoys .dt-pt-tag-clima {
+  background: var(--dt-vermelho);
+}
+
+.devtoys .dt-pt-cartas {
+  display: flex;
+  flex-wrap: wrap;
+  gap: calc(var(--dt-e) * 3px);
+  min-width: 0;
+}
+
+.devtoys .dt-pt-meio {
+  margin: calc(var(--dt-e) * 2px) 0;
+  padding: calc(var(--dt-e) * 2px) 0;
+  border-top: 1px solid var(--dt-tinta);
+  border-bottom: 1px solid var(--dt-tinta);
+  color: var(--dt-vermelho);
+  text-align: center;
+  font-size: calc(var(--dt-e) * 10px);
+}
+
+/* fileira ou unidade que pode ser escolhida agora */
+.devtoys .dt-pt-alvo {
+  cursor: pointer;
+  outline: 1px solid var(--dt-tinta);
+  animation: dt-pk-pisca 900ms steps(2) infinite;
+}
+
+.devtoys button.dt-pt-alvo:hover,
+.devtoys button.dt-pt-alvo:focus-visible {
+  animation: none;
+  outline-width: 2px;
+}
+
+.devtoys .dt-pt-mao {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: calc(var(--dt-e) * 4px);
+  min-height: calc(var(--dt-e) * 58px);
+  margin-top: calc(var(--dt-e) * 6px);
+  padding-top: calc(var(--dt-e) * 8px);
+  border-top: 1px dotted var(--dt-apagado);
+}
+
+.devtoys .dt-pt-mao .dt-pt-carta {
+  transition: transform 120ms ease-out;
+}
+
+.devtoys .dt-pt-mao button:not(:disabled):hover .dt-pt-carta,
+.devtoys .dt-pt-mao button:focus-visible .dt-pt-carta,
+.devtoys .dt-pt-selecionada .dt-pt-carta {
+  transform: translateY(calc(var(--dt-e) * -6px));
+  box-shadow: 0 0 0 1px var(--dt-tinta);
+}
+
+.devtoys .dt-pt-mao button:focus-visible {
+  outline: none;
+}
+
+.devtoys .dt-pt-apagada .dt-pt-carta {
+  opacity: 0.4;
+}
+
+.devtoys .dt-pt-escolha {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: calc(var(--dt-e) * 4px);
+}
+
+/* a carta: força e fileira em cima, nome, habilidade */
+.devtoys .dt-pt-carta {
+  display: flex;
+  flex-direction: column;
+  flex: none;
+  width: calc(var(--dt-e) * 46px);
+  height: calc(var(--dt-e) * 56px);
+  padding: calc(var(--dt-e) * 2px);
+  border: 1px solid var(--dt-tinta);
+  border-radius: calc(var(--dt-e) * 3px);
+  background: var(--dt-papel);
+  line-height: 1.05;
+  overflow: hidden;
+}
+
+.devtoys .dt-pt-especial {
+  border-style: dashed;
+}
+
+.devtoys .dt-pt-topo {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.devtoys .dt-pt-forca {
+  padding: 0 calc(var(--dt-e) * 2px);
+  font-size: calc(var(--dt-e) * 13px);
+}
+
+/* herói: força invertida; subiu: acesa; caiu: vermelha */
+.devtoys .dt-pt-heroi,
+.devtoys .dt-pt-mais {
+  color: var(--dt-papel);
+  background: var(--dt-tinta);
+  text-shadow: none;
+}
+
+.devtoys .dt-pt-menos {
+  color: var(--dt-vermelho);
+}
+
+.devtoys .dt-pt-icone {
+  width: calc(var(--dt-e) * 9px);
+  height: calc(var(--dt-e) * 9px);
+  fill: currentColor;
+}
+
+.devtoys .dt-pt-rotulo .dt-pt-icone {
+  width: calc(var(--dt-e) * 11px);
+  height: calc(var(--dt-e) * 11px);
+}
+
+.devtoys .dt-pt-nome {
+  flex: 1;
+  margin-top: calc(var(--dt-e) * 2px);
+  font-size: calc(var(--dt-e) * 8px);
+  overflow-wrap: anywhere;
+}
+
+.devtoys .dt-pt-hab {
+  color: var(--dt-apagado);
+  font-size: calc(var(--dt-e) * 7px);
+}
+
 /* ---- Carteira ---- */
 .devtoys .dt-carteira {
   font-size: calc(var(--dt-e) * 13px);

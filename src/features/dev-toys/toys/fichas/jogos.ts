@@ -11,6 +11,7 @@ export const JOGOS = [
   { chave: 'ledur:dev-xadrez', nome: 'XADREZ' },
   // chave do nome antigo (Descarte): guarda o placar já jogado
   { chave: 'ledur:dev-descarte', nome: 'NEO' },
+  { chave: 'ledur:dev-protocolo', nome: 'PROTOCOLO' },
 ] as const;
 export type ChaveJogo = (typeof JOGOS)[number]['chave'];
 

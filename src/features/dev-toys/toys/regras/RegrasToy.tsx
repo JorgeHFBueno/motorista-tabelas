@@ -6,6 +6,9 @@ import { useOpcoesTeclado } from '../fichas/hooks';
 import { CartaNeoView } from '../neo/CartaNeoView';
 import { MAO_INICIAL, MULTA, PREMIO, type CartaNeo } from '../neo/regras';
 import { BLIND_GRANDE, BLIND_PEQUENO, ENTRADA } from '../poker/mesa';
+import { NIVEIS as NIVEIS_PT } from '../protocolo/bot';
+import { CartaPtView } from '../protocolo/CartaPtView';
+import { FACCOES, HAB_NOME, HAB_TEXTO, LIDER, MAO_INICIAL as MAO_PT, PASSIVA, TROCAS, deckDe, type Carta as CartaPt, type Hab } from '../protocolo/regras';
 import { BANCA_PARA } from '../vinteum/regras';
 import { ALEATORIA, NIVEIS } from '../xadrez/bot';
 import { PecaView } from '../xadrez/PecaView';
@@ -18,6 +21,7 @@ const ABAS = [
   { id: 'poker', nome: 'POKER' },
   { id: 'xadrez', nome: 'XADREZ' },
   { id: 'neo', nome: 'NEO' },
+  { id: 'protocolo', nome: 'PROTOCOLO' },
 ] as const;
 type Aba = (typeof ABAS)[number]['id'];
 
@@ -217,6 +221,71 @@ function RegrasNeo() {
   );
 }
 
+const DECK_PT = [...deckDe('MAINFRAME'), ...deckDe('ENXAME', 100)];
+const cartaPt = (nome: string) => DECK_PT.find((c) => c.nome === nome) as CartaPt;
+const EXEMPLO_HAB: Record<Hab, string> = { root: 'ADMIN', malware: 'AUDITOR', backup: 'TECNICO', cluster: 'SERVIDOR', cache: 'NOBREAK', fork: 'ZUMBI' };
+const ESPECIAIS_PT = [
+  { nome: 'SUPERAQUECIMENTO', texto: 'Clima: as unidades na CPU, dos dois lados, valem 1 (LAG faz o mesmo na REDE e DISCO CHEIO no DISCO).' },
+  { nome: 'REBOOT', texto: 'Limpa todo o clima.' },
+  { nome: 'OVERCLOCK', texto: 'Dobra uma fileira sua (menos os herois).' },
+  { nome: 'KILL -9', texto: 'Destroi as unidades mais fortes do campo, dos dois lados (menos herois).' },
+  { nome: 'CTRL+Z', texto: 'Fica no lugar de uma unidade sua, que volta para a mao (boa para jogar um MALWARE ou um BACKUP de novo).' },
+];
+
+function MaoPt({ cartas }: { cartas: CartaPt[] }) {
+  return <span className="dt-regras-cartas">{cartas.map((c, i) => <CartaPtView key={i} carta={c} />)}</span>;
+}
+
+function RegrasProtocolo() {
+  return (
+    <>
+      <h3>OBJETIVO</h3>
+      <p>Vencer 2 de 3 rodadas. Cada lado tem 2 vidas: quem perde a rodada perde uma; no empate, os dois perdem.</p>
+      <h3>A PARTIDA</h3>
+      <ul>
+        <li>Cada um comeca com {MAO_PT} cartas do proprio baralho e pode trocar ate {TROCAS} antes de comecar. Nao se compra carta entre as rodadas: o que voce gasta numa rodada falta na outra.</li>
+        <li>Do seu lado ha 3 fileiras: CPU, REDE e DISCO. Cada unidade entra na fileira dela; a soma das forcas e o seu placar.</li>
+        <li>Na sua vez, jogue uma carta ou PASSE. Quem passa sai da rodada, e o outro segue jogando sozinho. Os dois passaram, ganha quem tem mais pontos.</li>
+        <li>Quem venceu a rodada comeca a proxima; no fim dela, o campo e o clima vao para o descarte.</li>
+        <li>Sem cartas na mao (e sem lider), passa sozinho.</li>
+      </ul>
+      <h3>HABILIDADES</h3>
+      {(Object.keys(EXEMPLO_HAB) as Hab[]).map((h) => (
+        <div key={h} className="dt-regras-linha">
+          <span className="dt-regras-nome">{HAB_NOME[h]}</span>
+          <MaoPt cartas={[cartaPt(EXEMPLO_HAB[h])]} />
+          <span>{HAB_TEXTO[h]}</span>
+        </div>
+      ))}
+      <div className="dt-regras-linha">
+        <span className="dt-regras-nome">AGIL</span>
+        <MaoPt cartas={[cartaPt('PROXY')]} />
+        <span>Entra na CPU ou na REDE, voce escolhe.</span>
+      </div>
+      <h3>ESPECIAIS</h3>
+      {ESPECIAIS_PT.map((e) => (
+        <div key={e.nome} className="dt-regras-linha">
+          <span className="dt-regras-nome">{e.nome}</span>
+          <MaoPt cartas={[cartaPt(e.nome)]} />
+          <span>{e.texto}</span>
+        </div>
+      ))}
+      <h3>A FORCA NO CAMPO</h3>
+      <p>Na ordem: clima poe a unidade em 1; CLUSTER multiplica pelas iguais; CACHE soma; OVERCLOCK dobra. Heroi nao muda. No campo, a forca acesa subiu e a vermelha caiu.</p>
+      <h3>FACCOES</h3>
+      <ul>
+        {FACCOES.map((f) => <li key={f}>{f}: {PASSIVA[f]} Lider, uma vez por partida: {LIDER[f].nome}. {LIDER[f].texto}</li>)}
+        <li>Voce escolhe a sua; o bot fica com a outra. Cada baralho tem 30 cartas: 22 unidades e 8 especiais.</li>
+      </ul>
+      <h3>PAGAMENTO</h3>
+      <ul>
+        <li>A aposta e a do bot: {NIVEIS_PT.map((n) => `${n.nome} ${n.aposta}`).join(', ')} fichas, e sai ao comecar.</li>
+        <li>Vitoria paga o dobro; empate devolve; desistir, ou fechar a janela no meio, perde.</li>
+      </ul>
+    </>
+  );
+}
+
 export default function RegrasToy() {
   const [aba, setAba] = useState<Aba>('21');
   const { raiz, teclas } = useOpcoesTeclado(aba);
@@ -238,7 +307,7 @@ export default function RegrasToy() {
         ))}
       </div>
       <div role="tabpanel">
-        {aba === '21' ? <Regras21 /> : aba === 'poker' ? <RegrasPoker /> : aba === 'xadrez' ? <RegrasXadrez /> : <RegrasNeo />}
+        {aba === '21' ? <Regras21 /> : aba === 'poker' ? <RegrasPoker /> : aba === 'xadrez' ? <RegrasXadrez /> : aba === 'neo' ? <RegrasNeo /> : <RegrasProtocolo />}
       </div>
     </div>
   );
