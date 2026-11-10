@@ -42,6 +42,64 @@ export function useQuadro(quadroId: number) {
   };
   const tirarItens = (ids: number[]) => mudar(d => comItens(d, l => l.filter(i => !ids.includes(i.id) && !ids.includes(i.item_pai_id ?? -1))));
 
+  // Desfazer: as últimas mudanças de valor, nome e grupo dos itens (da mais nova para a mais antiga), pelo botão do
+  // aviso ou por Ctrl+Z (QuadroPage). Vale só na tela aberta; trocar de quadro esvazia a lista.
+  const pilha = useRef<{ id: number; desfazer: () => Promise<unknown> }[]>([]);
+  useEffect(() => { pilha.current = []; }, [quadroId]);
+  const desfazerPasso = async (id?: number) => {
+    const passo = id == null ? pilha.current[pilha.current.length - 1] : pilha.current.find(p => p.id === id);
+    if (!passo) return false;
+    pilha.current = pilha.current.filter(p => p !== passo);
+    await passo.desfazer();
+    avisar('Desfeito.');
+    return true;
+  };
+  const lembrar = (texto: string, desfazer: () => Promise<unknown>) => {
+    const passo = { id: Date.now() + Math.random(), desfazer };
+    pilha.current = [...pilha.current.slice(-29), passo];
+    avisar(texto, { rotulo: 'Desfazer', onClick: () => { void desfazerPasso(passo.id); } });
+  };
+  const todosItens = () => [...(dados?.itens ?? []), ...(dados?.sub?.itens ?? [])];
+  const colunaDe = (id: number) => [...(dados?.colunas ?? []), ...(dados?.sub?.colunas ?? [])].find(c => c.id === id);
+  const vazioV = (v: unknown) => v == null || v === '' || (Array.isArray(v) && v.length === 0);
+  // Gravações de valor em fila, na ordem em que foram feitas: o "Desfazer" logo depois de uma mudança em lote não pode
+  // terminar antes dela (a gravação mais antiga chegaria por último e desfaria o desfazer).
+  const fila = useRef<Promise<unknown>>(Promise.resolve());
+  const naFila = (f: () => Promise<unknown>) => { const p = fila.current.then(f); fila.current = p.catch(() => undefined); return p; };
+  // Grava o valor de vários itens de uma vez (tela na hora; servidor em partes de 10).
+  const aplicarValores = (mudancas: { itemId: number; valor: unknown }[], colunaId: number) => {
+    const novo = new Map(mudancas.map(m => [m.itemId, m.valor]));
+    mudar(d => comItens(d, l => l.map(i => {
+      if (!novo.has(i.id)) return i;
+      const valores = { ...i.valores };
+      const v = novo.get(i.id);
+      if (vazioV(v)) delete valores[colunaId]; else valores[colunaId] = v;
+      return { ...i, valores };
+    })));
+    return naFila(async () => {
+      for (let k = 0; k < mudancas.length; k += 10) {
+        await gravar(Promise.all(mudancas.slice(k, k + 10).map(m => req('PATCH', `itens/${m.itemId}/valor`, { coluna_id: colunaId, valor: m.valor }))));
+      }
+    });
+  };
+  const definirValor = (itemId: number, colunaId: number, valor: unknown) => {
+    const antes = todosItens().find(i => i.id === itemId)?.valores[colunaId];
+    const igual = JSON.stringify(antes ?? null) === JSON.stringify(vazioV(valor) ? null : valor);
+    if (!igual) lembrar(`“${colunaDe(colunaId)?.titulo ?? 'Campo'}” alterado.`, () => aplicarValores([{ itemId, valor: antes ?? null }], colunaId));
+    return aplicarValores([{ itemId, valor }], colunaId);
+  };
+  // Vários itens selecionados: mudar o campo de um muda o de todos (os que são do quadro da coluna: item com item,
+  // subitem com subitem). Um "Desfazer" volta todos ao valor que cada um tinha.
+  const definirValorEmLote = (itemIds: number[], colunaId: number, valor: unknown) => {
+    const coluna = colunaDe(colunaId);
+    const alvos = todosItens().filter(i => itemIds.includes(i.id) && i.quadro_id === coluna?.quadro_id);
+    const muda = alvos.filter(i => JSON.stringify(i.valores[colunaId] ?? null) !== JSON.stringify(vazioV(valor) ? null : valor));
+    if (!muda.length) return Promise.resolve();
+    const antes = muda.map(i => ({ itemId: i.id, valor: i.valores[colunaId] ?? null }));
+    lembrar(`“${coluna?.titulo ?? 'Campo'}” alterado em ${muda.length} ${muda.length === 1 ? 'item' : 'itens'}.`, () => aplicarValores(antes, colunaId));
+    return aplicarValores(muda.map(i => ({ itemId: i.id, valor })), colunaId);
+  };
+
   // Cria o quadro de subitens na primeira vez que alguém adiciona um subitem.
   const garantirSub = async (): Promise<Sub> => {
     const s = dados?.sub;
@@ -145,19 +203,23 @@ export function useQuadro(quadroId: number) {
       return it;
     },
     renomearItem: (id: number, nome: string) => {
-      mudar(d => comItens(d, l => l.map(i => (i.id === id ? { ...i, nome } : i))));
-      return gravar(api.update('itens', id, { nome }));
+      const antes = todosItens().find(i => i.id === id)?.nome;
+      const renomear = (n: string) => {
+        mudar(d => comItens(d, l => l.map(i => (i.id === id ? { ...i, nome: n } : i))));
+        return gravar(api.update('itens', id, { nome: n }));
+      };
+      if (antes != null && antes !== nome) lembrar('Nome alterado.', () => renomear(antes));
+      return renomear(nome);
     },
-    definirValor: (itemId: number, colunaId: number, valor: unknown) => {
-      mudar(d => comItens(d, l => l.map(i => {
-        if (i.id !== itemId) return i;
-        const valores = { ...i.valores };
-        if (valor == null || valor === '' || (Array.isArray(valor) && valor.length === 0)) delete valores[colunaId];
-        else valores[colunaId] = valor;
-        return { ...i, valores };
-      })));
-      return gravar(req('PATCH', `itens/${itemId}/valor`, { coluna_id: colunaId, valor }));
-    },
+    definirValor,
+    definirValorEmLote,
+    // Célula da tabela: com mais de um item selecionado e este entre eles, a mudança vale para todos (Arquivos não:
+    // os arquivos são de cada item).
+    definirNaCelula: (selecionados: ReadonlySet<number>, itemId: number, coluna: Coluna, valor: unknown) =>
+      (selecionados.size > 1 && selecionados.has(itemId) && coluna.tipo !== 'arquivos'
+        ? definirValorEmLote([...selecionados], coluna.id, valor)
+        : definirValor(itemId, coluna.id, valor)),
+    desfazer: () => desfazerPasso(),
     // Controle de tempo: a conta é feita numa transação sobre o valor gravado (api.ts) e volta o item. Erros voltam
     // para quem chamou (o registro de tempo mostra a mensagem, como "o fim precisa ser depois do início"); a tela
     // recarrega, porque o erro pode vir de uma sessão que outra pessoa já mudou.
@@ -166,8 +228,13 @@ export function useQuadro(quadroId: number) {
       mudar(d => comItens(d, l => l.map(i => (i.id === itemId ? { ...i, valores: it.valores } : i))));
     },
     moverItem: (id: number, grupoId: number, posicao: number) => {
-      mudar(d => ({ ...d, itens: d.itens.map(i => (i.id === id ? { ...i, grupo_id: grupoId, posicao } : i)) }));
-      return gravar(api.update('itens', id, { grupo_id: grupoId, posicao }));
+      const antes = dados?.itens.find(i => i.id === id);
+      const mover = (g: number, p: number) => {
+        mudar(d => ({ ...d, itens: d.itens.map(i => (i.id === id ? { ...i, grupo_id: g, posicao: p } : i)) }));
+        return gravar(api.update('itens', id, { grupo_id: g, posicao: p }));
+      };
+      if (antes) lembrar('Item movido.', () => mover(antes.grupo_id, antes.posicao));
+      return mover(grupoId, posicao);
     },
     excluirItens: async (ids: number[]) => {
       tirarItens(ids);
@@ -188,8 +255,14 @@ export function useQuadro(quadroId: number) {
     },
     moverItens: async (ids: number[], grupoId: number) => {
       const fim = Math.max(0, ...(dados?.itens ?? []).filter(i => i.grupo_id === grupoId).map(i => i.posicao));
-      mudar(d => ({ ...d, itens: d.itens.map(i => (ids.includes(i.id) ? { ...i, grupo_id: grupoId, posicao: fim + 1 + ids.indexOf(i.id) } : i)) }));
-      await gravar(Promise.all(ids.map((id, k) => api.update('itens', id, { grupo_id: grupoId, posicao: fim + 1 + k }))));
+      const antes = (dados?.itens ?? []).filter(i => ids.includes(i.id)).map(i => ({ id: i.id, grupo_id: i.grupo_id, posicao: i.posicao }));
+      const mover = async (l: { id: number; grupo_id: number; posicao: number }[]) => {
+        const m = new Map(l.map(x => [x.id, x]));
+        mudar(d => ({ ...d, itens: d.itens.map(i => (m.has(i.id) ? { ...i, grupo_id: m.get(i.id)!.grupo_id, posicao: m.get(i.id)!.posicao } : i)) }));
+        await gravar(Promise.all(l.map(x => api.update('itens', x.id, { grupo_id: x.grupo_id, posicao: x.posicao }))));
+      };
+      if (antes.length) lembrar(`${antes.length === 1 ? 'Item movido' : `${antes.length} itens movidos`}.`, () => mover(antes));
+      await mover(ids.map((id, k) => ({ id, grupo_id: grupoId, posicao: fim + 1 + k })));
     },
     // Ajuste local de campos calculados (contadores), sem gravar; ignora se nada mudou.
     ajustarItem: (itemId: number, campos: Partial<Item>) =>
@@ -204,7 +277,7 @@ export function useQuadro(quadroId: number) {
   };
 
   // Quadro só para ver: as ações que gravam viram um aviso (o servidor também recusa).
-  const LOCAIS = new Set(['recarregar', 'ajustarItem', 'contarAtualizacao']);
+  const LOCAIS = new Set(['recarregar', 'ajustarItem', 'contarAtualizacao', 'desfazer']);
   const finais = dados?.quadro.permissao === 'ver'
     ? (Object.fromEntries(Object.entries(acoes).map(([k, f]) => [k, LOCAIS.has(k) ? f : () => {
       avisar('Você só pode ver este quadro.');

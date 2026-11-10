@@ -272,7 +272,7 @@ export function Tabela({ grupos: gruposReais, colunas: colunasVisiveis, todasCol
                       {colunas.map(c => (
                         <td key={c.id} className={`tq-cel tipo-${c.tipo}${classeFixa(c)}`} style={estiloFixa(c)}>
                           <Celula coluna={c} valor={i.valores[c.id]} usuarios={usuarios} item={i} colunas={todasColunas}
-                            onMudar={v => acoes.definirValor(i.id, c.id, v)} onTempo={op => acoes.tempo(i.id, c.id, op)} onConfig={config => acoes.atualizarColuna(c.id, { config })} />
+                            onMudar={v => acoes.definirNaCelula(selecionados, i.id, c, v)} onTempo={op => acoes.tempo(i.id, c.id, op)} onConfig={config => acoes.atualizarColuna(c.id, { config })} />
                         </td>
                       ))}
                       <td />

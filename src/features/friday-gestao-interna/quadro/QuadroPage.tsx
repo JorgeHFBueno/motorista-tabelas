@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useParams, useSearchParams } from 'react-router-dom';
 import { useNavigate } from '../rotas.tsx';
 import {
@@ -41,6 +41,20 @@ export default function QuadroPage() {
   const [params, setParams] = useSearchParams();
   const q = useQuadro(quadroId);
   const { dados } = q;
+  // Ctrl+Z (Cmd+Z no Mac) desfaz a última mudança do quadro; dentro de um campo de texto, fica o desfazer do navegador.
+  const desfazer = useRef(q.desfazer);
+  desfazer.current = q.desfazer;
+  useEffect(() => {
+    const tecla = (e: KeyboardEvent) => {
+      if (!(e.ctrlKey || e.metaKey) || e.shiftKey || e.altKey || e.key.toLowerCase() !== 'z') return;
+      const alvo = e.target as HTMLElement | null;
+      if (alvo?.closest('input, textarea, select, [contenteditable="true"]')) return;
+      e.preventDefault();
+      void desfazer.current();
+    };
+    document.addEventListener('keydown', tecla);
+    return () => document.removeEventListener('keydown', tecla);
+  }, []);
 
   const [busca, setBusca] = useState('');
   // Quem só vê troca mês/semana só na própria tela; quem edita salva na visão.
