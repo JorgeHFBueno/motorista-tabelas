@@ -58,6 +58,9 @@ test('chat runs read-only tools, keeps the turn append-only and reports consulte
   assert.equal(results[1].is_error, true);
   assert.match(results[2].content, /colecao:bombas/);
   assert.ok(first.system[0].text.includes('Estado da bomba.'));
+  // Perguntas sobre a equipe: só 00_EQUIPE.md e o aviso no fim (pedido do responsável, 2026-11-10).
+  assert.ok(first.system[0].text.includes('00_EQUIPE.md'));
+  assert.ok(first.system[0].text.includes('Se mantenha apenas em perguntas de uso real.'));
 });
 
 test('chat stops on refusal and on the round limit', async () => {
