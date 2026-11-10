@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Alert, Box, Button, CircularProgress, Container, Paper, Stack, Tab, Tabs } from '@mui/material';
 import { doc, onSnapshot } from 'firebase/firestore';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useParams } from 'react-router-dom';
 import { db } from '../../firebase';
 import { useTituloPagina } from '../../components/cabecalhoPagina';
 import { carregarObra } from '../obras/obrasData';
@@ -33,7 +33,6 @@ type Estado<T> = { status: 'carregando' } | { status: 'erro' } | { status: 'ok';
 
 export default function ContratoPortalPage() {
   const { id = '' } = useParams();
-  const navigate = useNavigate();
   const [obra, setObra] = useState<Estado<ObraDetalhe | null>>({ status: 'carregando' });
   const [contrato, setContrato] = useState<Estado<ContratoPortal | null>>({ status: 'carregando' });
   const [aba, setAba] = useState<Aba>('resumo');
@@ -65,8 +64,6 @@ export default function ContratoPortalPage() {
     publicado ? `Cliente ${formatarDocumento(publicado.clienteDocumento)}` : contrato.status === 'ok' ? 'Não publicado no portal' : undefined,
   );
 
-  const voltar = () => navigate('/portal-cliente/contratos');
-
   if (obra.status === 'carregando' || contrato.status === 'carregando') {
     return <Container sx={{ py: 3 }}><Box display="flex" justifyContent="center" py={6}><CircularProgress /></Box></Container>;
   }
@@ -74,7 +71,7 @@ export default function ContratoPortalPage() {
   if (contrato.status === 'erro' || obra.status === 'erro') {
     return (
       <Container sx={{ py: 3 }}>
-        <Alert severity="error" action={<Button color="inherit" onClick={voltar}>Voltar</Button>}>
+        <Alert severity="error">
           Não foi possível carregar o contrato. Tente novamente.
         </Alert>
       </Container>
@@ -89,11 +86,10 @@ export default function ContratoPortalPage() {
             Este contrato não está publicado no portal: os clientes não o veem.
             <Stack direction="row" spacing={1} sx={{ mt: 1.5 }}>
               <Button variant="contained" size="small" onClick={() => setPublicando(true)}>Publicar no portal</Button>
-              <Button size="small" onClick={voltar}>Voltar aos contratos</Button>
             </Stack>
           </Alert>
         ) : (
-          <Alert severity="warning" action={<Button color="inherit" onClick={voltar}>Voltar</Button>}>
+          <Alert severity="warning">
             Contrato não encontrado em obras-v2.
           </Alert>
         )}

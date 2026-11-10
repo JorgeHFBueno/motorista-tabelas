@@ -89,7 +89,7 @@ export default function App() {
               <Route path="checklist" element={<ChecklistInicioPage />} />
               <Route path="checklist/itens" element={<ChecklistItensPage />} />
               <Route path="checklist/historico" element={<ChecklistHistoricoPage />} />
-              <Route path="checklist/historico/:id" element={<ChecklistDetalhePage voltarPara="/checklist/historico" voltarRotulo="Histórico" />} />
+              <Route path="checklist/historico/:id" element={<ChecklistDetalhePage />} />
             </Route>
             {/* Área DEV: só a credencial retr0, nem o adm2 entra sem ela. */}
             <Route element={<PrivateRoute permite={(p) => temCredencial(p, 'retr0')} />}>

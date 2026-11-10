@@ -182,9 +182,6 @@ export default function CombustivelNovoPage() {
 
   return (
     <Stack component="form" onSubmit={submit} spacing={2} sx={{ p: 2, maxWidth: 1100 }}>
-      <Stack direction="row" justifyContent="flex-end" alignItems="center">
-        <Button onClick={() => navigate('/combustivel')}>Voltar</Button>
-      </Stack>
       {error && <Alert severity="error">{error}</Alert>}
 
       <Paper sx={{ p: 2 }}>

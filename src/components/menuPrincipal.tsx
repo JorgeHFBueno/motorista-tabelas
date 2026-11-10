@@ -153,3 +153,9 @@ export function filtrarMenuPrincipal(profile: AuthorizationProfile | null): Menu
     return temCredencial(profile, ...item.acesso);
   });
 }
+
+// Quem só tem o Checklist (além do Meu perfil, no menu do usuário) entra direto nele: é o caso do mecânico no iPhone.
+export function soChecklist(profile: AuthorizationProfile | null): boolean {
+  const areas = filtrarMenuPrincipal(profile).filter((item) => item.acesso !== 'qualquer');
+  return areas.length === 1 && areas[0].to === '/checklist';
+}

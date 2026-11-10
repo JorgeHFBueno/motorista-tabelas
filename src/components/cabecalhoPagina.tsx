@@ -3,18 +3,30 @@ import { matchPath, useLocation } from 'react-router-dom';
 
 // Title and subtitle of the current page, shown in the header (same model as the client portal). Each route has a default
 // here; a page whose title depends on its data (a vehicle, a checklist) sets it with useTituloPagina.
+// The list is also the map of pages used by the header's back button (rotaAnterior).
 export type TituloPagina = { titulo: string; subtitulo?: string };
+
+const FRIDAY = { titulo: 'Friday', subtitulo: 'Gestão interna em quadros' };
+const CHECKLIST = { titulo: 'Checklist' };
 
 const TITULOS: Array<{ padrao: string } & TituloPagina> = [
   // /login and /acesso-negado have no title: the header shows the logo there.
   { padrao: '/', titulo: 'Bem-vindo ao painel', subtitulo: 'Escolha uma área para começar a trabalhar.' },
   { padrao: '/perfil', titulo: 'Meu perfil' },
-  { padrao: '/friday/*', titulo: 'Friday', subtitulo: 'Gestão interna em quadros' },
+  { padrao: '/friday', ...FRIDAY },
+  { padrao: '/friday/meu-trabalho', ...FRIDAY },
+  { padrao: '/friday/arquivo', ...FRIDAY },
+  { padrao: '/friday/importar-monday', ...FRIDAY },
+  { padrao: '/friday/quadros/:id', ...FRIDAY },
+  { padrao: '/friday/quadros/:id/automacoes', ...FRIDAY },
   { padrao: '/engenharia/cronograma', titulo: 'Cronograma de Obras' },
   { padrao: '/engenharia/prazos', titulo: 'Cronograma de prazos contratuais', subtitulo: 'Obras públicas' },
   { padrao: '/engenharia/obras', titulo: 'Obras' },
   { padrao: '/engenharia/obras/:id', titulo: 'Detalhes da Obra' },
-  { padrao: '/checklist/*', titulo: 'Checklist' },
+  { padrao: '/checklist', ...CHECKLIST },
+  { padrao: '/checklist/itens', ...CHECKLIST },
+  { padrao: '/checklist/historico', ...CHECKLIST },
+  { padrao: '/checklist/historico/:id', ...CHECKLIST },
   { padrao: '/dev', titulo: 'DEV' },
   { padrao: '/the-manuscript/*', titulo: 'The Manuscript' },
   { padrao: '/combustivel', titulo: 'Combustível' },
@@ -42,6 +54,22 @@ const tituloDaRota = (caminho: string): TituloPagina | null => {
   const encontrado = TITULOS.find(({ padrao }) => matchPath({ path: padrao, end: true }, caminho));
   return encontrado ? { titulo: encontrado.titulo, subtitulo: encontrado.subtitulo } : null;
 };
+
+// A path that is a page of its own. A "/*" route (The Manuscript's documents) counts only at its root.
+const ehPagina = (caminho: string) =>
+  TITULOS.some(({ padrao }) => (padrao.endsWith('/*') ? padrao.slice(0, -2) === caminho : matchPath({ path: padrao, end: true }, caminho)));
+
+// Where the header's back button goes: up the URL to the nearest page, until the Home
+// (/cadastros/usuarios/novo -> /cadastros -> /). A group without a page of its own (/frota) is skipped. Null on the Home.
+export function rotaAnterior(caminho: string): string | null {
+  const partes = caminho.split('/').filter(Boolean);
+  if (partes.length === 0) return null;
+  for (let fim = partes.length - 1; fim > 0; fim -= 1) {
+    const ancestral = `/${partes.slice(0, fim).join('/')}`;
+    if (ehPagina(ancestral)) return ancestral;
+  }
+  return '/';
+}
 
 type ContextoCabecalho = {
   titulo: TituloPagina | null;

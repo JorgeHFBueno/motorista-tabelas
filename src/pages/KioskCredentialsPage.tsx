@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Link as RouterLink, Navigate } from 'react-router-dom';
+import { Navigate } from 'react-router-dom';
 import { DataGrid, type GridColDef } from '@mui/x-data-grid';
-import { Alert, Box, Button, CircularProgress, Container, Dialog, DialogActions, DialogContent, DialogTitle, Paper, Snackbar, Stack, TextField, Typography } from '@mui/material';
+import { Alert, Button, CircularProgress, Container, Dialog, DialogActions, DialogContent, DialogTitle, Paper, Snackbar, Stack, TextField, Typography } from '@mui/material';
 import { useAuth } from '../contexts/AuthContext';
 import { temCredencial } from '../services/credenciais';
 import { useAuthorizationProfile } from '../hooks/useAuthorizationProfile';
@@ -105,7 +105,6 @@ export default function KioskCredentialsPage() {
   const pinNeedsEntry = pinAction?.type === 'set' || pinAction?.type === 'change';
   const pinTitle = pinAction ? `${pinAction.type === 'set' ? 'Definir' : pinAction.type === 'change' ? 'Alterar' : pinAction.type === 'disable' ? 'Desativar' : 'Reativar'} PIN de ${userName(pinAction.user)}${pinNeedsEntry ? '' : '?'}` : '';
   return <Container maxWidth="xl" sx={{ py: 3 }}><Stack spacing={3}>
-    <Box><Stack direction={{ xs: 'column', sm: 'row' }} justifyContent="flex-end" spacing={2}><Button variant="outlined" component={RouterLink} to="/cadastros">Voltar para Cadastros</Button></Stack></Box>
     <Paper elevation={1} sx={{ p: 2 }}><Stack spacing={2}>{usersError && <Alert severity="error" action={<Button color="inherit" size="small" onClick={() => void reload()}>Tentar novamente</Button>}>Não foi possível carregar funcionários.</Alert>}{statusError && <Alert severity="error" action={<Button color="inherit" size="small" onClick={() => void loadStatuses()}>Tentar novamente</Button>}>{statusError}</Alert>}<DataGrid autoHeight rows={employees} columns={columns} loading={usersLoading || statusLoading} getRowId={(row) => row.uid} pageSizeOptions={[10, 25, 50]} initialState={{ pagination: { paginationModel: { pageSize: 25, page: 0 } } }} disableRowSelectionOnClick /></Stack></Paper>
   </Stack>
   <Dialog open={Boolean(pending)} onClose={() => !submitting && setPending(null)}><DialogTitle>{pending?.type === 'revoke' ? `Revogar QR de ${pending && userName(pending.user)}?` : `${isRotation ? 'Substituir' : 'Emitir'} QR para ${pending && userName(pending.user)}?`}</DialogTitle><DialogContent><Typography>{pending?.type === 'revoke' ? 'O QR atual deixará de autenticar no Kiosk.' : isRotation ? 'O QR atualmente utilizado deixará de funcionar imediatamente após a substituição.' : 'O QR será exibido apenas uma vez. Salve ou imprima antes de fechar.'}</Typography></DialogContent><DialogActions><Button disabled={submitting} onClick={() => setPending(null)}>Cancelar</Button><Button variant="contained" color={pending?.type === 'revoke' ? 'error' : 'primary'} disabled={submitting} onClick={() => void submit()}>{submitting ? 'Aguarde...' : 'Confirmar'}</Button></DialogActions></Dialog>

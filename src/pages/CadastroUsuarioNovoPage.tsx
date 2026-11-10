@@ -2,7 +2,6 @@ import { useMemo, useState } from 'react';
 import { Link as RouterLink, useNavigate } from 'react-router-dom';
 import {
   Alert,
-  Box,
   Button,
   Checkbox,
   Container,
@@ -134,16 +133,6 @@ export default function CadastroUsuarioNovoPage() {
   return (
     <Container maxWidth="md" sx={{ py: 3 }}>
       <Stack spacing={3}>
-        <Box>
-          <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2} justifyContent="flex-end">
-            <Stack direction="row" spacing={1} alignItems="center">
-              <Button variant="outlined" component={RouterLink} to="/cadastros">
-                Voltar
-              </Button>
-            </Stack>
-          </Stack>
-        </Box>
-
         <Paper elevation={1} sx={{ p: 3 }}>
           <Stack spacing={3}>
             <TextField

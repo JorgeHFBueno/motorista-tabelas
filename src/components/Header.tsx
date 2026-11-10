@@ -3,14 +3,17 @@ import MenuRoundedIcon from '@mui/icons-material/MenuRounded';
 import PersonOutlineRoundedIcon from '@mui/icons-material/PersonOutlineRounded';
 import LogoutRoundedIcon from '@mui/icons-material/LogoutRounded';
 import ExpandMoreRoundedIcon from '@mui/icons-material/ExpandMoreRounded';
+import ArrowBackRoundedIcon from '@mui/icons-material/ArrowBackRounded';
 import { Bell } from 'lucide-react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useState } from 'react';
 import MenuLateral from './MenuLateral';
 import { useAuth } from '../contexts/AuthContext';
-import { useCabecalhoPagina } from './cabecalhoPagina';
+import { rotaAnterior, useCabecalhoPagina } from './cabecalhoPagina';
+import { soChecklist } from './menuPrincipal';
 
-// Header in the client portal's model: menu button, page title and subtitle, notices and the signed-in user.
+// Header in the client portal's model: menu button, back button, page title and subtitle, notices and the signed-in user.
+// Back goes up the URL to the nearest page, until the Home (rotaAnterior); the pages have no back buttons of their own.
 // Pages without the side menu: the Home is the menu itself; the others are for whoever has not signed in yet. The mechanic's
 // checklist is full screen for phones.
 const SEM_MENU_LATERAL = ['/', '/login', '/acesso-negado'];
@@ -51,6 +54,10 @@ export default function Header() {
   const [menuLateralOpen, setMenuLateralOpen] = useState(false);
   const [menuUsuario, setMenuUsuario] = useState<HTMLElement | null>(null);
   const comMenuLateral = Boolean(currentUser) && !semMenuLateral(location.pathname);
+  const anterior = rotaAnterior(location.pathname);
+  // Not before signing in, and not for whoever only has the Checklist: the Home sends them straight back to it.
+  const comVoltar = Boolean(currentUser) && anterior !== null && !['/login', '/acesso-negado'].includes(location.pathname)
+    && !(anterior === '/' && soChecklist(authorizationProfile));
   const nome = authorizationProfile?.nome || currentUser?.displayName || currentUser?.email || '';
 
   return (
@@ -64,6 +71,14 @@ export default function Header() {
             <Tooltip title="Menu">
               <IconButton aria-label="Abrir menu" onClick={() => setMenuLateralOpen(true)} sx={{ ...botaoClaroSx, width: 40, height: 40 }}>
                 <MenuRoundedIcon />
+              </IconButton>
+            </Tooltip>
+          )}
+
+          {comVoltar && anterior && (
+            <Tooltip title="Voltar">
+              <IconButton aria-label="Voltar" component={Link} to={anterior} sx={{ ...botaoClaroSx, width: 40, height: 40 }}>
+                <ArrowBackRoundedIcon />
               </IconButton>
             </Tooltip>
           )}

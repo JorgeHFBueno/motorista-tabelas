@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Alert, Box, Button, CircularProgress, Container, Stack } from '@mui/material';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useSearchParams } from 'react-router-dom';
 import FrotaAnalyticsPanel from '../components/FrotaAnalyticsPanel';
 import FrotaGastosPorVeiculo from '../components/FrotaGastosPorVeiculo';
 import { listItensFrota } from '../services/veiculos.service';
@@ -8,7 +8,6 @@ import type { VehicleAnalyticsIdentity } from '../services/frota-analytics.servi
 import type { ItemFrotaV2 } from '../utils/cadastrosV2';
 
 export default function FrotaAnalyticsPage() {
-  const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const [itens, setItens] = useState<ItemFrotaV2[]>([]);
   const [vehicles, setVehicles] = useState<VehicleAnalyticsIdentity[]>([]);
@@ -53,12 +52,11 @@ export default function FrotaAnalyticsPage() {
 
   return (
     <Container sx={{ py: 4 }}>
-      <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2} justifyContent="flex-end" alignItems={{ xs: 'flex-start', sm: 'center' }}>
-        <Stack direction="row" spacing={1}>
-          {selectedVehicle && <Button variant="text" onClick={() => setSearchParams({}, { replace: true })}>Visão geral</Button>}
-          <Button variant="outlined" onClick={() => navigate('/frota/veiculos')}>Voltar para Veículos</Button>
+      {selectedVehicle && (
+        <Stack direction="row" justifyContent="flex-end">
+          <Button variant="text" onClick={() => setSearchParams({}, { replace: true })}>Visão geral</Button>
         </Stack>
-      </Stack>
+      )}
 
       {error && <Alert severity="error" sx={{ mt: 3 }}>{error}</Alert>}
       {!loading && vehicleId && !selectedVehicle && !error && <Alert severity="warning" sx={{ mt: 3 }}>O veículo informado não foi encontrado. Exibindo a visão geral.</Alert>}

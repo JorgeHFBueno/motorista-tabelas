@@ -1174,12 +1174,9 @@ export default function FrotaVeiculoDetalhesPage() {
     if (error) {
         return (
             <Container sx={{ py: 4 }}>
-                <Alert severity="error" sx={{ mb: 2 }}>
+                <Alert severity="error">
                     {error}
                 </Alert>
-                <Button variant="outlined" onClick={() => navigate('/frota/veiculos')}>
-                    Voltar para Veículos
-                </Button>
             </Container>
         );
     }
@@ -1188,9 +1185,6 @@ export default function FrotaVeiculoDetalhesPage() {
         <Container sx={{ py: 4 }}>
             <Stack direction={{ xs: 'column', md: 'row' }} spacing={2} justifyContent="flex-end" alignItems="center">
                 <Stack direction="row" spacing={2}>
-                    <Button variant="outlined" onClick={() => navigate('/frota/veiculos')}>
-                        Voltar para Veículos
-                    </Button>
                     {veiculo && (
                         <>
                             <Button variant="outlined" onClick={() => navigate(`/frota/analytics?veiculo=${encodeURIComponent(veiculo.id)}`)}>Ver no Analytics</Button>

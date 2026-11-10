@@ -17,7 +17,7 @@ import {
   TableRow,
   Typography,
 } from '@mui/material';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useParams } from 'react-router-dom';
 import {
   carregarAlocacoesDaObra,
   carregarAtividadesDaObra,
@@ -106,7 +106,6 @@ const Vazio = ({ children }: { children: ReactNode }) => <Typography color="text
 
 export default function ObraDetalhesPage() {
   const { id = '' } = useParams();
-  const navigate = useNavigate();
   const [obra, setObra] = useState<ObraDetalhe | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -197,8 +196,7 @@ export default function ObraDetalhesPage() {
   if (error || !obra) {
     return (
       <Container sx={{ py: 4 }}>
-        <Alert severity="error" sx={{ mb: 2 }}>{error ?? 'Obra não encontrada.'}</Alert>
-        <Button variant="outlined" onClick={() => navigate('/engenharia/obras')}>Voltar para Obras</Button>
+        <Alert severity="error">{error ?? 'Obra não encontrada.'}</Alert>
       </Container>
     );
   }
@@ -209,7 +207,6 @@ export default function ObraDetalhesPage() {
     <Container sx={{ py: 4 }}>
       <Stack direction={{ xs: 'column', md: 'row' }} spacing={2} justifyContent="flex-end" alignItems="center">
         <Stack direction="row" spacing={2}>
-          <Button variant="outlined" onClick={() => navigate('/engenharia/obras')}>Voltar para Obras</Button>
           <Button variant="contained" onClick={gerarRelatorio} disabled={carregandoPartes || gerando}>
             {carregandoPartes ? 'Carregando dados...' : 'Gerar Relatório'}
           </Button>

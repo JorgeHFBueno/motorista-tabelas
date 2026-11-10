@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Alert, Box, Button, Card, CardContent, Chip, CircularProgress, Container, Dialog, DialogActions, DialogContent, DialogTitle, Divider, Stack, Typography } from '@mui/material';
-import ArrowBackIcon from '@mui/icons-material/ArrowBack';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useParams } from 'react-router-dom';
 import { useTituloPagina } from '../components/cabecalhoPagina';
 import { arquivoDaFoto, obterChecklist, urlDaFoto, type Checklist, type ChecklistFoto, type ChecklistItem, type ChecklistStatus } from '../services/checklists.service';
 
@@ -91,9 +90,8 @@ function Item({ item, onAbrir }: { item: ChecklistItem; onAbrir: (aberta: FotoAb
 }
 
 /** Detalhe de um checklist: em /frota/checklists (adm2) e no histórico do mecânico (/checklist/historico). */
-export default function ChecklistDetalhePage({ voltarPara = '/frota/checklists', voltarRotulo = 'Checklists' }: { voltarPara?: string; voltarRotulo?: string }) {
+export default function ChecklistDetalhePage() {
   const { id = '' } = useParams();
-  const navigate = useNavigate();
   const [checklist, setChecklist] = useState<Checklist | null>(null);
   const [estado, setEstado] = useState<'carregando' | 'ok' | 'nao-encontrado' | 'erro'>('carregando');
   const [aberta, setAberta] = useState<FotoAberta | null>(null);
@@ -114,12 +112,11 @@ export default function ChecklistDetalhePage({ voltarPara = '/frota/checklists',
     return [...grupos.entries()];
   }, [checklist]);
 
-  const voltar = <Button startIcon={<ArrowBackIcon />} variant="outlined" onClick={() => navigate(voltarPara)}>{voltarRotulo}</Button>;
   useTituloPagina(checklist ? `Checklist ${checklist.placa}` : null);
 
   if (estado === 'carregando') return <Container sx={{ py: 4 }}><CircularProgress /></Container>;
   if (estado !== 'ok' || !checklist) {
-    return <Container sx={{ py: 3 }}><Stack spacing={2}>{voltar}<Alert severity={estado === 'erro' ? 'error' : 'warning'}>{estado === 'erro' ? 'Não foi possível carregar o checklist.' : 'Checklist não encontrado.'}</Alert></Stack></Container>;
+    return <Container sx={{ py: 3 }}><Alert severity={estado === 'erro' ? 'error' : 'warning'}>{estado === 'erro' ? 'Não foi possível carregar o checklist.' : 'Checklist não encontrado.'}</Alert></Container>;
   }
 
   const c = checklist;
@@ -137,10 +134,7 @@ export default function ChecklistDetalhePage({ voltarPara = '/frota/checklists',
   return (
     <Container sx={{ py: 3 }}>
       <Stack spacing={2}>
-        <Stack direction="row" spacing={2} alignItems="center" flexWrap="wrap" useFlexGap>
-          {voltar}
-          {c.migradoDoLegado && <Chip size="small" label="Checklist antigo" />}
-        </Stack>
+        {c.migradoDoLegado && <Chip size="small" label="Checklist antigo" sx={{ alignSelf: 'flex-start' }} />}
         <Card><CardContent>
           <Stack direction={{ xs: 'column', md: 'row' }} spacing={3} flexWrap="wrap" useFlexGap>
             {resumo.map(([k, v]) => <Box key={k}><Typography variant="caption" color="text.secondary">{k}</Typography><Typography>{v}</Typography></Box>)}

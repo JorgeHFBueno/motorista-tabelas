@@ -4,7 +4,7 @@ import ChevronRightRoundedIcon from '@mui/icons-material/ChevronRightRounded';
 import { useState } from 'react';
 import { Navigate, useNavigate } from 'react-router-dom';
 import { useAuthorizationProfile } from '../hooks/useAuthorizationProfile';
-import { filtrarMenuPrincipal } from '../components/menuPrincipal';
+import { filtrarMenuPrincipal, soChecklist } from '../components/menuPrincipal';
 
 export default function HomeDashboard() {
   const navigate = useNavigate();
@@ -17,9 +17,7 @@ export default function HomeDashboard() {
   }
 
   const resolvedActions = filtrarMenuPrincipal(profile);
-  // Quem só tem o Checklist (além do Meu perfil, no menu do usuário) entra direto nele: é o caso do mecânico no iPhone.
-  const areas = resolvedActions.filter((action) => action.acesso !== 'qualquer');
-  if (areas.length === 1 && areas[0].to === '/checklist') return <Navigate to="/checklist" replace />;
+  if (soChecklist(profile)) return <Navigate to="/checklist" replace />;
   // Duas colunas de verdade (alternando, na ordem do menu): abrir um grupo de um lado não empurra o outro.
   const colunas = duasColunas
     ? [resolvedActions.filter((_item, index) => index % 2 === 0), resolvedActions.filter((_item, index) => index % 2 === 1)]

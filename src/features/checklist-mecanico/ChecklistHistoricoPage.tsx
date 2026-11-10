@@ -1,5 +1,4 @@
 import { Alert, Box, Button, Card, CardActionArea, CardContent, Chip, CircularProgress, Stack, Typography } from '@mui/material';
-import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
@@ -46,10 +45,7 @@ export default function ChecklistHistoricoPage() {
   const enviados = new Set(lista?.map((c) => c.id));
   return (
     <Box sx={{ maxWidth: 640, mx: 'auto', px: 2, py: 2, pb: 6 }}>
-      <Stack direction="row" spacing={1.5} alignItems="center" sx={{ mb: 2 }}>
-        <Button variant="outlined" startIcon={<ArrowBackIcon />} onClick={() => navigate('/checklist')}>Checklist</Button>
-        <Typography variant="h5" fontWeight={800}>Histórico</Typography>
-      </Stack>
+      <Typography variant="h5" fontWeight={800} sx={{ mb: 2 }}>Histórico</Typography>
       <Stack spacing={1.5}>
         {pendentes.filter((p) => !enviados.has(p.rascunho.id)).map((p) => (
           <Card key={p.rascunho.id} variant="outlined">

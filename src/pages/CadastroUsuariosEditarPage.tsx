@@ -107,7 +107,6 @@ export default function CadastroUsuariosEditarPage() {
         <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2} justifyContent="flex-end">
           <Stack direction="row" spacing={1} alignItems="center">
             <Button variant="contained" component={RouterLink} to="/cadastros/usuarios/novo">Novo usuário</Button>
-            <Button variant="outlined" component={RouterLink} to="/cadastros">Voltar</Button>
           </Stack>
         </Stack>
 
