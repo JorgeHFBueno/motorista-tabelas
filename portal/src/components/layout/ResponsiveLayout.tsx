@@ -17,8 +17,9 @@ const ResponsiveLayout = ({
 }: ResponsiveLayoutProps) => {
   return (
     <div className="min-h-screen bg-background flex w-full">
-      {/* Main content area; the side menu opens from the header's ☰ button */}
-      <div className="flex-1 flex flex-col min-h-screen lg:max-h-screen lg:overflow-hidden">
+      {/* Main content area; the side menu opens from the header's ☰ button. min-w-0 keeps wide rows (the
+          Docs and Fotos filters) scrolling inside the page instead of widening it on phones. */}
+      <div className="flex-1 min-w-0 flex flex-col min-h-screen lg:max-h-screen lg:overflow-hidden">
         {/* Top header for tablet/desktop */}
         <ResponsiveHeader 
           pageTitle={headerTitle}
