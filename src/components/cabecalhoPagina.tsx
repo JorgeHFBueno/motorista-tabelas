@@ -7,7 +7,8 @@ import { matchPath, useLocation } from 'react-router-dom';
 // The list is also the map of pages used by the header's back button (rotaAnterior).
 export type TituloPagina = { titulo: string; subtitulo?: string; logo?: string };
 
-const FRIDAY = { titulo: 'Friday' };
+// Logo do Friday (texto branco para o cabeçalho escuro) em todas as telas do Friday.
+const FRIDAY = { titulo: 'Friday', logo: '/logo-friday.png' };
 // Abastecedora Ledur logo (white with an amber shadow) on the fuel pages.
 const ABASTECEDORA = { logo: '/logo-abastecedora-ledur.svg' };
 

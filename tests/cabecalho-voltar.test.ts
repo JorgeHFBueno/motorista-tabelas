@@ -105,6 +105,16 @@ test('Registros e Bombas de combustível mostram a logo Abastecedora Ledur no lu
   assert.match(readFileSync('src/components/Header.tsx', 'utf8'), /src=\{pagina\.logo\} alt=\{pagina\.titulo\}/);
 });
 
+test('Friday: logo no cabeçalho de todas as telas e o "F" da logo no menu (2026-11-10)', () => {
+  const cabecalho = readFileSync('src/components/cabecalhoPagina.tsx', 'utf8');
+  assert.match(cabecalho, /const FRIDAY = \{ titulo: 'Friday', logo: '\/logo-friday\.png' \}/);
+  assert.equal(cabecalho.match(/padrao: '\/friday[^']*', \.\.\.FRIDAY/g)?.length, cabecalho.match(/padrao: '\/friday/g)?.length);
+  assert.deepEqual([...readFileSync('public/logo-friday.png').subarray(1, 4)].map((c) => String.fromCharCode(c)).join(''), 'PNG');
+  const menu = readFileSync('src/components/menuPrincipal.tsx', 'utf8');
+  assert.match(menu, /label: 'Friday',\s*icon: <IconeFriday /);
+  assert.doesNotMatch(menu, /ViewKanban/);
+});
+
 test('Nova entrada de diesel fica no card da bomba, abaixo do seletor', () => {
   const bombas = readFileSync('src/pages/BombasPage.tsx', 'utf8');
   const seletor = bombas.indexOf("'aria-label': 'Selecionar bomba'");

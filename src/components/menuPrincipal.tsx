@@ -13,7 +13,6 @@ import CalendarMonthIcon from '@mui/icons-material/CalendarMonth';
 import EventBusyIcon from '@mui/icons-material/EventBusy';
 import ConstructionIcon from '@mui/icons-material/Construction';
 import MenuBookRoundedIcon from '@mui/icons-material/MenuBookRounded';
-import ViewKanbanOutlinedIcon from '@mui/icons-material/ViewKanbanOutlined';
 import PersonOutlineRoundedIcon from '@mui/icons-material/PersonOutlineRounded';
 import HandshakeOutlinedIcon from '@mui/icons-material/HandshakeOutlined';
 import PeopleAltOutlinedIcon from '@mui/icons-material/PeopleAltOutlined';
@@ -23,6 +22,7 @@ import DescriptionOutlinedIcon from '@mui/icons-material/DescriptionOutlined';
 import SupportAgentOutlinedIcon from '@mui/icons-material/SupportAgentOutlined';
 import NewspaperOutlinedIcon from '@mui/icons-material/NewspaperOutlined';
 import IconeDev from '../features/dev-toys/IconeDev';
+import IconeFriday from '../features/friday-gestao-interna/IconeFriday';
 import type { AuthorizationProfile } from '../services/authorizationProfile';
 import { temAlgumaCredencial, temCredencial, type Credencial } from '../services/credenciais';
 
@@ -54,7 +54,7 @@ export const menuPrincipal: MenuPrincipalItem[] = [
   },
   {
     label: 'Friday',
-    icon: <ViewKanbanOutlinedIcon fontSize="large" />,
+    icon: <IconeFriday fontSize="large" />,
     color: '#EAF4FF',
     accent: '#1F4E8C',
     to: '/friday',
