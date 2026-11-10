@@ -3,7 +3,8 @@
 import { collection, doc, getDocs, setDoc, updateDoc } from 'firebase/firestore';
 import { db } from '../../firebase';
 
-export type ChaveApi = { hash: string; uid: string; nome: string; sufixo: string; criado_por: string; criado_em: string; revogada_em: string | null; revogada_por?: string; ultimo_uso?: string };
+// escrita: a chave também grava (POST); definida na criação e não muda. ultima_escrita é gravada pela Function.
+export type ChaveApi = { hash: string; uid: string; nome: string; sufixo: string; escrita?: boolean; criado_por: string; criado_em: string; revogada_em: string | null; revogada_por?: string; ultimo_uso?: string; ultima_escrita?: string };
 
 export const ENDERECO_API = 'https://southamerica-east1-app-motor-api.cloudfunctions.net/fridayApi';
 const COLECAO = 'friday-chaves-api';
@@ -27,9 +28,9 @@ export async function listarChavesApi(): Promise<ChaveApi[]> {
 }
 
 /** Cria a chave da pessoa e devolve o texto dela (a única vez em que ele existe fora de quem copiou). */
-export async function criarChaveApi(uid: string, nome: string, criadoPor: string): Promise<string> {
+export async function criarChaveApi(uid: string, nome: string, criadoPor: string, escrita: boolean): Promise<string> {
   const chave = gerarChave();
-  await setDoc(doc(db, COLECAO, await sha256(chave)), { uid, nome: nome.trim().slice(0, 80), sufixo: chave.slice(-4), criado_por: criadoPor, criado_em: agora(), revogada_em: null });
+  await setDoc(doc(db, COLECAO, await sha256(chave)), { uid, nome: nome.trim().slice(0, 80), sufixo: chave.slice(-4), ...(escrita ? { escrita: true } : {}), criado_por: criadoPor, criado_em: agora(), revogada_em: null });
   return chave;
 }
 

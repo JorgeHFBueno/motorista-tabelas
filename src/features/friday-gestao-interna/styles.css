@@ -456,13 +456,17 @@ body.redimensionando .friday-root, body.redimensionando .friday-root * { cursor:
 .friday-root .pagina-cab h1 { font-size: 26px; }
 .friday-root .pagina-cab p { margin: 4px 0 0; text-transform: none; }
 /* Chaves de API (só adm2) */
-.friday-root .tabela-chaves { width: 100%; border-collapse: collapse; font-size: 13px; margin-bottom: 28px; }
+.friday-root .tabela-chaves { width: 100%; border-collapse: collapse; font-size: 13px; margin-bottom: 28px; display: block; overflow-x: auto; }
 .friday-root .tabela-chaves th { text-align: left; font-weight: 500; color: var(--texto-2); padding: 6px 8px; border-bottom: 1px solid var(--borda); }
 .friday-root .tabela-chaves td { padding: 8px; border-bottom: 1px solid var(--borda-suave); }
 .friday-root .tabela-chaves tr.revogada td { color: var(--texto-3); }
 .friday-root .chaves-ajuda code, .friday-root .tabela-chaves code, .friday-root .chave-criada code { font-size: 12px; background: var(--superficie-2); border-radius: 4px; padding: 1px 5px; word-break: break-all; }
 .friday-root .chaves-ajuda ul { padding-left: 18px; line-height: 1.8; }
 .friday-root .tabela-chaves code { white-space: nowrap; word-break: normal; }
+.friday-root .selo-escrita { font-size: 11.5px; border-radius: 10px; padding: 2px 9px; white-space: nowrap; background: #fff4dd; color: #8a5a00; }
+.friday-root .aviso-escrita { display: flex; gap: 6px; align-items: flex-start; background: #fff4dd; color: #6b4600; border-radius: 6px; padding: 8px 12px; margin: 0 0 14px; font-size: 13px; }
+.friday-root .opcao-chave { display: flex; gap: 8px; align-items: flex-start; color: var(--texto); font-size: 13px; cursor: pointer; }
+.friday-root .selo-api { font-size: 10px; font-weight: 600; letter-spacing: 0.3px; border-radius: 8px; padding: 0 5px; background: #fff4dd; color: #8a5a00; }
 .friday-root .chave-criada { display: flex; align-items: center; gap: 10px; margin: 10px 0 14px; }
 .friday-root .chave-criada code { font-size: 14px; padding: 6px 10px; flex: 1; }
 .friday-root .inicio-resumo { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 12px; margin-bottom: 30px; }

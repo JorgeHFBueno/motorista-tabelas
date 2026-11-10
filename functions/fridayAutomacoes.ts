@@ -33,8 +33,8 @@ const hojeLocal = () => dataLocal().slice(0, 10);
 
 // ---------------------------------------------------------------- leitura do item (valores livres + oficiais)
 // quem: quem fez a mudança que disparou a automação (null na rodada de datas); vira o "iniciada por" do cronômetro.
-type Contexto = { colunas: Coluna[]; cadastros: Map<string, Promise<AnyRecord | undefined>>; nomes: Map<string, string>; quem: string | null };
-const novoContexto = (colunas: Coluna[], quem: string | null = null): Contexto => ({ colunas, cadastros: new Map(), nomes: new Map(), quem });
+export type Contexto = { colunas: Coluna[]; cadastros: Map<string, Promise<AnyRecord | undefined>>; nomes: Map<string, string>; quem: string | null };
+export const novoContexto = (colunas: Coluna[], quem: string | null = null): Contexto => ({ colunas, cadastros: new Map(), nomes: new Map(), quem });
 const colunasDo = async (quadroId: number) => (await colecao('colunas').where('quadro_id', '==', quadroId).get()).docs.map(d => d.data() as Coluna);
 
 function registroDe(ctx: Contexto, chave: string) {
@@ -47,9 +47,9 @@ function camposDoItem(registro: AnyRecord | undefined, item: AnyRecord): CampoOf
   const campos = (item.vinculo?.sub != null ? registro.subitens?.campos : registro.campos) ?? [];
   return (campos as (CampoOficial & { secundario?: boolean })[]).filter(c => c.situacao === 'ativo' && !c.secundario);
 }
-type Lido = { visto: ItemVisto; registro?: AnyRecord; campos: CampoOficial[]; oficial?: AnyRecord };
+export type Lido = { visto: ItemVisto; registro?: AnyRecord; campos: CampoOficial[]; oficial?: AnyRecord };
 /** O item como a tela vê: os valores oficiais (que vivem no cadastro) encaixados nas colunas. */
-async function lerItem(ctx: Contexto, item: AnyRecord, oficialPronto?: AnyRecord): Promise<Lido> {
+export async function lerItem(ctx: Contexto, item: AnyRecord, oficialPronto?: AnyRecord): Promise<Lido> {
   const valores = { ...(item.valores ?? {}) };
   const base = { id: Number(item.id), nome: item.nome, grupo_id: item.grupo_id ?? null, criado_por: item.criado_por ?? null };
   if (!item.vinculo?.cadastro) return { visto: { ...base, valores }, campos: [] };
@@ -84,7 +84,7 @@ async function registrar(a: AnyRecord, automacaoId: number) {
 }
 
 /** Item novo (como o `inserir` da tela) no fim do grupo, ou dos subitens do pai. */
-async function criarItem(dados: { quadro_id: number; grupo_id: number | null; item_pai_id?: number | null; nome: string; criado_por: string | null }) {
+export async function criarItem(dados: { quadro_id: number; grupo_id: number | null; item_pai_id?: number | null; nome: string; criado_por: string | null }) {
   const irmaos = dados.item_pai_id != null
     ? await colecao('itens').where('item_pai_id', '==', dados.item_pai_id).get()
     : await colecao('itens').where('grupo_id', '==', dados.grupo_id).get();
@@ -99,7 +99,7 @@ async function criarItem(dados: { quadro_id: number; grupo_id: number | null; it
 }
 
 /** Item novo num quadro oficial vira registro do cadastro (como a tela faz ao criar). */
-async function vincularSeOficial(quadroId: number, itemId: number, uid: string) {
+export async function vincularSeOficial(quadroId: number, itemId: number, uid: string) {
   const quadro = await ler('quadros', quadroId);
   const sub = quadro?.tipo === 'subitens';
   const principal = sub ? await ler('quadros', quadro!.quadro_pai_id) : quadro;
@@ -146,6 +146,35 @@ async function subquadroDe(pai: AnyRecord): Promise<{ quadroId: number; grupoId:
   return { quadroId, grupoId };
 }
 
+/**
+ * Grava o valor de uma coluna (não de tempo) no item, pelo mesmo caminho da tela: campo oficial no cadastro (com a
+ * validação de fridayCadastroGravar; só leitura é recusado), coluna livre no item, com o índice de pessoas. `valor`
+ * undefined limpa. Devolve o texto de antes e depois, ou null quando o valor já era esse. Usado pelas automações e pela
+ * escrita da API por chave (fridayApi.ts), que registram a atividade cada uma do seu jeito.
+ */
+export async function gravarValorDoItem(ctx: Contexto, item: AnyRecord, lido: Lido, coluna: Coluna, valor: unknown, autorUid: string) {
+  const ref = colecao('itens').doc(String(item.id));
+  const antes = lido.visto.valores[String(coluna.id)];
+  if (JSON.stringify(antes ?? null) === JSON.stringify(valor ?? null)) return null;
+  const campo = lido.campos.find(c => c.coluna_id === coluna.id);
+  if (campo) {
+    if ((campo as CampoOficial & { somente_leitura?: boolean }).somente_leitura) throw new Error(`“${coluna.titulo}” é só leitura (vem do cadastro)`);
+    await gravarNoCadastro(autorUid, Number(item.id), 'valor', coluna.id, valor ?? null);
+    await ref.update({ atualizado_em: dataLocal() });
+  } else {
+    const valores = { ...(item.valores ?? {}) };
+    if (valor === undefined) delete valores[String(coluna.id)]; else valores[String(coluna.id)] = valor;
+    const extra: unknown[] = [];
+    if (coluna.tipo === 'pessoa') {
+      const livres = new Set(ctx.colunas.filter(c => c.tipo === 'pessoa').map(c => String(c.id)));
+      for (const c of lido.campos) livres.delete(String(c.coluna_id));
+      extra.push('pessoas', lido.campos.length ? indicePessoas(valores, livres, lido.campos, lido.oficial) : pessoasDosValores(valores, livres));
+    }
+    await ref.update(new FieldPath('valores', String(coluna.id)), valor === undefined ? FieldValue.delete() : valor, 'atualizado_em', dataLocal(), ...extra);
+  }
+  return { de: await textoLegivel(ctx, coluna, antes), para: await textoLegivel(ctx, coluna, valor) };
+}
+
 // ---------------------------------------------------------------- ações
 /** Quem fica como autor nas gravações do cadastro oficial: quem criou a automação. */
 const autor = (a: Automacao) => String(a.criado_por || 'automacao');
@@ -179,27 +208,10 @@ async function fazerAcao(acao: Acao, a: Automacao, itemId: number, ctx: Contexto
     }
     const lido = await lerItem(ctx, item);
     const valor = valorDefinido(acao, coluna, lido.visto, hojeLocal());
-    const antes = lido.visto.valores[String(coluna.id)];
-    if (JSON.stringify(antes ?? null) === JSON.stringify(valor ?? null)) return `${coluna.titulo}: já estava assim`;
-    const campo = lido.campos.find(c => c.coluna_id === coluna.id);
-    if (campo) {
-      if ((campo as CampoOficial & { somente_leitura?: boolean }).somente_leitura) throw new Error(`“${coluna.titulo}” é só leitura (vem do cadastro)`);
-      await gravarNoCadastro(autor(a), itemId, 'valor', coluna.id, valor ?? null);
-      await ref.update({ atualizado_em: dataLocal() });
-    } else {
-      const valores = { ...(item.valores ?? {}) };
-      if (valor === undefined) delete valores[String(coluna.id)]; else valores[String(coluna.id)] = valor;
-      const extra: unknown[] = [];
-      if (coluna.tipo === 'pessoa') {
-        const livres = new Set(ctx.colunas.filter(c => c.tipo === 'pessoa').map(c => String(c.id)));
-        for (const c of lido.campos) livres.delete(String(c.coluna_id));
-        extra.push('pessoas', lido.campos.length ? indicePessoas(valores, livres, lido.campos, lido.oficial) : pessoasDosValores(valores, livres));
-      }
-      await ref.update(new FieldPath('valores', String(coluna.id)), valor === undefined ? FieldValue.delete() : valor, 'atualizado_em', dataLocal(), ...extra);
-    }
-    const [de, para] = [await textoLegivel(ctx, coluna, antes), await textoLegivel(ctx, coluna, valor)];
-    if (de !== para) await registrar({ quadro_id: quadroId, item_id: itemId, item_nome: item.nome, acao: 'alterou', coluna_id: coluna.id, coluna_titulo: coluna.titulo, de, para }, a.id);
-    return `${coluna.titulo}: ${para ?? 'vazio'}`;
+    const mudou = await gravarValorDoItem(ctx, item, lido, coluna, valor, autor(a));
+    if (!mudou) return `${coluna.titulo}: já estava assim`;
+    if (mudou.de !== mudou.para) await registrar({ quadro_id: quadroId, item_id: itemId, item_nome: item.nome, acao: 'alterou', coluna_id: coluna.id, coluna_titulo: coluna.titulo, de: mudou.de, para: mudou.para }, a.id);
+    return `${coluna.titulo}: ${mudou.para ?? 'vazio'}`;
   }
 
   if (acao.tipo === 'mover') {

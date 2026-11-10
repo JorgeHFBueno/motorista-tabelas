@@ -9,13 +9,109 @@ export const formatoChave = (chave: unknown): chave is string => typeof chave ==
 /** O banco guarda só o SHA-256 da chave (id do documento em friday-chaves-api), nunca a chave. */
 export const hashChave = (chave: string) => createHash('sha256').update(chave).digest('hex');
 
-/** Quem a chave representa: funcionário ativo com acesso ao Friday (credencial escritorio ou adm2), como nas Rules. */
-export function pessoaDaChave(registro: AnyRecord | undefined, funcionario: AnyRecord | undefined): { uid: string; adm2: boolean } | null {
+/**
+ * Quem a chave representa: funcionário ativo com acesso ao Friday (credencial escritorio ou adm2), como nas Rules.
+ * escrita: a chave foi criada com escrita (POST); sem isso, só consulta.
+ */
+export function pessoaDaChave(registro: AnyRecord | undefined, funcionario: AnyRecord | undefined): { uid: string; adm2: boolean; escrita: boolean } | null {
   if (!registro || registro.revogada_em || typeof registro.uid !== 'string') return null;
   const perfis = funcionario?.perfis ?? {};
   if (funcionario?.ativo !== true || (perfis.escritorio !== true && perfis.adm2 !== true)) return null;
-  return { uid: registro.uid, adm2: perfis.adm2 === true };
+  return { uid: registro.uid, adm2: perfis.adm2 === true, escrita: registro.escrita === true };
 }
+
+// ---------------------------------------------------------------- escrita (chave com escrita)
+/** Pedido de escrita que não pode ser atendido como veio (vira 400 com a mensagem). */
+export class EntradaInvalida extends Error {}
+const igualTexto = (a: unknown, b: unknown) => semAcento(String(a ?? '')).trim() === semAcento(String(b ?? '')).trim();
+
+/** Coluna pelo id ou pelo título (sem diferenciar maiúsculas e acentos); título repetido é ambíguo. */
+export function colunaDoPedido<C extends { id: number; titulo: string }>(colunas: C[], ref: unknown): C {
+  if (typeof ref === 'number' || (typeof ref === 'string' && /^\d+$/.test(ref))) {
+    const c = colunas.find(x => x.id === Number(ref));
+    if (c) return c;
+  }
+  const achadas = colunas.filter(x => igualTexto(x.titulo, ref));
+  if (achadas.length === 1) return achadas[0];
+  if (achadas.length > 1) throw new EntradaInvalida(`Há mais de uma coluna “${String(ref)}”; use o id da coluna.`);
+  throw new EntradaInvalida(`Coluna “${String(ref)}” não existe neste quadro.`);
+}
+
+const partes = (v: unknown): string[] => (Array.isArray(v) ? v.map(x => String(x).trim()) : String(v).split(',').map(x => x.trim())).filter(Boolean);
+function dataDaEntrada(v: unknown, titulo: string): string {
+  const s = String(v ?? '').trim();
+  const iso = s.match(/^(\d{4})-(\d{2})-(\d{2})/), br = s.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+  const [a, m, d] = iso ? [iso[1], iso[2], iso[3]] : br ? [br[3], br[2], br[1]] : [];
+  const data = a ? `${a}-${m}-${d}` : '';
+  if (!data || Number.isNaN(Date.parse(`${data}T12:00:00Z`)) || new Date(`${data}T12:00:00Z`).toISOString().slice(0, 10) !== data) {
+    throw new EntradaInvalida(`“${titulo}”: data “${s}” inválida (use AAAA-MM-DD ou DD/MM/AAAA).`);
+  }
+  return data;
+}
+function numeroDaEntrada(v: unknown, titulo: string): number {
+  if (typeof v === 'number' && Number.isFinite(v)) return v;
+  const s = String(v ?? '').trim().replace(/^R\$\s*/, '');
+  const n = Number(s.includes(',') ? s.replace(/\./g, '').replace(',', '.') : s);
+  if (!s || !Number.isFinite(n)) throw new EntradaInvalida(`“${titulo}”: número “${String(v)}” inválido.`);
+  return n;
+}
+
+export type ContextoEntrada = { pessoa: (nomeOuUid: string) => string | null };
+/**
+ * Valor que um robô ou assistente manda (como uma pessoa escreveria) no formato do Friday: status e lista pelo texto
+ * do rótulo/opção (ou o id), pessoa pelo nome ou uid, datas AAAA-MM-DD ou DD/MM/AAAA, número com vírgula ou ponto.
+ * Nada é criado (rótulo, opção ou pessoa que não existe é recusado). undefined = limpar a célula.
+ */
+export function valorDaEntrada(coluna: { tipo: string; titulo: string; config?: AnyRecord }, v: unknown, ctx: ContextoEntrada): unknown {
+  if (vazio(v)) return undefined;
+  const cfg = coluna.config ?? {};
+  const t = coluna.titulo;
+  switch (coluna.tipo) {
+    case 'status': {
+      const rotulos = ((cfg.rotulos ?? []) as AnyRecord[]);
+      const r = rotulos.find(x => String(x.id) === String(v)) ?? rotulos.find(x => x.texto && igualTexto(x.texto, v));
+      if (!r) throw new EntradaInvalida(`“${t}”: rótulo “${String(v)}” não existe (${rotulos.filter(x => x.texto).map(x => x.texto).join(', ')}).`);
+      return String(r.id) === '0' ? undefined : String(r.id);
+    }
+    case 'lista': {
+      const opcoes = ((cfg.opcoes ?? []) as AnyRecord[]);
+      return partes(v).map(p => {
+        const o = opcoes.find(x => String(x.id) === p) ?? opcoes.find(x => igualTexto(x.texto, p));
+        if (!o) throw new EntradaInvalida(`“${t}”: opção “${p}” não existe (${opcoes.map(x => x.texto).join(', ')}).`);
+        return String(o.id);
+      });
+    }
+    case 'pessoa': return [...new Set(partes(v).map(p => {
+      const uid = ctx.pessoa(p);
+      if (!uid) throw new EntradaInvalida(`“${t}”: pessoa “${p}” não encontrada (use o nome completo ou o uid).`);
+      return uid;
+    }))];
+    case 'data': return dataDaEntrada(v, t);
+    case 'periodo': {
+      const p = typeof v === 'object' && !Array.isArray(v) ? (v as AnyRecord) : (() => { const m = String(v).split(/\s+a\s+|\s*→\s*/); return { inicio: m[0], fim: m[1] ?? m[0] }; })();
+      const inicio = dataDaEntrada(p.inicio ?? p.fim, t), fim = dataDaEntrada(p.fim ?? p.inicio, t);
+      if (fim < inicio) throw new EntradaInvalida(`“${t}”: o fim vem antes do início.`);
+      return { inicio, fim };
+    }
+    case 'numero': { const n = numeroDaEntrada(v, t); return cfg.x10 ? Math.round(n * 10) : n; }
+    case 'avaliacao': {
+      const n = numeroDaEntrada(v, t);
+      if (!Number.isInteger(n) || n < 0 || n > Number(cfg.maximo ?? 5)) throw new EntradaInvalida(`“${t}”: avaliação de 0 a ${Number(cfg.maximo ?? 5)}.`);
+      return n || undefined;
+    }
+    case 'caixa': return v === true || /^(1|sim|s|true|x|marcado)$/i.test(String(v).trim()) ? true : undefined;
+    case 'link': {
+      const l = typeof v === 'object' ? (v as AnyRecord) : { url: String(v).trim() };
+      if (!/^https?:\/\//i.test(String(l.url ?? ''))) throw new EntradaInvalida(`“${t}”: link precisa começar com http:// ou https://.`);
+      return l.texto ? { url: String(l.url), texto: String(l.texto) } : { url: String(l.url) };
+    }
+    case 'texto': case 'texto_longo': case 'telefone': case 'email': return String(v).slice(0, 5000);
+    default: throw new EntradaInvalida(`“${t}” (${coluna.tipo}) não pode ser gravada pela API.`);
+  }
+}
+
+/** Menções no texto de uma atualização (@{uid}), como a tela grava. */
+export const mencoesDoTexto = (texto: string) => [...new Set([...texto.matchAll(/@\{([^{}\s]+)\}/g)].map(m => m[1]))];
 
 /** Quadro que a pessoa vê, como na tela: fora do arquivo e da lixeira; aberto, ou restrito com ela em "acesso"; adm2 vê todos. */
 export function podeVerQuadro(quadro: AnyRecord | undefined, pessoa: { uid: string; adm2: boolean }): boolean {

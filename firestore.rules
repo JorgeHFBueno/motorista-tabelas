@@ -1134,13 +1134,15 @@ service cloud.firestore {
         && changedOnly(['lida']);
     }
 
-    // Chaves da API de leitura do Friday (Function fridayApi): id = SHA-256 da chave, que só aparece na criação.
+    // Chaves da API do Friday (Function fridayApi): id = SHA-256 da chave, que só aparece na criação. "escrita" (POST) é
+    // definida na criação e não muda (para trocar, revoga e cria outra): fica registrado quem criou cada chave com escrita.
     // Só adm2 lista, cria (ativa, em nome dele) e revoga; ninguém apaga. "ultimo_uso" é gravado pela Function.
     match /friday-chaves-api/{hash} {
       allow read: if isAdm2();
       allow create: if isAdm2()
         && hash.matches('^[0-9a-f]{64}$')
-        && request.resource.data.keys().hasOnly(['uid', 'nome', 'sufixo', 'criado_por', 'criado_em', 'revogada_em'])
+        && request.resource.data.keys().hasOnly(['uid', 'nome', 'sufixo', 'escrita', 'criado_por', 'criado_em', 'revogada_em'])
+        && request.resource.data.get('escrita', false) is bool
         && request.resource.data.uid is string && request.resource.data.uid.size() > 0
         && request.resource.data.criado_por == request.auth.uid
         && request.resource.data.revogada_em == null;

@@ -937,7 +937,7 @@ test('[firestore] Friday: only adm2 moves folders and boards to another workspac
   await assertSucceeds(setDoc(doc(esc, 'friday-pastas', '51'), { id: 51, nome: 'Nova', area_id: 2, pasta_pai_id: null }));
   await assertSucceeds(deleteDoc(doc(esc, 'friday-pastas', '51')));
 });
-test('[firestore] Friday: API keys (friday-chaves-api) listed, created and revoked only by adm2, never deleted', async () => {
+test('[firestore] Friday: API keys (friday-chaves-api) listed, created (read-only or with write, fixed) and revoked only by adm2, never deleted', async () => {
   const hash = 'a'.repeat(64);
   const chave = (extra = {}) => ({ uid: 'uid-escritorio', nome: 'Robô', sufixo: 'abcd', criado_por: 'uid-adm2', criado_em: '2026-11-10 10:00:00', revogada_em: null, ...extra });
   const esc = dbAs('escritorio');
@@ -948,6 +948,9 @@ test('[firestore] Friday: API keys (friday-chaves-api) listed, created and revok
   await assertFails(setDoc(doc(adm, 'friday-chaves-api', hash), chave({ criado_por: 'uid-escritorio' })), 'em nome de outra pessoa');
   await assertFails(setDoc(doc(adm, 'friday-chaves-api', hash), chave({ revogada_em: '2026-11-10 10:00:00' })), 'já nasce revogada');
   await assertFails(setDoc(doc(adm, 'friday-chaves-api', hash), chave({ chave: 'fri_segredo' })), 'campo a mais (a chave em claro)');
+  await assertFails(setDoc(doc(adm, 'friday-chaves-api', hash), chave({ escrita: 'sim' })), 'escrita só sim/não');
+  await assertSucceeds(setDoc(doc(adm, 'friday-chaves-api', 'b'.repeat(64)), chave({ escrita: true })), 'chave com escrita');
+  await assertFails(updateDoc(doc(adm, 'friday-chaves-api', 'b'.repeat(64)), { escrita: false }), 'escrita não muda depois');
   await assertSucceeds(setDoc(doc(adm, 'friday-chaves-api', hash), chave()));
   await assertSucceeds(getDocs(collection(adm, 'friday-chaves-api')));
   await assertFails(updateDoc(doc(adm, 'friday-chaves-api', hash), { uid: 'uid-adm2' }), 'trocar a pessoa');

@@ -18,8 +18,8 @@ test('chave: formato fri_ + 40 letras/números; o banco guarda só o SHA-256', (
 
 test('a chave vale pela pessoa: ativa, com escritorio ou adm2, e chave não revogada', () => {
   const reg = { uid: 'uid-ana', nome: 'Robô' };
-  assert.deepEqual(d.pessoaDaChave(reg, funcionario({ escritorio: true })), { uid: 'uid-ana', adm2: false });
-  assert.deepEqual(d.pessoaDaChave(reg, funcionario({ adm2: true })), { uid: 'uid-ana', adm2: true });
+  assert.deepEqual(d.pessoaDaChave(reg, funcionario({ escritorio: true })), { uid: 'uid-ana', adm2: false, escrita: false });
+  assert.deepEqual(d.pessoaDaChave(reg, funcionario({ adm2: true })), { uid: 'uid-ana', adm2: true, escrita: false });
   assert.equal(d.pessoaDaChave({ ...reg, revogada_em: '2026-11-10 10:00:00' }, funcionario({ escritorio: true })), null, 'revogada');
   assert.equal(d.pessoaDaChave(reg, funcionario({ escritorio: true }, false)), null, 'desligada');
   assert.equal(d.pessoaDaChave(reg, funcionario({ motorista: true })), null, 'sem acesso ao Friday');
@@ -61,4 +61,46 @@ test('busca: cada palavra começa uma palavra do nome, sem acento', () => {
   assert.equal(d.casaBusca('COQUEIROS DO SUL 071/2026', p), false);
   assert.equal(d.casaBusca('IBIRUBÁ 139/2026', d.palavrasDaBusca('ibiruba')), true);
   assert.deepEqual(d.palavrasDaBusca('  '), []);
+});
+
+test('escrita: só a chave criada com escrita; coluna pelo título ou id', () => {
+  assert.equal(d.pessoaDaChave({ uid: 'u', escrita: true }, funcionario({ escritorio: true })).escrita, true);
+  assert.equal(d.pessoaDaChave({ uid: 'u' }, funcionario({ escritorio: true })).escrita, false, 'chave antiga = só consulta');
+  const cols = [{ id: 1, titulo: 'Situação' }, { id: 2, titulo: 'Nº Contrato' }, { id: 3, titulo: 'Obs' }, { id: 4, titulo: 'Obs' }];
+  assert.equal(d.colunaDoPedido(cols, 'situacao').id, 1);
+  assert.equal(d.colunaDoPedido(cols, 2).id, 2);
+  assert.equal(d.colunaDoPedido(cols, '2').id, 2);
+  assert.throws(() => d.colunaDoPedido(cols, 'Obs'), d.EntradaInvalida, 'título repetido');
+  assert.throws(() => d.colunaDoPedido(cols, 'Nada'), d.EntradaInvalida);
+});
+
+test('escrita: valor como uma pessoa escreveria vira o formato do Friday; o que não existe é recusado', () => {
+  const ctx = { pessoa: x => ({ 'Ana Teste': 'uid-ana', 'uid-bia': 'uid-bia' })[x] ?? null };
+  const v = (tipo, entrada, config = {}) => d.valorDaEntrada({ tipo, titulo: 'Col', config }, entrada, ctx);
+  const rotulos = { rotulos: [{ id: '0', texto: '' }, { id: '3', texto: 'Parado' }, { id: '1', texto: 'Em andamento' }] };
+  assert.equal(v('status', 'parado', rotulos), '3');
+  assert.equal(v('status', '1', rotulos), '1');
+  assert.equal(v('status', '0', rotulos), undefined, 'rótulo vazio = limpar');
+  assert.throws(() => v('status', 'Concluído', rotulos), d.EntradaInvalida);
+  const opcoes = { opcoes: [{ id: 'a', texto: 'Entregue' }, { id: 'b', texto: 'Finalizada' }] };
+  assert.deepEqual(v('lista', 'entregue, Finalizada', opcoes), ['a', 'b']);
+  assert.throws(() => v('lista', ['Parada'], opcoes), d.EntradaInvalida);
+  assert.deepEqual(v('pessoa', ['ana teste'.replace('ana teste', 'Ana Teste'), 'uid-bia'], {}), ['uid-ana', 'uid-bia']);
+  assert.throws(() => v('pessoa', 'Ninguém', {}), d.EntradaInvalida);
+  assert.equal(v('data', '05/03/2026'), '2026-03-05');
+  assert.equal(v('data', '2026-03-05'), '2026-03-05');
+  assert.throws(() => v('data', '31/02/2026'), d.EntradaInvalida);
+  assert.deepEqual(v('periodo', '01/02/2026 a 10/02/2026'), { inicio: '2026-02-01', fim: '2026-02-10' });
+  assert.throws(() => v('periodo', { inicio: '2026-02-10', fim: '2026-02-01' }), d.EntradaInvalida);
+  assert.equal(v('numero', 'R$ 1.234,56'), 1234.56);
+  assert.equal(v('numero', '20,5', { x10: true }), 205);
+  assert.throws(() => v('numero', 'abc'), d.EntradaInvalida);
+  assert.equal(v('caixa', 'sim'), true);
+  assert.equal(v('caixa', false), undefined);
+  assert.deepEqual(v('link', 'https://x.com'), { url: 'https://x.com' });
+  assert.throws(() => v('link', 'x.com'), d.EntradaInvalida);
+  assert.equal(v('texto', 208), '208');
+  assert.equal(v('texto', ''), undefined, 'vazio = limpar');
+  for (const tipo of ['formula', 'ligacao', 'arquivos', 'tempo']) assert.throws(() => v(tipo, 'x'), d.EntradaInvalida, tipo);
+  assert.deepEqual(d.mencoesDoTexto('Oi @{uid-ana} e @{uid-ana}, ver @{uid-bia}'), ['uid-ana', 'uid-bia']);
 });
