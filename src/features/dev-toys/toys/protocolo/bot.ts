@@ -1,5 +1,5 @@
 import { embaralhar } from '../cartas/baralho';
-import { agir, alvosCtrlz, fileirasPara, liderPode, revivivel, total, totalFileira, type Jogada, type Partida } from './regras';
+import { agir, alvosCtrlz, fileirasPara, liderPode, opcoesDeEscolha, total, totalFileira, type Jogada, type Partida } from './regras';
 
 // Bot do PROTOCOLO. A base: para cada jogada possível, simula e mede quanto ela muda a diferença de pontos, somando o
 // valor das cartas que ela traz (MALWARE compra 2, CTRL+Z devolve uma); passa na frente quando o outro já passou e,
@@ -37,12 +37,13 @@ export function jogadasPossiveis(p: Partida, quem: 0 | 1): Jogada[] {
   return r;
 }
 
-/** O que reviver no BACKUP: MALWARE primeiro (compra mais 2), depois a mais forte. */
+/** A carta do BACKUP, do RESGATE ou da PILHAGEM: MALWARE primeiro (compra mais 2), depois a mais forte. */
 export function escolherReviver(p: Partida, quem: 0 | 1, rng: () => number, nivel: Nivel = NIVEIS[2]): Jogada {
-  const opcoes = revivivel(p.lados[quem]);
+  const opcoes = opcoesDeEscolha(p);
   if (!opcoes.length) return { tipo: 'reviver', id: null };
   if (rng() < nivel.acaso) return { tipo: 'reviver', id: opcoes[Math.floor(rng() * opcoes.length)].id };
-  const nota = (c: (typeof opcoes)[number]) => (c.hab === 'malware' && p.lados[quem].baralho.length ? 100 : 0) + c.forca + (c.hab === 'backup' ? 3 : 0);
+  const nota = (c: (typeof opcoes)[number]) =>
+    (c.hab === 'malware' && p.lados[quem].baralho.length ? 100 : 0) + (c.tipo === 'unidade' ? c.forca : 6) + (c.hab === 'backup' ? 3 : 0) + (c.heroi ? 4 : 0);
   return { tipo: 'reviver', id: opcoes.reduce((a, b) => (nota(b) > nota(a) ? b : a)).id };
 }
 
@@ -129,7 +130,8 @@ function ateOFim(p: Partida, quem: 0 | 1, rng: () => number): number {
 
 /** A jogada do bot (quem está na vez, ou quem escolhe o BACKUP). */
 export function decidirBot(p: Partida, rng: () => number, nivel: Nivel = NIVEIS[2]): Jogada {
-  if (p.fase === 'troca') return { tipo: 'pronto' };
+  // CODIGO LIVRE escolhe começar em segundo (vê o que o outro faz)
+  if (p.fase === 'troca') return p.escolheInicio && p.vez === 0 ? { tipo: 'inicio', quem: 1 } : { tipo: 'pronto' };
   if (p.fase === 'placar') return { tipo: 'seguir' };
   if (p.pendente !== null) return escolherReviver(p, p.pendente, rng, nivel);
   const quem = p.vez;

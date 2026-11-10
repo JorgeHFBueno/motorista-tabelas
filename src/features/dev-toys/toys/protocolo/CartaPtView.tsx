@@ -42,7 +42,9 @@ export function CartaPtView({ carta, forca }: { carta: Carta; forca?: number }) 
         {carta.fileira && <IconeFileira f={carta.fileira} />}
       </span>
       <span className="dt-pt-nome">{carta.nome}</span>
-      <span className="dt-pt-hab">{carta.hab ? HAB_NOME[carta.hab] : carta.fileira === 'agil' ? 'AGIL' : unidade ? '' : ESPECIAL[carta.tipo]}</span>
+      <span className="dt-pt-hab">
+        {unidade ? [heroi ? 'ROOT' : '', carta.hab ? HAB_NOME[carta.hab] : '', carta.fileira === 'agil' ? 'AGIL' : ''].filter(Boolean).join(' ') : ESPECIAL[carta.tipo]}
+      </span>
     </div>
   );
 }

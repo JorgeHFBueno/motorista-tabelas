@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { gravar, ler } from '../crawler/memoria';
 import { rngDe } from '../crawler/sim';
 import { alterarCarteira, lerCarteira, mover } from '../fichas/carteira';
 import { FichasView, SemFichas } from '../fichas/FichasView';
@@ -8,12 +9,16 @@ import { gravarPlacar, lerPlacar, registrarJogada } from '../fichas/jogos';
 import { NOMES_BOT } from '../poker/bots';
 import { NIVEIS, decidirBot } from './bot';
 import { CartaPtView, IconeFileira } from './CartaPtView';
+import { MontarBaralho } from './MontarBaralho';
 import {
-  FACCOES, LIDER, NOME_CLIMA, NOME_FILEIRA, PASSIVA, VIDAS, agir, alvosCtrlz, fileirasPara, forcaNoCampo, liderPode, nomeDaCartaPt, novaPartida,
-  retornoProtocolo, revivivel, total, totalFileira, type Carta, type Faccao, type Fileira, type Jogada, type Partida,
+  FACCOES, NOME_CLIMA, NOME_FILEIRA, PASSIVA, VIDAS, agir, alvosCtrlz, baralhoPadrao, fileirasPara, forcaNoCampo, liderPassivo, liderPode, liderPorId,
+  lideresDe, nomeDaCartaPt, normalizarBaralho, novaPartida, opcoesDeEscolha, problemasDo, retornoProtocolo, total, totalFileira,
+  type Baralho, type Carta, type Escolha, type Faccao, type Fileira, type Jogada, type Partida,
 } from './regras';
 
-// PROTOCOLO contra um bot: as fileiras dele em cima (DISCO, REDE, CPU) e as suas embaixo (CPU, REDE, DISCO), o clima
+// PROTOCOLO contra um bot (de uma das outras 3 facções, sorteada, com o baralho padrão e um líder sorteado). Antes
+// de jogar, você escolhe a facção e monta o baralho dela (guardado neste navegador, `ledur:dev-protocolo-baralhos`).
+// Na partida: as fileiras dele em cima (DISCO, REDE, CPU) e as suas embaixo (CPU, REDE, DISCO), o clima
 // no meio; à esquerda, os dois lados (total, vidas, mão, baralho, descarte, líder) e o placar das rodadas; à direita,
 // a carteira, o aviso, as opções e os últimos lances. A aposta é a do nível do bot e sai ao começar; vitória paga o
 // dobro, empate devolve; desistir, ou fechar a janela no meio, perde a aposta.
@@ -24,7 +29,22 @@ const VOCE = 0;
 const BOT = 1;
 const LANCES = 8;
 const sorteio = () => rngDe((Math.random() * 2 ** 32) >>> 0);
-const outra = (f: Faccao): Faccao => FACCOES.find((x) => x !== f)!;
+const CHAVE_BARALHOS = 'ledur:dev-protocolo-baralhos';
+
+type Guardado = { faccao: Faccao; baralhos: Record<Faccao, Baralho> };
+function lerBaralhos(): Guardado {
+  const v = ler(CHAVE_BARALHOS);
+  const x = v && typeof v === 'object' ? (v as { faccao?: unknown; baralhos?: Record<string, unknown> }) : {};
+  const faccao = FACCOES.find((f) => f === x.faccao) ?? FACCOES[0];
+  const baralhos = Object.fromEntries(FACCOES.map((f) => [f, normalizarBaralho(f, x.baralhos?.[f])])) as Record<Faccao, Baralho>;
+  return { faccao, baralhos };
+}
+
+const PEDE: Record<Escolha, string> = {
+  reviver: 'ESCOLHA O QUE O BACKUP REVIVE',
+  resgatar: 'ESCOLHA A CARTA DO SEU DESCARTE QUE VOLTA PARA A MAO',
+  pilhar: 'ESCOLHA A CARTA DO DESCARTE DELE QUE VEM PARA A SUA MAO',
+};
 
 /** A última jogada num selo (aceso: líder ou especial; contorno: o resto; apagado: passou). */
 function Selo({ texto, pensando }: { texto: string | null; pensando: boolean }) {
@@ -43,8 +63,9 @@ function Vidas({ n }: { n: number }) {
 }
 
 /** Um lado, à esquerda: nome, facção, total, vidas, contagens, líder e a última jogada. */
-function Info({ p, i, pensando }: { p: Partida; i: 0 | 1; pensando: boolean }) {
+function Info({ p, i, pensando, vistas = [] }: { p: Partida; i: 0 | 1; pensando: boolean; vistas?: Carta[] }) {
   const l = p.lados[i];
+  const estado = l.liderAnulado ? ' (ANULADO)' : liderPassivo(l.lider) ? ' (PASSIVO)' : l.liderUsado ? ' (USADO)' : '';
   const vez = p.fase === 'jogo' && (p.pendente ?? p.vez) === i;
   const ganhou = p.fase === 'fim' && p.vencedor === i;
   return (
@@ -53,7 +74,8 @@ function Info({ p, i, pensando }: { p: Partida; i: 0 | 1; pensando: boolean }) {
       <p className="dt-pt-total">{total(p, i)}{l.passou && <span className="dt-pk-marca">PASSOU</span>}</p>
       <Vidas n={l.vidas} />
       <p className="dt-pt-contas">MAO {l.mao.length} . BARALHO {l.baralho.length} . DESCARTE {l.descarte.length}</p>
-      <p className="dt-pt-contas">LIDER {LIDER[l.faccao].nome}{l.liderUsado ? ' (USADO)' : ''}</p>
+      <p className="dt-pt-contas" title={l.lider.texto}>LIDER {l.lider.nome}{estado}</p>
+      {vistas.length > 0 && <p className="dt-pt-contas">VOCE VIU NA MAO: {vistas.map((c) => c.nome).join(', ')}</p>}
       <Selo key={`${l.ultima}-${pensando}`} texto={l.ultima} pensando={pensando} />
     </div>
   );
@@ -98,7 +120,8 @@ function Linha({ p, i, f, alvoFileira, alvoCarta, onFileira, onCarta }: {
 
 export default function ProtocoloToy() {
   const carteira = useCarteira();
-  const [faccao, setFaccao] = useState<Faccao>('MAINFRAME');
+  const [guardado, setGuardado] = useState(lerBaralhos);
+  const [montando, setMontando] = useState(false);
   const [nivel, setNivel] = useState(0);
   const [partida, setPartida] = useState<Partida | null>(null);
   // a aposta e o nível da partida em jogo
@@ -136,13 +159,24 @@ export default function ProtocoloToy() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [vezDoBot, partida]);
 
+  const faccao = guardado.faccao;
+  const meuBaralho = guardado.baralhos[faccao];
+  const problemas = problemasDo(meuBaralho);
+  const salvar = (g: Guardado) => { setGuardado(g); gravar(CHAVE_BARALHOS, g); };
+  const mudarBaralho = (b: Baralho) => salvar({ ...guardado, baralhos: { ...guardado.baralhos, [b.faccao]: b } });
+
   const aposta = NIVEIS[nivel].aposta;
   const comecar = () => {
-    if (aposta > lerCarteira().fichas) return;
+    if (aposta > lerCarteira().fichas || problemas.length) return;
     alterarCarteira((c) => mover(c, -aposta));
     const rng = sorteio();
-    // o bot fica com a outra facção (e não troca cartas)
-    const p = novaPartida(faccao, outra(faccao), NOMES_BOT[Math.floor(rng() * NOMES_BOT.length)], rng);
+    // o bot: outra facção, sorteada, com o baralho padrão e um líder sorteado (e não troca cartas)
+    const outras = FACCOES.filter((f) => f !== faccao);
+    const dele = outras[Math.floor(rng() * outras.length)];
+    const lideres = lideresDe(dele);
+    const bot = { ...baralhoPadrao(dele), lider: lideres[Math.floor(rng() * lideres.length)].id };
+    const p = novaPartida(meuBaralho, bot, NOMES_BOT[Math.floor(rng() * NOMES_BOT.length)], rng);
+    setMontando(false);
     setJogo({ aposta, nivel });
     setSel(null);
     setPartida(p);
@@ -186,13 +220,13 @@ export default function ProtocoloToy() {
 
   const saldo = partida && fase === 'fim' ? retornoProtocolo(partida.vencedor, jogo.aposta) - jogo.aposta : 0;
   const aviso = !partida
-    ? `ESCOLHA A FACCAO E O BOT. VITORIA PAGA O DOBRO`
+    ? montando ? 'MONTE O SEU BARALHO: LIDER E CARTAS' : problemas.length ? `BARALHO INCOMPLETO: ${problemas.join(' . ')}` : 'ESCOLHA A FACCAO E O BOT. VITORIA PAGA O DOBRO'
     : fase === 'troca'
-      ? `TROQUE ATE ${partida.trocas} CARTAS (CLIQUE NELAS) OU SIGA`
+      ? `TROQUE ATE ${partida.trocas} CARTAS (CLIQUE NELAS) OU SIGA${partida.escolheInicio ? '. CODIGO LIVRE: ESCOLHA QUEM COMECA' : ''}`
       : fase === 'placar' || fase === 'fim'
         ? `${partida.aviso}${fase === 'fim' ? ` (${saldo >= 0 ? '+' : ''}${saldo})` : ''}`
         : partida.pendente === VOCE
-          ? 'ESCOLHA O QUE O BACKUP REVIVE'
+          ? PEDE[partida.escolha ?? 'reviver']
           : selecionada
             ? selecionada.tipo === 'ctrlz' ? 'ESCOLHA A UNIDADE QUE VOLTA PARA A MAO' : 'ESCOLHA A FILEIRA'
             : minhaVez
@@ -208,7 +242,7 @@ export default function ProtocoloToy() {
       <div className="dt-pt-lados">
         {partida ? (
           <>
-            <Info p={partida} i={BOT} pensando={vezDoBot} />
+            <Info p={partida} i={BOT} pensando={vezDoBot} vistas={partida.lados[BOT].mao.filter((c) => partida.lados[VOCE].revelado.includes(c.id))} />
             <div className="dt-pt-rodadas">
               <p className="dt-jogo-legenda">RODADA {Math.min(partida.rodada, 3)} DE 3</p>
               {partida.rodadas.map((r, k) => (
@@ -221,13 +255,17 @@ export default function ProtocoloToy() {
             <Info p={partida} i={VOCE} pensando={false} />
           </>
         ) : (
-          FACCOES.map((f) => (
-            <div key={f} className="dt-pt-info">
-              <p className="dt-pk-nome">{f}</p>
-              <p className="dt-pt-contas">{PASSIVA[f]}</p>
-              <p className="dt-pt-contas">LIDER {LIDER[f].nome}: {LIDER[f].texto}</p>
+          <>
+            <div className="dt-pt-info">
+              <p className="dt-pk-nome">VOCE<span className="dt-pk-estilo">{faccao}</span></p>
+              <p className="dt-pt-contas">{PASSIVA[faccao]}</p>
+              <p className="dt-pt-contas">LIDER {liderPorId(meuBaralho.lider).nome}: {liderPorId(meuBaralho.lider).texto}</p>
             </div>
-          ))
+            <div className="dt-pt-info">
+              <p className="dt-pk-nome">BOT</p>
+              <p className="dt-pt-contas">UMA DAS OUTRAS 3 FACCOES, SORTEADA, COM O BARALHO PADRAO E UM LIDER SORTEADO.</p>
+            </div>
+          </>
         )}
       </div>
 
@@ -270,6 +308,8 @@ export default function ProtocoloToy() {
               ))}
             </div>
           </>
+        ) : montando ? (
+          <MontarBaralho baralho={meuBaralho} onMudar={mudarBaralho} />
         ) : (
           <p className="dt-pk-vazia">MESA VAZIA</p>
         )}
@@ -298,8 +338,14 @@ export default function ProtocoloToy() {
                 <span className="dt-pt-escolha">
                   VOCE
                   {FACCOES.map((f) => (
-                    <button key={f} type="button" className={faccao === f ? 'dt-jogo-escolhida' : undefined} aria-pressed={faccao === f} onClick={() => setFaccao(f)}>[{f}]</button>
+                    <button key={f} type="button" className={faccao === f ? 'dt-jogo-escolhida' : undefined} aria-pressed={faccao === f} onClick={() => salvar({ ...guardado, faccao: f })}>[{f}]</button>
                   ))}
+                </span>
+                <span className="dt-pt-escolha">
+                  <button type="button" className={montando ? 'dt-jogo-escolhida' : undefined} aria-pressed={montando} onClick={() => setMontando((m) => !m)}>
+                    [{montando ? 'Fechar o baralho' : 'Montar baralho'}]
+                  </button>
+                  {montando && <button type="button" onClick={() => mudarBaralho(baralhoPadrao(faccao))}>[Padrao]</button>}
                 </span>
                 <span className="dt-pt-escolha">
                   BOT
@@ -309,23 +355,31 @@ export default function ProtocoloToy() {
                     </button>
                   ))}
                 </span>
-                <button type="button" data-principal onClick={comecar} disabled={aposta > carteira.fichas}>[Jogar contra {outra(faccao)}]</button>
+                <button type="button" data-principal onClick={comecar} disabled={aposta > carteira.fichas || problemas.length > 0}>[Jogar]</button>
               </>
             )
           ) : fase === 'troca' ? (
-            <button type="button" data-principal onClick={() => aplicar(partida, { tipo: 'pronto' })}>[Pronto, comecar]</button>
+            <>
+              {partida.escolheInicio && (
+                <span className="dt-pt-escolha">
+                  <button type="button" className={partida.vez === VOCE ? 'dt-jogo-escolhida' : undefined} aria-pressed={partida.vez === VOCE} onClick={() => aplicar(partida, { tipo: 'inicio', quem: VOCE })}>[Eu comeco]</button>
+                  <button type="button" className={partida.vez === BOT ? 'dt-jogo-escolhida' : undefined} aria-pressed={partida.vez === BOT} onClick={() => aplicar(partida, { tipo: 'inicio', quem: BOT })}>[Ele comeca]</button>
+                </span>
+              )}
+              <button type="button" data-principal onClick={() => aplicar(partida, { tipo: 'pronto' })}>[Pronto, comecar]</button>
+            </>
           ) : fase === 'placar' ? (
             <button type="button" data-principal onClick={() => aplicar(partida, { tipo: 'seguir' })}>
               {partida.lados.some((l) => l.vidas <= 0) ? '[Ver o resultado]' : '[Proxima rodada]'}
             </button>
-          ) : partida.pendente === VOCE && eu ? (
+          ) : partida.pendente === VOCE ? (
             <>
-              {revivivel(eu).map((c, k) => (
+              {opcoesDeEscolha(partida).map((c, k) => (
                 <button key={c.id} type="button" data-principal={k === 0 || undefined} onClick={() => aplicar(partida, { tipo: 'reviver', id: c.id })}>
-                  [{c.nome} {c.forca}]
+                  [{c.nome}{c.tipo === 'unidade' ? ` ${c.forca}` : ''}]
                 </button>
               ))}
-              <button type="button" onClick={() => aplicar(partida, { tipo: 'reviver', id: null })}>[Nao reviver]</button>
+              <button type="button" onClick={() => aplicar(partida, { tipo: 'reviver', id: null })}>[Nenhuma]</button>
             </>
           ) : selecionada ? (
             <>
@@ -338,7 +392,7 @@ export default function ProtocoloToy() {
             <>
               <button type="button" data-principal={!principalMao || undefined} onClick={() => aplicar(partida, { tipo: 'passar' })}>[Passar]</button>
               {liderPode(partida, VOCE) && (
-                <button type="button" onClick={() => aplicar(partida, { tipo: 'lider' })}>[Lider: {LIDER[partida.lados[VOCE].faccao].nome}]</button>
+                <button type="button" title={partida.lados[VOCE].lider.texto} onClick={() => aplicar(partida, { tipo: 'lider' })}>[Lider: {partida.lados[VOCE].lider.nome}]</button>
               )}
             </>
           ) : null}

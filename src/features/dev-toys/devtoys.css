@@ -1747,6 +1747,74 @@
   font-size: calc(var(--dt-e) * 7px);
 }
 
+/* montar o baralho: líder, contagem e as duas colunas (coleção e baralho) */
+.devtoys .dt-pt-montar {
+  display: flex;
+  flex-direction: column;
+  gap: calc(var(--dt-e) * 6px);
+  font-size: calc(var(--dt-e) * 12px);
+}
+
+.devtoys .dt-pt-montar p {
+  margin: 0;
+}
+
+.devtoys .dt-pt-montar .dt-jogo-botoes {
+  justify-content: flex-start;
+}
+
+.devtoys .dt-pt-montar-conta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: calc(var(--dt-e) * 12px);
+  font-weight: bold;
+}
+
+.devtoys .dt-pt-montar-colunas {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: calc(var(--dt-e) * 10px);
+}
+
+.devtoys .dt-pt-montar-colunas section {
+  min-width: 0;
+  padding: calc(var(--dt-e) * 4px);
+  border: 1px dotted var(--dt-apagado);
+}
+
+.devtoys .dt-pt-montar-grade {
+  display: flex;
+  flex-wrap: wrap;
+  gap: calc(var(--dt-e) * 4px);
+  margin-top: calc(var(--dt-e) * 4px);
+}
+
+.devtoys .dt-pt-montar-carta {
+  position: relative;
+  cursor: pointer;
+}
+
+.devtoys .dt-pt-montar-carta:hover .dt-pt-carta,
+.devtoys .dt-pt-montar-carta:focus-visible .dt-pt-carta {
+  box-shadow: 0 0 0 2px var(--dt-tinta);
+}
+
+.devtoys .dt-pt-montar-carta:focus-visible {
+  outline: none;
+}
+
+/* quantas cópias: no canto de baixo */
+.devtoys .dt-pt-montar-qtd {
+  position: absolute;
+  right: calc(var(--dt-e) * -2px);
+  bottom: calc(var(--dt-e) * -2px);
+  padding: 0 calc(var(--dt-e) * 2px);
+  color: var(--dt-papel);
+  background: var(--dt-tinta);
+  font-size: calc(var(--dt-e) * 9px);
+  text-shadow: none;
+}
+
 /* ---- Carteira ---- */
 .devtoys .dt-carteira {
   font-size: calc(var(--dt-e) * 13px);

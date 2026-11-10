@@ -8,7 +8,10 @@ import { MAO_INICIAL, MULTA, PREMIO, type CartaNeo } from '../neo/regras';
 import { BLIND_GRANDE, BLIND_PEQUENO, ENTRADA } from '../poker/mesa';
 import { NIVEIS as NIVEIS_PT } from '../protocolo/bot';
 import { CartaPtView } from '../protocolo/CartaPtView';
-import { FACCOES, HAB_NOME, HAB_TEXTO, LIDER, MAO_INICIAL as MAO_PT, PASSIVA, TROCAS, deckDe, type Carta as CartaPt, type Hab } from '../protocolo/regras';
+import {
+  ESPECIAIS as ESPECIAIS_MODELO, FACCOES, HAB_NOME, HAB_TEXTO, HEROI_TEXTO, MAO_INICIAL as MAO_PT, MAX_ESPECIAIS, MIN_UNIDADES, NEUTRAS, PASSIVA, TROCAS, UNIDADES,
+  lideresDe, liderPassivo, type Carta as CartaPt, type Hab, type Modelo,
+} from '../protocolo/regras';
 import { BANCA_PARA } from '../vinteum/regras';
 import { ALEATORIA, NIVEIS } from '../xadrez/bot';
 import { PecaView } from '../xadrez/PecaView';
@@ -221,9 +224,12 @@ function RegrasNeo() {
   );
 }
 
-const DECK_PT = [...deckDe('MAINFRAME'), ...deckDe('ENXAME', 100)];
-const cartaPt = (nome: string) => DECK_PT.find((c) => c.nome === nome) as CartaPt;
-const EXEMPLO_HAB: Record<Hab, string> = { root: 'ADMIN', malware: 'AUDITOR', backup: 'TECNICO', cluster: 'SERVIDOR', cache: 'NOBREAK', fork: 'ZUMBI' };
+const MODELOS_PT: Modelo[] = [...FACCOES.flatMap((f) => UNIDADES[f]), ...NEUTRAS, ...ESPECIAIS_MODELO];
+const cartaPt = (nome: string): CartaPt => {
+  const m = MODELOS_PT.find((x) => x.nome === nome)!;
+  return { id: 0, nome: m.nome, tipo: m.tipo, fileira: m.fileira, forca: m.forca, hab: m.hab, heroi: m.heroi };
+};
+const EXEMPLO_HAB: Record<Hab, string> = { malware: 'AUDITOR', backup: 'TECNICO', cluster: 'SERVIDOR', cache: 'NOBREAK', fork: 'ZUMBI', turbo: 'AMPLIFICADOR' };
 const ESPECIAIS_PT = [
   { nome: 'SUPERAQUECIMENTO', texto: 'Clima: as unidades na CPU, dos dois lados, valem 1 (LAG faz o mesmo na REDE e DISCO CHEIO no DISCO).' },
   { nome: 'REBOOT', texto: 'Limpa todo o clima.' },
@@ -250,6 +256,11 @@ function RegrasProtocolo() {
         <li>Sem cartas na mao (e sem lider), passa sozinho.</li>
       </ul>
       <h3>HABILIDADES</h3>
+      <div className="dt-regras-linha">
+        <span className="dt-regras-nome">ROOT</span>
+        <MaoPt cartas={[cartaPt('ADMIN')]} />
+        <span>{HEROI_TEXTO}</span>
+      </div>
       {(Object.keys(EXEMPLO_HAB) as Hab[]).map((h) => (
         <div key={h} className="dt-regras-linha">
           <span className="dt-regras-nome">{HAB_NOME[h]}</span>
@@ -271,12 +282,23 @@ function RegrasProtocolo() {
         </div>
       ))}
       <h3>A FORCA NO CAMPO</h3>
-      <p>Na ordem: clima poe a unidade em 1; CLUSTER multiplica pelas iguais; CACHE soma; OVERCLOCK dobra. Heroi nao muda. No campo, a forca acesa subiu e a vermelha caiu.</p>
-      <h3>FACCOES</h3>
+      <p>Na ordem: clima poe a unidade em 1; CLUSTER multiplica pelas iguais; CACHE soma; OVERCLOCK (ou um TURBO) dobra. Heroi nao muda. No campo, a forca acesa subiu e a vermelha caiu.</p>
+      <h3>O BARALHO</h3>
       <ul>
-        {FACCOES.map((f) => <li key={f}>{f}: {PASSIVA[f]} Lider, uma vez por partida: {LIDER[f].nome}. {LIDER[f].texto}</li>)}
-        <li>Voce escolhe a sua; o bot fica com a outra. Cada baralho tem 30 cartas: 22 unidades e 8 especiais.</li>
+        <li>Como no Witcher 3: 1 lider, no minimo {MIN_UNIDADES} unidades e no maximo {MAX_ESPECIAIS} especiais. Cada faccao tem 4 herois; as neutras (com herois de 15) entram em qualquer baralho; cada especial, ate 3 copias.</li>
+        <li>Monte o seu em [Montar baralho]: escolha o lider e clique nas cartas para por ou tirar. Fica guardado neste navegador; [Padrao] volta ao baralho pronto.</li>
+        <li>O bot joga com uma das outras 3 faccoes, sorteada, com o baralho padrao e um lider sorteado.</li>
       </ul>
+      <h3>FACCOES E LIDERES</h3>
+      <p>Cada lider se usa uma vez por partida, na sua vez, no lugar de uma carta; o passivo vale desde o comeco.</p>
+      {FACCOES.map((f) => (
+        <div key={f}>
+          <p><b>{f}</b>: {PASSIVA[f]}</p>
+          <ul>
+            {lideresDe(f).map((l) => <li key={l.id}>{l.nome}{liderPassivo(l) ? ' (PASSIVO)' : ''}: {l.texto}</li>)}
+          </ul>
+        </div>
+      ))}
       <h3>PAGAMENTO</h3>
       <ul>
         <li>A aposta e a do bot: {NIVEIS_PT.map((n) => `${n.nome} ${n.aposta}`).join(', ')} fichas, e sai ao comecar.</li>
