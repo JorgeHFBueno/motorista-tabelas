@@ -129,6 +129,20 @@ test('Credenciais Kiosk saiu do menu e virou o botão de QR nas Ações de Usuá
   assert.ok(ordem.every((p, i) => p > 0 && (i === 0 || p > ordem[i - 1])), String(ordem));
 });
 
+test('Usuários: filtro com Apenas ativos e Novo usuário, sem Login, e cada toque abre o seu popup (2026-11-10)', () => {
+  const pagina = readFileSync('src/pages/CadastroUsuariosEditarPage.tsx', 'utf8');
+  assert.match(pagina, /useState\(true\);\s*const \[editing/); // Apenas ativos começa ligado
+  assert.match(pagina, /label="Apenas ativos"/);
+  assert.doesNotMatch(pagina, /soSemFuncionario|Só contas sem funcionário/);
+  // Novo usuário fica na barra do filtro, depois do campo de busca.
+  assert.ok(pagina.indexOf('label="Filtrar por nome') < pagina.indexOf('to="/cadastros/usuarios/novo"'));
+  const tabela = readFileSync('src/components/AdminUsersEditTable.tsx', 'utf8');
+  assert.doesNotMatch(tabela, /field: 'login'/);
+  for (const modo of ['completo', 'credenciais', 'situacao']) assert.match(tabela, new RegExp(`onEdit\\(row, '${modo}'\\)`), modo);
+  const popup = readFileSync('src/components/AdminUserEditModal.tsx', 'utf8');
+  for (const dado of ['Nome', 'Login', 'E-mail do cadastro', 'Situação', 'Conta criada em', 'Último acesso', 'UID']) assert.match(popup, new RegExp(`rotulo="${dado}"`), dado);
+});
+
 test('Nova entrada de diesel fica no card da bomba, abaixo do seletor', () => {
   const bombas = readFileSync('src/pages/BombasPage.tsx', 'utf8');
   const seletor = bombas.indexOf("'aria-label': 'Selecionar bomba'");

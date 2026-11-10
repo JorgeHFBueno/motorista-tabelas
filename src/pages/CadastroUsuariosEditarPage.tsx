@@ -17,7 +17,7 @@ import {
   TextField,
   Typography,
 } from '@mui/material';
-import AdminUserEditModal, { type AdminUserEditValues } from '../components/AdminUserEditModal';
+import AdminUserEditModal, { type AdminUserEditValues, type ModoEdicaoUsuario } from '../components/AdminUserEditModal';
 import AdminUsersEditTable from '../components/AdminUsersEditTable';
 import KioskCredenciaisDialog from '../components/kiosk/KioskCredenciaisDialog';
 import useAdminUsers from '../hooks/useAdminUsers';
@@ -34,8 +34,9 @@ export default function CadastroUsuariosEditarPage() {
   useTituloPagina('Usuários');
   const { users, loading, error, reload, updateUser, deleteUser, definirSenha } = useAdminUsers();
   const [search, setSearch] = useState('');
-  const [soSemFuncionario, setSoSemFuncionario] = useState(false);
-  const [editing, setEditing] = useState<AdminUser | null>(null);
+  // Starts showing only active people; the switch shows the inactive ones too.
+  const [apenasAtivos, setApenasAtivos] = useState(true);
+  const [editing, setEditing] = useState<{ user: AdminUser; modo: ModoEdicaoUsuario } | null>(null);
   const [saving, setSaving] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const location = useLocation();
@@ -53,26 +54,25 @@ export default function CadastroUsuariosEditarPage() {
   const [kioskDe, setKioskDe] = useState<AdminUser | null>(null);
 
   const dateFormatter = useMemo(() => new Intl.DateTimeFormat('pt-BR', { dateStyle: 'short', timeStyle: 'short', timeZone: 'America/Sao_Paulo' }), []);
-  const semFuncionario = users.filter((u) => !u.funcionario).length;
-
   const filteredUsers = useMemo(() => {
     const term = search.trim().toLowerCase();
     return users.filter((user) => {
-      if (soSemFuncionario && user.funcionario) return false;
+      if (apenasAtivos && user.funcionario?.ativo !== true) return false;
       if (!term) return true;
       const credenciais = CREDENCIAIS.filter((c) => user.funcionario?.credenciais[c.chave]).map((c) => c.rotulo).join(' ');
       return [nomeDoUsuario(user), loginDoUsuario(user), user.email ?? '', credenciais].some((t) => t.toLowerCase().includes(term));
     });
-  }, [search, soSemFuncionario, users]);
+  }, [search, apenasAtivos, users]);
 
   const handleSave = async (values: AdminUserEditValues) => {
     if (!editing) return;
     try {
       setSaving(true);
       setSubmitError(null);
-      await updateUser({ uid: editing.uid, ativo: values.ativo, credenciais: values.credenciais });
+      await updateUser({ uid: editing.user.uid, ativo: values.ativo, credenciais: values.credenciais });
+      const nome = nomeDoUsuario(editing.user);
+      setSnackbar({ message: editing.modo === 'situacao' ? `${nome} ${values.ativo ? 'ativado' : 'desativado'}.` : editing.modo === 'credenciais' ? `Credenciais de ${nome} atualizadas.` : 'Usuário atualizado.', severity: 'success' });
       setEditing(null);
-      setSnackbar({ message: 'Usuário atualizado.', severity: 'success' });
     } catch (saveError) {
       setSubmitError(erroDe(saveError, 'Erro ao atualizar o usuário.'));
     } finally {
@@ -113,26 +113,15 @@ export default function CadastroUsuariosEditarPage() {
   return (
     <Container maxWidth="lg" sx={{ py: 3 }}>
       <Stack spacing={3}>
-        <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2} justifyContent="flex-end">
-          <Stack direction="row" spacing={1} alignItems="center">
-            <Button variant="contained" component={RouterLink} to="/cadastros/usuarios/novo">Novo usuário</Button>
-          </Stack>
-        </Stack>
-
         <Paper elevation={1} sx={{ p: { xs: 2, sm: 3 } }}>
           <Stack spacing={2}>
             <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2} alignItems={{ sm: 'center' }}>
               <TextField label="Filtrar por nome, login ou credencial" value={search} onChange={(e) => setSearch(e.target.value)} fullWidth />
-              <FormControlLabel sx={{ flexShrink: 0 }} control={<Switch checked={soSemFuncionario} onChange={(e) => setSoSemFuncionario(e.target.checked)} />}
-                label={`Só contas sem funcionário (${semFuncionario})`} />
+              <Stack direction="row" spacing={2} alignItems="center" justifyContent="space-between" sx={{ flexShrink: 0 }}>
+                <FormControlLabel sx={{ mr: 0 }} control={<Switch checked={apenasAtivos} onChange={(e) => setApenasAtivos(e.target.checked)} />} label="Apenas ativos" />
+                <Button variant="contained" component={RouterLink} to="/cadastros/usuarios/novo" sx={{ whiteSpace: 'nowrap' }}>Novo usuário</Button>
+              </Stack>
             </Stack>
-
-            {semFuncionario > 0 && !soSemFuncionario && (
-              <Alert severity="info">
-                {semFuncionario === 1 ? 'Há 1 conta' : `Há ${semFuncionario} contas`} sem funcionário (por exemplo, do antigo cadastro aberto).
-                Exclua as que não reconhecer; para tornar alguém funcionário, cadastre-o em Novo usuário com o mesmo login.
-              </Alert>
-            )}
 
             {error && (
               <Alert severity="error" action={<Button color="inherit" size="small" onClick={() => void reload()}>Tentar novamente</Button>}>
@@ -146,7 +135,7 @@ export default function CadastroUsuariosEditarPage() {
             <AdminUsersEditTable
               rows={filteredUsers}
               loading={loading}
-              onEdit={(user) => { setSubmitError(null); setEditing(user); }}
+              onEdit={(user, modo) => { setSubmitError(null); setEditing({ user, modo }); }}
               onSenha={(user) => { setSenha(''); setConfirmacao(''); setSenhaDe(user); }}
               onExcluir={setExcluir}
               onKiosk={setKioskDe}
@@ -158,7 +147,9 @@ export default function CadastroUsuariosEditarPage() {
 
       <AdminUserEditModal
         open={Boolean(editing)}
-        user={editing}
+        user={editing?.user ?? null}
+        modo={editing?.modo ?? 'completo'}
+        dateFormatter={dateFormatter}
         onClose={() => { setEditing(null); setSubmitError(null); }}
         onSave={handleSave}
         saving={saving}
