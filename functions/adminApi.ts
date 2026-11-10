@@ -1,12 +1,13 @@
 import express from 'express';
 import cors from 'cors';
 import type { UserRecord } from 'firebase-admin/auth';
-import { FieldValue, Timestamp } from 'firebase-admin/firestore';
+import { FieldValue } from 'firebase-admin/firestore';
 
 import { adminAuth, db } from './firebaseAdmin.js';
 import { exigirCredenciais, AdminRequest } from './adminAuth.js';
 import { CREDENCIAIS, credenciaisDe, lerCredenciais, mesclarCredenciais, migrarPerfis, temCredencialSoAdm2, type Credencial, type Credenciais } from './credenciais.js';
 import { lerNovoCliente } from './portalClientes.js';
+import { listarAdminUsers, montarAdminUser, type DadosFuncionario } from './adminUsersList.js';
 
 // Users administration of the WEB (Cadastros), adm2 only. Contract: Manuscript funcionarios.md ("Credenciais",
 // "Usuários na WEB"). Users are born here or, without a password, in the Friday import of monday people
@@ -43,27 +44,16 @@ function normalizeAuthorizedEmail(rawEmail: unknown, celular: unknown) {
 
 const algumaCredencial = (c: Credenciais) => CREDENCIAIS.some((k) => c[k]);
 
-const isoDe = (valor: unknown) => (valor instanceof Timestamp ? valor.toDate().toISOString() : null);
+// One getAll for every account in the list, instead of one read per account.
+async function lerFuncionarios(uids: string[]) {
+  const mapa = new Map<string, DadosFuncionario>();
+  if (!uids.length) return mapa;
+  for (const snap of await db.getAll(...uids.map((uid) => employeesCollection.doc(uid)))) mapa.set(snap.id, snap.exists ? snap.data() : undefined);
+  return mapa;
+}
 
 async function formatAdminUser(user: UserRecord) {
-  const employeeDoc = await employeesCollection.doc(user.uid).get();
-  const f = employeeDoc.exists ? employeeDoc.data() : undefined;
-  return {
-    uid: user.uid,
-    email: user.email,
-    displayName: user.displayName,
-    createdAt: user.metadata.creationTime,
-    lastLoginAt: user.metadata.lastSignInTime,
-    disabled: user.disabled,
-    // null = account without an employee (for example, created by the old open sign-up).
-    funcionario: f ? {
-      nome: typeof f.nome === 'string' ? f.nome : null,
-      email: typeof f.email === 'string' ? f.email : null,
-      ativo: f.ativo === true,
-      credenciais: credenciaisDe(f.perfis),
-      ultimoAcesso: isoDe(f.ultimoAcesso),
-    } : null,
-  };
+  return montarAdminUser(user, (await lerFuncionarios([user.uid])).get(user.uid));
 }
 
 // GET /api/admin/users - every Auth account (up to 1000), with its employee. Client portal logins (users/{uid}
@@ -71,9 +61,7 @@ async function formatAdminUser(user: UserRecord) {
 adminApp.get('/api/admin/users', async (_req, res) => {
   try {
     const [list, clients] = await Promise.all([adminAuth.listUsers(1000), clientsCollection.select().get()]);
-    const clientUids = new Set(clients.docs.map((d) => d.id));
-    const users = (await Promise.all(list.users.map((user) => formatAdminUser(user))))
-      .filter((user) => user.funcionario || !clientUids.has(user.uid));
+    const users = await listarAdminUsers(list.users, new Set(clients.docs.map((d) => d.id)), lerFuncionarios);
     res.json({ users });
   } catch (err) {
     console.error('Failed to list users', err);
