@@ -1134,6 +1134,24 @@ service cloud.firestore {
         && changedOnly(['lida']);
     }
 
+    // Chaves da API de leitura do Friday (Function fridayApi): id = SHA-256 da chave, que só aparece na criação.
+    // Só adm2 lista, cria (ativa, em nome dele) e revoga; ninguém apaga. "ultimo_uso" é gravado pela Function.
+    match /friday-chaves-api/{hash} {
+      allow read: if isAdm2();
+      allow create: if isAdm2()
+        && hash.matches('^[0-9a-f]{64}$')
+        && request.resource.data.keys().hasOnly(['uid', 'nome', 'sufixo', 'criado_por', 'criado_em', 'revogada_em'])
+        && request.resource.data.uid is string && request.resource.data.uid.size() > 0
+        && request.resource.data.criado_por == request.auth.uid
+        && request.resource.data.revogada_em == null;
+      allow update: if isAdm2()
+        && resource.data.revogada_em == null
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['revogada_em', 'revogada_por'])
+        && request.resource.data.revogada_em is string
+        && request.resource.data.revogada_por == request.auth.uid;
+      allow delete: if false;
+    }
+
     // Registro de atividade: só acrescenta (apagado junto com o quadro ou item).
     match /friday-atividades/{atividadeId} {
       allow read, delete: if fridayPodeQuadro(resource.data.quadro_id);

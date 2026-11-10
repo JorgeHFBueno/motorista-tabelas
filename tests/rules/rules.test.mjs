@@ -937,6 +937,25 @@ test('[firestore] Friday: only adm2 moves folders and boards to another workspac
   await assertSucceeds(setDoc(doc(esc, 'friday-pastas', '51'), { id: 51, nome: 'Nova', area_id: 2, pasta_pai_id: null }));
   await assertSucceeds(deleteDoc(doc(esc, 'friday-pastas', '51')));
 });
+test('[firestore] Friday: API keys (friday-chaves-api) listed, created and revoked only by adm2, never deleted', async () => {
+  const hash = 'a'.repeat(64);
+  const chave = (extra = {}) => ({ uid: 'uid-escritorio', nome: 'Robô', sufixo: 'abcd', criado_por: 'uid-adm2', criado_em: '2026-11-10 10:00:00', revogada_em: null, ...extra });
+  const esc = dbAs('escritorio');
+  await assertFails(setDoc(doc(esc, 'friday-chaves-api', hash), chave({ criado_por: 'uid-escritorio' })));
+  await assertFails(getDocs(collection(esc, 'friday-chaves-api')));
+  const adm = dbAs('adm2');
+  await assertFails(setDoc(doc(adm, 'friday-chaves-api', 'nao-e-hash'), chave()));
+  await assertFails(setDoc(doc(adm, 'friday-chaves-api', hash), chave({ criado_por: 'uid-escritorio' })), 'em nome de outra pessoa');
+  await assertFails(setDoc(doc(adm, 'friday-chaves-api', hash), chave({ revogada_em: '2026-11-10 10:00:00' })), 'já nasce revogada');
+  await assertFails(setDoc(doc(adm, 'friday-chaves-api', hash), chave({ chave: 'fri_segredo' })), 'campo a mais (a chave em claro)');
+  await assertSucceeds(setDoc(doc(adm, 'friday-chaves-api', hash), chave()));
+  await assertSucceeds(getDocs(collection(adm, 'friday-chaves-api')));
+  await assertFails(updateDoc(doc(adm, 'friday-chaves-api', hash), { uid: 'uid-adm2' }), 'trocar a pessoa');
+  await assertFails(updateDoc(doc(esc, 'friday-chaves-api', hash), { revogada_em: '2026-11-10 11:00:00', revogada_por: 'uid-escritorio' }));
+  await assertSucceeds(updateDoc(doc(adm, 'friday-chaves-api', hash), { revogada_em: '2026-11-10 11:00:00', revogada_por: 'uid-adm2' }));
+  await assertFails(updateDoc(doc(adm, 'friday-chaves-api', hash), { revogada_em: '2026-11-10 12:00:00', revogada_por: 'uid-adm2' }), 'revogada não volta');
+  await assertFails(deleteDoc(doc(adm, 'friday-chaves-api', hash)));
+});
 test('[firestore] Friday: items keep "vinculo" and import control written only by Functions', async () => {
   const db = dbAs('escritorio');
   await assertSucceeds(setDoc(doc(db, 'friday-itens', '22'), { id: 22, quadro_id: 10, nome: 'Novo', valores: {}, vinculo: null, importado_em: null }));

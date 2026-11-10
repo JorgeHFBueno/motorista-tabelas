@@ -21,6 +21,7 @@ export { portalAvisoDocumento, portalAvisoFoto, portalAvisoObra, portalAvisoParc
 export { portalEmailsEnviar } from './portalEmails.js';
 export { portalNoticiasColeta, portalNoticiasAtualizar } from './portalNoticias/funcoes.js';
 export { roboObras } from './roboObras.js';
+export { fridayApi } from './fridayApi.js';
 
 export const api = onRequest(app);
 export const adminApi = onRequest(adminApp);
