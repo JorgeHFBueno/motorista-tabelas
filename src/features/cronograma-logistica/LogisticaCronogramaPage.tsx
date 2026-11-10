@@ -13,9 +13,11 @@ import type { AbaPainel, AcoesLogistica, CadastrosLogistica } from './components
 import { PainelProgramacao } from './components/PainelProgramacao';
 import { QuadroSemanas } from './components/QuadroSemanas';
 import {
-  abrirSemana, atualizarProgramacao, criarProgramacao, excluirProgramacao, observarObservacoes, observarProgramacoes,
-  observarSemanas,
+  abrirSemana, atualizarProgramacao, criarProgramacao, darCodigo, excluirProgramacao, observarEtiquetas, observarObservacoes,
+  observarProgramacoes, observarSemanas, salvarEtiquetas,
 } from './data/logisticaFirestore';
+import { semCodigoEmOrdem } from './domain/codigo';
+import { ETIQUETAS_PADRAO, statusAoSalvarEtiquetas, type EtiquetaStatus } from './domain/status';
 import { conflitosPorProgramacao } from './domain/conflitos';
 import type { Observacao, Programacao, Semana } from './domain/models';
 import { hojeCivil, organizarSemanas, proximaSemanaParaAbrir, rotuloSemana, semanaIdDe } from './domain/semanas';
@@ -36,12 +38,16 @@ export default function LogisticaCronogramaPage() {
   const [semanas, setSemanas] = useState<Semana[] | null>(null);
   const [programacoes, setProgramacoes] = useState<Programacao[] | null>(null);
   const [observacoes, setObservacoes] = useState<Observacao[]>([]);
+  const [etiquetas, setEtiquetas] = useState<EtiquetaStatus[]>([...ETIQUETAS_PADRAO]);
   const [cadastrosBrutos, setCadastrosBrutos] = useState<{ pessoas: PessoaV2[]; veiculos: ItemFrotaV2[]; obras: ObraV2[] } | null>(null);
   const [erro, setErro] = useState<string | null>(null);
   const [abertaId, setAbertaId] = useState<string | null>(null);
   const [abaPainel, setAbaPainel] = useState<AbaPainel>('programacao');
   const [abrindo, setAbrindo] = useState(false);
   const tentouAbrirAtual = useRef<string | null>(null);
+  const codigosPedidos = useRef(new Set<string>());
+  // Criações da mesma aba, uma de cada vez: cada uma sobe o contador da semana.
+  const filaCriacao = useRef<Promise<unknown>>(Promise.resolve());
   const hoje = hojeCivil();
   const atualId = semanaIdDe(hoje);
 
@@ -50,7 +56,8 @@ export default function LogisticaCronogramaPage() {
     const pararSemanas = observarSemanas(setSemanas, falha);
     const pararProgramacoes = observarProgramacoes(setProgramacoes, falha);
     const pararObservacoes = observarObservacoes(setObservacoes, (error) => setErro(`Não foi possível ler as observações: ${error.message}`));
-    return () => { pararSemanas(); pararProgramacoes(); pararObservacoes(); };
+    const pararEtiquetas = observarEtiquetas(setEtiquetas, (error) => setErro(`Não foi possível ler as etiquetas de status: ${error.message}`));
+    return () => { pararSemanas(); pararProgramacoes(); pararObservacoes(); pararEtiquetas(); };
   }, []);
 
   useEffect(() => {
@@ -68,6 +75,17 @@ export default function LogisticaCronogramaPage() {
     abrirSemana(atualId, 'automatica', uid).catch((error) => setErro(`Não foi possível abrir a semana atual: ${mensagem(error)}`));
   }, [semanas, uid, atualId]);
 
+  // Linhas de antes do código recebem um, na ordem da tela, uma de cada vez (o contador da semana é o mesmo).
+  useEffect(() => {
+    if (!programacoes || !uid) return;
+    const pendentes = semCodigoEmOrdem(programacoes).filter((programacao) => !codigosPedidos.current.has(programacao.id));
+    if (!pendentes.length) return;
+    for (const programacao of pendentes) codigosPedidos.current.add(programacao.id);
+    (async () => {
+      for (const programacao of pendentes) await darCodigo(programacao.id, uid);
+    })().catch((error) => setErro(`Não foi possível gerar o código das linhas: ${mensagem(error)}`));
+  }, [programacoes, uid]);
+
   const cadastros = useMemo<CadastrosLogistica>(() => {
     const pessoas = cadastrosBrutos?.pessoas ?? [];
     const veiculos = cadastrosBrutos?.veiculos ?? [];
@@ -80,11 +98,12 @@ export default function LogisticaCronogramaPage() {
       pessoas: pessoas.map((pessoa) => ({ id: pessoa.uid, nome: pessoa.nome })),
       veiculos: veiculos.filter((veiculo) => veiculo.ativo).map((veiculo) => ({ id: veiculo.id, nome: itemFrotaLabel(veiculo) })),
       obras: obras.map((obra) => ({ id: obra.id, nome: obraLabel(obra) })),
+      etiquetas,
       nomePessoa: (id, retrato) => nomePessoa.get(id) ?? retrato,
       nomeVeiculo: (id, retrato) => nomeVeiculo.get(id) ?? retrato,
       nomeObra: (id, retrato) => nomeObra.get(id) ?? retrato,
     };
-  }, [cadastrosBrutos]);
+  }, [cadastrosBrutos, etiquetas]);
 
   const lista = useMemo(() => programacoes ?? [], [programacoes]);
   const conflitos = useMemo(
@@ -114,7 +133,10 @@ export default function LogisticaCronogramaPage() {
   const falhar = useCallback((acao: string) => (error: unknown) => setErro(`Não foi possível ${acao}: ${mensagem(error)}`), []);
   const acoes = useMemo<AcoesLogistica>(() => ({
     // A posição é o momento da criação: linhas criadas em sequência, antes do retorno do Firestore, não empatam.
-    criar: (semanaId, item) => { criarProgramacao(semanaId, item, Date.now(), uid).catch(falhar('criar a programação')); },
+    criar: (semanaId, item) => {
+      const posicao = Date.now();
+      filaCriacao.current = filaCriacao.current.then(() => criarProgramacao(semanaId, item, posicao, uid)).catch(falhar('criar a programação'));
+    },
     atualizar: (id, alteracao) => { atualizarProgramacao(id, alteracao, uid).catch(falhar('salvar a alteração')); },
     excluir: (programacao) => {
       if (!window.confirm(`Excluir a programação "${programacao.item}"?`)) return;
@@ -122,7 +144,10 @@ export default function LogisticaCronogramaPage() {
       excluirProgramacao(programacao.id).catch(falhar('excluir a programação'));
     },
     abrir: (id, aba = 'programacao') => { setAbertaId(id); setAbaPainel(aba); },
-  }), [uid, falhar]);
+    salvarEtiquetas: (novas) => {
+      salvarEtiquetas(novas, statusAoSalvarEtiquetas(programacoes ?? [], etiquetas, novas), uid).catch(falhar('salvar as etiquetas'));
+    },
+  }), [uid, falhar, programacoes, etiquetas]);
 
   const iniciarNovaSemana = () => {
     if (!proxima) return;

@@ -2,7 +2,10 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { veiculosDoDocumento, type Programacao } from '../src/features/cronograma-logistica/domain/models';
 import { posicaoAoSoltar } from '../src/features/cronograma-logistica/domain/ordem';
-import { COR_SEM_STATUS, STATUS_LOGISTICA, etiquetaDoStatus } from '../src/features/cronograma-logistica/domain/status';
+import {
+  COR_SEM_STATUS, ETIQUETAS_PADRAO, etiquetasLimpas, novoIdEtiqueta, statusAoSalvarEtiquetas, statusExibido, textoEscuro,
+} from '../src/features/cronograma-logistica/domain/status';
+import { codigoDaProgramacao, semCodigoEmOrdem } from '../src/features/cronograma-logistica/domain/codigo';
 import {
   diasDoCalendario, inicioDaSemanaId, organizarSemanas, proximaSemanaParaAbrir, rotuloSemana, semanaIdDe, semanaIdValido,
 } from '../src/features/cronograma-logistica/domain/semanas';
@@ -10,7 +13,7 @@ import { conflitosPorProgramacao, periodoDe, textoConflito } from '../src/featur
 import { barrasDaLinha } from '../src/features/cronograma-logistica/domain/calendario';
 
 const programacao = (id: string, extra: Partial<Programacao> = {}): Programacao => ({
-  id, semanaId: '2026-W45', item: `Item ${id}`, status: '', inicio: null, fim: null,
+  id, cod: null, semanaId: '2026-W45', item: `Item ${id}`, status: '', inicio: null, fim: null,
   motorista: null, auxiliar: null, veiculos: [], obra: null, posicao: 0, ...extra,
 });
 
@@ -105,12 +108,49 @@ test('veículos: lista sem repetir, até 4; o documento antigo com um só veícu
   );
 });
 
-test('status: as 15 etiquetas do quadro; texto fora da lista fica cinza', () => {
-  assert.equal(STATUS_LOGISTICA.length, 15);
-  assert.equal(new Set(STATUS_LOGISTICA.map((etiqueta) => etiqueta.nome)).size, 15);
-  assert.equal(etiquetaDoStatus('Em viagem').cor, '#fdbc64');
-  assert.deepEqual(etiquetaDoStatus('Programado'), { nome: 'Programado', cor: COR_SEM_STATUS });
-  assert.equal(etiquetaDoStatus('').cor, COR_SEM_STATUS);
+test('status: etiqueta pelo id, pelo nome (valor de antes) ou texto em cinza', () => {
+  assert.equal(ETIQUETAS_PADRAO.length, 15);
+  assert.equal(new Set(ETIQUETAS_PADRAO.map((etiqueta) => etiqueta.id)).size, 15);
+  assert.equal(statusExibido('1', ETIQUETAS_PADRAO).nome, 'Em viagem');
+  assert.equal(statusExibido('Carregar', ETIQUETAS_PADRAO).etiqueta?.id, '3');
+  assert.deepEqual(statusExibido('Programado', ETIQUETAS_PADRAO), { nome: 'Programado', cor: COR_SEM_STATUS, etiqueta: null });
+  assert.deepEqual(statusExibido('', ETIQUETAS_PADRAO), { nome: '', cor: COR_SEM_STATUS, etiqueta: null });
+  assert.equal(textoEscuro('#ffcb00'), true);
+  assert.equal(textoEscuro('#175a63'), false);
+  assert.equal(novoIdEtiqueta(ETIQUETAS_PADRAO), '16');
+  assert.deepEqual(
+    etiquetasLimpas([{ id: '1', nome: ' A ', cor: '#000' }, { id: '2', nome: '', cor: '#000' }, { id: '3', nome: 'a', cor: '#000' }, { id: '1', nome: 'B', cor: '#000' }]),
+    [{ id: '1', nome: 'A', cor: '#000' }],
+  );
+});
+
+test('editar etiquetas: excluída deixa a linha sem status; nome de antes vira id', () => {
+  const antes = [{ id: '1', nome: 'Em viagem', cor: '#a' }, { id: '2', nome: 'Parado', cor: '#b' }, { id: '3', nome: 'Carregar', cor: '#c' }];
+  const depois = [{ id: '1', nome: 'Viajando', cor: '#a' }, { id: '3', nome: 'Carregar', cor: '#c' }, { id: '4', nome: 'Nova', cor: '#d' }];
+  const linhas = [
+    { id: 'a', status: '1' },         // renomeada: nada muda
+    { id: 'b', status: '2' },         // excluída
+    { id: 'c', status: 'Carregar' },  // nome de antes
+    { id: 'd', status: 'Parado' },    // nome de antes de uma excluída
+    { id: 'e', status: 'Programado' }, // texto livre
+    { id: 'f', status: '' },
+  ];
+  assert.deepEqual(statusAoSalvarEtiquetas(linhas, antes, depois), [
+    { id: 'b', status: '' },
+    { id: 'c', status: '3' },
+    { id: 'd', status: '' },
+  ]);
+});
+
+test('código: semana, dia da segunda, dia do domingo e a ordem na semana', () => {
+  assert.equal(codigoDaProgramacao('2026-W46', 1), '46091501');
+  assert.equal(codigoDaProgramacao('2026-W46', 12), '46091512');
+  assert.equal(codigoDaProgramacao('2026-W46', 100), '460915100');
+  assert.equal(codigoDaProgramacao('2026-W45', 3), '45020803');
+  assert.equal(codigoDaProgramacao('2026-W01', 1), '01290401'); // 29/12/2025 a 04/01/2026
+  assert.equal(codigoDaProgramacao('2026-W53', 2), '53280302'); // 28/12/2026 a 03/01/2027
+  const linhas = [programacao('b', { posicao: 2 }), programacao('a', { posicao: 1, cod: '46091501' }), programacao('c', { posicao: 1 })];
+  assert.deepEqual(semCodigoEmOrdem(linhas).map((linha) => linha.id), ['c', 'b']);
 });
 
 test('arrastar: a nova posição fica entre os vizinhos; soltar no mesmo lugar não grava', () => {

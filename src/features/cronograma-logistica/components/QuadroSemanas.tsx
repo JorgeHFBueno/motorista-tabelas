@@ -52,6 +52,7 @@ function LinhaProgramacao({ programacao, cadastros, conflitos, acoes, nObservaco
       onDragOver={(event) => { if (arraste.arrastando) { event.preventDefault(); arraste.onAlvo(programacao.id); } }}
       onDrop={(event) => { event.preventDefault(); arraste.onSoltar(programacao.id); }}
     >
+      <td className="lg-col-cod" title={programacao.cod ? `Código ${programacao.cod}` : 'Gerando o código…'}>{programacao.cod ?? '…'}</td>
       <td className="lg-col-item">
         <span className="lg-item">
           <span
@@ -90,7 +91,7 @@ function LinhaProgramacao({ programacao, cadastros, conflitos, acoes, nObservaco
       <td><CampoEscolha rotulo="Auxiliar" valor={opcaoPessoa(programacao.auxiliar, cadastros)} opcoes={cadastros.pessoas} onSalvar={(opcao) => acoes.atualizar(programacao.id, { auxiliar: refPessoa(opcao) })} /></td>
       <td><CampoEscolhaVarios rotulo="Veículos" maximo={MAX_VEICULOS} valores={opcoesVeiculos(programacao.veiculos, cadastros)} opcoes={cadastros.veiculos} onSalvar={(opcoes) => acoes.atualizar(programacao.id, { veiculos: refsCadastro(opcoes) })} /></td>
       <td><CampoEscolha rotulo="Obra" valor={opcaoObra(programacao.obra, cadastros)} opcoes={cadastros.obras} onSalvar={(opcao) => acoes.atualizar(programacao.id, { obra: refCadastro(opcao) })} /></td>
-      <td className="lg-col-status"><CampoStatus valor={programacao.status} onSalvar={(status) => acoes.atualizar(programacao.id, { status })} /></td>
+      <td className="lg-col-status"><CampoStatus valor={programacao.status} etiquetas={cadastros.etiquetas} onSalvar={(status) => acoes.atualizar(programacao.id, { status })} onSalvarEtiquetas={acoes.salvarEtiquetas} /></td>
       <td className="lg-col-acao">
         <button type="button" className="lg-btn-icone" onClick={() => acoes.excluir(programacao)} title="Excluir" aria-label={`Excluir ${programacao.item}`}>
           <DeleteOutlineRounded fontSize="small" />
@@ -114,7 +115,7 @@ function NovaProgramacao({ onCriar, arraste }: { onCriar: (item: string) => void
       onDragOver={(event) => { if (arraste.arrastando) { event.preventDefault(); arraste.onAlvo(null); } }}
       onDrop={(event) => { event.preventDefault(); arraste.onSoltar(null); }}
     >
-      <td colSpan={8}>
+      <td colSpan={9}>
         <input
           className="lg-input lg-input-nova"
           value={texto}
@@ -166,11 +167,11 @@ export function GrupoSemana({ semanaId, tipo, programacoes, aberto, onAlternar, 
         <div className="lg-tabela-rolagem">
           <table className="lg-tabela">
             <colgroup>
-              <col style={{ width: 320 }} /><col style={{ width: 250 }} /><col style={{ width: 170 }} /><col style={{ width: 170 }} />
+              <col style={{ width: 96 }} /><col style={{ width: 320 }} /><col style={{ width: 250 }} /><col style={{ width: 170 }} /><col style={{ width: 170 }} />
               <col style={{ width: 260 }} /><col style={{ width: 200 }} /><col style={{ width: 150 }} /><col style={{ width: 40 }} />
             </colgroup>
             <thead>
-              <tr><th>Item</th><th>Período</th><th>Motorista</th><th>Auxiliar</th><th>Veículos</th><th>Obra</th><th>Status</th><th aria-label="Ações" /></tr>
+              <tr><th>Cod</th><th>Item</th><th>Período</th><th>Motorista</th><th>Auxiliar</th><th>Veículos</th><th>Obra</th><th>Status</th><th aria-label="Ações" /></tr>
             </thead>
             <tbody>
               {programacoes.map((programacao) => <LinhaProgramacao key={programacao.id} programacao={programacao} arraste={arraste} {...comum} />)}

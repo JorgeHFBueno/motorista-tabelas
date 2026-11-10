@@ -13,6 +13,8 @@ export interface Semana {
 
 export interface Programacao {
   id: string;
+  /** Código da linha (domain/codigo.ts); null até receber um (linhas de antes do código). */
+  cod: string | null;
   semanaId: string;
   item: string;
   status: string;

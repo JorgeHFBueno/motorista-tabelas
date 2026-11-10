@@ -1440,6 +1440,58 @@ test('[firestore] logistica: observações com texto ou arquivos, do próprio au
   await assertSucceeds(deleteDoc(doc(dbAs('logistica'), 'logistica-observacoes', 'o1')));
 });
 
+test('[firestore] logistica: código da linha com o contador da semana; etiquetas de status editáveis', async () => {
+  const adm2 = dbAs('canonicalAdm2');
+  const linha = (extra = {}) => ({
+    schemaVersion: 1, semanaId: '2026-W45', item: 'Transporte', status: '', inicio: null, fim: null,
+    motorista: null, auxiliar: null, veiculos: [], obra: null, posicao: 1,
+    criadoPorUid: 'uid-canonical-adm2', criadoEm: serverTimestamp(), atualizadoPorUid: 'uid-canonical-adm2', atualizadoEm: serverTimestamp(), ...extra,
+  });
+  const alterou = { atualizadoPorUid: 'uid-canonical-adm2', atualizadoEm: serverTimestamp() };
+
+  // Código: 8 ou 9 dígitos; não muda depois de gravado; a linha de antes (sem código) recebe um.
+  await assertSucceeds(setDoc(doc(adm2, 'logistica-programacoes', 'lc1'), linha({ cod: '45020801' })));
+  await assertFails(setDoc(doc(adm2, 'logistica-programacoes', 'lc2'), linha({ cod: '4502' })));
+  await assertFails(setDoc(doc(adm2, 'logistica-programacoes', 'lc2'), linha({ cod: 45020801 })));
+  await assertFails(updateDoc(doc(adm2, 'logistica-programacoes', 'lc1'), { cod: '45020802', ...alterou }));
+  await assertFails(updateDoc(doc(adm2, 'logistica-programacoes', 'lc1'), { cod: deleteField(), ...alterou }));
+  await assertSucceeds(updateDoc(doc(adm2, 'logistica-programacoes', 'lc1'), { status: '3', ...alterou }));
+  await assertSucceeds(setDoc(doc(adm2, 'logistica-programacoes', 'lc3'), linha()));
+  await assertSucceeds(updateDoc(doc(adm2, 'logistica-programacoes', 'lc3'), { cod: '45020802', ...alterou }));
+
+  // Contador da semana: só ele muda, inteiro a partir de 1 (a transação garante o "+1").
+  const semana = doc(dbAs('logistica'), 'logistica-semanas', '2026-W45');
+  await assertSucceeds(updateDoc(semana, { contador: 1 }));
+  await assertSucceeds(updateDoc(semana, { contador: 2 }));
+  await assertFails(updateDoc(semana, { contador: 0 }));
+  await assertFails(updateDoc(semana, { contador: '3' }));
+  await assertFails(updateDoc(semana, { contador: 3, abertura: 'manual' }));
+  await assertFails(updateDoc(doc(dbAs('engenharia'), 'logistica-semanas', '2026-W45'), { contador: 3 }));
+  // Criar a linha e subir o contador juntos, como a WEB faz.
+  await assertSucceeds(runTransaction(adm2, async (transaction) => {
+    const atual = (await transaction.get(doc(adm2, 'logistica-semanas', '2026-W45'))).data().contador;
+    transaction.update(doc(adm2, 'logistica-semanas', '2026-W45'), { contador: atual + 1 });
+    transaction.set(doc(adm2, 'logistica-programacoes', 'lc4'), linha({ cod: `450208${String(atual + 1).padStart(2, '0')}` }));
+  }));
+
+  // Etiquetas: só o documento "status", até 40, quem grava assina; ninguém fora da área.
+  const etiquetas = (n = 2, extra = {}) => ({
+    schemaVersion: 1, etiquetas: Array.from({ length: n }, (_, i) => ({ id: String(i + 1), nome: `Etiqueta ${i + 1}`, cor: '#2b76e5' })),
+    atualizadoPorUid: 'uid-logistica', atualizadoEm: serverTimestamp(), ...extra,
+  });
+  const config = (quem, id = 'status') => doc(dbAs(quem), 'logistica-config', id);
+  await assertSucceeds(setDoc(config('logistica'), etiquetas()));
+  await assertSucceeds(getDoc(config('mecanico')));
+  await assertSucceeds(setDoc(config('logistica'), etiquetas(40)));
+  await assertFails(setDoc(config('logistica'), etiquetas(41)));
+  await assertFails(setDoc(config('logistica', 'outro'), etiquetas()));
+  await assertFails(setDoc(config('logistica'), etiquetas(2, { atualizadoPorUid: 'uid-canonical-adm2' })));
+  await assertFails(setDoc(config('logistica'), etiquetas(2, { extra: true })));
+  await assertFails(getDoc(config('engenharia')));
+  await assertFails(setDoc(config('engenharia'), etiquetas(2, { atualizadoPorUid: 'uid-engenharia' })));
+  await assertFails(deleteDoc(config('logistica')));
+});
+
 test('[firestore] dev-salas: só retr0; entra com vaga, só quem criou começa, só quem está na vez joga, qualquer jogador desiste', async () => {
   const [a, b, c] = [dbAs('retr0'), dbAs('retr0b'), dbAs('retr0c')];
   const sala = (extra = {}) => ({

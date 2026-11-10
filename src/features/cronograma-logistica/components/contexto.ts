@@ -1,5 +1,6 @@
 import type { Conflito } from '../domain/conflitos';
 import type { Programacao, ProgramacaoEditavel, RefCadastro, RefPessoa } from '../domain/models';
+import type { EtiquetaStatus } from '../domain/status';
 import type { Opcao } from './campos';
 
 /** Cadastros oficiais já carregados, como opções, e o nome atual de cada referência (cai no retrato gravado). */
@@ -8,6 +9,8 @@ export interface CadastrosLogistica {
   pessoas: Opcao[];
   veiculos: Opcao[];
   obras: Opcao[];
+  /** Etiquetas de status (logistica-config/status). */
+  etiquetas: readonly EtiquetaStatus[];
   nomePessoa: (uid: string, retrato: string) => string;
   nomeVeiculo: (id: string, retrato: string) => string;
   nomeObra: (id: string, retrato: string) => string;
@@ -20,6 +23,7 @@ export interface AcoesLogistica {
   atualizar: (id: string, alteracao: Partial<ProgramacaoEditavel>) => void;
   excluir: (programacao: Programacao) => void;
   abrir: (id: string, aba?: AbaPainel) => void;
+  salvarEtiquetas: (etiquetas: EtiquetaStatus[]) => void;
 }
 
 export type ConflitosLogistica = ReadonlyMap<string, Conflito[]>;

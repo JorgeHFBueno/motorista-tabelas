@@ -142,6 +142,29 @@
 .lg-status-grade .lg-status { min-height: 32px; border-radius: 3px; display: block; line-height: 32px; }
 .lg-status-grade .lg-status.is-atual { box-shadow: 0 0 0 2px #fff, 0 0 0 4px #323338; }
 
+/* código da linha */
+.lg-col-cod { padding: 0 8px !important; color: var(--lg-texto-2); font-size: 13px; font-variant-numeric: tabular-nums; text-align: center; white-space: nowrap; }
+
+/* editar etiquetas de status (fora de .lg-pagina: Popover) */
+.lg-status-editar { display: flex; align-items: center; justify-content: center; gap: 6px; width: 100%; margin-top: 10px; padding: 8px 0 0; border: 0; border-top: 1px solid #e6e9ef; background: none; color: #323338; font: inherit; font-size: 13px; cursor: pointer; }
+.lg-status-editar:hover { color: #2f6fde; }
+.lg-etiquetas-editor { width: 320px; max-height: 70vh; overflow: auto; display: flex; flex-direction: column; gap: 6px; color: #323338; font-size: 14px; }
+.lg-etiquetas-linha { position: relative; display: flex; align-items: center; gap: 6px; }
+.lg-etiquetas-cor { flex: none; width: 22px; height: 22px; border: 0; border-radius: 4px; cursor: pointer; }
+.lg-etiquetas-linha input { flex: 1; min-width: 0; height: 30px; padding: 0 8px; border: 1px solid #d0d4e4; border-radius: 4px; font: inherit; outline: 0; }
+.lg-etiquetas-linha input:focus { border-color: #2f6fde; box-shadow: 0 0 0 2px #dce8fb; }
+.lg-etiquetas-linha .lg-btn-icone { display: inline-flex; padding: 4px; border: 0; border-radius: 4px; background: none; color: #9699a6; cursor: pointer; }
+.lg-etiquetas-linha .lg-btn-icone:hover { color: #d83a52; background: #fff4f2; }
+.lg-etiquetas-paleta { position: absolute; top: 28px; left: 0; z-index: 2; display: grid; grid-template-columns: repeat(7, 22px); gap: 6px; padding: 8px; border-radius: 6px; background: #fff; box-shadow: 0 4px 16px rgba(0, 0, 0, .18); }
+.lg-etiquetas-paleta button { width: 22px; height: 22px; border: 0; border-radius: 4px; cursor: pointer; }
+.lg-etiquetas-nova { display: inline-flex; align-items: center; gap: 4px; align-self: flex-start; padding: 4px 2px; border: 0; background: none; color: #2f6fde; font: inherit; font-size: 13px; cursor: pointer; }
+.lg-etiquetas-nova:disabled { color: #9699a6; cursor: default; }
+.lg-etiquetas-dica { color: #676879; font-size: 12px; }
+.lg-etiquetas-acoes { display: flex; justify-content: flex-end; gap: 8px; margin-top: 4px; }
+.lg-etiquetas-acoes .lg-btn { display: inline-flex; align-items: center; height: 32px; padding: 0 12px; border: 1px solid #d0d4e4; border-radius: 4px; background: #fff; color: #323338; font: inherit; cursor: pointer; }
+.lg-etiquetas-acoes .lg-btn-primario { border-color: #2f6fde; background: #2f6fde; color: #fff; }
+.lg-etiquetas-acoes .lg-btn-primario:disabled { border-color: #d0d4e4; background: #e6e9ef; color: #9699a6; cursor: default; }
+
 /* vários veículos */
 .lg-escolha-varios .MuiInputBase-root { flex-wrap: nowrap !important; gap: 4px; overflow: hidden; }
 .lg-escolha-varios .MuiInputBase-input { min-width: 24px !important; }

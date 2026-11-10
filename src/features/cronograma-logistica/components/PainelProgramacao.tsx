@@ -30,7 +30,7 @@ export function PainelProgramacao({ programacao, aba, onAba, observacoes, eu, ca
       {programacao && (
         <div className="lg-painel">
           <div className="lg-painel-topo">
-            <span className="lg-painel-semana">{rotuloSemana(programacao.semanaId)}</span>
+            <span className="lg-painel-semana">{programacao.cod ? `${programacao.cod} · ` : ''}{rotuloSemana(programacao.semanaId)}</span>
             <button type="button" className="lg-btn-icone" onClick={onFechar} aria-label="Fechar"><CloseRounded /></button>
           </div>
           <CampoTexto className="lg-painel-titulo" valor={programacao.item} obrigatorio maximo={200} onSalvar={(item) => acoes.atualizar(programacao.id, { item })} />
@@ -66,7 +66,7 @@ export function PainelProgramacao({ programacao, aba, onAba, observacoes, eu, ca
                 <CampoEscolha rotulo="Obra" valor={opcaoObra(programacao.obra, cadastros)} opcoes={cadastros.obras} onSalvar={(opcao) => acoes.atualizar(programacao.id, { obra: refCadastro(opcao) })} />
               </label>
               <div className="lg-painel-campo"><span>Status</span>
-                <CampoStatus grande valor={programacao.status} onSalvar={(status) => acoes.atualizar(programacao.id, { status })} />
+                <CampoStatus grande valor={programacao.status} etiquetas={cadastros.etiquetas} onSalvar={(status) => acoes.atualizar(programacao.id, { status })} onSalvarEtiquetas={acoes.salvarEtiquetas} />
               </div>
               <button type="button" className="lg-btn lg-btn-perigo" onClick={() => acoes.excluir(programacao)}>
                 <DeleteOutlineRounded fontSize="small" /> Excluir programação

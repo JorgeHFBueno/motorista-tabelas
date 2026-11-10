@@ -1416,10 +1416,11 @@ service cloud.firestore {
     // `veiculos` (lista) substitui `veiculo` (um só); os documentos de antes continuam válidos até a WEB gravar a lista.
     function validLogisticaProgramacao(data) {
       return data.keys().hasOnly([
-          'schemaVersion', 'semanaId', 'item', 'status', 'inicio', 'fim', 'motorista', 'auxiliar', 'veiculo', 'veiculos',
+          'schemaVersion', 'cod', 'semanaId', 'item', 'status', 'inicio', 'fim', 'motorista', 'auxiliar', 'veiculo', 'veiculos',
           'obra', 'posicao', 'criadoPorUid', 'criadoEm', 'atualizadoPorUid', 'atualizadoEm'
         ])
         && data.schemaVersion == 1
+        && (!('cod' in data) || (data.cod is string && data.cod.matches('^[0-9]{8,9}$')))
         && data.semanaId is string
         && exists(/databases/$(database)/documents/logistica-semanas/$(data.semanaId))
         && data.item is string && data.item.size() >= 1 && data.item.size() <= 200
@@ -1449,7 +1450,13 @@ service cloud.firestore {
         && request.resource.data.abertura in ['automatica', 'manual']
         && request.resource.data.criadoPorUid == request.auth.uid
         && request.resource.data.criadoEm == request.time;
-      allow update, delete: if false;
+      // Só o contador do código das linhas muda (a WEB sobe um na transação que cria a linha). Não se exige "+1" aqui:
+      // duas transações que leram o mesmo valor seriam recusadas pela regra em vez de repetidas pela transação.
+      allow update: if isLogistica()
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['contador'])
+        && request.resource.data.contador is int
+        && request.resource.data.contador >= 1;
+      allow delete: if false;
     }
 
     match /logistica-programacoes/{programacaoId} {
@@ -1460,8 +1467,23 @@ service cloud.firestore {
         && request.resource.data.criadoEm == request.time;
       allow update: if isLogistica()
         && validLogisticaProgramacao(request.resource.data)
-        && didNotChange(['semanaId', 'criadoPorUid', 'criadoEm']);
+        && didNotChange(['semanaId', 'criadoPorUid', 'criadoEm'])
+        && (!('cod' in resource.data) || request.resource.data.get('cod', null) == resource.data.cod);
       allow delete: if isLogistica();
+    }
+
+    // Etiquetas de status do quadro (só o documento "status"): lista de {id, nome, cor}, até 40; quem grava assina.
+    match /logistica-config/{configId} {
+      allow read: if isLogistica();
+      allow create, update: if isLogistica()
+        && configId == 'status'
+        && request.resource.data.keys().hasOnly(['schemaVersion', 'etiquetas', 'atualizadoPorUid', 'atualizadoEm'])
+        && request.resource.data.schemaVersion == 1
+        && request.resource.data.etiquetas is list
+        && request.resource.data.etiquetas.size() <= 40
+        && request.resource.data.atualizadoPorUid == request.auth.uid
+        && request.resource.data.atualizadoEm == request.time;
+      allow delete: if false;
     }
 
     // Observação de uma programação: texto e/ou até 10 arquivos (Storage logistica/observacoes/), autor = quem grava.

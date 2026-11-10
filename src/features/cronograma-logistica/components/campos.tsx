@@ -1,9 +1,15 @@
 import Autocomplete from '@mui/material/Autocomplete';
 import Popover from '@mui/material/Popover';
 import TextField from '@mui/material/TextField';
+import AddRounded from '@mui/icons-material/AddRounded';
+import DeleteOutlineRounded from '@mui/icons-material/DeleteOutlineRounded';
+import EditOutlined from '@mui/icons-material/EditOutlined';
 import { useEffect, useState } from 'react';
 import type { CivilDate } from '../domain/models';
-import { COR_SEM_STATUS, STATUS_LOGISTICA, etiquetaDoStatus } from '../domain/status';
+import {
+  COR_SEM_STATUS, CORES_ETIQUETA, MAX_ETIQUETAS, etiquetasLimpas, novoIdEtiqueta, statusExibido, textoEscuro,
+  type EtiquetaStatus,
+} from '../domain/status';
 
 export interface Opcao { id: string; nome: string }
 
@@ -149,56 +155,125 @@ export function CampoEscolhaVarios({ valores, opcoes, onSalvar, rotulo, maximo }
   );
 }
 
-/** Etiqueta colorida do status; o clique abre a grade de etiquetas (como no Monday). */
-export function CampoStatus({ valor, onSalvar, grande = false }: { valor: string; onSalvar: (valor: string) => void; grande?: boolean }) {
+/** Nome, cor e exclusão de cada etiqueta, e "Nova etiqueta" (o editor de rótulos do Friday). Só grava no Aplicar. */
+function EditorEtiquetas({ etiquetas, onAplicar, onCancelar }: {
+  etiquetas: readonly EtiquetaStatus[];
+  onAplicar: (etiquetas: EtiquetaStatus[]) => void;
+  onCancelar: () => void;
+}) {
+  const [lista, setLista] = useState<EtiquetaStatus[]>(() => etiquetas.map((etiqueta) => ({ ...etiqueta })));
+  const [paleta, setPaleta] = useState<string | null>(null);
+  const mudar = (id: string, campos: Partial<EtiquetaStatus>) => setLista((atual) => atual.map((item) => (item.id === id ? { ...item, ...campos } : item)));
+  const nomes = lista.map((item) => item.nome.trim().toLocaleLowerCase('pt-BR'));
+  const repetido = nomes.some((nome, indice) => nome && nomes.indexOf(nome) !== indice);
+  const vazio = nomes.some((nome) => !nome);
+  return (
+    <div className="lg-etiquetas-editor">
+      {lista.map((etiqueta) => (
+        <div key={etiqueta.id} className="lg-etiquetas-linha">
+          <button type="button" className="lg-etiquetas-cor" style={{ background: etiqueta.cor }} aria-label={`Cor de ${etiqueta.nome || 'etiqueta'}`} onClick={() => setPaleta(paleta === etiqueta.id ? null : etiqueta.id)} />
+          <input value={etiqueta.nome} maxLength={60} placeholder="Nome da etiqueta" aria-label="Nome da etiqueta" onChange={(event) => mudar(etiqueta.id, { nome: event.target.value })} />
+          <button type="button" className="lg-btn-icone" aria-label={`Excluir ${etiqueta.nome || 'etiqueta'}`} title="Excluir etiqueta" onClick={() => setLista((atual) => atual.filter((item) => item.id !== etiqueta.id))}>
+            <DeleteOutlineRounded fontSize="small" />
+          </button>
+          {paleta === etiqueta.id && (
+            <div className="lg-etiquetas-paleta">
+              {CORES_ETIQUETA.map((cor) => (
+                <button key={cor} type="button" style={{ background: cor }} aria-label={cor} onClick={() => { mudar(etiqueta.id, { cor }); setPaleta(null); }} />
+              ))}
+            </div>
+          )}
+        </div>
+      ))}
+      <button
+        type="button"
+        className="lg-etiquetas-nova"
+        disabled={lista.length >= MAX_ETIQUETAS}
+        onClick={() => setLista((atual) => [...atual, { id: novoIdEtiqueta(atual), nome: 'Nova etiqueta', cor: CORES_ETIQUETA[(atual.length * 7) % CORES_ETIQUETA.length] }])}
+      >
+        <AddRounded fontSize="small" /> Nova etiqueta
+      </button>
+      <small className="lg-etiquetas-dica">
+        {repetido ? 'Há nomes repetidos.' : vazio ? 'Toda etiqueta precisa de nome.' : 'A linha com uma etiqueta excluída fica sem status.'}
+      </small>
+      <div className="lg-etiquetas-acoes">
+        <button type="button" className="lg-btn" onClick={onCancelar}>Cancelar</button>
+        <button type="button" className="lg-btn lg-btn-primario" disabled={repetido || vazio} onClick={() => onAplicar(etiquetasLimpas(lista))}>Aplicar</button>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Etiqueta colorida do status; o clique abre a grade de etiquetas (como no Monday e no Friday), com "Editar
+ * etiquetas" para renomear, mudar a cor, excluir ou criar.
+ */
+export function CampoStatus({ valor, etiquetas, onSalvar, onSalvarEtiquetas, grande = false }: {
+  valor: string;
+  etiquetas: readonly EtiquetaStatus[];
+  onSalvar: (valor: string) => void;
+  onSalvarEtiquetas: (etiquetas: EtiquetaStatus[]) => void;
+  grande?: boolean;
+}) {
   const [ancora, setAncora] = useState<HTMLElement | null>(null);
-  const atual = etiquetaDoStatus(valor);
-  const escolher = (novo: string) => { setAncora(null); if (novo !== valor) onSalvar(novo); };
+  const [editando, setEditando] = useState(false);
+  const atual = statusExibido(valor, etiquetas);
+  const fechar = () => { setAncora(null); setEditando(false); };
+  const escolher = (novo: string) => { fechar(); if (novo !== valor) onSalvar(novo); };
   return (
     <>
       <button
         type="button"
-        className={`lg-status${grande ? ' lg-status-grande' : ''}${atual.textoEscuro ? ' is-escuro' : ''}`}
+        className={`lg-status${grande ? ' lg-status-grande' : ''}${textoEscuro(atual.cor) ? ' is-escuro' : ''}`}
         style={{ background: atual.cor }}
         onClick={(event) => setAncora(event.currentTarget)}
-        aria-label={`Status: ${valor || 'sem status'}`}
+        aria-label={`Status: ${atual.nome || 'sem status'}`}
         aria-haspopup="dialog"
       >
-        {valor}
+        {atual.nome}
       </button>
       <Popover
         open={ancora !== null}
         anchorEl={ancora}
-        onClose={() => setAncora(null)}
+        onClose={fechar}
         anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
         transformOrigin={{ vertical: 'top', horizontal: 'center' }}
         slotProps={{ paper: { className: 'lg-status-menu' } }}
       >
-        <div className="lg-status-grade" role="listbox" aria-label="Status">
-          {STATUS_LOGISTICA.map((etiqueta) => (
-            <button
-              key={etiqueta.nome}
-              type="button"
-              role="option"
-              aria-selected={etiqueta.nome === valor}
-              className={`lg-status${etiqueta.textoEscuro ? ' is-escuro' : ''}${etiqueta.nome === valor ? ' is-atual' : ''}`}
-              style={{ background: etiqueta.cor }}
-              onClick={() => escolher(etiqueta.nome)}
-            >
-              {etiqueta.nome}
+        {editando ? (
+          <EditorEtiquetas etiquetas={etiquetas} onCancelar={() => setEditando(false)} onAplicar={(lista) => { onSalvarEtiquetas(lista); setEditando(false); }} />
+        ) : (
+          <>
+            <div className="lg-status-grade" role="listbox" aria-label="Status">
+              {etiquetas.map((etiqueta) => (
+                <button
+                  key={etiqueta.id}
+                  type="button"
+                  role="option"
+                  aria-selected={etiqueta.id === atual.etiqueta?.id}
+                  className={`lg-status${textoEscuro(etiqueta.cor) ? ' is-escuro' : ''}${etiqueta.id === atual.etiqueta?.id ? ' is-atual' : ''}`}
+                  style={{ background: etiqueta.cor }}
+                  onClick={() => escolher(etiqueta.id)}
+                >
+                  {etiqueta.nome}
+                </button>
+              ))}
+              <button
+                type="button"
+                role="option"
+                aria-selected={valor === ''}
+                className={`lg-status${valor === '' ? ' is-atual' : ''}`}
+                style={{ background: COR_SEM_STATUS }}
+                onClick={() => escolher('')}
+                aria-label="Sem status"
+                title="Sem status"
+              />
+            </div>
+            <button type="button" className="lg-status-editar" onClick={() => setEditando(true)}>
+              <EditOutlined fontSize="small" /> Editar etiquetas
             </button>
-          ))}
-          <button
-            type="button"
-            role="option"
-            aria-selected={valor === ''}
-            className={`lg-status${valor === '' ? ' is-atual' : ''}`}
-            style={{ background: COR_SEM_STATUS }}
-            onClick={() => escolher('')}
-            aria-label="Sem status"
-            title="Sem status"
-          />
-        </div>
+          </>
+        )}
       </Popover>
     </>
   );

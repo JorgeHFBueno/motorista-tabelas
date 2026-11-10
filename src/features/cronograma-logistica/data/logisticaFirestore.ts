@@ -1,6 +1,6 @@
 import {
-  addDoc, collection, deleteDoc, deleteField, doc, getDocs, onSnapshot, query, runTransaction, serverTimestamp, setDoc,
-  updateDoc, where, type Timestamp,
+  collection, deleteDoc, deleteField, doc, getDocs, onSnapshot, query, runTransaction, serverTimestamp, setDoc,
+  updateDoc, where, writeBatch, type Timestamp,
 } from 'firebase/firestore';
 import { deleteObject, getDownloadURL, ref as refArquivo, uploadBytes } from 'firebase/storage';
 import { db, storage } from '../../../firebase';
@@ -8,12 +8,15 @@ import {
   veiculosDoDocumento, type AnexoObservacao, type Observacao, type Programacao, type ProgramacaoEditavel, type RefCadastro,
   type RefPessoa, type Semana,
 } from '../domain/models';
+import { codigoDaProgramacao } from '../domain/codigo';
 import { semanaDoId, semanaIdValido } from '../domain/semanas';
+import { ETIQUETAS_PADRAO, type EtiquetaStatus } from '../domain/status';
 
 // Cronograma Logístico (The Manuscript, 01_FIRESTORE/COLECOES/logistica.md). logistica, mecanico ou adm2 lê e grava.
 export const SEMANAS = 'logistica-semanas';
 export const PROGRAMACOES = 'logistica-programacoes';
 export const OBSERVACOES = 'logistica-observacoes';
+export const CONFIG = 'logistica-config';
 
 export const LIMITE_ARQUIVO = 25 * 1024 * 1024;
 export const MAX_ANEXOS = 10;
@@ -36,6 +39,7 @@ export function programacaoDoDocumento(id: string, value: Record<string, unknown
   if (typeof value.semanaId !== 'string') return null;
   return {
     id,
+    cod: typeof value.cod === 'string' && value.cod ? value.cod : null,
     semanaId: value.semanaId,
     item: texto(value.item),
     status: texto(value.status),
@@ -103,6 +107,30 @@ export function observarObservacoes(onData: (observacoes: Observacao[]) => void,
   }, onError);
 }
 
+/** Etiquetas de status (logistica-config/status); sem o documento, as padrão. */
+export function observarEtiquetas(onData: (etiquetas: EtiquetaStatus[]) => void, onError: (error: Error) => void) {
+  return onSnapshot(doc(db, CONFIG, 'status'), (snapshot) => {
+    const lista = snapshot.exists() && Array.isArray(snapshot.data().etiquetas) ? snapshot.data().etiquetas as unknown[] : null;
+    if (!lista) { onData([...ETIQUETAS_PADRAO]); return; }
+    onData(lista.flatMap((item) => {
+      const etiqueta = item as Partial<Record<keyof EtiquetaStatus, unknown>> | null;
+      return etiqueta && typeof etiqueta.id === 'string' && typeof etiqueta.nome === 'string'
+        ? [{ id: etiqueta.id, nome: etiqueta.nome, cor: typeof etiqueta.cor === 'string' ? etiqueta.cor : '#c4c4c4' }]
+        : [];
+    }));
+  }, onError);
+}
+
+/** Grava a lista de etiquetas e, no mesmo lote, o status das programações que precisam acompanhar. */
+export async function salvarEtiquetas(etiquetas: readonly EtiquetaStatus[], mudancas: readonly { id: string; status: string }[], uid: string): Promise<void> {
+  const lote = writeBatch(db);
+  lote.set(doc(db, CONFIG, 'status'), { schemaVersion: 1, etiquetas, atualizadoPorUid: uid, atualizadoEm: serverTimestamp() });
+  for (const mudanca of mudancas) {
+    lote.update(doc(db, PROGRAMACOES, mudanca.id), { status: mudanca.status, atualizadoPorUid: uid, atualizadoEm: serverTimestamp() });
+  }
+  await lote.commit();
+}
+
 /** Cria a semana se ainda não existir; quem chegar depois (outra aba, outro usuário) não faz nada. */
 export async function abrirSemana(semanaId: string, abertura: Semana['abertura'], uid: string): Promise<void> {
   const semana = semanaDoId(semanaId);
@@ -113,13 +141,41 @@ export async function abrirSemana(semanaId: string, abertura: Semana['abertura']
   });
 }
 
+/**
+ * A linha nasce com o código: o contador da semana sobe um na mesma transação, então duas pessoas criando ao mesmo
+ * tempo não repetem número.
+ */
 export async function criarProgramacao(semanaId: string, item: string, posicao: number, uid: string): Promise<string> {
-  const ref = await addDoc(collection(db, PROGRAMACOES), {
-    schemaVersion: 1, semanaId, item, status: '', inicio: null, fim: null,
-    motorista: null, auxiliar: null, veiculos: [], obra: null, posicao,
-    criadoPorUid: uid, criadoEm: serverTimestamp(), atualizadoPorUid: uid, atualizadoEm: serverTimestamp(),
+  const semanaRef = doc(db, SEMANAS, semanaId);
+  const ref = doc(collection(db, PROGRAMACOES));
+  await runTransaction(db, async (transaction) => {
+    const semana = await transaction.get(semanaRef);
+    if (!semana.exists()) throw new Error('A semana não está aberta.');
+    const numero = (typeof semana.data().contador === 'number' ? semana.data().contador : 0) + 1;
+    transaction.update(semanaRef, { contador: numero });
+    transaction.set(ref, {
+      schemaVersion: 1, cod: codigoDaProgramacao(semanaId, numero), semanaId, item, status: '', inicio: null, fim: null,
+      motorista: null, auxiliar: null, veiculos: [], obra: null, posicao,
+      criadoPorUid: uid, criadoEm: serverTimestamp(), atualizadoPorUid: uid, atualizadoEm: serverTimestamp(),
+    });
   });
   return ref.id;
+}
+
+/** Dá código a uma linha de antes do código (uma vez; quem chegar depois, noutra aba, não faz nada). */
+export async function darCodigo(id: string, uid: string): Promise<void> {
+  const ref = doc(db, PROGRAMACOES, id);
+  await runTransaction(db, async (transaction) => {
+    const programacao = await transaction.get(ref);
+    if (!programacao.exists() || programacao.data().cod) return;
+    const semanaId = programacao.data().semanaId as string;
+    const semanaRef = doc(db, SEMANAS, semanaId);
+    const semana = await transaction.get(semanaRef);
+    if (!semana.exists()) return;
+    const numero = (typeof semana.data().contador === 'number' ? semana.data().contador : 0) + 1;
+    transaction.update(semanaRef, { contador: numero });
+    transaction.update(ref, { cod: codigoDaProgramacao(semanaId, numero), atualizadoPorUid: uid, atualizadoEm: serverTimestamp() });
+  });
 }
 
 export async function atualizarProgramacao(id: string, alteracao: Partial<ProgramacaoEditavel>, uid: string): Promise<void> {
