@@ -22,6 +22,8 @@ const TITULOS: Array<{ padrao: string } & TituloPagina> = [
   { padrao: '/friday/importar-monday', ...FRIDAY },
   { padrao: '/friday/quadros/:id', ...FRIDAY },
   { padrao: '/friday/quadros/:id/automacoes', ...FRIDAY },
+  // Any other Friday screen (e.g. /friday/chaves-api) also gets the logo instead of falling back to the Ledur logo.
+  { padrao: '/friday/*', ...FRIDAY },
   { padrao: '/engenharia/cronograma', titulo: 'Cronograma de Obras' },
   { padrao: '/engenharia/prazos', titulo: 'Cronograma de prazos contratuais' },
   { padrao: '/engenharia/obras', titulo: 'Obras' },

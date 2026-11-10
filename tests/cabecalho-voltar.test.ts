@@ -109,6 +109,9 @@ test('Friday: logo no cabeçalho de todas as telas e o "F" da logo no menu (2026
   const cabecalho = readFileSync('src/components/cabecalhoPagina.tsx', 'utf8');
   assert.match(cabecalho, /const FRIDAY = \{ titulo: 'Friday', logo: '\/logo-friday\.png' \}/);
   assert.equal(cabecalho.match(/padrao: '\/friday[^']*', \.\.\.FRIDAY/g)?.length, cabecalho.match(/padrao: '\/friday/g)?.length);
+  // Every Friday screen, including ones without their own entry (/friday/chaves-api), and Back still goes to /friday.
+  assert.match(cabecalho, /padrao: '\/friday\/\*', \.\.\.FRIDAY/);
+  assert.equal(rotaAnterior('/friday/chaves-api'), '/friday');
   assert.deepEqual([...readFileSync('public/logo-friday.png').subarray(1, 4)].map((c) => String.fromCharCode(c)).join(''), 'PNG');
   const menu = readFileSync('src/components/menuPrincipal.tsx', 'utf8');
   assert.match(menu, /label: 'Friday',\s*icon: <IconeFriday /);
