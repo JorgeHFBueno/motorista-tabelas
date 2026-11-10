@@ -166,7 +166,7 @@ export default function CombustivelNovoPage() {
     event.preventDefault(); setError('');
     if (!plano || !contexto) return setError('Verifique a data antes de salvar.');
     if (!eu) return setError('Seu cadastro em funcionarios não foi encontrado ou está inativo.');
-    const lista = validarLote(plano, lancamentos, new Date(), contexto.folgaLitros);
+    const lista = validarLote(plano, lancamentos, new Date());
     setErros(lista);
     if (lista.length) return;
     try {

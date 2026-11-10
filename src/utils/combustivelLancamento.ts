@@ -176,13 +176,12 @@ function validarMedidor(linha: LinhaLancamento, prefixo: string): string[] {
   return isInt(linha.medidor.valor) && linha.medidor.valor >= 0 ? [] : [`${prefixo}: o medidor deve ser um inteiro.`];
 }
 
-export function validarLote(plano: PlanoLancamento, linhas: LinhaLancamento[], agora: Date, folgaLitros: unknown): string[] {
+export function validarLote(plano: PlanoLancamento, linhas: LinhaLancamento[], agora: Date): string[] {
   if (!linhas.length) return ['Adicione ao menos um abastecimento.'];
   const erros: string[] = [];
   linhas.forEach((linha, index) => {
     const p = `Abastecimento ${index + 1}`;
     if (!isInt(linha.quantidade) || linha.quantidade <= 0) erros.push(`${p}: informe a quantidade.`);
-    else if (isInt(folgaLitros) && linha.quantidade > folgaLitros) erros.push(`${p}: quantidade acima da folga da bomba.`);
     if (!isInt(linha.arla) || linha.arla < 0) erros.push(`${p}: ARLA inválido.`);
     if (!linha.item) erros.push(`${p}: selecione o item da frota.`);
     if (!linha.obra) erros.push(`${p}: selecione a obra.`);

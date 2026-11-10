@@ -26,7 +26,6 @@ const ledger = (docs: { id: string; data: () => Record<string, unknown> }[]) => 
 
 export interface ContextoLancamento {
   plano: PlanoLancamento | { erro: string };
-  folgaLitros: unknown;
   precoAtual: PrecoReferencia | null;
   precosEntradas: PrecoReferencia[];
 }
@@ -47,7 +46,6 @@ export async function carregarContextoLancamento(data: Date): Promise<ContextoLa
     plano: bomba.exists()
       ? planejarLancamento({ data, ultimo: ledger(ultimo.docs)[0] ?? null, antes: ledger(antes.docs), depois: ledger(depois.docs), bomba: { montanteAtual: bombaData.montanteAtual, estoqueAtual: bombaData.estoqueAtual } })
       : { erro: 'Documento bombas/diesel_patio não encontrado.' },
-    folgaLitros: bombaData.folgaLitros,
     precoAtual: bombaData.ultimaEntrada ? precoFromEntrada(bombaData.ultimaEntrada as Record<string, unknown>) : null,
     precosEntradas: entradas.docs.map((item) => precoFromEntrada(item.data(), item.id)).filter((item): item is PrecoReferencia => item !== null),
   };

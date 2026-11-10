@@ -79,21 +79,26 @@ test('vários abastecimentos num furo: montante e estoque encadeados pela data, 
   const linhas = [linha({ data: d('2026-10-11T09:00'), quantidade: 150 }), linha({ data: d('2026-10-10T09:00'), quantidade: 200 })];
   const cadeia = encadearLinhas(linhas, plano.montantePartida, plano.estoquePartida);
   assert.deepEqual(cadeia.map((c) => [c.linha.quantidade, c.montanteAntes, c.montanteAposMovimento, c.estoqueAntes, c.estoqueAposMovimento]), [[200, 1100, 1300, 9400, 9200], [150, 1300, 1450, 9200, 9050]]);
-  assert.deepEqual(validarLote(plano, linhas, d('2026-10-23T12:00'), 5000), []);
-  assert.ok(validarLote(plano, [...linhas, linha({ quantidade: 1 })], d('2026-10-23T12:00'), 5000).includes('A soma dos abastecimentos passa do furo.'));
-  assert.ok(validarLote(plano, [linha({ data: d('2026-10-12T09:00') })], d('2026-10-23T12:00'), 5000)[0].includes('entre o registro anterior e o seguinte'));
+  assert.deepEqual(validarLote(plano, linhas, d('2026-10-23T12:00')), []);
+  assert.ok(validarLote(plano, [...linhas, linha({ quantidade: 1 })], d('2026-10-23T12:00')).includes('A soma dos abastecimentos passa do furo.'));
+  assert.ok(validarLote(plano, [linha({ data: d('2026-10-12T09:00') })], d('2026-10-23T12:00'))[0].includes('entre o registro anterior e o seguinte'));
 });
 
 test('validação do medidor: galão sem medidor, máquina com horímetro, lançamento atual sem regressão', () => {
   const atual: PlanoLancamento = { modo: 'atual', montantePartida: 2000, estoquePartida: 9000, desde: d('2026-10-09T08:00') };
   const agora = d('2026-10-23T12:00');
-  assert.deepEqual(validarLote(atual, [linha({ modalidade: 'galao', medidor: null })], agora, 5000), []);
-  assert.equal(validarLote(atual, [linha({ modalidade: 'galao' })], agora, 5000).length, 1);
-  assert.equal(validarLote(atual, [linha({ item: maquina, medidor: { tipo: 'quilometragem', valor: 5 } })], agora, 5000).length, 1);
-  assert.deepEqual(validarLote(atual, [linha({ item: maquina, medidor: { tipo: 'horimetro', valor: 8752 } })], agora, 5000), []);
-  assert.deepEqual(validarLote(atual, [linha({ medidor: 'sem-odometro' })], agora, 5000), []);
-  assert.equal(validarLote(atual, [linha({ medidor: { tipo: 'quilometragem', valor: 999 } })], agora, 5000).length, 1);
-  assert.equal(validarLote(atual, [linha({ data: d('2026-10-24T08:00') })], agora, 5000).length, 1);
+  assert.deepEqual(validarLote(atual, [linha({ modalidade: 'galao', medidor: null })], agora), []);
+  assert.equal(validarLote(atual, [linha({ modalidade: 'galao' })], agora).length, 1);
+  assert.equal(validarLote(atual, [linha({ item: maquina, medidor: { tipo: 'quilometragem', valor: 5 } })], agora).length, 1);
+  assert.deepEqual(validarLote(atual, [linha({ item: maquina, medidor: { tipo: 'horimetro', valor: 8752 } })], agora), []);
+  assert.deepEqual(validarLote(atual, [linha({ medidor: 'sem-odometro' })], agora), []);
+  assert.equal(validarLote(atual, [linha({ medidor: { tipo: 'quilometragem', valor: 999 } })], agora).length, 1);
+  assert.equal(validarLote(atual, [linha({ data: d('2026-10-24T08:00') })], agora).length, 1);
+});
+
+test('a folga da bomba (tolerância de leitura do montante) não limita a quantidade de um abastecimento', () => {
+  const atual: PlanoLancamento = { modo: 'atual', montantePartida: 2000, estoquePartida: 9000, desde: d('2026-10-09T08:00') };
+  assert.deepEqual(validarLote(atual, [linha({ quantidade: 1159 })], d('2026-10-23T12:00')), []);
 });
 
 test('saída V2 no formato do contrato, com snapshots e preço da entrada', () => {
