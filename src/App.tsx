@@ -15,7 +15,6 @@ const TabelaCombustivel = lazy(() => import('./components/TabelaCombustivel'));
 const CombustivelNovoPage = lazy(() => import('./pages/CombustivelNovoPage'));
 const LoginPage = lazy(() => import('./pages/LoginPage'));
 const CadastroUsuarioNovoPage = lazy(() => import('./pages/CadastroUsuarioNovoPage'));
-const KioskCredentialsPage = lazy(() => import('./pages/KioskCredentialsPage'));
 const CadastroUsuariosEditarPage = lazy(() => import('./pages/CadastroUsuariosEditarPage'));
 const RegistrosPage = lazy(() => import('./pages/RegistrosPage'));
 const ChecklistsPage = lazy(() => import('./pages/ChecklistsPage'));
@@ -92,7 +91,6 @@ export default function App() {
             </Route>
             <Route element={<PrivateRoute permite={(p) => temCredencial(p, 'escritorio')} />}>
               <Route path="cadastros/usuarios/novo" element={<CadastroUsuarioNovoPage />} />
-              <Route path="cadastros/usuarios/kiosk" element={<KioskCredentialsPage />} />
               <Route path="cadastros/editar/usuarios" element={<CadastroUsuariosEditarPage />} />
             </Route>
             {/* Frota e Combustível são grupos, como Engenharia: /frota e /combustivel não têm página própria. */}

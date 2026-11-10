@@ -17,7 +17,6 @@ test('Voltar do cabeçalho sobe pela URL até a página mais próxima, até a Ho
 
 test('grupo sem página própria é pulado: /frota, /cadastros e /combustivel não existem, então voltam para a Home', () => {
   assert.equal(rotaAnterior('/cadastros/usuarios/novo'), '/');
-  assert.equal(rotaAnterior('/cadastros/usuarios/kiosk'), '/');
   assert.equal(rotaAnterior('/cadastros/editar/usuarios'), '/');
   assert.equal(rotaAnterior('/combustivel/registros'), '/');
   assert.equal(rotaAnterior('/combustivel/bombas'), '/');
@@ -39,7 +38,6 @@ test('o Voltar fica só no cabeçalho: as páginas não têm mais o seu', () => 
   for (const arquivo of [
     'src/pages/CadastroUsuarioNovoPage.tsx',
     'src/pages/CadastroUsuariosEditarPage.tsx',
-    'src/pages/KioskCredentialsPage.tsx',
     'src/pages/CombustivelNovoPage.tsx',
     'src/pages/FrotaAnalyticsPage.tsx',
     'src/pages/FrotaVeiculoDetalhesPage.tsx',
@@ -57,7 +55,6 @@ test('menu e rotas de 2026-11-10: Cadastros e Combustível são grupos, Checklis
   const titulos = readFileSync('src/components/cabecalhoPagina.tsx', 'utf8');
   assert.match(menu, /label: 'Usuários', to: '\/cadastros\/editar\/usuarios'/);
   assert.match(menu, /label: 'Novo usuário', to: '\/cadastros\/usuarios\/novo'/);
-  assert.match(menu, /label: 'Credenciais Kiosk', to: '\/cadastros\/usuarios\/kiosk'/);
   assert.match(menu, /label: 'Registros', to: '\/combustivel\/registros'/);
   assert.match(menu, /label: 'Bombas', to: '\/combustivel\/bombas'/);
   assert.doesNotMatch(menu, /to: '\/(cadastros|combustivel|checklist)'/);
@@ -70,7 +67,7 @@ const perfil = (credenciais: Partial<AuthorizationProfile>): AuthorizationProfil
 const grupo = (p: AuthorizationProfile, label: string) => filtrarMenuPrincipal(p).find((item) => item.label === label)?.children?.map((c) => c.label);
 
 test('Meu perfil fica dentro de Cadastros e continua aberto a qualquer credencial (2026-11-10)', () => {
-  assert.deepEqual(grupo(perfil({ escritorio: true }), 'Cadastros'), ['Usuários', 'Novo usuário', 'Credenciais Kiosk', 'Meu perfil']);
+  assert.deepEqual(grupo(perfil({ escritorio: true }), 'Cadastros'), ['Usuários', 'Novo usuário', 'Meu perfil']);
   assert.deepEqual(grupo(perfil({ motorista: true }), 'Cadastros'), ['Meu perfil']);
   assert.deepEqual(filtrarMenuPrincipal(perfil({ motorista: true })).map((i) => i.label), ['Cadastros']);
   assert.equal(filtrarMenuPrincipal(perfil({ adm2: true })).some((i) => i.label === 'Meu perfil'), false);
@@ -116,6 +113,20 @@ test('Friday: logo no cabeçalho de todas as telas e o "F" da logo no menu (2026
   const menu = readFileSync('src/components/menuPrincipal.tsx', 'utf8');
   assert.match(menu, /label: 'Friday',\s*icon: <IconeFriday /);
   assert.doesNotMatch(menu, /ViewKanban/);
+});
+
+test('Credenciais Kiosk saiu do menu e virou o botão de QR nas Ações de Usuários (2026-11-10)', () => {
+  const app = readFileSync('src/App.tsx', 'utf8');
+  const menu = readFileSync('src/components/menuPrincipal.tsx', 'utf8');
+  assert.doesNotMatch(app + menu + readFileSync('src/components/cabecalhoPagina.tsx', 'utf8'), /usuarios\/kiosk|KioskCredentialsPage|Credenciais Kiosk/);
+  const tabela = readFileSync('src/components/AdminUsersEditTable.tsx', 'utf8');
+  assert.match(tabela, /\{isKioskCredentialEligible\(row\) && \(/);
+  assert.match(tabela, /onClick=\{\(\) => onKiosk\(row\)\}><QrCode2RoundedIcon/);
+  assert.match(readFileSync('src/pages/CadastroUsuariosEditarPage.tsx', 'utf8'), /<KioskCredenciaisDialog user=\{kioskDe\}/);
+  // Popup na ordem pedida: Atualizado em | por, QR | PIN, ações do QR | do PIN.
+  const popup = readFileSync('src/components/kiosk/KioskCredenciaisDialog.tsx', 'utf8');
+  const ordem = ['rotulo="Atualizado em"', 'rotulo="Atualizado por"', 'rotulo="QR"', 'rotulo="PIN"', "setAcaoQr('provision')", "setAcaoPin(pinConfigurado ? 'change' : 'set')"].map((t) => popup.indexOf(t));
+  assert.ok(ordem.every((p, i) => p > 0 && (i === 0 || p > ordem[i - 1])), String(ordem));
 });
 
 test('Nova entrada de diesel fica no card da bomba, abaixo do seletor', () => {

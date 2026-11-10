@@ -19,6 +19,7 @@ import {
 } from '@mui/material';
 import AdminUserEditModal, { type AdminUserEditValues } from '../components/AdminUserEditModal';
 import AdminUsersEditTable from '../components/AdminUsersEditTable';
+import KioskCredenciaisDialog from '../components/kiosk/KioskCredenciaisDialog';
 import useAdminUsers from '../hooks/useAdminUsers';
 import { loginDoUsuario, nomeDoUsuario, type AdminUser } from '../services/adminUsersApi';
 import { CREDENCIAIS } from '../services/credenciais';
@@ -28,7 +29,7 @@ type Aviso = { message: string; severity: 'success' | 'error' } | null;
 const erroDe = (e: unknown, padrao: string) => (e instanceof Error ? e.message : padrao);
 
 // Tela central de usuários (Cadastros: escritorio ou adm2; só o adm2 mexe em adm2 e retr0): todas as contas do login (menos as dos clientes do portal), credenciais, situação, senha nova e exclusão das
-// contas sem funcionário. Contrato: The Manuscript, funcionarios.md ("Usuários na WEB").
+// contas sem funcionário, e o QR e o PIN do Kiosk de cada frentista (antes, a tela /cadastros/usuarios/kiosk). Contrato: The Manuscript, funcionarios.md ("Usuários na WEB").
 export default function CadastroUsuariosEditarPage() {
   useTituloPagina('Usuários');
   const { users, loading, error, reload, updateUser, deleteUser, definirSenha } = useAdminUsers();
@@ -49,6 +50,7 @@ export default function CadastroUsuariosEditarPage() {
   const [senha, setSenha] = useState('');
   const [confirmacao, setConfirmacao] = useState('');
   const [excluir, setExcluir] = useState<AdminUser | null>(null);
+  const [kioskDe, setKioskDe] = useState<AdminUser | null>(null);
 
   const dateFormatter = useMemo(() => new Intl.DateTimeFormat('pt-BR', { dateStyle: 'short', timeStyle: 'short', timeZone: 'America/Sao_Paulo' }), []);
   const semFuncionario = users.filter((u) => !u.funcionario).length;
@@ -147,6 +149,7 @@ export default function CadastroUsuariosEditarPage() {
               onEdit={(user) => { setSubmitError(null); setEditing(user); }}
               onSenha={(user) => { setSenha(''); setConfirmacao(''); setSenhaDe(user); }}
               onExcluir={setExcluir}
+              onKiosk={setKioskDe}
               dateFormatter={dateFormatter}
             />
           </Stack>
@@ -190,6 +193,8 @@ export default function CadastroUsuariosEditarPage() {
           <Button variant="contained" color="error" onClick={() => void confirmarExclusao()} disabled={saving}>Excluir</Button>
         </DialogActions>
       </Dialog>
+
+      <KioskCredenciaisDialog user={kioskDe} onClose={() => setKioskDe(null)} onAviso={(message, erro) => setSnackbar({ message, severity: erro ? 'error' : 'success' })} />
 
       {snackbar && (
         <Snackbar open autoHideDuration={5000} onClose={() => setSnackbar(null)} anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}>

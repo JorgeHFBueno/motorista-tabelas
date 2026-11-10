@@ -4,8 +4,10 @@ import { Chip, IconButton, Stack, Tooltip, Typography } from '@mui/material';
 import EditOutlinedIcon from '@mui/icons-material/EditOutlined';
 import KeyOutlinedIcon from '@mui/icons-material/KeyOutlined';
 import DeleteOutlineRoundedIcon from '@mui/icons-material/DeleteOutlineRounded';
+import QrCode2RoundedIcon from '@mui/icons-material/QrCode2Rounded';
 import { loginDoUsuario, nomeDoUsuario, type AdminUser } from '../services/adminUsersApi';
 import { CREDENCIAIS } from '../services/credenciais';
+import { isKioskCredentialEligible } from '../services/kioskCredentialEligibility';
 
 interface AdminUsersEditTableProps {
   rows: AdminUser[];
@@ -13,6 +15,8 @@ interface AdminUsersEditTableProps {
   onEdit: (row: AdminUser) => void;
   onSenha: (row: AdminUser) => void;
   onExcluir: (row: AdminUser) => void;
+  // Kiosk QR and PIN: only for whoever can use the Kiosk (active, frentista or adm2).
+  onKiosk: (row: AdminUser) => void;
   dateFormatter: Intl.DateTimeFormat;
 }
 
@@ -22,7 +26,7 @@ function formatDate(value: string | null | undefined, dateFormatter: Intl.DateTi
   return Number.isNaN(date.getTime()) ? '—' : dateFormatter.format(date);
 }
 
-export default function AdminUsersEditTable({ rows, loading, onEdit, onSenha, onExcluir, dateFormatter }: AdminUsersEditTableProps) {
+export default function AdminUsersEditTable({ rows, loading, onEdit, onSenha, onExcluir, onKiosk, dateFormatter }: AdminUsersEditTableProps) {
   const columns = useMemo<GridColDef<AdminUser>[]>(() => [
     { field: 'nome', headerName: 'Nome', minWidth: 200, flex: 1, valueGetter: (_v, row) => nomeDoUsuario(row) },
     { field: 'login', headerName: 'Login', minWidth: 210, flex: 1, valueGetter: (_v, row) => loginDoUsuario(row) },
@@ -73,6 +77,11 @@ export default function AdminUsersEditTable({ rows, loading, onEdit, onSenha, on
           <Tooltip title="Definir senha nova">
             <IconButton aria-label={`Definir senha de ${nomeDoUsuario(row)}`} onClick={() => onSenha(row)}><KeyOutlinedIcon fontSize="small" /></IconButton>
           </Tooltip>
+          {isKioskCredentialEligible(row) && (
+            <Tooltip title="Kiosk: QR e PIN">
+              <IconButton aria-label={`Kiosk de ${nomeDoUsuario(row)}`} onClick={() => onKiosk(row)}><QrCode2RoundedIcon fontSize="small" /></IconButton>
+            </Tooltip>
+          )}
           {!row.funcionario && (
             <Tooltip title="Excluir a conta (sem funcionário)">
               <IconButton aria-label={`Excluir a conta de ${nomeDoUsuario(row)}`} color="error" onClick={() => onExcluir(row)}><DeleteOutlineRoundedIcon fontSize="small" /></IconButton>
@@ -81,7 +90,7 @@ export default function AdminUsersEditTable({ rows, loading, onEdit, onSenha, on
         </Stack>
       ),
     },
-  ], [dateFormatter, onEdit, onExcluir, onSenha]);
+  ], [dateFormatter, onEdit, onExcluir, onKiosk, onSenha]);
 
   return (
     <div style={{ width: '100%' }}>
