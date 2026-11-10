@@ -142,7 +142,11 @@ test('Usuários: filtro com Apenas ativos e Novo usuário, sem Login, e cada toq
   // Novo usuário fica na barra do filtro, depois do campo de busca.
   assert.ok(pagina.indexOf('label="Filtrar por nome') < pagina.indexOf('to="/cadastros/usuarios/novo"'));
   const tabela = readFileSync('src/components/AdminUsersEditTable.tsx', 'utf8');
-  assert.doesNotMatch(tabela, /field: 'login'/);
+  assert.doesNotMatch(tabela, /field: 'login'|@mui\/x-data-grid/); // tabela simples do MUI: a DataGrid travava 0,2–0,5 s por tecla
+  assert.match(tabela, /const Linha = memo\(/);
+  // Gravar troca só a linha da pessoa; recarregar a lista inteira chamava a adminApi de novo.
+  assert.match(pagina, /useAdminUsers\(\{ refreshOnChange: false \}\)/);
+  assert.match(pagina, /onEdit=\{abrirEdicao\}/);
   for (const modo of ['completo', 'credenciais', 'situacao']) assert.match(tabela, new RegExp(`onEdit\\(row, '${modo}'\\)`), modo);
   const popup = readFileSync('src/components/AdminUserEditModal.tsx', 'utf8');
   for (const dado of ['Nome', 'Login', 'E-mail do cadastro', 'Situação', 'Conta criada em', 'Último acesso', 'UID']) assert.match(popup, new RegExp(`rotulo="${dado}"`), dado);

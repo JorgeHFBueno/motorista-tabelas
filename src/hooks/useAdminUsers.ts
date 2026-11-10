@@ -55,8 +55,9 @@ export default function useAdminUsers(options: UseAdminUsersOptions = {}) {
 
   const deleteUser = useCallback(async (uid: string) => {
     await apiDeleteUser(uid);
-    await depois();
-  }, [depois]);
+    if (refreshOnChange) await loadUsers();
+    else setUsers((current) => current.filter((user) => user.uid !== uid));
+  }, [loadUsers, refreshOnChange]);
 
   const definirSenha = useCallback((uid: string, password: string) => apiDefinirSenha(uid, password), []);
 

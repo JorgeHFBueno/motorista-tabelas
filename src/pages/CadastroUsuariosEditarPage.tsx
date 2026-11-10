@@ -35,7 +35,9 @@ const erroDe = (e: unknown, padrao: string) => (e instanceof Error ? e.message :
 // contas sem funcionário, e o QR e o PIN do Kiosk de cada frentista (antes, a tela /cadastros/usuarios/kiosk). Contrato: The Manuscript, funcionarios.md ("Usuários na WEB").
 export default function CadastroUsuariosEditarPage() {
   useTituloPagina('Usuários');
-  const { users, loading, error, reload, updateUser, deleteUser, definirSenha } = useAdminUsers();
+  // A save changes only that row (the server answers with the updated person): reloading the whole list meant the
+  // adminApi listing every account again, with "carregando" in the table.
+  const { users, loading, error, reload, updateUser, deleteUser, definirSenha } = useAdminUsers({ refreshOnChange: false });
   const [search, setSearch] = useState('');
   // Starts showing only active people; the switch shows the inactive ones too.
   const [apenasAtivos, setApenasAtivos] = useState(true);
@@ -55,6 +57,9 @@ export default function CadastroUsuariosEditarPage() {
   const [confirmacao, setConfirmacao] = useState('');
   const [excluir, setExcluir] = useState<AdminUser | null>(null);
   const [kioskDe, setKioskDe] = useState<AdminUser | null>(null);
+  // Stable callbacks: new functions on every render made the table rebuild all its columns on each keystroke of the filter.
+  const abrirEdicao = useCallback((user: AdminUser, modo: ModoEdicaoUsuario) => { setSubmitError(null); setEditing({ user, modo }); }, []);
+  const abrirSenha = useCallback((user: AdminUser) => { setSenha(''); setConfirmacao(''); setSenhaDe(user); }, []);
   // Kiosk QR/PIN status of every eligible person, fetched as soon as the list arrives (as the old Kiosk screen did): the
   // Function's cold start (~4 s when idle) happens while the table is on screen, and the popup opens with the data ready.
   const [kioskStatus, setKioskStatus] = useState<Record<string, KioskCredentialStatus>>({});
@@ -158,8 +163,8 @@ export default function CadastroUsuariosEditarPage() {
             <AdminUsersEditTable
               rows={filteredUsers}
               loading={loading}
-              onEdit={(user, modo) => { setSubmitError(null); setEditing({ user, modo }); }}
-              onSenha={(user) => { setSenha(''); setConfirmacao(''); setSenhaDe(user); }}
+              onEdit={abrirEdicao}
+              onSenha={abrirSenha}
               onExcluir={setExcluir}
               onKiosk={setKioskDe}
               dateFormatter={dateFormatter}
