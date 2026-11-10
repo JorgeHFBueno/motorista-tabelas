@@ -83,7 +83,9 @@ export default function Header() {
             {pagina ? (
               <>
                 <Typography component="h1" noWrap sx={{ fontSize: { xs: 17, md: 20 }, fontWeight: 600, lineHeight: 1.3 }}>
-                  {pagina.titulo}
+                  {pagina.logo
+                    ? <Box component="img" src={pagina.logo} alt={pagina.titulo} sx={{ display: 'block', height: { xs: 34, md: 44 }, maxWidth: '100%' }} />
+                    : pagina.titulo}
                 </Typography>
                 {pagina.subtitulo && (
                   <Typography noWrap sx={{ display: { xs: 'none', sm: 'block' }, fontSize: 14, color: 'rgb(255 255 255 / 0.70)' }}>

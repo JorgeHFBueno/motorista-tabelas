@@ -243,17 +243,6 @@ export default function BombasPage() {
   return (
     <Container maxWidth="xl" sx={{ py: { xs: 2, md: 4 } }}>
       <Stack spacing={3}>
-        <Stack direction={{ xs: 'column', sm: 'row' }} justifyContent="flex-end" gap={2} alignItems={{ sm: 'center' }}>
-          <Button
-            variant="contained"
-            startIcon={<AddRounded />}
-            onClick={openEntry}
-            disabled={!canRegister || selectedId !== DIESEL_PATIO_ID || loading}
-          >
-            Nova entrada de diesel
-          </Button>
-        </Stack>
-
         {(loading || authorizationLoading) && <LinearProgress />}
         {error && <Alert severity="error" action={<Button onClick={() => void loadPage()}>Tentar novamente</Button>}>{error}</Alert>}
         {!loading && !error && bombas.length === 0 && <Alert severity="info">Nenhuma bomba cadastrada.</Alert>}
@@ -302,6 +291,21 @@ export default function BombasPage() {
                       {bombas.map((bomba) => <MenuItem key={bomba.id} value={bomba.id}>{bombaName(bomba)}</MenuItem>)}
                     </Select>
                   </Box>
+                  {/* Inside the pump card, under the selector: a light button on the dark card. */}
+                  <Button
+                    variant="contained"
+                    startIcon={<AddRounded />}
+                    onClick={openEntry}
+                    disabled={!canRegister || selectedId !== DIESEL_PATIO_ID || loading}
+                    sx={{
+                      bgcolor: '#fff',
+                      color: 'primary.main',
+                      '&:hover': { bgcolor: 'rgb(255 255 255 / 0.88)' },
+                      '&.Mui-disabled': { bgcolor: 'rgb(255 255 255 / 0.18)', color: 'rgb(255 255 255 / 0.55)' },
+                    }}
+                  >
+                    Nova entrada de diesel
+                  </Button>
                 </Stack>
               </Paper>
 

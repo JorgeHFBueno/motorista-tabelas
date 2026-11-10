@@ -3,10 +3,13 @@ import { matchPath, useLocation } from 'react-router-dom';
 
 // Title of the current page, shown in the header (same model as the client portal). Each route has a default here; a page
 // whose title depends on its data (a vehicle, a checklist) sets it with useTituloPagina. Only the Home has a subtitle.
+// A page with a logo shows it instead of the title text (the title stays as the image's alt).
 // The list is also the map of pages used by the header's back button (rotaAnterior).
-export type TituloPagina = { titulo: string; subtitulo?: string };
+export type TituloPagina = { titulo: string; subtitulo?: string; logo?: string };
 
 const FRIDAY = { titulo: 'Friday' };
+// Abastecedora Ledur logo (white with an amber shadow) on the fuel pages.
+const ABASTECEDORA = { logo: '/logo-abastecedora-ledur.svg' };
 
 const TITULOS: Array<{ padrao: string } & TituloPagina> = [
   // /login and /acesso-negado have no title: the header shows the logo there.
@@ -24,7 +27,7 @@ const TITULOS: Array<{ padrao: string } & TituloPagina> = [
   { padrao: '/engenharia/obras/:id', titulo: 'Detalhes da Obra' },
   { padrao: '/dev', titulo: 'DEV' },
   { padrao: '/the-manuscript/*', titulo: 'The Manuscript' },
-  { padrao: '/combustivel/registros', titulo: 'Registros de combustível' },
+  { padrao: '/combustivel/registros', titulo: 'Registros de combustível', ...ABASTECEDORA },
   { padrao: '/combustivel/registros/novo', titulo: 'Lançamento de combustível' },
   { padrao: '/cadastros/usuarios/novo', titulo: 'Cadastro de usuários' },
   { padrao: '/cadastros/usuarios/kiosk', titulo: 'Credenciais Kiosk' },
@@ -35,7 +38,7 @@ const TITULOS: Array<{ padrao: string } & TituloPagina> = [
   { padrao: '/frota/checklists', titulo: 'Checklists' },
   { padrao: '/frota/checklists/:id', titulo: 'Checklist' },
   { padrao: '/frota/analytics', titulo: 'Analytics da Frota' },
-  { padrao: '/combustivel/bombas', titulo: 'Bombas' },
+  { padrao: '/combustivel/bombas', titulo: 'Bombas', ...ABASTECEDORA },
   { padrao: '/logistica/cronograma', titulo: 'Cronograma Logístico' },
   { padrao: '/portal-cliente/clientes', titulo: 'Clientes do portal' },
   { padrao: '/portal-cliente/contratos', titulo: 'Contratos no portal' },
@@ -46,7 +49,7 @@ const TITULOS: Array<{ padrao: string } & TituloPagina> = [
 
 const tituloDaRota = (caminho: string): TituloPagina | null => {
   const encontrado = TITULOS.find(({ padrao }) => matchPath({ path: padrao, end: true }, caminho));
-  return encontrado ? { titulo: encontrado.titulo, subtitulo: encontrado.subtitulo } : null;
+  return encontrado ? { titulo: encontrado.titulo, subtitulo: encontrado.subtitulo, logo: encontrado.logo } : null;
 };
 
 // A path that is a page of its own. A "/*" route (The Manuscript's documents) counts only at its root.

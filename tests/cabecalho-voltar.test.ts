@@ -93,3 +93,22 @@ test('Home ocupa o resto da tela sem chutar a altura do cabeçalho (sem rolagem 
   assert.match(home, /flex: 1/);
   assert.match(css, /#root \{[^}]*display: flex;[^}]*flex-direction: column;/);
 });
+
+test('Registros e Bombas de combustível mostram a logo Abastecedora Ledur no lugar do título (2026-11-10)', () => {
+  const cabecalho = readFileSync('src/components/cabecalhoPagina.tsx', 'utf8');
+  for (const rota of ['/combustivel/registros', '/combustivel/bombas']) {
+    assert.match(cabecalho, new RegExp(`padrao: '${rota}', titulo: '[^']+', \\.\\.\\.ABASTECEDORA`), rota);
+  }
+  assert.match(cabecalho, /logo: '\/logo-abastecedora-ledur\.svg'/);
+  assert.match(readFileSync('public/logo-abastecedora-ledur.svg', 'utf8'), /^<svg /);
+  // O título continua como texto alternativo da imagem.
+  assert.match(readFileSync('src/components/Header.tsx', 'utf8'), /src=\{pagina\.logo\} alt=\{pagina\.titulo\}/);
+});
+
+test('Nova entrada de diesel fica no card da bomba, abaixo do seletor', () => {
+  const bombas = readFileSync('src/pages/BombasPage.tsx', 'utf8');
+  const seletor = bombas.indexOf("'aria-label': 'Selecionar bomba'");
+  const botao = bombas.search(/Nova entrada de diesel\r?\n/);
+  const fimDoCard = bombas.indexOf('{cards.map(');
+  assert.ok(seletor > 0 && seletor < botao && botao < fimDoCard);
+});
