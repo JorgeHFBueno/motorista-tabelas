@@ -51,7 +51,7 @@ const CAMPOS: Record<Recurso, string[]> = {
     'pessoas', 'busca', 'importado_em', 'monday_atualizado_em', 'ligacoes_pendentes', 'vinculo'],
   visoes: ['id', 'quadro_id', 'nome', 'tipo', 'config', 'posicao'],
   // quadro_id em atualizações e anexos: quadro do item, guardado para contar sem consultar item por item.
-  atualizacoes: ['id', 'item_id', 'quadro_id', 'usuario_id', 'texto', 'criado_em', 'resposta_de', 'mencoes'],
+  atualizacoes: ['id', 'item_id', 'quadro_id', 'usuario_id', 'texto', 'criado_em', 'resposta_de', 'mencoes', 'editado_em'],
   atividades: ['id', 'quadro_id', 'item_id', 'item_nome', 'usuario_id', 'automacao_id', 'acao', 'coluna_id', 'coluna_titulo', 'de', 'para', 'criado_em'],
   // arquivo: caminho no Storage; origem_id: arquivo copiado do monday ("monday:<asset>"), gravado pela Function fridayAnexosMonday.
   anexos: ['id', 'item_id', 'quadro_id', 'atualizacao_id', 'coluna_id', 'nome', 'mime', 'tamanho', 'arquivo', 'url', 'usuario_id', 'criado_em', 'origem_id'],
@@ -65,7 +65,7 @@ const JSON_COLS: Partial<Record<Recurso, string[]>> = { quadros: ['config'], col
 // Campos que a API genérica não grava (têm rotas próprias).
 const PROTEGIDOS: Partial<Record<Recurso, string[]>> = {
   areas: ['restrito'], pastas: ['restrito'], quadros: ['restrito', 'acesso', 'cadastro'],
-  atualizacoes: ['quadro_id'], anexos: ['quadro_id'], notificacoes: ['usuario_uid'],
+  atualizacoes: ['quadro_id', 'editado_em'], anexos: ['quadro_id'], notificacoes: ['usuario_uid'],
   // vinculo: { cadastro, id } do registro oficial do item (cadastros oficiais).
   itens: ['pessoas', 'busca', 'importado_em', 'monday_atualizado_em', 'ligacoes_pendentes', 'vinculo'],
 };
@@ -1191,6 +1191,8 @@ async function atualizar(r: Recurso, id: number, corpo: unknown) {
   }
   const campos: Record<string, unknown> = Object.fromEntries(mudou.map(k => [k, dados[k]]));
   if (r === 'itens' || r === 'automacoes') campos.atualizado_em = agora();
+  // Atualização editada: guarda só quando foi editada (sem histórico de versões); a tela mostra "editado".
+  if (r === 'atualizacoes' && mudou.includes('texto')) campos.editado_em = agora();
   if (r === 'itens' && mudou.includes('nome') && antes.vinculo && antes.vinculo.sub == null && (await registroDe(antes.vinculo.cadastro))?.nome_espelho?.length) {
     throw new ErroApi(409, NOME_TRAVADO);
   }

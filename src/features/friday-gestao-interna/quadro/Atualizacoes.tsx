@@ -1,7 +1,7 @@
 import { Fragment, useEffect, useMemo, useRef, useState, type ClipboardEvent, type DragEvent, type KeyboardEvent, type ReactNode } from 'react';
 import {
   AtSign, Download, ExternalLink, File as IconeArquivo, FileArchive, FileImage, FileSpreadsheet, FileText, FileVideo,
-  MessageCircle, MoreHorizontal, Paperclip, Reply, Trash2, Upload, X,
+  MessageCircle, MoreHorizontal, Paperclip, Pencil, Reply, Trash2, Upload, X,
 } from 'lucide-react';
 import { api, enviarArquivo, type Pessoa, type Row } from '../api.ts';
 import { useNav } from '../nav.tsx';
@@ -63,15 +63,19 @@ function TextoAtualizacao({ texto }: { texto: string }) {
 const semAcento = (s: string) => s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
 
 // ---------------------------------------------------------------- caixa de escrita (com @ e anexos)
-export function Composer({ item, respostaDe, compacto, onPublicado, onCancelar }: {
-  item: Item; respostaDe?: number; compacto?: boolean; onPublicado: (a: Row, anexos: Row[]) => void; onCancelar?: () => void;
+// edicao: editar uma atualização já publicada (texto atual, sem anexos); onSalvar grava o texto e as menções.
+export function Composer({ item, respostaDe, compacto, onPublicado, onCancelar, edicao, onSalvar }: {
+  item: Item; respostaDe?: number; compacto?: boolean; onPublicado?: (a: Row, anexos: Row[]) => void; onCancelar?: () => void;
+  edicao?: string; onSalvar?: (texto: string, mencoes: string[]) => Promise<void>;
 }) {
   const nav = useNav();
   const area = useRef<HTMLTextAreaElement>(null);
   const seletor = useRef<HTMLInputElement>(null);
-  const [texto, setTexto] = useState('');
+  // Na edição, as marcas @{uid} voltam a ser "@Nome" na caixa (e de novo @{uid} ao salvar).
+  const mencoesIniciais = () => [...new Set([...(edicao ?? '').matchAll(/@\{([^{}\s]+)\}/g)].map(m => m[1]))].map(id => ({ id, nome: nav.nomeUsuario(id) }));
+  const [texto, setTexto] = useState(() => (edicao ?? '').replace(/@\{([^{}\s]+)\}/g, (_, id: string) => `@${nav.nomeUsuario(id)}`).trim());
   const [arquivos, setArquivos] = useState<File[]>([]);
-  const [mencoes, setMencoes] = useState<{ id: string; nome: string }[]>([]);
+  const [mencoes, setMencoes] = useState<{ id: string; nome: string }[]>(mencoesIniciais);
   const [busca, setBusca] = useState<{ termo: string; inicio: number } | null>(null);
   const [indice, setIndice] = useState(0);
   const [enviando, setEnviando] = useState<string | null>(null);
@@ -103,7 +107,8 @@ export function Composer({ item, respostaDe, compacto, onPublicado, onCancelar }
     }
     if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) publicar();
   };
-  const adicionar = (fs: FileList | File[] | null) => { if (fs?.length) setArquivos(a => [...a, ...Array.from(fs)]); };
+  // Na edição não há anexos (os arquivos da atualização ficam como estão).
+  const adicionar = (fs: FileList | File[] | null) => { if (fs?.length && !onSalvar) setArquivos(a => [...a, ...Array.from(fs)]); };
   const colar = (e: ClipboardEvent) => { if (e.clipboardData.files.length) { e.preventDefault(); adicionar(e.clipboardData.files); } };
   const soltar = (e: DragEvent) => { e.preventDefault(); setArrastando(false); adicionar(e.dataTransfer.files); };
 
@@ -116,6 +121,12 @@ export function Composer({ item, respostaDe, compacto, onPublicado, onCancelar }
       if (final.includes(`@${m.nome}`)) { final = final.split(`@${m.nome}`).join(`@{${m.id}}`); ids.push(m.id); }
     }
     try {
+      if (onSalvar) {
+        if (!final) return;
+        setEnviando('Salvando…');
+        await onSalvar(final, ids);
+        return;
+      }
       setEnviando('Publicando…');
       const a = await api.create('atualizacoes', { item_id: item.id, usuario_id: nav.usuario?.id, texto: final || ' ', mencoes: ids, resposta_de: respostaDe ?? null });
       const anexos: Row[] = [];
@@ -123,7 +134,7 @@ export function Composer({ item, respostaDe, compacto, onPublicado, onCancelar }
         setEnviando(`Enviando arquivo ${i + 1} de ${arquivos.length}…`);
         anexos.push(await enviarArquivo(item.id, f, a.id));
       }
-      onPublicado(a, anexos);
+      onPublicado?.(a, anexos);
       setTexto(''); setArquivos([]); setMencoes([]);
     } catch (e) {
       alert((e as Error).message);
@@ -134,9 +145,9 @@ export function Composer({ item, respostaDe, compacto, onPublicado, onCancelar }
 
   return (
     <div className={`composer${compacto ? ' compacto' : ''}${arrastando ? ' arrastando' : ''}`}
-      onDragOver={e => { if (e.dataTransfer.types.includes('Files')) { e.preventDefault(); setArrastando(true); } }}
+      onDragOver={e => { if (!onSalvar && e.dataTransfer.types.includes('Files')) { e.preventDefault(); setArrastando(true); } }}
       onDragLeave={() => setArrastando(false)} onDrop={soltar}>
-      <textarea ref={area} rows={compacto ? 2 : 3} autoFocus={compacto}
+      <textarea ref={area} rows={compacto ? 2 : 3} autoFocus={compacto || !!onSalvar}
         placeholder={respostaDe ? 'Escreva uma resposta… use @ para marcar alguém' : 'Escreva uma atualização… use @ para marcar alguém'}
         value={texto} onChange={e => { setTexto(e.target.value); detectar(e.target.value, e.target.selectionStart); }}
         onKeyDown={teclas} onPaste={colar} onClick={e => detectar(texto, e.currentTarget.selectionStart)} />
@@ -159,7 +170,7 @@ export function Composer({ item, respostaDe, compacto, onPublicado, onCancelar }
         </div>
       )}
       <div className="composer-barra">
-        <button className="btn-icone" title="Anexar arquivos" aria-label="Anexar arquivos" onClick={() => seletor.current?.click()}><Paperclip size={16} /></button>
+        {!onSalvar && <button className="btn-icone" title="Anexar arquivos" aria-label="Anexar arquivos" onClick={() => seletor.current?.click()}><Paperclip size={16} /></button>}
         <button className="btn-icone" title="Marcar pessoa" aria-label="Marcar pessoa" onClick={() => {
           const el = area.current; if (!el) return;
           const c = el.selectionStart; const prefixo = c > 0 && !/\s/.test(texto[c - 1]) ? ' @' : '@';
@@ -168,10 +179,10 @@ export function Composer({ item, respostaDe, compacto, onPublicado, onCancelar }
           requestAnimationFrame(() => { el.focus(); el.setSelectionRange(c + prefixo.length, c + prefixo.length); detectar(novo, c + prefixo.length); });
         }}><AtSign size={16} /></button>
         <input ref={seletor} type="file" multiple hidden onChange={e => { adicionar(e.target.files); e.target.value = ''; }} />
-        <small className="muted">{enviando ?? (arrastando ? 'Solte os arquivos aqui' : 'Ctrl+Enter para publicar')}</small>
+        <small className="muted">{enviando ?? (arrastando ? 'Solte os arquivos aqui' : onSalvar ? 'Ctrl+Enter para salvar' : 'Ctrl+Enter para publicar')}</small>
         <span className="espaco" />
         {onCancelar && <button className="fr-btn" onClick={onCancelar}>Cancelar</button>}
-        <button className="fr-btn btn-primario" onClick={publicar} disabled={!!enviando || (!texto.trim() && !arquivos.length)}>{respostaDe ? 'Responder' : 'Atualizar'}</button>
+        <button className="fr-btn btn-primario" onClick={publicar} disabled={!!enviando || (!texto.trim() && !arquivos.length)}>{onSalvar ? 'Salvar' : respostaDe ? 'Responder' : 'Atualizar'}</button>
       </div>
     </div>
   );
@@ -219,6 +230,7 @@ export function Atualizacoes({ item, acoes }: { item: Item; acoes: Acoes }) {
   const principais = (lista ?? []).filter(a => !a.resposta_de);
   const respostas = (id: number) => (lista ?? []).filter(a => a.resposta_de === id).sort((a, b) => a.id - b.id);
   const removido = (ids: number[]) => { setLista(l => l && l.filter(a => !ids.includes(a.id))); setAnexos(x => x.filter(a => !ids.includes(a.atualizacao_id))); acoes.contarAtualizacao(item.id, -ids.length); };
+  const editado = (a: Row) => setLista(l => l && l.map(x => (x.id === a.id ? a : x)));
 
   return (
     <div className="atualizacoes">
@@ -230,20 +242,31 @@ export function Atualizacoes({ item, acoes }: { item: Item; acoes: Acoes }) {
       {principais.map(a => (
         <CartaoAtualizacao key={a.id} a={a} item={item} anexos={anexos.filter(x => x.atualizacao_id === a.id)}
           respostas={respostas(a.id)} anexosDe={id => anexos.filter(x => x.atualizacao_id === id)}
-          onPublicado={publicado} onRemovido={removido} />
+          onPublicado={publicado} onRemovido={removido} onEditado={editado} />
       ))}
     </div>
   );
 }
 
-function CartaoAtualizacao({ a, item, anexos, respostas, anexosDe, onPublicado, onRemovido }: {
+// Texto da atualização ou, editando, a caixa de edição (Salvar grava o texto novo e marca "editado").
+function TextoOuEdicao({ a, item, editando, onFim, onEditado }: { a: Row; item: Item; editando: boolean; onFim: () => void; onEditado: (a: Row) => void }) {
+  if (!editando) return <TextoAtualizacao texto={a.texto} />;
+  return (
+    <Composer item={item} compacto edicao={a.texto} onCancelar={onFim}
+      onSalvar={async (texto, mencoes) => { onEditado(await api.update('atualizacoes', a.id, { texto, mencoes })); onFim(); }} />
+  );
+}
+
+function CartaoAtualizacao({ a, item, anexos, respostas, anexosDe, onPublicado, onRemovido, onEditado }: {
   a: Row; item: Item; anexos: Row[]; respostas: Row[]; anexosDe: (id: number) => Row[]; onPublicado: (a: Row, anexos: Row[]) => void; onRemovido: (ids: number[]) => void;
+  onEditado: (a: Row) => void;
 }) {
   const [responder, setResponder] = useState(false);
+  const [editando, setEditando] = useState<number | null>(null);
   return (
     <article className="atualizacao">
-      <Cabecalho a={a} onRemovido={() => onRemovido([a.id, ...respostas.map(r => r.id)])} />
-      <TextoAtualizacao texto={a.texto} />
+      <Cabecalho a={a} onRemovido={() => onRemovido([a.id, ...respostas.map(r => r.id)])} onEditar={() => setEditando(a.id)} />
+      <TextoOuEdicao a={a} item={item} editando={editando === a.id} onFim={() => setEditando(null)} onEditado={onEditado} />
       <GradeAnexos anexos={anexos} />
       <footer className="at-rodape">
         <button className="fr-btn-link" onClick={() => setResponder(true)}><Reply size={14} /> Responder</button>
@@ -253,8 +276,8 @@ function CartaoAtualizacao({ a, item, anexos, respostas, anexosDe, onPublicado, 
         <div className="respostas">
           {respostas.map(r => (
             <div key={r.id} className="resposta">
-              <Cabecalho a={r} pequeno onRemovido={() => onRemovido([r.id])} />
-              <TextoAtualizacao texto={r.texto} />
+              <Cabecalho a={r} pequeno onRemovido={() => onRemovido([r.id])} onEditar={() => setEditando(r.id)} />
+              <TextoOuEdicao a={r} item={item} editando={editando === r.id} onFim={() => setEditando(null)} onEditado={onEditado} />
               <GradeAnexos anexos={anexosDe(r.id)} />
             </div>
           ))}
@@ -265,7 +288,7 @@ function CartaoAtualizacao({ a, item, anexos, respostas, anexosDe, onPublicado, 
   );
 }
 
-function Cabecalho({ a, pequeno, onRemovido }: { a: Row; pequeno?: boolean; onRemovido: () => void }) {
+function Cabecalho({ a, pequeno, onRemovido, onEditar }: { a: Row; pequeno?: boolean; onRemovido: () => void; onEditar: () => void }) {
   const nav = useNav();
   const confirmar = useConfirmar();
   const menu = usePopover<HTMLButtonElement>();
@@ -275,13 +298,15 @@ function Cabecalho({ a, pequeno, onRemovido }: { a: Row; pequeno?: boolean; onRe
       <Avatar nome={u?.nome ?? '?'} cor={u?.cor} tamanho={pequeno ? 26 : 32} />
       <strong>{u?.nome ?? '—'}</strong>
       <small className="muted" title={a.criado_em}>{tempoRelativo(a.criado_em)}</small>
+      {/* Editada: só a marca e quando (não há histórico das versões). */}
+      {a.editado_em && <small className="muted at-editado" title={`Editado em ${String(a.editado_em).slice(8, 10)}/${String(a.editado_em).slice(5, 7)}/${String(a.editado_em).slice(0, 4)} às ${String(a.editado_em).slice(11, 16)}`}>· editado {tempoRelativo(a.editado_em)}</small>}
       <span className="espaco" />
       {a.usuario_id === nav.usuario?.id && (
         <>
           <button ref={menu.ref} className="btn-icone" aria-label="Opções da atualização" onClick={menu.alternar}><MoreHorizontal size={15} /></button>
           {menu.aberto && (
             <Popover ancora={menu.ref.current} onClose={menu.fechar} alinhar="fim" largura={200}>
-              <Menu onEscolher={menu.fechar} itens={[{ rotulo: 'Excluir', icone: <Trash2 size={15} />, perigo: true, onClick: async () => {
+              <Menu onEscolher={menu.fechar} itens={[{ rotulo: 'Editar', icone: <Pencil size={15} />, onClick: onEditar }, { rotulo: 'Excluir', icone: <Trash2 size={15} />, perigo: true, onClick: async () => {
                 if (await confirmar('Excluir esta atualização, as respostas e os arquivos dela?')) { await api.remove('atualizacoes', a.id); onRemovido(); }
               } }]} />
             </Popover>
