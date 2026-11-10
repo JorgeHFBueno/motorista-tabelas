@@ -54,6 +54,9 @@ const identities = {
   engenharia: { uid: 'uid-engenharia', email: 'engenharia@example.com' },
   logistica: { uid: 'uid-logistica', email: 'logistica@example.com' },
   autor: { uid: 'uid-autor', email: 'autor@example.com' },
+  retr0: { uid: 'uid-retr0', email: 'retr0@example.com' },
+  retr0b: { uid: 'uid-retr0b', email: 'retr0b@example.com' },
+  retr0c: { uid: 'uid-retr0c', email: 'retr0c@example.com' },
 };
 
 function dbAs(name, tokenOverrides = {}) {
@@ -108,6 +111,9 @@ async function seed() {
     await employeeLike('uid-engenharia', 'Engenharia', 'engenharia@example.com', true, { engenharia: true });
     await employeeLike('uid-logistica', 'Logistica', 'logistica@example.com', true, { logistica: true });
     await employeeLike('uid-autor', 'Autor', 'autor@example.com', true, { autor: true });
+    await employeeLike('uid-retr0', 'Retr0', 'retr0@example.com', true, { retr0: true });
+    await employeeLike('uid-retr0b', 'Retr0 B', 'retr0b@example.com', true, { retr0: true });
+    await employeeLike('uid-retr0c', 'Retr0 C', 'retr0c@example.com', true, { retr0: true });
     await setDoc(doc(db, '00-autorizados', 'legacy-only@example.com'), { nome: 'Legacy only', ativo: true, adm2: true });
     await setDoc(doc(db, 'veiculos-v2', 'vv-inativo'), {
       schemaVersion: 2, cadastro: { ativo: false }, identificacao: { categoria: 'PLACA', identificador: 'OLD1A23', nome: 'Caminhão parado' },
@@ -1410,4 +1416,54 @@ test('[firestore] logistica: observações com texto ou arquivos, do próprio au
   await assertFails(deleteDoc(doc(dbAs('engenharia'), 'logistica-observacoes', 'o1')));
   // Quem exclui a programação apaga também as observações dos outros.
   await assertSucceeds(deleteDoc(doc(dbAs('logistica'), 'logistica-observacoes', 'o1')));
+});
+
+test('[firestore] dev-salas: só retr0; entra com vaga, só quem criou começa, só quem está na vez joga, qualquer jogador desiste', async () => {
+  const [a, b, c] = [dbAs('retr0'), dbAs('retr0b'), dbAs('retr0c')];
+  const sala = (extra = {}) => ({
+    jogo: 'xadrez', criadaPor: 'uid-retr0', jogadores: ['uid-retr0'], nomes: ['RETR0'], max: 2, estado: 'aberta',
+    partida: null, vez: null, versao: 0, criadaEm: serverTimestamp(), atualizadaEm: serverTimestamp(), ...extra,
+  });
+  const mudar = (db, id, campos, versao) => updateDoc(doc(db, 'dev-salas', id), { ...campos, versao, atualizadaEm: serverTimestamp() });
+
+  // nem o adm2 (sem retr0) cria ou lê
+  await assertFails(setDoc(doc(dbAs('adm2'), 'dev-salas', 'x0'), sala({ criadaPor: 'uid-adm2', jogadores: ['uid-adm2'] })));
+  await assertSucceeds(setDoc(doc(a, 'dev-salas', 'x1'), sala()));
+  await assertFails(getDoc(doc(dbAs('adm2'), 'dev-salas', 'x1')));
+  await assertSucceeds(getDocs(query(collection(b, 'dev-salas'), where('jogo', '==', 'xadrez'))));
+  // nasce aberta, sozinho, no tamanho do jogo
+  await assertFails(setDoc(doc(a, 'dev-salas', 'x2'), sala({ max: 4 })));
+  await assertFails(setDoc(doc(a, 'dev-salas', 'x2'), sala({ jogadores: ['uid-retr0', 'uid-retr0b'], nomes: ['A', 'B'] })));
+  await assertFails(setDoc(doc(a, 'dev-salas', 'x2'), sala({ criadaPor: 'uid-retr0b' })));
+  await assertFails(setDoc(doc(a, 'dev-salas', 'x2'), sala({ estado: 'jogando', partida: '{}', vez: 'uid-retr0' })));
+  await assertFails(setDoc(doc(a, 'dev-salas', 'x2'), sala({ outro: 1 })));
+  await assertSucceeds(setDoc(doc(a, 'dev-salas', 'n1'), sala({ jogo: 'neo', max: 4 })));
+
+  // ninguém começa sozinho; entrar põe o próprio uid no fim; a sala cheia não aceita mais
+  await assertFails(mudar(a, 'x1', { estado: 'jogando', partida: '{}', vez: 'uid-retr0' }, 1));
+  await assertFails(mudar(b, 'x1', { jogadores: ['uid-retr0', 'uid-retr0c'], nomes: ['RETR0', 'C'] }, 1));
+  await assertSucceeds(mudar(b, 'x1', { jogadores: ['uid-retr0', 'uid-retr0b'], nomes: ['RETR0', 'B'] }, 1));
+  await assertFails(mudar(c, 'x1', { jogadores: ['uid-retr0', 'uid-retr0b', 'uid-retr0c'], nomes: ['RETR0', 'B', 'C'] }, 2));
+  // só quem criou começa, e a versão sobe de um em um
+  await assertFails(mudar(b, 'x1', { estado: 'jogando', partida: '{}', vez: 'uid-retr0b' }, 2));
+  await assertFails(mudar(a, 'x1', { estado: 'jogando', partida: '{}', vez: 'uid-retr0b' }, 5));
+  await assertSucceeds(mudar(a, 'x1', { estado: 'jogando', partida: '{}', vez: 'uid-retr0b' }, 2));
+  // só quem está na vez joga, e a vez fica com um jogador; quem está fora não grava
+  await assertFails(mudar(a, 'x1', { partida: '{"x":1}', vez: 'uid-retr0b' }, 3));
+  await assertFails(mudar(b, 'x1', { partida: '{"x":1}', vez: 'uid-retr0c' }, 3));
+  await assertFails(mudar(b, 'x1', { partida: '{"x":1}', jogadores: ['uid-retr0b', 'uid-retr0'] }, 3));
+  await assertSucceeds(mudar(b, 'x1', { partida: '{"x":1}', vez: 'uid-retr0' }, 3));
+  await assertFails(mudar(c, 'x1', { estado: 'fim', partida: '{}', vez: null }, 4));
+  // desistir: qualquer jogador, fora da vez também
+  await assertSucceeds(mudar(b, 'x1', { estado: 'fim', partida: '{"desistiu":1}', vez: null }, 4));
+  await assertFails(mudar(a, 'x1', { partida: '{}' }, 5));
+  // terminada, qualquer jogador apaga; aberta, só quem criou (quem entrou sai)
+  await assertFails(deleteDoc(doc(c, 'dev-salas', 'x1')));
+  await assertSucceeds(deleteDoc(doc(b, 'dev-salas', 'x1')));
+  await assertSucceeds(mudar(b, 'n1', { jogadores: ['uid-retr0', 'uid-retr0b'], nomes: ['RETR0', 'B'] }, 1));
+  await assertSucceeds(mudar(c, 'n1', { jogadores: ['uid-retr0', 'uid-retr0b', 'uid-retr0c'], nomes: ['RETR0', 'B', 'C'] }, 2));
+  await assertFails(deleteDoc(doc(b, 'dev-salas', 'n1')));
+  await assertSucceeds(mudar(b, 'n1', { jogadores: ['uid-retr0', 'uid-retr0c'], nomes: ['RETR0', 'C'] }, 3));
+  await assertFails(mudar(a, 'n1', { jogadores: ['uid-retr0'], nomes: ['RETR0'] }, 4));
+  await assertSucceeds(deleteDoc(doc(a, 'dev-salas', 'n1')));
 });

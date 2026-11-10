@@ -8,73 +8,33 @@ import { anotar } from '../fichas/historico';
 import { semMovimento, useCarteira, useOpcoesTeclado } from '../fichas/hooks';
 import { gravarPlacar, lerPlacar, registrarJogada, type PlacarJogo } from '../fichas/jogos';
 import { NOMES_BOT } from '../poker/bots';
-import { CartaNeoView } from './CartaNeoView';
-import { PREMIO, agir, decidirBot, jogaveis, nomeDaCartaNeo, novaPartida, retornoNeo, topo, type CartaNeo, type Jogada, type Partida } from './regras';
+import { MesaNeo } from './MesaNeo';
+import NeoOnline from './NeoOnline';
+import { PREMIO, agir, decidirBot, jogaveis, naipeVermelho, novaPartida, ordemNaMao, retornoNeo, type CartaNeo, type Jogada, type Partida } from './regras';
 
 // NEO contra 3 bots, na mesa do poker: você embaixo, os bots à esquerda, em cima e à direita (a ordem da vez, no
 // sentido horário), o monte e a carta da mesa no meio; à direita, as fichas, o aviso, os últimos lances e as opções.
 // A aposta sai da carteira ao distribuir; quem zera a mão primeiro leva as quatro apostas (você recebe PREMIO vezes
 // a sua). Desistir, ou fechar a janela no meio, perde a aposta. Jogadas, vitórias e maior prêmio aparecem no Placar
-// de Lideres; cada partida, no histórico da Carteira.
+// de Lideres; cada partida, no histórico da Carteira. [Online] troca os bots por outras pessoas (NeoOnline).
 const CHAVE = 'ledur:dev-descarte';
 /** Devagar o bastante para ver o que cada bot fez: ele "pensa" e a jogada aparece num selo que salta. */
 const BOT_MS = 1600;
 const VOCE = 0;
-const MAX_VERSOS = 10;
 const LANCES = 6;
 const sorteio = () => rngDe((Math.random() * 2 ** 32) >>> 0);
-
-const ORDEM_SIMBOLO: Record<string, number> = { mais2: 10, inverte: 11, pula: 12, curinga: 13, mais4: 14 };
-/** A sua mão em ordem: por naipe (curingas no fim), depois por símbolo. */
-const ordemDe = (c: CartaNeo) => (c.naipe ? NAIPES.indexOf(c.naipe) : NAIPES.length) * 100 + (typeof c.simbolo === 'number' ? c.simbolo : ORDEM_SIMBOLO[c.simbolo]);
 
 function nomesDosBots(rng: () => number) {
   const livres: string[] = [...NOMES_BOT];
   return [0, 1, 2].map(() => livres.splice(Math.floor(rng() * livres.length), 1)[0]);
 }
 
-const vermelho = (n: Naipe | null) => n === 'copas' || n === 'ouros';
-
-/** A última jogada num selo (aceso: atacou; contorno: jogou, comprou, passou; apagado: perdeu a vez ou esqueceu). */
-function Selo({ texto, pensando }: { texto: string | null; pensando: boolean }) {
-  if (pensando) return <p className="dt-pk-selo dt-pk-pensa">PENSA<span className="dt-pk-pontos">...</span></p>;
-  if (!texto) return <p className="dt-pk-selo">{' '}</p>;
-  const tipo = /PERDEU|ESQUECEU/.test(texto) ? 'fora' : /JOGOU (\+2|PULA|INVERTE|CURINGA)/.test(texto) ? 'forte' : 'leve';
-  return <p className={`dt-pk-selo dt-pk-selo-${tipo}`}>{texto}</p>;
-}
-
-/** Quantas cartas, e ULTIMA! quando sobra uma. */
-function Contagem({ n, emJogo }: { n: number; emJogo: boolean }) {
-  return (
-    <p className="dt-pk-na-mesa">
-      {n}
-      <span className="dt-pk-estilo">{n === 1 ? 'CARTA' : 'CARTAS'}</span>
-      {n === 1 && emJogo && <span className="dt-pk-marca dt-neo-ultima">ULTIMA!</span>}
-    </p>
-  );
-}
-
-function Assento({ p, i, pensando }: { p: Partida; i: number; pensando: boolean }) {
-  const j = p.jogadores[i];
-  const fim = p.vencedor !== null;
-  const vez = !fim && p.vez === i;
-  return (
-    <div className={`dt-pk-assento${vez ? ' dt-pk-vez' : ''}${p.vencedor === i ? ' dt-pk-ganhou' : ''}`}>
-      <p className="dt-pk-nome">{j.nome}</p>
-      <Contagem n={j.mao.length} emJogo={!fim} />
-      {/* no fim, as cartas que sobraram ficam à mostra */}
-      <div className="dt-pk-cartas dt-neo-cartas" role="img" aria-label={fim ? j.mao.map(nomeDaCartaNeo).join(', ') || 'Sem cartas' : `${j.mao.length} cartas viradas`}>
-        {fim
-          ? j.mao.map((c) => <CartaNeoView key={c.id} carta={c} pequena />)
-          : Array.from({ length: Math.min(j.mao.length, MAX_VERSOS) }, (_, n) => <span key={n} className="dt-neo-verso" />)}
-      </div>
-      {/* a chave faz o selo saltar de novo a cada jogada nova */}
-      <Selo key={`${j.ultima}-${pensando}`} texto={j.ultima} pensando={pensando} />
-    </div>
-  );
-}
-
 export default function NeoToy() {
+  const [online, setOnline] = useState(false);
+  return online ? <NeoOnline onVoltar={() => setOnline(false)} /> : <NeoContraBot onOnline={() => setOnline(true)} />;
+}
+
+function NeoContraBot({ onOnline }: { onOnline: () => void }) {
   const carteira = useCarteira();
   const [placar, setPlacar] = useState<PlacarJogo>(() => lerPlacar(CHAVE));
   const [partida, setPartida] = useState<Partida | null>(null);
@@ -136,7 +96,7 @@ export default function NeoToy() {
   const emJogo = !!partida && partida.vencedor === null;
   const minhaVez = emJogo && partida.vez === VOCE;
   const podem = new Set(minhaVez ? jogaveis(partida).map((c) => c.id) : []);
-  const minhas = partida ? partida.jogadores[VOCE].mao.slice().sort((x, y) => ordemDe(x) - ordemDe(y)) : [];
+  const minhas = partida ? partida.jogadores[VOCE].mao.slice().sort((x, y) => ordemNaMao(x) - ordemNaMao(y)) : [];
   const jogar = (c: CartaNeo, naipe?: Naipe) => {
     if (!partida || !minhaVez) return;
     if (!c.naipe && !naipe) { setCuringa(c.id); return; }
@@ -165,58 +125,22 @@ export default function NeoToy() {
                 ? 'SUA VEZ. COM 2 CARTAS, GRITE ULTIMA ANTES DE JOGAR'
                 : 'SUA VEZ: COMBINE NAIPE OU SIMBOLO';
   const principal = minhas.find((c) => podem.has(c.id));
-  const eu = partida?.jogadores[VOCE];
 
   return (
     <div className="dt-pk dt-neo dt-jogo" ref={raiz} tabIndex={-1} onKeyDown={teclas}>
       {/* a mesa: você embaixo, os bots à esquerda, em cima e à direita (a ordem da vez), o monte e a mesa no meio */}
       <div className="dt-pk-mesa">
-        {partida && eu ? (
-          <>
-            {[1, 2, 3].map((i) => (
-              <div key={i} className={`dt-pk-lugar${i}`}>
-                <Assento p={partida} i={i} pensando={vezDoBot && partida.vez === i} />
-              </div>
-            ))}
-            <div className="dt-pk-centro">
-              <div className="dt-neo-pilhas">
-                <div className="dt-neo-pilha">
-                  <div className="dt-carta dt-carta-verso" />
-                  <span className="dt-jogo-legenda">MONTE {partida.monte.length}</span>
-                </div>
-                <div className="dt-neo-pilha">
-                  <CartaNeoView key={topo(partida).id} carta={topo(partida)} />
-                  <span className="dt-jogo-legenda">MESA</span>
-                </div>
-              </div>
-              <p className={vermelho(partida.naipe) ? 'dt-neo-vale dt-neo-vermelho' : 'dt-neo-vale'}>
-                <span className="dt-jogo-legenda">VALE</span>
-                <NaipeSvg naipe={partida.naipe} className="dt-naipe" />
-                {partida.naipe.toUpperCase()}
-              </p>
-              <p className="dt-jogo-legenda">SENTIDO {partida.sentido === 1 ? 'HORARIO' : 'ANTI-HORARIO'}</p>
-            </div>
-            <div className={`dt-pk-voce dt-neo-voce${minhaVez ? ' dt-pk-vez' : ''}${partida.vencedor === VOCE ? ' dt-pk-ganhou' : ''}`}>
-              <p className="dt-pk-nome">VOCE</p>
-              <Contagem n={minhas.length} emJogo={emJogo} />
-              <div className="dt-neo-mao" data-opcoes>
-                {minhas.map((c) => (
-                  <button
-                    key={c.id}
-                    type="button"
-                    className={minhaVez && !podem.has(c.id) ? 'dt-neo-apagada' : c.id === partida.comprou || c.id === curinga ? 'dt-neo-erguida' : undefined}
-                    disabled={!podem.has(c.id) || !!escolhido}
-                    data-principal={c === principal || undefined}
-                    aria-label={`Jogar ${nomeDaCartaNeo(c)}`}
-                    onClick={() => jogar(c)}
-                  >
-                    <CartaNeoView carta={c} />
-                  </button>
-                ))}
-              </div>
-              <Selo key={`${eu.ultima}-${minhas.length}`} texto={eu.ultima} pensando={false} />
-            </div>
-          </>
+        {partida ? (
+          <MesaNeo
+            partida={partida}
+            eu={VOCE}
+            pensando={vezDoBot}
+            minhas={minhas}
+            podem={podem}
+            escolhido={escolhido}
+            principal={principal}
+            onJogar={(c) => jogar(c)}
+          />
         ) : (
           <p className="dt-pk-vazia">MESA VAZIA</p>
         )}
@@ -250,7 +174,7 @@ export default function NeoToy() {
               {escolhido ? (
                 <>
                   {NAIPES.map((n) => (
-                    <button key={n} type="button" className={vermelho(n) ? 'dt-neo-vermelho' : undefined} data-principal={n === NAIPES[0] || undefined} onClick={() => jogar(escolhido, n)}>
+                    <button key={n} type="button" className={naipeVermelho(n) ? 'dt-neo-vermelho' : undefined} data-principal={n === NAIPES[0] || undefined} onClick={() => jogar(escolhido, n)}>
                       [<NaipeSvg naipe={n} className="dt-naipe" /> {n.toUpperCase()}]
                     </button>
                   ))}
@@ -273,7 +197,10 @@ export default function NeoToy() {
               <button type="button" onClick={desistir}>[Desistir]</button>
             </>
           ) : quebrado ? (
-            <SemFichas carteira={carteira} />
+            <>
+              <SemFichas carteira={carteira} />
+              <button type="button" onClick={onOnline}>[Online]</button>
+            </>
           ) : (
             <>
               <span className="dt-neo-apostas">
@@ -292,6 +219,7 @@ export default function NeoToy() {
                 ))}
               </span>
               <button type="button" data-principal onClick={distribuir} disabled={placar.aposta > carteira.fichas}>[Distribuir]</button>
+              <button type="button" onClick={onOnline}>[Online]</button>
             </>
           )}
         </div>

@@ -1256,6 +1256,16 @@
   justify-content: flex-start;
 }
 
+/* ---- Salas online (Xadrez e NEO) ---- */
+.devtoys .dt-online-lista {
+  display: flex;
+  flex-direction: column;
+  gap: calc(var(--dt-e) * 4px);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
 /* ---- Regras ---- */
 .devtoys .dt-regras {
   font-size: calc(var(--dt-e) * 13px);

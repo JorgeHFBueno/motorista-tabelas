@@ -152,6 +152,7 @@ function RegrasXadrez() {
         <li>Xeque: o rei esta atacado, e o lance seguinte tem que tira-lo do ataque.</li>
         <li>Tambem empata: 50 lances sem captura nem lance de peao, a mesma posicao 3 vezes, ou pecas que nao dao mate (rei contra rei, por exemplo).</li>
         <li>No jogo, voce e as brancas contra o bot. {NIVEIS.map((n) => `${n.nome} ${n.aposta}`).join(', ')} fichas: vitoria paga o dobro, empate devolve, derrota perde. {ALEATORIA.nome}: um dos tres, sorteado as cegas (so aparece no fim); entra de graca e a vitoria paga {ALEATORIA.premio}.</li>
+        <li>[Online]: contra outra pessoa com acesso ao DEV, sem fichas (vale o historico). Crie uma sala ou entre numa aberta; quem criou comeca e as cores sao sorteadas. Sem relogio. Empate: ofereca junto com o lance; o outro aceita na vez dele. Fechar a janela nao desiste: ao voltar, a partida continua.</li>
       </ul>
     </>
   );
@@ -219,6 +220,7 @@ function RegrasNeo() {
       <ul>
         <li>A aposta ({APOSTAS.join(', ')} fichas) sai ao distribuir. Quem zera a mao primeiro leva as quatro apostas: ganhando, voce recebe {PREMIO} vezes a sua.</li>
         <li>Desistir, ou fechar a janela no meio, perde a aposta.</li>
+        <li>[Online]: de 2 a 4 pessoas com acesso ao DEV, sem fichas (vale o historico). Quem criou a sala comeca. Desistir encerra a partida para todos. Fechar a janela nao desiste: ao voltar, a partida continua.</li>
       </ul>
     </>
   );

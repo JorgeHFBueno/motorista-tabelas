@@ -1,6 +1,7 @@
 import { lazy, type ComponentType, type LazyExoticComponent } from 'react';
 
-// Brinquedos da área DEV: cada um vira um ícone no Desktop (ou dentro de uma pasta) e abre numa janela. Nada aqui grava dados.
+// Brinquedos da área DEV: cada um vira um ícone no Desktop (ou dentro de uma pasta) e abre numa janela. Tudo fica no navegador, menos
+// as salas online do Xadrez e do NEO (dev-salas, ver toys/online).
 export type DevToy = {
   id: string;
   nome: string;

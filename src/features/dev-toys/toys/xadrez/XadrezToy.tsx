@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type KeyboardEvent } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { rngDe } from '../crawler/sim';
 import { alterarCarteira, lerCarteira, mover, semFichas } from '../fichas/carteira';
 import { BarraDeFichas, SemFichas } from '../fichas/FichasView';
@@ -7,23 +7,16 @@ import { useCarteira, useOpcoesTeclado } from '../fichas/hooks';
 import { gravarPlacar, lerPlacar, registrarJogada, type PlacarJogo } from '../fichas/jogos';
 import { ALEATORIA, NIVEIS, escolherLance, retornoDe, sortearNivel } from './bot';
 import { PecaView } from './PecaView';
-import { INICIAL, aplicar, chave, corDe, deFen, emXeque, fimDe, legais, nomeCasa, type Fim, type Lance, type Posicao } from './regras';
+import { FRASE_FIM, INICIAL, aplicar, chave, deFen, emXeque, fimDe, legais, perdidas, type Fim, type Lance, type Posicao } from './regras';
+import { TabuleiroXadrez } from './TabuleiroXadrez';
+import XadrezOnline from './XadrezOnline';
 
 // Xadrez contra o bot, com as fichas da carteira: você joga de brancas. Cada nível tem a sua aposta (FACIL 10,
 // MEDIO 50, DIFICIL 100); vitória paga o dobro, empate devolve, derrota (ou desistir, ou fechar a janela no meio)
 // perde. ALEATORIA sorteia um dos três às cegas (só aparece no fim): entra de graça e a vitória paga 30. O peão que chega ao fim vira dama. Teclado: setas andam pelo tabuleiro e Enter escolhe a peça e a casa.
+// [Online] troca o bot por outra pessoa (XadrezOnline).
 const CHAVE = 'ledur:dev-xadrez';
 const PENSAR_MS = 250;
-
-const NOME_PECA: Record<string, string> = { p: 'peao', r: 'torre', n: 'cavalo', b: 'bispo', q: 'dama', k: 'rei' };
-
-const FRASE_FIM: Record<Fim, string> = {
-  mate: 'XEQUE-MATE',
-  afogamento: 'AFOGAMENTO: EMPATE',
-  cinquenta: '50 LANCES SEM CAPTURA: EMPATE',
-  repeticao: 'TRIPLA REPETICAO: EMPATE',
-  material: 'SEM MATERIAL PARA MATE: EMPATE',
-};
 
 type Resultado = 'ganhou' | 'perdeu' | 'empate';
 /** `nivel`: o do bot (na ALEATORIA, o sorteado); `aleatoria`: entrou pela ALEATORIA. */
@@ -33,17 +26,12 @@ const OPCOES = [...NIVEIS, ALEATORIA];
 const I_ALEATORIA = NIVEIS.length;
 const nomeDaPartida = (pt: Partida) => `${NIVEIS[pt.nivel].nome}${pt.aleatoria ? ' (ALEATORIA)' : ''}`;
 
-/** Peças que cada lado já perdeu, comparando com o começo. */
-function perdidas(tab: string[]) {
-  const inicio = deFen(INICIAL).tab;
-  const conta = (t: string[], x: string) => t.filter((y) => y === x).length;
-  return (['b', 'p'] as const).map((cor) => 'qrbnp'.split('').flatMap((t) => {
-    const x = cor === 'b' ? t.toUpperCase() : t;
-    return Array.from({ length: Math.max(0, conta(inicio, x) - conta(tab, x)) }, () => x);
-  }));
+export default function XadrezToy() {
+  const [online, setOnline] = useState(false);
+  return online ? <XadrezOnline onVoltar={() => setOnline(false)} /> : <XadrezContraBot onOnline={() => setOnline(true)} />;
 }
 
-export default function XadrezToy() {
+function XadrezContraBot({ onOnline }: { onOnline: () => void }) {
   const carteira = useCarteira();
   const [escolha, setNivel] = useState(0);
   // nível que não cabe na carteira cai na ALEATORIA (de graça)
@@ -110,20 +98,6 @@ export default function XadrezToy() {
     if (lance) { setSelecionada(null); setPartida(jogar(partida, lance)); return; }
     setSelecionada(meus.some((m) => m.de === i) ? i : null);
   };
-  // setas andam pelo tabuleiro (Enter/espaço clicam na casa, como botão)
-  const setas = (e: KeyboardEvent) => {
-    // Enter e espaço ficam com a casa (o clique dela); o teclado dos jogos, acima, os pegaria
-    if (e.key === 'Enter' || e.key === ' ') { e.stopPropagation(); return; }
-    const d = { ArrowLeft: -1, ArrowRight: 1, ArrowUp: -8, ArrowDown: 8 }[e.key];
-    const atual = Number((document.activeElement as HTMLElement | null)?.dataset.casa);
-    if (!d || Number.isNaN(atual)) return;
-    e.preventDefault();
-    e.stopPropagation();
-    const prox = atual + d;
-    if (prox < 0 || prox > 63 || (Math.abs(d) === 1 && (prox >> 3) !== (atual >> 3))) return;
-    tabuleiro.current?.querySelector<HTMLButtonElement>(`[data-casa="${prox}"]`)?.focus();
-  };
-
   const pos = partida?.pos ?? deFen(INICIAL);
   const xeque = partida && !partida.resultado && emXeque(pos) ? pos.tab.indexOf(pos.vez === 'b' ? 'K' : 'k') : -1;
   const [perdeuBranca, perdeuPreta] = perdidas(pos.tab);
@@ -144,33 +118,16 @@ export default function XadrezToy() {
     <div className="dt-xadrez dt-jogo" ref={raiz} tabIndex={-1} onKeyDown={teclas}>
       <BarraDeFichas fichas={carteira.fichas} naMesa={partida && !partida.resultado ? partida.aposta : 0} />
       <div className="dt-xz-mesa">
-        <div className="dt-xz-tabuleiro" ref={tabuleiro} role="grid" aria-label="Tabuleiro" onKeyDown={setas}>
-          {pos.tab.map((p, i) => {
-            const escura = ((i >> 3) + (i & 7)) % 2 === 1;
-            const alvo = destinos.some((m) => m.para === i);
-            const classes = [
-              'dt-xz-casa',
-              escura ? 'dt-xz-escura' : '',
-              i === selecionada ? 'dt-xz-selecionada' : '',
-              partida?.ultimo && (i === partida.ultimo.de || i === partida.ultimo.para) ? 'dt-xz-ultimo' : '',
-              i === xeque ? 'dt-xz-xeque' : '',
-            ].filter(Boolean).join(' ');
-            return (
-              <button
-                key={i}
-                type="button"
-                className={classes}
-                data-casa={i}
-                tabIndex={minhaVez ? 0 : -1}
-                aria-label={`${nomeCasa(i)}${p !== '.' ? ` ${NOME_PECA[p.toLowerCase()]} ${corDe(p) === 'b' ? 'branco' : 'preto'}` : ''}${alvo ? ', destino' : ''}`}
-                onClick={() => clicar(i)}
-              >
-                {p !== '.' && <PecaView p={p} />}
-                {alvo && <span className={p === '.' ? 'dt-xz-ponto' : 'dt-xz-anel'} />}
-              </button>
-            );
-          })}
-        </div>
+        <TabuleiroXadrez
+          pos={pos}
+          ultimo={partida?.ultimo ?? null}
+          selecionada={selecionada}
+          destinos={destinos}
+          ativo={minhaVez}
+          xeque={xeque}
+          tabuleiro={tabuleiro}
+          onCasa={clicar}
+        />
         <div className="dt-xz-lado">
           <p className="dt-jogo-legenda">BOT {nomeBot}</p>
           <div className="dt-xz-perdidas">{perdeuBranca.map((x, i) => <PecaView key={i} p={x} className="dt-xz-mini" />)}</div>
@@ -196,6 +153,7 @@ export default function XadrezToy() {
                   </button>
                 ))}
                 <button type="button" data-principal onClick={comecar} disabled={OPCOES[nivel].aposta > carteira.fichas}>[Jogar]</button>
+                <button type="button" onClick={onOnline}>[Online]</button>
               </>
             )}
           </div>

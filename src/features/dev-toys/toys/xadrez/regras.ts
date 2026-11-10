@@ -235,3 +235,22 @@ export function perft(p: Posicao, n: number): number {
   for (const m of ls) total += perft(aplicar(p, m), n - 1);
   return total;
 }
+
+/** Como cada fim aparece na tela. */
+export const FRASE_FIM: Record<Fim, string> = {
+  mate: 'XEQUE-MATE',
+  afogamento: 'AFOGAMENTO: EMPATE',
+  cinquenta: '50 LANCES SEM CAPTURA: EMPATE',
+  repeticao: 'TRIPLA REPETICAO: EMPATE',
+  material: 'SEM MATERIAL PARA MATE: EMPATE',
+};
+
+/** Peças que cada lado (brancas, pretas) já perdeu, comparando com o começo. */
+export function perdidas(tab: string[]) {
+  const inicio = deFen(INICIAL).tab;
+  const conta = (t: string[], x: string) => t.filter((y) => y === x).length;
+  return (['b', 'p'] as const).map((cor) => 'qrbnp'.split('').flatMap((t) => {
+    const x = cor === 'b' ? t.toUpperCase() : t;
+    return Array.from({ length: Math.max(0, conta(inicio, x) - conta(tab, x)) }, () => x);
+  }));
+}

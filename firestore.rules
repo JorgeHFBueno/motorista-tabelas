@@ -1103,6 +1103,93 @@ service cloud.firestore {
     }
 
 
+    // ================================================================ DEV (/dev): salas online do Xadrez e do NEO
+    // Só a credencial retr0 (exclusiva: nem o adm2 entra sem ela). Partida "de confiança" (decisão do responsável em
+    // 2026-11-10): o estado inteiro do jogo fica na sala, em JSON (no NEO, as mãos também); as Rules garantem quem entra,
+    // quem começa e de quem é a vez, não as regras do jogo. Toda gravação sobe "versao" em 1 (a tela grava em transação).
+    function isRetr0() {
+      return hasPerfil('retr0');
+    }
+
+    function devSalaCampos() {
+      return ['jogo', 'criadaPor', 'jogadores', 'nomes', 'max', 'estado', 'partida', 'vez', 'versao', 'criadaEm', 'atualizadaEm'];
+    }
+
+    // Entrar numa sala aberta com vaga: acrescenta o próprio uid (e o nome) no fim.
+    function devSalaEntrar() {
+      return resource.data.estado == 'aberta'
+        && !(request.auth.uid in resource.data.jogadores)
+        && request.resource.data.jogadores == resource.data.jogadores.concat([request.auth.uid])
+        && request.resource.data.jogadores.size() <= resource.data.max
+        && changedOnly(['jogadores', 'nomes', 'versao', 'atualizadaEm']);
+    }
+
+    // Sair de uma sala aberta (quem criou fecha a sala, apagando).
+    function devSalaSair() {
+      return resource.data.estado == 'aberta'
+        && request.auth.uid in resource.data.jogadores
+        && request.auth.uid != resource.data.criadaPor
+        && request.resource.data.jogadores == resource.data.jogadores.removeAll([request.auth.uid])
+        && changedOnly(['jogadores', 'nomes', 'versao', 'atualizadaEm']);
+    }
+
+    // Começar: só quem criou, com 2 ou mais na sala; a vez fica com um dos jogadores.
+    function devSalaComecar() {
+      return resource.data.estado == 'aberta'
+        && resource.data.criadaPor == request.auth.uid
+        && resource.data.jogadores.size() >= 2
+        && request.resource.data.estado == 'jogando'
+        && request.resource.data.partida is string
+        && request.resource.data.vez in resource.data.jogadores
+        && changedOnly(['estado', 'partida', 'vez', 'versao', 'atualizadaEm']);
+    }
+
+    // Jogar: só quem está na vez, passando a vez a um jogador ou encerrando (vez nula). Desistir: qualquer jogador,
+    // a qualquer momento, encerrando.
+    function devSalaJogar() {
+      return resource.data.estado == 'jogando'
+        && request.auth.uid in resource.data.jogadores
+        && request.resource.data.partida is string
+        && (
+          (request.resource.data.estado == 'fim' && request.resource.data.vez == null)
+          || (resource.data.vez == request.auth.uid
+            && request.resource.data.estado == 'jogando'
+            && request.resource.data.vez in resource.data.jogadores)
+        )
+        && changedOnly(['estado', 'partida', 'vez', 'versao', 'atualizadaEm']);
+    }
+
+    match /dev-salas/{salaId} {
+      allow read: if isRetr0();
+      // nasce aberta, só com quem criou, sem partida; Xadrez para 2, NEO para até 4
+      allow create: if isRetr0()
+        && request.resource.data.keys().hasOnly(devSalaCampos())
+        && request.resource.data.jogo in ['xadrez', 'neo']
+        && request.resource.data.max == (request.resource.data.jogo == 'xadrez' ? 2 : 4)
+        && request.resource.data.criadaPor == request.auth.uid
+        && request.resource.data.jogadores == [request.auth.uid]
+        && request.resource.data.nomes is list
+        && request.resource.data.nomes.size() == 1
+        && request.resource.data.estado == 'aberta'
+        && request.resource.data.partida == null
+        && request.resource.data.vez == null
+        && request.resource.data.versao == 0
+        && request.resource.data.criadaEm == request.time
+        && request.resource.data.atualizadaEm == request.time;
+      allow update: if isRetr0()
+        && request.resource.data.keys().hasOnly(devSalaCampos())
+        && request.resource.data.versao == resource.data.versao + 1
+        && request.resource.data.atualizadaEm == request.time
+        && request.resource.data.nomes is list
+        && request.resource.data.nomes.size() == request.resource.data.jogadores.size()
+        && (devSalaEntrar() || devSalaSair() || devSalaComecar() || devSalaJogar());
+      // quem criou apaga quando quiser; terminada, qualquer jogador apaga
+      allow delete: if isRetr0()
+        && (resource.data.criadaPor == request.auth.uid
+          || (resource.data.estado == 'fim' && request.auth.uid in resource.data.jogadores));
+    }
+
+
     // ================================================================ Friday (/friday)
     // Gestão interna em quadros: credencial escritorio (ou adm2), com permissão por quadro (Manuscript friday.md).
     function fridayAccess() {

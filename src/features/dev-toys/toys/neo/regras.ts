@@ -202,3 +202,9 @@ export function decidirBot(p: Partida, rng: () => number): Jogada {
 
 /** O que volta das fichas apostadas: quem zera a mão leva as quatro apostas. */
 export const retornoNeo = (vencedor: number | null, aposta: number) => (vencedor === 0 ? PREMIO * aposta : 0);
+
+const ORDEM_SIMBOLO: Record<string, number> = { mais2: 10, inverte: 11, pula: 12, curinga: 13, mais4: 14 };
+/** A mão em ordem na tela: por naipe (curingas no fim), depois por símbolo. */
+export const ordemNaMao = (c: CartaNeo) => (c.naipe ? NAIPES.indexOf(c.naipe) : NAIPES.length) * 100 + (typeof c.simbolo === 'number' ? c.simbolo : ORDEM_SIMBOLO[c.simbolo]);
+
+export const naipeVermelho = (n: Naipe | null) => n === 'copas' || n === 'ouros';

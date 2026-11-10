@@ -37,6 +37,9 @@ import { MAX_HISTORICO, acrescentar as acrescentarLancamento, normalizarHistoric
 import * as dc from '../src/features/dev-toys/toys/neo/regras';
 import * as pt from '../src/features/dev-toys/toys/protocolo/regras';
 import * as ptBot from '../src/features/dev-toys/toys/protocolo/bot';
+import * as sala from '../src/features/dev-toys/toys/online/sala';
+import * as xzOn from '../src/features/dev-toys/toys/xadrez/online';
+import * as neoOn from '../src/features/dev-toys/toys/neo/online';
 
 const sessao = (valores: Record<string, string>) => ({ getItem: (k: string) => valores[k] ?? null });
 
@@ -1275,3 +1278,76 @@ test('PROTOCOLO: líderes novos: KILL na fileira, ESPIAR, PILHAGEM, RESGATE e os
   sp = ptJoga(sp, { tipo: 'jogar', id: auditor.id });
   assert.equal(pt.total(sp, 1), 10, 'MALWARE de 5 vale 10');
 });
+
+test('Online: nome do DEV, a minha sala, as salas livres e os lugares na mesa', () => {
+  assert.equal(sala.nomeDev('  João  da Silva Sauro '), 'JOAO DA');
+  assert.equal(sala.nomeDev(''), 'SEM NOME');
+  const s = (id: string, extra: Partial<sala.Sala>): sala.Sala => ({
+    id, jogo: 'xadrez', criadaPor: 'a', jogadores: ['a'], nomes: ['A'], max: 2, estado: 'aberta', partida: null, vez: null, versao: 0, atualizadaEm: 1000, ...extra,
+  });
+  const lista = [
+    s('velha', { atualizadaEm: 1000 - sala.SALA_ESQUECIDA_MS }),
+    s('cheia', { jogadores: ['a', 'b'], nomes: ['A', 'B'] }),
+    s('livre', {}),
+    s('minha', { jogadores: ['a', 'eu'], nomes: ['A', 'EU'], estado: 'fim', atualizadaEm: 900 }),
+    s('nova', { jogadores: ['eu'], criadaPor: 'eu', atualizadaEm: 950 }),
+  ];
+  assert.deepEqual(sala.salasLivres(lista, 'eu', 1000).map((x) => x.id), ['livre']);
+  assert.equal(sala.minhaSala(lista, 'eu', [])?.id, 'nova');
+  assert.equal(sala.minhaSala(lista, 'eu', ['nova'])?.id, 'minha');
+  assert.equal(sala.minhaSala(lista, 'eu', ['nova', 'minha']), null);
+  assert.deepEqual([0, 1, 2, 3].map((i) => sala.lugarNaMesa(i, 0, 4)), [0, 1, 2, 3]);
+  assert.deepEqual([0, 1, 2, 3].map((i) => sala.lugarNaMesa(i, 2, 4)), [2, 3, 0, 1]);
+  assert.deepEqual([0, 1, 2].map((i) => sala.lugarNaMesa(i, 1, 3)), [3, 0, 1]);
+  assert.deepEqual([0, 1].map((i) => sala.lugarNaMesa(i, 1, 2)), [2, 0]);
+  assert.equal(sala.lerSala('x', { jogo: 'damas', estado: 'aberta' }, 0), null);
+});
+
+test('Xadrez online: cores sorteadas, só lances legais, mate dá a vitória, empate combinado e desistência', () => {
+  const lance = (j: xzOn.JogoXadrez, de: string, para: string) =>
+    xz.legais(j.pos).find((m) => xz.nomeCasa(m.de) === de && xz.nomeCasa(m.para) === para)!;
+  let j = xzOn.novoJogoXadrez(() => 0.9);
+  assert.equal(j.brancas, 1);
+  assert.equal(xzOn.assentoDaVez(j), 1);
+  assert.equal(xzOn.corDoAssento(j, 0), 'p');
+  assert.equal(xzOn.lanceOnline(j, { de: 52, para: 20, peca: 'P' }, false), null);
+  // mate do louco: as pretas (assento 0) ganham
+  for (const [de, para] of [['f2', 'f3'], ['e7', 'e5'], ['g2', 'g4'], ['d8', 'h4']]) j = xzOn.lanceOnline(j, lance(j, de, para), false)!;
+  assert.equal(j.fim, 'mate');
+  assert.equal(j.vencedor, 0);
+  assert.deepEqual([xzOn.resultadoXadrez(j, 0), xzOn.resultadoXadrez(j, 1)], ['ganhou', 'perdeu']);
+  assert.equal(xzOn.lanceOnline(j, lance(xzOn.novoJogoXadrez(() => 0), 'e2', 'e4'), false), null);
+
+  // empate: oferecido junto com o lance, aceito só por quem não ofereceu
+  let e = xzOn.novoJogoXadrez(() => 0);
+  assert.equal(xzOn.aceitarEmpate(e), null);
+  e = xzOn.lanceOnline(e, lance(e, 'e2', 'e4'), true)!;
+  assert.equal(e.oferta, 'b');
+  const aceito = xzOn.aceitarEmpate(e)!;
+  assert.deepEqual([aceito.fim, aceito.vencedor, xzOn.resultadoXadrez(aceito, 0)], ['acordo', null, 'empate']);
+  assert.equal(xzOn.lanceOnline(e, lance(e, 'e7', 'e5'), false)!.oferta, null);
+  const d = xzOn.desistirXadrez(e, 0);
+  assert.deepEqual([d.fim, d.vencedor], ['desistiu', 1]);
+  // a partida vai para a sala em JSON e volta igual
+  assert.deepEqual(xzOn.lerJogoXadrez(JSON.stringify(j)), j);
+  assert.equal(xzOn.lerJogoXadrez('{"pos":{}}'), null);
+  assert.equal(xzOn.lerJogoXadrez('nao e json'), null);
+});
+
+test('NEO online: quem criou começa, jogada que não vale não grava, desistir encerra para todos', () => {
+  const rng = rngDe(7);
+  let j = neoOn.novoJogoNeo(['ANA', 'BIA', 'CAIO'], rng);
+  assert.equal(j.p.vez, 0);
+  assert.equal(j.p.jogadores.length, 3);
+  assert.equal(j.lances[0], 'DISTRIBUIDAS 7 PARA CADA. ANA COMECA');
+  assert.equal(neoOn.jogadaNeo(j, { tipo: 'passar' }, rng), null);
+  for (let n = 0; n < 6 && !neoOn.acabou(j); n++) j = neoOn.jogadaNeo(j, dc.decidirBot(j.p, rng), rng)!;
+  assert.ok(j.lances.length <= neoOn.LANCES_ONLINE);
+  assert.deepEqual(neoOn.lerJogoNeo(JSON.stringify(j)), j);
+  const fim = neoOn.desistirNeo(j, 1);
+  assert.ok(neoOn.acabou(fim));
+  assert.equal(neoOn.jogadaNeo(fim, { tipo: 'comprar' }, rng), null);
+  assert.deepEqual([neoOn.resultadoNeo(fim, 1), neoOn.resultadoNeo(fim, 0)], ['VOCE DESISTIU', 'BIA DESISTIU']);
+  assert.equal(neoOn.lerJogoNeo('{"p":{}}'), null);
+});
+
