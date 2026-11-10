@@ -114,7 +114,8 @@ export function DescricaoAtividade({ a, nomePessoa }: { a: Row; nomePessoa?: str
       {a.via === 'api' && <><span className="selo-api" title={`Feito pela API em nome de ${nomePessoa ?? '?'} (chave ${a.chave_api ?? '?'})`}>API</span> </>}
       {a.acao === 'alterou' ? <><b>{a.coluna_titulo}</b>: <s>{a.de ?? '—'}</s> → <b>{a.para ?? '—'}</b></>
         : a.acao === 'moveu' ? <>moveu de <s>{a.de}</s> para <b>{a.para}</b></>
-        : a.acao === 'importou' ? <>importou <b>{a.para}</b> do Excel</>
+        // A importação do monday (Function) já grava "do monday: …"; a do Excel grava só a contagem.
+        : a.acao === 'importou' ? <>importou <b>{a.para}</b>{String(a.para ?? '').startsWith('do monday') ? '' : ' do Excel'}</>
         : a.acao === 'renomeou' ? <>renomeou de <s>{a.de}</s></>
         : ACAO[a.acao] ?? a.acao}
     </span>
