@@ -8,11 +8,15 @@ import { agir, alvosCtrlz, fileirasPara, liderPode, opcoesDeEscolha, total, tota
 // (ele não vê as suas cartas), e fica com a que mais ganha.
 
 export const NIVEIS = [
-  { nome: 'FACIL', aposta: 10, ruido: 10, acaso: 0.4, partidas: 0 },
+  { nome: 'FACIL', aposta: 20, ruido: 10, acaso: 0.4, partidas: 0 },
   { nome: 'MEDIO', aposta: 50, ruido: 3, acaso: 0.08, partidas: 5 },
   { nome: 'DIFICIL', aposta: 100, ruido: 0, acaso: 0, partidas: 24 },
 ] as const;
 export type Nivel = (typeof NIVEIS)[number];
+
+/** PRATICA: você escolhe a facção do bot e o nível dele é sorteado às cegas (só aparece no fim); entra de graça e a vitória paga PREMIO. */
+export const PRATICA = { nome: 'PRATICA', aposta: 0, premio: 30 } as const;
+export const sortearNivel = (rng: () => number) => Math.floor(rng() * NIVEIS.length);
 
 /** Quanto vale uma carta a mais na mão, em pontos. */
 const VALOR_CARTA = 7;

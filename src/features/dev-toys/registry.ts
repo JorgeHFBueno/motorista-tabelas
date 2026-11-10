@@ -1,14 +1,19 @@
 import { lazy, type ComponentType, type LazyExoticComponent } from 'react';
 
-// Brinquedos da área DEV: cada um vira um ícone no Desktop e abre numa janela. Nada aqui grava dados.
+// Brinquedos da área DEV: cada um vira um ícone no Desktop (ou dentro de uma pasta) e abre numa janela. Nada aqui grava dados.
 export type DevToy = {
   id: string;
   nome: string;
   /** Path SVG 16×16, 1 bit (pintado com currentColor, regra evenodd). */
   icone: string;
-  componente: LazyExoticComponent<ComponentType>;
+  /** `aba`: só a das Regras usa (a aba que o botão de regras de outra janela pediu). */
+  componente: LazyExoticComponent<ComponentType<{ aba?: string }>>;
   /** Largura da janela a 100% (a tela usa vezes ESCALA). */
   largura: number;
+  /** Fica dentro desta pasta, e não no Desktop nem no menu. */
+  pasta?: string;
+  /** A aba das Regras deste jogo: a janela ganha o botão de regras na barra de título. */
+  regras?: string;
 };
 
 export const DEV_TOYS: DevToy[] = [
@@ -41,12 +46,22 @@ export const DEV_TOYS: DevToy[] = [
     largura: 430, // duas fichas por linha
   },
   {
+    id: 'cassino',
+    nome: 'Cassino',
+    // um dado
+    icone: 'M1 1h14v14H1zM2 2h12v12H2zM4 4h2v2H4zM10 4h2v2h-2zM7 7h2v2H7zM4 10h2v2H4zM10 10h2v2h-2z',
+    componente: lazy(() => import('./toys/cassino/CassinoToy')),
+    largura: 460, // os 4 ícones numa linha
+  },
+  {
     id: 'vinteum',
     nome: '21',
     // duas cartas, a da frente com um losango
     icone: 'M6 1h8v1H6zM6 2h1v2H6zM13 2h1v10h-1zM10 11h3v1h-3zM2 4h8v1H2zM2 14h8v1H2zM2 5h1v9H2zM9 5h1v9H9zM5 7h2v1H5zM4 8h4v2H4zM5 10h2v1H5z',
     componente: lazy(() => import('./toys/vinteum/VinteUmToy')),
     largura: 560, // mesa larga: nove cartas por linha
+    pasta: 'cassino',
+    regras: '21',
   },
   {
     id: 'poker',
@@ -54,6 +69,8 @@ export const DEV_TOYS: DevToy[] = [
     icone: 'M3 1h10v14H3zM4 2h8v12H4zM7 5h2v1H7zM6 6h4v1H6zM5 7h6v2H5zM7 9h2v2H7z',
     componente: lazy(() => import('./toys/poker/PokerToy')),
     largura: 820,
+    pasta: 'cassino',
+    regras: 'poker',
   },
   {
     id: 'slot',
@@ -61,6 +78,7 @@ export const DEV_TOYS: DevToy[] = [
     icone: 'M3 1h8v1H3zM2 3h10v12H2zM3 5h8v4H3zM4 6h1v2H4zM6 6h2v2H6zM9 6h1v2H9zM5 11h4v1H5zM12 2h3v3h-3zM13 5h1v5h-1z',
     componente: lazy(() => import('./toys/slot/SlotToy')),
     largura: 520,
+    pasta: 'cassino',
   },
   {
     id: 'xadrez',
@@ -68,6 +86,7 @@ export const DEV_TOYS: DevToy[] = [
     icone: 'M7 0h2v1H7zM5 1h6v1H5zM7 2h2v2H7zM6 4h4v1H6zM4 5h8v3H4zM5 8h6v4H5zM3 12h10v3H3z',
     componente: lazy(() => import('./toys/xadrez/XadrezToy')),
     largura: 560,
+    regras: 'xadrez',
   },
   {
     id: 'neo',
@@ -76,6 +95,8 @@ export const DEV_TOYS: DevToy[] = [
     icone: 'M6 1h9v1H6zM6 2h1v10H6zM14 2h1v10h-1zM6 12h9v1H6zM10 4h1v5h-1zM8 6h5v1H8zM1 3h1v12H1zM2 3h4v1H2zM2 14h8v1H2zM9 13h1v1H9z',
     componente: lazy(() => import('./toys/neo/NeoToy')),
     largura: 820, // a mesa do poker
+    pasta: 'cassino',
+    regras: 'neo',
   },
   {
     id: 'protocolo',
@@ -84,6 +105,16 @@ export const DEV_TOYS: DevToy[] = [
     icone: 'M1 1h14v1H1zM1 14h14v1H1zM1 2h1v12H1zM14 2h1v12h-1zM3 3h2v3H3zM7 3h2v3H7zM2 8h12v1H2zM3 10h2v3H3zM7 10h2v3H7zM11 10h2v3h-2z',
     componente: lazy(() => import('./toys/protocolo/ProtocoloToy')),
     largura: 900,
+    regras: 'protocolo',
+  },
+  {
+    id: 'baralhos',
+    nome: 'Baralhos',
+    // a carta da frente, uma lista; a de trás aparecendo
+    icone: 'M5 1h10v1H5zM5 2h1v2H5zM14 2h1v10h-1zM11 11h3v1h-3zM1 4h10v11H1zM2 5h8v9H2zM4 7h4v1H4zM4 9h4v1H4zM4 11h4v1H4z',
+    componente: lazy(() => import('./toys/protocolo/BaralhosToy')),
+    largura: 760,
+    regras: 'protocolo',
   },
   {
     id: 'placar',

@@ -6,7 +6,7 @@ import { useOpcoesTeclado } from '../fichas/hooks';
 import { CartaNeoView } from '../neo/CartaNeoView';
 import { MAO_INICIAL, MULTA, PREMIO, type CartaNeo } from '../neo/regras';
 import { BLIND_GRANDE, BLIND_PEQUENO, ENTRADA } from '../poker/mesa';
-import { NIVEIS as NIVEIS_PT } from '../protocolo/bot';
+import { NIVEIS as NIVEIS_PT, PRATICA } from '../protocolo/bot';
 import { CartaPtView } from '../protocolo/CartaPtView';
 import {
   ESPECIAIS as ESPECIAIS_MODELO, FACCOES, HAB_NOME, HAB_TEXTO, HEROI_TEXTO, MAO_INICIAL as MAO_PT, MAX_ESPECIAIS, MIN_UNIDADES, NEUTRAS, PASSIVA, TROCAS, UNIDADES,
@@ -286,8 +286,8 @@ function RegrasProtocolo() {
       <h3>O BARALHO</h3>
       <ul>
         <li>Como no Witcher 3: 1 lider, no minimo {MIN_UNIDADES} unidades e no maximo {MAX_ESPECIAIS} especiais. Cada faccao tem 4 herois; as neutras (com herois de 15) entram em qualquer baralho; cada especial, ate 3 copias.</li>
-        <li>Monte o seu em [Montar baralho]: escolha o lider e clique nas cartas para por ou tirar. Fica guardado neste navegador; [Padrao] volta ao baralho pronto.</li>
-        <li>O bot joga com uma das outras 3 faccoes, sorteada, com o baralho padrao e um lider sorteado.</li>
+        <li>Monte o seu no setor Baralhos (ou em [Montar baralho], que abre ele): escolha a faccao, o lider e clique nas cartas para por ou tirar. Fica guardado neste navegador; [Padrao] volta ao baralho pronto.</li>
+        <li>O bot joga com uma das outras 3 faccoes, sorteada, com o baralho padrao e um lider sorteado. Na {PRATICA.nome}, voce escolhe a faccao dele.</li>
       </ul>
       <h3>FACCOES E LIDERES</h3>
       <p>Cada lider se usa uma vez por partida, na sua vez, no lugar de uma carta; o passivo vale desde o comeco.</p>
@@ -303,13 +303,15 @@ function RegrasProtocolo() {
       <ul>
         <li>A aposta e a do bot: {NIVEIS_PT.map((n) => `${n.nome} ${n.aposta}`).join(', ')} fichas, e sai ao comecar.</li>
         <li>Vitoria paga o dobro; empate devolve; desistir, ou fechar a janela no meio, perde.</li>
+        <li>{PRATICA.nome}: voce escolhe a faccao do bot e o nivel dele e sorteado as cegas (so aparece no fim); entra de graca e a vitoria paga {PRATICA.premio}.</li>
       </ul>
     </>
   );
 }
 
-export default function RegrasToy() {
-  const [aba, setAba] = useState<Aba>('21');
+/** `aba`: a que o botão de regras de outra janela pediu (sem ela, ou se não existe, a do 21). */
+export default function RegrasToy({ aba: pedida }: { aba?: string }) {
+  const [aba, setAba] = useState<Aba>(() => ABAS.find((a) => a.id === pedida)?.id ?? '21');
   const { raiz, teclas } = useOpcoesTeclado(aba);
   return (
     <div className="dt-regras dt-jogo" ref={raiz} tabIndex={-1} onKeyDown={teclas}>

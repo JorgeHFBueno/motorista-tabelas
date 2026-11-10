@@ -3,7 +3,8 @@ import { useNavigate } from 'react-router-dom';
 import { INTENSIDADES, type IntensidadeCrt } from '../crt/parametros';
 import type { PrefsDev } from '../prefs';
 import { ESCALA } from '../escala';
-import { DEV_TOYS, type DevToy } from '../registry';
+import { DEV_TOYS } from '../registry';
+import { IconesSetores } from './IconesSetores';
 import Window from './Window';
 
 type Aberta = { id: string; x: number; y: number };
@@ -12,22 +13,19 @@ const ROTULO_INTENSIDADE: Record<IntensidadeCrt, string> = { baixa: 'Baixa', med
 
 const horaAgora =() => new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
 
-function Icone({ toy }: { toy: DevToy }) {
-  return (
-    <svg viewBox="0 0 16 16" width={32 * ESCALA} height={32 * ESCALA} aria-hidden="true" shapeRendering="crispEdges">
-      <path d={toy.icone} fill="currentColor" fillRule="evenodd" />
-    </svg>
-  );
-}
+/** No Desktop e no menu Setores: os setores que não estão dentro de uma pasta. */
+const NO_DESKTOP = DEV_TOYS.filter((t) => !t.pasta);
 
 type Props = { ligando: boolean; prefs: PrefsDev; onPrefs: (prefs: PrefsDev) => void; onReiniciar: () => void };
 
 // Desktop da área DEV: barra de menus, ícones dos brinquedos e janelas (a última da lista fica na frente).
+// O botão de regras de uma janela abre as Regras na aba do jogo dela.
 export default function Desktop({ ligando, prefs, onPrefs, onReiniciar }: Props) {
   const navigate = useNavigate();
   const [janelas, setJanelas] = useState<Aberta[]>(() => [{ id: DEV_TOYS[0].id, x: 64 * ESCALA, y: 40 * ESCALA }]);
   const [menu, setMenu] = useState<string | null>(null);
-  const [selecionado, setSelecionado] = useState<string | null>(null);
+  // a aba que o botão de regras pediu; `n` remonta as Regras para ela abrir nessa aba
+  const [pedidoRegras, setPedidoRegras] = useState({ aba: undefined as string | undefined, n: 0 });
   const [hora, setHora] = useState(horaAgora);
 
   useEffect(() => {
@@ -68,14 +66,16 @@ export default function Desktop({ ligando, prefs, onPrefs, onReiniciar }: Props)
     window.addEventListener('ledur:dev-abrir', pedir);
     return () => window.removeEventListener('ledur:dev-abrir', pedir);
   }, [abrir]);
+  const abrirRegras = (aba: string) => {
+    setPedidoRegras((r) => ({ aba, n: r.n + 1 }));
+    abrir('regras');
+  };
   const focar = (id: string) => setJanelas((js) => (js.at(-1)?.id === id ? js : [...js.filter((j) => j.id !== id), js.find((j) => j.id === id)!]));
   const fechar = (id: string) => setJanelas((js) => js.filter((j) => j.id !== id));
   const mover = (id: string, x: number, y: number) => setJanelas((js) => js.map((j) => (j.id === id ? { ...j, x, y } : j)));
 
   const fundo = (e: PointerEvent<HTMLDivElement>) => {
-    const alvo = e.target as Element;
-    if (!alvo.closest('.dt-menubar')) setMenu(null);
-    if (!alvo.closest('.dt-icone')) setSelecionado(null);
+    if (!(e.target as Element).closest('.dt-menubar')) setMenu(null);
   };
 
   const menus: Array<{ id: string; rotulo: string; itens: Array<{ rotulo: string; acao: () => void } | null> }> = [
@@ -90,7 +90,7 @@ export default function Desktop({ ligando, prefs, onPrefs, onReiniciar }: Props)
         { rotulo: 'Sair do DEV', acao: () => navigate('/') },
       ],
     },
-    { id: 'brinquedos', rotulo: 'Setores', itens: DEV_TOYS.map((t) => ({ rotulo: t.nome, acao: () => abrir(t.id) })) },
+    { id: 'brinquedos', rotulo: 'Setores', itens: NO_DESKTOP.map((t) => ({ rotulo: t.nome, acao: () => abrir(t.id) })) },
     {
       id: 'crt',
       rotulo: 'CRT',
@@ -131,26 +131,13 @@ export default function Desktop({ ligando, prefs, onPrefs, onReiniciar }: Props)
         <span className="dt-relogio">{hora}</span>
       </nav>
 
-      <div className="dt-icones">
-        {DEV_TOYS.map((toy) => (
-          <button
-            key={toy.id}
-            type="button"
-            className={`dt-icone${selecionado === toy.id ? ' dt-selecionado' : ''}`}
-            onClick={() => setSelecionado(toy.id)}
-            onDoubleClick={() => abrir(toy.id)}
-            onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); abrir(toy.id); } }}
-          >
-            <Icone toy={toy} />
-            <span>{toy.nome}</span>
-          </button>
-        ))}
-      </div>
+      <IconesSetores toys={NO_DESKTOP} className="dt-icones" onAbrir={abrir} />
 
       {janelas.map((j, i) => {
         const toy = DEV_TOYS.find((t) => t.id === j.id);
         if (!toy) return null;
         const Brinquedo = toy.componente;
+        const { regras } = toy;
         return (
           <Window
             key={j.id}
@@ -163,9 +150,10 @@ export default function Desktop({ ligando, prefs, onPrefs, onReiniciar }: Props)
             onMover={(x, y) => mover(j.id, x, y)}
             onFechar={() => fechar(j.id)}
             onFocar={() => focar(j.id)}
+            onRegras={regras ? () => abrirRegras(regras) : undefined}
           >
             <Suspense fallback={<p>Carregando...</p>}>
-              <Brinquedo />
+              {j.id === 'regras' ? <Brinquedo key={pedidoRegras.n} aba={pedidoRegras.aba} /> : <Brinquedo />}
             </Suspense>
           </Window>
         );

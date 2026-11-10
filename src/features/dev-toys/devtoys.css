@@ -166,6 +166,14 @@
   background: var(--dt-tinta);
 }
 
+/* pasta (Cassino): os ícones lado a lado, dentro da janela */
+.devtoys .dt-pasta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: calc(var(--dt-e) * 16px);
+  padding: calc(var(--dt-e) * 6px) 0;
+}
+
 /* ---- janelas ---- */
 .devtoys .dt-janela {
   position: absolute;
@@ -205,22 +213,39 @@
   color: var(--dt-apagado);
 }
 
-.devtoys .dt-fechar {
+/* caixinhas da barra de título: fechar (X) e, nos jogos, regras (?) logo ao lado */
+.devtoys .dt-caixinha {
   position: absolute;
   left: calc(var(--dt-e) * 8px);
   top: calc(var(--dt-e) * 4px);
   width: calc(var(--dt-e) * 11px);
   height: calc(var(--dt-e) * 11px);
+  display: grid;
+  place-items: center;
+  padding: 0;
+  color: var(--dt-tinta);
   background: var(--dt-papel);
   border: 1px solid var(--dt-tinta);
   box-shadow: 0 0 0 2px var(--dt-papel);
+  cursor: pointer;
 }
 
-.devtoys .dt-fechar:active {
+.devtoys .dt-regras-botao {
+  left: calc(var(--dt-e) * 25px);
+}
+
+.devtoys .dt-caixinha svg {
+  width: calc(var(--dt-e) * 7px);
+  height: calc(var(--dt-e) * 7px);
+  fill: currentColor;
+}
+
+.devtoys .dt-caixinha:active {
+  color: var(--dt-papel);
   background: var(--dt-tinta);
 }
 
-.devtoys .dt-janela:not(.dt-ativa) .dt-fechar {
+.devtoys .dt-janela:not(.dt-ativa) .dt-caixinha {
   visibility: hidden;
 }
 

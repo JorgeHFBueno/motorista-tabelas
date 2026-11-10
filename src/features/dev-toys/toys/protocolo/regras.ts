@@ -486,8 +486,9 @@ export function agir(p: Partida, a: Jogada, rng: () => number): Partida {
   return q.pendente === null ? avancar(q) : q;
 }
 
-/** No fim da partida, o que volta da aposta: vitória paga o dobro, empate devolve. */
-export const retornoProtocolo = (vencedor: 0 | 1 | null, aposta: number) => (vencedor === 0 ? 2 * aposta : vencedor === null ? aposta : 0);
+/** No fim da partida, o que volta da aposta: vitória paga o dobro, empate devolve. Na PRATICA (`premio`), só a vitória paga o prêmio. */
+export const retornoProtocolo = (vencedor: 0 | 1 | null, aposta: number, premio?: number) =>
+  premio !== undefined ? (vencedor === 0 ? premio : 0) : vencedor === 0 ? 2 * aposta : vencedor === null ? aposta : 0;
 
 /** Nome da carta por extenso, sem acento (leitores de tela). */
 export const nomeDaCartaPt = (c: Carta) =>

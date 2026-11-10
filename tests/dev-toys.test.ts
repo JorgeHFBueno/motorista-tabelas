@@ -1137,6 +1137,12 @@ test('PROTOCOLO: rodadas, vidas, passivas e o fim da partida', () => {
   const acabou = ptJoga(fim, { tipo: 'seguir' });
   assert.deepEqual([acabou.fase, acabou.vencedor], ['fim', 1]);
   assert.deepEqual([pt.retornoProtocolo(0, 50), pt.retornoProtocolo(null, 50), pt.retornoProtocolo(1, 50)], [100, 50, 0]);
+  // os níveis custam 20, 50 e 100; a PRATICA entra de graça e só a vitória paga o prêmio (empate não devolve nada)
+  assert.deepEqual(ptBot.NIVEIS.map((n) => n.aposta), [20, 50, 100]);
+  assert.equal(ptBot.PRATICA.aposta, 0);
+  const premio = ptBot.PRATICA.premio;
+  assert.deepEqual([pt.retornoProtocolo(0, 0, premio), pt.retornoProtocolo(null, 0, premio), pt.retornoProtocolo(1, 0, premio)], [30, 0, 0]);
+  for (let k = 0; k < 20; k++) assert.ok(ptBot.NIVEIS[ptBot.sortearNivel(rngDe(k))]);
   // empate na rodada: os dois perdem uma vida; MAINFRAME que vence compra 1
   let e = ptMesa(ptMF([ptC('MAINFRAME', 'FIREWALL')], [ptC('MAINFRAME', 'SWITCH')]), ptEN([ptC('ENXAME', 'EXPLOIT')]));
   e = ptJoga(ptJoga(e, { tipo: 'passar' }), { tipo: 'passar' });

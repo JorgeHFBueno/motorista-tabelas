@@ -1,27 +1,27 @@
 import { useEffect, useState } from 'react';
-import { gravar, ler } from '../crawler/memoria';
 import { rngDe } from '../crawler/sim';
-import { alterarCarteira, lerCarteira, mover } from '../fichas/carteira';
+import { alterarCarteira, lerCarteira, mover, semFichas } from '../fichas/carteira';
 import { FichasView, SemFichas } from '../fichas/FichasView';
 import { anotar } from '../fichas/historico';
 import { semMovimento, useCarteira, useOpcoesTeclado } from '../fichas/hooks';
 import { gravarPlacar, lerPlacar, registrarJogada } from '../fichas/jogos';
 import { NOMES_BOT } from '../poker/bots';
-import { NIVEIS, decidirBot } from './bot';
+import { useBaralhos } from './baralhos';
+import { NIVEIS, PRATICA, decidirBot, sortearNivel } from './bot';
 import { CartaPtView, IconeFileira } from './CartaPtView';
-import { MontarBaralho } from './MontarBaralho';
 import {
   FACCOES, NOME_CLIMA, NOME_FILEIRA, PASSIVA, VIDAS, agir, alvosCtrlz, baralhoPadrao, fileirasPara, forcaNoCampo, liderPassivo, liderPode, liderPorId,
-  lideresDe, nomeDaCartaPt, normalizarBaralho, novaPartida, opcoesDeEscolha, problemasDo, retornoProtocolo, total, totalFileira,
-  type Baralho, type Carta, type Escolha, type Faccao, type Fileira, type Jogada, type Partida,
+  lideresDe, nomeDaCartaPt, novaPartida, opcoesDeEscolha, problemasDo, retornoProtocolo, total, totalFileira,
+  type Carta, type Escolha, type Faccao, type Fileira, type Jogada, type Partida,
 } from './regras';
 
 // PROTOCOLO contra um bot (de uma das outras 3 facções, sorteada, com o baralho padrão e um líder sorteado). Antes
-// de jogar, você escolhe a facção e monta o baralho dela (guardado neste navegador, `ledur:dev-protocolo-baralhos`).
+// de jogar, você escolhe a facção; o baralho dela se monta no setor Baralhos (guardado neste navegador).
 // Na partida: as fileiras dele em cima (DISCO, REDE, CPU) e as suas embaixo (CPU, REDE, DISCO), o clima
 // no meio; à esquerda, os dois lados (total, vidas, mão, baralho, descarte, líder) e o placar das rodadas; à direita,
 // a carteira, o aviso, as opções e os últimos lances. A aposta é a do nível do bot e sai ao começar; vitória paga o
-// dobro, empate devolve; desistir, ou fechar a janela no meio, perde a aposta.
+// dobro, empate devolve; desistir, ou fechar a janela no meio, perde a aposta. Na PRATICA, você escolhe a facção do
+// bot, o nível dele é sorteado (só aparece no fim), não custa nada e a vitória paga PRATICA.premio.
 const CHAVE = 'ledur:dev-protocolo';
 /** Devagar o bastante para ver o que o bot fez: ele "pensa" e a jogada aparece no selo dele. */
 const BOT_MS = 1400;
@@ -29,16 +29,10 @@ const VOCE = 0;
 const BOT = 1;
 const LANCES = 8;
 const sorteio = () => rngDe((Math.random() * 2 ** 32) >>> 0);
-const CHAVE_BARALHOS = 'ledur:dev-protocolo-baralhos';
-
-type Guardado = { faccao: Faccao; baralhos: Record<Faccao, Baralho> };
-function lerBaralhos(): Guardado {
-  const v = ler(CHAVE_BARALHOS);
-  const x = v && typeof v === 'object' ? (v as { faccao?: unknown; baralhos?: Record<string, unknown> }) : {};
-  const faccao = FACCOES.find((f) => f === x.faccao) ?? FACCOES[0];
-  const baralhos = Object.fromEntries(FACCOES.map((f) => [f, normalizarBaralho(f, x.baralhos?.[f])])) as Record<Faccao, Baralho>;
-  return { faccao, baralhos };
-}
+/** As opções do bot: os três níveis e, por último, a PRATICA. */
+const OPCOES = [...NIVEIS, PRATICA];
+const I_PRATICA = NIVEIS.length;
+const abrirBaralhos = () => window.dispatchEvent(new CustomEvent('ledur:dev-abrir', { detail: 'baralhos' }));
 
 const PEDE: Record<Escolha, string> = {
   reviver: 'ESCOLHA O QUE O BACKUP REVIVE',
@@ -120,24 +114,30 @@ function Linha({ p, i, f, alvoFileira, alvoCarta, onFileira, onCarta }: {
 
 export default function ProtocoloToy() {
   const carteira = useCarteira();
-  const [guardado, setGuardado] = useState(lerBaralhos);
-  const [montando, setMontando] = useState(false);
-  const [nivel, setNivel] = useState(0);
+  const [guardado, salvar] = useBaralhos();
+  const [escolha, setNivel] = useState(0);
+  // nível que não cabe na carteira cai na PRATICA (de graça)
+  const nivel = OPCOES[escolha].aposta > carteira.fichas ? I_PRATICA : escolha;
+  // na PRATICA, a facção do bot
+  const [contra, setContra] = useState<Faccao>(FACCOES[1]);
   const [partida, setPartida] = useState<Partida | null>(null);
-  // a aposta e o nível da partida em jogo
-  const [jogo, setJogo] = useState({ aposta: 0, nivel: 0 });
+  // a aposta e o nível da partida em jogo (na PRATICA, o sorteado)
+  const [jogo, setJogo] = useState({ aposta: 0, nivel: 0, pratica: false });
   const [registro, setRegistro] = useState<string[]>([]);
   // a carta que espera a fileira (ágil, OVERCLOCK) ou a unidade (CTRL+Z)
   const [sel, setSel] = useState<number | null>(null);
 
+  const retornoDo = (p: Partida) => retornoProtocolo(p.vencedor, jogo.aposta, jogo.pratica ? PRATICA.premio : undefined);
+  const nomeDoJogo = `${NIVEIS[jogo.nivel].nome}${jogo.pratica ? ' (PRATICA)' : ''}`;
+
   /** Fim da partida: paga e conta no placar e no histórico. */
   const fechar = (p: Partida, desistiu: boolean) => {
-    const volta = desistiu ? 0 : retornoProtocolo(p.vencedor, jogo.aposta);
+    const volta = desistiu ? 0 : retornoDo(p);
     if (volta) alterarCarteira((c) => mover(c, volta));
     gravarPlacar(CHAVE, registrarJogada(lerPlacar(CHAVE), jogo.aposta, volta));
     const placar = `${p.rodadas.filter((r) => r.vencedor === VOCE).length} A ${p.rodadas.filter((r) => r.vencedor === BOT).length}`;
     const como = desistiu ? 'DESISTIU' : p.vencedor === VOCE ? `VENCEU ${placar}` : p.vencedor === BOT ? `PERDEU ${placar}` : 'EMPATE';
-    anotar('PROTOCOLO', volta - jogo.aposta, `${NIVEIS[jogo.nivel].nome} . ${p.lados[0].faccao} X ${p.lados[1].faccao} . ${como}`);
+    anotar('PROTOCOLO', volta - jogo.aposta, `${nomeDoJogo} . ${p.lados[0].faccao} X ${p.lados[1].faccao} . ${como}`);
   };
 
   const aplicar = (de: Partida, a: Jogada) => {
@@ -155,29 +155,26 @@ export default function ProtocoloToy() {
     if (!vezDoBot || !partida) return;
     const t = window.setTimeout(() => aplicar(partida, decidirBot(partida, sorteio(), NIVEIS[jogo.nivel])), semMovimento() ? 150 : BOT_MS);
     return () => window.clearTimeout(t);
-    // aplicar só lê a aposta e o nível, que não mudam na partida; a partida é a dependência que importa
+    // aplicar só lê o jogo (aposta, nível, PRATICA), que não muda na partida; a partida é a dependência que importa
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [vezDoBot, partida]);
 
   const faccao = guardado.faccao;
   const meuBaralho = guardado.baralhos[faccao];
   const problemas = problemasDo(meuBaralho);
-  const salvar = (g: Guardado) => { setGuardado(g); gravar(CHAVE_BARALHOS, g); };
-  const mudarBaralho = (b: Baralho) => salvar({ ...guardado, baralhos: { ...guardado.baralhos, [b.faccao]: b } });
-
-  const aposta = NIVEIS[nivel].aposta;
+  const pratica = nivel === I_PRATICA;
+  const aposta = OPCOES[nivel].aposta;
   const comecar = () => {
     if (aposta > lerCarteira().fichas || problemas.length) return;
-    alterarCarteira((c) => mover(c, -aposta));
+    if (aposta) alterarCarteira((c) => mover(c, -aposta));
     const rng = sorteio();
-    // o bot: outra facção, sorteada, com o baralho padrão e um líder sorteado (e não troca cartas)
+    // o bot: outra facção, sorteada (na PRATICA, a escolhida), com o baralho padrão e um líder sorteado (e não troca cartas)
     const outras = FACCOES.filter((f) => f !== faccao);
-    const dele = outras[Math.floor(rng() * outras.length)];
+    const dele = pratica ? contra : outras[Math.floor(rng() * outras.length)];
     const lideres = lideresDe(dele);
     const bot = { ...baralhoPadrao(dele), lider: lideres[Math.floor(rng() * lideres.length)].id };
     const p = novaPartida(meuBaralho, bot, NOMES_BOT[Math.floor(rng() * NOMES_BOT.length)], rng);
-    setMontando(false);
-    setJogo({ aposta, nivel });
+    setJogo({ aposta, nivel: pratica ? sortearNivel(rng) : nivel, pratica });
     setSel(null);
     setPartida(p);
     setRegistro([p.aviso]);
@@ -218,13 +215,17 @@ export default function ProtocoloToy() {
 
   const { raiz, teclas } = useOpcoesTeclado(`${fase}-${partida?.vez}-${partida?.pendente}-${sel}-${partida?.rodada}`);
 
-  const saldo = partida && fase === 'fim' ? retornoProtocolo(partida.vencedor, jogo.aposta) - jogo.aposta : 0;
+  const saldo = partida && fase === 'fim' ? retornoDo(partida) - jogo.aposta : 0;
+  // sem fichas, ainda dá para jogar a PRATICA (de graça) ou pegar a mesada
+  const quebrado = !emJogo && semFichas(carteira);
   const aviso = !partida
-    ? montando ? 'MONTE O SEU BARALHO: LIDER E CARTAS' : problemas.length ? `BARALHO INCOMPLETO: ${problemas.join(' . ')}` : 'ESCOLHA A FACCAO E O BOT. VITORIA PAGA O DOBRO'
+    ? problemas.length
+      ? `BARALHO INCOMPLETO: ${problemas.join(' . ')}`
+      : pratica ? `PRATICA: ESCOLHA A FACCAO DELE. GRATIS, VITORIA PAGA ${PRATICA.premio}` : 'ESCOLHA A FACCAO E O BOT. VITORIA PAGA O DOBRO'
     : fase === 'troca'
       ? `TROQUE ATE ${partida.trocas} CARTAS (CLIQUE NELAS) OU SIGA${partida.escolheInicio ? '. CODIGO LIVRE: ESCOLHA QUEM COMECA' : ''}`
       : fase === 'placar' || fase === 'fim'
-        ? `${partida.aviso}${fase === 'fim' ? ` (${saldo >= 0 ? '+' : ''}${saldo})` : ''}`
+        ? `${partida.aviso}${fase === 'fim' ? ` (${saldo >= 0 ? '+' : ''}${saldo})${jogo.pratica ? ` . NIVEL ${NIVEIS[jogo.nivel].nome}` : ''}` : ''}`
         : partida.pendente === VOCE
           ? PEDE[partida.escolha ?? 'reviver']
           : selecionada
@@ -262,8 +263,12 @@ export default function ProtocoloToy() {
               <p className="dt-pt-contas">LIDER {liderPorId(meuBaralho.lider).nome}: {liderPorId(meuBaralho.lider).texto}</p>
             </div>
             <div className="dt-pt-info">
-              <p className="dt-pk-nome">BOT</p>
-              <p className="dt-pt-contas">UMA DAS OUTRAS 3 FACCOES, SORTEADA, COM O BARALHO PADRAO E UM LIDER SORTEADO.</p>
+              <p className="dt-pk-nome">BOT{pratica && <span className="dt-pk-estilo">{contra}</span>}</p>
+              <p className="dt-pt-contas">
+                {pratica
+                  ? `${PASSIVA[contra]} BARALHO PADRAO, LIDER SORTEADO E NIVEL SORTEADO (SO APARECE NO FIM).`
+                  : 'UMA DAS OUTRAS 3 FACCOES, SORTEADA, COM O BARALHO PADRAO E UM LIDER SORTEADO.'}
+              </p>
             </div>
           </>
         )}
@@ -308,8 +313,6 @@ export default function ProtocoloToy() {
               ))}
             </div>
           </>
-        ) : montando ? (
-          <MontarBaralho baralho={meuBaralho} onMudar={mudarBaralho} />
         ) : (
           <p className="dt-pk-vazia">MESA VAZIA</p>
         )}
@@ -323,7 +326,7 @@ export default function ProtocoloToy() {
             <FichasView total={carteira.fichas} />
           </div>
           <div>
-            <p><span className="dt-jogo-legenda">NA MESA</span>{emJogo ? jogo.aposta : '-'}</p>
+            <p><span className="dt-jogo-legenda">NA MESA</span>{!emJogo ? '-' : jogo.pratica ? 'GRATIS' : jogo.aposta}</p>
             <FichasView total={emJogo ? jogo.aposta : 0} />
           </div>
         </div>
@@ -331,33 +334,35 @@ export default function ProtocoloToy() {
 
         <div className="dt-jogo-botoes" data-opcoes>
           {!emJogo ? (
-            carteira.fichas < NIVEIS[0].aposta ? (
-              <SemFichas carteira={carteira} />
-            ) : (
-              <>
-                <span className="dt-pt-escolha">
-                  VOCE
-                  {FACCOES.map((f) => (
-                    <button key={f} type="button" className={faccao === f ? 'dt-jogo-escolhida' : undefined} aria-pressed={faccao === f} onClick={() => salvar({ ...guardado, faccao: f })}>[{f}]</button>
-                  ))}
-                </span>
-                <span className="dt-pt-escolha">
-                  <button type="button" className={montando ? 'dt-jogo-escolhida' : undefined} aria-pressed={montando} onClick={() => setMontando((m) => !m)}>
-                    [{montando ? 'Fechar o baralho' : 'Montar baralho'}]
+            <>
+              {quebrado && <SemFichas carteira={carteira} />}
+              <span className="dt-pt-escolha">
+                VOCE
+                {FACCOES.map((f) => (
+                  <button key={f} type="button" className={faccao === f ? 'dt-jogo-escolhida' : undefined} aria-pressed={faccao === f} onClick={() => salvar({ ...guardado, faccao: f })}>[{f}]</button>
+                ))}
+              </span>
+              <span className="dt-pt-escolha">
+                <button type="button" onClick={abrirBaralhos}>[Montar baralho]</button>
+              </span>
+              <span className="dt-pt-escolha">
+                BOT
+                {OPCOES.map((n, k) => (
+                  <button key={n.nome} type="button" className={nivel === k ? 'dt-jogo-escolhida' : undefined} aria-pressed={nivel === k} disabled={n.aposta > carteira.fichas} onClick={() => setNivel(k)}>
+                    [{n.nome} {'premio' in n ? `GRATIS, PAGA ${n.premio}` : n.aposta}]
                   </button>
-                  {montando && <button type="button" onClick={() => mudarBaralho(baralhoPadrao(faccao))}>[Padrao]</button>}
-                </span>
+                ))}
+              </span>
+              {pratica && (
                 <span className="dt-pt-escolha">
-                  BOT
-                  {NIVEIS.map((n, k) => (
-                    <button key={n.nome} type="button" className={nivel === k ? 'dt-jogo-escolhida' : undefined} aria-pressed={nivel === k} disabled={n.aposta > carteira.fichas} onClick={() => setNivel(k)}>
-                      [{n.nome} {n.aposta}]
-                    </button>
+                  CONTRA
+                  {FACCOES.map((f) => (
+                    <button key={f} type="button" className={contra === f ? 'dt-jogo-escolhida' : undefined} aria-pressed={contra === f} onClick={() => setContra(f)}>[{f}]</button>
                   ))}
                 </span>
-                <button type="button" data-principal onClick={comecar} disabled={aposta > carteira.fichas || problemas.length > 0}>[Jogar]</button>
-              </>
-            )
+              )}
+              <button type="button" data-principal onClick={comecar} disabled={aposta > carteira.fichas || problemas.length > 0}>[Jogar]</button>
+            </>
           ) : fase === 'troca' ? (
             <>
               {partida.escolheInicio && (
