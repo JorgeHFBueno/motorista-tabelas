@@ -2,6 +2,8 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import test from 'node:test';
 import { rotaAnterior } from '../src/components/cabecalhoPagina';
+import { filtrarMenuPrincipal } from '../src/components/menuPrincipal';
+import { emptyAuthorizationProfile, type AuthorizationProfile } from '../src/services/authorizationProfileCore';
 
 test('Voltar do cabeçalho sobe pela URL até a página mais próxima, até a Home (2026-11-10)', () => {
   assert.equal(rotaAnterior('/'), null);
@@ -62,4 +64,32 @@ test('menu e rotas de 2026-11-10: Cadastros e Combustível são grupos, Checklis
   assert.doesNotMatch(app, /path="(cadastros|combustivel|combustivel\/novo|bombas|checklist[^"]*)"/);
   assert.doesNotMatch(app, /CadastrosPage|checklist-mecanico\//);
   assert.equal(titulos.match(/subtitulo: '/g)?.length, 1);
+});
+
+const perfil = (credenciais: Partial<AuthorizationProfile>): AuthorizationProfile => ({ ...emptyAuthorizationProfile(), exists: true, ativo: true, ...credenciais });
+const grupo = (p: AuthorizationProfile, label: string) => filtrarMenuPrincipal(p).find((item) => item.label === label)?.children?.map((c) => c.label);
+
+test('Meu perfil fica dentro de Cadastros e continua aberto a qualquer credencial (2026-11-10)', () => {
+  assert.deepEqual(grupo(perfil({ escritorio: true }), 'Cadastros'), ['Usuários', 'Novo usuário', 'Credenciais Kiosk', 'Meu perfil']);
+  assert.deepEqual(grupo(perfil({ motorista: true }), 'Cadastros'), ['Meu perfil']);
+  assert.deepEqual(filtrarMenuPrincipal(perfil({ motorista: true })).map((i) => i.label), ['Cadastros']);
+  assert.equal(filtrarMenuPrincipal(perfil({ adm2: true })).some((i) => i.label === 'Meu perfil'), false);
+  assert.deepEqual(filtrarMenuPrincipal(perfil({})), []);
+});
+
+test('subitens da Home mostram uma descrição, não o caminho', () => {
+  const home = readFileSync('src/pages/HomeDashboard.tsx', 'utf8');
+  assert.match(home, /\{child\.descricao\}/);
+  assert.doesNotMatch(home, /\{child\.to\}/);
+  for (const item of filtrarMenuPrincipal(perfil({ adm2: true }))) {
+    for (const child of item.children ?? []) assert.ok(child.descricao.length > 0 && !child.descricao.startsWith('/'), child.label);
+  }
+});
+
+test('Home ocupa o resto da tela sem chutar a altura do cabeçalho (sem rolagem à toa)', () => {
+  const home = readFileSync('src/pages/HomeDashboard.tsx', 'utf8');
+  const css = readFileSync('src/App.css', 'utf8');
+  assert.doesNotMatch(home, /100vh/);
+  assert.match(home, /flex: 1/);
+  assert.match(css, /#root \{[^}]*display: flex;[^}]*flex-direction: column;/);
 });

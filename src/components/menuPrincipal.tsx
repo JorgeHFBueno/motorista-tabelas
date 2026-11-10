@@ -26,6 +26,8 @@ import IconeDev from '../features/dev-toys/IconeDev';
 import type { AuthorizationProfile } from '../services/authorizationProfile';
 import { temAlgumaCredencial, temCredencial, type Credencial } from '../services/credenciais';
 
+type Acesso = 'qualquer' | Exclude<Credencial, 'adm2'>[];
+
 // Áreas do sistema: cards da Home e menu lateral aberto pelo cabeçalho nas demais páginas.
 export type MenuPrincipalItem = {
   label: string;
@@ -34,8 +36,9 @@ export type MenuPrincipalItem = {
   accent: string;
   to?: string;
   // Quem vê: 'qualquer' credencial ou as credenciais da área (o adm2 vê tudo, salvo as exclusivas, como retr0).
-  acesso: 'qualquer' | Exclude<Credencial, 'adm2'>[];
-  children?: Array<{ label: string; to: string; icon: ReactNode }>;
+  acesso: Acesso;
+  // Subitens do grupo: o card da Home mostra a descrição. Sem acesso próprio, vale o do grupo; o grupo aparece se algum subitem aparecer.
+  children?: Array<{ label: string; to: string; icon: ReactNode; descricao: string; acesso?: Acesso }>;
   // Item desenhado como telinha CRT, só com o ícone (área DEV): card escuro na Home, sem texto no menu lateral.
   crt?: true;
 };
@@ -64,9 +67,11 @@ export const menuPrincipal: MenuPrincipalItem[] = [
     accent: '#2F6B98',
     acesso: ['escritorio'],
     children: [
-      { label: 'Usuários', to: '/cadastros/editar/usuarios', icon: <PeopleAltOutlinedIcon /> },
-      { label: 'Novo usuário', to: '/cadastros/usuarios/novo', icon: <PersonAddAltOutlinedIcon /> },
-      { label: 'Credenciais Kiosk', to: '/cadastros/usuarios/kiosk', icon: <QrCode2RoundedIcon /> },
+      { label: 'Usuários', to: '/cadastros/editar/usuarios', icon: <PeopleAltOutlinedIcon />, descricao: 'Contas do sistema e as credenciais de cada pessoa' },
+      { label: 'Novo usuário', to: '/cadastros/usuarios/novo', icon: <PersonAddAltOutlinedIcon />, descricao: 'Cadastrar um funcionário com login' },
+      { label: 'Credenciais Kiosk', to: '/cadastros/usuarios/kiosk', icon: <QrCode2RoundedIcon />, descricao: 'QR Codes e PINs do terminal de abastecimento' },
+      // Meu perfil é de qualquer credencial: quem não tem escritorio vê o grupo só com ele.
+      { label: 'Meu perfil', to: '/perfil', icon: <PersonOutlineRoundedIcon />, descricao: 'Seus dados, login e senha', acesso: 'qualquer' },
     ],
   },
   {
@@ -77,10 +82,10 @@ export const menuPrincipal: MenuPrincipalItem[] = [
     acesso: ['mecanico', 'logistica'],
     // Ordem em grade de duas colunas: Veículos | Registros, Checklists | KPI.
     children: [
-      { label: 'Veículos', to: '/frota/veiculos', icon: <LocalShippingOutlinedIcon /> },
-      { label: 'Registros', to: '/frota/registros', icon: <ListAltIcon /> },
-      { label: 'Checklists', to: '/frota/checklists', icon: <FactCheckOutlinedIcon /> },
-      { label: 'KPI', to: '/frota/analytics', icon: <InsightsOutlinedIcon /> },
+      { label: 'Veículos', to: '/frota/veiculos', icon: <LocalShippingOutlinedIcon />, descricao: 'Frota, manutenções e custos de cada veículo' },
+      { label: 'Registros', to: '/frota/registros', icon: <ListAltIcon />, descricao: 'Saídas e chegadas registradas no app' },
+      { label: 'Checklists', to: '/frota/checklists', icon: <FactCheckOutlinedIcon />, descricao: 'Checklists de veículos e máquinas' },
+      { label: 'KPI', to: '/frota/analytics', icon: <InsightsOutlinedIcon />, descricao: 'Indicadores da frota desde 01/01/2025' },
     ],
   },
   {
@@ -91,8 +96,8 @@ export const menuPrincipal: MenuPrincipalItem[] = [
     // /combustivel não tem página própria. Bombas também abre para o mecanico, pela URL (a rota aceita as duas credenciais).
     acesso: ['logistica'],
     children: [
-      { label: 'Registros', to: '/combustivel/registros', icon: <ReceiptLongOutlinedIcon /> },
-      { label: 'Bombas', to: '/combustivel/bombas', icon: <OilBarrelOutlinedIcon /> },
+      { label: 'Registros', to: '/combustivel/registros', icon: <ReceiptLongOutlinedIcon />, descricao: 'Histórico e lançamento de abastecimentos' },
+      { label: 'Bombas', to: '/combustivel/bombas', icon: <OilBarrelOutlinedIcon />, descricao: 'Estoque, montante e entradas de diesel' },
     ],
   },
   {
@@ -102,9 +107,9 @@ export const menuPrincipal: MenuPrincipalItem[] = [
     accent: '#6B5CA5',
     acesso: ['engenharia'],
     children: [
-      { label: 'Cronograma', to: '/engenharia/cronograma', icon: <CalendarMonthIcon /> },
-      { label: 'Prazos contratuais', to: '/engenharia/prazos', icon: <EventBusyIcon /> },
-      { label: 'Obras', to: '/engenharia/obras', icon: <ConstructionIcon /> },
+      { label: 'Cronograma', to: '/engenharia/cronograma', icon: <CalendarMonthIcon />, descricao: 'Andamento das obras ao longo do tempo' },
+      { label: 'Prazos contratuais', to: '/engenharia/prazos', icon: <EventBusyIcon />, descricao: 'Prazos dos contratos das obras públicas' },
+      { label: 'Obras', to: '/engenharia/obras', icon: <ConstructionIcon />, descricao: 'Lista das obras e o detalhe de cada uma' },
     ],
   },
   {
@@ -113,7 +118,7 @@ export const menuPrincipal: MenuPrincipalItem[] = [
     color: '#EEF3FA',
     accent: '#3A6EA5',
     acesso: ['logistica', 'mecanico'],
-    children: [{ label: 'Cronograma', to: '/logistica/cronograma', icon: <CalendarMonthIcon /> }],
+    children: [{ label: 'Cronograma', to: '/logistica/cronograma', icon: <CalendarMonthIcon />, descricao: 'Quem sai, para qual obra, com qual veículo e por quê' }],
   },
   {
     // Lado da equipe do portal do cliente (The Manuscript, 16_PORTAL_DO_CLIENTE.md).
@@ -123,19 +128,11 @@ export const menuPrincipal: MenuPrincipalItem[] = [
     accent: '#2F6B98',
     acesso: ['engenharia', 'escritorio'],
     children: [
-      { label: 'Clientes', to: '/portal-cliente/clientes', icon: <PeopleAltOutlinedIcon /> },
-      { label: 'Contratos', to: '/portal-cliente/contratos', icon: <DescriptionOutlinedIcon /> },
-      { label: 'Atendimento', to: '/portal-cliente/atendimento', icon: <SupportAgentOutlinedIcon /> },
-      { label: 'Notícias', to: '/portal-cliente/noticias', icon: <NewspaperOutlinedIcon /> },
+      { label: 'Clientes', to: '/portal-cliente/clientes', icon: <PeopleAltOutlinedIcon />, descricao: 'Logins dos clientes e os CNPJ/CPF de cada um' },
+      { label: 'Contratos', to: '/portal-cliente/contratos', icon: <DescriptionOutlinedIcon />, descricao: 'Contratos publicados para os clientes' },
+      { label: 'Atendimento', to: '/portal-cliente/atendimento', icon: <SupportAgentOutlinedIcon />, descricao: 'Chamados abertos pelos clientes' },
+      { label: 'Notícias', to: '/portal-cliente/noticias', icon: <NewspaperOutlinedIcon />, descricao: 'Notícias mostradas aos clientes' },
     ],
-  },
-  {
-    label: 'Meu perfil',
-    icon: <PersonOutlineRoundedIcon fontSize="large" />,
-    color: '#F3F6F9',
-    accent: '#3D5A73',
-    to: '/perfil',
-    acesso: 'qualquer',
   },
   {
     label: 'DEV',
@@ -148,11 +145,15 @@ export const menuPrincipal: MenuPrincipalItem[] = [
   },
 ];
 
-// Cada área aparece para quem tem a sua credencial; o adm2 vê tudo, salvo as exclusivas (retr0). Quem só tem credenciais do app
-// (motorista, frentista) vê o Meu perfil.
+const temAcesso = (profile: AuthorizationProfile | null, acesso: Acesso) =>
+  acesso === 'qualquer' ? temAlgumaCredencial(profile) : temCredencial(profile, ...acesso);
+
+// Cada área aparece para quem tem a sua credencial; o adm2 vê tudo, salvo as exclusivas (retr0). Um grupo mostra só os subitens
+// que a pessoa pode abrir e some sem nenhum. Quem só tem credenciais do app (motorista, frentista) vê Cadastros com o Meu perfil.
 export function filtrarMenuPrincipal(profile: AuthorizationProfile | null): MenuPrincipalItem[] {
-  return menuPrincipal.filter((item) => {
-    if (item.acesso === 'qualquer') return temAlgumaCredencial(profile);
-    return temCredencial(profile, ...item.acesso);
+  return menuPrincipal.flatMap((item) => {
+    if (!item.children) return temAcesso(profile, item.acesso) ? [item] : [];
+    const children = item.children.filter((child) => temAcesso(profile, child.acesso ?? item.acesso));
+    return children.length ? [{ ...item, children }] : [];
   });
 }

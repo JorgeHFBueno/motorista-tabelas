@@ -34,7 +34,7 @@
     "test:portal-cliente": "esbuild tests/portal-cliente.test.ts --bundle --platform=node --format=esm --outfile=.tmp-portal-cliente.test.mjs && node --test .tmp-portal-cliente.test.mjs",
     "test:portal-cliente-progresso": "esbuild tests/portal-cliente-progresso.test.ts --bundle --platform=node --format=esm --outfile=.tmp-portal-cliente-progresso.test.mjs && node --test .tmp-portal-cliente-progresso.test.mjs",
     "test:portal-cliente-parcelas": "esbuild tests/portal-cliente-parcelas.test.ts --bundle --platform=node --format=esm --outfile=.tmp-portal-cliente-parcelas.test.mjs && node --test .tmp-portal-cliente-parcelas.test.mjs",
-    "test:cabecalho": "esbuild tests/cabecalho-voltar.test.ts --bundle --platform=node --format=esm --outfile=.tmp-cabecalho-voltar.test.mjs && node --test .tmp-cabecalho-voltar.test.mjs",
+    "test:cabecalho": "esbuild tests/cabecalho-voltar.test.ts --bundle --jsx=automatic --platform=node --format=esm --outfile=.tmp-cabecalho-voltar.test.mjs && node --test .tmp-cabecalho-voltar.test.mjs",
     "test:dev-toys": "esbuild tests/dev-toys.test.ts --bundle --platform=node --format=esm --outfile=.tmp-dev-toys.test.mjs && node --test .tmp-dev-toys.test.mjs",
     "manuscript:check": "esbuild tools/manuscript-check.ts --bundle --platform=node --format=esm --outfile=.tmp-manuscript-check.mjs && node .tmp-manuscript-check.mjs",
     "test:rules": "firebase emulators:exec --only firestore,storage --project demo-firebase-rules \"node --test tests/rules/*.test.mjs\"",

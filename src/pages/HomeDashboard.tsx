@@ -25,7 +25,7 @@ export default function HomeDashboard() {
   return (
     <Box
       sx={{
-        minHeight: 'calc(100vh - 64px)',
+        flex: 1,
         display: 'flex',
         justifyContent: 'center',
         p: { xs: 2, sm: 3 },
@@ -100,7 +100,7 @@ export default function HomeDashboard() {
                               <Stack alignItems="center" justifyContent="center" spacing={0.75} sx={{ height: '100%', color: '#12293B' }}>
                                 <Box sx={{ color: action.accent, display: 'flex', '& svg': { fontSize: 24 } }}>{child.icon}</Box>
                                 <Typography sx={{ fontSize: 18, fontWeight: 700 }}>{child.label}</Typography>
-                                <Typography variant="body2" color="text.secondary">{child.to}</Typography>
+                                <Typography variant="body2" color="text.secondary" textAlign="center">{child.descricao}</Typography>
                               </Stack>
                             </CardActionArea>
                           </Card>

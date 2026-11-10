@@ -13,7 +13,7 @@ test('menu Engenharia disponibiliza Cronograma, Prazos e Obras para a credencial
   // /engenharia/obras voltou em 2026-10-30 como a lista de obras-v2 (a conciliação antiga saiu em 2026-10-27).
   assert.match(menu, /label: 'Obras', to: '\/engenharia\/obras'/);
   assert.match(menu, /label: 'Cronograma', to: '\/engenharia\/cronograma'/);
-  assert.match(menu, /return temCredencial\(profile, \.\.\.item\.acesso\)/);
+  assert.match(menu, /acesso === 'qualquer' \? temAlgumaCredencial\(profile\) : temCredencial\(profile, \.\.\.acesso\)/);
   assert.match(menu, /CalendarMonthIcon/);
   assert.match(menu, /label: 'Prazos contratuais', to: '\/engenharia\/prazos'/);
   assert.match(home, /<Collapse in=\{expandedGroup === action\.label\}/);

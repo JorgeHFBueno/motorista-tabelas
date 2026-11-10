@@ -1,3 +1,6 @@
+/* Column: a page can take the height left below the header with flex: 1, whatever the header's height. */
 #root {
   min-height: 100vh;
+  display: flex;
+  flex-direction: column;
 }
