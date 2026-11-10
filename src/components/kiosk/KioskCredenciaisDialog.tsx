@@ -1,8 +1,8 @@
-import { useCallback, useEffect, useState, type ReactNode } from 'react';
+import { useState, type ReactNode } from 'react';
 import { Alert, Box, Button, CircularProgress, Dialog, DialogActions, DialogContent, DialogTitle, Stack, TextField, Typography } from '@mui/material';
 import KioskQrDialog from './KioskQrDialog';
 import { KioskPinStatusChip, KioskQrStatusChip } from './KioskCredentialStatusChip';
-import { getKioskCredentialStatus, provisionKioskCredential, revokeKioskQr, setKioskPin, setKioskPinEnabled, type KioskCredentialStatus, type ProvisionKioskCredentialResponse } from '../../services/kioskCredentials';
+import { provisionKioskCredential, revokeKioskQr, setKioskPin, setKioskPinEnabled, type KioskCredentialStatus, type ProvisionKioskCredentialResponse } from '../../services/kioskCredentials';
 import { formatKioskUpdatedAt, kioskFunctionErrorMessage } from '../../services/kioskCredentialsUtils';
 import { nomeDoUsuario, type AdminUser } from '../../services/adminUsersApi';
 
@@ -18,10 +18,18 @@ const Campo = ({ rotulo, children }: { rotulo: string; children: ReactNode }) =>
 
 // Kiosk QR and PIN of one employee, opened from the Ações column in Usuários (the /cadastros/usuarios/kiosk screen was merged
 // here on 2026-11-10). The Kiosk Functions check escritorio themselves; only active frentista/adm2 get the button.
-export default function KioskCredenciaisDialog({ user, onClose, onAviso }: { user: AdminUser | null; onClose: () => void; onAviso: (mensagem: string, erro?: boolean) => void }) {
-  const [status, setStatus] = useState<KioskCredentialStatus | null>(null);
-  const [carregando, setCarregando] = useState(false);
-  const [erro, setErro] = useState<string | null>(null);
+// The status comes from Usuários, which fetches everyone's when it opens; the popup only asks again after an action.
+type Props = {
+  user: AdminUser | null;
+  status: KioskCredentialStatus | undefined;
+  erro: string | null;
+  onRecarregar: () => Promise<void>;
+  onClose: () => void;
+  onAviso: (mensagem: string, erro?: boolean) => void;
+};
+
+export default function KioskCredenciaisDialog({ user, status, erro, onRecarregar, onClose, onAviso }: Props) {
+  const [tentando, setTentando] = useState(false);
   const [acaoQr, setAcaoQr] = useState<AcaoQr>(null);
   const [acaoPin, setAcaoPin] = useState<AcaoPin>(null);
   const [pin, setPin] = useState('');
@@ -31,15 +39,7 @@ export default function KioskCredenciaisDialog({ user, onClose, onAviso }: { use
   const uid = user?.uid;
   const nome = user ? nomeDoUsuario(user) : '';
 
-  const carregar = useCallback(async () => {
-    if (!uid) return;
-    setCarregando(true); setErro(null);
-    try { setStatus((await getKioskCredentialStatus([uid]))[0] ?? null); }
-    catch (e) { setErro(kioskFunctionErrorMessage(e)); }
-    finally { setCarregando(false); }
-  }, [uid]);
-
-  useEffect(() => { setStatus(null); if (uid) void carregar(); }, [uid, carregar]);
+  const tentarDeNovo = async () => { setTentando(true); try { await onRecarregar(); } finally { setTentando(false); } };
 
   const limparPin = () => { setPin(''); setConfirmPin(''); };
   const fecharPin = () => { if (!enviando) { setAcaoPin(null); limparPin(); } };
@@ -56,7 +56,7 @@ export default function KioskCredenciaisDialog({ user, onClose, onAviso }: { use
     try {
       if (acaoQr === 'provision') { const r = await provisionKioskCredential(uid); setQrEmitido(r); onAviso(r.replaced ? 'Novo QR emitido.' : 'QR emitido.'); }
       else { await revokeKioskQr(uid); onAviso('QR revogado com sucesso.'); }
-      setAcaoQr(null); await carregar();
+      setAcaoQr(null); await onRecarregar();
     } catch (e) { onAviso(kioskFunctionErrorMessage(e), true); }
     finally { setEnviando(false); }
   };
@@ -67,7 +67,7 @@ export default function KioskCredenciaisDialog({ user, onClose, onAviso }: { use
     try {
       if (pinDigitado) { await setKioskPin(uid, pin); onAviso(acaoPin === 'change' ? 'PIN alterado com sucesso.' : 'PIN definido com sucesso.'); }
       else { await setKioskPinEnabled(uid, acaoPin === 'enable'); onAviso(acaoPin === 'enable' ? 'PIN reativado com sucesso.' : 'PIN desativado com sucesso.'); }
-      limparPin(); setAcaoPin(null); await carregar();
+      limparPin(); setAcaoPin(null); await onRecarregar();
     } catch (e) { limparPin(); onAviso(kioskFunctionErrorMessage(e), true); }
     finally { setEnviando(false); }
   };
@@ -83,8 +83,8 @@ export default function KioskCredenciaisDialog({ user, onClose, onAviso }: { use
       <Dialog open={Boolean(user)} onClose={enviando ? undefined : onClose} fullWidth maxWidth="sm">
         <DialogTitle>Kiosk — {nome}</DialogTitle>
         <DialogContent>
-          {erro && <Alert severity="error" sx={{ mb: 2 }} action={<Button color="inherit" size="small" onClick={() => void carregar()}>Tentar novamente</Button>}>{erro}</Alert>}
-          {carregando && !status ? (
+          {erro && <Alert severity="error" sx={{ mb: 2 }} action={<Button color="inherit" size="small" disabled={tentando} onClick={() => void tentarDeNovo()}>Tentar novamente</Button>}>{erro}</Alert>}
+          {!status && !erro ? (
             <Stack alignItems="center" sx={{ py: 3 }}><CircularProgress size={28} /></Stack>
           ) : (
             <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', columnGap: 3, rowGap: 2.5, pt: 1 }}>

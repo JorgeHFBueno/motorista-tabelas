@@ -123,8 +123,13 @@ test('Credenciais Kiosk saiu do menu e virou o botão de QR nas Ações de Usuá
   assert.match(tabela, /\{isKioskCredentialEligible\(row\) && \(/);
   assert.match(tabela, /onClick=\{\(\) => onKiosk\(row\)\}><QrCode2RoundedIcon/);
   assert.match(readFileSync('src/pages/CadastroUsuariosEditarPage.tsx', 'utf8'), /<KioskCredenciaisDialog user=\{kioskDe\}/);
+  // Os status são buscados por Usuários ao abrir (a partida a frio da Function fica escondida), não pelo popup.
+  const usuarios = readFileSync('src/pages/CadastroUsuariosEditarPage.tsx', 'utf8');
+  assert.match(usuarios, /lotes\.map\(getKioskCredentialStatus\)/);
+  assert.match(usuarios, /void carregarKiosk\(elegiveisKiosk\.split\(','\)\)/);
   // Popup na ordem pedida: Atualizado em | por, QR | PIN, ações do QR | do PIN.
   const popup = readFileSync('src/components/kiosk/KioskCredenciaisDialog.tsx', 'utf8');
+  assert.doesNotMatch(popup, /getKioskCredentialStatus/);
   const ordem = ['rotulo="Atualizado em"', 'rotulo="Atualizado por"', 'rotulo="QR"', 'rotulo="PIN"', "setAcaoQr('provision')", "setAcaoPin(pinConfigurado ? 'change' : 'set')"].map((t) => popup.indexOf(t));
   assert.ok(ordem.every((p, i) => p > 0 && (i === 0 || p > ordem[i - 1])), String(ordem));
 });

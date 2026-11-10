@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link as RouterLink, useLocation, useNavigate } from 'react-router-dom';
 import {
   Alert,
@@ -24,6 +24,9 @@ import useAdminUsers from '../hooks/useAdminUsers';
 import { loginDoUsuario, nomeDoUsuario, type AdminUser } from '../services/adminUsersApi';
 import { CREDENCIAIS } from '../services/credenciais';
 import { useTituloPagina } from '../components/cabecalhoPagina';
+import { getKioskCredentialStatus, type KioskCredentialStatus } from '../services/kioskCredentials';
+import { kioskFunctionErrorMessage, uniqueUidBatches } from '../services/kioskCredentialsUtils';
+import { kioskCredentialEligibleUsers } from '../services/kioskCredentialEligibility';
 
 type Aviso = { message: string; severity: 'success' | 'error' } | null;
 const erroDe = (e: unknown, padrao: string) => (e instanceof Error ? e.message : padrao);
@@ -52,6 +55,26 @@ export default function CadastroUsuariosEditarPage() {
   const [confirmacao, setConfirmacao] = useState('');
   const [excluir, setExcluir] = useState<AdminUser | null>(null);
   const [kioskDe, setKioskDe] = useState<AdminUser | null>(null);
+  // Kiosk QR/PIN status of every eligible person, fetched as soon as the list arrives (as the old Kiosk screen did): the
+  // Function's cold start (~4 s when idle) happens while the table is on screen, and the popup opens with the data ready.
+  const [kioskStatus, setKioskStatus] = useState<Record<string, KioskCredentialStatus>>({});
+  const [kioskErro, setKioskErro] = useState<string | null>(null);
+  const carregarKiosk = useCallback(async (uids: string[]) => {
+    const lotes = uniqueUidBatches(uids);
+    if (!lotes.length) return;
+    setKioskErro(null);
+    try {
+      const resultados = await Promise.all(lotes.map(getKioskCredentialStatus));
+      setKioskStatus((atual) => ({ ...atual, ...Object.fromEntries(resultados.flat().map((s) => [s.uid, s])) }));
+    } catch (e) {
+      setKioskErro(kioskFunctionErrorMessage(e));
+    }
+  }, []);
+  // Refetches only when the set of eligible people changes, not on every edit of the list.
+  const elegiveisKiosk = useMemo(() => kioskCredentialEligibleUsers(users).map((u) => u.uid).join(','), [users]);
+  useEffect(() => {
+    if (elegiveisKiosk) void carregarKiosk(elegiveisKiosk.split(','));
+  }, [elegiveisKiosk, carregarKiosk]);
 
   const dateFormatter = useMemo(() => new Intl.DateTimeFormat('pt-BR', { dateStyle: 'short', timeStyle: 'short', timeZone: 'America/Sao_Paulo' }), []);
   const filteredUsers = useMemo(() => {
@@ -185,7 +208,9 @@ export default function CadastroUsuariosEditarPage() {
         </DialogActions>
       </Dialog>
 
-      <KioskCredenciaisDialog user={kioskDe} onClose={() => setKioskDe(null)} onAviso={(message, erro) => setSnackbar({ message, severity: erro ? 'error' : 'success' })} />
+      <KioskCredenciaisDialog user={kioskDe} status={kioskDe ? kioskStatus[kioskDe.uid] : undefined} erro={kioskErro}
+        onRecarregar={() => (kioskDe ? carregarKiosk([kioskDe.uid]) : Promise.resolve())}
+        onClose={() => setKioskDe(null)} onAviso={(message, erro) => setSnackbar({ message, severity: erro ? 'error' : 'success' })} />
 
       {snackbar && (
         <Snackbar open autoHideDuration={5000} onClose={() => setSnackbar(null)} anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}>
