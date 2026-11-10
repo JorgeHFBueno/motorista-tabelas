@@ -172,7 +172,7 @@ export default function CombustivelNovoPage() {
     try {
       setSaving(true);
       await salvarLancamento({ plano, linhas: lancamentos, criadoPor: { uid: eu.uid, nome: eu.nome }, precosEntradas: contexto.precosEntradas });
-      navigate('/combustivel');
+      navigate('/combustivel/registros');
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Não foi possível salvar.');
     } finally {

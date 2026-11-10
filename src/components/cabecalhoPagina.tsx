@@ -1,13 +1,12 @@
 import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { matchPath, useLocation } from 'react-router-dom';
 
-// Title and subtitle of the current page, shown in the header (same model as the client portal). Each route has a default
-// here; a page whose title depends on its data (a vehicle, a checklist) sets it with useTituloPagina.
+// Title of the current page, shown in the header (same model as the client portal). Each route has a default here; a page
+// whose title depends on its data (a vehicle, a checklist) sets it with useTituloPagina. Only the Home has a subtitle.
 // The list is also the map of pages used by the header's back button (rotaAnterior).
 export type TituloPagina = { titulo: string; subtitulo?: string };
 
-const FRIDAY = { titulo: 'Friday', subtitulo: 'Gestão interna em quadros' };
-const CHECKLIST = { titulo: 'Checklist' };
+const FRIDAY = { titulo: 'Friday' };
 
 const TITULOS: Array<{ padrao: string } & TituloPagina> = [
   // /login and /acesso-negado have no title: the header shows the logo there.
@@ -20,34 +19,29 @@ const TITULOS: Array<{ padrao: string } & TituloPagina> = [
   { padrao: '/friday/quadros/:id', ...FRIDAY },
   { padrao: '/friday/quadros/:id/automacoes', ...FRIDAY },
   { padrao: '/engenharia/cronograma', titulo: 'Cronograma de Obras' },
-  { padrao: '/engenharia/prazos', titulo: 'Cronograma de prazos contratuais', subtitulo: 'Obras públicas' },
+  { padrao: '/engenharia/prazos', titulo: 'Cronograma de prazos contratuais' },
   { padrao: '/engenharia/obras', titulo: 'Obras' },
   { padrao: '/engenharia/obras/:id', titulo: 'Detalhes da Obra' },
-  { padrao: '/checklist', ...CHECKLIST },
-  { padrao: '/checklist/itens', ...CHECKLIST },
-  { padrao: '/checklist/historico', ...CHECKLIST },
-  { padrao: '/checklist/historico/:id', ...CHECKLIST },
   { padrao: '/dev', titulo: 'DEV' },
   { padrao: '/the-manuscript/*', titulo: 'The Manuscript' },
-  { padrao: '/combustivel', titulo: 'Combustível' },
-  { padrao: '/combustivel/novo', titulo: 'Lançamento de combustível' },
-  { padrao: '/cadastros', titulo: 'Cadastros', subtitulo: 'Administre os usuários do sistema e as credenciais do Kiosk.' },
-  { padrao: '/cadastros/usuarios/novo', titulo: 'Cadastro de usuários', subtitulo: 'Cadastre usuários internos no Firebase Authentication e em funcionarios.' },
-  { padrao: '/cadastros/usuarios/kiosk', titulo: 'Credenciais Kiosk', subtitulo: 'Emita, substitua ou revogue QR Codes usados para identificação no terminal de abastecimento.' },
+  { padrao: '/combustivel/registros', titulo: 'Registros de combustível' },
+  { padrao: '/combustivel/registros/novo', titulo: 'Lançamento de combustível' },
+  { padrao: '/cadastros/usuarios/novo', titulo: 'Cadastro de usuários' },
+  { padrao: '/cadastros/usuarios/kiosk', titulo: 'Credenciais Kiosk' },
   { padrao: '/cadastros/editar/usuarios', titulo: 'Usuários' },
   { padrao: '/frota/veiculos', titulo: 'Veículos' },
   { padrao: '/frota/veiculos/:id', titulo: 'Detalhes do Veículo' },
   { padrao: '/frota/registros', titulo: 'Registros' },
-  { padrao: '/frota/checklists', titulo: 'Checklists', subtitulo: 'Checklists de veículos e máquinas, independentes dos registros de saída e chegada.' },
+  { padrao: '/frota/checklists', titulo: 'Checklists' },
   { padrao: '/frota/checklists/:id', titulo: 'Checklist' },
-  { padrao: '/frota/analytics', titulo: 'Analytics da Frota', subtitulo: 'KPI desde 01/01/2025' },
-  { padrao: '/bombas', titulo: 'Bombas', subtitulo: 'Controle e acompanhamento das bombas de combustível' },
-  { padrao: '/logistica/cronograma', titulo: 'Cronograma Logístico', subtitulo: 'Quem sai, para qual obra, com qual veículo e por qual motivo' },
-  { padrao: '/portal-cliente/clientes', titulo: 'Clientes do portal', subtitulo: 'Logins dos clientes e os CNPJ/CPF que cada um representa' },
-  { padrao: '/portal-cliente/contratos', titulo: 'Contratos no portal', subtitulo: 'Contratos de obras-v2 publicados para os clientes' },
+  { padrao: '/frota/analytics', titulo: 'Analytics da Frota' },
+  { padrao: '/combustivel/bombas', titulo: 'Bombas' },
+  { padrao: '/logistica/cronograma', titulo: 'Cronograma Logístico' },
+  { padrao: '/portal-cliente/clientes', titulo: 'Clientes do portal' },
+  { padrao: '/portal-cliente/contratos', titulo: 'Contratos no portal' },
   { padrao: '/portal-cliente/contratos/:id', titulo: 'Contrato no portal' },
-  { padrao: '/portal-cliente/atendimento', titulo: 'Atendimento do portal', subtitulo: 'Chamados abertos pelos clientes' },
-  { padrao: '/portal-cliente/noticias', titulo: 'Notícias do portal', subtitulo: 'Notícias institucionais mostradas aos clientes' },
+  { padrao: '/portal-cliente/atendimento', titulo: 'Atendimento do portal' },
+  { padrao: '/portal-cliente/noticias', titulo: 'Notícias do portal' },
 ];
 
 const tituloDaRota = (caminho: string): TituloPagina | null => {
@@ -92,11 +86,11 @@ export function useCabecalhoPagina(): TituloPagina | null {
 }
 
 // A page sets its own title while it is open (e.g. "Checklist ABC1D23"); the route default comes back when it closes.
-export function useTituloPagina(titulo: string | null | undefined, subtitulo?: string) {
+export function useTituloPagina(titulo: string | null | undefined) {
   const definir = useContext(CabecalhoPaginaContext)?.definir;
   useEffect(() => {
     if (!definir || !titulo) return;
-    definir({ titulo, subtitulo });
+    definir({ titulo });
     return () => definir(null);
-  }, [definir, titulo, subtitulo]);
+  }, [definir, titulo]);
 }

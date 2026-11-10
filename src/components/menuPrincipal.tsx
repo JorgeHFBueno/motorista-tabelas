@@ -6,6 +6,8 @@ import FactCheckOutlinedIcon from '@mui/icons-material/FactCheckOutlined';
 import InsightsOutlinedIcon from '@mui/icons-material/InsightsOutlined';
 import LocalShippingOutlinedIcon from '@mui/icons-material/LocalShippingOutlined';
 import LocalGasStationIcon from '@mui/icons-material/LocalGasStation';
+import ReceiptLongOutlinedIcon from '@mui/icons-material/ReceiptLongOutlined';
+import OilBarrelOutlinedIcon from '@mui/icons-material/OilBarrelOutlined';
 import EngineeringIcon from '@mui/icons-material/Engineering';
 import CalendarMonthIcon from '@mui/icons-material/CalendarMonth';
 import EventBusyIcon from '@mui/icons-material/EventBusy';
@@ -15,6 +17,8 @@ import ViewKanbanOutlinedIcon from '@mui/icons-material/ViewKanbanOutlined';
 import PersonOutlineRoundedIcon from '@mui/icons-material/PersonOutlineRounded';
 import HandshakeOutlinedIcon from '@mui/icons-material/HandshakeOutlined';
 import PeopleAltOutlinedIcon from '@mui/icons-material/PeopleAltOutlined';
+import PersonAddAltOutlinedIcon from '@mui/icons-material/PersonAddAltOutlined';
+import QrCode2RoundedIcon from '@mui/icons-material/QrCode2Rounded';
 import DescriptionOutlinedIcon from '@mui/icons-material/DescriptionOutlined';
 import SupportAgentOutlinedIcon from '@mui/icons-material/SupportAgentOutlined';
 import NewspaperOutlinedIcon from '@mui/icons-material/NewspaperOutlined';
@@ -58,8 +62,12 @@ export const menuPrincipal: MenuPrincipalItem[] = [
     icon: <AssignmentIndIcon fontSize="large" />,
     color: '#EAF2F8',
     accent: '#2F6B98',
-    to: '/cadastros',
     acesso: ['escritorio'],
+    children: [
+      { label: 'Usuários', to: '/cadastros/editar/usuarios', icon: <PeopleAltOutlinedIcon /> },
+      { label: 'Novo usuário', to: '/cadastros/usuarios/novo', icon: <PersonAddAltOutlinedIcon /> },
+      { label: 'Credenciais Kiosk', to: '/cadastros/usuarios/kiosk', icon: <QrCode2RoundedIcon /> },
+    ],
   },
   {
     label: 'Frota',
@@ -76,21 +84,16 @@ export const menuPrincipal: MenuPrincipalItem[] = [
     ],
   },
   {
-    // Checklist do mecânico para celular (iPhone); quem só tem esta área entra direto nela.
-    label: 'Checklist',
-    icon: <FactCheckOutlinedIcon fontSize="large" />,
-    color: '#EEF5F1',
-    accent: '#2E9D6F',
-    to: '/checklist',
-    acesso: ['mecanico'],
-  },
-  {
     label: 'Combustível',
     icon: <LocalGasStationIcon fontSize="large" />,
     color: '#FFF6E8',
     accent: '#E79A25',
-    to: '/combustivel',
+    // /combustivel não tem página própria. Bombas também abre para o mecanico, pela URL (a rota aceita as duas credenciais).
     acesso: ['logistica'],
+    children: [
+      { label: 'Registros', to: '/combustivel/registros', icon: <ReceiptLongOutlinedIcon /> },
+      { label: 'Bombas', to: '/combustivel/bombas', icon: <OilBarrelOutlinedIcon /> },
+    ],
   },
   {
     label: 'Engenharia',
@@ -146,16 +149,10 @@ export const menuPrincipal: MenuPrincipalItem[] = [
 ];
 
 // Cada área aparece para quem tem a sua credencial; o adm2 vê tudo, salvo as exclusivas (retr0). Quem só tem credenciais do app
-// (motorista, frentista) vê o Meu perfil; o mecânico vê o Checklist.
+// (motorista, frentista) vê o Meu perfil.
 export function filtrarMenuPrincipal(profile: AuthorizationProfile | null): MenuPrincipalItem[] {
   return menuPrincipal.filter((item) => {
     if (item.acesso === 'qualquer') return temAlgumaCredencial(profile);
     return temCredencial(profile, ...item.acesso);
   });
-}
-
-// Quem só tem o Checklist (além do Meu perfil, no menu do usuário) entra direto nele: é o caso do mecânico no iPhone.
-export function soChecklist(profile: AuthorizationProfile | null): boolean {
-  const areas = filtrarMenuPrincipal(profile).filter((item) => item.acesso !== 'qualquer');
-  return areas.length === 1 && areas[0].to === '/checklist';
 }

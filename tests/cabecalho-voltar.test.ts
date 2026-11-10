@@ -5,21 +5,20 @@ import { rotaAnterior } from '../src/components/cabecalhoPagina';
 
 test('Voltar do cabeçalho sobe pela URL até a página mais próxima, até a Home (2026-11-10)', () => {
   assert.equal(rotaAnterior('/'), null);
-  assert.equal(rotaAnterior('/cadastros/usuarios/novo'), '/cadastros');
-  assert.equal(rotaAnterior('/cadastros/usuarios/kiosk'), '/cadastros');
-  assert.equal(rotaAnterior('/cadastros/editar/usuarios'), '/cadastros');
-  assert.equal(rotaAnterior('/cadastros'), '/');
-  assert.equal(rotaAnterior('/combustivel/novo'), '/combustivel');
+  assert.equal(rotaAnterior('/combustivel/registros/novo'), '/combustivel/registros');
   assert.equal(rotaAnterior('/perfil'), '/');
   assert.equal(rotaAnterior('/engenharia/obras/abc'), '/engenharia/obras');
   assert.equal(rotaAnterior('/portal-cliente/contratos/abc'), '/portal-cliente/contratos');
-  assert.equal(rotaAnterior('/checklist/historico/abc'), '/checklist/historico');
-  assert.equal(rotaAnterior('/checklist/historico'), '/checklist');
   assert.equal(rotaAnterior('/friday/quadros/q1/automacoes'), '/friday/quadros/q1');
   assert.equal(rotaAnterior('/friday/quadros/q1'), '/friday');
 });
 
-test('grupo sem página própria é pulado: /frota não existe, então Frota volta para a Home', () => {
+test('grupo sem página própria é pulado: /frota, /cadastros e /combustivel não existem, então voltam para a Home', () => {
+  assert.equal(rotaAnterior('/cadastros/usuarios/novo'), '/');
+  assert.equal(rotaAnterior('/cadastros/usuarios/kiosk'), '/');
+  assert.equal(rotaAnterior('/cadastros/editar/usuarios'), '/');
+  assert.equal(rotaAnterior('/combustivel/registros'), '/');
+  assert.equal(rotaAnterior('/combustivel/bombas'), '/');
   assert.equal(rotaAnterior('/frota/veiculos/abc'), '/frota/veiculos');
   assert.equal(rotaAnterior('/frota/checklists/abc'), '/frota/checklists');
   assert.equal(rotaAnterior('/frota/veiculos'), '/');
@@ -45,8 +44,22 @@ test('o Voltar fica só no cabeçalho: as páginas não têm mais o seu', () => 
     'src/pages/ChecklistDetalhePage.tsx',
     'src/features/obras/ObraDetalhesPage.tsx',
     'src/features/portal-cliente/ContratoPortalPage.tsx',
-    'src/features/checklist-mecanico/ChecklistHistoricoPage.tsx',
   ]) {
     assert.doesNotMatch(readFileSync(arquivo, 'utf8'), />\s*Voltar|ArrowBack/, arquivo);
   }
+});
+
+test('menu e rotas de 2026-11-10: Cadastros e Combustível são grupos, Checklist do mecânico pausado, legenda só na Home', () => {
+  const menu = readFileSync('src/components/menuPrincipal.tsx', 'utf8');
+  const app = readFileSync('src/App.tsx', 'utf8');
+  const titulos = readFileSync('src/components/cabecalhoPagina.tsx', 'utf8');
+  assert.match(menu, /label: 'Usuários', to: '\/cadastros\/editar\/usuarios'/);
+  assert.match(menu, /label: 'Novo usuário', to: '\/cadastros\/usuarios\/novo'/);
+  assert.match(menu, /label: 'Credenciais Kiosk', to: '\/cadastros\/usuarios\/kiosk'/);
+  assert.match(menu, /label: 'Registros', to: '\/combustivel\/registros'/);
+  assert.match(menu, /label: 'Bombas', to: '\/combustivel\/bombas'/);
+  assert.doesNotMatch(menu, /to: '\/(cadastros|combustivel|checklist)'/);
+  assert.doesNotMatch(app, /path="(cadastros|combustivel|combustivel\/novo|bombas|checklist[^"]*)"/);
+  assert.doesNotMatch(app, /CadastrosPage|checklist-mecanico\//);
+  assert.equal(titulos.match(/subtitulo: '/g)?.length, 1);
 });

@@ -122,7 +122,7 @@ export default function CadastroUsuarioNovoPage() {
         setForm(DEFAULT_FORM);
         return;
       }
-      navigate('/cadastros', { state: { userCreated: true } });
+      navigate('/cadastros/editar/usuarios', { state: { userCreated: true } });
     } catch (error) {
       setSubmitError(error instanceof Error ? error.message : 'Erro ao cadastrar usuario.');
     } finally {
@@ -232,7 +232,7 @@ export default function CadastroUsuarioNovoPage() {
             {contaExistente && (
               <Alert
                 severity="warning"
-                action={<Button color="inherit" size="small" component={RouterLink} to="/cadastros">Concluir</Button>}
+                action={<Button color="inherit" size="small" component={RouterLink} to="/cadastros/editar/usuarios">Concluir</Button>}
               >
                 {contaExistente} foi cadastrado(a). Já existia uma conta com este login; a senha foi trocada pela informada
                 e as sessões abertas nessa conta foram encerradas. Avise a pessoa da nova senha.
@@ -240,7 +240,7 @@ export default function CadastroUsuarioNovoPage() {
             )}
 
             <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} justifyContent="flex-end">
-              <Button variant="outlined" component={RouterLink} to="/cadastros" disabled={saving}>
+              <Button variant="outlined" component={RouterLink} to="/cadastros/editar/usuarios" disabled={saving}>
                 Cancelar
               </Button>
               <Button variant="contained" onClick={handleSubmit} disabled={saving || !normalizedEmail}>

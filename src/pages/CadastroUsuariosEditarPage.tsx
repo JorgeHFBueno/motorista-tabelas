@@ -1,5 +1,5 @@
-import { useMemo, useState } from 'react';
-import { Link as RouterLink } from 'react-router-dom';
+import { useEffect, useMemo, useState } from 'react';
+import { Link as RouterLink, useLocation, useNavigate } from 'react-router-dom';
 import {
   Alert,
   AlertTitle,
@@ -30,14 +30,21 @@ const erroDe = (e: unknown, padrao: string) => (e instanceof Error ? e.message :
 // Tela central de usuários (Cadastros: escritorio ou adm2; só o adm2 mexe em adm2 e retr0): todas as contas do login (menos as dos clientes do portal), credenciais, situação, senha nova e exclusão das
 // contas sem funcionário. Contrato: The Manuscript, funcionarios.md ("Usuários na WEB").
 export default function CadastroUsuariosEditarPage() {
-  useTituloPagina('Usuários', 'Todas as contas do login do sistema, menos as dos clientes do portal, com as credenciais de cada funcionário. Usuário novo nasce em Cadastros → Novo usuário.');
+  useTituloPagina('Usuários');
   const { users, loading, error, reload, updateUser, deleteUser, definirSenha } = useAdminUsers();
   const [search, setSearch] = useState('');
   const [soSemFuncionario, setSoSemFuncionario] = useState(false);
   const [editing, setEditing] = useState<AdminUser | null>(null);
   const [saving, setSaving] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
-  const [snackbar, setSnackbar] = useState<Aviso>(null);
+  const location = useLocation();
+  const navigate = useNavigate();
+  // Novo usuário volta para cá depois de salvar.
+  const usuarioCriado = (location.state as { userCreated?: boolean } | null)?.userCreated === true;
+  const [snackbar, setSnackbar] = useState<Aviso>(() => (usuarioCriado ? { message: 'Usuário cadastrado.', severity: 'success' } : null));
+  useEffect(() => {
+    if (usuarioCriado) navigate(location.pathname, { replace: true });
+  }, [usuarioCriado, location.pathname, navigate]);
   const [senhaDe, setSenhaDe] = useState<AdminUser | null>(null);
   const [senha, setSenha] = useState('');
   const [confirmacao, setConfirmacao] = useState('');

@@ -2,9 +2,9 @@ import { Box, Card, CardActionArea, CardContent, Collapse, Stack, Typography, us
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import ChevronRightRoundedIcon from '@mui/icons-material/ChevronRightRounded';
 import { useState } from 'react';
-import { Navigate, useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { useAuthorizationProfile } from '../hooks/useAuthorizationProfile';
-import { filtrarMenuPrincipal, soChecklist } from '../components/menuPrincipal';
+import { filtrarMenuPrincipal } from '../components/menuPrincipal';
 
 export default function HomeDashboard() {
   const navigate = useNavigate();
@@ -17,7 +17,6 @@ export default function HomeDashboard() {
   }
 
   const resolvedActions = filtrarMenuPrincipal(profile);
-  if (soChecklist(profile)) return <Navigate to="/checklist" replace />;
   // Duas colunas de verdade (alternando, na ordem do menu): abrir um grupo de um lado não empurra o outro.
   const colunas = duasColunas
     ? [resolvedActions.filter((_item, index) => index % 2 === 0), resolvedActions.filter((_item, index) => index % 2 === 1)]

@@ -14,7 +14,7 @@ import EquipeObraTab from './EquipeObraTab';
 import ProgressoObraTab from './ProgressoObraTab';
 import PublicarContratoDialog from './PublicarContratoDialog';
 import { contratoPortalDe } from './contratosPortalDominio';
-import { formatarDocumento, PORTAL_COLECOES, type ContratoPortal } from './portalDominio';
+import { PORTAL_COLECOES, type ContratoPortal } from './portalDominio';
 
 // A contract in the client portal (adm2): portal-obras/{id}, same id as obras-v2/{id}.
 // The Manuscript: 01_FIRESTORE/COLECOES/portal.md and 03_APLICACAO_WEB/16_PORTAL_DO_CLIENTE.md.
@@ -59,10 +59,7 @@ export default function ContratoPortalPage() {
 
   const publicado = contrato.status === 'ok' ? contrato.data : null;
   const obraV2 = obra.status === 'ok' ? obra.data : null;
-  useTituloPagina(
-    publicado?.nome || obraV2?.nomeObra,
-    publicado ? `Cliente ${formatarDocumento(publicado.clienteDocumento)}` : contrato.status === 'ok' ? 'Não publicado no portal' : undefined,
-  );
+  useTituloPagina(publicado?.nome || obraV2?.nomeObra);
 
   if (obra.status === 'carregando' || contrato.status === 'carregando') {
     return <Container sx={{ py: 3 }}><Box display="flex" justifyContent="center" py={6}><CircularProgress /></Box></Container>;

@@ -1,4 +1,4 @@
-// /combustivel/novo: saídas V2 lançadas pelo responsável (The Manuscript, 02_PROCESSOS/combustivel-saida-v2.md,
+// /combustivel/registros/novo: saídas V2 lançadas pelo responsável (The Manuscript, 02_PROCESSOS/combustivel-saida-v2.md,
 // "Lançamento pela WEB"). Funções puras; a gravação está em src/services/combustivelFirestore.ts.
 //
 // - Lançamento atual: a data é posterior ao último registro do ledger. Parte do estado da bomba e o atualiza.

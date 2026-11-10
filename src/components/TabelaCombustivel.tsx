@@ -552,7 +552,7 @@ export default function TabelaCombustivel() {
         </Alert>
       )}
       <Stack direction="row" spacing={2} mt={2}>
-        <Button variant="contained" onClick={() => navigate('/combustivel/novo')} sx={{ mb: 1 }}>
+        <Button variant="contained" onClick={() => navigate('/combustivel/registros/novo')} sx={{ mb: 1 }}>
           Novo
         </Button>
         <Button

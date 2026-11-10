@@ -16,7 +16,7 @@ import {
   type RegistroLedger,
 } from '../utils/combustivelLancamento';
 
-// Gravação de /combustivel/novo (The Manuscript, 02_PROCESSOS/combustivel-saida-v2.md, "Lançamento pela WEB").
+// Gravação de /combustivel/registros/novo (The Manuscript, 02_PROCESSOS/combustivel-saida-v2.md, "Lançamento pela WEB").
 const COMBUSTIVEL = '03-combustivel';
 const BOMBA_ID = 'diesel_patio';
 

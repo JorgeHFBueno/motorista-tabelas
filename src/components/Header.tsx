@@ -10,14 +10,11 @@ import { useState } from 'react';
 import MenuLateral from './MenuLateral';
 import { useAuth } from '../contexts/AuthContext';
 import { rotaAnterior, useCabecalhoPagina } from './cabecalhoPagina';
-import { soChecklist } from './menuPrincipal';
 
 // Header in the client portal's model: menu button, back button, page title and subtitle, notices and the signed-in user.
 // Back goes up the URL to the nearest page, until the Home (rotaAnterior); the pages have no back buttons of their own.
-// Pages without the side menu: the Home is the menu itself; the others are for whoever has not signed in yet. The mechanic's
-// checklist is full screen for phones.
+// Pages without the side menu: the Home is the menu itself; the others are for whoever has not signed in yet.
 const SEM_MENU_LATERAL = ['/', '/login', '/acesso-negado'];
-const semMenuLateral = (caminho: string) => SEM_MENU_LATERAL.includes(caminho) || caminho === '/checklist' || caminho.startsWith('/checklist/');
 
 const botaoClaroSx = {
   color: '#fff',
@@ -53,11 +50,10 @@ export default function Header() {
   const pagina = useCabecalhoPagina();
   const [menuLateralOpen, setMenuLateralOpen] = useState(false);
   const [menuUsuario, setMenuUsuario] = useState<HTMLElement | null>(null);
-  const comMenuLateral = Boolean(currentUser) && !semMenuLateral(location.pathname);
+  const comMenuLateral = Boolean(currentUser) && !SEM_MENU_LATERAL.includes(location.pathname);
   const anterior = rotaAnterior(location.pathname);
-  // Not before signing in, and not for whoever only has the Checklist: the Home sends them straight back to it.
-  const comVoltar = Boolean(currentUser) && anterior !== null && !['/login', '/acesso-negado'].includes(location.pathname)
-    && !(anterior === '/' && soChecklist(authorizationProfile));
+  // Not before signing in.
+  const comVoltar = Boolean(currentUser) && anterior !== null && !['/login', '/acesso-negado'].includes(location.pathname);
   const nome = authorizationProfile?.nome || currentUser?.displayName || currentUser?.email || '';
 
   return (

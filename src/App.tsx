@@ -14,7 +14,6 @@ import { CircularProgress, Stack, Typography } from '@mui/material';
 const TabelaCombustivel = lazy(() => import('./components/TabelaCombustivel'));
 const CombustivelNovoPage = lazy(() => import('./pages/CombustivelNovoPage'));
 const LoginPage = lazy(() => import('./pages/LoginPage'));
-const CadastrosPage = lazy(() => import('./pages/CadastrosPage'));
 const CadastroUsuarioNovoPage = lazy(() => import('./pages/CadastroUsuarioNovoPage'));
 const KioskCredentialsPage = lazy(() => import('./pages/KioskCredentialsPage'));
 const CadastroUsuariosEditarPage = lazy(() => import('./pages/CadastroUsuariosEditarPage'));
@@ -42,9 +41,6 @@ const ManuscriptMapaPage = lazy(() => import('./pages/ManuscriptMapaPage'));
 const MeuPerfilPage = lazy(() => import('./pages/MeuPerfilPage'));
 const FridayApp = lazy(() => import('./features/friday-gestao-interna/App'));
 const DevToysPage = lazy(() => import('./features/dev-toys/DevToysPage'));
-const ChecklistInicioPage = lazy(() => import('./features/checklist-mecanico/ChecklistInicioPage'));
-const ChecklistItensPage = lazy(() => import('./features/checklist-mecanico/ChecklistItensPage'));
-const ChecklistHistoricoPage = lazy(() => import('./features/checklist-mecanico/ChecklistHistoricoPage'));
 
 function LoadingFallback({ label }: { label?: string }) {
   return (
@@ -84,13 +80,8 @@ export default function App() {
               <Route path="engenharia/obras" element={<ObrasPage />} />
               <Route path="engenharia/obras/:id" element={<ObraDetalhesPage />} />
             </Route>
-            {/* Checklist do mecânico para celular (iPhone), mesmo contrato checklists-v2 do app. */}
-            <Route element={<PrivateRoute permite={(p) => temCredencial(p, 'mecanico')} />}>
-              <Route path="checklist" element={<ChecklistInicioPage />} />
-              <Route path="checklist/itens" element={<ChecklistItensPage />} />
-              <Route path="checklist/historico" element={<ChecklistHistoricoPage />} />
-              <Route path="checklist/historico/:id" element={<ChecklistDetalhePage />} />
-            </Route>
+            {/* Checklist do mecânico para celular (src/features/checklist-mecanico): pausado desde 2026-11-10, sem rota nem
+                item de menu, porque quem ia usar saiu. The Manuscript, 06_REGISTROS_E_CHECKLISTS.md. */}
             {/* Área DEV: só a credencial retr0, nem o adm2 entra sem ela. */}
             <Route element={<PrivateRoute permite={(p) => temCredencial(p, 'retr0')} />}>
               <Route path="dev" element={<DevToysPage />} />
@@ -100,12 +91,11 @@ export default function App() {
               <Route path="the-manuscript/*" element={<TheManuscriptPage />} />
             </Route>
             <Route element={<PrivateRoute permite={(p) => temCredencial(p, 'escritorio')} />}>
-              <Route path="cadastros" element={<CadastrosPage />} />
               <Route path="cadastros/usuarios/novo" element={<CadastroUsuarioNovoPage />} />
               <Route path="cadastros/usuarios/kiosk" element={<KioskCredentialsPage />} />
               <Route path="cadastros/editar/usuarios" element={<CadastroUsuariosEditarPage />} />
             </Route>
-            {/* Frota é um grupo, como Engenharia: /frota não tem página própria. */}
+            {/* Frota e Combustível são grupos, como Engenharia: /frota e /combustivel não têm página própria. */}
             <Route element={<PrivateRoute permite={(p) => temCredencial(p, 'mecanico', 'logistica')} />}>
               <Route path="frota/veiculos" element={<FrotaVeiculosPage />} />
               <Route path="frota/veiculos/:id" element={<FrotaVeiculoDetalhesPage />} />
@@ -113,12 +103,12 @@ export default function App() {
               <Route path="frota/checklists" element={<ChecklistsPage />} />
               <Route path="frota/checklists/:id" element={<ChecklistDetalhePage />} />
               <Route path="frota/analytics" element={<FrotaAnalyticsPage />} />
-              <Route path="bombas" element={<BombasPage />} />
+              <Route path="combustivel/bombas" element={<BombasPage />} />
               <Route path="logistica/cronograma" element={<LogisticaCronogramaPage />} />
             </Route>
             <Route element={<PrivateRoute permite={(p) => temCredencial(p, 'logistica')} />}>
-              <Route path="combustivel" element={<TabelaCombustivel />} />
-              <Route path="combustivel/novo" element={<CombustivelNovoPage />} />
+              <Route path="combustivel/registros" element={<TabelaCombustivel />} />
+              <Route path="combustivel/registros/novo" element={<CombustivelNovoPage />} />
             </Route>
             {/* Portal do cliente, lado da equipe: The Manuscript, 16_PORTAL_DO_CLIENTE.md. */}
             <Route element={<PrivateRoute permite={(p) => temCredencial(p, 'engenharia', 'escritorio')} />}>
