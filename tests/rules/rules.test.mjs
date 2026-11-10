@@ -13,6 +13,7 @@ import {
   deleteDoc,
   deleteField,
   doc,
+  documentId,
   getDoc,
   getDocs,
   limit,
@@ -176,6 +177,9 @@ async function seed() {
     await setDoc(doc(db, 'friday-execucoes', '220'), { id: 220, quadro_id: 100, criado_em: '2026-11-06 10:00:00' });
     await setDoc(doc(db, 'friday-anexos', '230'), { id: 230, item_id: 200, quadro_id: 100, arquivo: 'friday/100/200/230-rh.pdf' });
     await setDoc(doc(db, 'friday-atividades', '240'), { id: 240, quadro_id: 100, item_id: 200, acao: 'criou' });
+    // Histórico: uid-escritorio-fora alterou o quadro restrito 100 antes de sair da lista.
+    await setDoc(doc(db, 'friday-atividades', '241'), { id: 241, quadro_id: 10, item_id: 20, usuario_id: 'uid-escritorio', acao: 'alterou' });
+    await setDoc(doc(db, 'friday-atividades', '242'), { id: 242, quadro_id: 100, item_id: 200, usuario_id: 'uid-escritorio-fora', acao: 'renomeou' });
   });
 }
 
@@ -1057,6 +1061,24 @@ test('[firestore] Friday: a restricted board and its records are only for its li
   await assertFails(updateDoc(doc(fora, 'friday-itens', '20'), { quadro_id: 100 }));
   await assertFails(setDoc(doc(fora, 'friday-grupos', '204'), { id: 204, quadro_id: 100, nome: 'Grupo' }));
   await assertFails(setDoc(doc(fora, 'friday-anexos', '205'), { id: 205, item_id: 200, quadro_id: 100, arquivo: 'friday/100/200/205-a.pdf', usuario_id: 'uid-escritorio-fora', origem_id: null }));
+});
+// Histórico (2026-11-10): cada um lista as próprias atividades em todos os quadros; adm2 lista as de qualquer pessoa.
+test('[firestore] Friday: activity history lists your own entries (any person for adm2); entries are signed by the author', async () => {
+  const dentro = dbAs('escritorio'), fora = dbAs('escritorioFora'), adm = dbAs('canonicalAdm2');
+  const historico = (db, uid) => getDocs(query(collection(db, 'friday-atividades'), where('usuario_id', '==', uid), orderBy(documentId(), 'desc'), limit(5)));
+  await assertSucceeds(historico(dentro, 'uid-escritorio'));
+  const proprias = await assertSucceeds(historico(fora, 'uid-escritorio-fora'));
+  assert.deepEqual(proprias.docs.map(d => d.id), ['242']);
+  await assertFails(historico(dentro, 'uid-escritorio-fora'));
+  await assertFails(historico(dbAs('user'), 'uid-user'));
+  await assertSucceeds(historico(adm, 'uid-escritorio-fora'));
+  await assertFails(getDocs(query(collection(fora, 'friday-atividades'), where('quadro_id', '==', 100))));
+  await assertFails(getDoc(doc(fora, 'friday-atividades', '240')));
+  await assertSucceeds(getDoc(doc(fora, 'friday-atividades', '242')));
+  const nova = (id, extra) => ({ id, quadro_id: 10, item_id: 20, acao: 'alterou', ...extra });
+  await assertSucceeds(setDoc(doc(dentro, 'friday-atividades', '243'), nova(243, { usuario_id: 'uid-escritorio' })));
+  await assertFails(setDoc(doc(dentro, 'friday-atividades', '244'), nova(244, { usuario_id: 'uid-escritorio-fora' })));
+  await assertFails(setDoc(doc(dentro, 'friday-atividades', '245'), nova(245, {})));
 });
 test('[firestore] Friday: cross-board reads must name the boards (in up to 10); lists of boards prove access', async () => {
   const dentro = dbAs('escritorio'), fora = dbAs('escritorioFora'), adm = dbAs('canonicalAdm2');

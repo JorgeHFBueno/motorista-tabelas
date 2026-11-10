@@ -467,6 +467,14 @@ body.redimensionando .friday-root, body.redimensionando .friday-root * { cursor:
 .friday-root .aviso-escrita { display: flex; gap: 6px; align-items: flex-start; background: #fff4dd; color: #6b4600; border-radius: 6px; padding: 8px 12px; margin: 0 0 14px; font-size: 13px; }
 .friday-root .opcao-chave { display: flex; gap: 8px; align-items: flex-start; color: var(--texto); font-size: 13px; cursor: pointer; }
 .friday-root .selo-api { font-size: 10px; font-weight: 600; letter-spacing: 0.3px; border-radius: 8px; padding: 0 5px; background: #fff4dd; color: #8a5a00; }
+.friday-root .historico { list-style: none; margin: 0; padding: 0; max-width: 900px; background: var(--superficie); border-radius: 8px; border: 1px solid var(--borda-suave); }
+.friday-root .historico li { display: grid; grid-template-columns: 120px minmax(120px, 260px) 1fr; align-items: center; gap: 12px; padding: 10px 14px; border-bottom: 1px solid var(--borda-suave); font-size: 13px; }
+.friday-root .historico li:last-child { border-bottom: 0; }
+.friday-root .historico li.abre { cursor: pointer; }
+.friday-root .historico li.abre:hover { background: var(--superficie-2); }
+.friday-root .hist-onde { display: flex; flex-direction: column; min-width: 0; }
+.friday-root .hist-onde > * { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+@media (max-width: 700px) { .friday-root .historico li { grid-template-columns: 1fr; gap: 4px; } }
 .friday-root .chave-criada { display: flex; align-items: center; gap: 10px; margin: 10px 0 14px; }
 .friday-root .chave-criada code { font-size: 14px; padding: 6px 10px; flex: 1; }
 .friday-root .inicio-resumo { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 12px; margin-bottom: 30px; }

@@ -1,7 +1,7 @@
 import { useEffect, useState, type CSSProperties, type ReactNode } from 'react';
 import { NavLink, useLocation, useNavigate } from '../rotas.tsx';
 import {
-  ArrowDownAZ, Archive, ChevronDown, ChevronRight, ChevronsDownUp, ChevronsLeft, ChevronsUpDown, Copy, Folder, FolderOpen, FolderPlus, Home, KeyRound, LayoutDashboard, LayoutGrid,
+  ArrowDownAZ, Archive, ChevronDown, ChevronRight, ChevronsDownUp, ChevronsLeft, ChevronsUpDown, Copy, Folder, FolderOpen, FolderPlus, History, Home, KeyRound, LayoutDashboard, LayoutGrid,
   ListChecks, Lock, MoreHorizontal, Pencil, Plus, Search, Star, Trash2, FolderInput, CloudDownload,
 } from 'lucide-react';
 import { Permissoes } from './Permissoes.tsx';
@@ -158,6 +158,7 @@ export function Lateral({ onRecolher }: { onRecolher: () => void }) {
       <nav className="lateral-atalhos">
         <NavLink to="/" end className={({ isActive }) => `atalho${isActive ? ' ativo' : ''}`}><Home size={17} /> Início</NavLink>
         <NavLink to="/meu-trabalho" className={({ isActive }) => `atalho${isActive ? ' ativo' : ''}`}><ListChecks size={17} /> Meu trabalho</NavLink>
+        <NavLink to="/historico" className={({ isActive }) => `atalho${isActive ? ' ativo' : ''}`}><History size={17} /> Histórico</NavLink>
         <NavLink to="/arquivo" className={({ isActive }) => `atalho${isActive ? ' ativo' : ''}`}><Archive size={17} /> Arquivo e lixeira</NavLink>
         {adm2 && <NavLink to="/importar-monday" className={({ isActive }) => `atalho${isActive ? ' ativo' : ''}`}><CloudDownload size={17} /> Importar do monday</NavLink>}
         {adm2 && <NavLink to="/chaves-api" className={({ isActive }) => `atalho${isActive ? ' ativo' : ''}`}><KeyRound size={17} /> Chaves de API</NavLink>}

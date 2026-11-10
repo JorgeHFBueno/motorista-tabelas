@@ -1,5 +1,5 @@
 import {
-  collection, deleteField, doc, documentId, FieldPath, getDoc, getDocs, limit, onSnapshot, query, runTransaction, setDoc, updateDoc, where, writeBatch,
+  collection, deleteField, doc, documentId, FieldPath, getDoc, getDocs, limit, onSnapshot, orderBy, query, runTransaction, setDoc, updateDoc, where, writeBatch,
   type DocumentData, type DocumentReference, type QueryConstraint,
 } from 'firebase/firestore';
 import { httpsCallable } from 'firebase/functions';
@@ -499,6 +499,28 @@ async function registrar(a: { quadro_id: unknown; item_id?: unknown; item_nome?:
     quadro_id: Number(a.quadro_id), item_id: a.item_id ?? null, item_nome: a.item_nome ?? null, usuario_id: eu().id, automacao_id: null, acao: a.acao,
     coluna_id: a.coluna_id ?? null, coluna_titulo: a.coluna_titulo ?? null, de: a.de == null ? null : String(a.de), para: a.para == null ? null : String(a.para),
   });
+}
+
+// Histórico: as últimas alterações de uma pessoa em todos os quadros. Cada um vê as próprias; adm2, as de qualquer
+// pessoa (Rules de friday-atividades). Automações gravam sem usuario_id e não entram. O id do documento cresce com o
+// tempo (novoId, sempre 16 dígitos), então a ordem pelo id do documento dá as mais recentes sem índice composto.
+// Cada linha leva o nome do quadro e o que abrir (o quadro principal e o item pai, no caso de subitem); quadro_nome
+// null = quadro apagado ou que a pessoa não vê mais; sem abrir_quadro_id = quadro na lixeira.
+const TAMANHO_HISTORICO = 5;
+async function historico(usuarioId?: string): Promise<Row[]> {
+  const uid = usuarioId || eu().uid;
+  if (uid !== eu().uid && !eu().admin) throw new ErroApi(403, 'Só adm2 vê o histórico de outra pessoa.');
+  const snap = await getDocs(query(colecao('atividades'), where('usuario_id', '==', uid), orderBy(documentId(), 'desc'), limit(TAMANHO_HISTORICO)));
+  const ler = memoria();
+  const lerSemErro = (r: Recurso, id: unknown) => ler(r, id).catch(() => undefined);
+  return Promise.all(snap.docs.map(async d => {
+    const a = d.data() as Row;
+    const q = await lerSemErro('quadros', a.quadro_id);
+    const sub = q?.tipo === 'subitens';
+    const qp = sub ? await lerSemErro('quadros', q.quadro_pai_id) : q;
+    const item = sub && a.item_id != null ? await lerSemErro('itens', a.item_id) : undefined;
+    return { ...a, quadro_nome: qp?.nome ?? null, abrir_quadro_id: qp && qp.excluido_em == null ? qp.id : null, abrir_item_id: sub ? item?.item_pai_id ?? null : a.item_id };
+  }));
 }
 
 // Avisos (atribuição, menção, resposta) estão desligados até serem refeitos.
@@ -1260,6 +1282,7 @@ async function rotear(metodo: string, url: string, corpo?: unknown): Promise<unk
   }
   if (p[0] === 'busca' && metodo === 'GET') return busca(q.q);
   if (p[0] === 'meu-trabalho' && metodo === 'GET') return meuTrabalho();
+  if (p[0] === 'historico' && metodo === 'GET') return historico(q.usuario_id);
   if (p[0] === 'arquivo' && metodo === 'GET') return arquivo(q.estado, Number(q.quadro_id) || null);
   if (p[0] === 'quadros' && p.length === 3) {
     const id = Number(p[1]);

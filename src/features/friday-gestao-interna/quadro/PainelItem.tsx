@@ -98,18 +98,25 @@ export function RegistroAtividade({ filtro }: { filtro: Record<string, number> }
             <small className="muted">{a.criado_em.slice(5, 16).replace('-', '/')}</small>
             {a.automacao_id ? <span className="avatar avatar-auto" title="Automação"><Zap size={13} /></span> : <Avatar nome={u?.nome ?? '?'} cor={u?.cor} tamanho={22} />}
             <span className="at-item" title={a.item_nome}>{a.item_nome}</span>
-            <span className="at-desc">
-              {/* Gravado por uma chave de API (fridayApi) em nome da pessoa: controle de dano. */}
-              {a.via === 'api' && <><span className="selo-api" title={`Feito pela API em nome de ${u?.nome ?? '?'} (chave ${a.chave_api ?? '?'})`}>API</span> </>}
-              {a.acao === 'alterou' ? <><b>{a.coluna_titulo}</b>: <s>{a.de ?? '—'}</s> → <b>{a.para ?? '—'}</b></>
-                : a.acao === 'moveu' ? <>moveu de <s>{a.de}</s> para <b>{a.para}</b></>
-                : a.acao === 'importou' ? <>importou <b>{a.para}</b> do Excel</>
-                : a.acao === 'renomeou' ? <>renomeou de <s>{a.de}</s></>
-                : ACAO[a.acao] ?? a.acao}
-            </span>
+            <DescricaoAtividade a={a} nomePessoa={u?.nome} />
           </li>
         );
       })}
     </ul>
+  );
+}
+
+// O que a atividade mudou (registro do item e Histórico).
+export function DescricaoAtividade({ a, nomePessoa }: { a: Row; nomePessoa?: string }) {
+  return (
+    <span className="at-desc">
+      {/* Gravado por uma chave de API (fridayApi) em nome da pessoa: controle de dano. */}
+      {a.via === 'api' && <><span className="selo-api" title={`Feito pela API em nome de ${nomePessoa ?? '?'} (chave ${a.chave_api ?? '?'})`}>API</span> </>}
+      {a.acao === 'alterou' ? <><b>{a.coluna_titulo}</b>: <s>{a.de ?? '—'}</s> → <b>{a.para ?? '—'}</b></>
+        : a.acao === 'moveu' ? <>moveu de <s>{a.de}</s> para <b>{a.para}</b></>
+        : a.acao === 'importou' ? <>importou <b>{a.para}</b> do Excel</>
+        : a.acao === 'renomeou' ? <>renomeou de <s>{a.de}</s></>
+        : ACAO[a.acao] ?? a.acao}
+    </span>
   );
 }

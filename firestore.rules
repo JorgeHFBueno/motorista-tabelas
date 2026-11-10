@@ -1241,10 +1241,15 @@ service cloud.firestore {
       allow delete: if false;
     }
 
-    // Registro de atividade: só acrescenta (apagado junto com o quadro ou item).
+    // Registro de atividade: só acrescenta (apagado junto com o quadro ou item). Quem grava assina com o próprio uid
+    // (usuario_id); o Histórico lista as atividades de uma pessoa em todos os quadros: as próprias, ou qualquer uma
+    // para adm2 (que vê todos os quadros).
     match /friday-atividades/{atividadeId} {
-      allow read, delete: if fridayPodeQuadro(resource.data.quadro_id);
-      allow create: if fridayPodeQuadro(request.resource.data.quadro_id);
+      allow read: if fridayPodeQuadro(resource.data.quadro_id)
+        || (fridayAccess() && resource.data.usuario_id == request.auth.uid);
+      allow delete: if fridayPodeQuadro(resource.data.quadro_id);
+      allow create: if fridayPodeQuadro(request.resource.data.quadro_id)
+        && request.resource.data.usuario_id == request.auth.uid;
       allow update: if false;
     }
 
