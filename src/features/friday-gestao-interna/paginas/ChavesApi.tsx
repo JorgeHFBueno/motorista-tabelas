@@ -86,7 +86,7 @@ export default function ChavesApi() {
           <li><code>{ENDERECO_API}/itens/&lt;id&gt;/arquivos?nome=Edital.pdf&amp;coluna=Doc.%20Edital</code>, com o arquivo no corpo (não JSON; até 25 MB): anexa o arquivo; sem <code>coluna</code>, vai para a aba Arquivos do item. Ex.: <code>curl --data-binary @Edital.pdf -H "Content-Type: application/pdf" …</code>.</li>
         </ul>
         <p className="muted">A escrita segue as regras da tela (campos oficiais validados, só leitura recusado, automações disparadas) e fica na atividade em nome da pessoa, com a marca “API”.</p>
-        <p className="muted">No Claude Code (MCP), as mesmas rotas viram ferramentas (<code>buscar_itens</code>, <code>ler_quadro</code>, <code>gravar_valor</code>…); com chave só de consulta, as de escrita não aparecem:</p>
+        <p className="muted">No Claude Code (MCP), as mesmas rotas viram ferramentas. Qualquer chave consulta (<code>buscar_itens</code>, <code>ler_quadro</code>, <code>baixar_arquivo</code>…); a chave de <strong>consulta e escrita</strong> também grava (<code>gravar_valor</code>, <code>criar_item</code>, <code>criar_subitem</code>, <code>publicar_atualizacao</code>), e o Claude Code pede aprovação antes de cada gravação. Para passar a gravar, crie uma chave de escrita (o tipo não muda depois) e troque a chave no Claude Code (<code>claude mcp remove friday</code> e adicione de novo):</p>
         <p className="muted"><code>claude mcp add --transport http friday {ENDERECO_API}/mcp --header "X-Friday-Chave: fri_…"</code></p>
       </section>
       {nova && <NovaChave onFechar={() => setNova(false)} onCriada={(chave, pessoa, escrita) => { setNova(false); setCriada({ chave, pessoa, escrita }); void carregar(); }} />}
@@ -97,7 +97,7 @@ export default function ChavesApi() {
             <button className="fr-btn btn-pequeno" onClick={() => void navigator.clipboard.writeText(criada.chave)}><Copy size={14} /> Copiar</button>
           </div>
           <p className="muted fr-small">Exemplo: <code>curl -H "X-Friday-Chave: {criada.chave}" "{ENDERECO_API}/buscar?q=coqueiros"</code></p>
-          <p className="muted fr-small">No Claude Code (MCP): <code>claude mcp add --transport http friday {ENDERECO_API}/mcp --header "X-Friday-Chave: {criada.chave}"</code></p>
+          <p className="muted fr-small">No Claude Code (MCP){criada.escrita ? ', com as ferramentas de gravação' : ', só com as ferramentas de consulta'}: <code>claude mcp add --transport http friday {ENDERECO_API}/mcp --header "X-Friday-Chave: {criada.chave}"</code></p>
         </Modal>
       )}
     </div>
