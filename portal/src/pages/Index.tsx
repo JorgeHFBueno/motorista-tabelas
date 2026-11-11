@@ -34,7 +34,7 @@ const Linhas = ({ n = 2 }: { n?: number }) => (
 );
 
 const Item = ({ titulo, detalhe }: { titulo: string; detalhe: string }) => (
-  <div className="rounded-xl bg-muted/70 px-3 py-2.5 text-sm">
+  <div className="min-w-0 rounded-xl bg-muted/70 px-3 py-2.5 text-sm">
     <p className="truncate font-semibold text-primary">{titulo}</p>
     <p className="truncate text-muted-foreground">{detalhe}</p>
   </div>
@@ -299,7 +299,7 @@ const Index = () => {
             ) : ultimasNoticias.length === 0 ? (
               <Vazio>Nenhuma notícia publicada no momento.</Vazio>
             ) : (
-              <div className="grid gap-2.5 lg:grid-cols-3">
+              <div className="grid grid-cols-1 gap-2.5 lg:grid-cols-3">
                 {ultimasNoticias.map((noticia) => (
                   <Item
                     key={noticia.id}
