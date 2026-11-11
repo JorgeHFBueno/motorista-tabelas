@@ -1,3 +1,4 @@
+import { sortByPrioridade } from "./prioridade";
 import { loteProximoAIniciar } from "./contractStatus";
 import type { ContratoCronograma, ObraCronograma } from "./models";
 
@@ -87,7 +88,8 @@ export interface FlatWorkStageGroup {
 
 /**
  * Flat "Obra iniciada" projection: LOTEs "Próxima a Iniciar" come after the
- * others behind their own divider, each block keeping the work-type grouping.
+ * others behind their own divider, each block keeping the work-type grouping;
+ * inside each work type they follow `prioridade`.
  */
 export function buildStartedFlatWorkStages(
   obras: readonly ObraCronograma[],
@@ -97,7 +99,12 @@ export function buildStartedFlatWorkStages(
   const iniciadas = obras.filter((obra) => !loteProximoAIniciar(obra));
   return [
     { kind: "iniciada" as const, label: null, workTypes: buildFlatWorkGroupsByWorkType(iniciadas, contratos) },
-    { kind: "proxima-a-iniciar" as const, label: "PRÓXIMA A INICIAR", workTypes: buildFlatWorkGroupsByWorkType(proximas, contratos) },
+    {
+      kind: "proxima-a-iniciar" as const,
+      label: "PRÓXIMA A INICIAR",
+      // Each work type keeps its own priority order (drag and drop in the grid).
+      workTypes: buildFlatWorkGroupsByWorkType(proximas, contratos).map((workType) => ({ ...workType, obras: sortByPrioridade(workType.obras) })),
+    },
   ].filter((stage) => stage.workTypes.length);
 }
 

@@ -6,7 +6,7 @@ import { inclusiveCivilDays, isValidCivilDate } from '../../domain/temporal';
  * `lotes.{chave}`. O CronoObra mostra os contratos ligados ao Friday (`friday.ok`). LOTEs são só identidades: o
  * período de planejamento é sempre o do contrato.
  */
-type Lote = { nome?: unknown; status?: unknown; ordem?: unknown; situacao?: unknown };
+type Lote = { nome?: unknown; status?: unknown; ordem?: unknown; situacao?: unknown; prioridade?: unknown };
 type ObraV2 = {
   nomeObra?: unknown; empresa?: unknown; situacao?: unknown; numeroContrato?: unknown; ano?: unknown; dataInicial?: unknown; dataFinal?: unknown;
   tipoObra?: unknown; confirmacaoRecurso?: unknown; ordemInicio?: unknown; subcentroErp?: unknown; lotes?: unknown; friday?: { ok?: unknown };
@@ -39,7 +39,7 @@ export function adaptObraV2Contract(document: ObraV2Document, diagnostics: strin
     .sort(([a, x], [b, y]) => ordem(x) - ordem(y) || a.localeCompare(b));
   const obras: ObraCronograma[] = lotes.map(([loteId, lote]) => {
     const nomeLote = optionalText(lote.nome) ?? 'Analisar Contrato';
-    return { id: loteId, loteId, targetType: 'obra', contratoId: document.id, contratoNome: nome, sourceRow: 0, codObra: loteId, siglaObra: 'LOTE', nomeObra: nomeLote, local: nomeLote, status: text(lote.status, 'Sem status'), empresa, mestreInicial: null, descricao: null, inicioPlanejado: dias === null ? null : inicio, tempoPlanejado: dias, allocationAllowed: dias !== null, mestresPlanejados: [] } satisfies ObraCronograma;
+    return { id: loteId, loteId, targetType: 'obra', contratoId: document.id, contratoNome: nome, sourceRow: 0, codObra: loteId, siglaObra: 'LOTE', nomeObra: nomeLote, local: nomeLote, status: text(lote.status, 'Sem status'), empresa, mestreInicial: null, descricao: null, inicioPlanejado: dias === null ? null : inicio, tempoPlanejado: dias, allocationAllowed: dias !== null, mestresPlanejados: [], ...(typeof lote.prioridade === 'number' && Number.isFinite(lote.prioridade) ? { prioridade: lote.prioridade } : {}) } satisfies ObraCronograma;
   });
   if (!obras.length) obras.push(contractPlanningRow(document.id, nome, status, empresa, inicio, fim));
   return { id: document.id, idObra: document.id, nome, empresa, status, numeroContrato: optionalText(data.numeroContrato), ano: typeof data.ano === 'number' ? data.ano : null, inicio, fim, tipoObra: optionalText(data.tipoObra), confirmacaoRecurso: data.confirmacaoRecurso, ordemInicio: data.ordemInicio, subcentroErp: optionalText(data.subcentroErp), rawDocument: document.data, obras };

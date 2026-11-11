@@ -110,6 +110,8 @@ interface Props {
   onResizeMasterCancel: (id: string) => void;
   onFocusDate: (date: string) => void;
   onStatusConfirmed?: (contratoId: string, loteId: string, status: LoteStatus) => void;
+  /** "Próxima a iniciar" drag and drop: `obras` is the work-type list as shown, `targetIndex` excludes the moved LOTE. */
+  onMovePrioridade?: (obras: ObraCronograma[], movedId: string, targetIndex: number) => void;
   /** Allows the initial contract expansion state to be supplied by an embedding view. */
   initialExpandedContractIds?: readonly string[];
 }
@@ -902,6 +904,7 @@ export const GanttGrid = memo(function GanttGrid({
   onResizeMasterCancel,
   onFocusDate,
   onStatusConfirmed,
+  onMovePrioridade,
   initialExpandedContractIds = [],
 }: Props) {
   countCronogramaRender("GanttGrid");
@@ -1293,7 +1296,73 @@ export const GanttGrid = memo(function GanttGrid({
     const column = columns[index] as Parameters<typeof changeSort>[0] | undefined;
     if (column) changeSort(column);
   };
-  const obraRow = (obra: ObraCronograma, flat = false) => {
+  // Priority drag keeps its state in refs and marks rows through the DOM, so hovering does not re-render the grid.
+  const priorityDrag = useRef<{ id: string; group: string } | null>(null);
+  const priorityHint = useRef<HTMLElement | null>(null);
+  const clearPriorityHint = () => {
+    priorityHint.current?.classList.remove("is-priority-drop-before", "is-priority-drop-after");
+    priorityHint.current = null;
+  };
+  const canPrioritize = Boolean(onMovePrioridade) && variant === "started" && viewMode === "flat" && !sort.column;
+  const priorityRowEvents = (obra: ObraCronograma, priority: { group: string; obras: ObraCronograma[] }) => {
+    const dropAfter = (event: DragEvent<HTMLDivElement>) => {
+      const bounds = event.currentTarget.getBoundingClientRect();
+      return event.clientY > bounds.top + bounds.height / 2;
+    };
+    return {
+      onDragOverCapture: (event: DragEvent<HTMLDivElement>) => {
+        if (priorityDrag.current?.group !== priority.group) return;
+        event.preventDefault();
+        event.stopPropagation();
+        event.dataTransfer.dropEffect = "move";
+        const row = event.currentTarget;
+        if (priorityHint.current !== row) clearPriorityHint();
+        const after = dropAfter(event);
+        row.classList.toggle("is-priority-drop-after", after);
+        row.classList.toggle("is-priority-drop-before", !after);
+        priorityHint.current = row;
+      },
+      onDropCapture: (event: DragEvent<HTMLDivElement>) => {
+        const drag = priorityDrag.current;
+        if (drag?.group !== priority.group) return;
+        event.preventDefault();
+        event.stopPropagation();
+        const after = dropAfter(event);
+        clearPriorityHint();
+        priorityDrag.current = null;
+        const from = priority.obras.findIndex((item) => item.id === drag.id);
+        let target = priority.obras.findIndex((item) => item.id === obra.id) + (after ? 1 : 0);
+        if (from < target) target -= 1;
+        onMovePrioridade?.(priority.obras, drag.id, target);
+      },
+    };
+  };
+  const priorityHandle = (obra: ObraCronograma, group: string) => (
+    <span
+      className="co-priority-handle"
+      draggable
+      role="button"
+      tabIndex={-1}
+      title="Arraste para cima ou para baixo para mudar a prioridade"
+      aria-label={`Mudar prioridade de ${obra.nomeObra}`}
+      onClick={(event) => event.stopPropagation()}
+      onDragStart={(event) => {
+        event.stopPropagation();
+        event.dataTransfer.effectAllowed = "move";
+        event.dataTransfer.setData("text/plain", obra.id);
+        const row = event.currentTarget.closest(".co-grid-row");
+        if (row) event.dataTransfer.setDragImage(row, 16, 16);
+        priorityDrag.current = { id: obra.id, group };
+      }}
+      onDragEnd={() => {
+        priorityDrag.current = null;
+        clearPriorityHint();
+      }}
+    >
+      ⋮⋮
+    </span>
+  );
+  const obraRow = (obra: ObraCronograma, flat = false, priority?: { group: string; obras: ObraCronograma[] }) => {
     if (notStarted) {
       const contrato = contratos.get(obra.contratoId ?? "");
       const review = obra.targetType === "contrato";
@@ -1322,6 +1391,7 @@ export const GanttGrid = memo(function GanttGrid({
         tabIndex={0}
         className={`co-grid-row co-grid-row--child ${flat ? "co-grid-row--flat" : ""} ${selectedId === obra.id ? "is-selected" : ""}`}
         key={obra.id}
+        {...(priority ? priorityRowEvents(obra, priority) : {})}
         onClick={() => onSelect(obra)}
         onKeyDown={(event) => {
           if (
@@ -1334,7 +1404,7 @@ export const GanttGrid = memo(function GanttGrid({
         }}
       >
         <div className="co-row-info co-left-row">
-          {flat && <span className="co-contract-name-flat" title={contrato?.nome ?? "—"}>{contrato?.nome ?? "—"}</span>}
+          {flat && <span className="co-contract-name-flat" title={contrato?.nome ?? "—"}>{priority && priorityHandle(obra, priority.group)}{contrato?.nome ?? "—"}</span>}
           <span className="co-work-name" title={obra.nomeObra}>{contrato ? <WorkHoverTrigger id={obra.id} contractId={contrato.id} idObra={contrato.idObra} contractName={contrato.nome} subcentroErp={contrato.subcentroErp} onMore={() => onOpenContract(contrato)}>{obra.nomeObra}</WorkHoverTrigger> : obra.nomeObra}</span>
           {detailsVisible && <span>{obra.empresa}</span>}
           {detailsVisible && <span><LoteStatusControl obra={obra} canStart={false} canFinish onStatusConfirmed={onStatusConfirmed} /></span>}
@@ -1507,7 +1577,11 @@ export const GanttGrid = memo(function GanttGrid({
         </div>
         <div className="co-work-type-divider__timeline" aria-hidden="true" />
       </div>,
-      ...workType.obras.map((obra) => obraRow(obra, true)),
+      ...workType.obras.map((obra) =>
+        stage.kind === "proxima-a-iniciar" && canPrioritize
+          ? obraRow(obra, true, { group: workType.kind, obras: workType.obras })
+          : obraRow(obra, true),
+      ),
     ]),
   ]);
   return <WorkHoverActions closeKey={`${sortKey}.${sort.column ?? ""}.${sort.direction ?? ""}.${viewMode}.${variant}`}><section

@@ -1,5 +1,3 @@
-import EngineeringRounded from "@mui/icons-material/EngineeringRounded";
-import FilterListRounded from "@mui/icons-material/FilterListRounded";
 import ArrowBackRounded from "@mui/icons-material/ArrowBackRounded";
 import ViewListRounded from "@mui/icons-material/ViewListRounded";
 import { Profiler, useEffect, useMemo, useRef, useState } from "react";
@@ -37,6 +35,8 @@ import {
   filterObras,
 } from "./domain/cronograma";
 import { getDirectMasterDropInterval } from "./domain/dropPlanning";
+import { planPrioridadeMove } from "./domain/prioridade";
+import { gravarPrioridadeLote } from "./data/prioridadeLote";
 import {
   dropUndoFor,
   isEditableTarget,
@@ -317,7 +317,6 @@ export default function CronogramaObrasPage() {
   const [viewTransition, setViewTransition] =
     useState<CronogramaViewTransition>(null);
   const [filters, setFilters] = useState(INITIAL_FILTERS);
-  const [filtersOpen, setFiltersOpen] = useState(false);
   const [display, setDisplay] = useState<CalendarDisplayOptions>(
     DEFAULT_CALENDAR_DISPLAY,
   );
@@ -343,9 +342,6 @@ export default function CronogramaObrasPage() {
   const transitionAppliedRef = useRef(false);
   const scheduleContentRef = useRef<HTMLDivElement>(null);
   const [loading, setLoading] = useState(true);
-  const [realtimeState, setRealtimeState] = useState<
-    "connecting" | "live" | "offline" | "error"
-  >("connecting");
   const [error, setError] = useState<string | null>(null);
   const [writeError, setWriteError] = useState<string | null>(null);
   const [mestres, setMestres] = useState<MestreFirestore[]>([]);
@@ -485,12 +481,13 @@ export default function CronogramaObrasPage() {
           receivedInitialSnapshot = true;
           setLoading(false);
         }
-        setRealtimeState(navigator.onLine ? "live" : "offline");
       },
       (cause) => {
         if (!alive) return;
         console.error("CronoObra realtime listener unavailable.", cause);
-        setRealtimeState("error");
+        setWriteError(
+          "A atualização em tempo real está indisponível; recarregue a página.",
+        );
         if (!receivedInitialSnapshot) setLoading(false);
       },
     );
@@ -522,17 +519,10 @@ export default function CronogramaObrasPage() {
             `Falha ao ler mestres homologados: ${cause instanceof Error ? cause.message : String(cause)}`,
           );
       });
-    const offline = () => setRealtimeState("offline");
-    const online = () =>
-      setRealtimeState(receivedInitialSnapshot ? "live" : "connecting");
-    window.addEventListener("offline", offline);
-    window.addEventListener("online", online);
     return () => {
       alive = false;
       unsubscribeObras();
       unsubscribeAlocacoes();
-      window.removeEventListener("offline", offline);
-      window.removeEventListener("online", online);
     };
   }, []);
   const contractMap = useMemo(
@@ -1037,6 +1027,24 @@ export default function CronogramaObrasPage() {
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
   }, []);
+  const movePrioridade = async (
+    lista: ObraCronograma[],
+    movedId: string,
+    targetIndex: number,
+  ) => {
+    setWriteError(null);
+    try {
+      // One LOTE per write: the Rules let engenharia change only one LOTE's `prioridade` at a time.
+      for (const { obra, prioridade } of planPrioridadeMove(lista, movedId, targetIndex)) {
+        if (!obra.contratoId || !obra.loteId) continue;
+        await gravarPrioridadeLote(obra.contratoId, obra.loteId, prioridade);
+      }
+    } catch (cause) {
+      setWriteError(
+        `A prioridade não foi salva: ${cause instanceof Error ? cause.message : String(cause)}`,
+      );
+    }
+  };
   const createMaster = async () => {
     setNewMasterError(null);
     const cor = nextMestreColor(mestres.map((mestre) => mestre.cor.background));
@@ -1107,50 +1115,24 @@ export default function CronogramaObrasPage() {
       </main>
     );
 
-  const realtimeLabel =
-    realtimeState === "connecting"
-      ? "Conectando…"
-      : realtimeState === "live"
-        ? "Ao vivo"
-        : realtimeState === "offline"
-          ? "Offline"
-          : "Atualização indisponível";
+  const masterPalette = (
+    <MasterPalette
+      masters={masters}
+      draggingMaster={draggingMaster}
+      disabled={zoom === "year"}
+      onViewMasters={() => changeView("mestres")}
+      showViewMasters={view === "obras"}
+      onDragStart={setDraggingMaster}
+      onDragEnd={() => setDraggingMaster(null)}
+      onAdd={() => {
+        setNewMasterError(null);
+        setMasterDialog(true);
+      }}
+    />
+  );
 
   return (
     <main className={`co-page co-zoom--${zoom}`}>
-      <header className="co-page-header">
-        <div className="co-title">
-          <span className="co-title-icon">
-            <EngineeringRounded />
-          </span>
-          <div>
-            <div className="co-title-line">
-              <span className="co-prototype">V-1.665 · MK6A</span>
-              <span
-                className={`co-realtime co-realtime--${realtimeState}`}
-                role="status"
-              >
-                <i />
-                {realtimeLabel}
-              </span>
-            </div>
-            <p>Planejamento e alocação de Mestres de Obras</p>
-          </div>
-        </div>
-      </header>
-      {/* operational controls are part of the indicators bar below */}
-      {false && filtersOpen && (
-        <aside className="co-filters-panel">
-          <FiltersBar
-            filters={filters}
-            statuses={[...new Set(obras.map((obra) => obra.status))]}
-            companies={[...new Set(obras.map((obra) => obra.empresa))]}
-            masters={masters}
-            onChange={setFilters}
-            onToday={goToday}
-          />
-        </aside>
-      )}
       <section className="co-indicators-bar">
         <div className="co-indicators-group">
           <div>
@@ -1234,30 +1216,9 @@ export default function CronogramaObrasPage() {
               document.body,
             )}
           </div>
-          <button
-            className={`co-button co-button--secondary co-filter-toggle ${filtersOpen ? "is-active" : ""}`}
-            type="button"
-            aria-expanded={filtersOpen}
-            onClick={() => setFiltersOpen((open) => !open)}
-          >
-            <FilterListRounded fontSize="small" />
-            Filtros
-          </button>
           <CalendarToggles options={display} onChange={setDisplay} />
         </div>
       </section>
-      {filtersOpen && (
-        <aside className="co-filters-panel">
-          <FiltersBar
-            filters={filters}
-            statuses={[...new Set(obras.map((obra) => obra.status))]}
-            companies={[...new Set(obras.map((obra) => obra.empresa))]}
-            masters={masters}
-            onChange={setFilters}
-            onToday={goToday}
-          />
-        </aside>
-      )}
       {false && <section className="co-indicators">
         <div>
           <span>Em andamento</span>
@@ -1285,18 +1246,13 @@ export default function CronogramaObrasPage() {
         aria-busy={isViewTransitioning}
         ref={scheduleContentRef}
       >
-      <MasterPalette
+      <FiltersBar
+        filters={filters}
+        statuses={[...new Set(obras.map((obra) => obra.status))]}
+        companies={[...new Set(obras.map((obra) => obra.empresa))]}
         masters={masters}
-        draggingMaster={draggingMaster}
-        disabled={zoom === "year"}
-        onViewMasters={() => changeView("mestres")}
-        showViewMasters={view === "obras"}
-        onDragStart={setDraggingMaster}
-        onDragEnd={() => setDraggingMaster(null)}
-        onAdd={() => {
-          setNewMasterError(null);
-          setMasterDialog(true);
-        }}
+        onChange={setFilters}
+        onToday={goToday}
       />
       {addingMaster && (
         <div
@@ -1346,6 +1302,7 @@ export default function CronogramaObrasPage() {
           <section>
             <header className="co-section-heading">
               <h2>Obra iniciada ({contratosPorSituacao.iniciada})</h2>
+              {masterPalette}
               <div className="co-view-switch co-zoom-switch" aria-label="Escala do cronograma">
                 {([ ["day", "Dias"], ["week", "Semanas"] ] as const).map(([value, label]) => (
                   <button type="button" key={value} disabled={isViewTransitioning} className={zoom === value ? "is-active" : ""} onClick={() => changeZoom(value)}>{label}</button>
@@ -1367,6 +1324,9 @@ export default function CronogramaObrasPage() {
               focusDate={focusDate}
               onFocusDate={setFocusDate}
               onStatusConfirmed={applyConfirmedLoteStatus}
+              onMovePrioridade={(lista, movedId, targetIndex) =>
+                void movePrioridade(lista, movedId, targetIndex)
+              }
               onSelect={(obra) => {
                 setMasterPanel(null);
                 setMastersPanelId(null);
@@ -1453,6 +1413,7 @@ export default function CronogramaObrasPage() {
         <>
           <header className="co-section-heading co-masters-section-heading">
             <h2>Mestres</h2>
+            {masterPalette}
             <button type="button" className="co-button co-button--secondary" disabled={isViewTransitioning} onClick={() => changeView("obras")}>
               <ArrowBackRounded fontSize="small" />
               Voltar para Obras

@@ -766,13 +766,50 @@ service cloud.firestore {
       allow create, update, delete: if isAdm2();
     }
 
+    // CronoObra "Próxima a iniciar": one write changes only `lotes.{id}.prioridade` (number) of one existing LOTE.
+    // Rules cannot take the changed key out of a set, so each LOTE is checked by position (up to 40 per contract).
+    function loteSoPrioridade(antes, depois, chave) {
+      return depois[chave] == antes[chave]
+        || (
+          depois[chave].diff(antes[chave]).affectedKeys().hasOnly(['prioridade'])
+          && depois[chave].prioridade is number
+        );
+    }
+
+    function loteNaPosicao(antes, depois, chaves, i) {
+      return chaves.size() <= i || loteSoPrioridade(antes, depois, chaves[i]);
+    }
+
+    function prioridadeDeUmLote() {
+      let antes = resource.data.get('lotes', {});
+      let depois = request.resource.data.get('lotes', {});
+      let mudou = depois.diff(antes);
+      let chaves = antes.keys();
+      return changedOnly(['lotes'])
+        && mudou.addedKeys().size() == 0
+        && mudou.removedKeys().size() == 0
+        && mudou.changedKeys().size() == 1
+        && chaves.size() <= 40
+        && loteNaPosicao(antes, depois, chaves, 0) && loteNaPosicao(antes, depois, chaves, 1) && loteNaPosicao(antes, depois, chaves, 2) && loteNaPosicao(antes, depois, chaves, 3)
+        && loteNaPosicao(antes, depois, chaves, 4) && loteNaPosicao(antes, depois, chaves, 5) && loteNaPosicao(antes, depois, chaves, 6) && loteNaPosicao(antes, depois, chaves, 7)
+        && loteNaPosicao(antes, depois, chaves, 8) && loteNaPosicao(antes, depois, chaves, 9) && loteNaPosicao(antes, depois, chaves, 10) && loteNaPosicao(antes, depois, chaves, 11)
+        && loteNaPosicao(antes, depois, chaves, 12) && loteNaPosicao(antes, depois, chaves, 13) && loteNaPosicao(antes, depois, chaves, 14) && loteNaPosicao(antes, depois, chaves, 15)
+        && loteNaPosicao(antes, depois, chaves, 16) && loteNaPosicao(antes, depois, chaves, 17) && loteNaPosicao(antes, depois, chaves, 18) && loteNaPosicao(antes, depois, chaves, 19)
+        && loteNaPosicao(antes, depois, chaves, 20) && loteNaPosicao(antes, depois, chaves, 21) && loteNaPosicao(antes, depois, chaves, 22) && loteNaPosicao(antes, depois, chaves, 23)
+        && loteNaPosicao(antes, depois, chaves, 24) && loteNaPosicao(antes, depois, chaves, 25) && loteNaPosicao(antes, depois, chaves, 26) && loteNaPosicao(antes, depois, chaves, 27)
+        && loteNaPosicao(antes, depois, chaves, 28) && loteNaPosicao(antes, depois, chaves, 29) && loteNaPosicao(antes, depois, chaves, 30) && loteNaPosicao(antes, depois, chaves, 31)
+        && loteNaPosicao(antes, depois, chaves, 32) && loteNaPosicao(antes, depois, chaves, 33) && loteNaPosicao(antes, depois, chaves, 34) && loteNaPosicao(antes, depois, chaves, 35)
+        && loteNaPosicao(antes, depois, chaves, 36) && loteNaPosicao(antes, depois, chaves, 37) && loteNaPosicao(antes, depois, chaves, 38) && loteNaPosicao(antes, depois, chaves, 39);
+    }
+
     // Obras V2 are written by the monday Functions; adm2 kept for administrative maintenance.
     match /obras-v2/{obraId} {
       allow read: if isAuthorized();
       allow create, delete: if isAdm2();
       // The registration belongs to Friday; in /engenharia/obras Engenharia only fills in the work site (`local`,
-      // required) and the synonym (`siglaObra`, may be empty).
+      // required) and the synonym (`siglaObra`, may be empty); in /engenharia/cronograma, a LOTE's `prioridade`.
       allow update: if isAdm2()
+        || (hasPerfil('engenharia') && prioridadeDeUmLote())
         || (
           hasPerfil('engenharia')
           && changedOnly(['local', 'siglaObra'])

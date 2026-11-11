@@ -10,6 +10,8 @@ export const LOTE_STATUS_OPTIONS: readonly LoteStatus[] = [
   { code: 'PARADA', label: 'Parada' }, { code: 'PROXIMA_A_INICIAR', label: 'Próxima a Iniciar' },
   { code: 'REVISAR_ESCOPO', label: 'Revisar escopo' }, { code: 'NAO_INICIADA', label: 'Não iniciada' },
 ] as const;
+/** "Iniciar" no CronoObra: os dois status que tiram um LOTE de Obra não iniciada. */
+export const LOTE_START_OPTIONS: readonly LoteStatus[] = LOTE_STATUS_OPTIONS.filter((status) => status.code === 'EM_ANDAMENTO' || status.code === 'PROXIMA_A_INICIAR');
 
 /** Visual mapping for the CronoObra LOTE status control. Keep labels sourced from the options above. */
 export const LOTE_STATUS_COLORS: Readonly<Record<string, string>> = {

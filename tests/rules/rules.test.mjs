@@ -24,6 +24,7 @@ import {
   updateDoc,
   where,
   writeBatch,
+  FieldPath,
 } from 'firebase/firestore';
 import {
   deleteObject,
@@ -151,6 +152,10 @@ async function seed() {
       operacional: { quilometragemUltima: 8700 },
     });
     await setDoc(doc(db, 'obras-v2', 'ob1'), { nomeObra: 'Obra V2', local: 'Ledur', codObra: 101, siglaObra: 'OBV' });
+    await setDoc(doc(db, 'obras-v2', 'ob-lotes'), {
+      nomeObra: 'Contrato com LOTEs', local: 'Ledur', codObra: 0, siglaObra: '',
+      lotes: { l1: { nome: 'LOTE 1', status: 'Próxima a Iniciar', ordem: 0 }, l2: { nome: 'LOTE 2', status: 'Próxima a Iniciar', ordem: 1, prioridade: 2 } },
+    });
     await setDoc(doc(db, 'monday-obras', 'mo1'), { nome: 'Obra monday' });
     await setDoc(doc(db, 'monday-mestres', 'dine'), { nome: 'Dine', cor: '#123456' });
     await setDoc(doc(db, 'manutencoes-legado', 'legacy1'), { status: 'OK' });
@@ -821,6 +826,21 @@ test('[firestore] obras-v2: engenharia fills in only the work site (local) and t
   await assertFails(deleteDoc(doc(dbAs('engenharia'), 'obras-v2', 'ob1')));
   await assertFails(updateDoc(doc(dbAs('canonicalUser'), 'obras-v2', 'ob1'), { local: 'Outro' }));
   await assertSucceeds(updateDoc(doc(dbAs('canonicalAdm2'), 'obras-v2', 'ob1'), { local: 'Ledur' }));
+});
+
+test('[firestore] obras-v2: engenharia sets only one LOTE prioridade per write (CronoObra Próxima a iniciar)', async () => {
+  const contrato = (as) => doc(dbAs(as), 'obras-v2', 'ob-lotes');
+  const campo = (lote, nome) => new FieldPath('lotes', lote, nome);
+  await assertSucceeds(updateDoc(contrato('engenharia'), campo('l1', 'prioridade'), 1));
+  await assertSucceeds(updateDoc(contrato('engenharia'), campo('l2', 'prioridade'), 1.5));
+  await assertFails(updateDoc(contrato('engenharia'), campo('l1', 'prioridade'), 'alta'));
+  await assertFails(updateDoc(contrato('engenharia'), campo('l1', 'status'), 'Em andamento'));
+  await assertFails(updateDoc(contrato('engenharia'), campo('l1', 'prioridade'), 3, campo('l1', 'nome'), 'X'));
+  await assertFails(updateDoc(contrato('engenharia'), campo('l1', 'prioridade'), 4, campo('l2', 'prioridade'), 5));
+  await assertFails(updateDoc(contrato('engenharia'), campo('l9', 'prioridade'), 1));
+  await assertFails(updateDoc(contrato('engenharia'), campo('l1', 'prioridade'), 6, 'nomeObra', 'X'));
+  await assertFails(updateDoc(contrato('canonicalUser'), campo('l1', 'prioridade'), 7));
+  await assertSucceeds(updateDoc(contrato('canonicalAdm2'), campo('l1', 'prioridade'), 8));
 });
 
 test('[firestore] monday-obras: read by employees, written only by Functions', async () => {

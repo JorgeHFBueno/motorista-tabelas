@@ -80,10 +80,11 @@ test('start action follows section classification, never a specific label', () =
 test('UI integration writes only through the Friday Function and keeps the accessible menu', () => {
   const service = readFileSync('src/services/loteStatusService.ts', 'utf8'); const control = readFileSync('src/features/cronograma-obras/components/LoteStatusControl.tsx', 'utf8'); const styles = readFileSync('src/features/cronograma-obras/styles/cronograma-obras.css', 'utf8'); const page = readFileSync('src/features/cronograma-obras/CronogramaObrasPage.tsx', 'utf8');
   assert.match(service, /'fridayCadastroGravar'/); assert.match(service, /colecao: 'obras-v2'/); assert.doesNotMatch(service, /monday|setDoc|updateDoc|fetch\(/iu);
-  assert.match(control, /disabled=\{saving\}/); assert.match(control, /'EM_ANDAMENTO'/); assert.match(control, /Iniciar/); assert.doesNotMatch(control, /<select/); assert.match(control, /LOTE_STATUS_OPTIONS/); assert.match(control, /aria-haspopup="listbox"/); assert.match(control, /role="listbox"/); assert.match(control, /role="option"/); assert.match(control, /loteStatusColor/); assert.match(control, /onOptionKeyDown/); assert.match(control, /event\.key === 'Escape'/); assert.match(control, /closeOnOutsidePointer/); assert.match(control, /statusTriggerRef/); assert.match(control, /statusMenuRef/); assert.match(control, /createPortal\(/); assert.match(control, /document\.body/); assert.match(styles, /\.co-monday-status-list[^}]*position: fixed/); assert.match(control, /void saveStatus\(status\.code\)/); assert.doesNotMatch(control, /setDoc|updateDoc|mondaySubitem|mondayStatus|Monday\./); // classes co-monday-status-* são só estilo
+  assert.match(control, /disabled=\{saving\}/); assert.match(control, /LOTE_START_OPTIONS/); assert.match(control, /Iniciar/); assert.doesNotMatch(control, /<select/); assert.match(control, /LOTE_STATUS_OPTIONS/); assert.match(control, /aria-haspopup="listbox"/); assert.match(control, /role="listbox"/); assert.match(control, /role="option"/); assert.match(control, /loteStatusColor/); assert.match(control, /onOptionKeyDown/); assert.match(control, /event\.key === 'Escape'/); assert.match(control, /closeOnOutsidePointer/); assert.match(control, /statusTriggerRef/); assert.match(control, /statusMenuRef/); assert.match(control, /createPortal\(/); assert.match(control, /document\.body/); assert.match(styles, /\.co-monday-status-list[^}]*position: fixed/); assert.match(control, /void saveStatus\(status\.code\)/); assert.doesNotMatch(control, /setDoc|updateDoc|mondaySubitem|mondayStatus|Monday\./); // classes co-monday-status-* são só estilo
   assert.match(control, /onStatusConfirmed\?\.\(obra\.contratoId!, obra\.loteId!, gravado\)/);
   assert.match(page, /applyConfirmedLoteStatus/); assert.match(page, /updateObraStatusByLoteId/); assert.match(page, /onStatusConfirmed=\{applyConfirmedLoteStatus\}/);
-  assert.match(page, /V-1\.665 · MK6A/); assert.doesNotMatch(page, /Planejador local · MK2/);
+  // The page header (version chip, live status, subtitle) was removed on 2026-11-11.
+  assert.doesNotMatch(page, /V-1\.665 · MK6A|Planejador local · MK2|co-realtime/);
   assert.doesNotMatch(page, /onday/);
 });
 
@@ -94,8 +95,8 @@ test('started work finalization reuses the same Function call and shared control
   const gantt = readFileSync('src/features/cronograma-obras/components/GanttGrid.tsx', 'utf8');
   const control = readFileSync('src/features/cronograma-obras/components/LoteStatusControl.tsx', 'utf8');
   assert.match(gantt, /LoteStatusControl obra=\{obra\} canStart=\{false\} canFinish/);
-  assert.match(control, /'FINALIZADO'/);
-  assert.match(control, /Finalizar/);
+  // Started LOTEs get the full status menu; "Iniciar" only the two starting statuses.
+  assert.match(control, /action === "finish" \? LOTE_STATUS_OPTIONS : LOTE_START_OPTIONS/);
   assert.match(control, /disabled=\{saving\}/);
 });
 
@@ -103,9 +104,9 @@ test('status control renders either the available action or the badge, never bot
   const control = readFileSync('src/features/cronograma-obras/components/LoteStatusControl.tsx', 'utf8');
   assert.match(control, /if \(!realLote \|\| !action \|\| alreadyFinished\) return <StatusBadge status=\{obra\.status\} \/>;/);
   assert.match(control, /canFinish \? "finish" : canStart \? "start" : null/);
-  assert.match(control, /Finalizando/);
+  assert.match(control, /Atualizando/);
   assert.match(control, /Iniciando/);
-  const actionReturn = control.slice(control.indexOf('const verb'), control.indexOf('\n}'));
+  const actionReturn = control.slice(control.indexOf('const menu'), control.indexOf('\n}'));
   assert.doesNotMatch(actionReturn, /<StatusBadge/);
 });
 

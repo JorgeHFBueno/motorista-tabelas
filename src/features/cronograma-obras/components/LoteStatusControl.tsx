@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import type { ObraCronograma } from '../domain/models';
-import { loteStatusColor, loteStatusFromLabel, LOTE_STATUS_OPTIONS, LoteStatusRequestError, type LoteStatus, type LoteStatusCode, updateLoteStatus } from '../../../services/loteStatusService';
+import { loteStatusColor, loteStatusFromLabel, LOTE_START_OPTIONS, LOTE_STATUS_OPTIONS, LoteStatusRequestError, type LoteStatus, type LoteStatusCode, updateLoteStatus } from '../../../services/loteStatusService';
 import { StatusBadge } from './StatusBadge';
 
 /** Operational action; the parent section owns the canonical classification. */
@@ -88,31 +88,29 @@ export function LoteStatusControl({ obra, canStart, canFinish = false, onStatusC
     };
   }, [open]);
 
-  // Started LOTEs use the same callable flow, but expose every canonical
-  // LOTE status rather than a one-way "Finalizar" action.
+  // Started LOTEs expose every canonical LOTE status; "Iniciar" offers only the two starting statuses.
+  const options = action === "finish" ? LOTE_STATUS_OPTIONS : LOTE_START_OPTIONS;
   const currentStatus = loteStatusFromLabel(obra.status);
-  const currentIndex = Math.max(0, LOTE_STATUS_OPTIONS.findIndex((status) => status.code === currentStatus?.code));
+  const currentIndex = Math.max(0, options.findIndex((status) => status.code === currentStatus?.code));
   const openMenu = () => { setUpdated(false); setActiveIndex(currentIndex); setOpen(true); };
   const onTriggerKeyDown = (event: React.KeyboardEvent<HTMLButtonElement>) => {
-    if (event.key === 'ArrowDown' || event.key === 'ArrowUp') { event.preventDefault(); setActiveIndex(event.key === 'ArrowDown' ? currentIndex : (currentIndex + LOTE_STATUS_OPTIONS.length - 1) % LOTE_STATUS_OPTIONS.length); setOpen(true); }
+    if (event.key === 'ArrowDown' || event.key === 'ArrowUp') { event.preventDefault(); setActiveIndex(event.key === 'ArrowDown' ? currentIndex : (currentIndex + options.length - 1) % options.length); setOpen(true); }
     if (event.key === 'Escape') closeMenu(true);
   };
   const onOptionKeyDown = (event: React.KeyboardEvent<HTMLButtonElement>, index: number, code: LoteStatusCode) => {
-    if (event.key === 'ArrowDown' || event.key === 'ArrowUp') { event.preventDefault(); setActiveIndex((index + (event.key === 'ArrowDown' ? 1 : LOTE_STATUS_OPTIONS.length - 1)) % LOTE_STATUS_OPTIONS.length); }
+    if (event.key === 'ArrowDown' || event.key === 'ArrowUp') { event.preventDefault(); setActiveIndex((index + (event.key === 'ArrowDown' ? 1 : options.length - 1)) % options.length); }
     else if (event.key === 'Escape') { event.preventDefault(); closeMenu(true); }
     else if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); setOpen(false); void saveStatus(code); }
   };
+  const menu = open && menuPosition && createPortal(<div ref={statusMenuRef} data-monday-status-menu className="co-monday-status-list" role="listbox" aria-label={action === "finish" ? `Opções de Status de ${obra.nomeObra}` : `Iniciar ${obra.nomeObra} como`} style={menuPosition}>
+      {options.map((status, index) => <button key={status.code} ref={(element) => { optionRefs.current[index] = element; }} type="button" className="co-monday-status-option" role="option" aria-selected={status.code === currentStatus?.code} style={{ backgroundColor: loteStatusColor(status.label) }} onClick={() => { setOpen(false); void saveStatus(status.code); }} onKeyDown={(event) => onOptionKeyDown(event, index, status.code)}>{status.label}{status.code === currentStatus?.code && <span className="co-monday-status-check" aria-hidden="true">✓</span>}</button>)}
+    </div>, document.body);
 
   if (canFinish) return <span className="co-monday-status-control" onClick={(event) => event.stopPropagation()} onKeyDown={(event) => event.stopPropagation()}>
     <button ref={statusTriggerRef} type="button" className="co-monday-status-trigger" aria-label={`Status de ${obra.nomeObra}`} aria-haspopup="listbox" aria-expanded={open} disabled={saving} style={{ backgroundColor: loteStatusColor(obra.status) }} onClick={() => open ? closeMenu() : openMenu()} onKeyDown={onTriggerKeyDown}>{saving ? 'Atualizando…' : <>{obra.status || 'Status'} <span aria-hidden="true">▾</span></>}</button>
-    {open && menuPosition && createPortal(<div ref={statusMenuRef} data-monday-status-menu className="co-monday-status-list" role="listbox" aria-label={`Opções de Status de ${obra.nomeObra}`} style={menuPosition}>
-      {LOTE_STATUS_OPTIONS.map((status, index) => <button key={status.code} ref={(element) => { optionRefs.current[index] = element; }} type="button" className="co-monday-status-option" role="option" aria-selected={status.code === currentStatus?.code} style={{ backgroundColor: loteStatusColor(status.label) }} onClick={() => { setOpen(false); void saveStatus(status.code); }} onKeyDown={(event) => onOptionKeyDown(event, index, status.code)}>{status.label}{status.code === currentStatus?.code && <span className="co-monday-status-check" aria-hidden="true">✓</span>}</button>)}
-    </div>, document.body)}
+    {menu}
     {saving && <small className="co-status-feedback" role="status">Salvando…</small>}{error && <small className="co-status-error" role="alert">{error}</small>}{updated && <small className="co-status-feedback" role="status">Status atualizado.</small>}
   </span>;
 
-  const start = () => saveStatus(action === "finish" ? 'FINALIZADO' : 'EM_ANDAMENTO');
-
-  const verb = action === "finish" ? 'Finalizar' : 'Iniciar';
-  return <span className="co-monday-status-control" onClick={(event) => event.stopPropagation()} onKeyDown={(event) => event.stopPropagation()}><button type="button" className="co-button co-button--primary co-start-button" aria-label={`${verb} ${obra.nomeObra}`} disabled={saving} onClick={() => void start()}>{saving ? `${action === "finish" ? 'Finalizando' : 'Iniciando'}...` : verb}</button>{error && <small className="co-status-error" role="alert">{error}</small>}{updated && <small className="co-status-feedback" role="status">Status atualizado.</small>}</span>;
+  return <span className="co-monday-status-control" onClick={(event) => event.stopPropagation()} onKeyDown={(event) => event.stopPropagation()}><button ref={statusTriggerRef} type="button" className="co-button co-button--primary co-start-button" aria-label={`Iniciar ${obra.nomeObra}`} aria-haspopup="listbox" aria-expanded={open} disabled={saving} onClick={() => open ? closeMenu() : openMenu()} onKeyDown={onTriggerKeyDown}>{saving ? 'Iniciando...' : <>Iniciar <span aria-hidden="true">▾</span></>}</button>{menu}{error && <small className="co-status-error" role="alert">{error}</small>}{updated && <small className="co-status-feedback" role="status">Status atualizado.</small>}</span>;
 }
