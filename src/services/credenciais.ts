@@ -7,7 +7,7 @@ export const CREDENCIAIS = [
   { chave: 'adm2', rotulo: 'Adm2', descricao: 'Administração: entra em tudo, no app e na WEB' },
   { chave: 'motorista', rotulo: 'Motorista', descricao: 'Saída e Chegada no app; aparece na lista de motoristas' },
   { chave: 'frentista', rotulo: 'Frentista', descricao: 'Combustível no app e no Kiosk' },
-  { chave: 'mecanico', rotulo: 'Mecânico', descricao: 'Checklist no app; Frota, Bombas e Logística, na WEB' },
+  { chave: 'mecanico', rotulo: 'Mecânico', descricao: 'Checklist no app; Frota, Combustível, Bombas, Logística e Friday, na WEB' },
   { chave: 'escritorio', rotulo: 'Escritório', descricao: 'Friday, Cadastros e Portal do cliente, na WEB' },
   { chave: 'engenharia', rotulo: 'Engenharia', descricao: 'Engenharia e Portal do cliente, na WEB' },
   { chave: 'logistica', rotulo: 'Logística', descricao: 'Frota, Combustível, Bombas e Logística, na WEB' },
