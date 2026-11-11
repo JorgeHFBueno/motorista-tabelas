@@ -263,7 +263,7 @@ export function Tabela({ grupos: gruposReais, colunas: colunasVisiveis, todasCol
                                 onSubitem={() => { alternarSubs(i.id, true); setFocoSub(i.id); }} />
                               <button className="abrir-item" onClick={() => abrirItem(i.id)} title="Abrir"><Maximize2 size={13} /> Abrir</button>
                             </span>
-                            <button className={`bolha${i.n_atualizacoes ? ' com' : ''}`} onClick={() => abrirItem(i.id)} title="Atualizações" aria-label={`${i.n_atualizacoes ?? 0} atualizações`}>
+                            <button className={`bolha${i.atualizacoes_novas ? ' nova' : ''}`} onClick={() => abrirItem(i.id)} title={i.atualizacoes_novas ? 'Atualizações (há novas)' : 'Atualizações'} aria-label={`${i.n_atualizacoes ?? 0} atualizações${i.atualizacoes_novas ? ', com novas' : ''}`}>
                               {i.n_atualizacoes ? <><MessageCircle size={17} /><span>{i.n_atualizacoes}</span></> : <MessageCirclePlus size={17} />}
                             </button>
                           </span>

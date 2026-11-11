@@ -84,7 +84,7 @@ export function TabelaSubitens({ pai, sub, acoes, ops, usuarios, modo, focarNovo
                         {abrirItem && <button className="abrir-item" onClick={() => abrirItem(it.id)} title="Abrir"><Maximize2 size={13} /> Abrir</button>}
                       </span>
                       {abrirItem && (
-                        <button className={`bolha${it.n_atualizacoes ? ' com' : ''}`} onClick={() => abrirItem(it.id)} title="Atualizações" aria-label={`${it.n_atualizacoes ?? 0} atualizações`}>
+                        <button className={`bolha${it.atualizacoes_novas ? ' nova' : ''}`} onClick={() => abrirItem(it.id)} title={it.atualizacoes_novas ? 'Atualizações (há novas)' : 'Atualizações'} aria-label={`${it.n_atualizacoes ?? 0} atualizações${it.atualizacoes_novas ? ', com novas' : ''}`}>
                           {it.n_atualizacoes ? <><MessageCircle size={17} /><span>{it.n_atualizacoes}</span></> : <MessageCirclePlus size={17} />}
                         </button>
                       )}

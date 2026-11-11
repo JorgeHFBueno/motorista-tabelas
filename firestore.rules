@@ -1312,6 +1312,17 @@ service cloud.firestore {
       allow create, update: if false;
     }
 
+    // Leituras das atualizações (bolha azul = novidade): um documento por pessoa, que só ela lê e grava. "itens" guarda,
+    // por item, a última atualização lida; "desde" é o primeiro uso (o que é anterior conta como lido).
+    match /friday-leituras/{uid} {
+      allow get: if fridayAccess() && uid == request.auth.uid;
+      allow create, update: if fridayAccess() && uid == request.auth.uid
+        && request.resource.data.keys().hasOnly(['desde', 'itens'])
+        && request.resource.data.get('desde', 0) is number
+        && request.resource.data.get('itens', {}) is map;
+      allow list, delete: if false;
+    }
+
     // Marcador dos índices de itens (busca e Meu trabalho).
     match /friday-meta/indices {
       allow get, create, update: if fridayAccess();

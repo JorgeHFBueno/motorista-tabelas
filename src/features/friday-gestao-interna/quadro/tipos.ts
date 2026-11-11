@@ -10,7 +10,7 @@ import { fmtDuracao, sessoesDe, totalSegundos } from './tempo.ts';
 export type Rotulo = { id: string; texto: string; cor: string; concluido?: boolean };
 export type Coluna = Row & { quadro_id: number; titulo: string; tipo: TipoColuna; config: Record<string, any>; largura: number; posicao: number; oculta: number };
 export type Grupo = Row & { quadro_id: number; nome: string; cor: string; posicao: number; recolhido: number };
-export type Item = Row & { quadro_id: number; grupo_id: number; item_pai_id: number | null; nome: string; posicao: number; valores: Record<string, any>; n_atualizacoes?: number; n_subitens?: number; n_anexos?: number };
+export type Item = Row & { quadro_id: number; grupo_id: number; item_pai_id: number | null; nome: string; posicao: number; valores: Record<string, any>; n_atualizacoes?: number; atualizacoes_novas?: boolean; n_subitens?: number; n_anexos?: number };
 // Ordenação da visão: critérios na ordem em que valem (empate no primeiro decide o segundo…). Lista vazia = posição
 // manual. Visões salvas antes guardam um critério só ({ colunaId, dir }); filtros.ts (lerOrdenacao) lê os dois jeitos.
 export type CriterioOrdem = { colunaId: number; dir: 1 | -1 };

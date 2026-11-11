@@ -579,12 +579,35 @@ async function garantirSubquadro(pai: Row): Promise<number> {
   return sub.id;
 }
 
+// Leituras das atualizações (friday-leituras/{uid}): por item, a última atualização que a pessoa leu. A bolha do item
+// fica azul quando há atualização de outra pessoa depois disso; cinza quando tudo já foi lido. No primeiro uso o
+// documento nasce com "desde" = agora: o que já existia conta como lido. Os ids crescem com o tempo (novoId).
+type Leituras = { desde: number; itens: Record<string, number> };
+async function lerLeituras(): Promise<Leituras> {
+  const r = doc(db, 'friday-leituras', eu().uid);
+  const s = await getDoc(r);
+  if (s.exists()) return { desde: Number(s.data().desde) || 0, itens: s.data().itens ?? {} };
+  const nova = { desde: Date.now() * 1000, itens: {} };
+  await setDoc(r, nova);
+  return nova;
+}
+export async function marcarAtualizacoesLidas(itemId: number, ultimaId: number): Promise<void> {
+  await setDoc(doc(db, 'friday-leituras', eu().uid), { itens: { [String(itemId)]: ultimaId } }, { merge: true });
+}
+// Por item, se há atualização de outra pessoa ainda não lida. Sem as leituras (falha ao ler), vale o "tem atualização".
+function novidades(lista: Row[], leituras: Leituras | null): Set<number> {
+  const ultima = new Map<number, number>();
+  for (const a of lista) if (String(a.usuario_id) !== eu().id) ultima.set(Number(a.item_id), Math.max(ultima.get(Number(a.item_id)) ?? 0, Number(a.id)));
+  return new Set([...ultima].filter(([item, id]) => !leituras || id > Number(leituras.itens[item] ?? leituras.desde)).map(([item]) => item));
+}
+
 async function completo(id: number) {
   const quadro = await buscar('quadros', id);
   if (!quadro) throw new ErroApi(404, 'quadro não encontrado');
-  const [grupos, colunas, visoes, itensTodos, atualizacoes, anexos, automacoes, sub] = await Promise.all([
+  const [grupos, colunas, visoes, itensTodos, atualizacoes, anexos, automacoes, sub, leituras] = await Promise.all([
     consultar('grupos', { quadro_id: id }), consultar('colunas', { quadro_id: id }), consultar('visoes', { quadro_id: id }), consultar('itens', { quadro_id: id }),
     consultar('atualizacoes', { quadro_id: id }), consultar('anexos', { quadro_id: id }), consultar('automacoes', { quadro_id: id, ativa: 1 }), subquadroDe(id),
+    lerLeituras().catch(e => { console.warn('[friday] leituras das atualizações indisponíveis', e); return null; }),
   ]);
   // Quadro oficial: registro do cadastro e documentos oficiais dos itens (uma consulta).
   const registro = quadro.cadastro ? await registroDe(quadro.cadastro, true) : undefined;
@@ -623,17 +646,17 @@ async function completo(id: number) {
       consultar('itens', { quadro_id: sub.id }), consultar('colunas', { quadro_id: sub.id }),
       consultar('atualizacoes', { quadro_id: sub.id }), consultar('anexos', { quadro_id: sub.id }), grupoDoSubquadro(sub.id),
     ]);
-    const nAt = contar(subAtualizacoes), nAn = contar(subAnexos);
+    const nAt = contar(subAtualizacoes), nAn = contar(subAnexos), novas = novidades(subAtualizacoes, leituras);
     const subItens = ordenar('itens', subItensTodos.filter(s => visivel(s) && idsItens.has(Number(s.item_pai_id))))
       .map(s => {
         const base = subOf && s.vinculo?.sub != null
           ? mesclarOficial(s, camposAtivos(subOf), (oficiais.get(String(s.vinculo.id))?.[subOf.chave] as Record<string, Record<string, unknown>> | undefined)?.[String(s.vinculo.sub)]) : s;
-        return { ...base, n_atualizacoes: nAt.get(s.id) ?? 0, n_anexos: nAn.get(s.id) ?? 0 } as Row;
+        return { ...base, n_atualizacoes: nAt.get(s.id) ?? 0, atualizacoes_novas: novas.has(s.id), n_anexos: nAn.get(s.id) ?? 0 } as Row;
       });
     for (const s of subItens) nSub.set(Number(s.item_pai_id), (nSub.get(Number(s.item_pai_id)) ?? 0) + 1);
     subDados = { quadro_id: sub.id, grupo_id: subGrupo, nome_item: sub.nome_item ?? 'Subitem', colunas: ordenar('colunas', subColunas).map(c => marcar(c, camposAtivos(subOf))), itens: subItens };
   }
-  const nAt = contar(atualizacoes), nAn = contar(anexos);
+  const nAt = contar(atualizacoes), nAn = contar(anexos), novas = novidades(atualizacoes, leituras);
   return {
     quadro: {
       ...quadro, subquadro_id: sub?.id ?? null, permissao: 'editar', n_automacoes: automacoes.length,
@@ -648,7 +671,7 @@ async function completo(id: number) {
     itens: itensVisiveis.map(i => {
       const oficial = registro && i.vinculo ? oficiais.get(String(i.vinculo.id)) : undefined;
       const base = registro && i.vinculo ? comNomeEspelhado(mesclarOficial(i, camposAtivos(registro), oficial), registro, oficial) : i;
-      return { ...base, n_atualizacoes: nAt.get(i.id) ?? 0, n_subitens: nSub.get(i.id) ?? 0, n_anexos: nAn.get(i.id) ?? 0 };
+      return { ...base, n_atualizacoes: nAt.get(i.id) ?? 0, atualizacoes_novas: novas.has(i.id), n_subitens: nSub.get(i.id) ?? 0, n_anexos: nAn.get(i.id) ?? 0 };
     }),
     sub: subDados,
   };

@@ -265,8 +265,9 @@ body.redimensionando .friday-root, body.redimensionando .friday-root * { cursor:
 .friday-root .tq tr:hover .abrir-item { opacity: 1; }
 .friday-root .abrir-item:hover { color: var(--primaria); border-color: var(--primaria); }
 .friday-root .bolha { position: relative; display: inline-flex; align-items: center; background: none; border: 0; cursor: pointer; color: var(--texto-3); padding: 4px; }
-.friday-root .bolha.com { color: var(--primaria); }
-.friday-root .bolha span { position: absolute; right: -2px; bottom: 0; background: var(--primaria); color: #fff; font-size: 10px; border-radius: 8px; min-width: 15px; height: 15px; display: grid; place-items: center; padding: 0 3px; }
+.friday-root .bolha.nova { color: var(--primaria); }
+.friday-root .bolha.nova span { background: var(--primaria); }
+.friday-root .bolha span { position: absolute; right: -2px; bottom: 0; background: var(--texto-3); color: #fff; font-size: 10px; border-radius: 8px; min-width: 15px; height: 15px; display: grid; place-items: center; padding: 0 3px; }
 .friday-root .tq-novo td { background: var(--superficie); }
 .friday-root .novo-item { border: 1px solid transparent; outline: 0; width: calc(100% - 8px); height: 28px; padding: 0 6px; border-radius: 4px; background: none; color: var(--texto); }
 .friday-root .novo-item:hover { border-color: var(--borda); }
@@ -413,7 +414,8 @@ body.redimensionando .friday-root, body.redimensionando .friday-root * { cursor:
 .friday-root .cartao-status { font-size: 11.5px; padding: 2px 8px; border-radius: 3px; }
 .friday-root .cartao-meta { font-size: 12px; color: var(--texto-2); }
 .friday-root .cartao-rodape { display: flex; justify-content: space-between; align-items: center; width: 100%; min-height: 4px; }
-.friday-root .cartao-bolha { display: inline-flex; align-items: center; gap: 3px; font-size: 12px; color: var(--primaria); }
+.friday-root .cartao-bolha { display: inline-flex; align-items: center; gap: 3px; font-size: 12px; color: var(--texto-3); }
+.friday-root .cartao-bolha.nova { color: var(--primaria); }
 .friday-root .kb-novo { display: flex; align-items: center; gap: 6px; background: none; border: 0; padding: 6px; color: var(--texto-2); cursor: pointer; border-radius: 4px; }
 .friday-root .kb-novo:hover { background: var(--hover); color: var(--texto); }
 

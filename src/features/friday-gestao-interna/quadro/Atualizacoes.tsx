@@ -3,7 +3,7 @@ import {
   AtSign, Download, ExternalLink, File as IconeArquivo, FileArchive, FileImage, FileSpreadsheet, FileText, FileVideo,
   MessageCircle, MoreHorizontal, Paperclip, Pencil, Reply, Trash2, Upload, X,
 } from 'lucide-react';
-import { api, enviarArquivo, type Pessoa, type Row } from '../api.ts';
+import { api, enviarArquivo, marcarAtualizacoesLidas, type Pessoa, type Row } from '../api.ts';
 import { useNav } from '../nav.tsx';
 import { Avatar, Menu, Popover, useConfirmar, usePopover } from '../ui/base.tsx';
 import type { Item } from './tipos.ts';
@@ -219,8 +219,16 @@ export function Atualizacoes({ item, acoes }: { item: Item; acoes: Acoes }) {
   const [anexos, setAnexos] = useState<Row[]>([]);
   useEffect(() => {
     const filtro = { quadro_id: item.quadro_id, item_id: item.id };
-    Promise.all([api.list('atualizacoes', filtro), api.list('anexos', filtro)]).then(([a, x]) => { setLista(a); setAnexos(x); });
-  }, [item.id, item.quadro_id]);
+    Promise.all([api.list('atualizacoes', filtro), api.list('anexos', filtro)]).then(([a, x]) => {
+      setLista(a); setAnexos(x);
+      // Abriu as atualizações: tudo lido (a bolha do item fica cinza).
+      const ultima = Math.max(0, ...a.map(u => Number(u.id)));
+      if (ultima) {
+        acoes.ajustarItem(item.id, { atualizacoes_novas: false });
+        marcarAtualizacoesLidas(item.id, ultima).catch(e => console.warn('[friday] não foi possível marcar como lidas', e));
+      }
+    });
+  }, [item.id, item.quadro_id]); // eslint-disable-line react-hooks/exhaustive-deps
   const publicado = (a: Row, novos: Row[]) => {
     setLista(l => [a, ...(l ?? [])]);
     setAnexos(x => [...novos, ...x]);

@@ -1030,6 +1030,20 @@ test('[firestore] Friday: attachments carry the sender and a friday/ path; execu
   await assertFails(setDoc(doc(db, 'friday-meta', 'outro'), { x: 1 }));
   await assertFails(deleteDoc(doc(db, 'friday-meta', 'indices')));
 });
+test('[firestore] Friday: update reads are one document per person, read and written only by that person', async () => {
+  const db = dbAs('escritorio');
+  const minha = doc(db, 'friday-leituras', 'uid-escritorio');
+  await assertSucceeds(setDoc(minha, { desde: 1700000000000000, itens: {} }));
+  await assertSucceeds(setDoc(minha, { itens: { 20: 1700000000000123 } }, { merge: true }));
+  await assertSucceeds(getDoc(minha));
+  await assertFails(setDoc(minha, { desde: 1, itens: {}, outro: 1 }));
+  await assertFails(setDoc(minha, { desde: 'ontem', itens: {} }));
+  await assertFails(deleteDoc(minha));
+  await assertFails(getDoc(doc(dbAs('canonicalAdm2'), 'friday-leituras', 'uid-escritorio')));
+  await assertFails(setDoc(doc(db, 'friday-leituras', 'uid-adm2'), { desde: 1, itens: {} }));
+  await assertFails(getDocs(collection(db, 'friday-leituras')));
+  await assertFails(setDoc(doc(dbAs('canonicalUser'), 'friday-leituras', 'uid-canonical-user'), { desde: 1, itens: {} }));
+});
 test('[firestore] Friday: official registries are readable, never writable by clients', async () => {
   const db = dbAs('escritorio');
   await assertSucceeds(getDoc(doc(db, 'friday-cadastros', 'pontes')));

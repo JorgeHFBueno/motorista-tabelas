@@ -23,7 +23,7 @@ function Cartao({ item, colunas, usuarios, ocultar, abrirItem, onDragStart }: { 
       })}
       <div className="cartao-rodape">
         <span className="avatares">{[...new Set(pessoas)].slice(0, 3).map(id => { const u = usuarios.find(x => x.id === id); return u ? <Avatar key={id} nome={u.nome} cor={u.cor} tamanho={22} /> : null; })}</span>
-        {item.n_atualizacoes ? <span className="cartao-bolha"><MessageCircle size={13} /> {item.n_atualizacoes}</span> : null}
+        {item.n_atualizacoes ? <span className={`cartao-bolha${item.atualizacoes_novas ? ' nova' : ''}`}><MessageCircle size={13} /> {item.n_atualizacoes}</span> : null}
       </div>
     </div>
   );
