@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { httpsCallable } from 'firebase/functions';
-import { CloudDownload, LayoutGrid, Lock, RefreshCw, Search, Square, UserRound } from 'lucide-react';
+import { CloudDownload, LayoutGrid, Lock, MessageCircle, RefreshCw, Search, Square, UserRound } from 'lucide-react';
+import { trazerAtualizacoesMonday } from '../api.ts';
 import { functions } from '../funcoes.ts';
 import { Modal } from '../ui/base.tsx';
 import { useAuth } from '../../../contexts/AuthContext';
@@ -35,6 +36,8 @@ type ResultadoOficial = {
   itens: ParteOficial; subitens: ParteOficial | null; grupos_novos: string[]; recusados: string[];
 };
 const importarOficial = httpsCallable<{ boardId: string; modo: 'previa' | 'aplicar' }, ResultadoOficial>(functions, 'fridayMondayImportarQuadro', { timeout: 560_000 });
+// Atualizações (Write an update) dos quadros já importados, por quadro, em rodadas até não faltar nada.
+type Atualizando = { estado: 'fila' | 'trazendo' | 'ok' | 'erro'; trazidas: number; falhas: string[]; erro?: string };
 
 const mensagemDe = (e: unknown) => (e as { message?: string })?.message?.replace(/^.*?:\s*/, '') || String(e);
 
@@ -91,6 +94,35 @@ function Importador() {
     await Promise.all([carregar(), nav.recarregar()]);
   };
 
+  // Traz as atualizações do monday dos quadros já importados, um por vez; "Parar" termina depois do quadro atual.
+  const [atualizando, setAtualizando] = useState<Map<string, Atualizando>>(new Map());
+  const importados = (quadros ?? []).filter(q => q.quadro_id != null);
+  const trazerAtualizacoes = async (lista: QuadroMonday[]) => {
+    if (!lista.length || rodando) return;
+    parar.current = false;
+    setRodando(true);
+    setAtualizando(new Map(lista.map(q => [q.id, { estado: 'fila', trazidas: 0, falhas: [] }])));
+    for (const q of lista) {
+      if (parar.current) break;
+      const atual: Atualizando = { estado: 'trazendo', trazidas: 0, falhas: [] };
+      setAtualizando(m => new Map(m).set(q.id, { ...atual }));
+      try {
+        for (;;) {
+          const r = (await trazerAtualizacoesMonday({ quadroId: q.quadro_id! })).data;
+          atual.trazidas += r.trazidas;
+          atual.falhas = [...new Set([...atual.falhas, ...r.falhas])];
+          setAtualizando(m => new Map(m).set(q.id, { ...atual }));
+          if (!r.restantes || !r.trazidas) break;
+        }
+        setAtualizando(m => new Map(m).set(q.id, { ...atual, estado: 'ok' }));
+      } catch (e) {
+        setAtualizando(m => new Map(m).set(q.id, { ...atual, estado: 'erro', erro: mensagemDe(e) }));
+      }
+    }
+    setRodando(false);
+  };
+  const atualizacoesFeitas = [...atualizando.values()].filter(x => x.estado === 'ok' || x.estado === 'erro').length;
+
   const feitos = [...execucao.values()].filter(x => x.estado === 'ok' || x.estado === 'erro').length;
   const somar = (k: keyof Contagem) => [...execucao.values()].reduce((s, x) => s + (x.resultado ? x.resultado[k] + x.resultado.subitens[k] : 0), 0);
 
@@ -111,6 +143,13 @@ function Importador() {
             ? <button className="fr-btn" onClick={() => { parar.current = true; }}><Square size={14} /> Parar depois deste</button>
             : <>
               <button className="fr-btn" disabled={!marcados.size} onClick={() => void importar([...marcados])}>Importar selecionados ({marcados.size})</button>
+              <button className="fr-btn" disabled={!importados.length} title="Copia as atualizações (com respostas e arquivos) dos itens importados; repetir só traz as que faltam"
+                onClick={() => {
+                  const sel = importados.filter(q => marcados.has(q.id));
+                  void trazerAtualizacoes(sel.length ? sel : importados);
+                }}>
+                <MessageCircle size={15} /> Trazer atualizações ({importados.filter(q => marcados.has(q.id)).length || importados.length})
+              </button>
               <button className="fr-btn btn-primario" disabled={!pendentes.length} onClick={() => void importar(pendentes.map(q => q.id))}>Puxar o que falta ({pendentes.length})</button>
             </>}
         </div>}
@@ -123,6 +162,13 @@ function Importador() {
           <strong>{rodando ? `Importando ${feitos + 1} de ${execucao.size}…` : `Concluído: ${feitos} de ${execucao.size} quadro(s)`}</strong>
           <span className="muted">{somar('criados')} novos · {somar('atualizados')} atualizados · {somar('preservados')} preservados (editados no Friday) · {[...execucao.values()].filter(x => x.estado === 'erro').length} com erro</span>
           <div className="importar-barra"><span style={{ width: `${(feitos / execucao.size) * 100}%` }} /></div>
+        </div>
+      )}
+      {atualizando.size > 0 && (
+        <div className="importar-progresso">
+          <strong>{rodando ? `Trazendo atualizações: ${atualizacoesFeitas + 1} de ${atualizando.size} quadro(s)…` : `Atualizações: ${atualizacoesFeitas} de ${atualizando.size} quadro(s)`}</strong>
+          <span className="muted">{[...atualizando.values()].reduce((s, x) => s + x.trazidas, 0)} atualizações trazidas · {[...atualizando.values()].filter(x => x.estado === 'erro').length} com erro</span>
+          <div className="importar-barra"><span style={{ width: `${(atualizacoesFeitas / atualizando.size) * 100}%` }} /></div>
         </div>
       )}
 
@@ -138,6 +184,7 @@ function Importador() {
           <div className="arquivo-lista lista-arquivos">
             {filtrados.map((q, k) => {
               const ex = execucao.get(q.id);
+              const at = atualizando.get(q.id);
               const titulo = `${q.area}${q.pasta ? ` · ${q.pasta}` : ''}`;
               const anterior = filtrados[k - 1];
               return (
@@ -161,6 +208,13 @@ function Importador() {
                         </small>
                       )}
                       {ex?.estado === 'erro' && <small className="texto-alerta">{ex.erro}</small>}
+                      {at && at.estado !== 'fila' && (
+                        <small className={at.estado === 'erro' ? 'texto-alerta' : 'importar-resultado'}>
+                          {at.estado === 'trazendo' ? `Trazendo atualizações… ${at.trazidas}` : `${at.trazidas} atualização(ões) trazida(s)`}
+                          {at.erro ? ` · ${at.erro}` : ''}
+                          {at.falhas.length > 0 && <span title={at.falhas.join('\n')}> · {at.falhas.length} não trazida(s)</span>}
+                        </small>
+                      )}
                     </div>
                     <span className={`importar-selo selo-${ex?.estado === 'importando' ? 'importando' : ex?.estado === 'fila' ? 'fila' : q.situacao}`}>
                       {ex?.estado === 'importando' ? 'Importando…' : ex?.estado === 'fila' ? 'Na fila' : ROTULO[q.situacao]}

@@ -15,6 +15,7 @@ export { fridayCadastroCampos, fridayCadastroGravar, fridayCadastroPromover } fr
 export { fridayObrasSituacaoItem, fridayObrasSituacaoDiaria } from './fridayObrasSituacao.js';
 export { fridayAutomacoesEvento, fridayAutomacoesDatas } from './fridayAutomacoes.js';
 export { fridayAnexosMonday } from './fridayAnexosMonday.js';
+export { fridayAtualizacoesMonday } from './fridayAtualizacoesMonday.js';
 export { atualizarMeuPerfil } from './meuPerfil.js';
 export { manuscriptListTree, manuscriptGetDocument, manuscriptSearch, manuscriptGetBacklinks, manuscriptGetDocumentGraph, manuscriptGetDocumentHistory, manuscriptGetSystemGraph, manuscriptChat } from './manuscript.js';
 export { portalAvisoDocumento, portalAvisoFoto, portalAvisoObra, portalAvisoParcelaCriada, portalAvisoParcelaAtualizada, portalAvisoMensagemAtendimento, portalAvisoStatusAtendimento, portalVencimentosDiario, portalObrasCopiaV2 } from './portalAvisos.js';

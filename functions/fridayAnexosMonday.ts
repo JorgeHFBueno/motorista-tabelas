@@ -16,8 +16,8 @@ import { exigirAdm2, gql } from './fridayMondayImport.js';
 // Contrato: The Manuscript, 03_APLICACAO_WEB/13_FRIDAY_GESTAO_INTERNA.md (Anexos).
 
 type Row = Record<string, any> & { id: number };
-type Bucket = ReturnType<ReturnType<typeof getStorage>['bucket']>;
-type Asset = { id: string; name?: string; public_url?: string };
+export type Bucket = ReturnType<ReturnType<typeof getStorage>['bucket']>;
+export type Asset = { id: string; name?: string; public_url?: string };
 
 const REGIAO = 'southamerica-east1';
 const TEMPO_MAXIMO_MS = 420_000;
@@ -33,7 +33,7 @@ export const fridayAnexosMonday = onCall({ region: REGIAO, secrets: [mondayApiTo
 });
 
 // O quadro e o seu quadro de subitens (chamado de um subitem, sobe para o quadro principal).
-async function familia(quadroId: number): Promise<number[]> {
+export async function familia(quadroId: number): Promise<number[]> {
   const q = (await db.collection('friday-quadros').doc(String(quadroId)).get()).data();
   if (!q) throw new HttpsError('not-found', 'Quadro não encontrado.');
   const principal = q.tipo === 'subitens' && q.quadro_pai_id != null ? Number(q.quadro_pai_id) : quadroId;
@@ -92,27 +92,37 @@ async function dadosDosAssets(token: string, ids: number[]): Promise<Map<number,
 const entrada = (a: Row, asset: number): ArquivoColuna => ({ id: a.id, nome: a.nome, mime: a.mime, tamanho: a.tamanho, url: a.url, monday_asset: asset });
 
 async function copiarUm(bucket: Bucket, item: Row, p: ArquivoPendente, asset: Asset | undefined, uid: string): Promise<ArquivoColuna> {
-  const origem = `monday:${p.asset}`;
+  const anexo = await copiarAssetDoMonday(bucket, item, p.asset, p.nome, asset, { atualizacao_id: null, coluna_id: p.coluna_id, usuario_id: uid });
+  return entrada(anexo, p.asset);
+}
+
+/**
+ * Baixa um arquivo do monday para o Storage do Friday e grava o anexo (friday-anexos, origem_id "monday:<asset>").
+ * Já copiado, devolve o anexo existente. Usado pela coluna Arquivos e pelas atualizações (fridayAtualizacoesMonday).
+ */
+export async function copiarAssetDoMonday(bucket: Bucket, item: Row, assetId: number, nome: string, asset: Asset | undefined,
+  dono: { atualizacao_id: number | null; coluna_id: unknown; usuario_id: string }): Promise<Row> {
+  const origem = `monday:${assetId}`;
   const ja = await db.collection('friday-anexos').where('origem_id', '==', origem).limit(1).get();
-  if (!ja.empty) return entrada(ja.docs[0].data() as Row, p.asset);
+  if (!ja.empty) return ja.docs[0].data() as Row;
   if (!asset?.public_url) throw new Error('o monday não devolveu o arquivo');
   const res = await fetch(asset.public_url);
   if (!res.ok) throw new Error(`download recusado (${res.status})`);
   const dados = Buffer.from(await res.arrayBuffer());
   if (dados.length > LIMITE_ARQUIVO) throw new Error('maior que 100 MB');
   const id = novoId();
-  const caminho = caminhoAnexo(item.quadro_id, item.id, id, p.nome);
-  const mime = mimeDoNome(p.nome) ?? res.headers.get('content-type') ?? 'application/octet-stream';
+  const caminho = caminhoAnexo(item.quadro_id, item.id, id, nome);
+  const mime = mimeDoNome(nome) ?? res.headers.get('content-type') ?? 'application/octet-stream';
   const tokenDownload = randomUUID();
   const arquivo = bucket.file(caminho);
   await arquivo.save(dados, {
     resumable: false, contentType: mime,
-    metadata: { contentDisposition: `inline; filename*=UTF-8''${encodeURIComponent(p.nome)}`, metadata: { firebaseStorageDownloadTokens: tokenDownload } },
+    metadata: { contentDisposition: `inline; filename*=UTF-8''${encodeURIComponent(nome)}`, metadata: { firebaseStorageDownloadTokens: tokenDownload } },
   });
   const anexo: Row = {
-    id, item_id: item.id, quadro_id: item.quadro_id, atualizacao_id: null, coluna_id: p.coluna_id, nome: p.nome, mime, tamanho: dados.length,
+    id, item_id: item.id, quadro_id: item.quadro_id, atualizacao_id: dono.atualizacao_id, coluna_id: dono.coluna_id, nome, mime, tamanho: dados.length,
     arquivo: caminho, url: `https://firebasestorage.googleapis.com/v0/b/${bucket.name}/o/${encodeURIComponent(caminho)}?alt=media&token=${tokenDownload}`,
-    usuario_id: uid, criado_em: dataLocal(), origem_id: origem,
+    usuario_id: dono.usuario_id, criado_em: dataLocal(), origem_id: origem,
   };
   try {
     await db.collection('friday-anexos').doc(String(id)).set(anexo);
@@ -120,7 +130,7 @@ async function copiarUm(bucket: Bucket, item: Row, p: ArquivoPendente, asset: As
     await arquivo.delete().catch(() => undefined);
     throw e;
   }
-  return entrada(anexo, p.asset);
+  return anexo;
 }
 
 // Troca as entradas na célula sem mexer em atualizado_em: a cópia não é uma edição (a reimportação segue valendo).

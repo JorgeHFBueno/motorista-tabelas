@@ -293,12 +293,15 @@ function Cabecalho({ a, pequeno, onRemovido, onEditar }: { a: Row; pequeno?: boo
   const confirmar = useConfirmar();
   const menu = usePopover<HTMLButtonElement>();
   const u = nav.usuarios.find(x => x.id === a.usuario_id);
+  // Trazida do monday: autor é o funcionário ligado ou, sem vínculo, o nome que tinha lá.
+  const nome = u?.nome ?? a.autor_monday ?? '—';
   return (
     <header className="at-cab">
-      <Avatar nome={u?.nome ?? '?'} cor={u?.cor} tamanho={pequeno ? 26 : 32} />
-      <strong>{u?.nome ?? '—'}</strong>
+      <Avatar nome={u?.nome ?? a.autor_monday ?? '?'} cor={u?.cor} tamanho={pequeno ? 26 : 32} />
+      <strong>{nome}</strong>
       <small className="muted" title={a.criado_em}>{tempoRelativo(a.criado_em)}</small>
       {a.via === 'api' && <span className="selo-api" title={`Publicada pela API em nome de ${u?.nome ?? '?'} (chave ${a.chave_api ?? '?'})`}>API</span>}
+      {String(a.origem_id ?? '').startsWith('monday:') && <span className="selo-monday" title={`Copiada do monday${u ? '' : ' (autor sem funcionário ligado)'}`}>monday</span>}
       {/* Editada: só a marca e quando (não há histórico das versões). */}
       {a.editado_em && <small className="muted at-editado" title={`Editado em ${String(a.editado_em).slice(8, 10)}/${String(a.editado_em).slice(5, 7)}/${String(a.editado_em).slice(0, 4)} às ${String(a.editado_em).slice(11, 16)}`}>· editado {tempoRelativo(a.editado_em)}</small>}
       <span className="espaco" />

@@ -381,3 +381,47 @@ export const ordenarGrupos = <T extends { position: string }>(grupos: T[]) => [.
 
 /** Ids dos quadros de subitens apontados pela coluna "subtasks" do quadro. */
 export const quadrosDeSubitens = (colunas: MCol[]) => colunas.filter(c => c.type === 'subtasks').flatMap(c => ((json(c.settings_str)?.boardIds ?? []) as unknown[]).map(String));
+
+// ---------------------------------------------------------------- atualizações do monday (Function fridayAtualizacoesMonday)
+export type MAsset = { id: string; name: string; public_url?: string | null };
+export type MResposta = { id: string; body: string | null; created_at: string; creator_id: string | null; creator?: { name?: string | null } | null };
+export type MAtualizacao = MResposta & { item_id: string; replies?: MResposta[] | null; assets?: MAsset[] | null };
+
+const ENTIDADES: Record<string, string> = { amp: '&', lt: '<', gt: '>', quot: '"', apos: "'", nbsp: ' ' };
+const decodificar = (s: string) => s.replace(/&(#x[0-9a-f]+|#\d+|[a-z]+);/gi, (m, e: string) => {
+  if (e[0] !== '#') return ENTIDADES[e.toLowerCase()] ?? m;
+  const n = e[1].toLowerCase() === 'x' ? parseInt(e.slice(2), 16) : Number(e.slice(1));
+  return Number.isInteger(n) && n > 0 && n <= 0x10ffff ? String.fromCodePoint(n) : m;
+});
+
+/**
+ * Texto do Friday a partir do HTML de uma atualização do monday: parágrafos e quebras viram linhas, itens de lista
+ * ganham "• ", links ficam como endereço (com o texto antes, se diferente) e menções a pessoas ligadas a um
+ * funcionário (funcionarios.mondayId) viram @{uid}; as demais ficam com o nome.
+ */
+export function textoDoMonday(html: string | null | undefined, uidDoMonday: (mondayId: string) => string | undefined): string {
+  let s = String(html ?? '').replace(/<a\b([^>]*)>([\s\S]*?)<\/a>/gi, (_, attrs: string, dentro: string) => {
+    const texto = decodificar(dentro.replace(/<[^>]+>/g, '')).trim();
+    const mencao = /data-mention-type="user"/i.test(attrs) ? attrs.match(/data-mention-id="(\d+)"/i)?.[1] : undefined;
+    if (mencao) {
+      const uid = uidDoMonday(mencao);
+      return uid ? `@{${uid}}` : texto.startsWith('@') ? texto : `@${texto}`;
+    }
+    const href = decodificar(attrs.match(/href="([^"]*)"/i)?.[1] ?? '');
+    if (!/^https?:\/\//i.test(href)) return texto;
+    return !texto || texto === href ? href : `${texto} (${href})`;
+  });
+  s = s.replace(/<br\s*\/?>/gi, '\n').replace(/<li\b[^>]*>/gi, '• ').replace(/<\/(p|div|li|h[1-6]|blockquote|tr|pre)>/gi, '\n').replace(/<img\b[^>]*>/gi, '');
+  s = decodificar(s.replace(/<[^>]+>/g, '')).replace(/\u00a0/g, ' ');
+  return s.split('\n').map(l => l.replace(/[ \t]+$/, '')).join('\n').replace(/\n{3,}/g, '\n\n').trim();
+}
+
+/**
+ * Id no Friday de uma atualização trazida do monday: a hora em que foi escrita lá (milissegundos × 1000, como o
+ * novoId) mais o fim do id do monday. Assim ela entra na lista na ordem em que foi escrita, e não como nova.
+ */
+export function idDaAtualizacaoMonday(criadoEm: string, mondayId: string): number | null {
+  const ms = new Date(criadoEm).getTime();
+  const id = ms * 1000 + (Number(mondayId) % 1000 || 0);
+  return Number.isSafeInteger(id) && id > 0 ? id : null;
+}

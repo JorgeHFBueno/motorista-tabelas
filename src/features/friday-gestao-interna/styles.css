@@ -475,6 +475,7 @@ body.redimensionando .friday-root, body.redimensionando .friday-root * { cursor:
 .friday-root .hist-onde { display: flex; flex-direction: column; min-width: 0; }
 .friday-root .hist-onde > * { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 @media (max-width: 700px) { .friday-root .historico li { grid-template-columns: 1fr; gap: 4px; } }
+.friday-root .selo-monday { font-size: 10px; font-weight: 600; letter-spacing: 0.3px; border-radius: 8px; padding: 0 5px; background: #e6f0ff; color: #2952a3; }
 .friday-root .chave-criada { display: flex; align-items: center; gap: 10px; margin: 10px 0 14px; }
 .friday-root .chave-criada code { font-size: 14px; padding: 6px 10px; flex: 1; }
 .friday-root .inicio-resumo { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 12px; margin-bottom: 30px; }

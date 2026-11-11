@@ -232,7 +232,7 @@ async function acharItensPorOrigem(ids: string[], cache: Map<string, number>) {
 }
 
 /** UID do funcionário pelo id do usuário do monday (funcionarios.mondayId, ligado em Importar do monday → Pessoas). */
-async function pessoasDoMonday(): Promise<(mondayId: string) => string | undefined> {
+export async function pessoasDoMonday(): Promise<(mondayId: string) => string | undefined> {
   const snap = await db.collection('funcionarios').where('mondayId', '!=', null).get();
   const mapa = new Map(snap.docs.map(d => [String(d.get('mondayId')), d.id]));
   return id => mapa.get(id);
