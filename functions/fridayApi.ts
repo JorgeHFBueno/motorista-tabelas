@@ -1,4 +1,4 @@
-// API de leitura do Friday para robôs e assistentes (só GET, nada grava no Friday). Cada chave pertence a uma pessoa
+// API do Friday para robôs e assistentes: consulta (GET) e, com chave de escrita, gravação (POST). Cada chave pertence a uma pessoa
 // (friday-chaves-api/{sha256 da chave}: uid, nome, revogada_em) e enxerga exatamente o que essa pessoa vê na tela:
 // quadros abertos, restritos em que ela está em "acesso" e, para adm2, todos. A chave é criada e revogada pelo adm2
 // na tela "Chaves de API" do Friday; o banco guarda só o hash. Cabeçalho: `X-Friday-Chave: fri_...` (não usa
@@ -7,14 +7,17 @@
 // Contrato: The Manuscript, 02_APIS_FUNCTIONS/09_ROBOS_EXTERNOS_DE_OBRAS.md ("Leitura do Friday por chave").
 import { HttpsError, onRequest } from 'firebase-functions/v2/https';
 import * as logger from 'firebase-functions/logger';
+import { getStorage } from 'firebase-admin/storage';
 import { db } from './firebaseAdmin.js';
 import { valorDoOficial, type CampoOficial } from './fridayCadastroConverter.js';
 import { lerCaminho } from './fridayCadastrosExistentes.js';
 import { calcular, type Coluna as ColunaFormula } from './fridayFormula.js';
-import { criarItem, gravarValorDoItem, lerItem, novoContexto, vincularSeOficial } from './fridayAutomacoes.js';
+import { gravarAnexo } from './fridayAnexosMonday.js';
+import { criarItem, gravarValorDoItem, lerItem, novoContexto, subquadroDe, vincularSeOficial } from './fridayAutomacoes.js';
 import { dataLocal, novoId } from './fridayMondayConverter.js';
 import {
-  casaBusca, colunaDoPedido, EntradaInvalida, formatoChave, hashChave, mencoesDoTexto, palavrasDaBusca, pessoaDaChave, podeVerQuadro, textoCelula, valorDaEntrada, valoresPorTitulo,
+  anexoLegivel, casaBusca, colunaDoPedido, EntradaInvalida, entradaDaCelula, formatoChave, hashChave, LIMITE_ENVIO, mencoesDoTexto, nomeDoEnvio, palavrasDaBusca,
+  pessoaDaChave, podeVerQuadro, textoCelula, valorDaEntrada, valoresPorTitulo,
 } from './fridayApiDominio.js';
 
 type AnyRecord = Record<string, any>;
@@ -345,6 +348,85 @@ async function criarItemPeloPedido(e: Escrita, quadroId: number, corpo: AnyRecor
   return { item: item.id, nome, grupo: grupo.nome, gravado };
 }
 
+/**
+ * POST /itens/{id}/subitens { nome, valores?, simular? }: cria um subitem no item, no quadro de subitens do quadro (criado
+ * na primeira vez, com Responsável, Status e Data, como na tela). Valores pelas colunas do quadro de subitens.
+ */
+async function criarSubitemPeloPedido(e: Escrita, paiId: number, corpo: AnyRecord) {
+  const pai = await itemParaEscrever(e.pessoa, paiId);
+  if (pai.item_pai_id != null) throw new Recusa(400, 'Subitem não tem subitens: use o item principal.');
+  const quadro = (await colecao('quadros').doc(String(pai.quadro_id)).get()).data();
+  if (!quadro || (quadro.tipo != null && quadro.tipo !== 'quadro')) throw new Recusa(400, 'Subitens só nos itens de um quadro.');
+  const nome = String(corpo.nome ?? '').trim().slice(0, 500);
+  if (!nome) throw new Recusa(400, 'Informe nome.');
+  if (corpo.simular === true) {
+    const sub = (await colecao('quadros').where('quadro_pai_id', '==', Number(quadro.id)).where('tipo', '==', 'subitens').get()).docs.map(d => d.data())
+      .sort(porPosicao)[0];
+    const valores = sub ? await valoresDoPedido((await doQuadro('colunas', Number(sub.id))).filter(c => !c.excluido_em), corpo.valores) : [];
+    return {
+      simulado: true, item: paiId, nome, valores: Object.fromEntries(valores.map(v => [v.coluna.titulo, v.valor ?? null])),
+      ...(sub ? {} : { aviso: 'O quadro ainda não tem subitens: o quadro de subitens será criado (colunas Responsável, Status e Data) e os valores, conferidos nele.' }),
+    };
+  }
+  const { quadroId: subId, grupoId } = await subquadroDe(quadro);
+  const colunas = (await doQuadro('colunas', subId)).filter(c => !c.excluido_em);
+  const valores = await valoresDoPedido(colunas, corpo.valores);
+  const novo = await criarItem({ quadro_id: subId, grupo_id: grupoId, item_pai_id: paiId, nome, criado_por: e.pessoa.uid });
+  await registrar(e, { quadro_id: subId, item_id: novo.id, item_nome: nome, acao: 'criou' });
+  await vincularSeOficial(subId, novo.id, e.pessoa.uid);
+  const gravado = await gravarValores(e, novo.id, colunas, valores);
+  return { subitem: novo.id, nome, item: paiId, gravado };
+}
+
+// ---------------------------------------------------------------- arquivos (anexos do item)
+/** GET /itens/{id}/arquivos: arquivos do item (colunas de arquivos, atualizações e aba Arquivos), com o link de download. */
+async function listarArquivos(p: Pessoa, itemId: number) {
+  const item = await itemParaEscrever(p, itemId);
+  const [anexos, colunas] = await Promise.all([colecao('anexos').where('item_id', '==', itemId).get(), doQuadro('colunas', Number(item.quadro_id))]);
+  const titulo = new Map(colunas.map(c => [Number(c.id), String(c.titulo ?? '')]));
+  return {
+    item: itemId,
+    arquivos: anexos.docs.map(d => d.data()).sort((a, b) => Number(a.id) - Number(b.id)).map(a => anexoLegivel(a, id => titulo.get(id) ?? null)),
+  };
+}
+
+/** GET /arquivos/{id}: o conteúdo do arquivo, para quem tem só a chave (o item precisa estar num quadro que a pessoa vê). */
+async function baixarArquivo(p: Pessoa, anexoId: number) {
+  const a = (await colecao('anexos').doc(String(anexoId)).get()).data();
+  if (!a?.arquivo) throw new Recusa(404, 'Arquivo não encontrado.');
+  await itemParaEscrever(p, Number(a.item_id)).catch(() => { throw new Recusa(404, 'Arquivo não encontrado.'); });
+  const [dados] = await getStorage().bucket().file(String(a.arquivo)).download().catch(() => { throw new Recusa(404, 'Arquivo não encontrado no armazenamento.'); });
+  return { dados, mime: String(a.mime ?? 'application/octet-stream'), nome: String(a.nome ?? 'arquivo') };
+}
+
+/**
+ * POST /itens/{id}/arquivos?nome=arquivo.pdf[&coluna=Título][&simular=1], com o arquivo no corpo (até 25 MB): grava no
+ * Storage e em friday-anexos, com a pessoa da chave e a marca da chave. Com coluna (de arquivos), entra também na célula
+ * (com registro de atividade, como na tela); sem, fica na aba Arquivos do item.
+ */
+async function enviarArquivo(e: Escrita, itemId: number, consulta: AnyRecord, dados: Buffer | undefined, tipo: string | undefined) {
+  const item = await itemParaEscrever(e.pessoa, itemId);
+  const nome = nomeDoEnvio(consulta.nome);
+  if (!dados?.length) throw new Recusa(400, 'Mande o conteúdo do arquivo no corpo do pedido.');
+  if (dados.length > LIMITE_ENVIO) throw new Recusa(413, 'Arquivo maior que 25 MB.');
+  const colunas = (await doQuadro('colunas', Number(item.quadro_id))).filter(c => !c.excluido_em);
+  let coluna: AnyRecord | null = null;
+  if (consulta.coluna != null && String(consulta.coluna).trim()) {
+    coluna = colunaDoPedido(colunas.map(c => ({ ...c, id: Number(c.id), titulo: String(c.titulo ?? '') })), consulta.coluna);
+    if (coluna.tipo !== 'arquivos') throw new Recusa(400, `“${coluna.titulo}” não é coluna de arquivos.`);
+  }
+  if (/^(1|true|sim)$/i.test(String(consulta.simular ?? ''))) return { simulado: true, item: itemId, nome, tamanho: dados.length, coluna: coluna?.titulo ?? null };
+  const mime = tipo && !/^(application\/(json|x-www-form-urlencoded)|text\/plain|multipart\/)/i.test(tipo) ? tipo.split(';')[0].trim() : null;
+  const anexo = await gravarAnexo(getStorage().bucket(), item as AnyRecord & { id: number }, nome, dados, mime,
+    { atualizacao_id: null, coluna_id: coluna?.id ?? null, origem_id: null, ...autorDaChave(e) });
+  let gravado: AnyRecord[] | undefined;
+  if (coluna) {
+    const atual = (await colecao('itens').doc(String(itemId)).get()).data()?.valores?.[String(coluna.id)];
+    gravado = await gravarValores(e, itemId, colunas, [{ coluna, valor: [...(Array.isArray(atual) ? atual : []), entradaDaCelula(anexo)] }]);
+  }
+  return { item: itemId, arquivo: anexoLegivel(anexo, () => coluna?.titulo ?? null), ...(gravado ? { gravado } : {}) };
+}
+
 /** POST /itens/{id}/atualizacoes { texto }: publica uma atualização no item (menções como @{uid}). */
 async function publicarAtualizacao(e: Escrita, itemId: number, corpo: AnyRecord) {
   const item = await itemParaEscrever(e.pessoa, itemId);
@@ -373,8 +455,21 @@ export const fridayApi = onRequest({ region: REGIAO, timeoutSeconds: 120, memory
     else if (escrita && partes.length === 3 && partes[0] === 'itens' && id != null && partes[2] === 'valor') r = await escreverValor({ pessoa, chaveId }, id, corpo);
     else if (escrita && partes.length === 3 && partes[0] === 'quadros' && id != null && partes[2] === 'itens') r = await criarItemPeloPedido({ pessoa, chaveId }, id, corpo);
     else if (escrita && partes.length === 3 && partes[0] === 'itens' && id != null && partes[2] === 'atualizacoes') r = await publicarAtualizacao({ pessoa, chaveId }, id, corpo);
-    else throw new Recusa(404, 'Rota desconhecida. Consulta (GET): /eu, /quadros, /quadros/{id}, /buscar?q=. Escrita (POST): /itens/{id}/valor, /quadros/{id}/itens, /itens/{id}/atualizacoes.');
-    logger.info('friday-api', { uid: pessoa.uid, chave: chaveId, metodo: req.method, rota: req.path, simular: corpo.simular === true });
+    else if (escrita && partes.length === 3 && partes[0] === 'itens' && id != null && partes[2] === 'subitens') r = await criarSubitemPeloPedido({ pessoa, chaveId }, id, corpo);
+    else if (!escrita && partes.length === 3 && partes[0] === 'itens' && id != null && partes[2] === 'arquivos') r = await listarArquivos(pessoa, id);
+    else if (escrita && partes.length === 3 && partes[0] === 'itens' && id != null && partes[2] === 'arquivos') {
+      r = await enviarArquivo({ pessoa, chaveId }, id, req.query as AnyRecord, req.rawBody, req.get('content-type'));
+    } else if (!escrita && partes.length === 2 && partes[0] === 'arquivos' && id != null) {
+      // Download: o próprio arquivo, não JSON.
+      const a = await baixarArquivo(pessoa, id);
+      logger.info('friday-api', { uid: pessoa.uid, chave: chaveId, metodo: req.method, rota: req.path });
+      res.status(200).set({ 'Content-Type': a.mime, 'Content-Disposition': `attachment; filename*=UTF-8''${encodeURIComponent(a.nome)}` }).send(a.dados);
+      return;
+    } else {
+      throw new Recusa(404, 'Rota desconhecida. Consulta (GET): /eu, /quadros, /quadros/{id}, /buscar?q=, /itens/{id}/arquivos, /arquivos/{id}. '
+        + 'Escrita (POST): /itens/{id}/valor, /quadros/{id}/itens, /itens/{id}/subitens, /itens/{id}/atualizacoes, /itens/{id}/arquivos?nome=.');
+    }
+    logger.info('friday-api', { uid: pessoa.uid, chave: chaveId, metodo: req.method, rota: req.path, simular: corpo.simular === true || req.query.simular != null });
     res.status(200).json(r);
   } catch (e) {
     const status = e instanceof Recusa ? e.status : e instanceof EntradaInvalida ? 400 : e instanceof HttpsError ? (STATUS_HTTPS[e.code] ?? 500) : 500;

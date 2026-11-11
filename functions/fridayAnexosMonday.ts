@@ -110,9 +110,19 @@ export async function copiarAssetDoMonday(bucket: Bucket, item: Row, assetId: nu
   if (!res.ok) throw new Error(`download recusado (${res.status})`);
   const dados = Buffer.from(await res.arrayBuffer());
   if (dados.length > LIMITE_ARQUIVO) throw new Error('maior que 100 MB');
+  return gravarAnexo(bucket, item, nome, dados, res.headers.get('content-type'), { ...dono, origem_id: origem });
+}
+
+/**
+ * Grava um arquivo no Storage do Friday (friday/<quadro>/<item>/<anexo>-<nome>, com token de download, como a tela) e o
+ * registro em friday-anexos. `extra` completa o registro (dono, coluna, atualização, origem, marca da chave de API).
+ * Usado pela cópia do monday e pelo envio da API por chave (fridayApi.ts).
+ */
+export async function gravarAnexo(bucket: Bucket, item: Row, nome: string, dados: Buffer, mimeRecebido: string | null,
+  extra: { atualizacao_id: number | null; coluna_id: unknown; usuario_id: string; origem_id: string | null } & Record<string, unknown>): Promise<Row> {
   const id = novoId();
   const caminho = caminhoAnexo(item.quadro_id, item.id, id, nome);
-  const mime = mimeDoNome(nome) ?? res.headers.get('content-type') ?? 'application/octet-stream';
+  const mime = mimeDoNome(nome) ?? mimeRecebido ?? 'application/octet-stream';
   const tokenDownload = randomUUID();
   const arquivo = bucket.file(caminho);
   await arquivo.save(dados, {
@@ -120,9 +130,9 @@ export async function copiarAssetDoMonday(bucket: Bucket, item: Row, assetId: nu
     metadata: { contentDisposition: `inline; filename*=UTF-8''${encodeURIComponent(nome)}`, metadata: { firebaseStorageDownloadTokens: tokenDownload } },
   });
   const anexo: Row = {
-    id, item_id: item.id, quadro_id: item.quadro_id, atualizacao_id: dono.atualizacao_id, coluna_id: dono.coluna_id, nome, mime, tamanho: dados.length,
+    ...extra, id, item_id: item.id, quadro_id: item.quadro_id, nome, mime, tamanho: dados.length,
     arquivo: caminho, url: `https://firebasestorage.googleapis.com/v0/b/${bucket.name}/o/${encodeURIComponent(caminho)}?alt=media&token=${tokenDownload}`,
-    usuario_id: dono.usuario_id, criado_em: dataLocal(), origem_id: origem,
+    criado_em: dataLocal(),
   };
   try {
     await db.collection('friday-anexos').doc(String(id)).set(anexo);

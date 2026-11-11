@@ -81,6 +81,11 @@ test('webhook e avisos não são ações do executor; textos legíveis e chaves'
   assert.equal(r.ACOES_SUPORTADAS.has('mover'), true);
   assert.equal(r.textoDoValor(col('Arquivo'), rotulo('Arquivo', 'Arquivar')), 'Arquivar');
   assert.equal(r.textoDoValor({ id: 1, tipo: 'pessoa' }, ['u1', 'u2'], u => u.toUpperCase()), 'U1, U2');
+  // Valores em objeto (arquivos, período, link) viram texto como na tela, não "[object Object]".
+  assert.equal(r.textoDoValor({ id: 1, tipo: 'arquivos' }, [{ id: 7, nome: 'Edital.pdf' }, { id: 8, nome: 'Planta.dwg' }]), 'Edital.pdf, Planta.dwg');
+  assert.equal(r.textoDoValor({ id: 1, tipo: 'periodo' }, { inicio: '2026-11-01', fim: '2026-11-30' }), '2026-11-01 → 2026-11-30');
+  assert.equal(r.textoDoValor({ id: 1, tipo: 'link' }, { url: 'https://x', texto: 'Proposta' }), 'Proposta');
+  assert.equal(r.textoDoValor({ id: 1, tipo: 'link' }, { url: 'https://x' }), 'https://x');
   assert.equal(r.chaveDoEvento(3, 99), 'atividade:99:3');
   assert.equal(r.chaveDaData(3, 5, '2026-10-29'), 'data:3:5:2026-10-29');
 });

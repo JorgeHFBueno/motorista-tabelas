@@ -121,7 +121,7 @@ const COLUNAS_SUBITENS: [string, string, AnyRecord, number][] = [
   ['Data', 'data', {}, 120],
 ];
 /** Quadro de subitens e o grupo onde os subitens entram (cria na primeira vez, como a tela). */
-async function subquadroDe(pai: AnyRecord): Promise<{ quadroId: number; grupoId: number }> {
+export async function subquadroDe(pai: AnyRecord): Promise<{ quadroId: number; grupoId: number }> {
   const subs = (await colecao('quadros').where('quadro_pai_id', '==', Number(pai.id)).where('tipo', '==', 'subitens').get()).docs
     .map(d => d.data()).sort((a, b) => (Number(a.posicao) || 0) - (Number(b.posicao) || 0) || Number(a.id) - Number(b.id));
   const t = dataLocal();

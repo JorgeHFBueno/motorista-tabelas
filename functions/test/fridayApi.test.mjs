@@ -104,3 +104,19 @@ test('escrita: valor como uma pessoa escreveria vira o formato do Friday; o que 
   for (const tipo of ['formula', 'ligacao', 'arquivos', 'tempo']) assert.throws(() => v(tipo, 'x'), d.EntradaInvalida, tipo);
   assert.deepEqual(d.mencoesDoTexto('Oi @{uid-ana} e @{uid-ana}, ver @{uid-bia}'), ['uid-ana', 'uid-bia']);
 });
+
+test('arquivos pela API: nome do envio, coluna de arquivos recusada no /valor, formato da resposta e da célula', () => {
+  assert.equal(d.nomeDoEnvio('  ../pasta\\Proposta 2026.pdf '), '.._pasta_Proposta 2026.pdf');
+  assert.equal(d.nomeDoEnvio('a\u0000b\nc.pdf'), 'abc.pdf');
+  assert.equal(d.nomeDoEnvio('x'.repeat(300)).length, 200);
+  assert.throws(() => d.nomeDoEnvio(''), d.EntradaInvalida);
+  assert.throws(() => d.nomeDoEnvio(undefined), d.EntradaInvalida);
+  assert.throws(() => d.valorDaEntrada({ tipo: 'arquivos', titulo: 'Doc. Edital' }, 'x', { pessoa: () => null }), /POST \/itens\/\{id\}\/arquivos/);
+  assert.equal(d.LIMITE_ENVIO, 25 * 1024 * 1024);
+  const anexo = { id: 7, nome: 'Edital.pdf', mime: 'application/pdf', tamanho: 1234, coluna_id: 30, atualizacao_id: null, criado_em: '2026-11-11 12:00:00', url: 'https://x/y', arquivo: 'friday/1/2/7-Edital.pdf', via: 'api' };
+  assert.deepEqual(d.anexoLegivel(anexo, id => (id === 30 ? 'Doc. Edital' : null)), {
+    id: 7, nome: 'Edital.pdf', mime: 'application/pdf', tamanho: 1234, coluna: 'Doc. Edital', atualizacao: null, criado_em: '2026-11-11 12:00:00', url: 'https://x/y',
+  });
+  assert.equal(d.anexoLegivel({ ...anexo, coluna_id: null, atualizacao_id: 99 }, () => 'nunca').coluna, null);
+  assert.deepEqual(d.entradaDaCelula(anexo), { id: 7, nome: 'Edital.pdf', mime: 'application/pdf', tamanho: 1234, url: 'https://x/y' });
+});

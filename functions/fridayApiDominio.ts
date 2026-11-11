@@ -106,6 +106,7 @@ export function valorDaEntrada(coluna: { tipo: string; titulo: string; config?: 
       return l.texto ? { url: String(l.url), texto: String(l.texto) } : { url: String(l.url) };
     }
     case 'texto': case 'texto_longo': case 'telefone': case 'email': return String(v).slice(0, 5000);
+    case 'arquivos': throw new EntradaInvalida(`“${t}” é coluna de arquivos: envie o arquivo por POST /itens/{id}/arquivos?nome=…&coluna=${encodeURIComponent(t)}.`);
     default: throw new EntradaInvalida(`“${t}” (${coluna.tipo}) não pode ser gravada pela API.`);
   }
 }
@@ -168,3 +169,24 @@ export function casaBusca(nome: unknown, palavras: string[]) {
   const doNome = semAcento(String(nome ?? '')).split(/[^a-z0-9]+/).filter(Boolean);
   return palavras.every(p => doNome.some(w => w.startsWith(p)));
 }
+
+// ---------------------------------------------------------------- arquivos (anexos) pela API
+/** Limite de um arquivo enviado pela API: o mesmo da tela. */
+export const LIMITE_ENVIO = 25 * 1024 * 1024;
+
+/** Nome do arquivo enviado (?nome=): sem pastas nem caracteres de controle, até 200 caracteres. */
+export function nomeDoEnvio(nome: unknown): string {
+  const n = String(nome ?? '').replace(/[/\\]/g, '_').replace(/[\u0000-\u001f\u007f]/g, '').trim().slice(0, 200);
+  if (!n) throw new EntradaInvalida('Informe o nome do arquivo (?nome=arquivo.pdf) e mande o conteúdo no corpo do pedido.');
+  return n;
+}
+
+/** Anexo na resposta da API: onde está (coluna pelo título, atualização) e o link de download (com token). */
+export const anexoLegivel = (a: AnyRecord, tituloColuna: (id: number) => string | null) => ({
+  id: Number(a.id), nome: String(a.nome ?? ''), mime: a.mime ?? null, tamanho: Number(a.tamanho) || 0,
+  coluna: a.coluna_id != null ? tituloColuna(Number(a.coluna_id)) : null, atualizacao: a.atualizacao_id != null ? Number(a.atualizacao_id) : null,
+  criado_em: a.criado_em ?? null, url: a.url ?? null,
+});
+
+/** Entrada da célula de uma coluna de arquivos (como a tela grava). */
+export const entradaDaCelula = (a: AnyRecord) => ({ id: Number(a.id), nome: String(a.nome), mime: a.mime ?? null, tamanho: Number(a.tamanho) || 0, url: a.url ?? null });

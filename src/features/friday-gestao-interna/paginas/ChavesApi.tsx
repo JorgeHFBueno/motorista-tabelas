@@ -74,12 +74,16 @@ export default function ChavesApi() {
           <li><code>{ENDERECO_API}/quadros</code>: áreas, pastas e quadros que a pessoa vê.</li>
           <li><code>{ENDERECO_API}/quadros/&lt;id&gt;</code>: colunas, grupos, itens e subitens, com os valores em texto.</li>
           <li><code>{ENDERECO_API}/buscar?q=coqueiros</code>: itens pelo nome, em todos os quadros; com <code>&amp;quadro=&lt;id&gt;</code>, procura também nos valores daquele quadro (ex.: o subcentro).</li>
+          <li><code>{ENDERECO_API}/itens/&lt;id&gt;/arquivos</code>: arquivos do item (colunas, atualizações e aba Arquivos), com o link de download.</li>
+          <li><code>{ENDERECO_API}/arquivos/&lt;id&gt;</code>: baixa o arquivo (o próprio PDF, não JSON).</li>
         </ul>
         <p className="muted">Escrita (POST, corpo JSON), só chave de escrita; <code>"simular": true</code> confere sem gravar:</p>
         <ul className="muted">
           <li><code>{ENDERECO_API}/itens/&lt;id&gt;/valor</code> <code>{'{ "coluna": "Situação", "valor": "Parado" }'}</code>: muda uma célula (coluna pelo título ou id; status e lista pelo texto, pessoa pelo nome, data DD/MM/AAAA).</li>
           <li><code>{ENDERECO_API}/quadros/&lt;id&gt;/itens</code> <code>{'{ "nome": "…", "grupo": "…", "valores": { … } }'}</code>: cria um item.</li>
+          <li><code>{ENDERECO_API}/itens/&lt;id&gt;/subitens</code> <code>{'{ "nome": "…", "valores": { … } }'}</code>: cria um subitem no item.</li>
           <li><code>{ENDERECO_API}/itens/&lt;id&gt;/atualizacoes</code> <code>{'{ "texto": "…" }'}</code>: publica uma atualização.</li>
+          <li><code>{ENDERECO_API}/itens/&lt;id&gt;/arquivos?nome=Edital.pdf&amp;coluna=Doc.%20Edital</code>, com o arquivo no corpo (não JSON; até 25 MB): anexa o arquivo; sem <code>coluna</code>, vai para a aba Arquivos do item. Ex.: <code>curl --data-binary @Edital.pdf -H "Content-Type: application/pdf" …</code>.</li>
         </ul>
         <p className="muted">A escrita segue as regras da tela (campos oficiais validados, só leitura recusado, automações disparadas) e fica na atividade em nome da pessoa, com a marca “API”.</p>
       </section>

@@ -158,6 +158,10 @@ export function textoDoValor(coluna: Coluna, v: unknown, nomePessoa: (uid: strin
     case 'pessoa': return lista(v).map(nomePessoa).join(', ');
     case 'caixa': return v ? 'marcado' : null;
     case 'tempo': return sessoesDe(v).length ? `${fmtDuracao(totalSegundos(v))}${sessaoAberta(v) ? ' (cronômetro ligado)' : ''}` : null;
+    // Como o texto da tela (formatarValor em api.ts): valores em objeto não viram "[object Object]".
+    case 'periodo': { const p = v as AnyRecord; return `${p.inicio ?? '?'} → ${p.fim ?? '?'}`; }
+    case 'arquivos': return (Array.isArray(v) ? v : []).map(a => (a as AnyRecord)?.nome).filter(Boolean).join(', ') || null;
+    case 'link': return typeof v === 'string' ? v : String((v as AnyRecord).texto || (v as AnyRecord).url || '') || null;
     default: return String(v);
   }
 }
