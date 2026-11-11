@@ -21,7 +21,7 @@ const formatMonthYear = (date: Date) =>
     .replace(/^\p{L}/u, (c) => c.toUpperCase());
 
 const Fotos = () => {
-  const { activeObraId, activeObra } = useActiveObraId();
+  const { activeObraId } = useActiveObraId();
   const [selectedStage, setSelectedStage] = useState<FilterEtapa>(FILTER_ALL);
   const [selectedPhoto, setSelectedPhoto] = useState<Foto | null>(null);
   const [previewUrls, setPreviewUrls] = useState<Record<string, string>>({});
@@ -68,10 +68,6 @@ const Fotos = () => {
   return (
     <ResponsiveLayout headerTitle="Fotos" headerSubtitle="Registro visual da evolução da obra">
       <div className="px-4 py-6 lg:px-8 lg:py-8 space-y-6">
-        <div className="rounded-xl border bg-card p-4 text-sm text-muted-foreground">
-          {activeObra ? `Obra ativa: ${activeObra.nome}` : "Nenhuma obra selecionada."}
-        </div>
-
         <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }} className="grid grid-cols-3 gap-3 lg:gap-4">
           <div className="card-institutional p-3 lg:p-4 text-center">
             <p className="text-2xl lg:text-3xl font-bold text-primary">{totalCount}</p>

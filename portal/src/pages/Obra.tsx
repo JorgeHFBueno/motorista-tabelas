@@ -140,7 +140,7 @@ const StageCard = ({
 };
 
 const Obra = () => {
-  const { activeObraId, hasClientObra, obra, fases, isLoading, error, progressData } =
+  const { activeObraId, obra, fases, isLoading, error, progressData } =
     useClientObraOverview();
   const [expandedPhases, setExpandedPhases] = useState<Record<string, boolean>>(
     {},
@@ -185,14 +185,6 @@ const Obra = () => {
   return (
     <ResponsiveLayout headerTitle="Obra" headerSubtitle="Acompanhamento da construção">
       <div className="px-4 py-6 lg:px-8 lg:py-8 space-y-6">
-        <div className="rounded-xl border bg-card p-4 text-sm text-muted-foreground">
-          {!hasClientObra || !activeObraId
-            ? "Nenhuma obra selecionada."
-            : obra
-              ? `Obra ativa: ${obra.nome}`
-              : "Carregando dados da obra..."}
-        </div>
-
         <motion.div
           initial={{ opacity: 0, y: 8 }}
           animate={{ opacity: 1, y: 0 }}

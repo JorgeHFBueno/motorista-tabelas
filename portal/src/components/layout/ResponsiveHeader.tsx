@@ -1,13 +1,12 @@
-import { User, ChevronDown, Menu, LogOut, Loader2 } from "lucide-react";
+import { User, ChevronDown, LogOut, Loader2 } from "lucide-react";
 import logoLedurBranco from "@/assets/logo-ledur-branco.png";
 import { motion } from "framer-motion";
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { sendPasswordResetEmail } from "firebase/auth";
 import { doc, serverTimestamp, updateDoc } from "firebase/firestore";
 import { useAuth } from "@/contexts/AuthContext";
-import MenuLateral from "./MenuLateral";
+import AbasNavegacao from "./AbasNavegacao";
 import NotificationBell from "./NotificationBell";
 import ContratoSelector from "./ContratoSelector";
 import { useObra } from "@/contexts/ObraContext";
@@ -41,7 +40,6 @@ const ResponsiveHeader = ({
   pageTitle,
   pageSubtitle,
 }: ResponsiveHeaderProps) => {
-  const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isUserDialogOpen, setIsUserDialogOpen] = useState(false);
   const [nome, setNome] = useState("");
   const [isSaving, setIsSaving] = useState(false);
@@ -117,24 +115,12 @@ const ResponsiveHeader = ({
     }
   };
 
-  // Same ☰ button on every screen size (same model as the main WEB).
-  const menuButton = (className: string) => (
-    <button
-      onClick={() => setIsMenuOpen(true)}
-      aria-label="Abrir menu"
-      className={`bg-primary-foreground/10 hover:bg-primary-foreground/15 rounded-lg transition-colors ${className}`}
-    >
-      <Menu className="w-5 h-5" />
-    </button>
-  );
-
   return (
     <header className="bg-primary text-primary-foreground">
       {/* Mobile Header */}
       <div className="md:hidden px-4 pt-12 pb-5">
         <div className="flex items-center justify-between gap-2">
           <div className="flex min-w-0 items-center gap-2">
-            {menuButton("p-2 shrink-0")}
             <motion.div
               initial={{ opacity: 0, x: -20 }}
               animate={{ opacity: 1, x: 0 }}
@@ -170,7 +156,6 @@ const ResponsiveHeader = ({
       {/* Tablet Header (md to lg) */}
       <div className="hidden md:flex lg:hidden px-6 py-4 items-center justify-between">
         <div className="flex items-center gap-4">
-          {menuButton("p-2")}
           <div>
             <img src={logoLedurBranco} alt="Ledur Pré-Fabricados" className="h-8 w-auto" />
             <ContratoSelector className="text-primary-foreground/80" nameClassName="text-xs max-w-[220px]" />
@@ -196,19 +181,19 @@ const ResponsiveHeader = ({
       </div>
 
       {/* Desktop Header */}
-      <div className="hidden lg:flex px-8 py-4 items-center justify-between border-b border-primary-foreground/10">
+      <div className="hidden lg:flex px-8 pt-4 pb-2 items-center justify-between">
         <div className="flex items-center gap-4">
-          {menuButton("p-2.5")}
+          <img src={logoLedurBranco} alt="Ledur Pré-Fabricados" className="h-9 w-auto" />
           {pageTitle ? (
-            <div>
+            <div className="border-l border-primary-foreground/20 pl-4">
               <h1 className="text-xl font-semibold">{pageTitle}</h1>
               {pageSubtitle && (
                 <p className="text-sm text-primary-foreground/70">{pageSubtitle}</p>
               )}
             </div>
           ) : (
-            <div>
-              <h1 className="text-xl font-semibold">Dashboard</h1>
+            <div className="border-l border-primary-foreground/20 pl-4">
+              <h1 className="text-xl font-semibold">Início</h1>
               <p className="text-sm text-primary-foreground/70">Visão geral da sua obra</p>
             </div>
           )}
@@ -236,12 +221,7 @@ const ResponsiveHeader = ({
           </DropdownMenu>
         </div>
       </div>
-      <Sheet open={isMenuOpen} onOpenChange={setIsMenuOpen}>
-        <SheetContent side="left" className="w-64 bg-primary p-0 border-0 [&>button]:hidden">
-          <SheetTitle className="sr-only">Menu</SheetTitle>
-          <MenuLateral onClose={() => setIsMenuOpen(false)} />
-        </SheetContent>
-      </Sheet>
+      <AbasNavegacao />
       <Dialog open={isUserDialogOpen} onOpenChange={setIsUserDialogOpen}>
         <DialogContent>
           <DialogHeader>

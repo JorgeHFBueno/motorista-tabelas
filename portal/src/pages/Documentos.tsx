@@ -25,7 +25,7 @@ const formatBytes = (bytes?: number) => {
 };
 
 const Documentos = () => {
-  const { activeObraId, activeObra } = useActiveObraId();
+  const { activeObraId } = useActiveObraId();
   const { toast } = useToast();
   const [busca, setBusca] = useState("");
   const [categoria, setCategoria] = useState<DocumentoCategoria | null>(null);
@@ -54,10 +54,6 @@ const Documentos = () => {
   return (
     <ResponsiveLayout headerTitle="Documentos" headerSubtitle="Arquivo institucional e contratos">
       <div className="px-4 py-6 lg:px-8 lg:py-8 space-y-6">
-        <div className="rounded-xl border bg-card p-4 text-sm text-muted-foreground">
-          {activeObra ? `Obra ativa: ${activeObra.nome}` : "Nenhuma obra selecionada."}
-        </div>
-
         <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="relative">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
           <Input

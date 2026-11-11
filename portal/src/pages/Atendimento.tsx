@@ -154,7 +154,7 @@ const Atendimento = () => {
   };
 
   return (
-    <ResponsiveLayout headerTitle="Atendimento" headerSubtitle="Abra tickets e acompanhe o suporte da sua conta">
+    <ResponsiveLayout headerTitle="Suporte" headerSubtitle="Fale com a equipe da Ledur">
       <div className="space-y-6 px-4 py-6 lg:px-8 lg:py-8">
         <div className="grid gap-4 lg:grid-cols-[320px_minmax(0,1fr)]">
           <div className="space-y-4">
