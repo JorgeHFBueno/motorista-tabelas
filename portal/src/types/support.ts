@@ -17,6 +17,19 @@ export type SupportTicketPriority = (typeof SUPPORT_TICKET_PRIORITIES)[number];
 export type SupportTicketStatus = (typeof SUPPORT_TICKET_STATUSES)[number];
 export type SupportAuthorType = "cliente" | "equipe";
 
+// The client does not pick the priority: it follows the category.
+export const PRIORIDADE_DA_CATEGORIA: Record<SupportTicketCategory, SupportTicketPriority> = {
+  tecnico: "media",
+  financeiro: "alta",
+  comercial: "alta",
+  outro: "baixa",
+};
+
+// A ticket about a new construction: commercial, marked novaObra, and linked to the active contract (the Rules ask
+// every ticket for a contract of the client).
+export const NOVA_OBRA = "nova-obra";
+export const NOVA_OBRA_LABEL = "Nova obra";
+
 export interface SupportAttachment {
   nome: string;
   path: string;
@@ -26,6 +39,8 @@ export interface SupportAttachment {
 export interface SupportTicket {
   id: string;
   obraId: string;
+  // Opened through "Nova obra": about a new construction, not about the linked contract.
+  novaObra: boolean;
   clienteDocumento: string;
   criadoPor: PessoaRef | null;
   titulo: string;

@@ -19,7 +19,7 @@ const SupportMessageComposer = ({
   disabled = false,
   isSubmitting = false,
   placeholder = "Digite sua mensagem...",
-  closedMessage = "Este ticket está fechado e não aceita novas mensagens.",
+  closedMessage = "Este chamado está fechado e não aceita novas mensagens.",
 }: SupportMessageComposerProps) => (
   <div className="space-y-3 rounded-2xl border bg-card p-4">
     <Textarea

@@ -2,7 +2,7 @@ import { ExternalLink, ImageOff } from "lucide-react";
 import { useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
-import { NEWS_CATEGORY_LABELS, type NoticiaDoc } from "@/types/noticias";
+import type { NoticiaDoc } from "@/types/noticias";
 
 const formatDate = (value: NoticiaDoc["publicadoEm"]) => {
   if (!value) return "Data indisponível";
@@ -36,8 +36,8 @@ export const NewsCard = ({ noticia }: { noticia: NoticiaDoc }) => {
         )}
       </div>
       <CardContent className="p-4 space-y-3">
+        {/* The category is in the section title and the category bar, not on each card. */}
         <div className="flex gap-2 flex-wrap">
-          <Badge variant="secondary">{NEWS_CATEGORY_LABELS[noticia.categoria]}</Badge>
           <Badge variant="outline" className="capitalize">{noticia.origem}</Badge>
         </div>
         <h3 className="font-semibold text-sm leading-snug">{noticia.titulo}</h3>

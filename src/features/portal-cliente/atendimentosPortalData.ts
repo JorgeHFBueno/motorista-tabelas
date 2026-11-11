@@ -51,6 +51,8 @@ export const ROTULO_PRIORIDADE: Record<PrioridadeAtendimento, string> = {
 export type Atendimento = {
   id: string;
   obraId: string;
+  // Opened by the client through "Nova obra": about a new construction, linked to the client's active contract.
+  novaObra: boolean;
   clienteDocumento: string;
   criadoPor: PessoaRef | null;
   titulo: string;
@@ -105,6 +107,7 @@ function paraAtendimento(id: string, d: DocumentData): Atendimento {
   return {
     id,
     obraId: texto(d.obraId),
+    novaObra: d.novaObra === true,
     clienteDocumento: texto(d.clienteDocumento),
     criadoPor: pessoa(d.criadoPor),
     titulo: texto(d.titulo) || 'Atendimento',

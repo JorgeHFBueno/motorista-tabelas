@@ -1,15 +1,14 @@
 import { NewsCard } from "@/components/noticias/NewsCard";
-import type { NoticiaDoc } from "@/types/noticias";
+import { COR_CATEGORIA, idDaCategoria } from "@/components/noticias/categorias";
+import { cn } from "@/lib/utils";
+import { NEWS_CATEGORY_LABELS, type NoticiaCategoria, type NoticiaDoc } from "@/types/noticias";
 
-export const NewsSection = ({
-  title,
-  items,
-}: {
-  title: string;
-  items: NoticiaDoc[];
-}) => (
-  <section className="space-y-3">
-    <h2 className="text-lg font-semibold">{title}</h2>
+export const NewsSection = ({ categoria, items }: { categoria: NoticiaCategoria; items: NoticiaDoc[] }) => (
+  // scroll-mt leaves room for the sticky category bar when a chip scrolls here.
+  <section id={idDaCategoria(categoria)} className="scroll-mt-20 space-y-3">
+    <h2 className={cn("inline-flex rounded-lg px-3 py-1 text-base font-semibold", COR_CATEGORIA[categoria])}>
+      {NEWS_CATEGORY_LABELS[categoria]}
+    </h2>
     {items.length === 0 ? (
       <div className="rounded-lg border border-dashed p-6 text-sm text-muted-foreground">
         Nenhuma notícia publicada nesta categoria.

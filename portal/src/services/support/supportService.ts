@@ -17,13 +17,13 @@ import { db } from "@/lib/firebase";
 import { PORTAL_COLECOES, toMillis } from "@/lib/portal";
 import type { ObraDoc, PessoaRef } from "@/types/rbac";
 import {
+  PRIORIDADE_DA_CATEGORIA,
   SUPPORT_TICKET_CATEGORIES,
   SUPPORT_TICKET_PRIORITIES,
   SUPPORT_TICKET_STATUSES,
   type SupportTicket,
   type SupportTicketCategory,
   type SupportTicketMessage,
-  type SupportTicketPriority,
 } from "@/types/support";
 
 // Client side of portal-atendimentos (Manuscript portal.md). Notices to the team come with the Functions stage.
@@ -50,6 +50,7 @@ const mapTicket = (id: string, data: DocumentData): SupportTicket => {
   return {
     id,
     obraId: asString(data.obraId),
+    novaObra: data.novaObra === true,
     clienteDocumento: asString(data.clienteDocumento),
     criadoPor: asPessoa(data.criadoPor),
     titulo: asString(data.titulo) || "Atendimento",
@@ -129,29 +130,32 @@ export const createSupportTicket = async ({
   titulo,
   descricaoInicial,
   categoria,
-  prioridade,
+  novaObra,
 }: {
   obra: ObraDoc;
   autor: PessoaRef;
   titulo: string;
   descricaoInicial: string;
   categoria: SupportTicketCategory;
-  prioridade: SupportTicketPriority;
+  novaObra: boolean;
 }) => {
   const tituloLimpo = titulo.trim();
   const descricao = descricaoInicial.trim();
-  if (!tituloLimpo) throw new Error("Informe um título para o atendimento.");
+  if (!tituloLimpo) throw new Error("Informe um título para o chamado.");
   if (!descricao) throw new Error("Descreva o que você precisa.");
 
+  // A new construction is always commercial; the priority follows the category.
+  const categoriaFinal: SupportTicketCategory = novaObra ? "comercial" : categoria;
   const novoTicket = doc(ticketsCollection());
   await setDoc(novoTicket, {
     obraId: obra.id,
+    novaObra,
     clienteDocumento: obra.clienteDocumento,
     criadoPor: autor,
     titulo: tituloLimpo,
     descricaoInicial: descricao,
-    categoria,
-    prioridade,
+    categoria: categoriaFinal,
+    prioridade: PRIORIDADE_DA_CATEGORIA[categoriaFinal],
     status: "aberto",
     responsavel: null,
     ultimaMensagem: { resumo: truncateText(descricao), em: serverTimestamp(), autorTipo: "cliente" },

@@ -1,15 +1,38 @@
 import ResponsiveLayout from "@/components/layout/ResponsiveLayout";
 import { NewsSection } from "@/components/noticias/NewsSection";
+import { COR_CATEGORIA, idDaCategoria, ordenarCategorias } from "@/components/noticias/categorias";
 import { Skeleton } from "@/components/ui/skeleton";
 import { usePublicNoticias } from "@/hooks/useNoticias";
-import { NEWS_CATEGORY_LABELS, NOTICIAS_CATEGORIAS } from "@/types/noticias";
+import { cn } from "@/lib/utils";
+import { NEWS_CATEGORY_LABELS } from "@/types/noticias";
 
 const Noticias = () => {
   const { data, isLoading, isError } = usePublicNoticias();
+  const categorias = ordenarCategorias(data);
 
   return (
     <ResponsiveLayout headerTitle="Notícias" headerSubtitle="Mercado, economia e inteligência estratégica">
       <div className="px-4 py-6 lg:px-8 lg:py-8 space-y-6">
+        {/* Category bar: a chip scrolls to where its category starts. */}
+        <nav
+          aria-label="Categorias de notícias"
+          className="sticky top-0 z-10 -mx-4 flex gap-2 overflow-x-auto bg-background/95 px-4 py-2 backdrop-blur lg:-mx-8 lg:px-8"
+        >
+          {categorias.map((categoria) => (
+            <button
+              key={categoria}
+              type="button"
+              onClick={() => document.getElementById(idDaCategoria(categoria))?.scrollIntoView({ behavior: "smooth", block: "start" })}
+              className={cn(
+                "shrink-0 whitespace-nowrap rounded-full px-3.5 py-1.5 text-sm font-semibold transition-opacity hover:opacity-85",
+                COR_CATEGORIA[categoria],
+              )}
+            >
+              {NEWS_CATEGORY_LABELS[categoria]}
+            </button>
+          ))}
+        </nav>
+
         {isLoading && (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {Array.from({ length: 6 }).map((_, index) => (
@@ -24,12 +47,8 @@ const Noticias = () => {
           </div>
         )}
 
-        {!isLoading && !isError && NOTICIAS_CATEGORIAS.map((categoria) => (
-          <NewsSection
-            key={categoria}
-            title={NEWS_CATEGORY_LABELS[categoria]}
-            items={data[categoria] ?? []}
-          />
+        {!isLoading && !isError && categorias.map((categoria) => (
+          <NewsSection key={categoria} categoria={categoria} items={data[categoria] ?? []} />
         ))}
       </div>
     </ResponsiveLayout>

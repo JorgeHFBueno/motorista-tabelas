@@ -102,6 +102,7 @@ function LinhaAtendimento({ item, obra, selecionado, onOpen }: { item: Atendimen
     >
       <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" useFlexGap mb={0.5}>
         <Chip size="small" color={COR_STATUS[item.status]} label={ROTULO_STATUS[item.status]} />
+        {item.novaObra && <Chip size="small" color="warning" label="Nova obra" />}
         <Chip size="small" variant="outlined" color={COR_PRIORIDADE[item.prioridade]} label={ROTULO_PRIORIDADE[item.prioridade]} />
         {item.naoLidasEquipe > 0 && (
           <Chip size="small" color="primary" label={item.naoLidasEquipe === 1 ? '1 nova' : `${item.naoLidasEquipe} novas`} />
@@ -333,7 +334,11 @@ export default function AtendimentoPortalPage() {
                   <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(3, minmax(0, 1fr))' }, gap: 2 }}>
                     <Box minWidth={0}>
                       <Typography sx={{ fontSize: 12 }} color="text.secondary">Contrato</Typography>
-                      <Typography sx={{ fontWeight: 600, overflowWrap: 'anywhere' }}>{obraSelecionada?.nome ?? selecionado.obraId}</Typography>
+                      <Typography sx={{ fontWeight: 600, overflowWrap: 'anywhere' }}>
+                        {selecionado.novaObra
+                          ? `Nova obra (aberto em ${obraSelecionada?.nome ?? selecionado.obraId})`
+                          : obraSelecionada?.nome ?? selecionado.obraId}
+                      </Typography>
                     </Box>
                     <Box minWidth={0}>
                       <Typography sx={{ fontSize: 12 }} color="text.secondary">Cliente</Typography>
