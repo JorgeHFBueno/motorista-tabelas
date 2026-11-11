@@ -20,8 +20,10 @@ export interface Programacao {
   status: string;
   inicio: CivilDate | null;
   fim: CivilDate | null;
-  motorista: RefPessoa | null;
-  auxiliar: RefPessoa | null;
+  /** Item do quadro FUNCIONARIOS do Friday (id do item); as linhas de antes guardam o UID de funcionarios no mesmo `id`. */
+  motorista: RefCadastro | null;
+  /** Item do Banco de Currículos do Friday; as linhas de antes, o UID de funcionarios. */
+  auxiliar: RefCadastro | null;
   /** Um ou mais veículos (até MAX_VEICULOS), sem repetir. */
   veiculos: RefCadastro[];
   obra: RefCadastro | null;
@@ -29,6 +31,13 @@ export interface Programacao {
 }
 
 export const MAX_VEICULOS = 4;
+
+/** Motorista/auxiliar gravado: `{id, nome}` (item do Friday) ou, nas linhas de antes, `{uid, nome}` (funcionarios). */
+export function pessoaDoDocumento(value: unknown): RefCadastro | null {
+  const ref = value as { id?: unknown; uid?: unknown; nome?: unknown } | null | undefined;
+  const id = typeof ref?.id === 'string' && ref.id ? ref.id : typeof ref?.uid === 'string' && ref.uid ? ref.uid : null;
+  return id ? { id, nome: typeof ref?.nome === 'string' ? ref.nome : '' } : null;
+}
 
 /** `veiculos` do documento; os gravados antes da lista guardam um só, em `veiculo`. Sem repetir, até MAX_VEICULOS. */
 export function veiculosDoDocumento(value: { veiculos?: unknown; veiculo?: unknown }): RefCadastro[] {

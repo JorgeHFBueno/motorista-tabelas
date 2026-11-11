@@ -1428,7 +1428,7 @@ test('[firestore] logistica: só adm2 lê, cria semana no formato e programaçã
   await assertFails(setDoc(doc(adm2, 'logistica-programacoes', 'lp3'), programacao({ item: '' })));
   await assertFails(setDoc(doc(adm2, 'logistica-programacoes', 'lp3'), programacao({ inicio: '2026-11-05', fim: '2026-11-04' })));
   await assertFails(setDoc(doc(adm2, 'logistica-programacoes', 'lp3'), programacao({ inicio: '03/11/2026' })));
-  await assertFails(setDoc(doc(adm2, 'logistica-programacoes', 'lp3'), programacao({ motorista: { id: 'uid-user', nome: 'User' } })));
+  await assertFails(setDoc(doc(adm2, 'logistica-programacoes', 'lp3'), programacao({ motorista: { nome: 'User' } })));
   await assertFails(setDoc(doc(adm2, 'logistica-programacoes', 'lp3'), programacao({ criadoPorUid: 'uid-user' })));
   await assertFails(setDoc(doc(adm2, 'logistica-programacoes', 'lp3'), programacao({ outro: true })));
   await assertSucceeds(setDoc(doc(adm2, 'logistica-programacoes', 'lp3'), programacao({ inicio: '2026-11-05', fim: null, veiculo: null })));
@@ -1554,6 +1554,22 @@ test('[firestore] logistica: código da linha com o contador da semana; etiqueta
   await assertFails(getDoc(config('engenharia')));
   await assertFails(setDoc(config('engenharia'), etiquetas(2, { atualizadoPorUid: 'uid-engenharia' })));
   await assertFails(deleteDoc(config('logistica')));
+});
+
+test('[firestore] logistica: motorista e auxiliar do Friday {id, nome}; o {uid, nome} de antes continua aceito', async () => {
+  const quem = dbAs('logistica');
+  const linha = (extra = {}) => ({
+    schemaVersion: 1, cod: '45020850', semanaId: '2026-W45', item: 'Transporte', status: '', inicio: null, fim: null,
+    motorista: null, auxiliar: null, veiculos: [], obra: null, posicao: 1,
+    criadoPorUid: 'uid-logistica', criadoEm: serverTimestamp(), atualizadoPorUid: 'uid-logistica', atualizadoEm: serverTimestamp(), ...extra,
+  });
+  const alterou = { atualizadoPorUid: 'uid-logistica', atualizadoEm: serverTimestamp() };
+  await assertSucceeds(setDoc(doc(quem, 'logistica-programacoes', 'lf1'), linha({ motorista: { id: '1793804494999001', nome: 'Ederson' }, auxiliar: { id: '1793804423999002', nome: 'Ana' } })));
+  await assertSucceeds(setDoc(doc(quem, 'logistica-programacoes', 'lf2'), linha({ motorista: { uid: 'uid-user', nome: 'User' } })));
+  await assertSucceeds(updateDoc(doc(quem, 'logistica-programacoes', 'lf2'), { motorista: { id: '1793804494999001', nome: 'Ederson' }, ...alterou }));
+  await assertFails(setDoc(doc(quem, 'logistica-programacoes', 'lf3'), linha({ motorista: { id: '1', uid: '2', nome: 'X' } })));
+  await assertFails(setDoc(doc(quem, 'logistica-programacoes', 'lf3'), linha({ auxiliar: { nome: 'Sem id' } })));
+  await assertFails(setDoc(doc(quem, 'logistica-programacoes', 'lf3'), linha({ auxiliar: { id: '', nome: 'Vazio' } })));
 });
 
 test('[firestore] dev-salas: só retr0; entra com vaga, só quem criou começa, só quem está na vez joga, qualquer jogador desiste', async () => {

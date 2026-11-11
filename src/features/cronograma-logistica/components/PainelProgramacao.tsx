@@ -57,7 +57,7 @@ export function PainelProgramacao({ programacao, aba, onAba, observacoes, eu, ca
                 <CampoEscolha rotulo="Motorista" valor={opcaoPessoa(programacao.motorista, cadastros)} opcoes={cadastros.motoristas} onSalvar={(opcao) => acoes.atualizar(programacao.id, { motorista: refPessoa(opcao) })} />
               </label>
               <label className="lg-painel-campo"><span>Auxiliar</span>
-                <CampoEscolha rotulo="Auxiliar" valor={opcaoPessoa(programacao.auxiliar, cadastros)} opcoes={cadastros.pessoas} onSalvar={(opcao) => acoes.atualizar(programacao.id, { auxiliar: refPessoa(opcao) })} />
+                <CampoEscolha rotulo="Auxiliar" valor={opcaoPessoa(programacao.auxiliar, cadastros)} opcoes={cadastros.auxiliares} onSalvar={(opcao) => acoes.atualizar(programacao.id, { auxiliar: refPessoa(opcao) })} />
               </label>
               <label className="lg-painel-campo"><span>Veículos</span>
                 <CampoEscolhaVarios rotulo="Veículos" maximo={MAX_VEICULOS} valores={opcoesVeiculos(programacao.veiculos, cadastros)} opcoes={cadastros.veiculos} onSalvar={(opcoes) => acoes.atualizar(programacao.id, { veiculos: refsCadastro(opcoes) })} />

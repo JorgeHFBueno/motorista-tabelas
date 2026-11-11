@@ -2,10 +2,11 @@ import {
   collection, deleteDoc, deleteField, doc, getDocs, onSnapshot, query, runTransaction, serverTimestamp, setDoc,
   updateDoc, where, writeBatch, type Timestamp,
 } from 'firebase/firestore';
+import { httpsCallable } from 'firebase/functions';
 import { deleteObject, getDownloadURL, ref as refArquivo, uploadBytes } from 'firebase/storage';
-import { db, storage } from '../../../firebase';
+import { db, functions, storage } from '../../../firebase';
 import {
-  veiculosDoDocumento, type AnexoObservacao, type Observacao, type Programacao, type ProgramacaoEditavel, type RefCadastro,
+  pessoaDoDocumento, veiculosDoDocumento, type AnexoObservacao, type Observacao, type Programacao, type ProgramacaoEditavel, type RefCadastro,
   type RefPessoa, type Semana,
 } from '../domain/models';
 import { codigoDaProgramacao } from '../domain/codigo';
@@ -45,8 +46,8 @@ export function programacaoDoDocumento(id: string, value: Record<string, unknown
     status: texto(value.status),
     inicio: data(value.inicio),
     fim: data(value.fim),
-    motorista: refPessoa(value.motorista),
-    auxiliar: refPessoa(value.auxiliar),
+    motorista: pessoaDoDocumento(value.motorista),
+    auxiliar: pessoaDoDocumento(value.auxiliar),
     veiculos: veiculosDoDocumento(value),
     obra: refCadastro(value.obra),
     posicao: typeof value.posicao === 'number' ? value.posicao : 0,
@@ -105,6 +106,15 @@ export function observarObservacoes(onData: (observacoes: Observacao[]) => void,
       .map((item) => observacaoDoDocumento(item.id, item.data({ serverTimestamps: 'estimate' })))
       .filter((item): item is Observacao => item !== null));
   }, onError);
+}
+
+export interface PessoaFriday { id: string; nome: string; funcao?: string }
+export interface PessoasFriday { motoristas: PessoaFriday[]; auxiliares: PessoaFriday[] }
+
+/** Motoristas (quadro FUNCIONARIOS) e auxiliares (Banco de Currículos) do Friday, só nome e função (Function). */
+export async function pessoasDoFriday(): Promise<PessoasFriday> {
+  const resultado = await httpsCallable<void, PessoasFriday>(functions, 'logisticaPessoasFriday')();
+  return { motoristas: resultado.data?.motoristas ?? [], auxiliares: resultado.data?.auxiliares ?? [] };
 }
 
 /** Etiquetas de status (logistica-config/status); sem o documento, as padrão. */

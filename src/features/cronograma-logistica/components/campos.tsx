@@ -11,7 +11,7 @@ import {
   type EtiquetaStatus,
 } from '../domain/status';
 
-export interface Opcao { id: string; nome: string }
+export interface Opcao { id: string; nome: string; /** Texto menor ao lado do nome na lista (ex.: a função desejada). */ detalhe?: string }
 
 /** Texto que grava ao sair do campo ou no Enter; Esc desfaz. */
 export function CampoTexto({ valor, onSalvar, placeholder, obrigatorio = false, maximo, className = '' }: {
@@ -80,6 +80,8 @@ export function CampoPeriodo({ inicio, fim, onSalvar }: {
   );
 }
 
+const semAcento = (texto: string) => texto.normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim().toLowerCase();
+
 /** Escolha num cadastro, com busca. O valor atual entra nas opções mesmo que tenha saído do cadastro. */
 export function CampoEscolha({ valor, opcoes, onSalvar, rotulo }: {
   valor: Opcao | null;
@@ -96,6 +98,15 @@ export function CampoEscolha({ valor, opcoes, onSalvar, rotulo }: {
       value={valor}
       getOptionLabel={(opcao) => opcao.nome}
       isOptionEqualToValue={(opcao, atual) => opcao.id === atual.id}
+      filterOptions={(lista, { inputValue }) => {
+        const busca = semAcento(inputValue);
+        return busca ? lista.filter((opcao) => semAcento(`${opcao.nome} ${opcao.detalhe ?? ''}`).includes(busca)) : lista;
+      }}
+      renderOption={({ key, ...props }, opcao) => (
+        <li key={key} {...props}>
+          <span className="lg-opcao"><span>{opcao.nome}</span>{opcao.detalhe && <small>{opcao.detalhe}</small>}</span>
+        </li>
+      )}
       onChange={(_event, novo) => onSalvar(novo)}
       noOptionsText="Nada encontrado"
       renderInput={(params) => (

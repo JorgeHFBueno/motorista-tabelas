@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { veiculosDoDocumento, type Programacao } from '../src/features/cronograma-logistica/domain/models';
+import { pessoaDoDocumento, veiculosDoDocumento, type Programacao } from '../src/features/cronograma-logistica/domain/models';
 import { posicaoAoSoltar } from '../src/features/cronograma-logistica/domain/ordem';
 import {
   COR_SEM_STATUS, ETIQUETAS_PADRAO, etiquetasLimpas, novoIdEtiqueta, statusAoSalvarEtiquetas, statusExibido, textoEscuro,
@@ -64,11 +64,11 @@ test('período: um só lado vale como um dia; sem datas não há período', () =
 
 test('conflito: mesma pessoa (motorista ou auxiliar) ou mesmo veículo no mesmo dia', () => {
   const lista = [
-    programacao('a', { item: 'Transporte', inicio: '2026-11-02', fim: '2026-11-04', motorista: { uid: 'u1', nome: 'Ederson' }, veiculos: [{ id: 'v1', nome: 'TRK-8I95' }] }),
-    programacao('b', { item: 'Montagem', inicio: '2026-11-04', fim: '2026-11-06', auxiliar: { uid: 'u1', nome: 'Ederson' } }),
+    programacao('a', { item: 'Transporte', inicio: '2026-11-02', fim: '2026-11-04', motorista: { id: 'u1', nome: 'Ederson' }, veiculos: [{ id: 'v1', nome: 'TRK-8I95' }] }),
+    programacao('b', { item: 'Montagem', inicio: '2026-11-04', fim: '2026-11-06', auxiliar: { id: 'u1', nome: 'Ederson' } }),
     programacao('c', { item: 'Buscar', inicio: '2026-11-03', fim: null, veiculos: [{ id: 'v2', nome: 'IVF-8072' }, { id: 'v1', nome: 'TRK-8I95' }] }),
-    programacao('d', { item: 'Sem data', motorista: { uid: 'u1', nome: 'Ederson' } }),
-    programacao('e', { item: 'Outro dia', inicio: '2026-11-09', motorista: { uid: 'u1', nome: 'Ederson' } }),
+    programacao('d', { item: 'Sem data', motorista: { id: 'u1', nome: 'Ederson' } }),
+    programacao('e', { item: 'Outro dia', inicio: '2026-11-09', motorista: { id: 'u1', nome: 'Ederson' } }),
   ];
   const conflitos = conflitosPorProgramacao(lista);
   assert.deepEqual(conflitos.get('a')?.map(textoConflito).sort(), ['Ederson também em "Montagem" (04/11)', 'TRK-8I95 também em "Buscar" (03/11)']);
@@ -162,4 +162,11 @@ test('arrastar: a nova posição fica entre os vizinhos; soltar no mesmo lugar n
   assert.equal(posicaoAoSoltar(linhas, 'c', null), null);  // já é a última
   assert.equal(posicaoAoSoltar(linhas, 'b', 'b'), null);
   assert.equal(posicaoAoSoltar(linhas, 'b', 'x'), null);   // alvo de outra semana
+});
+
+test('motorista/auxiliar: item do Friday {id, nome}; a linha de antes guarda {uid, nome} de funcionarios', () => {
+  assert.deepEqual(pessoaDoDocumento({ id: '1793804494999001', nome: 'Ederson' }), { id: '1793804494999001', nome: 'Ederson' });
+  assert.deepEqual(pessoaDoDocumento({ uid: 'abcUID', nome: 'Fernando' }), { id: 'abcUID', nome: 'Fernando' });
+  assert.equal(pessoaDoDocumento(null), null);
+  assert.equal(pessoaDoDocumento({ id: '', nome: 'x' }), null);
 });

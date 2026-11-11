@@ -1441,8 +1441,9 @@ service cloud.firestore {
         && logisticaDataOuNula(data.inicio)
         && logisticaDataOuNula(data.fim)
         && (data.inicio == null || data.fim == null || data.fim >= data.inicio)
-        && logisticaRef(data.motorista, 'uid')
-        && logisticaRef(data.auxiliar, 'uid')
+        // Pessoa: item do Friday {id, nome} (FUNCIONARIOS, Banco de Currículos) ou, nas linhas de antes, {uid, nome}.
+        && (logisticaRef(data.motorista, 'id') || logisticaRef(data.motorista, 'uid'))
+        && (logisticaRef(data.auxiliar, 'id') || logisticaRef(data.auxiliar, 'uid'))
         && (!('veiculo' in data) || logisticaRef(data.veiculo, 'id'))
         && (!('veiculos' in data) || logisticaVeiculos(data.veiculos))
         && logisticaRef(data.obra, 'id')

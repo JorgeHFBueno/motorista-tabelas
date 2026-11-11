@@ -142,6 +142,10 @@
 .lg-status-grade .lg-status { min-height: 32px; border-radius: 3px; display: block; line-height: 32px; }
 .lg-status-grade .lg-status.is-atual { box-shadow: 0 0 0 2px #fff, 0 0 0 4px #323338; }
 
+/* opção com detalhe (auxiliar: função desejada), na lista do Autocomplete (fora de .lg-pagina) */
+.lg-opcao { display: flex; flex-direction: column; line-height: 1.25; }
+.lg-opcao small { color: #676879; font-size: 12px; }
+
 /* código da linha */
 .lg-col-cod { padding: 0 8px !important; color: var(--lg-texto-2); font-size: 13px; font-variant-numeric: tabular-nums; text-align: center; white-space: nowrap; }
 

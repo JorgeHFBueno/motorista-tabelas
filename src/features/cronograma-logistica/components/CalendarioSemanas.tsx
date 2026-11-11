@@ -29,15 +29,11 @@ function montarLinhas(programacoes: readonly Programacao[], dias: readonly Civil
     return periodo !== null && periodo.fim >= primeiro && periodo.inicio <= ultimo;
   });
   const linhas = new Map<string, Linha>();
-  if (por === 'motorista') {
-    // Todos os motoristas ativos, mais quem aparecer como motorista nas programações.
-    for (const motorista of cadastros.motoristas) linhas.set(motorista.id, { chave: motorista.id, nome: motorista.nome, programacoes: [] });
-  }
   const semRecurso: Programacao[] = [];
   // Por veículo, a programação com mais de um veículo aparece na linha de cada um.
   for (const programacao of noAlcance) {
     const recursos = por === 'motorista'
-      ? (programacao.motorista ? [{ chave: programacao.motorista.uid, nome: cadastros.nomePessoa(programacao.motorista.uid, programacao.motorista.nome) }] : [])
+      ? (programacao.motorista ? [{ chave: programacao.motorista.id, nome: cadastros.nomePessoa(programacao.motorista.id, programacao.motorista.nome) }] : [])
       : programacao.veiculos.map((veiculo) => ({ chave: veiculo.id, nome: cadastros.nomeVeiculo(veiculo.id, veiculo.nome) }));
     if (!recursos.length) { semRecurso.push(programacao); continue; }
     for (const { chave, nome } of recursos) {
@@ -115,7 +111,7 @@ export function CalendarioSemanas({ programacoes, hoje, cadastros, conflitos, ac
                     const obra = programacao.obra ? cadastros.nomeObra(programacao.obra.id, programacao.obra.nome) : null;
                     const outro = por === 'motorista'
                       ? programacao.veiculos.map((veiculo) => cadastros.nomeVeiculo(veiculo.id, veiculo.nome)).join(', ')
-                      : (programacao.motorista ? cadastros.nomePessoa(programacao.motorista.uid, programacao.motorista.nome) : null);
+                      : (programacao.motorista ? cadastros.nomePessoa(programacao.motorista.id, programacao.motorista.nome) : null);
                     const texto = [obra, programacao.item].filter(Boolean).join(' · ');
                     const rotuloOutro = por === 'motorista' ? (programacao.veiculos.length > 1 ? 'Veículos' : 'Veículo') : 'Motorista';
                     const status = statusExibido(programacao.status, cadastros.etiquetas).nome;

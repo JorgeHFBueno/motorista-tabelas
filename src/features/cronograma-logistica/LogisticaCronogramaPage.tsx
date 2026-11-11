@@ -7,13 +7,13 @@ import { useAuth } from '../../contexts/AuthContext';
 import { listFuncionariosAtivos } from '../../services/funcionarios-selecao.service';
 import { listObrasAtivas } from '../../services/obras.service';
 import { listItensFrota } from '../../services/veiculos.service';
-import { itemFrotaLabel, obraLabel, temPerfil, type ItemFrotaV2, type ObraV2, type PessoaV2 } from '../../utils/cadastrosV2';
+import { itemFrotaLabel, obraLabel, type ItemFrotaV2, type ObraV2, type PessoaV2 } from '../../utils/cadastrosV2';
 import { CalendarioSemanas } from './components/CalendarioSemanas';
 import type { AbaPainel, AcoesLogistica, CadastrosLogistica } from './components/contexto';
 import { PainelProgramacao } from './components/PainelProgramacao';
 import { QuadroSemanas } from './components/QuadroSemanas';
 import {
-  abrirSemana, atualizarProgramacao, criarProgramacao, darCodigo, excluirProgramacao, observarEtiquetas, observarObservacoes,
+  abrirSemana, atualizarProgramacao, criarProgramacao, darCodigo, pessoasDoFriday, type PessoasFriday, excluirProgramacao, observarEtiquetas, observarObservacoes,
   observarProgramacoes, observarSemanas, salvarEtiquetas,
 } from './data/logisticaFirestore';
 import { semCodigoEmOrdem } from './domain/codigo';
@@ -40,6 +40,7 @@ export default function LogisticaCronogramaPage() {
   const [observacoes, setObservacoes] = useState<Observacao[]>([]);
   const [etiquetas, setEtiquetas] = useState<EtiquetaStatus[]>([...ETIQUETAS_PADRAO]);
   const [cadastrosBrutos, setCadastrosBrutos] = useState<{ pessoas: PessoaV2[]; veiculos: ItemFrotaV2[]; obras: ObraV2[] } | null>(null);
+  const [pessoasFriday, setPessoasFriday] = useState<PessoasFriday | null>(null);
   const [erro, setErro] = useState<string | null>(null);
   const [abertaId, setAbertaId] = useState<string | null>(null);
   const [abaPainel, setAbaPainel] = useState<AbaPainel>('programacao');
@@ -65,6 +66,10 @@ export default function LogisticaCronogramaPage() {
     Promise.all([listFuncionariosAtivos(), listItensFrota(), listObrasAtivas()])
       .then(([pessoas, veiculos, obras]) => { if (vivo) setCadastrosBrutos({ pessoas, veiculos, obras }); })
       .catch((error) => { if (vivo) setErro(`Não foi possível carregar motoristas, veículos e obras: ${mensagem(error)}`); });
+    // Motorista e auxiliar vêm de dois quadros do Friday, pela Function (a logística não lê o Friday).
+    pessoasDoFriday()
+      .then((pessoas) => { if (vivo) setPessoasFriday(pessoas); })
+      .catch((error) => { if (vivo) setErro(`Não foi possível carregar os funcionários e o banco de currículos do Friday: ${mensagem(error)}`); });
     return () => { vivo = false; };
   }, []);
 
@@ -90,12 +95,19 @@ export default function LogisticaCronogramaPage() {
     const pessoas = cadastrosBrutos?.pessoas ?? [];
     const veiculos = cadastrosBrutos?.veiculos ?? [];
     const obras = cadastrosBrutos?.obras ?? [];
-    const nomePessoa = new Map(pessoas.map((pessoa) => [pessoa.uid, pessoa.nome]));
+    const motoristas = pessoasFriday?.motoristas ?? [];
+    const auxiliares = pessoasFriday?.auxiliares ?? [];
+    // Friday primeiro; funcionarios para as linhas de antes (UID) e os autores das observações.
+    const nomePessoa = new Map<string, string>([
+      ...pessoas.map((pessoa) => [pessoa.uid, pessoa.nome] as const),
+      ...motoristas.map((pessoa) => [pessoa.id, pessoa.nome] as const),
+      ...auxiliares.map((pessoa) => [pessoa.id, pessoa.nome] as const),
+    ]);
     const nomeVeiculo = new Map(veiculos.map((veiculo) => [veiculo.id, itemFrotaLabel(veiculo)]));
     const nomeObra = new Map(obras.map((obra) => [obra.id, obraLabel(obra)]));
     return {
-      motoristas: pessoas.filter((pessoa) => temPerfil(pessoa, 'motorista')).map((pessoa) => ({ id: pessoa.uid, nome: pessoa.nome })),
-      pessoas: pessoas.map((pessoa) => ({ id: pessoa.uid, nome: pessoa.nome })),
+      motoristas: motoristas.map((pessoa) => ({ id: pessoa.id, nome: pessoa.nome })),
+      auxiliares: auxiliares.map((pessoa) => ({ id: pessoa.id, nome: pessoa.nome, ...(pessoa.funcao ? { detalhe: pessoa.funcao } : {}) })),
       veiculos: veiculos.filter((veiculo) => veiculo.ativo).map((veiculo) => ({ id: veiculo.id, nome: itemFrotaLabel(veiculo) })),
       obras: obras.map((obra) => ({ id: obra.id, nome: obraLabel(obra) })),
       etiquetas,
@@ -103,7 +115,7 @@ export default function LogisticaCronogramaPage() {
       nomeVeiculo: (id, retrato) => nomeVeiculo.get(id) ?? retrato,
       nomeObra: (id, retrato) => nomeObra.get(id) ?? retrato,
     };
-  }, [cadastrosBrutos, etiquetas]);
+  }, [cadastrosBrutos, pessoasFriday, etiquetas]);
 
   const lista = useMemo(() => programacoes ?? [], [programacoes]);
   const conflitos = useMemo(
@@ -184,7 +196,7 @@ export default function LogisticaCronogramaPage() {
             >
               <AddRounded fontSize="small" /> Iniciar nova semana
             </button>
-            {!cadastrosBrutos && <span className="lg-muted">Carregando motoristas, veículos e obras…</span>}
+            {(!cadastrosBrutos || !pessoasFriday) && <span className="lg-muted">Carregando motoristas, veículos e obras…</span>}
           </div>
           <QuadroSemanas
             futuras={grupos.futuras}
