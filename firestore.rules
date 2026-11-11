@@ -10,12 +10,6 @@ service cloud.firestore {
       return request.auth != null;
     }
 
-    function authEmail() {
-      return signedIn()
-        ? request.auth.token.get('email', '').lower()
-        : '';
-    }
-
     function employeeExists() {
       return signedIn()
         && exists(
@@ -130,10 +124,6 @@ service cloud.firestore {
     function hasAdminClaim() {
       return isAuthorized()
         && request.auth.token.get('admin', false) == true;
-    }
-
-    function isSelfEmail(email) {
-      return signedIn() && authEmail() == email;
     }
 
     function changedOnly(fields) {
@@ -367,26 +357,8 @@ service cloud.firestore {
     }
 
 
-    // ================================================================ identity and legacy profiles
-
-    // Legacy authorization profiles (no longer used for authorization). Kept only while the app still reads its own
-    // profile on adm2 screens and registers FCM tokens under it; close when the app stops.
-    match /00-autorizados/{email} {
-      allow get: if isSelfEmail(email) || isAdm2();
-      allow list: if isAdm2();
-      allow create, update, delete: if false;
-
-      match /fcmTokens/{tokenId} {
-        allow read: if false;
-
-        allow create, update: if
-          isSelfEmail(email)
-          && isAuthorized()
-          && request.resource.data.get('token', tokenId) == tokenId;
-
-        allow delete: if false;
-      }
-    }
+    // ================================================================ identity and app metadata
+    // 00-autorizados (legacy profiles) was deleted on 2026-11-11 and falls under the default deny.
 
     match /Versionamento/app {
       allow read: if signedIn();
@@ -811,12 +783,6 @@ service cloud.firestore {
         );
     }
 
-    // Legacy (no reader in the current WEB or app): only adm2 reads.
-    match /motoristas/{motoristaId} {
-      allow read: if isAdm2();
-      allow write: if false;
-    }
-
     match /motivos/{motivoId} {
       allow read: if isAuthorized();
       allow write: if false;
@@ -1095,11 +1061,6 @@ service cloud.firestore {
       allow read: if isFrota() || hasAdminClaim();
       allow create: if false;
       allow update, delete: if isFrota() || hasAdminClaim();
-    }
-
-    match /dev_obras_locais/{documentId} {
-      allow read, create: if isAdm2();
-      allow update, delete: if false;
     }
 
 

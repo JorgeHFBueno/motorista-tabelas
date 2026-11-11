@@ -228,16 +228,19 @@ test('[firestore] legacy-only profile (00-autorizados, no funcionarios) is denie
   await assertFails(setDoc(doc(db, 'configuracoes', 'legacy-only'), { enabled: true }));
   await assertFails(getDocs(collection(db, 'funcionarios')));
 });
-test('[firestore] own lowercase profile can be read with uppercase Auth email', async () => assertSucceeds(getDoc(doc(dbAs('user', { email: 'User@Example.COM' }), '00-autorizados', 'user@example.com'))));
-test('[firestore] normal user cannot get an arbitrary profile', async () => assertFails(getDoc(doc(dbAs('user'), '00-autorizados', 'frentista@example.com'))));
-test('[firestore] adm2 can get an arbitrary profile', async () => assertSucceeds(getDoc(doc(dbAs('adm2'), '00-autorizados', 'user@example.com'))));
-test('[firestore] normal user cannot list profiles', async () => assertFails(getDocs(collection(dbAs('user'), '00-autorizados'))));
-test('[firestore] frentista cannot list legacy profiles (only adm2)', async () => assertFails(getDocs(collection(dbAs('frentista'), '00-autorizados'))));
-test('[firestore] adm2 can list profiles administratively', async () => assertSucceeds(getDocs(collection(dbAs('adm2'), '00-autorizados'))));
-test('[firestore] profile cannot be modified by client', async () => assertFails(updateDoc(doc(dbAs('adm2'), '00-autorizados', 'user@example.com'), { adm2: true })));
-test('[firestore] user registers FCM token only under normalized own profile', async () => assertSucceeds(setDoc(doc(dbAs('user'), '00-autorizados', 'user@example.com', 'fcmTokens', 'token-user'), { token: 'token-user', plataforma: 'android', atualizadoEm: 1 })));
-test('[firestore] user cannot register FCM token under another profile', async () => assertFails(setDoc(doc(dbAs('user'), '00-autorizados', 'frentista@example.com', 'fcmTokens', 'token-foreign'), { token: 'token-foreign', plataforma: 'android', atualizadoEm: 1 })));
-test('[firestore] uppercase profile path is not treated as normalized self path', async () => assertFails(setDoc(doc(dbAs('user', { email: 'User@Example.COM' }), '00-autorizados', 'User@Example.COM', 'fcmTokens', 'token-case'), { token: 'token-case', plataforma: 'android', atualizadoEm: 1 })));
+// Collections deleted on 2026-11-11 (00-autorizados with fcmTokens, motoristas, dev_obras_locais): default deny, even for adm2.
+test('[firestore] deleted legacy collections are closed to everyone, adm2 included', async () => {
+  for (const identity of ['user', 'frentista', 'adm2']) {
+    await assertFails(getDoc(doc(dbAs(identity), '00-autorizados', 'user@example.com')));
+    await assertFails(getDocs(collection(dbAs(identity), '00-autorizados')));
+    await assertFails(getDoc(doc(dbAs(identity), 'motoristas', 'm1')));
+    await assertFails(getDocs(collection(dbAs(identity), 'dev_obras_locais')));
+  }
+  await assertFails(setDoc(doc(dbAs('user'), '00-autorizados', 'user@example.com', 'fcmTokens', 'token-user'), { token: 'token-user', plataforma: 'android', atualizadoEm: 1 }));
+  await assertFails(updateDoc(doc(dbAs('adm2'), '00-autorizados', 'user@example.com'), { adm2: true }));
+  await assertFails(updateDoc(doc(dbAs('adm2'), 'motoristas', 'm1'), { ativo: false }));
+  await assertFails(setDoc(doc(dbAs('adm2'), 'dev_obras_locais', 'x'), { nome: 'Obra' }));
+});
 test('[firestore] employee identity is readable by its owner', async () => assertSucceeds(getDoc(doc(dbAs('user'), 'funcionarios', 'uid-user'))));
 test('[firestore] employee identity is not writable by its owner', async () => assertFails(updateDoc(doc(dbAs('user'), 'funcionarios', 'uid-user'), { 'perfis.adm2': true })));
 test('[firestore] employee identity is readable by adm2 but written only by the Admin SDK', async () => {
@@ -601,8 +604,7 @@ for (const path of ['notas-categorias/cat1', 'notas-fornecedores/f1', 'notas-for
     await assertFails(getDoc(doc(dbAs('engenharia'), ...path.split('/'))));
   });
 }
-test('[firestore] legacy motoristas: only adm2 reads; motivos stay open to employees', async () => { await assertFails(getDoc(doc(dbAs('user'), 'motoristas', 'm1'))); await assertSucceeds(getDoc(doc(dbAs('adm2'), 'motoristas', 'm1'))); await assertSucceeds(getDoc(doc(dbAs('user'), 'motivos', 'm1'))); });
-test('[firestore] clients cannot write motorists', async () => assertFails(updateDoc(doc(dbAs('adm2'), 'motoristas', 'm1'), { ativo: false })));
+test('[firestore] motivos stay open to employees', async () => assertSucceeds(getDoc(doc(dbAs('user'), 'motivos', 'm1'))));
 test('[firestore] only adm2 reads maintenance', async () => { await assertFails(getDoc(doc(dbAs('user'), 'manutencoes', 'maint1'))); await assertSucceeds(getDoc(doc(dbAs('adm2'), 'manutencoes', 'maint1'))); });
 test('[firestore] only adm2 creates maintenance', async () => { await assertFails(setDoc(doc(dbAs('user'), 'manutencoes', 'maint-user'), { status: 'A' })); await assertSucceeds(setDoc(doc(dbAs('adm2'), 'manutencoes', 'maint-adm2'), { status: 'A' })); });
 test('[firestore] adm2 and the admin claim edit maintenance records; others cannot', async () => { await assertSucceeds(updateDoc(doc(dbAs('adm2'), 'manutencoes', 'maint1'), { arbitrary: true })); await assertSucceeds(updateDoc(doc(dbAs('admin'), 'manutencoes', 'maint1'), { arbitrary2: true })); await assertFails(updateDoc(doc(dbAs('frentista'), 'manutencoes', 'maint1'), { arbitrary3: true })); await assertFails(updateDoc(doc(dbAs('user'), 'manutencoes', 'maint1'), { arbitrary3: true })); });
