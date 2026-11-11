@@ -1057,12 +1057,6 @@ service cloud.firestore {
       allow update, delete: if isFrota() || hasAdminClaim();
     }
 
-    match /manutencoes-legado/{manutencaoId} {
-      allow read: if isFrota() || hasAdminClaim();
-      allow create: if false;
-      allow update, delete: if isFrota() || hasAdminClaim();
-    }
-
 
     // ================================================================ DEV (/dev): salas online do Xadrez e do NEO
     // Só a credencial retr0 (exclusiva: nem o adm2 entra sem ela). Partida "de confiança" (decisão do responsável em

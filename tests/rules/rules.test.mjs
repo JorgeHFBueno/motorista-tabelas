@@ -923,10 +923,12 @@ test('[firestore] V2 automatic adjustment keeps integers, author uid and credent
   await assertSucceeds(write('ajuste-v2-montante', { montanteAposMovimento: 1030 }));
   await assertSucceeds(write('ajuste-v2-negativo', { estoqueAntes: -100, estoqueAposMovimento: -125 }));
 });
-test('[firestore] maintenance legacy: adm2 edits and deletes, nobody creates', async () => {
-  await assertSucceeds(updateDoc(doc(dbAs('canonicalAdm2'), 'manutencoes-legado', 'legacy1'), { status: 'REVISTO' }));
+// manutencoes-legado was deleted on 2026-10-28; its rule left on 2026-11-11 (default deny).
+test('[firestore] maintenance legacy is closed to everyone, adm2 included', async () => {
+  await assertFails(getDoc(doc(dbAs('canonicalAdm2'), 'manutencoes-legado', 'legacy1')));
+  await assertFails(updateDoc(doc(dbAs('canonicalAdm2'), 'manutencoes-legado', 'legacy1'), { status: 'REVISTO' }));
   await assertFails(setDoc(doc(dbAs('canonicalAdm2'), 'manutencoes-legado', 'legacy2'), { status: 'NOVO' }));
-  await assertSucceeds(deleteDoc(doc(dbAs('canonicalAdm2'), 'manutencoes-legado', 'legacy1')));
+  await assertFails(deleteDoc(doc(dbAs('canonicalAdm2'), 'manutencoes-legado', 'legacy1')));
 });
 
 test('[firestore] Friday: boards cannot be created official nor have "cadastro" changed by clients', async () => {
