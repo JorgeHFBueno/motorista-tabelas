@@ -13,5 +13,6 @@ export interface ObraCatalogo { id: string; targetType?: 'obra' | 'contrato'; /*
 export interface ObraCronograma extends ObraCatalogo { inicioPlanejado: CivilDate | null; tempoPlanejado: number | null; mestresPlanejados: MestrePlanejado[]; }
 export interface ContratoCronograma { id: string; /** obras-v2 document ID, also the ERP snapshot document ID. */ idObra: string; nome: string; empresa: string; status: CronogramaStatus; numeroContrato: string | null; ano: number | null; inicio: CivilDate | null; fim: CivilDate | null; tipoObra: string | null; confirmacaoRecurso: unknown; ordemInicio: unknown; /** obras-v2.subcentroErp as stored; never inferred from the name. */ subcentroErp: string | null; rawDocument: unknown; obras: ObraCronograma[]; }
 export interface MestreWorkload { mestre: string; obras: ObraCronograma[]; diasProgramados: number; freeDays: number; conflictDays: number; daily: Array<{ date: CivilDate; obras: ObraCronograma[]; conflict: boolean }>; weekly: Array<{ start: CivilDate; days: number; obras: ObraCronograma[]; conflict: boolean }>; }
-export interface CronogramaFilters { search: string; status: string; empresa: string; mestre: string; period: string; }
+/** `status`: the statuses checked in the filter (any of them); empty shows all. */
+export interface CronogramaFilters { search: string; status: string[]; empresa: string; mestre: string; }
 export interface CronogramaIndicators { running: number; waiting: number; allocated: number; unassigned: number; conflicts: number; }

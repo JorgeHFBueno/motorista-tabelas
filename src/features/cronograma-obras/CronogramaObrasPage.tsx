@@ -90,10 +90,9 @@ const mestresSource = new FirestoreMestresDataSource();
 const alocacoesSource = new CronogramaFirestoreRepository();
 const INITIAL_FILTERS: CronogramaFilters = {
   search: "",
-  status: "",
+  status: [],
   empresa: "",
   mestre: "",
-  period: "year",
 };
 type CronogramaViewTransition =
   | "obras"
@@ -543,10 +542,9 @@ export default function CronogramaObrasPage() {
   const obrasDasSecoes = useMemo(
     () =>
       filters.search ||
-      filters.status ||
+      filters.status.length ||
       filters.empresa ||
-      filters.mestre ||
-      filters.period !== "year"
+      filters.mestre
         ? filtered
         : obras,
     [filtered, filters, obras],
@@ -665,12 +663,6 @@ export default function CronogramaObrasPage() {
     runViewTransition(to, from, () =>
       setSectionViews((current) => ({ ...current, [section]: next })),
     );
-  };
-  const goToday = () => {
-    setFilters((current) =>
-      current.period === "year" ? current : { ...current, period: "year" },
-    );
-    setCenterRequest((request) => request + 1);
   };
   const mestreIdFor = (nome: string) =>
     mestres.find((mestre) => mestre.nome === nome)?.id;
@@ -1252,7 +1244,6 @@ export default function CronogramaObrasPage() {
         companies={[...new Set(obras.map((obra) => obra.empresa))]}
         masters={masters}
         onChange={setFilters}
-        onToday={goToday}
       />
       {addingMaster && (
         <div

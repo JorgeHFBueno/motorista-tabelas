@@ -427,6 +427,16 @@
 /* MK2: painel de filtros compacto e barras semanais posicionais. */
 .co-filter-dot { background: #b7473f; border-radius: 99px; height: 6px; margin-left: 1px; width: 6px; }
 .co-filter-actions { align-items: end; display: flex; gap: 6px; }
+/* Status filter: one chip per status, in its color; several can be on (none on = all). */
+.co-status-filter { display: grid; gap: 3px; }
+.co-status-filter > span { color: #647581; font-size: .63rem; font-weight: 750; letter-spacing: .04em; text-transform: uppercase; }
+.co-status-chips { display: flex; flex-wrap: wrap; gap: 5px; min-height: 34px; align-items: center; }
+.co-status-chip { align-items: center; background: #fff; border: 1px solid #ccd8df; border-radius: 999px; color: #34505f; cursor: pointer; display: inline-flex; font: inherit; font-size: .72rem; font-weight: 700; gap: 6px; height: 28px; padding: 0 11px 0 9px; white-space: nowrap; }
+.co-status-chip i { background: var(--co-status-color); border-radius: 50%; flex: 0 0 auto; height: 9px; width: 9px; }
+.co-status-chip:hover { border-color: var(--co-status-color); }
+.co-status-chip.is-active { background: var(--co-status-color); border-color: var(--co-status-color); color: #fff; }
+.co-status-chip.is-active i { background: #fff; }
+.co-status-chip:focus-visible { outline: 2px solid #2f6b98; outline-offset: 2px; }
 .co-master-palette { align-items: center; background: #fff; border: 1px solid var(--co-line); border-radius: 8px; display: flex; gap: 12px; margin: 0 auto 8px; max-width: 1880px; min-height: 48px; padding: 7px 10px; }
 .co-master-palette-title { align-items: center; display: flex; gap: 4px; }
 .co-master-palette-title > strong { color: #405b6b; font-size: .7rem; letter-spacing: .045em; text-transform: uppercase; white-space: nowrap; }

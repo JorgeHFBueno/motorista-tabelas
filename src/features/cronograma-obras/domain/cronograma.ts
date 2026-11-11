@@ -5,9 +5,9 @@ export function filterObras(obras: ObraCronograma[], filters: CronogramaFilters)
   const term = filters.search.trim().toLocaleLowerCase('pt-BR');
   return obras.filter((obra) => {
     const text = [obra.codObra, obra.siglaObra, obra.nomeObra, obra.local, obra.empresa, obra.mestreInicial, ...obra.mestresPlanejados.map((mestre) => mestre.nome), obra.descricao].filter(Boolean).join(' ').toLocaleLowerCase('pt-BR');
-    const [periodStart, periodTempo] = filters.period === 'year' ? ['2026-01-01', 365] : [filters.period.split('/')[0], Number(filters.period.split('/')[1])];
-    const intersectsPeriod = !obra.inicioPlanejado || !obra.tempoPlanejado ? false : intersectsRange(obra.inicioPlanejado, obra.tempoPlanejado, periodStart, periodTempo as number);
-    return (!term || text.includes(term)) && (!filters.status || obra.status === filters.status) && (!filters.empresa || obra.empresa === filters.empresa) && (!filters.mestre || obra.mestresPlanejados.some((mestre) => mestre.nome === filters.mestre)) && intersectsPeriod;
+    // Only works planned in 2026 (the former "Ano inteiro" period, removed from the filters on 2026-11-11).
+    const intersectsPeriod = !obra.inicioPlanejado || !obra.tempoPlanejado ? false : intersectsRange(obra.inicioPlanejado, obra.tempoPlanejado, '2026-01-01', 365);
+    return (!term || text.includes(term)) && (!filters.status.length || filters.status.includes(obra.status)) && (!filters.empresa || obra.empresa === filters.empresa) && (!filters.mestre || obra.mestresPlanejados.some((mestre) => mestre.nome === filters.mestre)) && intersectsPeriod;
   });
 }
 
