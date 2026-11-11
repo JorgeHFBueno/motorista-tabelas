@@ -1323,6 +1323,16 @@ service cloud.firestore {
       allow list, delete: if false;
     }
 
+    // Favoritos: um documento por pessoa ("quadros", lista de ids), que só ela lê e grava. O campo "favorito" do quadro
+    // era de todos e não é mais usado pela tela.
+    match /friday-favoritos/{uid} {
+      allow get: if fridayAccess() && uid == request.auth.uid;
+      allow create, update: if fridayAccess() && uid == request.auth.uid
+        && request.resource.data.keys().hasOnly(['quadros'])
+        && request.resource.data.quadros is list;
+      allow list, delete: if false;
+    }
+
     // Marcador dos índices de itens (busca e Meu trabalho).
     match /friday-meta/indices {
       allow get, create, update: if fridayAccess();

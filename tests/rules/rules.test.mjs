@@ -9,6 +9,8 @@ import {
 import {
   Timestamp,
   serverTimestamp,
+  arrayRemove,
+  arrayUnion,
   collection,
   deleteDoc,
   deleteField,
@@ -1043,6 +1045,21 @@ test('[firestore] Friday: update reads are one document per person, read and wri
   await assertFails(setDoc(doc(db, 'friday-leituras', 'uid-adm2'), { desde: 1, itens: {} }));
   await assertFails(getDocs(collection(db, 'friday-leituras')));
   await assertFails(setDoc(doc(dbAs('canonicalUser'), 'friday-leituras', 'uid-canonical-user'), { desde: 1, itens: {} }));
+});
+test('[firestore] Friday: favorites are one document per person, read and written only by that person', async () => {
+  const db = dbAs('escritorio');
+  const meus = doc(db, 'friday-favoritos', 'uid-escritorio');
+  await assertSucceeds(setDoc(meus, { quadros: [10] }));
+  await assertSucceeds(setDoc(meus, { quadros: arrayUnion(11) }, { merge: true }));
+  await assertSucceeds(setDoc(meus, { quadros: arrayRemove(10) }, { merge: true }));
+  await assertSucceeds(getDoc(meus));
+  await assertFails(setDoc(meus, { quadros: [10], outro: 1 }));
+  await assertFails(setDoc(meus, { quadros: 10 }));
+  await assertFails(deleteDoc(meus));
+  await assertFails(getDoc(doc(dbAs('canonicalAdm2'), 'friday-favoritos', 'uid-escritorio')));
+  await assertFails(setDoc(doc(db, 'friday-favoritos', 'uid-adm2'), { quadros: [] }));
+  await assertFails(getDocs(collection(db, 'friday-favoritos')));
+  await assertFails(setDoc(doc(dbAs('canonicalUser'), 'friday-favoritos', 'uid-canonical-user'), { quadros: [] }));
 });
 test('[firestore] Friday: official registries are readable, never writable by clients', async () => {
   const db = dbAs('escritorio');

@@ -1,5 +1,5 @@
 import {
-  collection, deleteField, doc, documentId, FieldPath, getDoc, getDocs, limit, onSnapshot, orderBy, query, runTransaction, setDoc, updateDoc, where, writeBatch,
+  arrayRemove, arrayUnion, collection, deleteField, doc, documentId, FieldPath, getDoc, getDocs, limit, onSnapshot, orderBy, query, runTransaction, setDoc, updateDoc, where, writeBatch,
   type DocumentData, type DocumentReference, type QueryConstraint,
 } from 'firebase/firestore';
 import { httpsCallable } from 'firebase/functions';
@@ -602,7 +602,7 @@ function novidades(lista: Row[], leituras: Leituras | null): Set<number> {
 }
 
 async function completo(id: number) {
-  const quadro = await buscar('quadros', id);
+  const quadro = await comFavorito(await buscar('quadros', id));
   if (!quadro) throw new ErroApi(404, 'quadro não encontrado');
   const [grupos, colunas, visoes, itensTodos, atualizacoes, anexos, automacoes, sub, leituras] = await Promise.all([
     consultar('grupos', { quadro_id: id }), consultar('colunas', { quadro_id: id }), consultar('visoes', { quadro_id: id }), consultar('itens', { quadro_id: id }),
@@ -1177,6 +1177,38 @@ async function automacoesDoQuadro(quadroId: number) {
 }
 
 // ------------------------------------------------------------------ CRUD genérico
+// Favoritos por pessoa (friday-favoritos/{uid}: `quadros`, lista de ids). O campo `favorito` do quadro era de todos e
+// não vale mais: a tela continua lendo e gravando `favorito`, que aqui vira o da pessoa. No primeiro uso a lista nasce
+// com os quadros que estavam marcados no campo antigo, para ninguém perder os seus.
+let favoritos: { uid: string; ids: Promise<Set<number>> } | undefined;
+function meusFavoritos(): Promise<Set<number>> {
+  const uid = eu().uid;
+  if (favoritos?.uid !== uid) {
+    const ids = (async () => {
+      const r = doc(db, 'friday-favoritos', uid);
+      const s = await getDoc(r);
+      if (s.exists()) return new Set<number>(((s.data().quadros ?? []) as unknown[]).map(Number));
+      const antigos = (await consultar('quadros', {})).filter(q => Number(q.favorito) === 1).map(q => Number(q.id));
+      await setDoc(r, { quadros: antigos });
+      return new Set(antigos);
+    })();
+    ids.catch(() => { if (favoritos?.ids === ids) favoritos = undefined; });
+    favoritos = { uid, ids };
+  }
+  return favoritos.ids;
+}
+// Sem a lista (falha ao ler), o quadro sai como está.
+async function comFavorito<T extends Row | undefined>(q: T): Promise<T> {
+  if (!q) return q;
+  const ids = await meusFavoritos().catch(e => { console.warn('[friday] favoritos indisponíveis', e); return null; });
+  return ids ? ({ ...q, favorito: ids.has(Number(q.id)) ? 1 : 0 } as T) : q;
+}
+async function marcarFavorito(quadroId: number, sim: boolean) {
+  const ids = await meusFavoritos();
+  await setDoc(doc(db, 'friday-favoritos', eu().uid), { quadros: sim ? arrayUnion(quadroId) : arrayRemove(quadroId) }, { merge: true });
+  if (sim) ids.add(quadroId); else ids.delete(quadroId);
+}
+
 async function listar(r: Recurso, q: Record<string, string>) {
   const filtros: Record<string, unknown> = {};
   for (const [k, v] of Object.entries(q)) if (CAMPOS[r].includes(k)) filtros[k] = v;
@@ -1190,13 +1222,14 @@ async function listar(r: Recurso, q: Record<string, string>) {
     else if (e === 'lixeira') rows = rows.filter(x => x.excluido_em != null);
     else if (e !== 'todos') rows = rows.filter(visivel);
   }
+  if (r === 'quadros') rows = await Promise.all(rows.map(comFavorito));
   return ordenar(r, rows).slice(0, Math.min(Number(q._limite) || 2000, 10000));
 }
 
 async function obter(r: Recurso, id: number) {
   const row = await buscar(r, id);
   if (!row || (r === 'notificacoes' && row.usuario_uid !== eu().uid)) throw new ErroApi(404, 'não encontrado');
-  return row;
+  return r === 'quadros' ? comFavorito(row) : row;
 }
 
 async function criar(r: Recurso, corpo: unknown) {
@@ -1218,8 +1251,16 @@ async function criar(r: Recurso, corpo: unknown) {
   return row;
 }
 
-async function atualizar(r: Recurso, id: number, corpo: unknown) {
+async function atualizar(r: Recurso, id: number, corpo: unknown): Promise<Row> {
   if (SOMENTE_LEITURA.has(r)) throw new ErroApi(405, 'somente leitura');
+  // Favorito: da pessoa, fora do documento do quadro.
+  if (r === 'quadros' && corpo && typeof corpo === 'object' && 'favorito' in corpo) {
+    const { favorito, ...resto } = corpo as Record<string, unknown>;
+    const quadro = Object.keys(resto).length ? await atualizar(r, id, resto) : await buscar(r, id);
+    if (!quadro) throw new ErroApi(404, 'não encontrado');
+    await marcarFavorito(id, !!Number(favorito));
+    return comFavorito(quadro);
+  }
   const antes = await buscar(r, id);
   if (!antes) throw new ErroApi(404, 'não encontrado');
   if (r === 'notificacoes' && antes.usuario_uid !== eu().uid) throw new ErroApi(404, 'não encontrado');
