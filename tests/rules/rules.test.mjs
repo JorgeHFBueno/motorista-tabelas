@@ -464,10 +464,11 @@ test('[firestore] normal fuel update is denied', async () => assertFails(updateD
 test('[firestore] normal fuel delete is denied', async () => assertFails(deleteDoc(doc(dbAs('user'), '03-combustivel', 'fuel-existing'))));
 test('[firestore] custom claim admin updates fuel', async () => assertSucceeds(updateDoc(doc(dbAs('admin'), '03-combustivel', 'fuel-existing'), { lf: 31 })));
 test('[firestore] custom claim admin deletes fuel', async () => { await setDoc(doc(dbAs('user'), '03-combustivel', 'fuel-admin-delete'), { lf: 1 }); await assertSucceeds(deleteDoc(doc(dbAs('admin'), '03-combustivel', 'fuel-admin-delete'))); });
-test('[firestore] adm2 corrects and deletes fuel records (WEB document inspector); adm1 cannot', async () => {
+test('[firestore] Combustível (logistica, mecanico) and adm2 correct and delete fuel records (WEB document inspector); adm1 cannot', async () => {
   await setDoc(doc(dbAs('user'), '03-combustivel', 'fuel-adm2-inspector'), { lf: 1 });
   await assertFails(updateDoc(doc(dbAs('canonicalFrentista'), '03-combustivel', 'fuel-adm2-inspector'), { lf: 2 }));
-  await assertFails(updateDoc(doc(dbAs('mecanico'), '03-combustivel', 'fuel-adm2-inspector'), { lf: 2 }));
+  await assertSucceeds(updateDoc(doc(dbAs('mecanico'), '03-combustivel', 'fuel-adm2-inspector'), { lf: 5 }));
+  await assertFails(updateDoc(doc(dbAs('engenharia'), '03-combustivel', 'fuel-adm2-inspector'), { lf: 6 }));
   await assertSucceeds(updateDoc(doc(dbAs('logistica'), '03-combustivel', 'fuel-adm2-inspector'), { lf: 4 }));
   await assertSucceeds(updateDoc(doc(dbAs('canonicalAdm2'), '03-combustivel', 'fuel-adm2-inspector'), { lf: 3 }));
   await assertFails(deleteDoc(doc(dbAs('canonicalFrentista'), '03-combustivel', 'fuel-adm2-inspector')));
@@ -507,6 +508,11 @@ async function coherentV2Write(name, changes = {}, identity = 'frentista') {
 }
 
 test('[firestore] V2 vehicle direct output is accepted with atomic pump and fleet state', async () => coherentV2Write('fuel-v2-vehicle'));
+test('[firestore] WEB Combustível: logistica and mecanico launch a V2 output; engenharia cannot', async () => {
+  await coherentV2Write('fuel-v2-web-logistica', { criadoPor: { uid: 'uid-logistica', nome: 'Logistica' } }, 'logistica');
+  await coherentV2Write('fuel-v2-web-mecanico', { criadoPor: { uid: 'uid-mecanico', nome: 'Mecanico' } }, 'mecanico');
+  await assertFails(setDoc(doc(dbAs('engenharia'), '03-combustivel', 'fuel-v2-web-engenharia'), v2Output({ criadoPor: { uid: 'uid-engenharia', nome: 'Engenharia' } })));
+});
 test('[firestore] V2 machine, gallon, no-odometer and anonymous operator outputs are accepted', async () => {
   await coherentV2Write('fuel-v2-machine', { item_frota_id: 'vm1', item_frota_snapshot: { categoria: 'EXTRA', identificador: 'CARREGADEIRA', nome: 'Carregadeira Case' }, quilometragem: undefined, horimetro: 8752 });
   await coherentV2Write('fuel-v2-gallon', { modalidadeAbastecimento: 'galao', quilometragem: undefined });
@@ -705,11 +711,13 @@ test('[storage] a well-named existing checklist photo cannot be overwritten', as
   await seedStorageObject(path);
   await assertFails(uploadBytes(ref(storageAs('canonicalUser'), path), image, { contentType: 'image/jpeg' }));
 });
-test('[storage] Friday attachments: escritorio and adm2 upload, read and delete up to 25 MB; no overwrite', async () => {
+test('[storage] Friday attachments: escritorio, mecanico and adm2 upload, read and delete up to 25 MB; no overwrite', async () => {
   const pdf = new Uint8Array([0x25, 0x50, 0x44, 0x46]);
   const caminho = 'friday/10/20/31-edital.pdf';
   await assertSucceeds(uploadBytes(ref(storageAs('escritorio'), caminho), pdf, { contentType: 'application/pdf' }));
   await assertSucceeds(getBytes(ref(storageAs('adm2'), caminho)));
+  await assertSucceeds(getBytes(ref(storageAs('mecanico'), caminho)));
+  await assertFails(getBytes(ref(storageAs('engenharia'), caminho)));
   await assertFails(uploadBytes(ref(storageAs('escritorio'), caminho), pdf, { contentType: 'application/pdf' }));
   await assertFails(getBytes(ref(storageAs('canonicalUser'), caminho)));
   await assertFails(uploadBytes(ref(storageAs('canonicalUser'), 'friday/10/20/32-x.pdf'), pdf, { contentType: 'application/pdf' }));
@@ -1004,11 +1012,12 @@ test('[firestore] Friday: items keep "vinculo" and import control written only b
   await assertFails(updateDoc(doc(db, 'friday-itens', '21'), { vinculo: null }));
   await assertFails(updateDoc(doc(db, 'friday-itens', '20'), { importado_em: '2026-10-20 10:00:00' }));
 });
-test('[firestore] Friday: generic resources open to escritorio and adm2 only', async () => {
+test('[firestore] Friday: generic resources open to escritorio, mecanico and adm2 only', async () => {
   await assertFails(setDoc(doc(dbAs('canonicalUser'), 'friday-grupos', '43'), { id: 43, quadro_id: 10, nome: 'Sem credencial' }));
   await assertFails(setDoc(doc(dbAs('engenharia'), 'friday-grupos', '44'), { id: 44, quadro_id: 10, nome: 'Engenharia' }));
   await assertSucceeds(setDoc(doc(dbAs('adm2'), 'friday-grupos', '45'), { id: 45, quadro_id: 10, nome: 'Adm2' }));
   await assertSucceeds(setDoc(doc(dbAs('escritorio'), 'friday-grupos', '40'), { id: 40, quadro_id: 10, nome: 'Grupo' }));
+  await assertSucceeds(setDoc(doc(dbAs('mecanico'), 'friday-grupos', '46'), { id: 46, quadro_id: 10, nome: 'Mecânico' }));
   await assertFails(setDoc(doc(dbAs('legacyOnly'), 'friday-grupos', '41'), { id: 41, quadro_id: 10, nome: 'Legado' }));
   await assertFails(setDoc(doc(dbAs('canonicalInactive'), 'friday-grupos', '42'), { id: 42, quadro_id: 10, nome: 'Inativo' }));
 });

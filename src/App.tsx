@@ -70,7 +70,7 @@ export default function App() {
               <Route index element={<HomeDashboard />} />
               <Route path="perfil" element={<MeuPerfilPage />} />
             </Route>
-            <Route element={<PrivateRoute permite={(p) => temCredencial(p, 'escritorio')} />}>
+            <Route element={<PrivateRoute permite={(p) => temCredencial(p, 'escritorio', 'mecanico')} />}>
               <Route path="friday/*" element={<FridayApp />} />
             </Route>
             <Route element={<PrivateRoute permite={(p) => temCredencial(p, 'engenharia')} />}>
@@ -101,12 +101,10 @@ export default function App() {
               <Route path="frota/checklists" element={<ChecklistsPage />} />
               <Route path="frota/checklists/:id" element={<ChecklistDetalhePage />} />
               <Route path="frota/analytics" element={<FrotaAnalyticsPage />} />
-              <Route path="combustivel/bombas" element={<BombasPage />} />
-              <Route path="logistica/cronograma" element={<LogisticaCronogramaPage />} />
-            </Route>
-            <Route element={<PrivateRoute permite={(p) => temCredencial(p, 'logistica')} />}>
               <Route path="combustivel/registros" element={<TabelaCombustivel />} />
               <Route path="combustivel/registros/novo" element={<CombustivelNovoPage />} />
+              <Route path="combustivel/bombas" element={<BombasPage />} />
+              <Route path="logistica/cronograma" element={<LogisticaCronogramaPage />} />
             </Route>
             {/* Portal do cliente, lado da equipe: The Manuscript, 16_PORTAL_DO_CLIENTE.md. */}
             <Route element={<PrivateRoute permite={(p) => temCredencial(p, 'engenharia', 'escritorio')} />}>

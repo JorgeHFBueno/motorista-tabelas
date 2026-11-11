@@ -57,7 +57,7 @@ export const menuPrincipal: MenuPrincipalItem[] = [
     color: '#EAF4FF',
     accent: '#1F4E8C',
     to: '/friday',
-    acesso: ['escritorio'],
+    acesso: ['escritorio', 'mecanico'],
   },
   {
     label: 'Cadastros',
@@ -91,8 +91,8 @@ export const menuPrincipal: MenuPrincipalItem[] = [
     icon: <LocalGasStationIcon fontSize="large" />,
     color: '#FFF6E8',
     accent: '#E79A25',
-    // /combustivel não tem página própria. Bombas também abre para o mecanico, pela URL (a rota aceita as duas credenciais).
-    acesso: ['logistica'],
+    // /combustivel não tem página própria.
+    acesso: ['logistica', 'mecanico'],
     children: [
       { label: 'Registros', to: '/combustivel/registros', icon: <ReceiptLongOutlinedIcon />, descricao: 'Histórico e lançamento de abastecimentos' },
       { label: 'Bombas', to: '/combustivel/bombas', icon: <OilBarrelOutlinedIcon />, descricao: 'Estoque, montante e entradas de diesel' },

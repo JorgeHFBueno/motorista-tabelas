@@ -55,7 +55,7 @@ service cloud.firestore {
       return temArea('mecanico', 'logistica');
     }
 
-    // WEB Bombas and Logística: logistica, mecanico or adm2 (Combustível, logistica only, is temArea('logistica', 'logistica')).
+    // WEB Combustível, Bombas and Logística: logistica, mecanico or adm2.
     function isLogistica() {
       return temArea('logistica', 'mecanico');
     }
@@ -279,11 +279,11 @@ service cloud.firestore {
         && (!(preco is map) || intOrNull(preco.get('precoLitro', null)));
     }
 
-    // Saída V2 (frentista or adm2, Kiosk included; logistica in the WEB Combustível): item, obra and people by ID; the
+    // Saída V2 (frentista or adm2, Kiosk included; logistica or mecanico in the WEB Combustível): item, obra and people by ID; the
     // frentista holds frentista or adm2.
     function validFuelV2Create() {
       let data = request.resource.data;
-      return temArea('frentista', 'logistica')
+      return (temArea('frentista', 'logistica') || isMecanico())
         && data.get('tipo', '') == 'saida'
         && data.get('data', null) is timestamp
         && validFuelCriadoPor(data)
@@ -983,9 +983,9 @@ service cloud.firestore {
           || validLegacyFuelCreate()
         );
 
-      // Corrections: Combustível (logistica or adm2: adjustments replaced by lançamentos, document inspector), the Admin
+      // Corrections: Combustível (logistica, mecanico or adm2: adjustments replaced by lançamentos, document inspector), the Admin
       // SDK (WEB /combustivel API) or the administrative claim.
-      allow update, delete: if temArea('logistica', 'logistica') || hasAdminClaim();
+      allow update, delete: if isLogistica() || hasAdminClaim();
     }
 
     match /bombas/{bombaId} {
@@ -1183,9 +1183,9 @@ service cloud.firestore {
 
 
     // ================================================================ Friday (/friday)
-    // Gestão interna em quadros: credencial escritorio (ou adm2), com permissão por quadro (Manuscript friday.md).
+    // Gestão interna em quadros: credencial escritorio ou mecanico (ou adm2), com permissão por quadro (Manuscript friday.md).
     function fridayAccess() {
-      return hasEitherPerfil('escritorio', 'adm2');
+      return temArea('escritorio', 'mecanico');
     }
 
     // Quadro liberado: aberto (restrito != 1) ou restrito com a pessoa em "acesso". adm2 vê todos (conferido à parte).

@@ -73,7 +73,7 @@ export default function TabelaCombustivel() {
   const { data: rows, loading, remove } = useCombustivel();
   const principalGridApiRef = useGridApiRef();
   const navigate = useNavigate();
-  const isAdmin = temCredencial(useAuth().authorizationProfile, 'logistica');
+  const isAdmin = temCredencial(useAuth().authorizationProfile, 'logistica', 'mecanico');
   const { isOnline } = useOnlineStatus();
 
   const [view, setView] = useState<View>('principal');

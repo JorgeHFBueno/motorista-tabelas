@@ -10,13 +10,13 @@ export const formatoChave = (chave: unknown): chave is string => typeof chave ==
 export const hashChave = (chave: string) => createHash('sha256').update(chave).digest('hex');
 
 /**
- * Quem a chave representa: funcionário ativo com acesso ao Friday (credencial escritorio ou adm2), como nas Rules.
+ * Quem a chave representa: funcionário ativo com acesso ao Friday (credencial escritorio, mecanico ou adm2), como nas Rules.
  * escrita: a chave foi criada com escrita (POST); sem isso, só consulta.
  */
 export function pessoaDaChave(registro: AnyRecord | undefined, funcionario: AnyRecord | undefined): { uid: string; adm2: boolean; escrita: boolean } | null {
   if (!registro || registro.revogada_em || typeof registro.uid !== 'string') return null;
   const perfis = funcionario?.perfis ?? {};
-  if (funcionario?.ativo !== true || (perfis.escritorio !== true && perfis.adm2 !== true)) return null;
+  if (funcionario?.ativo !== true || (perfis.escritorio !== true && perfis.mecanico !== true && perfis.adm2 !== true)) return null;
   return { uid: registro.uid, adm2: perfis.adm2 === true, escrita: registro.escrita === true };
 }
 

@@ -20,7 +20,7 @@ import { ErroTempo, fmtDuracao, lerTempo, operarTempo, sessaoAberta, semSessaoAb
 // sistema (funcionarios/{uid}) e aparecem nos registros pelo UID (células de pessoa, criado por, autor, @menções).
 export type Row = Record<string, any> & { id: number };
 // Pessoa do Friday = funcionário do sistema; o id é o próprio UID.
-// friday: tem a credencial escritorio ou adm2 (entra no Friday); adm2: vê todos os quadros (permissões).
+// friday: tem a credencial escritorio, mecanico ou adm2 (entra no Friday); adm2: vê todos os quadros (permissões).
 export type Pessoa = { id: string; uid: string; nome: string; email: string | null; cor: string; ativo: boolean; friday: boolean; adm2: boolean };
 
 // Disparado quando a sessão acaba (as telas voltam a pedir login).
@@ -445,7 +445,7 @@ export async function listarPessoas(): Promise<Pessoa[]> {
     const email = typeof f.email === 'string' && f.email.trim() ? f.email.trim().toLowerCase() : null;
     const nome = typeof f.nome === 'string' && f.nome.trim() ? f.nome.trim() : email ?? d.id;
     const adm2 = f.perfis?.adm2 === true;
-    return { id: d.id, uid: d.id, nome, email, cor: corDaPessoa(d.id), ativo: f.ativo === true, friday: adm2 || f.perfis?.escritorio === true, adm2 };
+    return { id: d.id, uid: d.id, nome, email, cor: corDaPessoa(d.id), ativo: f.ativo === true, friday: adm2 || f.perfis?.escritorio === true || f.perfis?.mecanico === true, adm2 };
   }).sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'));
   return usuarios;
 }

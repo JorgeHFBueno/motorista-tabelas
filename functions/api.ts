@@ -27,12 +27,12 @@ async function verifyIdToken(
   }
 }
 
-// WEB Combustível (/combustivel): active employee with logistica (or adm2). The Admin SDK skips the Rules, so the
+// WEB Combustível (/combustivel): active employee with logistica or mecanico (or adm2). The Admin SDK skips the Rules, so the
 // credential is checked here.
 async function verifyCombustivel(req: AuthRequest, res: Response, next: NextFunction) {
   try {
     const funcionario = await db.collection('funcionarios').doc(req.user!.uid).get();
-    if (temCredencial(funcionario.data(), 'logistica')) return next();
+    if (temCredencial(funcionario.data(), 'logistica', 'mecanico')) return next();
     res.status(403).json({ error: 'Forbidden' });
   } catch {
     res.status(503).json({ error: 'authorization_unavailable' });
