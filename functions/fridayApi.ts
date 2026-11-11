@@ -3,7 +3,8 @@
 // quadros abertos, restritos em que ela está em "acesso" e, para adm2, todos. A chave é criada e revogada pelo adm2
 // na tela "Chaves de API" do Friday; o banco guarda só o hash. Cabeçalho: `X-Friday-Chave: fri_...` (não usa
 // Authorization: o Cloud Run tentaria validá-lo como token do Google). O Admin SDK não passa pelas Rules: a permissão
-// de cada quadro é conferida aqui (podeVerQuadro), igual às Rules do Friday.
+// de cada quadro é conferida aqui (podeVerQuadro), igual às Rules do Friday. POST /mcp expõe as mesmas rotas como
+// ferramentas de MCP para o Claude Code e outros assistentes (protocolo em fridayMcp.ts).
 // Contrato: The Manuscript, 02_APIS_FUNCTIONS/09_ROBOS_EXTERNOS_DE_OBRAS.md ("Leitura do Friday por chave").
 import { HttpsError, onRequest } from 'firebase-functions/v2/https';
 import * as logger from 'firebase-functions/logger';
@@ -15,6 +16,7 @@ import { calcular, type Coluna as ColunaFormula } from './fridayFormula.js';
 import { gravarAnexo } from './fridayAnexosMonday.js';
 import { criarItem, gravarValorDoItem, lerItem, novoContexto, subquadroDe, vincularSeOficial } from './fridayAutomacoes.js';
 import { dataLocal, novoId } from './fridayMondayConverter.js';
+import { conteudoDoArquivo, FERRAMENTAS, responderMcp } from './fridayMcp.js';
 import {
   anexoLegivel, casaBusca, colunaDoPedido, EntradaInvalida, entradaDaCelula, formatoChave, hashChave, LIMITE_ENVIO, mencoesDoTexto, nomeDoEnvio, palavrasDaBusca,
   pessoaDaChave, podeVerQuadro, textoCelula, valorDaEntrada, valoresPorTitulo,
@@ -37,7 +39,7 @@ class Recusa extends Error {
  * Pessoa da chave do cabeçalho; sem chave válida, 401 sem detalhes. Marca o último uso (no máximo uma vez por hora) e,
  * na escrita, o último uso de escrita. chaveId: começo do hash, gravado no que a chave escreve (controle de dano).
  */
-async function pessoaDoPedido(chave: unknown, escrita: boolean): Promise<{ pessoa: Pessoa; chaveId: string }> {
+async function pessoaDoPedido(chave: unknown, escrita: boolean): Promise<{ pessoa: Pessoa; chaveId: string; marcarEscrita: () => Promise<unknown> }> {
   if (!formatoChave(chave)) throw new Recusa(401, 'Não autorizado.');
   const hash = hashChave(chave);
   const ref = db.collection('friday-chaves-api').doc(hash);
@@ -51,7 +53,9 @@ async function pessoaDoPedido(chave: unknown, escrita: boolean): Promise<{ pesso
   if (String(registro!.ultimo_uso ?? '').slice(0, 13) !== agora.slice(0, 13)) marcar.ultimo_uso = agora;
   if (escrita) marcar.ultima_escrita = agora;
   if (Object.keys(marcar).length) await ref.update(marcar).catch(() => undefined);
-  return { pessoa, chaveId: hash.slice(0, 12) };
+  // MCP: um só POST para consulta e escrita; a última escrita é marcada por ferramenta de escrita.
+  const marcarEscrita = () => ref.update({ ultima_escrita: dataLocal() }).catch(() => undefined);
+  return { pessoa, chaveId: hash.slice(0, 12), marcarEscrita };
 }
 
 // ---------------------------------------------------------------- leitura com permissão
@@ -439,12 +443,59 @@ async function publicarAtualizacao(e: Escrita, itemId: number, corpo: AnyRecord)
   return { atualizacao: id, item: itemId };
 }
 
+// ---------------------------------------------------------------- MCP (as rotas acima como ferramentas)
+/** Ferramenta do MCP → a mesma função da rota (mesmas permissões, valores e registros). */
+async function executarFerramenta(e: Escrita, nome: string, a: AnyRecord): Promise<unknown> {
+  const numero = (campo: string) => {
+    const n = Number(a[campo]);
+    if (!Number.isSafeInteger(n) || n <= 0) throw new Recusa(400, `Informe ${campo} (o id, um número).`);
+    return n;
+  };
+  switch (nome) {
+    case 'quem_sou_eu': return { ...(await eu(e.pessoa)), escrita: !!e.pessoa.escrita };
+    case 'listar_quadros': return listarQuadros(e.pessoa);
+    case 'ler_quadro': return lerQuadro(e.pessoa, numero('quadro'));
+    case 'buscar_itens': return buscar(e.pessoa, { q: a.texto, quadro: a.quadro, limite: a.limite });
+    case 'listar_arquivos': return listarArquivos(e.pessoa, numero('item'));
+    case 'baixar_arquivo': { const id = numero('arquivo'); return conteudoDoArquivo(id, await baixarArquivo(e.pessoa, id)); }
+    case 'gravar_valor': return escreverValor(e, numero('item'), a);
+    case 'criar_item': return criarItemPeloPedido(e, numero('quadro'), a);
+    case 'criar_subitem': return criarSubitemPeloPedido(e, numero('item'), a);
+    case 'publicar_atualizacao': return publicarAtualizacao(e, numero('item'), a);
+    default: throw new Recusa(400, `Ferramenta desconhecida: ${nome}.`);
+  }
+}
+
+const statusDoErro = (e: unknown) => e instanceof Recusa ? e.status : e instanceof EntradaInvalida ? 400 : e instanceof HttpsError ? (STATUS_HTTPS[e.code] ?? 500) : 500;
+
 export const fridayApi = onRequest({ region: REGIAO, timeoutSeconds: 120, memory: '512MiB', maxInstances: 2 }, async (req, res) => {
   try {
     if (req.method !== 'GET' && req.method !== 'POST') throw new Recusa(405, 'Use GET (consulta) ou POST (escrita).');
-    const escrita = req.method === 'POST';
-    const { pessoa, chaveId } = await pessoaDoPedido(req.get('x-friday-chave'), escrita);
     const partes = req.path.split('/').filter(Boolean);
+    const mcp = partes.length === 1 && partes[0] === 'mcp';
+    // MCP sem sessão: só POST (sem o canal GET de eventos, que o protocolo permite recusar com 405).
+    if (mcp && req.method !== 'POST') throw new Recusa(405, 'O MCP usa POST.');
+    const escrita = req.method === 'POST' && !mcp;
+    const { pessoa, chaveId, marcarEscrita } = await pessoaDoPedido(req.get('x-friday-chave'), escrita);
+    if (mcp) {
+      const r = await responderMcp(req.body, {
+        escrita: !!pessoa.escrita,
+        executar: async (nome, args) => {
+          const deEscrita = FERRAMENTAS.find(f => f.name === nome)?.escrita === true;
+          if (deEscrita) await marcarEscrita();
+          logger.info('friday-api', { uid: pessoa.uid, chave: chaveId, metodo: 'MCP', rota: req.path, ferramenta: nome, simular: args.simular === true });
+          return executarFerramenta({ pessoa, chaveId }, nome, args);
+        },
+        mensagemDeErro: err => {
+          const status = statusDoErro(err);
+          const mensagem = err instanceof Error ? err.message : String(err);
+          logger[status >= 500 ? 'error' : 'warn']('friday-api', { rota: req.path, metodo: 'MCP', status, mensagem });
+          return status >= 500 ? 'Erro interno.' : mensagem;
+        },
+      });
+      if (r === null) res.status(202).end(); else res.status(200).json(r);
+      return;
+    }
     const corpo = req.body && typeof req.body === 'object' && !Array.isArray(req.body) ? (req.body as AnyRecord) : {};
     const id = /^\d+$/.test(partes[1] ?? '') ? Number(partes[1]) : null;
     let r: unknown;
@@ -467,12 +518,13 @@ export const fridayApi = onRequest({ region: REGIAO, timeoutSeconds: 120, memory
       return;
     } else {
       throw new Recusa(404, 'Rota desconhecida. Consulta (GET): /eu, /quadros, /quadros/{id}, /buscar?q=, /itens/{id}/arquivos, /arquivos/{id}. '
-        + 'Escrita (POST): /itens/{id}/valor, /quadros/{id}/itens, /itens/{id}/subitens, /itens/{id}/atualizacoes, /itens/{id}/arquivos?nome=.');
+        + 'Escrita (POST): /itens/{id}/valor, /quadros/{id}/itens, /itens/{id}/subitens, /itens/{id}/atualizacoes, /itens/{id}/arquivos?nome=. '
+        + 'MCP (POST): /mcp.');
     }
     logger.info('friday-api', { uid: pessoa.uid, chave: chaveId, metodo: req.method, rota: req.path, simular: corpo.simular === true || req.query.simular != null });
     res.status(200).json(r);
   } catch (e) {
-    const status = e instanceof Recusa ? e.status : e instanceof EntradaInvalida ? 400 : e instanceof HttpsError ? (STATUS_HTTPS[e.code] ?? 500) : 500;
+    const status = statusDoErro(e);
     const mensagem = e instanceof Error ? e.message : String(e);
     logger[status >= 500 ? 'error' : 'warn']('friday-api', { rota: req.path, metodo: req.method, status, mensagem });
     res.status(status).json({ ok: false, erro: status >= 500 ? 'Erro interno.' : mensagem });
