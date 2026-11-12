@@ -9,7 +9,7 @@ import { api, req, type Row } from '../api.ts';
 import { useNav } from '../nav.tsx';
 import { useAuth } from '../../../contexts/AuthContext';
 import { Menu, Modal, Popover, useConfirmar, usePopover } from '../ui/base.tsx';
-import { CORES, corTexto } from '../util.ts';
+import { CORES, corTexto, MONDAY_NA_TELA } from '../util.ts';
 
 // Largura da lateral: arrastável pela borda (200–480 px), lembrada neste navegador; duplo clique volta ao padrão.
 const LARGURA_PADRAO = 255;
@@ -160,7 +160,7 @@ export function Lateral({ onRecolher }: { onRecolher: () => void }) {
         <NavLink to="/meu-trabalho" className={({ isActive }) => `atalho${isActive ? ' ativo' : ''}`}><ListChecks size={17} /> Meu trabalho</NavLink>
         <NavLink to="/historico" className={({ isActive }) => `atalho${isActive ? ' ativo' : ''}`}><History size={17} /> Histórico</NavLink>
         <NavLink to="/arquivo" className={({ isActive }) => `atalho${isActive ? ' ativo' : ''}`}><Archive size={17} /> Arquivo e lixeira</NavLink>
-        {adm2 && <NavLink to="/importar-monday" className={({ isActive }) => `atalho${isActive ? ' ativo' : ''}`}><CloudDownload size={17} /> Importar do monday</NavLink>}
+        {adm2 && MONDAY_NA_TELA && <NavLink to="/importar-monday" className={({ isActive }) => `atalho${isActive ? ' ativo' : ''}`}><CloudDownload size={17} /> Importar do monday</NavLink>}
         {adm2 && <NavLink to="/chaves-api" className={({ isActive }) => `atalho${isActive ? ' ativo' : ''}`}><KeyRound size={17} /> Chaves de API</NavLink>}
         <button className="btn-icone recolher" onClick={onRecolher} title="Recolher lateral" aria-label="Recolher lateral"><ChevronsLeft size={16} /></button>
       </nav>

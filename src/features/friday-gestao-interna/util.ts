@@ -1,3 +1,7 @@
+// O monday está fora de uso desde 2026-11-09. A importação, a cópia de arquivos e a importação de automações ficam no
+// código até o fim da assinatura (02/2027), mas sem botão ou atalho na tela; a rota /friday/importar-monday continua.
+export const MONDAY_NA_TELA = false;
+
 // Datas como 'YYYY-MM-DD' no fuso local.
 export const hojeISO = () => new Date(Date.now() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 10);
 export function somarDias(iso: string, n: number) {

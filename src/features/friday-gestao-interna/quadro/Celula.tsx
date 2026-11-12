@@ -5,7 +5,7 @@ import { useNav } from '../nav.tsx';
 import { calcular, textoResultado } from './formula.ts';
 import { IconeTipo, urlArquivo } from './Atualizacoes.tsx';
 import { Avatar, Popover, usePopover } from '../ui/base.tsx';
-import { CORES, corTexto, diasEntre, fmtData, fmtDataComAno, fmtNumeroColuna, hojeISO, somarDias } from '../util.ts';
+import { CORES, corTexto, diasEntre, fmtData, fmtDataComAno, fmtNumeroColuna, hojeISO, MONDAY_NA_TELA, somarDias } from '../util.ts';
 import { ehPrazo, itemConcluido, rotuloDe, vazio, type Coluna, type Item, type Rotulo } from './tipos.ts';
 import { CelulaTempo } from './CelulaTempo.tsx';
 import { ColaboradoresDoQuadro } from './colaboradores.ts';
@@ -513,7 +513,7 @@ function CelulaArquivos({ coluna, valor, onMudar, item }: CelulaProps) {
               </div>
             ))}
             {lista.some(pendente) && <small className="muted dica-monday">“no monday”: o arquivo veio na importação só com o nome; ainda não foi baixado para o app.</small>}
-            {lista.some(pendente) && nav.usuario?.admin && (
+            {lista.some(pendente) && nav.usuario?.admin && MONDAY_NA_TELA && (
               <button className="fr-btn" onClick={copiarDoMonday} disabled={!!copiando}><Download size={14} /> {copiando ?? 'Copiar do monday (quadro inteiro)'}</button>
             )}
             {!lista.length && <p className="muted fr-small" style={{ margin: '4px 4px 8px' }}>Nenhum arquivo nesta coluna.</p>}
