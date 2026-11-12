@@ -5,6 +5,7 @@ import { periodoDe, textoConflito } from '../domain/conflitos';
 import type { CivilDate, Programacao } from '../domain/models';
 import { ddmm, diasDoCalendario, semanaDoId, semanaIdDe } from '../domain/semanas';
 import { statusExibido } from '../domain/status';
+import { textoCodigo } from '../domain/codigo';
 import type { AcoesLogistica, CadastrosLogistica, ConflitosLogistica } from './contexto';
 
 type LinhasPor = 'motorista' | 'veiculo';
@@ -115,7 +116,7 @@ export function CalendarioSemanas({ programacoes, hoje, cadastros, conflitos, ac
                     const texto = [obra, programacao.item].filter(Boolean).join(' · ');
                     const rotuloOutro = por === 'motorista' ? (programacao.veiculos.length > 1 ? 'Veículos' : 'Veículo') : 'Motorista';
                     const status = statusExibido(programacao.status, cadastros.etiquetas).nome;
-                    const titulo = [[programacao.cod, programacao.item].filter(Boolean).join(' · '), obra && `Obra: ${obra}`, outro && `${rotuloOutro}: ${outro}`, status && `Status: ${status}`, ...lista.map((conflito) => `⚠ ${textoConflito(conflito)}`)].filter(Boolean).join('\n');
+                    const titulo = [[programacao.cod === null ? null : textoCodigo(programacao.cod), programacao.item].filter(Boolean).join(' · '), obra && `Obra: ${obra}`, outro && `${rotuloOutro}: ${outro}`, status && `Status: ${status}`, ...lista.map((conflito) => `⚠ ${textoConflito(conflito)}`)].filter(Boolean).join('\n');
                     return (
                       <button
                         type="button"

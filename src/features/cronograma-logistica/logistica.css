@@ -57,7 +57,12 @@
 .lg-grupo-cab svg { color: var(--lg-cor-grupo); }
 .lg-grupo-nome { color: var(--lg-cor-grupo); font-size: 18px; font-weight: 600; }
 .lg-grupo-total { color: var(--lg-texto-3); font-size: 13px; margin-left: 8px; font-weight: 400; }
-.lg-grupo-conflitos { display: inline-flex; align-items: center; gap: 3px; margin-left: 10px; color: var(--lg-perigo); font-size: 13px; }
+.lg-grupo-topo { display: flex; align-items: center; gap: 6px; margin-bottom: 6px; }
+.lg-grupo-topo .lg-grupo-cab { margin-bottom: 0; }
+.lg-grupo-conflitos { display: inline-flex; align-items: center; gap: 3px; height: 26px; padding: 0 8px; border: 1px solid transparent; border-radius: 4px; background: none; color: var(--lg-perigo) !important; font-size: 13px; cursor: pointer; }
+.lg-grupo-conflitos:hover { border-color: var(--lg-perigo); background: var(--lg-alerta-fundo); }
+.lg-grupo-conflitos.is-ignorados { color: var(--lg-texto-3) !important; }
+.lg-grupo-conflitos.is-ignorados:hover { border-color: var(--lg-borda); background: var(--lg-hover); }
 .lg-anteriores { margin-top: 8px; }
 .lg-anteriores-cab { font-size: 18px; font-weight: 600; color: var(--lg-texto-2); margin-bottom: 12px; }
 .lg-anteriores .lg-grupo { margin-left: 22px; }
@@ -76,7 +81,8 @@
 .lg-tabela tr:hover .lg-col-acao .lg-btn-icone, .lg-tabela .lg-col-acao .lg-btn-icone:focus-visible { opacity: 1; }
 .lg-item { display: flex; align-items: center; gap: 2px; padding-right: 4px; }
 .lg-item .lg-input { flex: 1; min-width: 0; }
-.lg-aviso { display: inline-flex; color: var(--lg-perigo); padding-left: 6px; cursor: help; }
+.lg-aviso { display: inline-flex; margin-left: 4px; padding: 2px; border: 0; border-radius: 4px; background: none; color: var(--lg-perigo) !important; cursor: pointer; }
+.lg-aviso:hover { background: #fbdcd6; }
 .lg-abrir { display: inline-flex; align-items: center; gap: 4px; height: 24px; padding: 0 6px; border: 1px solid var(--lg-borda); border-radius: 4px; background: var(--lg-superficie); color: var(--lg-texto-2); font-size: 12px; cursor: pointer; opacity: 0; }
 .lg-tabela tr:hover .lg-abrir, .lg-abrir:focus-visible { opacity: 1; }
 .lg-abrir:hover { color: var(--lg-primaria); border-color: var(--lg-primaria); }
@@ -261,3 +267,53 @@
   .lg-cal-grade { width: calc(140px + var(--lg-dias) * var(--lg-dia)); }
   .lg-cal-cab, .lg-cal-linha { grid-template-columns: 140px 1fr; }
 }
+
+/* cabeçalho das colunas: ordenar, menu, largura (como no Friday) */
+.lg-th { position: relative; }
+.lg-th-conteudo { display: flex; align-items: center; justify-content: center; gap: 2px; height: 100%; padding: 0 22px; }
+.lg-th-titulo { display: inline-flex; align-items: center; gap: 3px; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.lg-th-titulo svg { color: var(--lg-texto-3); font-size: 14px; flex: none; }
+.lg-th-ordem, .lg-th-menu { position: absolute; top: 50%; transform: translateY(-50%); display: inline-flex; padding: 3px; border: 0; border-radius: 4px; background: none; color: var(--lg-texto-3); font-size: 16px; cursor: pointer; opacity: 0; }
+.lg-th-ordem { left: 3px; }
+.lg-th-menu { right: 5px; }
+.lg-th:hover .lg-th-ordem, .lg-th:hover .lg-th-menu, .lg-th-ordem:focus-visible, .lg-th-menu:focus-visible, .lg-th.is-ordenada .lg-th-ordem { opacity: 1; }
+.lg-th-ordem:hover, .lg-th-menu:hover { background: var(--lg-hover); color: var(--lg-texto); }
+.lg-th.is-ordenada .lg-th-ordem { color: var(--lg-primaria); }
+.lg-th-borda { position: absolute; top: 0; right: -3px; z-index: 3; width: 6px; height: 100%; cursor: col-resize; }
+.lg-th-borda:hover { background: var(--lg-primaria); opacity: .5; }
+body.lg-redimensionando, body.lg-redimensionando * { cursor: col-resize !important; user-select: none !important; }
+.lg-menu-coluna .MuiMenuItem-root { font-size: 14px; color: #323338; }
+
+/* colunas fixadas: paradas ao rolar a tabela para o lado */
+.lg-tabela .lg-fixa { position: sticky; z-index: 1; }
+.lg-tabela th.lg-fixa { z-index: 2; }
+.lg-tabela .lg-ultima-fixa { box-shadow: 4px 0 6px -3px rgba(0, 0, 0, .18); }
+
+/* barra: ordenação em uso e colunas */
+.lg-chip-ordem { display: inline-flex; align-items: center; gap: 4px; height: 28px; padding: 0 4px 0 10px; border-radius: 14px; background: var(--lg-primaria-clara); color: var(--lg-primaria); font-size: 13px; }
+.lg-chip-ordem button { display: inline-flex; padding: 3px; border: 0; border-radius: 50%; background: none; color: inherit; cursor: pointer; }
+.lg-chip-ordem button:hover { background: rgba(47, 111, 222, .15); }
+.lg-btn-ativo { border-color: var(--lg-primaria); color: var(--lg-primaria) !important; }
+
+/* células novas */
+.lg-cod { display: block; text-align: center; }
+.lg-em-breve { display: block; padding: 0 8px; color: var(--lg-texto-3); font-size: 12px; font-style: italic; text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.lg-autor { display: block; padding: 0 8px; color: var(--lg-texto-2); font-size: 13px; text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+/* conflitos: balão (Popover, fora de .lg-pagina) e lista no painel */
+.lg-conflitos-balao { width: min(460px, calc(100vw - 32px)); padding: 12px 14px; color: #323338; font-size: 14px; }
+.lg-conflitos-titulo { display: flex; align-items: center; gap: 6px; color: #d83a52; font-weight: 600; }
+.lg-conflitos-ajuda { margin: 4px 0 10px; color: #676879; font-size: 12px; }
+.lg-conflitos { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.lg-conflitos li { display: flex; align-items: center; gap: 10px; padding: 8px 10px; border-radius: 6px; background: #fff4f2; }
+.lg-conflitos li > div { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; font-size: 13px; }
+.lg-conflitos li strong { font-weight: 600; }
+.lg-conflitos li small { color: #9699a6; font-size: 11px; text-transform: uppercase; letter-spacing: .03em; }
+.lg-conflitos li.is-ignorado { background: #f6f7fb; color: #676879; }
+.lg-conflitos-acao { flex: none; height: 28px; padding: 0 10px; border: 1px solid #d0d4e4; border-radius: 4px; background: #fff; color: #323338; font: inherit; font-size: 13px; cursor: pointer; }
+.lg-conflitos-acao:hover { border-color: #2f6fde; color: #2f6fde; }
+.lg-conflitos-vazio { margin: 0; color: #676879; font-size: 13px; }
+.lg-painel-conflitos .lg-conflitos { flex: 1; }
+.lg-painel-conflitos .lg-conflitos li { padding: 4px 0; background: none; }
+.lg-painel-conflitos.is-ignorados { background: #f6f7fb; color: #676879; }
+.lg-painel-autoria { margin: 4px 0 0; color: #9699a6; font-size: 12px; }

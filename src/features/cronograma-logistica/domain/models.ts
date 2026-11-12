@@ -14,7 +14,9 @@ export interface Semana {
 export interface Programacao {
   id: string;
   /** Código da linha (domain/codigo.ts); null até receber um (linhas de antes do código). */
-  cod: string | null;
+  cod: number | null;
+  /** Código ainda gravado no formato anterior (texto); `cod` já traz o convertido, que a WEB grava no lugar. */
+  codAntigo: string | null;
   semanaId: string;
   item: string;
   status: string;
@@ -27,7 +29,16 @@ export interface Programacao {
   /** Um ou mais veículos (até MAX_VEICULOS), sem repetir. */
   veiculos: RefCadastro[];
   obra: RefCadastro | null;
+  /** Texto livre da expedição. */
+  expedicao: string;
   posicao: number;
+  /** Conflitos que alguém mandou ignorar, pela chave "recurso|outra programação" (domain/conflitos.ts). */
+  conflitosIgnorados: string[];
+  /** Quem criou e quem alterou por último: UID e o nome no momento (as linhas de antes só têm o UID). */
+  criadoPor: RefPessoa | null;
+  criadoEm: number | null;
+  modificadoPor: RefPessoa | null;
+  modificadoEm: number | null;
 }
 
 export const MAX_VEICULOS = 4;
@@ -72,4 +83,4 @@ export interface Observacao {
 }
 
 /** Campos que a tela altera numa programação. */
-export type ProgramacaoEditavel = Pick<Programacao, 'item' | 'status' | 'inicio' | 'fim' | 'motorista' | 'auxiliar' | 'veiculos' | 'obra' | 'posicao'>;
+export type ProgramacaoEditavel = Pick<Programacao, 'item' | 'status' | 'inicio' | 'fim' | 'motorista' | 'auxiliar' | 'veiculos' | 'obra' | 'expedicao' | 'posicao'>;

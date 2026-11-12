@@ -27,8 +27,11 @@ export interface AcoesLogistica {
   excluir: (programacao: Programacao) => void;
   abrir: (id: string, aba?: AbaPainel) => void;
   salvarEtiquetas: (etiquetas: EtiquetaStatus[]) => void;
+  /** Ignora o conflito (some nas duas linhas) ou volta a avisar. */
+  ignorarConflito: (programacao: Programacao, conflito: Conflito, ignorar: boolean) => void;
 }
 
+/** Conflitos por programação (domain/conflitos.ts). */
 export type ConflitosLogistica = ReadonlyMap<string, Conflito[]>;
 
 export const opcaoPessoa = (ref: RefCadastro | null, cadastros: CadastrosLogistica): Opcao | null =>

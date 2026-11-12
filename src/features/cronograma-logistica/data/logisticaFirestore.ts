@@ -1,5 +1,5 @@
 import {
-  collection, deleteDoc, deleteField, doc, getDocs, onSnapshot, query, runTransaction, serverTimestamp, setDoc,
+  arrayRemove, arrayUnion, collection, deleteDoc, deleteField, doc, getDocs, onSnapshot, query, runTransaction, serverTimestamp, setDoc,
   updateDoc, where, writeBatch, type Timestamp,
 } from 'firebase/firestore';
 import { httpsCallable } from 'firebase/functions';
@@ -9,7 +9,7 @@ import {
   pessoaDoDocumento, veiculosDoDocumento, type AnexoObservacao, type Observacao, type Programacao, type ProgramacaoEditavel, type RefCadastro,
   type RefPessoa, type Semana,
 } from '../domain/models';
-import { codigoDaProgramacao } from '../domain/codigo';
+import { codigoConvertido, codigoDaProgramacao } from '../domain/codigo';
 import { semanaDoId, semanaIdValido } from '../domain/semanas';
 import { ETIQUETAS_PADRAO, type EtiquetaStatus } from '../domain/status';
 
@@ -36,11 +36,23 @@ function refCadastro(value: unknown): RefCadastro | null {
   return ref && typeof ref.id === 'string' && ref.id ? { id: ref.id, nome: texto(ref.nome) } : null;
 }
 
+const milis = (value: unknown) => {
+  const horario = value as Timestamp | null | undefined;
+  return horario && typeof horario.toMillis === 'function' ? horario.toMillis() : null;
+};
+
+/** Quem criou/alterou: o UID e o nome gravado junto (as linhas de antes têm só o UID). */
+function autoria(uid: unknown, nome: unknown): RefPessoa | null {
+  return typeof uid === 'string' && uid ? { uid, nome: texto(nome) } : null;
+}
+
 export function programacaoDoDocumento(id: string, value: Record<string, unknown>): Programacao | null {
   if (typeof value.semanaId !== 'string') return null;
+  const codAntigo = typeof value.cod === 'string' && value.cod ? value.cod : null;
   return {
     id,
-    cod: typeof value.cod === 'string' && value.cod ? value.cod : null,
+    cod: typeof value.cod === 'number' ? value.cod : codAntigo ? codigoConvertido(value.semanaId, codAntigo) : null,
+    codAntigo,
     semanaId: value.semanaId,
     item: texto(value.item),
     status: texto(value.status),
@@ -50,7 +62,13 @@ export function programacaoDoDocumento(id: string, value: Record<string, unknown
     auxiliar: pessoaDoDocumento(value.auxiliar),
     veiculos: veiculosDoDocumento(value),
     obra: refCadastro(value.obra),
+    expedicao: texto(value.expedicao),
     posicao: typeof value.posicao === 'number' ? value.posicao : 0,
+    conflitosIgnorados: Array.isArray(value.conflitosIgnorados) ? value.conflitosIgnorados.filter((chave): chave is string => typeof chave === 'string') : [],
+    criadoPor: autoria(value.criadoPorUid, value.criadoPorNome),
+    criadoEm: milis(value.criadoEm),
+    modificadoPor: autoria(value.atualizadoPorUid, value.atualizadoPorNome),
+    modificadoEm: milis(value.atualizadoEm),
   };
 }
 
@@ -69,14 +87,13 @@ function anexoDo(value: unknown): AnexoObservacao | null {
 export function observacaoDoDocumento(id: string, value: Record<string, unknown>): Observacao | null {
   const autor = refPessoa(value.autor);
   if (typeof value.programacaoId !== 'string' || !autor) return null;
-  const criadoEm = value.criadoEm as Timestamp | null | undefined;
   return {
     id,
     programacaoId: value.programacaoId,
     texto: texto(value.texto),
     anexos: (Array.isArray(value.anexos) ? value.anexos : []).map(anexoDo).filter((anexo): anexo is AnexoObservacao => anexo !== null),
     autor,
-    criadoEm: criadoEm && typeof criadoEm.toMillis === 'function' ? criadoEm.toMillis() : null,
+    criadoEm: milis(value.criadoEm),
   };
 }
 
@@ -95,7 +112,7 @@ export function observarSemanas(onData: (semanas: Semana[]) => void, onError: (e
 export function observarProgramacoes(onData: (programacoes: Programacao[]) => void, onError: (error: Error) => void) {
   return onSnapshot(collection(db, PROGRAMACOES), (snapshot) => {
     onData(snapshot.docs
-      .map((item) => programacaoDoDocumento(item.id, item.data()))
+      .map((item) => programacaoDoDocumento(item.id, item.data({ serverTimestamps: 'estimate' })))
       .filter((item): item is Programacao => item !== null));
   }, onError);
 }
@@ -131,12 +148,15 @@ export function observarEtiquetas(onData: (etiquetas: EtiquetaStatus[]) => void,
   }, onError);
 }
 
+/** Quem altera uma programação assina: UID, o nome no momento (coluna "Modificado por") e o horário do servidor. */
+const assinatura = (eu: RefPessoa) => ({ atualizadoPorUid: eu.uid, atualizadoPorNome: eu.nome.slice(0, 200), atualizadoEm: serverTimestamp() });
+
 /** Grava a lista de etiquetas e, no mesmo lote, o status das programações que precisam acompanhar. */
-export async function salvarEtiquetas(etiquetas: readonly EtiquetaStatus[], mudancas: readonly { id: string; status: string }[], uid: string): Promise<void> {
+export async function salvarEtiquetas(etiquetas: readonly EtiquetaStatus[], mudancas: readonly { id: string; status: string }[], eu: RefPessoa): Promise<void> {
   const lote = writeBatch(db);
-  lote.set(doc(db, CONFIG, 'status'), { schemaVersion: 1, etiquetas, atualizadoPorUid: uid, atualizadoEm: serverTimestamp() });
+  lote.set(doc(db, CONFIG, 'status'), { schemaVersion: 1, etiquetas, atualizadoPorUid: eu.uid, atualizadoEm: serverTimestamp() });
   for (const mudanca of mudancas) {
-    lote.update(doc(db, PROGRAMACOES, mudanca.id), { status: mudanca.status, atualizadoPorUid: uid, atualizadoEm: serverTimestamp() });
+    lote.update(doc(db, PROGRAMACOES, mudanca.id), { status: mudanca.status, ...assinatura(eu) });
   }
   await lote.commit();
 }
@@ -155,7 +175,7 @@ export async function abrirSemana(semanaId: string, abertura: Semana['abertura']
  * A linha nasce com o código: o contador da semana sobe um na mesma transação, então duas pessoas criando ao mesmo
  * tempo não repetem número.
  */
-export async function criarProgramacao(semanaId: string, item: string, posicao: number, uid: string): Promise<string> {
+export async function criarProgramacao(semanaId: string, item: string, posicao: number, eu: RefPessoa): Promise<string> {
   const semanaRef = doc(db, SEMANAS, semanaId);
   const ref = doc(collection(db, PROGRAMACOES));
   await runTransaction(db, async (transaction) => {
@@ -165,33 +185,63 @@ export async function criarProgramacao(semanaId: string, item: string, posicao: 
     transaction.update(semanaRef, { contador: numero });
     transaction.set(ref, {
       schemaVersion: 1, cod: codigoDaProgramacao(semanaId, numero), semanaId, item, status: '', inicio: null, fim: null,
-      motorista: null, auxiliar: null, veiculos: [], obra: null, posicao,
-      criadoPorUid: uid, criadoEm: serverTimestamp(), atualizadoPorUid: uid, atualizadoEm: serverTimestamp(),
+      motorista: null, auxiliar: null, veiculos: [], obra: null, expedicao: '', posicao, conflitosIgnorados: [],
+      criadoPorUid: eu.uid, criadoPorNome: eu.nome.slice(0, 200), criadoEm: serverTimestamp(), ...assinatura(eu),
     });
   });
   return ref.id;
 }
 
-/** Dá código a uma linha de antes do código (uma vez; quem chegar depois, noutra aba, não faz nada). */
-export async function darCodigo(id: string, uid: string): Promise<void> {
+/**
+ * Dá código a uma linha de antes do código (uma vez; quem chegar depois, noutra aba, não faz nada). Só o código muda:
+ * não é alteração de ninguém, então não assina (as regras aceitam o código sozinho).
+ */
+export async function darCodigo(id: string): Promise<void> {
   const ref = doc(db, PROGRAMACOES, id);
   await runTransaction(db, async (transaction) => {
     const programacao = await transaction.get(ref);
-    if (!programacao.exists() || programacao.data().cod) return;
+    if (!programacao.exists() || programacao.data().cod != null) return;
     const semanaId = programacao.data().semanaId as string;
     const semanaRef = doc(db, SEMANAS, semanaId);
     const semana = await transaction.get(semanaRef);
     if (!semana.exists()) return;
     const numero = (typeof semana.data().contador === 'number' ? semana.data().contador : 0) + 1;
     transaction.update(semanaRef, { contador: numero });
-    transaction.update(ref, { cod: codigoDaProgramacao(semanaId, numero), atualizadoPorUid: uid, atualizadoEm: serverTimestamp() });
+    transaction.update(ref, { cod: codigoDaProgramacao(semanaId, numero) });
   });
 }
 
-export async function atualizarProgramacao(id: string, alteracao: Partial<ProgramacaoEditavel>, uid: string): Promise<void> {
+/** Código do formato anterior (texto) gravado no atual (número, mesma ordem); também sem assinar. */
+export async function converterCodigo(programacao: Pick<Programacao, 'id' | 'cod'>): Promise<void> {
+  if (programacao.cod === null) return;
+  await updateDoc(doc(db, PROGRAMACOES, programacao.id), { cod: programacao.cod });
+}
+
+export async function atualizarProgramacao(id: string, alteracao: Partial<ProgramacaoEditavel>, eu: RefPessoa): Promise<void> {
   // Gravar a lista de veículos aposenta o campo antigo `veiculo` do documento.
   const extra = 'veiculos' in alteracao ? { veiculo: deleteField() } : {};
-  await updateDoc(doc(db, PROGRAMACOES, id), { ...alteracao, ...extra, atualizadoPorUid: uid, atualizadoEm: serverTimestamp() });
+  await updateDoc(doc(db, PROGRAMACOES, id), { ...alteracao, ...extra, ...assinatura(eu) });
+}
+
+/**
+ * Ignorar grava a chave na programação de onde se ignorou (o conflito some nas duas). Voltar a avisar tira a chave
+ * de cada lado que a tiver.
+ */
+export async function ignorarConflito(
+  programacao: Pick<Programacao, 'id'>,
+  chave: string,
+  ignorar: boolean,
+  eu: RefPessoa,
+  outra?: { id: string; chave: string },
+): Promise<void> {
+  if (ignorar) {
+    await updateDoc(doc(db, PROGRAMACOES, programacao.id), { conflitosIgnorados: arrayUnion(chave), ...assinatura(eu) });
+    return;
+  }
+  const lote = writeBatch(db);
+  lote.update(doc(db, PROGRAMACOES, programacao.id), { conflitosIgnorados: arrayRemove(chave), ...assinatura(eu) });
+  if (outra) lote.update(doc(db, PROGRAMACOES, outra.id), { conflitosIgnorados: arrayRemove(outra.chave), ...assinatura(eu) });
+  await lote.commit();
 }
 
 async function apagarArquivos(anexos: readonly AnexoObservacao[]): Promise<void> {

@@ -1399,7 +1399,7 @@ test('[firestore] logistica: só adm2 lê, cria semana no formato e programaçã
   const adm2 = dbAs('canonicalAdm2');
   const semana = (abertura = 'manual', extra = {}) => ({ schemaVersion: 1, inicio: '2026-11-09', fim: '2026-11-15', abertura, criadoPorUid: 'uid-canonical-adm2', criadoEm: serverTimestamp(), ...extra });
   const programacao = (extra = {}) => ({
-    schemaVersion: 1, semanaId: '2026-W45', item: 'Buscar contra-peso', status: 'Programado', inicio: '2026-11-03', fim: '2026-11-04',
+    schemaVersion: 1, cod: 452601, semanaId: '2026-W45', item: 'Buscar contra-peso', status: 'Programado', inicio: '2026-11-03', fim: '2026-11-04',
     motorista: { uid: 'uid-user', nome: 'User' }, auxiliar: null, veiculo: { id: 'vv1', nome: 'ABC-1D23 - Caminhão' }, obra: { id: 'ob1', nome: 'OBV - Obra V2' },
     posicao: 2, criadoPorUid: 'uid-canonical-adm2', criadoEm: serverTimestamp(), atualizadoPorUid: 'uid-canonical-adm2', atualizadoEm: serverTimestamp(), ...extra,
   });
@@ -1446,7 +1446,7 @@ test('[firestore] logistica: vários veículos (até 4) e o campo antigo veiculo
   const adm2 = dbAs('canonicalAdm2');
   const v = (id) => ({ id, nome: `Veículo ${id}` });
   const { veiculo: _antigo, ...semVeiculo } = {
-    schemaVersion: 1, semanaId: '2026-W45', item: 'Transporte de pilares', status: 'Em viagem', inicio: '2026-11-03', fim: '2026-11-04',
+    schemaVersion: 1, cod: 452602, semanaId: '2026-W45', item: 'Transporte de pilares', status: 'Em viagem', inicio: '2026-11-03', fim: '2026-11-04',
     motorista: null, auxiliar: null, veiculo: null, obra: null, posicao: 1.5,
     criadoPorUid: 'uid-canonical-adm2', criadoEm: serverTimestamp(), atualizadoPorUid: 'uid-canonical-adm2', atualizadoEm: serverTimestamp(),
   };
@@ -1472,7 +1472,7 @@ test('[firestore] logistica: vários veículos (até 4) e o campo antigo veiculo
 test('[firestore] logistica: observações com texto ou arquivos, do próprio autor, sem edição', async () => {
   const adm2 = dbAs('canonicalAdm2');
   await setDoc(doc(adm2, 'logistica-programacoes', 'lo-prog'), {
-    schemaVersion: 1, semanaId: '2026-W45', item: 'Buscar carreta', status: '', inicio: null, fim: null,
+    schemaVersion: 1, cod: 452603, semanaId: '2026-W45', item: 'Buscar carreta', status: '', inicio: null, fim: null,
     motorista: null, auxiliar: null, veiculos: [], obra: null, posicao: 1,
     criadoPorUid: 'uid-canonical-adm2', criadoEm: serverTimestamp(), atualizadoPorUid: 'uid-canonical-adm2', atualizadoEm: serverTimestamp(),
   });
@@ -1513,15 +1513,45 @@ test('[firestore] logistica: código da linha com o contador da semana; etiqueta
   });
   const alterou = { atualizadoPorUid: 'uid-canonical-adm2', atualizadoEm: serverTimestamp() };
 
-  // Código: 8 ou 9 dígitos; não muda depois de gravado; a linha de antes (sem código) recebe um.
-  await assertSucceeds(setDoc(doc(adm2, 'logistica-programacoes', 'lc1'), linha({ cod: '45020801' })));
-  await assertFails(setDoc(doc(adm2, 'logistica-programacoes', 'lc2'), linha({ cod: '4502' })));
-  await assertFails(setDoc(doc(adm2, 'logistica-programacoes', 'lc2'), linha({ cod: 45020801 })));
-  await assertFails(updateDoc(doc(adm2, 'logistica-programacoes', 'lc1'), { cod: '45020802', ...alterou }));
-  await assertFails(updateDoc(doc(adm2, 'logistica-programacoes', 'lc1'), { cod: deleteField(), ...alterou }));
-  await assertSucceeds(updateDoc(doc(adm2, 'logistica-programacoes', 'lc1'), { status: '3', ...alterou }));
-  await assertSucceeds(setDoc(doc(adm2, 'logistica-programacoes', 'lc3'), linha()));
-  await assertSucceeds(updateDoc(doc(adm2, 'logistica-programacoes', 'lc3'), { cod: '45020802', ...alterou }));
+  const ref = (id) => doc(adm2, 'logistica-programacoes', id);
+
+  // Código: nasce número (semana, ano, ordem) e não muda mais; alteração assinada mantém o código.
+  await assertSucceeds(setDoc(ref('lc1'), linha({ cod: 452601 })));
+  await assertFails(setDoc(ref('lc2'), linha()));
+  await assertFails(setDoc(ref('lc2'), linha({ cod: '45020801' })));
+  await assertFails(setDoc(ref('lc2'), linha({ cod: 4526.5 })));
+  await assertFails(setDoc(ref('lc2'), linha({ cod: 99 })));
+  await assertFails(updateDoc(ref('lc1'), { cod: 452602, ...alterou }));
+  await assertFails(updateDoc(ref('lc1'), { cod: 452602 }));
+  await assertFails(updateDoc(ref('lc1'), { cod: deleteField(), ...alterou }));
+  await assertSucceeds(updateDoc(ref('lc1'), { status: '3', expedicao: 'Doca 2', ...alterou }));
+  await assertFails(updateDoc(doc(dbAs('logistica'), 'logistica-programacoes', 'lc1'), { status: '4' }));
+  await assertFails(updateDoc(ref('lc1'), { expedicao: 'x'.repeat(201), ...alterou }));
+
+  // Linhas de antes: sem código e com o texto do formato anterior. Só o código, sem assinar, passa ao número.
+  await env.withSecurityRulesDisabled(async (context) => {
+    const db = context.firestore();
+    await setDoc(doc(db, 'logistica-programacoes', 'lc3'), linha());
+    await setDoc(doc(db, 'logistica-programacoes', 'lc5'), linha({ cod: '45020802' }));
+    await setDoc(doc(db, 'logistica-programacoes', 'lc7'), linha());
+  });
+  await assertSucceeds(updateDoc(ref('lc5'), { status: '1', ...alterou }));
+  await assertFails(updateDoc(ref('lc5'), { cod: '45020803', ...alterou }));
+  await assertFails(updateDoc(ref('lc5'), { cod: 452602, ...alterou }));
+  await assertFails(updateDoc(ref('lc5'), { cod: 452602, status: '2' }));
+  await assertFails(updateDoc(ref('lc5'), { cod: '45020803' }));
+  await assertSucceeds(updateDoc(ref('lc5'), { cod: 452602 }));
+  await assertSucceeds(updateDoc(ref('lc3'), { cod: 452603 }));
+  await assertFails(updateDoc(ref('lc3'), { cod: 452604 }));
+
+  // Autoria com o nome do momento; o de quem criou não muda. Conflitos ignorados: lista de chaves, até 100.
+  await assertSucceeds(setDoc(ref('lc6'), linha({ cod: 452610, criadoPorNome: 'Adm', atualizadoPorNome: 'Adm', conflitosIgnorados: [] })));
+  await assertSucceeds(updateDoc(ref('lc6'), { conflitosIgnorados: ['p:f1|lc1'], atualizadoPorNome: 'Adm Novo', ...alterou }));
+  await assertFails(updateDoc(ref('lc6'), { criadoPorNome: 'Outro', ...alterou }));
+  await assertFails(updateDoc(ref('lc6'), { conflitosIgnorados: 'p:f1|lc1', ...alterou }));
+  await assertFails(updateDoc(ref('lc6'), { conflitosIgnorados: Array.from({ length: 101 }, (_, i) => `p:${i}|x`), ...alterou }));
+  await assertFails(updateDoc(ref('lc6'), { atualizadoPorNome: 1, ...alterou }));
+  await assertFails(updateDoc(ref('lc6'), { conflitosIgnorados: [], atualizadoPorUid: 'uid-logistica', atualizadoEm: serverTimestamp() }));
 
   // Contador da semana: só ele muda, inteiro a partir de 1 (a transação garante o "+1").
   const semana = doc(dbAs('logistica'), 'logistica-semanas', '2026-W45');
@@ -1535,7 +1565,13 @@ test('[firestore] logistica: código da linha com o contador da semana; etiqueta
   await assertSucceeds(runTransaction(adm2, async (transaction) => {
     const atual = (await transaction.get(doc(adm2, 'logistica-semanas', '2026-W45'))).data().contador;
     transaction.update(doc(adm2, 'logistica-semanas', '2026-W45'), { contador: atual + 1 });
-    transaction.set(doc(adm2, 'logistica-programacoes', 'lc4'), linha({ cod: `450208${String(atual + 1).padStart(2, '0')}` }));
+    transaction.set(doc(adm2, 'logistica-programacoes', 'lc4'), linha({ cod: Number(`4526${String(atual + 1).padStart(2, '0')}`) }));
+  }));
+  // A linha de antes ganha o código no mesmo movimento, sem assinar.
+  await assertSucceeds(runTransaction(adm2, async (transaction) => {
+    const atual = (await transaction.get(doc(adm2, 'logistica-semanas', '2026-W45'))).data().contador;
+    transaction.update(doc(adm2, 'logistica-semanas', '2026-W45'), { contador: atual + 1 });
+    transaction.update(doc(adm2, 'logistica-programacoes', 'lc7'), { cod: Number(`4526${String(atual + 1).padStart(2, '0')}`) });
   }));
 
   // Etiquetas: só o documento "status", até 40, quem grava assina; ninguém fora da área.
@@ -1559,7 +1595,7 @@ test('[firestore] logistica: código da linha com o contador da semana; etiqueta
 test('[firestore] logistica: motorista e auxiliar do Friday {id, nome}; o {uid, nome} de antes continua aceito', async () => {
   const quem = dbAs('logistica');
   const linha = (extra = {}) => ({
-    schemaVersion: 1, cod: '45020850', semanaId: '2026-W45', item: 'Transporte', status: '', inicio: null, fim: null,
+    schemaVersion: 1, cod: 452650, semanaId: '2026-W45', item: 'Transporte', status: '', inicio: null, fim: null,
     motorista: null, auxiliar: null, veiculos: [], obra: null, posicao: 1,
     criadoPorUid: 'uid-logistica', criadoEm: serverTimestamp(), atualizadoPorUid: 'uid-logistica', atualizadoEm: serverTimestamp(), ...extra,
   });

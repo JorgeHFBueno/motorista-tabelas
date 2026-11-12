@@ -5,16 +5,20 @@ import { posicaoAoSoltar } from '../src/features/cronograma-logistica/domain/ord
 import {
   COR_SEM_STATUS, ETIQUETAS_PADRAO, etiquetasLimpas, novoIdEtiqueta, statusAoSalvarEtiquetas, statusExibido, textoEscuro,
 } from '../src/features/cronograma-logistica/domain/status';
-import { codigoDaProgramacao, semCodigoEmOrdem } from '../src/features/cronograma-logistica/domain/codigo';
+import { codigoConvertido, codigoDaProgramacao, semCodigoEmOrdem, textoCodigo } from '../src/features/cronograma-logistica/domain/codigo';
+import { colunasVisiveis, ordenarPor, prefsLimpas } from '../src/features/cronograma-logistica/domain/colunas';
 import {
   diasDoCalendario, inicioDaSemanaId, organizarSemanas, proximaSemanaParaAbrir, rotuloSemana, semanaIdDe, semanaIdValido,
 } from '../src/features/cronograma-logistica/domain/semanas';
-import { conflitosPorProgramacao, periodoDe, textoConflito } from '../src/features/cronograma-logistica/domain/conflitos';
+import {
+  conflitosAtivos, conflitosIgnorados, conflitosPorProgramacao, periodoDe, textoConflito,
+} from '../src/features/cronograma-logistica/domain/conflitos';
 import { barrasDaLinha } from '../src/features/cronograma-logistica/domain/calendario';
 
 const programacao = (id: string, extra: Partial<Programacao> = {}): Programacao => ({
-  id, cod: null, semanaId: '2026-W45', item: `Item ${id}`, status: '', inicio: null, fim: null,
-  motorista: null, auxiliar: null, veiculos: [], obra: null, posicao: 0, ...extra,
+  id, cod: null, codAntigo: null, semanaId: '2026-W45', item: `Item ${id}`, status: '', inicio: null, fim: null,
+  motorista: null, auxiliar: null, veiculos: [], obra: null, expedicao: '', posicao: 0, conflitosIgnorados: [],
+  criadoPor: null, criadoEm: null, modificadoPor: null, modificadoEm: null, ...extra,
 });
 
 test('semana ISO de segunda a domingo, inclusive nas viradas de ano', () => {
@@ -142,15 +146,68 @@ test('editar etiquetas: excluída deixa a linha sem status; nome de antes vira i
   ]);
 });
 
-test('código: semana, dia da segunda, dia do domingo e a ordem na semana', () => {
-  assert.equal(codigoDaProgramacao('2026-W46', 1), '46091501');
-  assert.equal(codigoDaProgramacao('2026-W46', 12), '46091512');
-  assert.equal(codigoDaProgramacao('2026-W46', 100), '460915100');
-  assert.equal(codigoDaProgramacao('2026-W45', 3), '45020803');
-  assert.equal(codigoDaProgramacao('2026-W01', 1), '01290401'); // 29/12/2025 a 04/01/2026
-  assert.equal(codigoDaProgramacao('2026-W53', 2), '53280302'); // 28/12/2026 a 03/01/2027
-  const linhas = [programacao('b', { posicao: 2 }), programacao('a', { posicao: 1, cod: '46091501' }), programacao('c', { posicao: 1 })];
+test('código: semana, ano e a ordem na semana, gravado como número e mostrado com LOG-', () => {
+  assert.equal(codigoDaProgramacao('2026-W46', 1), 462601);
+  assert.equal(codigoDaProgramacao('2026-W46', 12), 462612);
+  assert.equal(codigoDaProgramacao('2026-W46', 100), 4626100);
+  assert.equal(codigoDaProgramacao('2026-W01', 1), 12601); // ano da semana ISO: 29/12/2025 a 04/01/2026 é de 2026
+  assert.equal(codigoDaProgramacao('2026-W53', 2), 532602);
+  assert.equal(codigoDaProgramacao('2027-W01', 3), 12703);
+  assert.equal(textoCodigo(462601), 'LOG-462601');
+  assert.equal(textoCodigo(12601), 'LOG-012601');
+  // Código antigo (semana, dia da segunda, dia do domingo, ordem) vira o novo com a mesma ordem.
+  assert.equal(codigoConvertido('2026-W46', '46091501'), 462601);
+  assert.equal(codigoConvertido('2026-W46', '460915100'), 4626100);
+  assert.equal(codigoConvertido('2026-W01', '01290403'), 12603);
+  assert.equal(codigoConvertido('2026-W46', '4609'), null);
+  assert.equal(codigoConvertido('2026-W46', '46091500'), null);
+  const linhas = [programacao('b', { posicao: 2 }), programacao('a', { posicao: 1, cod: 462601 }), programacao('c', { posicao: 1 })];
   assert.deepEqual(semCodigoEmOrdem(linhas).map((linha) => linha.id), ['c', 'b']);
+});
+
+test('conflito ignorado: some do aviso nas duas linhas, de qualquer lado que se ignore', () => {
+  const pessoa = { id: 'f1', nome: 'Fernando' };
+  const veiculo = { id: 'v1', nome: 'Caminhão' };
+  const a = programacao('a', { inicio: '2026-11-03', fim: '2026-11-03', motorista: pessoa, veiculos: [veiculo] });
+  const b = programacao('b', { inicio: '2026-11-03', fim: '2026-11-04', motorista: pessoa, veiculos: [veiculo] });
+  const todos = conflitosPorProgramacao([a, b]);
+  assert.deepEqual(todos.get('a')!.map((conflito) => conflito.chave), ['p:f1|b', 'v:v1|b']);
+  assert.equal(conflitosAtivos(todos).size, 2);
+
+  // a ignora o do motorista: some em a e em b; o do veículo continua avisando.
+  const comA = conflitosPorProgramacao([{ ...a, conflitosIgnorados: ['p:f1|b'] }, b]);
+  assert.deepEqual(conflitosAtivos(comA).get('a')!.map((conflito) => conflito.tipo), ['veiculo']);
+  assert.deepEqual(conflitosAtivos(comA).get('b')!.map((conflito) => conflito.tipo), ['veiculo']);
+  assert.deepEqual(conflitosIgnorados(comA).get('b')!.map((conflito) => conflito.chave), ['p:f1|a']);
+
+  // b ignora os dois: nada avisa.
+  const comB = conflitosPorProgramacao([a, { ...b, conflitosIgnorados: ['p:f1|a', 'v:v1|a'] }]);
+  assert.equal(conflitosAtivos(comB).size, 0);
+  assert.equal(conflitosIgnorados(comB).get('a')!.length, 2);
+});
+
+test('colunas: fixadas primeiro e paradas, ocultas fora, preferência inválida descartada', () => {
+  const prefs = prefsLimpas({
+    larguras: { item: 400, cod: 10, outra: 50 }, fixas: ['motorista', 'nada'], ocultas: ['item', 'nota', 'nota'], ordem: { chave: 'nota', dir: 1 },
+  });
+  assert.deepEqual(prefs, { larguras: { item: 400, cod: 70 }, fixas: ['motorista'], ocultas: ['nota'], ordem: null });
+  const colunas = colunasVisiveis({ ...prefs, fixas: ['motorista', 'cod'] });
+  assert.deepEqual(colunas.slice(0, 3).map((coluna) => [coluna.chave, coluna.esquerda, coluna.ultimaFixa]), [
+    ['cod', 0, false], ['motorista', 70, true], ['item', null, false],
+  ]);
+  assert.equal(colunas.find((coluna) => coluna.chave === 'item')!.largura, 400);
+  assert.ok(!colunas.some((coluna) => coluna.chave === 'nota'));
+  assert.equal(prefsLimpas('lixo').ordem, null);
+});
+
+test('ordenar por coluna: vazios no fim nos dois sentidos; empate na ordem da semana', () => {
+  const linhas = [
+    { id: 'a', posicao: 1, v: 'Bruno' }, { id: 'b', posicao: 2, v: '' }, { id: 'c', posicao: 3, v: 'álvaro' }, { id: 'd', posicao: 4, v: 'Bruno' },
+  ];
+  assert.deepEqual(ordenarPor(linhas, (linha) => linha.v, 1).map((linha) => linha.id), ['c', 'a', 'd', 'b']);
+  assert.deepEqual(ordenarPor(linhas, (linha) => linha.v, -1).map((linha) => linha.id), ['a', 'd', 'c', 'b']);
+  const numeros = [{ id: 'x', posicao: 1, n: 462610 }, { id: 'y', posicao: 2, n: 462602 }, { id: 'z', posicao: 3, n: null }];
+  assert.deepEqual(ordenarPor(numeros, (linha) => linha.n, 1).map((linha) => linha.id), ['y', 'x', 'z']);
 });
 
 test('arrastar: a nova posição fica entre os vizinhos; soltar no mesmo lugar não grava', () => {

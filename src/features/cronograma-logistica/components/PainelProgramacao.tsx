@@ -2,7 +2,7 @@ import CloseRounded from '@mui/icons-material/CloseRounded';
 import DeleteOutlineRounded from '@mui/icons-material/DeleteOutlineRounded';
 import WarningAmberRounded from '@mui/icons-material/WarningAmberRounded';
 import Drawer from '@mui/material/Drawer';
-import { textoConflito } from '../domain/conflitos';
+import { textoCodigo } from '../domain/codigo';
 import { MAX_VEICULOS, type Observacao, type Programacao, type RefPessoa } from '../domain/models';
 import { rotuloSemana } from '../domain/semanas';
 import { CampoEscolha, CampoEscolhaVarios, CampoPeriodo, CampoStatus, CampoTexto } from './campos';
@@ -10,27 +10,36 @@ import {
   opcaoObra, opcaoPessoa, opcoesVeiculos, refCadastro, refPessoa, refsCadastro,
   type AbaPainel, type AcoesLogistica, type CadastrosLogistica, type ConflitosLogistica,
 } from './contexto';
+import { ListaConflitos } from './Conflitos';
 import { ObservacoesProgramacao } from './ObservacoesProgramacao';
 
+const autoria = (rotulo: string, ref: RefPessoa | null, em: number | null, cadastros: CadastrosLogistica) => {
+  if (!ref) return null;
+  const nome = cadastros.nomePessoa(ref.uid, ref.nome) || ref.nome || 'alguém';
+  return `${rotulo} por ${nome}${em === null ? '' : ` em ${new Date(em).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' })}`}`;
+};
+
 /** Os campos do Quadro, um embaixo do outro, e as observações; abre pela linha ou pela barra do calendário. */
-export function PainelProgramacao({ programacao, aba, onAba, observacoes, eu, cadastros, conflitos, acoes, onFechar }: {
+export function PainelProgramacao({ programacao, aba, onAba, observacoes, eu, cadastros, todosConflitos, acoes, onFechar }: {
   programacao: Programacao | null;
   aba: AbaPainel;
   onAba: (aba: AbaPainel) => void;
   observacoes: readonly Observacao[];
   eu: RefPessoa;
   cadastros: CadastrosLogistica;
-  conflitos: ConflitosLogistica;
+  /** Inclusive os ignorados, com "Voltar a avisar". */
+  todosConflitos: ConflitosLogistica;
   acoes: AcoesLogistica;
   onFechar: () => void;
 }) {
-  const lista = programacao ? conflitos.get(programacao.id) ?? [] : [];
+  const lista = programacao ? todosConflitos.get(programacao.id) ?? [] : [];
+  const avisando = lista.some((conflito) => !conflito.ignorado);
   return (
     <Drawer anchor="right" open={programacao !== null} onClose={onFechar}>
       {programacao && (
         <div className="lg-painel">
           <div className="lg-painel-topo">
-            <span className="lg-painel-semana">{programacao.cod ? `${programacao.cod} · ` : ''}{rotuloSemana(programacao.semanaId)}</span>
+            <span className="lg-painel-semana">{programacao.cod !== null ? `${textoCodigo(programacao.cod)} · ` : ''}{rotuloSemana(programacao.semanaId)}</span>
             <button type="button" className="lg-btn-icone" onClick={onFechar} aria-label="Fechar"><CloseRounded /></button>
           </div>
           <CampoTexto className="lg-painel-titulo" valor={programacao.item} obrigatorio maximo={200} onSalvar={(item) => acoes.atualizar(programacao.id, { item })} />
@@ -45,9 +54,9 @@ export function PainelProgramacao({ programacao, aba, onAba, observacoes, eu, ca
           ) : (
             <>
               {lista.length > 0 && (
-                <div className="lg-painel-conflitos" role="status">
+                <div className={`lg-painel-conflitos${avisando ? '' : ' is-ignorados'}`} role="status">
                   <WarningAmberRounded fontSize="small" />
-                  <ul>{lista.map((conflito) => <li key={`${conflito.tipo}-${conflito.outraId}-${conflito.nome}`}>{textoConflito(conflito)}</li>)}</ul>
+                  <ListaConflitos itens={lista.map((conflito) => ({ programacao, conflito }))} acoes={acoes} mostrarLinha={false} />
                 </div>
               )}
               <label className="lg-painel-campo"><span>Período</span>
@@ -68,6 +77,13 @@ export function PainelProgramacao({ programacao, aba, onAba, observacoes, eu, ca
               <div className="lg-painel-campo"><span>Status</span>
                 <CampoStatus grande valor={programacao.status} etiquetas={cadastros.etiquetas} onSalvar={(status) => acoes.atualizar(programacao.id, { status })} onSalvarEtiquetas={acoes.salvarEtiquetas} />
               </div>
+              <label className="lg-painel-campo"><span>Expedição</span>
+                <CampoTexto valor={programacao.expedicao} maximo={200} onSalvar={(expedicao) => acoes.atualizar(programacao.id, { expedicao })} />
+              </label>
+              <p className="lg-painel-autoria">
+                {[autoria('Criada', programacao.criadoPor, programacao.criadoEm, cadastros), autoria('Alterada', programacao.modificadoPor, programacao.modificadoEm, cadastros)]
+                  .filter(Boolean).join(' · ')}
+              </p>
               <button type="button" className="lg-btn lg-btn-perigo" onClick={() => acoes.excluir(programacao)}>
                 <DeleteOutlineRounded fontSize="small" /> Excluir programação
               </button>

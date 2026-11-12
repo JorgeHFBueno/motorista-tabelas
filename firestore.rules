@@ -1426,14 +1426,26 @@ service cloud.firestore {
         && (value.size() < 4 || (value[3] != null && logisticaRef(value[3], 'id')));
     }
 
+    function logisticaTextoOpcional(data, campo) {
+      return !(campo in data) || (data[campo] is string && data[campo].size() <= 200);
+    }
+
+    // Código da linha: número (semana, ano e ordem: 462601); o texto do formato anterior ("46091501") ainda vale até
+    // a WEB gravar o número.
+    function logisticaCodigoNumero(value) {
+      return value is int && value >= 10001 && value <= 999999999;
+    }
+
     // `veiculos` (lista) substitui `veiculo` (um só); os documentos de antes continuam válidos até a WEB gravar a lista.
     function validLogisticaProgramacao(data) {
       return data.keys().hasOnly([
           'schemaVersion', 'cod', 'semanaId', 'item', 'status', 'inicio', 'fim', 'motorista', 'auxiliar', 'veiculo', 'veiculos',
-          'obra', 'posicao', 'criadoPorUid', 'criadoEm', 'atualizadoPorUid', 'atualizadoEm'
+          'obra', 'expedicao', 'posicao', 'conflitosIgnorados', 'criadoPorUid', 'criadoPorNome', 'criadoEm',
+          'atualizadoPorUid', 'atualizadoPorNome', 'atualizadoEm'
         ])
         && data.schemaVersion == 1
-        && (!('cod' in data) || (data.cod is string && data.cod.matches('^[0-9]{8,9}$')))
+        && (!('cod' in data) || data.cod == null || logisticaCodigoNumero(data.cod)
+          || (data.cod is string && data.cod.matches('^[0-9]{8,9}$')))
         && data.semanaId is string
         && exists(/databases/$(database)/documents/logistica-semanas/$(data.semanaId))
         && data.item is string && data.item.size() >= 1 && data.item.size() <= 200
@@ -1447,9 +1459,17 @@ service cloud.firestore {
         && (!('veiculo' in data) || logisticaRef(data.veiculo, 'id'))
         && (!('veiculos' in data) || logisticaVeiculos(data.veiculos))
         && logisticaRef(data.obra, 'id')
+        && logisticaTextoOpcional(data, 'expedicao')
         && data.posicao is number
-        && data.atualizadoPorUid == request.auth.uid
-        && data.atualizadoEm == request.time;
+        // Conflitos ignorados: chaves "recurso|programação".
+        && (!('conflitosIgnorados' in data) || (data.conflitosIgnorados is list && data.conflitosIgnorados.size() <= 100))
+        && logisticaTextoOpcional(data, 'criadoPorNome')
+        && logisticaTextoOpcional(data, 'atualizadoPorNome');
+    }
+
+    // Quem grava assina: o próprio UID e o horário do servidor (o nome vai em atualizadoPorNome).
+    function logisticaAssinada(data) {
+      return data.atualizadoPorUid == request.auth.uid && data.atualizadoEm == request.time;
     }
 
     match /logistica-semanas/{semanaId} {
@@ -1477,12 +1497,21 @@ service cloud.firestore {
       allow read: if isLogistica();
       allow create: if isLogistica()
         && validLogisticaProgramacao(request.resource.data)
+        && logisticaAssinada(request.resource.data)
+        && logisticaCodigoNumero(request.resource.data.get('cod', null))
         && request.resource.data.criadoPorUid == request.auth.uid
         && request.resource.data.criadoEm == request.time;
+      // Alteração assinada, com o código como estava; ou só o código, sem assinar (não é alteração de ninguém): a
+      // linha sem código ganha o número, a do formato anterior (texto) passa ao número. Número não muda mais.
       allow update: if isLogistica()
         && validLogisticaProgramacao(request.resource.data)
-        && didNotChange(['semanaId', 'criadoPorUid', 'criadoEm'])
-        && (!('cod' in resource.data) || request.resource.data.get('cod', null) == resource.data.cod);
+        && didNotChange(['semanaId', 'criadoPorUid', 'criadoPorNome', 'criadoEm'])
+        && (
+          (logisticaAssinada(request.resource.data) && request.resource.data.get('cod', null) == resource.data.get('cod', null))
+          || (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['cod'])
+            && logisticaCodigoNumero(request.resource.data.get('cod', null))
+            && !logisticaCodigoNumero(resource.data.get('cod', null)))
+        );
       allow delete: if isLogistica();
     }
 

@@ -9,17 +9,19 @@ import { listObrasAtivas } from '../../services/obras.service';
 import { listItensFrota } from '../../services/veiculos.service';
 import { itemFrotaLabel, obraLabel, type ItemFrotaV2, type ObraV2, type PessoaV2 } from '../../utils/cadastrosV2';
 import { CalendarioSemanas } from './components/CalendarioSemanas';
+import { BarraColunas } from './components/Colunas';
 import type { AbaPainel, AcoesLogistica, CadastrosLogistica } from './components/contexto';
 import { PainelProgramacao } from './components/PainelProgramacao';
 import { QuadroSemanas } from './components/QuadroSemanas';
+import { usePrefsColunas } from './components/usePrefsColunas';
 import {
-  abrirSemana, atualizarProgramacao, criarProgramacao, darCodigo, pessoasDoFriday, type PessoasFriday, excluirProgramacao, observarEtiquetas, observarObservacoes,
+  abrirSemana, atualizarProgramacao, converterCodigo, criarProgramacao, darCodigo, ignorarConflito, pessoasDoFriday, type PessoasFriday, excluirProgramacao, observarEtiquetas, observarObservacoes,
   observarProgramacoes, observarSemanas, salvarEtiquetas,
 } from './data/logisticaFirestore';
 import { semCodigoEmOrdem } from './domain/codigo';
 import { ETIQUETAS_PADRAO, statusAoSalvarEtiquetas, type EtiquetaStatus } from './domain/status';
-import { conflitosPorProgramacao } from './domain/conflitos';
-import type { Observacao, Programacao, Semana } from './domain/models';
+import { chaveConflito, conflitosAtivos, conflitosPorProgramacao } from './domain/conflitos';
+import type { Observacao, Programacao, RefPessoa, Semana } from './domain/models';
 import { hojeCivil, organizarSemanas, proximaSemanaParaAbrir, rotuloSemana, semanaIdDe } from './domain/semanas';
 import './logistica.css';
 
@@ -45,6 +47,7 @@ export default function LogisticaCronogramaPage() {
   const [abertaId, setAbertaId] = useState<string | null>(null);
   const [abaPainel, setAbaPainel] = useState<AbaPainel>('programacao');
   const [abrindo, setAbrindo] = useState(false);
+  const [prefsColunas, mudarPrefsColunas] = usePrefsColunas(uid);
   const tentouAbrirAtual = useRef<string | null>(null);
   const codigosPedidos = useRef(new Set<string>());
   // Criações da mesma aba, uma de cada vez: cada uma sobe o contador da semana.
@@ -80,14 +83,17 @@ export default function LogisticaCronogramaPage() {
     abrirSemana(atualId, 'automatica', uid).catch((error) => setErro(`Não foi possível abrir a semana atual: ${mensagem(error)}`));
   }, [semanas, uid, atualId]);
 
-  // Linhas de antes do código recebem um, na ordem da tela, uma de cada vez (o contador da semana é o mesmo).
+  // Linhas de antes do código recebem um, na ordem da tela, uma de cada vez (o contador da semana é o mesmo); as do
+  // código antigo (texto) passam ao número, com a mesma ordem. Nenhuma das duas assina a linha.
   useEffect(() => {
     if (!programacoes || !uid) return;
     const pendentes = semCodigoEmOrdem(programacoes).filter((programacao) => !codigosPedidos.current.has(programacao.id));
-    if (!pendentes.length) return;
-    for (const programacao of pendentes) codigosPedidos.current.add(programacao.id);
+    const antigos = programacoes.filter((programacao) => programacao.codAntigo !== null && !codigosPedidos.current.has(programacao.id));
+    if (!pendentes.length && !antigos.length) return;
+    for (const programacao of [...pendentes, ...antigos]) codigosPedidos.current.add(programacao.id);
     (async () => {
-      for (const programacao of pendentes) await darCodigo(programacao.id, uid);
+      for (const programacao of antigos) await converterCodigo(programacao);
+      for (const programacao of pendentes) await darCodigo(programacao.id);
     })().catch((error) => setErro(`Não foi possível gerar o código das linhas: ${mensagem(error)}`));
   }, [programacoes, uid]);
 
@@ -118,10 +124,11 @@ export default function LogisticaCronogramaPage() {
   }, [cadastrosBrutos, pessoasFriday, etiquetas]);
 
   const lista = useMemo(() => programacoes ?? [], [programacoes]);
-  const conflitos = useMemo(
+  const todosConflitos = useMemo(
     () => conflitosPorProgramacao(lista, (tipo, id, retrato) => (tipo === 'pessoa' ? cadastros.nomePessoa(id, retrato) : cadastros.nomeVeiculo(id, retrato))),
     [lista, cadastros],
   );
+  const conflitos = useMemo(() => conflitosAtivos(todosConflitos), [todosConflitos]);
   const porSemana = useMemo(() => {
     const mapa = new Map<string, Programacao[]>();
     for (const programacao of lista) mapa.set(programacao.semanaId, [...(mapa.get(programacao.semanaId) ?? []), programacao]);
@@ -143,13 +150,16 @@ export default function LogisticaCronogramaPage() {
   const proxima = proximaSemanaParaAbrir(idsAbertos, hoje);
 
   const falhar = useCallback((acao: string) => (error: unknown) => setErro(`Não foi possível ${acao}: ${mensagem(error)}`), []);
+  // Quem grava assina com o UID e o nome do momento (colunas "Criado por" e "Modificado por").
+  const nomeEu = cadastros.nomePessoa(uid, currentUser?.displayName || currentUser?.email || '');
+  const eu = useMemo<RefPessoa>(() => ({ uid, nome: nomeEu }), [uid, nomeEu]);
   const acoes = useMemo<AcoesLogistica>(() => ({
     // A posição é o momento da criação: linhas criadas em sequência, antes do retorno do Firestore, não empatam.
     criar: (semanaId, item) => {
       const posicao = Date.now();
-      filaCriacao.current = filaCriacao.current.then(() => criarProgramacao(semanaId, item, posicao, uid)).catch(falhar('criar a programação'));
+      filaCriacao.current = filaCriacao.current.then(() => criarProgramacao(semanaId, item, posicao, eu)).catch(falhar('criar a programação'));
     },
-    atualizar: (id, alteracao) => { atualizarProgramacao(id, alteracao, uid).catch(falhar('salvar a alteração')); },
+    atualizar: (id, alteracao) => { atualizarProgramacao(id, alteracao, eu).catch(falhar('salvar a alteração')); },
     excluir: (programacao) => {
       if (!window.confirm(`Excluir a programação "${programacao.item}"?`)) return;
       setAbertaId((aberta) => (aberta === programacao.id ? null : aberta));
@@ -157,9 +167,20 @@ export default function LogisticaCronogramaPage() {
     },
     abrir: (id, aba = 'programacao') => { setAbertaId(id); setAbaPainel(aba); },
     salvarEtiquetas: (novas) => {
-      salvarEtiquetas(novas, statusAoSalvarEtiquetas(programacoes ?? [], etiquetas, novas), uid).catch(falhar('salvar as etiquetas'));
+      salvarEtiquetas(novas, statusAoSalvarEtiquetas(programacoes ?? [], etiquetas, novas), eu).catch(falhar('salvar as etiquetas'));
     },
-  }), [uid, falhar, programacoes, etiquetas]);
+    ignorarConflito: (programacao, conflito, ignorar) => {
+      // Voltar a avisar tira a chave dos dois lados (qualquer um dos dois pode ter ignorado).
+      const outra = (programacoes ?? []).find((item) => item.id === conflito.outraId);
+      const chaveOutra = chaveConflito(conflito.chave.split('|')[0], programacao.id);
+      const ladoOutro = !ignorar && outra?.conflitosIgnorados.includes(chaveOutra) ? { id: outra.id, chave: chaveOutra } : undefined;
+      const ladoEste = ignorar || programacao.conflitosIgnorados.includes(conflito.chave);
+      const promessa = ladoEste
+        ? ignorarConflito(programacao, conflito.chave, ignorar, eu, ladoOutro)
+        : ladoOutro ? ignorarConflito(outra!, chaveOutra, false, eu) : Promise.resolve();
+      promessa.catch(falhar(ignorar ? 'ignorar o conflito' : 'voltar a avisar o conflito'));
+    },
+  }), [eu, falhar, programacoes, etiquetas]);
 
   const iniciarNovaSemana = () => {
     if (!proxima) return;
@@ -169,7 +190,6 @@ export default function LogisticaCronogramaPage() {
 
   const carregando = semanas === null || programacoes === null;
   const aberta = abertaId ? lista.find((programacao) => programacao.id === abertaId) ?? null : null;
-  const eu = { uid, nome: cadastros.nomePessoa(uid, currentUser?.displayName || currentUser?.email || '') };
 
   return (
     <main className="lg-pagina">
@@ -197,6 +217,8 @@ export default function LogisticaCronogramaPage() {
               <AddRounded fontSize="small" /> Iniciar nova semana
             </button>
             {(!cadastrosBrutos || !pessoasFriday) && <span className="lg-muted">Carregando motoristas, veículos e obras…</span>}
+            <span className="lg-espaco" />
+            <BarraColunas prefs={prefsColunas} mudar={mudarPrefsColunas} />
           </div>
           <QuadroSemanas
             futuras={grupos.futuras}
@@ -205,8 +227,11 @@ export default function LogisticaCronogramaPage() {
             porSemana={porSemana}
             cadastros={cadastros}
             conflitos={conflitos}
+            todosConflitos={todosConflitos}
             acoes={acoes}
             nObservacoes={nObservacoes}
+            prefs={prefsColunas}
+            mudarPrefs={mudarPrefsColunas}
           />
         </>
       ) : (
@@ -220,7 +245,7 @@ export default function LogisticaCronogramaPage() {
         observacoes={aberta ? observacoesPor.get(aberta.id) ?? [] : []}
         eu={eu}
         cadastros={cadastros}
-        conflitos={conflitos}
+        todosConflitos={todosConflitos}
         acoes={acoes}
         onFechar={() => setAbertaId(null)}
       />

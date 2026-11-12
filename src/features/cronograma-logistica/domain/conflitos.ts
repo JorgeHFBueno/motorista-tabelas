@@ -18,12 +18,21 @@ export interface Conflito {
   nome: string;
   outraId: string;
   outroItem: string;
+  outroCod: number | null;
   primeiroDia: CivilDate;
+  /** "p:id" (pessoa) ou "v:id" (veículo) e a outra programação: o que se grava em `conflitosIgnorados`. */
+  chave: string;
+  /** Uma das duas programações mandou ignorar este conflito: some do aviso nas duas. */
+  ignorado: boolean;
 }
+
+/** Chave com que uma programação ignora o conflito com a outra no mesmo recurso. */
+export const chaveConflito = (recurso: string, outraId: string) => `${recurso}|${outraId}`;
 
 /**
  * Conflito: no mesmo dia, a mesma pessoa (motorista ou auxiliar) ou o mesmo veículo em duas programações.
- * Só aviso; devolve, por programação, um conflito por (recurso, outra programação), com o primeiro dia em comum.
+ * Só aviso; devolve, por programação, um conflito por (recurso, outra programação), com o primeiro dia em comum,
+ * inclusive os ignorados (marcados; conflitosAtivos e conflitosIgnorados separam).
  */
 export function conflitosPorProgramacao(
   programacoes: readonly Programacao[],
@@ -60,14 +69,51 @@ export function conflitosPorProgramacao(
           ? programacao.veiculos.find((veiculo) => veiculo.id === id)!
           : [programacao.motorista, programacao.auxiliar].find((pessoa) => pessoa?.id === id)!;
         const retrato = ref.nome;
+        const chaveIgnorar = chaveConflito(recurso, outra.id);
+        const ignorado = programacao.conflitosIgnorados.includes(chaveIgnorar) || outra.conflitosIgnorados.includes(chaveConflito(recurso, programacao.id));
         resultado.set(programacao.id, [
           ...(resultado.get(programacao.id) ?? []),
-          { tipo, nome: nomeAtual(tipo, id, retrato), outraId: outra.id, outroItem: outra.item, primeiroDia: dia },
+          { tipo, nome: nomeAtual(tipo, id, retrato), outraId: outra.id, outroItem: outra.item, outroCod: outra.cod, primeiroDia: dia, chave: chaveIgnorar, ignorado },
         ]);
       }
     }
   }
   return resultado;
+}
+
+function separar(todos: ReadonlyMap<string, Conflito[]>, ignorado: boolean): Map<string, Conflito[]> {
+  const mapa = new Map<string, Conflito[]>();
+  for (const [id, lista] of todos) {
+    const filtrados = lista.filter((conflito) => conflito.ignorado === ignorado);
+    if (filtrados.length) mapa.set(id, filtrados);
+  }
+  return mapa;
+}
+
+/** Só os conflitos que avisam (os que ninguém ignorou). */
+export const conflitosAtivos = (todos: ReadonlyMap<string, Conflito[]>) => separar(todos, false);
+/** Só os ignorados (para voltar a avisar). */
+export const conflitosIgnorados = (todos: ReadonlyMap<string, Conflito[]>) => separar(todos, true);
+
+export interface ItemConflito { programacao: Programacao; conflito: Conflito }
+
+/**
+ * Os conflitos das programações, um por par (as duas linhas e o mesmo recurso aparecem uma vez só), os que avisam
+ * primeiro. Ignorar some com o aviso nas duas linhas; "Voltar a avisar" desfaz.
+ */
+export function paresDeConflito(programacoes: readonly Programacao[], conflitos: (id: string) => readonly Conflito[]): ItemConflito[] {
+  const vistos = new Set<string>();
+  const itens: ItemConflito[] = [];
+  for (const programacao of programacoes) {
+    for (const conflito of conflitos(programacao.id)) {
+      const recurso = conflito.chave.split('|')[0];
+      const par = `${[programacao.id, conflito.outraId].sort().join('|')}|${recurso}`;
+      if (vistos.has(par)) continue;
+      vistos.add(par);
+      itens.push({ programacao, conflito });
+    }
+  }
+  return itens.sort((a, b) => Number(a.conflito.ignorado) - Number(b.conflito.ignorado));
 }
 
 export function textoConflito(conflito: Conflito): string {

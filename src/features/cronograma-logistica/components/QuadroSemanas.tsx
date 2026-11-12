@@ -5,12 +5,16 @@ import DragIndicatorRounded from '@mui/icons-material/DragIndicatorRounded';
 import ExpandMoreRounded from '@mui/icons-material/ExpandMoreRounded';
 import OpenInFullRounded from '@mui/icons-material/OpenInFullRounded';
 import WarningAmberRounded from '@mui/icons-material/WarningAmberRounded';
-import { useState, type CSSProperties } from 'react';
-import { textoConflito } from '../domain/conflitos';
-import { MAX_VEICULOS, type Programacao } from '../domain/models';
+import { useMemo, useState, type CSSProperties, type ReactNode } from 'react';
+import { textoCodigo } from '../domain/codigo';
+import { colunasVisiveis, fixacao, ordenarPor, type ChaveColuna, type ColunaVisivel, type PrefsColunas, type ValorOrdem } from '../domain/colunas';
+import { paresDeConflito, periodoDe } from '../domain/conflitos';
+import { MAX_VEICULOS, type Programacao, type RefPessoa } from '../domain/models';
 import { posicaoAoSoltar } from '../domain/ordem';
 import { rotuloSemana } from '../domain/semanas';
 import { CampoEscolha, CampoEscolhaVarios, CampoPeriodo, CampoStatus, CampoTexto } from './campos';
+import { CabecalhoColuna, type MudarPrefs } from './Colunas';
+import { BotaoConflitos } from './Conflitos';
 import {
   opcaoObra, opcaoPessoa, opcoesVeiculos, refCadastro, refPessoa, refsCadastro,
   type AcoesLogistica, type CadastrosLogistica, type ConflitosLogistica,
@@ -19,17 +23,30 @@ import {
 export type TipoSemana = 'futura' | 'atual' | 'anterior';
 
 const COR: Record<TipoSemana, string> = { futura: '#2e9d6f', atual: '#2f6fde', anterior: '#9699a6' };
+const LARGURA_ACAO = 40;
 
 interface Comum {
   cadastros: CadastrosLogistica;
+  /** Os que avisam. */
   conflitos: ConflitosLogistica;
+  /** Todos, inclusive os ignorados (para a lista com "Voltar a avisar"). */
+  todosConflitos: ConflitosLogistica;
   acoes: AcoesLogistica;
   /** Quantas observações cada programação tem. */
   nObservacoes: ReadonlyMap<string, number>;
 }
 
+interface Tabela {
+  colunas: ColunaVisivel[];
+  prefs: PrefsColunas;
+  mudarPrefs: MudarPrefs;
+  onLarguraAoVivo: (largura: { chave: ChaveColuna; valor: number } | null) => void;
+}
+
 /** Arrastar pela alça reordena dentro da semana; o alvo é a linha antes da qual a arrastada entra (null = no fim). */
 interface Arraste {
+  /** Com a tabela ordenada por uma coluna não se arrasta (a ordem da tela não é a da semana). */
+  ligado: boolean;
   arrastando: string | null;
   alvo: string | null | undefined;
   onIniciar: (id: string) => void;
@@ -38,7 +55,35 @@ interface Arraste {
   onTerminar: () => void;
 }
 
-function LinhaProgramacao({ programacao, cadastros, conflitos, acoes, nObservacoes, arraste }: Comum & { programacao: Programacao; arraste: Arraste }) {
+const nomeAutor = (ref: RefPessoa | null, cadastros: CadastrosLogistica) => (ref ? cadastros.nomePessoa(ref.uid, ref.nome) || ref.nome : '');
+const quando = (ms: number | null) => (ms === null ? '' : new Date(ms).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' }));
+
+/** Valor de cada coluna para ordenar (o que a célula mostra; status pela ordem das etiquetas). */
+function valorParaOrdenar(chave: ChaveColuna, programacao: Programacao, cadastros: CadastrosLogistica): ValorOrdem {
+  switch (chave) {
+    case 'cod': return programacao.cod;
+    case 'item': return programacao.item;
+    case 'periodo': return periodoDe(programacao)?.inicio ?? null;
+    case 'motorista': return programacao.motorista ? cadastros.nomePessoa(programacao.motorista.id, programacao.motorista.nome) : null;
+    case 'auxiliar': return programacao.auxiliar ? cadastros.nomePessoa(programacao.auxiliar.id, programacao.auxiliar.nome) : null;
+    case 'veiculos': return programacao.veiculos.map((veiculo) => cadastros.nomeVeiculo(veiculo.id, veiculo.nome)).join(', ');
+    case 'obra': return programacao.obra ? cadastros.nomeObra(programacao.obra.id, programacao.obra.nome) : null;
+    case 'status': {
+      const indice = cadastros.etiquetas.findIndex((etiqueta) => etiqueta.id === programacao.status);
+      return indice >= 0 ? indice : null;
+    }
+    case 'expedicao': return programacao.expedicao;
+    case 'criadoPor': return nomeAutor(programacao.criadoPor, cadastros);
+    case 'modificadoPor': return nomeAutor(programacao.modificadoPor, cadastros);
+    default: return null;
+  }
+}
+
+function LinhaProgramacao({ programacao, cadastros, conflitos, todosConflitos, acoes, nObservacoes, arraste, colunas }: Comum & {
+  programacao: Programacao;
+  arraste: Arraste;
+  colunas: ColunaVisivel[];
+}) {
   const lista = conflitos.get(programacao.id) ?? [];
   const nObs = nObservacoes.get(programacao.id) ?? 0;
   const classes = [
@@ -46,52 +91,90 @@ function LinhaProgramacao({ programacao, cadastros, conflitos, acoes, nObservaco
     arraste.arrastando === programacao.id ? 'is-arrastando' : '',
     arraste.arrastando && arraste.alvo === programacao.id ? 'is-alvo' : '',
   ].filter(Boolean).join(' ');
+  const atualizar = acoes.atualizar.bind(null, programacao.id);
+
+  const celula = (chave: ChaveColuna): ReactNode => {
+    switch (chave) {
+      case 'cod':
+        return <span className="lg-cod" title={programacao.cod === null ? 'Gerando o código…' : undefined}>{programacao.cod === null ? '…' : textoCodigo(programacao.cod)}</span>;
+      case 'item':
+        return (
+          <span className="lg-item">
+            {arraste.ligado && (
+              <span
+                className="lg-alca"
+                draggable
+                title="Arrastar para mudar a ordem"
+                aria-label="Arrastar para mudar a ordem"
+                onDragStart={(event) => { event.dataTransfer.effectAllowed = 'move'; event.dataTransfer.setData('text/plain', programacao.id); arraste.onIniciar(programacao.id); }}
+                onDragEnd={arraste.onTerminar}
+              >
+                <DragIndicatorRounded fontSize="small" />
+              </span>
+            )}
+            {lista.length > 0 && (
+              <BotaoConflitos
+                className="lg-aviso"
+                titulo="Ver os conflitos desta programação"
+                rotulo={<WarningAmberRounded fontSize="small" />}
+                itens={(todosConflitos.get(programacao.id) ?? []).map((conflito) => ({ programacao, conflito }))}
+                acoes={acoes}
+                mostrarLinha={false}
+              />
+            )}
+            <CampoTexto valor={programacao.item} obrigatorio maximo={200} onSalvar={(item) => atualizar({ item })} />
+            <button type="button" className="lg-abrir" onClick={() => acoes.abrir(programacao.id)} title="Abrir">
+              <OpenInFullRounded fontSize="inherit" />
+            </button>
+            <button
+              type="button"
+              className={`lg-balao${nObs ? ' tem' : ''}`}
+              onClick={() => acoes.abrir(programacao.id, 'observacoes')}
+              title={nObs ? `${nObs} ${nObs === 1 ? 'observação' : 'observações'}` : 'Adicionar observação'}
+              aria-label={nObs ? `Observações (${nObs})` : 'Adicionar observação'}
+            >
+              <ChatBubbleOutlineRounded fontSize="inherit" />
+              {nObs > 0 && <span>{nObs}</span>}
+            </button>
+          </span>
+        );
+      case 'periodo':
+        return <CampoPeriodo inicio={programacao.inicio} fim={programacao.fim} onSalvar={(periodo) => atualizar(periodo)} />;
+      case 'motorista':
+        return <CampoEscolha rotulo="Motorista" valor={opcaoPessoa(programacao.motorista, cadastros)} opcoes={cadastros.motoristas} onSalvar={(opcao) => atualizar({ motorista: refPessoa(opcao) })} />;
+      case 'auxiliar':
+        return <CampoEscolha rotulo="Auxiliar" valor={opcaoPessoa(programacao.auxiliar, cadastros)} opcoes={cadastros.auxiliares} onSalvar={(opcao) => atualizar({ auxiliar: refPessoa(opcao) })} />;
+      case 'veiculos':
+        return <CampoEscolhaVarios rotulo="Veículos" maximo={MAX_VEICULOS} valores={opcoesVeiculos(programacao.veiculos, cadastros)} opcoes={cadastros.veiculos} onSalvar={(opcoes) => atualizar({ veiculos: refsCadastro(opcoes) })} />;
+      case 'obra':
+        return <CampoEscolha rotulo="Obra" valor={opcaoObra(programacao.obra, cadastros)} opcoes={cadastros.obras} onSalvar={(opcao) => atualizar({ obra: refCadastro(opcao) })} />;
+      case 'status':
+        return <CampoStatus valor={programacao.status} etiquetas={cadastros.etiquetas} onSalvar={(status) => atualizar({ status })} onSalvarEtiquetas={acoes.salvarEtiquetas} />;
+      case 'expedicao':
+        return <CampoTexto valor={programacao.expedicao} maximo={200} onSalvar={(expedicao) => atualizar({ expedicao })} />;
+      case 'nota':
+      case 'adiamento':
+        return <span className="lg-em-breve">Vem Novidade Aí</span>;
+      case 'criadoPor':
+      case 'modificadoPor': {
+        const ref = chave === 'criadoPor' ? programacao.criadoPor : programacao.modificadoPor;
+        const em = chave === 'criadoPor' ? programacao.criadoEm : programacao.modificadoEm;
+        const nome = nomeAutor(ref, cadastros);
+        return <span className="lg-autor" title={[nome, quando(em)].filter(Boolean).join(' · ')}>{nome || '—'}</span>;
+      }
+    }
+  };
+
   return (
     <tr
       className={classes}
       onDragOver={(event) => { if (arraste.arrastando) { event.preventDefault(); arraste.onAlvo(programacao.id); } }}
       onDrop={(event) => { event.preventDefault(); arraste.onSoltar(programacao.id); }}
     >
-      <td className="lg-col-cod" title={programacao.cod ? `Código ${programacao.cod}` : 'Gerando o código…'}>{programacao.cod ?? '…'}</td>
-      <td className="lg-col-item">
-        <span className="lg-item">
-          <span
-            className="lg-alca"
-            draggable
-            title="Arrastar para mudar a ordem"
-            aria-label="Arrastar para mudar a ordem"
-            onDragStart={(event) => { event.dataTransfer.effectAllowed = 'move'; event.dataTransfer.setData('text/plain', programacao.id); arraste.onIniciar(programacao.id); }}
-            onDragEnd={arraste.onTerminar}
-          >
-            <DragIndicatorRounded fontSize="small" />
-          </span>
-          {lista.length > 0 && (
-            <span className="lg-aviso" title={`Conflito:\n${lista.map(textoConflito).join('\n')}`} aria-label="Conflito">
-              <WarningAmberRounded fontSize="small" />
-            </span>
-          )}
-          <CampoTexto valor={programacao.item} obrigatorio maximo={200} onSalvar={(item) => acoes.atualizar(programacao.id, { item })} />
-          <button type="button" className="lg-abrir" onClick={() => acoes.abrir(programacao.id)} title="Abrir">
-            <OpenInFullRounded fontSize="inherit" />
-          </button>
-          <button
-            type="button"
-            className={`lg-balao${nObs ? ' tem' : ''}`}
-            onClick={() => acoes.abrir(programacao.id, 'observacoes')}
-            title={nObs ? `${nObs} ${nObs === 1 ? 'observação' : 'observações'}` : 'Adicionar observação'}
-            aria-label={nObs ? `Observações (${nObs})` : 'Adicionar observação'}
-          >
-            <ChatBubbleOutlineRounded fontSize="inherit" />
-            {nObs > 0 && <span>{nObs}</span>}
-          </button>
-        </span>
-      </td>
-      <td><CampoPeriodo inicio={programacao.inicio} fim={programacao.fim} onSalvar={(periodo) => acoes.atualizar(programacao.id, periodo)} /></td>
-      <td><CampoEscolha rotulo="Motorista" valor={opcaoPessoa(programacao.motorista, cadastros)} opcoes={cadastros.motoristas} onSalvar={(opcao) => acoes.atualizar(programacao.id, { motorista: refPessoa(opcao) })} /></td>
-      <td><CampoEscolha rotulo="Auxiliar" valor={opcaoPessoa(programacao.auxiliar, cadastros)} opcoes={cadastros.auxiliares} onSalvar={(opcao) => acoes.atualizar(programacao.id, { auxiliar: refPessoa(opcao) })} /></td>
-      <td><CampoEscolhaVarios rotulo="Veículos" maximo={MAX_VEICULOS} valores={opcoesVeiculos(programacao.veiculos, cadastros)} opcoes={cadastros.veiculos} onSalvar={(opcoes) => acoes.atualizar(programacao.id, { veiculos: refsCadastro(opcoes) })} /></td>
-      <td><CampoEscolha rotulo="Obra" valor={opcaoObra(programacao.obra, cadastros)} opcoes={cadastros.obras} onSalvar={(opcao) => acoes.atualizar(programacao.id, { obra: refCadastro(opcao) })} /></td>
-      <td className="lg-col-status"><CampoStatus valor={programacao.status} etiquetas={cadastros.etiquetas} onSalvar={(status) => acoes.atualizar(programacao.id, { status })} onSalvarEtiquetas={acoes.salvarEtiquetas} /></td>
+      {colunas.map((coluna) => {
+        const { className, style } = fixacao(coluna);
+        return <td key={coluna.chave} className={`lg-col-${coluna.chave} ${className}`} style={style}>{celula(coluna.chave)}</td>;
+      })}
       <td className="lg-col-acao">
         <button type="button" className="lg-btn-icone" onClick={() => acoes.excluir(programacao)} title="Excluir" aria-label={`Excluir ${programacao.item}`}>
           <DeleteOutlineRounded fontSize="small" />
@@ -101,7 +184,7 @@ function LinhaProgramacao({ programacao, cadastros, conflitos, acoes, nObservaco
   );
 }
 
-function NovaProgramacao({ onCriar, arraste }: { onCriar: (item: string) => void; arraste: Arraste }) {
+function NovaProgramacao({ onCriar, arraste, colunas }: { onCriar: (item: string) => void; arraste: Arraste; colunas: number }) {
   const [texto, setTexto] = useState('');
   const criar = () => {
     const item = texto.trim();
@@ -115,7 +198,7 @@ function NovaProgramacao({ onCriar, arraste }: { onCriar: (item: string) => void
       onDragOver={(event) => { if (arraste.arrastando) { event.preventDefault(); arraste.onAlvo(null); } }}
       onDrop={(event) => { event.preventDefault(); arraste.onSoltar(null); }}
     >
-      <td colSpan={9}>
+      <td colSpan={colunas + 1}>
         <input
           className="lg-input lg-input-nova"
           value={texto}
@@ -130,18 +213,28 @@ function NovaProgramacao({ onCriar, arraste }: { onCriar: (item: string) => void
   );
 }
 
-export function GrupoSemana({ semanaId, tipo, programacoes, aberto, onAlternar, ...comum }: Comum & {
+export function GrupoSemana({ semanaId, tipo, programacoes, aberto, onAlternar, tabela, ...comum }: Comum & {
   semanaId: string;
   tipo: TipoSemana;
   programacoes: Programacao[];
   aberto: boolean;
   onAlternar: () => void;
+  tabela: Tabela;
 }) {
+  const { colunas, prefs } = tabela;
   const nConflitos = programacoes.filter((programacao) => comum.conflitos.has(programacao.id)).length;
+  const pares = paresDeConflito(programacoes, (id) => comum.todosConflitos.get(id) ?? []);
+  const nIgnorados = pares.filter((par) => par.conflito.ignorado).length;
+  const ordem = prefs.ordem;
+  const linhas = useMemo(
+    () => (ordem ? ordenarPor(programacoes, (programacao) => valorParaOrdenar(ordem.chave, programacao, comum.cadastros), ordem.dir) : programacoes),
+    [programacoes, ordem, comum.cadastros],
+  );
   const [arrastando, setArrastando] = useState<string | null>(null);
   const [alvo, setAlvo] = useState<string | null | undefined>(undefined);
   const terminar = () => { setArrastando(null); setAlvo(undefined); };
   const arraste: Arraste = {
+    ligado: !ordem,
     arrastando,
     alvo,
     onIniciar: setArrastando,
@@ -157,25 +250,49 @@ export function GrupoSemana({ semanaId, tipo, programacoes, aberto, onAlternar, 
   };
   return (
     <section className="lg-grupo" style={{ '--lg-cor-grupo': COR[tipo] } as CSSProperties}>
-      <button type="button" className="lg-grupo-cab" onClick={onAlternar} aria-expanded={aberto}>
-        {aberto ? <ExpandMoreRounded /> : <ChevronRightRounded />}
-        <span className="lg-grupo-nome">{rotuloSemana(semanaId)}{tipo === 'atual' ? ' (atual)' : ''}</span>
-        <span className="lg-grupo-total">{programacoes.length} {programacoes.length === 1 ? 'programação' : 'programações'}</span>
-        {nConflitos > 0 && <span className="lg-grupo-conflitos"><WarningAmberRounded fontSize="inherit" /> {nConflitos} com conflito</span>}
-      </button>
+      <div className="lg-grupo-topo">
+        <button type="button" className="lg-grupo-cab" onClick={onAlternar} aria-expanded={aberto}>
+          {aberto ? <ExpandMoreRounded /> : <ChevronRightRounded />}
+          <span className="lg-grupo-nome">{rotuloSemana(semanaId)}{tipo === 'atual' ? ' (atual)' : ''}</span>
+          <span className="lg-grupo-total">{programacoes.length} {programacoes.length === 1 ? 'programação' : 'programações'}</span>
+        </button>
+        {nConflitos > 0 && (
+          <BotaoConflitos
+            className="lg-grupo-conflitos"
+            titulo="Ver os conflitos da semana"
+            rotulo={<><WarningAmberRounded fontSize="inherit" /> {nConflitos} com conflito</>}
+            itens={pares}
+            acoes={comum.acoes}
+          />
+        )}
+        {nConflitos === 0 && nIgnorados > 0 && (
+          <BotaoConflitos
+            className="lg-grupo-conflitos is-ignorados"
+            titulo="Ver os conflitos ignorados da semana"
+            rotulo={`${nIgnorados} ${nIgnorados === 1 ? 'conflito ignorado' : 'conflitos ignorados'}`}
+            itens={pares}
+            acoes={comum.acoes}
+          />
+        )}
+      </div>
       {aberto && (
         <div className="lg-tabela-rolagem">
           <table className="lg-tabela">
             <colgroup>
-              <col style={{ width: 96 }} /><col style={{ width: 320 }} /><col style={{ width: 250 }} /><col style={{ width: 170 }} /><col style={{ width: 170 }} />
-              <col style={{ width: 260 }} /><col style={{ width: 200 }} /><col style={{ width: 150 }} /><col style={{ width: 40 }} />
+              {colunas.map((coluna) => <col key={coluna.chave} style={{ width: coluna.largura }} />)}
+              <col style={{ width: LARGURA_ACAO }} />
             </colgroup>
             <thead>
-              <tr><th>Cod</th><th>Item</th><th>Período</th><th>Motorista</th><th>Auxiliar</th><th>Veículos</th><th>Obra</th><th>Status</th><th aria-label="Ações" /></tr>
+              <tr>
+                {colunas.map((coluna) => (
+                  <CabecalhoColuna key={coluna.chave} coluna={coluna} prefs={prefs} mudar={tabela.mudarPrefs} onLarguraAoVivo={tabela.onLarguraAoVivo} />
+                ))}
+                <th aria-label="Ações" />
+              </tr>
             </thead>
             <tbody>
-              {programacoes.map((programacao) => <LinhaProgramacao key={programacao.id} programacao={programacao} arraste={arraste} {...comum} />)}
-              <NovaProgramacao onCriar={(item) => comum.acoes.criar(semanaId, item)} arraste={arraste} />
+              {linhas.map((programacao) => <LinhaProgramacao key={programacao.id} programacao={programacao} arraste={arraste} colunas={colunas} {...comum} />)}
+              <NovaProgramacao onCriar={(item) => comum.acoes.criar(semanaId, item)} arraste={arraste} colunas={colunas.length} />
             </tbody>
           </table>
         </div>
@@ -184,15 +301,24 @@ export function GrupoSemana({ semanaId, tipo, programacoes, aberto, onAlternar, 
   );
 }
 
-export function QuadroSemanas({ futuras, atual, anteriores, porSemana, ...comum }: Comum & {
+export function QuadroSemanas({ futuras, atual, anteriores, porSemana, prefs, mudarPrefs, ...comum }: Comum & {
   futuras: string[];
   atual: string | null;
   anteriores: string[];
   porSemana: ReadonlyMap<string, Programacao[]>;
+  prefs: PrefsColunas;
+  mudarPrefs: MudarPrefs;
 }) {
   // Futuras e a atual começam abertas; as anteriores, recolhidas (dentro do grupo também recolhido).
   const [alternadas, setAlternadas] = useState<ReadonlySet<string>>(new Set());
   const [anterioresAbertas, setAnterioresAbertas] = useState(false);
+  // Largura enquanto a borda é arrastada: todas as semanas acompanham; grava ao soltar.
+  const [larguraAoVivo, setLarguraAoVivo] = useState<{ chave: ChaveColuna; valor: number } | null>(null);
+  const colunas = useMemo(
+    () => colunasVisiveis(larguraAoVivo ? { ...prefs, larguras: { ...prefs.larguras, [larguraAoVivo.chave]: larguraAoVivo.valor } } : prefs),
+    [prefs, larguraAoVivo],
+  );
+  const tabela: Tabela = { colunas, prefs, mudarPrefs, onLarguraAoVivo: setLarguraAoVivo };
   const alternar = (id: string) => setAlternadas((atuais) => {
     const novas = new Set(atuais);
     if (novas.has(id)) novas.delete(id); else novas.add(id);
@@ -206,6 +332,7 @@ export function QuadroSemanas({ futuras, atual, anteriores, porSemana, ...comum 
       programacoes={porSemana.get(id) ?? []}
       aberto={tipo === 'anterior' ? alternadas.has(id) : !alternadas.has(id)}
       onAlternar={() => alternar(id)}
+      tabela={tabela}
       {...comum}
     />
   );
