@@ -628,12 +628,7 @@ service cloud.firestore {
 
 
     // ================================================================ engineering (CronoObra, monday, ERP)
-
-    // monday projection (obras and subitems), written only by the monday Functions.
-    match /monday-obras/{obraId} {
-      allow read: if isEngenharia();
-      allow write: if false;
-    }
+    // monday-obras was deleted on 2026-10-27 (works unification, phase 3): no block, default deny.
 
     // Master builders used by the CronoObra planning (document id normalized from the name).
     match /monday-mestres/{mestreId} {

@@ -853,9 +853,13 @@ test('[firestore] obras-v2: engenharia sets only one LOTE prioridade per write (
   await assertSucceeds(updateDoc(contrato('canonicalAdm2'), campo('l1', 'prioridade'), 8));
 });
 
-test('[firestore] monday-obras: read by employees, written only by Functions', async () => {
-  await assertSucceeds(getDocs(collection(dbAs('canonicalAdm2'), 'monday-obras')));
-  await assertFails(setDoc(doc(dbAs('canonicalAdm2'), 'monday-obras', 'mo2'), { nome: 'X' }));
+// monday-obras was deleted on 2026-10-27: default deny, even for adm2 and engenharia.
+test('[firestore] deleted monday-obras is closed to everyone, adm2 included', async () => {
+  for (const identity of ['canonicalAdm2', 'engenharia']) {
+    await assertFails(getDocs(collection(dbAs(identity), 'monday-obras')));
+    await assertFails(getDoc(doc(dbAs(identity), 'monday-obras', 'mo1')));
+    await assertFails(setDoc(doc(dbAs(identity), 'monday-obras', 'mo2'), { nome: 'X' }));
+  }
 });
 test('[firestore] monday-mestres: adm2 creates {nome, cor}; nothing else', async () => {
   await assertSucceeds(getDocs(collection(dbAs('engenharia'), 'monday-mestres')));
