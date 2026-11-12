@@ -1197,10 +1197,19 @@ service cloud.firestore {
 
     // Pessoas do Friday: são os funcionários do sistema (funcionarios/{uid}); não há coleção própria.
 
-    // Avisos (sino): qualquer um avisa; só o destinatário lê, marca como lido ou apaga.
+    // Avisos (sino): quem entra no Friday avisa outra pessoa de uma menção, sempre em nome próprio e como não lido;
+    // só o destinatário lê, marca como lido ou apaga. Outros tipos de aviso vêm das Functions (Admin SDK).
     match /friday-notificacoes/{notificacaoId} {
       allow create: if fridayAccess()
-        && request.resource.data.usuario_uid is string;
+        && request.resource.data.keys().hasOnly(['id', 'usuario_id', 'usuario_uid', 'de_usuario_id', 'tipo', 'quadro_id',
+          'item_id', 'atualizacao_id', 'texto', 'lida', 'criado_em'])
+        && request.resource.data.usuario_uid is string
+        && request.resource.data.usuario_uid != request.auth.uid
+        && request.resource.data.de_usuario_id == request.auth.uid
+        && request.resource.data.tipo == 'mencao'
+        && request.resource.data.lida == 0
+        && request.resource.data.texto is string
+        && request.resource.data.texto.size() <= 300;
       allow read, delete: if fridayAccess()
         && resource.data.usuario_uid == request.auth.uid;
       allow update: if fridayAccess()
