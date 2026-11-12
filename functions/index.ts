@@ -24,6 +24,7 @@ export { portalNoticiasColeta, portalNoticiasAtualizar } from './portalNoticias/
 export { roboObras } from './roboObras.js';
 export { fridayApi } from './fridayApi.js';
 export { logisticaPessoasFriday } from './logisticaPessoas.js';
+export { funcionariosImportarFriday } from './funcionariosImportarFriday.js';
 
 export const api = onRequest(app);
 export const adminApi = onRequest(adminApp);

@@ -20,6 +20,7 @@ import {
 import AdminUserEditModal, { type AdminUserEditValues, type ModoEdicaoUsuario } from '../components/AdminUserEditModal';
 import AdminUsersEditTable from '../components/AdminUsersEditTable';
 import KioskCredenciaisDialog from '../components/kiosk/KioskCredenciaisDialog';
+import ImportarFuncionariosFridayDialog from '../components/ImportarFuncionariosFridayDialog';
 import useAdminUsers from '../hooks/useAdminUsers';
 import { loginDoUsuario, nomeDoUsuario, type AdminUser } from '../services/adminUsersApi';
 import { CREDENCIAIS } from '../services/credenciais';
@@ -57,6 +58,7 @@ export default function CadastroUsuariosEditarPage() {
   const [confirmacao, setConfirmacao] = useState('');
   const [excluir, setExcluir] = useState<AdminUser | null>(null);
   const [kioskDe, setKioskDe] = useState<AdminUser | null>(null);
+  const [importando, setImportando] = useState(false);
   // Stable callbacks: new functions on every render made the table rebuild all its columns on each keystroke of the filter.
   const abrirEdicao = useCallback((user: AdminUser, modo: ModoEdicaoUsuario) => { setSubmitError(null); setEditing({ user, modo }); }, []);
   const abrirSenha = useCallback((user: AdminUser) => { setSenha(''); setConfirmacao(''); setSenhaDe(user); }, []);
@@ -147,7 +149,10 @@ export default function CadastroUsuariosEditarPage() {
               <TextField label="Filtrar por nome, login ou credencial" value={search} onChange={(e) => setSearch(e.target.value)} fullWidth />
               <Stack direction="row" spacing={2} alignItems="center" justifyContent="space-between" sx={{ flexShrink: 0 }}>
                 <FormControlLabel sx={{ mr: 0 }} control={<Switch checked={apenasAtivos} onChange={(e) => setApenasAtivos(e.target.checked)} />} label="Apenas ativos" />
-                <Button variant="contained" component={RouterLink} to="/cadastros/usuarios/novo" sx={{ whiteSpace: 'nowrap' }}>Novo usuário</Button>
+                <Stack direction="row" spacing={1}>
+                  <Button variant="outlined" onClick={() => setImportando(true)} sx={{ whiteSpace: 'nowrap' }}>Importar</Button>
+                  <Button variant="contained" component={RouterLink} to="/cadastros/usuarios/novo" sx={{ whiteSpace: 'nowrap' }}>Novo usuário</Button>
+                </Stack>
               </Stack>
             </Stack>
 
@@ -216,6 +221,8 @@ export default function CadastroUsuariosEditarPage() {
       <KioskCredenciaisDialog user={kioskDe} status={kioskDe ? kioskStatus[kioskDe.uid] : undefined} erro={kioskErro}
         onRecarregar={() => (kioskDe ? carregarKiosk([kioskDe.uid]) : Promise.resolve())}
         onClose={() => setKioskDe(null)} onAviso={(message, erro) => setSnackbar({ message, severity: erro ? 'error' : 'success' })} />
+
+      <ImportarFuncionariosFridayDialog open={importando} onClose={() => setImportando(false)} onImportou={() => void reload()} />
 
       {snackbar && (
         <Snackbar open autoHideDuration={5000} onClose={() => setSnackbar(null)} anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}>
