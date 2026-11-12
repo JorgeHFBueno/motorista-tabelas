@@ -24,7 +24,7 @@
     "test:friday-nome-espelho": "esbuild tests/friday-nome-espelho.test.ts --bundle --platform=node --format=esm --outfile=.tmp-friday-nome-espelho.test.mjs && node --test .tmp-friday-nome-espelho.test.mjs",
     "test:friday-automacoes": "esbuild tests/friday-importar-automacoes.test.ts --bundle --platform=node --format=esm --outfile=.tmp-friday-importar-automacoes.test.mjs && node --test .tmp-friday-importar-automacoes.test.mjs",
     "test:friday-avisos": "esbuild tests/friday-avisos.test.ts --bundle --platform=node --format=esm --outfile=.tmp-friday-avisos.test.mjs && node --test .tmp-friday-avisos.test.mjs",
-    "test:friday-formula":"esbuild tests/friday-formula-servidor.test.ts --bundle --platform=node --format=esm --outfile=.tmp-friday-formula.test.mjs && node --test .tmp-friday-formula.test.mjs",
+    "test:friday-formula": "esbuild tests/friday-formula-servidor.test.ts --bundle --platform=node --format=esm --outfile=.tmp-friday-formula.test.mjs && node --test .tmp-friday-formula.test.mjs",
     "test:friday-painel": "esbuild tests/friday-painel.test.ts --bundle --platform=node --format=esm --outfile=.tmp-friday-painel.test.mjs && node --test .tmp-friday-painel.test.mjs",
     "test:friday-tempo": "esbuild tests/friday-tempo.test.ts --bundle --platform=node --format=esm --outfile=.tmp-friday-tempo.test.mjs && node --test .tmp-friday-tempo.test.mjs",
     "test:friday-ordenacao": "esbuild tests/friday-ordenacao.test.ts --bundle --platform=node --format=esm --outfile=.tmp-friday-ordenacao.test.mjs && node --test .tmp-friday-ordenacao.test.mjs",

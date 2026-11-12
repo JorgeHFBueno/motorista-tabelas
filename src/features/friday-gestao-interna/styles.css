@@ -538,6 +538,9 @@ body.redimensionando .friday-root, body.redimensionando .friday-root * { cursor:
 .friday-root .composer.arrastando { border-style: dashed; border-color: var(--primaria); background: var(--selecao); }
 .friday-root .composer textarea { width: 100%; border: 0; outline: 0; resize: vertical; background: none; line-height: 1.45; }
 .friday-root .composer.compacto { margin: 8px 0 0; }
+/* Marcado sem acesso ao quadro restrito: mesmo desenho do .aviso-escrita, dentro da caixa. */
+.friday-root .composer-sem-acesso { display: flex; gap: 6px; align-items: flex-start; background: #fff4dd; color: #6b4600; border-radius: 6px; padding: 6px 10px; margin: 4px 0 2px; font-size: 12.5px; }
+.friday-root .composer-sem-acesso svg { flex: none; margin-top: 2px; }
 .friday-root .composer-barra { display: flex; align-items: center; gap: 4px; border-top: 1px solid var(--borda-suave); padding-top: 6px; margin-top: 4px; }
 .friday-root .composer-fechado { width: 100%; text-align: left; background: var(--superficie); border: 1px solid var(--borda-suave); border-radius: 6px; padding: 8px 10px; color: var(--texto-3); cursor: text; margin-top: 8px; }
 .friday-root .mencao-lista { position: absolute; left: 10px; top: 100%; margin-top: -6px; z-index: 20; background: var(--superficie); border-radius: 8px; box-shadow: var(--sombra); padding: 4px; min-width: 280px; }

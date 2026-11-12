@@ -1,6 +1,14 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { agruparAvisos, destinatariosDaMencao, filtrarAvisos, periodoDoAviso, textoDoAviso, textoSemMarcas, trechoDoAviso } from '../src/features/friday-gestao-interna/avisos.ts';
+import { agruparAvisos, destinatariosDaMencao, filtrarAvisos, marcadosSemAcesso, periodoDoAviso, textoDoAviso, textoSemMarcas, trechoDoAviso } from '../src/features/friday-gestao-interna/avisos.ts';
+
+test('quadro restrito: marcados fora da lista e sem adm2 ficam sem acesso; quadro aberto não avisa', () => {
+  const marcados = [{ id: 'ana' }, { id: 'beto' }, { id: 'chefe', adm2: true }, { id: 'beto' }];
+  assert.deepEqual(marcadosSemAcesso({ restrito: 1, acesso: ['ana'] }, marcados), ['beto']);
+  assert.deepEqual(marcadosSemAcesso({ restrito: 1 }, [{ id: 'ana' }]), ['ana']);
+  assert.deepEqual(marcadosSemAcesso({ restrito: 0, acesso: [] }, marcados), []);
+  assert.deepEqual(marcadosSemAcesso(null, marcados), []);
+});
 
 const nomes: Record<string, string> = { ana: 'Ana Souza', beto: 'Beto Lima' };
 const nome = (uid: string) => nomes[uid];

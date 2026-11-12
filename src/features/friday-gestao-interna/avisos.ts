@@ -15,6 +15,16 @@ export function destinatariosDaMencao(a: { marcados: unknown; antes?: unknown; a
   return [...new Set(lista(a.marcados))].filter(uid => uid && uid !== a.autor && !ja.has(uid) && a.podeReceber(uid));
 }
 
+/**
+ * Marcados que não veem o quadro do item (restrito, fora da lista de acesso e sem adm2). Eles recebem o aviso com o
+ * trecho, mas não abrem o item; quem escreve é avisado antes de publicar (decisão do responsável de 2026-11-12).
+ */
+export function marcadosSemAcesso(quadro: Record<string, unknown> | null | undefined,marcados: { id: string; adm2?: boolean }[]): string[] {
+  if (!quadro || Number(quadro.restrito) !== 1) return [];
+  const lista = new Set(Array.isArray(quadro.acesso) ? quadro.acesso.map(String) : []);
+  return [...new Set(marcados.filter(m => !m.adm2 && !lista.has(m.id)).map(m => m.id))];
+}
+
 const PREFIXO = 'mencionou você: ';
 
 /** Texto gravado no aviso (até 300 caracteres, como no protótipo). */

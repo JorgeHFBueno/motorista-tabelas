@@ -1,8 +1,9 @@
 import { Fragment, useEffect, useMemo, useRef, useState, type ClipboardEvent, type DragEvent, type KeyboardEvent, type ReactNode } from 'react';
 import {
   AtSign, Download, ExternalLink, File as IconeArquivo, FileArchive, FileImage, FileSpreadsheet, FileText, FileVideo,
-  MessageCircle, MoreHorizontal, Paperclip, Pencil, Reply, Trash2, Upload, X,
+  Lock, MessageCircle, MoreHorizontal, Paperclip, Pencil, Reply, Trash2, Upload, X,
 } from 'lucide-react';
+import { marcadosSemAcesso } from '../avisos.ts';
 import { api, enviarArquivo, marcarAtualizacoesLidas, type Pessoa, type Row } from '../api.ts';
 import { useNav } from '../nav.tsx';
 import { Avatar, Menu, Popover, useConfirmar, usePopover } from '../ui/base.tsx';
@@ -83,6 +84,19 @@ export function Composer({ item, respostaDe, compacto, onPublicado, onCancelar, 
 
   const candidatos = useMemo(() => !busca ? [] : nav.usuarios.filter(u => u.ativo && semAcento(u.nome).includes(semAcento(busca.termo))).slice(0, 8), [busca, nav.usuarios]);
 
+  // Quadro do item, para avisar quem escreve que um marcado não vê o quadro (restrito): ele recebe o aviso com o
+  // trecho, mas não abre o item.
+  const [quadro, setQuadro] = useState<Row | null>(null);
+  useEffect(() => {
+    let vivo = true;
+    api.get('quadros', item.quadro_id).then(q => { if (vivo) setQuadro(q); }, () => { if (vivo) setQuadro(null); });
+    return () => { vivo = false; };
+  }, [item.quadro_id]);
+  const semAcesso = marcadosSemAcesso(quadro, mencoes
+    .filter(m => m.id !== nav.usuario?.id && texto.includes(`@${m.nome}`))
+    .map(m => ({ id: m.id, adm2: nav.usuarios.find(u => u.id === m.id)?.adm2 })));
+  const nomesSemAcesso = semAcesso.map(id => nav.nomeUsuario(id));
+
   const detectar = (valor: string, cursor: number) => {
     const antes = valor.slice(0, cursor);
     const m = antes.match(/(^|\s)@([^\s@]{0,30})$/);
@@ -159,6 +173,16 @@ export function Composer({ item, respostaDe, compacto, onPublicado, onCancelar, 
             </button>
           ))}
         </div>
+      )}
+      {nomesSemAcesso.length > 0 && (
+        <p className="composer-sem-acesso" role="status">
+          <Lock size={14} />
+          <span>
+            {nomesSemAcesso.join(', ')} {nomesSemAcesso.length === 1
+              ? 'não tem acesso a este quadro: recebe o aviso com o trecho, mas não consegue abrir o item.'
+              : 'não têm acesso a este quadro: recebem o aviso com o trecho, mas não conseguem abrir o item.'}
+          </span>
+        </p>
       )}
       {arquivos.length > 0 && (
         <div className="anexos-pendentes">
