@@ -226,13 +226,14 @@
 
 /* calendário */
 .lg-calendario { margin-top: 12px; }
-.lg-cal-barra { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
-.lg-cal-alcance { font-weight: 600; }
-.lg-cal-rotulo { color: var(--lg-texto-2); font-size: 13px; }
-.lg-alternador { display: inline-flex; border: 1px solid var(--lg-borda); border-radius: 4px; overflow: hidden; }
-.lg-alternador button { height: 30px; padding: 0 12px; border: 0; background: var(--lg-superficie); cursor: pointer; }
-.lg-alternador button + button { border-left: 1px solid var(--lg-borda); }
-.lg-alternador button.on { background: var(--lg-primaria-clara); color: var(--lg-primaria); font-weight: 600; }
+.lg-cal-barra { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-bottom: 10px; }
+.lg-cal-alcance { font-weight: 600; white-space: nowrap; }
+.lg-cal-rotulo { color: var(--lg-texto-2); font-size: 13px; white-space: nowrap; }
+/* Seletor "Linhas por" no padrão do CronoObras (Dias | Semanas): cartão branco, trilho cinza, opção ativa branca. */
+.lg-cal-controles { display: inline-flex; align-items: center; gap: 10px; padding: 7px 7px 7px 12px; background: var(--lg-superficie); border: 1px solid #dce4e9; border-radius: 8px; }
+.lg-alternador { display: flex; padding: 3px; background: #e7edf1; border: 1px solid #d4dde3; border-radius: 7px; }
+.lg-alternador button { min-height: 30px; padding: 7px 14px; border: 0; border-radius: 5px; background: transparent; color: #52636f; font-size: .82rem; font-weight: 750; line-height: 1.2; white-space: nowrap; cursor: pointer; }
+.lg-alternador button.is-active { background: #fff; box-shadow: 0 1px 3px rgb(20 43 58 / .13); color: #17384f; }
 .lg-cal-rolagem { overflow: auto; max-height: calc(100vh - 260px); border: 1px solid var(--lg-borda-suave); border-radius: 6px; background: var(--lg-superficie); }
 .lg-cal-grade { width: calc(200px + var(--lg-dias) * var(--lg-dia)); }
 .lg-cal-cab { display: grid; grid-template-columns: 200px 1fr; grid-template-rows: 30px 38px; position: sticky; top: 0; z-index: 3; background: var(--lg-superficie); border-bottom: 1px solid var(--lg-borda); }
@@ -258,9 +259,13 @@
 .lg-cal-barra-item { position: absolute; height: calc(var(--lg-faixa) - 4px); margin-left: 2px; display: flex; align-items: center; gap: 3px; padding: 0 6px; border: 0; border-radius: 4px; background: var(--lg-cor); color: #fff !important; font-size: 12px; font-weight: 600; text-align: left; cursor: pointer; overflow: hidden; white-space: nowrap; box-shadow: 0 1px 2px rgba(0, 0, 0, .15); }
 .lg-cal-barra-item span { overflow: hidden; text-overflow: ellipsis; }
 .lg-cal-barra-item:hover { filter: brightness(1.1); }
+.lg-cal-barra-item.is-texto-escuro { color: var(--lg-texto) !important; }
 .lg-cal-barra-item.is-conflito { box-shadow: 0 0 0 2px var(--lg-perigo); }
 .lg-cal-barra-item.is-cortada-antes { border-top-left-radius: 0; border-bottom-left-radius: 0; }
 .lg-cal-barra-item.is-cortada-depois { border-top-right-radius: 0; border-bottom-right-radius: 0; }
+.lg-cal-legenda { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 14px; margin-top: 10px; font-size: 12px; color: var(--lg-texto-2); }
+.lg-cal-legenda-item { display: inline-flex; align-items: center; gap: 5px; white-space: nowrap; }
+.lg-cal-legenda-item i { width: 12px; height: 12px; border-radius: 3px; flex: none; }
 
 @media (max-width: 700px) {
   .lg-pagina { padding: 12px 16px 60px; }

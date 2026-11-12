@@ -1,52 +1,14 @@
 import WarningAmberRounded from '@mui/icons-material/WarningAmberRounded';
 import { useMemo, useState, type CSSProperties } from 'react';
-import { barrasDaLinha } from '../domain/calendario';
-import { periodoDe, textoConflito } from '../domain/conflitos';
+import { barrasDaLinha, dicaDaBarra, linhasDoCalendario, type LinhasPor } from '../domain/calendario';
+import { textoConflito } from '../domain/conflitos';
 import type { CivilDate, Programacao } from '../domain/models';
 import { ddmm, diasDoCalendario, semanaDoId, semanaIdDe } from '../domain/semanas';
-import { statusExibido } from '../domain/status';
-import { textoCodigo } from '../domain/codigo';
+import { COR_SEM_STATUS, statusExibido, textoEscuro } from '../domain/status';
 import type { AcoesLogistica, CadastrosLogistica, ConflitosLogistica } from './contexto';
 
-type LinhasPor = 'motorista' | 'veiculo';
-
 const DIAS_SEMANA = ['D', 'S', 'T', 'Q', 'Q', 'S', 'S'];
-const CORES = ['#2f6fde', '#2e9d6f', '#a0522d', '#654084', '#245f61', '#c2185b', '#4d548b', '#70483a', '#00838f', '#6a5136'];
-
-function corDaObra(id: string | undefined): string {
-  if (!id) return '#7b8494';
-  let hash = 0;
-  for (const letra of id) hash = (hash * 31 + letra.charCodeAt(0)) >>> 0;
-  return CORES[hash % CORES.length];
-}
-
-interface Linha { chave: string; nome: string; programacoes: Programacao[] }
-
-function montarLinhas(programacoes: readonly Programacao[], dias: readonly CivilDate[], por: LinhasPor, cadastros: CadastrosLogistica): Linha[] {
-  const primeiro = dias[0];
-  const ultimo = dias.at(-1)!;
-  const noAlcance = programacoes.filter((programacao) => {
-    const periodo = periodoDe(programacao);
-    return periodo !== null && periodo.fim >= primeiro && periodo.inicio <= ultimo;
-  });
-  const linhas = new Map<string, Linha>();
-  const semRecurso: Programacao[] = [];
-  // Por veículo, a programação com mais de um veículo aparece na linha de cada um.
-  for (const programacao of noAlcance) {
-    const recursos = por === 'motorista'
-      ? (programacao.motorista ? [{ chave: programacao.motorista.id, nome: cadastros.nomePessoa(programacao.motorista.id, programacao.motorista.nome) }] : [])
-      : programacao.veiculos.map((veiculo) => ({ chave: veiculo.id, nome: cadastros.nomeVeiculo(veiculo.id, veiculo.nome) }));
-    if (!recursos.length) { semRecurso.push(programacao); continue; }
-    for (const { chave, nome } of recursos) {
-      const linha = linhas.get(chave) ?? { chave, nome, programacoes: [] };
-      linha.programacoes.push(programacao);
-      linhas.set(chave, linha);
-    }
-  }
-  const ordenadas = [...linhas.values()].sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'));
-  if (semRecurso.length) ordenadas.push({ chave: '__sem__', nome: por === 'motorista' ? 'Sem motorista' : 'Sem veículo', programacoes: semRecurso });
-  return ordenadas;
-}
+const MODOS: readonly (readonly [LinhasPor, string])[] = [['cod', 'Cod'], ['motorista', 'Motorista'], ['veiculo', 'Veículo']];
 
 export function CalendarioSemanas({ programacoes, hoje, cadastros, conflitos, acoes }: {
   programacoes: readonly Programacao[];
@@ -57,7 +19,7 @@ export function CalendarioSemanas({ programacoes, hoje, cadastros, conflitos, ac
 }) {
   const [por, setPor] = useState<LinhasPor>('motorista');
   const dias = useMemo(() => diasDoCalendario(hoje), [hoje]);
-  const linhas = useMemo(() => montarLinhas(programacoes, dias, por, cadastros), [programacoes, dias, por, cadastros]);
+  const linhas = useMemo(() => linhasDoCalendario(programacoes, dias, por, cadastros), [programacoes, dias, por, cadastros]);
   const semanas = [0, 7, 14, 21].map((indice) => semanaDoId(semanaIdDe(dias[indice])));
   const semanaAtual = semanaIdDe(hoje);
   const grade = { '--lg-dias': dias.length } as CSSProperties;
@@ -67,16 +29,19 @@ export function CalendarioSemanas({ programacoes, hoje, cadastros, conflitos, ac
       <div className="lg-cal-barra">
         <span className="lg-cal-alcance">{ddmm(dias[0])} a {ddmm(dias.at(-1)!)}</span>
         <span className="lg-espaco" />
-        <span className="lg-cal-rotulo">Linhas por</span>
-        <div className="lg-alternador" role="group" aria-label="Linhas por">
-          <button type="button" className={por === 'motorista' ? 'on' : ''} onClick={() => setPor('motorista')}>Motorista</button>
-          <button type="button" className={por === 'veiculo' ? 'on' : ''} onClick={() => setPor('veiculo')}>Veículo</button>
+        <div className="lg-cal-controles">
+          <span className="lg-cal-rotulo">Linhas por</span>
+          <div className="lg-alternador" role="group" aria-label="Linhas por">
+            {MODOS.map(([valor, rotulo]) => (
+              <button type="button" key={valor} className={por === valor ? 'is-active' : ''} aria-pressed={por === valor} onClick={() => setPor(valor)}>{rotulo}</button>
+            ))}
+          </div>
         </div>
       </div>
       <div className="lg-cal-rolagem">
         <div className="lg-cal-grade" style={grade}>
           <div className="lg-cal-cab">
-            <div className="lg-cal-nome lg-cal-canto">{por === 'motorista' ? 'Motorista' : 'Veículo'}</div>
+            <div className="lg-cal-nome lg-cal-canto">{MODOS.find(([valor]) => valor === por)![1]}</div>
             <div className="lg-cal-semanas">
               {semanas.map((semana) => (
                 <div key={semana.id} className={semana.id === semanaAtual ? 'is-atual' : ''}>
@@ -110,20 +75,15 @@ export function CalendarioSemanas({ programacoes, hoje, cadastros, conflitos, ac
                     const { programacao } = barra;
                     const lista = conflitos.get(programacao.id) ?? [];
                     const obra = programacao.obra ? cadastros.nomeObra(programacao.obra.id, programacao.obra.nome) : null;
-                    const outro = por === 'motorista'
-                      ? programacao.veiculos.map((veiculo) => cadastros.nomeVeiculo(veiculo.id, veiculo.nome)).join(', ')
-                      : (programacao.motorista ? cadastros.nomePessoa(programacao.motorista.id, programacao.motorista.nome) : null);
-                    const texto = [obra, programacao.item].filter(Boolean).join(' · ');
-                    const rotuloOutro = por === 'motorista' ? (programacao.veiculos.length > 1 ? 'Veículos' : 'Veículo') : 'Motorista';
-                    const status = statusExibido(programacao.status, cadastros.etiquetas).nome;
-                    const titulo = [[programacao.cod === null ? null : textoCodigo(programacao.cod), programacao.item].filter(Boolean).join(' · '), obra && `Obra: ${obra}`, outro && `${rotuloOutro}: ${outro}`, status && `Status: ${status}`, ...lista.map((conflito) => `⚠ ${textoConflito(conflito)}`)].filter(Boolean).join('\n');
+                    const cor = statusExibido(programacao.status, cadastros.etiquetas).cor;
+                    const titulo = [...dicaDaBarra(programacao, por, linha.chave, cadastros), ...lista.map((conflito) => `⚠ ${textoConflito(conflito)}`)].join('\n');
                     return (
                       <button
                         type="button"
                         key={programacao.id}
-                        className={`lg-cal-barra-item ${lista.length ? 'is-conflito' : ''} ${barra.cortadaAntes ? 'is-cortada-antes' : ''} ${barra.cortadaDepois ? 'is-cortada-depois' : ''}`}
+                        className={`lg-cal-barra-item ${textoEscuro(cor) ? 'is-texto-escuro' : ''} ${lista.length ? 'is-conflito' : ''} ${barra.cortadaAntes ? 'is-cortada-antes' : ''} ${barra.cortadaDepois ? 'is-cortada-depois' : ''}`}
                         style={{
-                          '--lg-cor': corDaObra(programacao.obra?.id),
+                          '--lg-cor': cor,
                           left: `calc(${barra.de} * var(--lg-dia))`,
                           width: `calc(${barra.ate - barra.de + 1} * var(--lg-dia) - 4px)`,
                           top: `calc(${barra.faixa} * var(--lg-faixa) + 4px)`,
@@ -132,7 +92,7 @@ export function CalendarioSemanas({ programacoes, hoje, cadastros, conflitos, ac
                         onClick={() => acoes.abrir(programacao.id)}
                       >
                         {lista.length > 0 && <WarningAmberRounded fontSize="inherit" />}
-                        <span>{texto}</span>
+                        <span>{obra ?? 'Sem obra'}</span>
                       </button>
                     );
                   })}
@@ -142,6 +102,19 @@ export function CalendarioSemanas({ programacoes, hoje, cadastros, conflitos, ac
           })}
         </div>
       </div>
+      <Legenda cadastros={cadastros} />
+    </div>
+  );
+}
+
+/** Cor de cada status (as etiquetas da lista editável) e a cinza de sem status. */
+function Legenda({ cadastros }: { cadastros: CadastrosLogistica }) {
+  return (
+    <div className="lg-cal-legenda" aria-label="Legenda de status">
+      <span className="lg-cal-rotulo">Status</span>
+      {[...cadastros.etiquetas.map((etiqueta) => ({ chave: etiqueta.id, nome: etiqueta.nome, cor: etiqueta.cor })), { chave: '__sem__', nome: 'Sem status', cor: COR_SEM_STATUS }].map((item) => (
+        <span key={item.chave} className="lg-cal-legenda-item"><i style={{ background: item.cor }} />{item.nome}</span>
+      ))}
     </div>
   );
 }

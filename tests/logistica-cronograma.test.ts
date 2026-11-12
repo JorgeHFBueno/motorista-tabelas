@@ -13,7 +13,7 @@ import {
 import {
   conflitosAtivos, conflitosIgnorados, conflitosPorProgramacao, periodoDe, textoConflito,
 } from '../src/features/cronograma-logistica/domain/conflitos';
-import { barrasDaLinha } from '../src/features/cronograma-logistica/domain/calendario';
+import { barrasDaLinha, dicaDaBarra, linhasDoCalendario } from '../src/features/cronograma-logistica/domain/calendario';
 
 const programacao = (id: string, extra: Partial<Programacao> = {}): Programacao => ({
   id, cod: null, codAntigo: null, semanaId: '2026-W45', item: `Item ${id}`, status: '', inicio: null, fim: null,
@@ -99,6 +99,39 @@ test('calendário: barras recortadas aos 28 dias e empilhadas quando se sobrepõ
     ['b', 1, 3, 1, false, false],
     ['c', 4, 27, 0, false, true],
   ]);
+});
+
+test('calendário: linhas por Cod (ordem do código), por motorista e por veículo, com várias barras na mesma linha', () => {
+  const dias = diasDoCalendario('2026-11-04');
+  const nomes = { nomePessoa: (_id: string, retrato: string) => retrato, nomeVeiculo: (_id: string, retrato: string) => retrato };
+  const caminhao = { id: 'v1', nome: 'TRK-8I95' };
+  const lista = [
+    programacao('a', { cod: 462602, semanaId: '2026-W46', inicio: '2026-11-10', veiculos: [caminhao], motorista: { id: 'm1', nome: 'Zeca' } }),
+    programacao('b', { cod: 452601, inicio: '2026-11-03', fim: '2026-11-10', veiculos: [caminhao, caminhao] }),
+    programacao('c', { cod: 462601, semanaId: '2026-W46', inicio: '2026-11-10', motorista: { id: 'm2', nome: 'Ana' } }),
+    programacao('d', { inicio: '2026-11-12' }),
+    programacao('e', { cod: 452602 }), // sem período: fora do calendário
+  ];
+  assert.deepEqual(linhasDoCalendario(lista, dias, 'cod', nomes).map((linha) => [linha.nome, linha.programacoes.map((p) => p.id)]), [
+    ['LOG-452601', ['b']], ['LOG-462601', ['c']], ['LOG-462602', ['a']], ['Sem código', ['d']],
+  ]);
+  assert.deepEqual(linhasDoCalendario(lista, dias, 'motorista', nomes).map((linha) => linha.nome), ['Ana', 'Zeca', 'Sem motorista']);
+  const [linhaCaminhao, semVeiculo] = linhasDoCalendario(lista, dias, 'veiculo', nomes);
+  assert.deepEqual(linhaCaminhao.programacoes.map((p) => p.id), ['a', 'b']);
+  assert.equal(barrasDaLinha(linhaCaminhao.programacoes, dias).faixas, 2); // as duas no dia 10: uma em cima da outra
+  assert.deepEqual(semVeiculo.programacoes.map((p) => p.id), ['c', 'd']);
+});
+
+test('calendário: dica com Cod | Motivo, veículo e motorista fora da própria linha, auxiliar quando há', () => {
+  const nomes = { nomePessoa: (id: string) => `P-${id}`, nomeVeiculo: (id: string) => `V-${id}` };
+  const item = programacao('a', {
+    cod: 462601, item: 'Deslocamento para Obra', motorista: { id: 'm1', nome: '' }, auxiliar: { id: 'x1', nome: '' },
+    veiculos: [{ id: 'v1', nome: '' }, { id: 'v2', nome: '' }],
+  });
+  assert.deepEqual(dicaDaBarra(item, 'cod', 'a', nomes), ['LOG-462601 | Deslocamento para Obra', 'Veículos: V-v1, V-v2', 'Motorista: P-m1', 'Auxiliar: P-x1']);
+  assert.deepEqual(dicaDaBarra(item, 'motorista', 'm1', nomes), ['LOG-462601 | Deslocamento para Obra', 'Veículos: V-v1, V-v2', 'Auxiliar: P-x1']);
+  assert.deepEqual(dicaDaBarra(item, 'veiculo', 'v1', nomes), ['LOG-462601 | Deslocamento para Obra', 'Veículo: V-v2', 'Motorista: P-m1', 'Auxiliar: P-x1']);
+  assert.deepEqual(dicaDaBarra(programacao('b', { item: ' ', veiculos: [{ id: 'v1', nome: '' }] }), 'veiculo', 'v1', nomes), ['Sem código | Sem motivo']);
 });
 
 test('veículos: lista sem repetir, até 4; o documento antigo com um só veículo continua lido', () => {
