@@ -24,7 +24,8 @@ const TITULOS: Array<{ padrao: string } & TituloPagina> = [
   { padrao: '/friday/quadros/:id/automacoes', ...FRIDAY },
   // Any other Friday screen (e.g. /friday/chaves-api) also gets the logo instead of falling back to the Ledur logo.
   { padrao: '/friday/*', ...FRIDAY },
-  { padrao: '/engenharia/cronograma', titulo: 'Cronograma de Obras' },
+  // Cronograma logos (hourglass): "Engenharia · Ledur" here, "Frota · Ledur" on the logistics one.
+  { padrao: '/engenharia/cronograma', titulo: 'Cronograma de Obras', logo: '/logo-cronograma-engenharia.svg' },
   { padrao: '/engenharia/prazos', titulo: 'Cronograma de prazos contratuais' },
   { padrao: '/engenharia/obras', titulo: 'Obras' },
   { padrao: '/engenharia/obras/:id', titulo: 'Detalhes da Obra' },
@@ -41,7 +42,7 @@ const TITULOS: Array<{ padrao: string } & TituloPagina> = [
   { padrao: '/frota/checklists/:id', titulo: 'Checklist' },
   { padrao: '/frota/analytics', titulo: 'Analytics da Frota' },
   { padrao: '/combustivel/bombas', titulo: 'Bombas', ...ABASTECEDORA },
-  { padrao: '/logistica/cronograma', titulo: 'Cronograma Logístico' },
+  { padrao: '/logistica/cronograma', titulo: 'Cronograma Logístico', logo: '/logo-cronograma-frota.svg' },
   { padrao: '/portal-cliente/clientes', titulo: 'Clientes do portal' },
   { padrao: '/portal-cliente/contratos', titulo: 'Contratos no portal' },
   { padrao: '/portal-cliente/contratos/:id', titulo: 'Contrato no portal' },

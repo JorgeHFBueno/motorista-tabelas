@@ -115,6 +115,17 @@ test('Friday: logo no cabeçalho de todas as telas e o "F" da logo no menu (2026
   assert.doesNotMatch(menu, /ViewKanban/);
 });
 
+test('Cronogramas de Engenharia e Logística mostram a logo da ampulheta no cabeçalho (2026-11-12)', () => {
+  const cabecalho = readFileSync('src/components/cabecalhoPagina.tsx', 'utf8');
+  for (const [rota, arquivo] of [['/engenharia/cronograma', 'engenharia'], ['/logistica/cronograma', 'frota']]) {
+    assert.match(cabecalho, new RegExp(`padrao: '${rota}', titulo: '[^']+', logo: '/logo-cronograma-${arquivo}\\.svg'`), rota);
+    const svg = readFileSync(`public/logo-cronograma-${arquivo}.svg`, 'utf8');
+    assert.match(svg, /^<svg /);
+    // No background of its own: it sits on the blue header, and the gaps between the pieces use the header color.
+    assert.doesNotMatch(svg, /#0E1116/i);
+  }
+});
+
 test('Credenciais Kiosk saiu do menu e virou o botão de QR nas Ações de Usuários (2026-11-10)', () => {
   const app = readFileSync('src/App.tsx', 'utf8');
   const menu = readFileSync('src/components/menuPrincipal.tsx', 'utf8');
