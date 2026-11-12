@@ -266,6 +266,13 @@
 .lg-cal-legenda { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 14px; margin-top: 10px; font-size: 12px; color: var(--lg-texto-2); }
 .lg-cal-legenda-item { display: inline-flex; align-items: center; gap: 5px; white-space: nowrap; }
 .lg-cal-legenda-item i { width: 12px; height: 12px; border-radius: 3px; flex: none; }
+.lg-cal-zoom { max-width: min(420px, calc(100vw - 32px)); padding: 12px 14px; font-size: 15px; line-height: 1.45; }
+.lg-cal-zoom p { margin: 0; }
+.lg-cal-zoom .lg-cal-zoom-titulo { margin-bottom: 4px; font-size: 16px; font-weight: 700; }
+.lg-cal-zoom .lg-cal-zoom-conflito { margin-top: 6px; color: var(--lg-perigo, #d83a52); font-size: 13px; }
+.lg-adiamento { display: block; padding: 0 8px; font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.lg-adiamento-pergunta { margin: 0 0 12px; }
+.lg-painel-adiamento { font-size: 13px; }
 
 @media (max-width: 700px) {
   .lg-pagina { padding: 12px 16px 60px; }

@@ -31,6 +31,8 @@ export interface Programacao {
   obra: RefCadastro | null;
   /** Texto livre da expedição. */
   expedicao: string;
+  /** "adiada de dd/mm (x dias), pelo motivo de …": gravado quando o fim passa para depois como adiamento; '' sem adiamento. */
+  adiamento: string;
   posicao: number;
   /** Conflitos que alguém mandou ignorar, pela chave "recurso|outra programação" (domain/conflitos.ts). */
   conflitosIgnorados: string[];
@@ -83,4 +85,4 @@ export interface Observacao {
 }
 
 /** Campos que a tela altera numa programação. */
-export type ProgramacaoEditavel = Pick<Programacao, 'item' | 'status' | 'inicio' | 'fim' | 'motorista' | 'auxiliar' | 'veiculos' | 'obra' | 'expedicao' | 'posicao'>;
+export type ProgramacaoEditavel = Pick<Programacao, 'item' | 'status' | 'inicio' | 'fim' | 'motorista' | 'auxiliar' | 'veiculos' | 'obra' | 'expedicao' | 'adiamento' | 'posicao'>;

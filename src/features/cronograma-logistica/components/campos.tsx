@@ -1,10 +1,17 @@
 import Autocomplete from '@mui/material/Autocomplete';
+import Button from '@mui/material/Button';
+import Dialog from '@mui/material/Dialog';
+import DialogActions from '@mui/material/DialogActions';
+import DialogContent from '@mui/material/DialogContent';
+import DialogTitle from '@mui/material/DialogTitle';
 import Popover from '@mui/material/Popover';
 import TextField from '@mui/material/TextField';
 import AddRounded from '@mui/icons-material/AddRounded';
 import DeleteOutlineRounded from '@mui/icons-material/DeleteOutlineRounded';
 import EditOutlined from '@mui/icons-material/EditOutlined';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, type KeyboardEvent } from 'react';
+import { MAX_MOTIVO_ADIAMENTO, perguntarAdiamento, textoAdiamento } from '../domain/adiamento';
+import { ddmm } from '../domain/semanas';
 import type { CivilDate } from '../domain/models';
 import {
   COR_SEM_STATUS, CORES_ETIQUETA, MAX_ETIQUETAS, etiquetasLimpas, novoIdEtiqueta, statusExibido, textoEscuro,
@@ -46,22 +53,59 @@ export function CampoTexto({ valor, onSalvar, placeholder, obrigatorio = false, 
   );
 }
 
-/** De/até; o "até" não aceita data antes do "de". */
+/** Período gravado; `adiamento` vai junto quando a pessoa diz que o novo fim é um adiamento. */
+export type AlteracaoPeriodo = { inicio: CivilDate | null; fim: CivilDate | null; adiamento?: string };
+
+/**
+ * De/até; o "até" não aceita data antes do "de". Grava ao sair do campo (ou no Enter), não a cada tecla: assim a data
+ * digitada pela metade não vale como mudança. Quando a linha já tinha fim e ele passa para depois, pergunta se é
+ * correção (grava como sempre) ou adiamento (pede o motivo e grava também o texto do adiamento).
+ */
 export function CampoPeriodo({ inicio, fim, onSalvar }: {
   inicio: CivilDate | null;
   fim: CivilDate | null;
-  onSalvar: (periodo: { inicio: CivilDate | null; fim: CivilDate | null }) => void;
+  onSalvar: (alteracao: AlteracaoPeriodo) => void;
 }) {
+  const [de, setDe] = useState(inicio ?? '');
+  const [ate, setAte] = useState(fim ?? '');
+  const [pergunta, setPergunta] = useState<{ inicio: CivilDate | null; fim: CivilDate } | null>(null);
+  const [etapa, setEtapa] = useState<'escolha' | 'motivo'>('escolha');
+  const [motivo, setMotivo] = useState('');
+  useEffect(() => { setDe(inicio ?? ''); setAte(fim ?? ''); }, [inicio, fim]);
+
+  const desfazer = () => { setDe(inicio ?? ''); setAte(fim ?? ''); setPergunta(null); };
+  const confirmar = (novo: { inicio: CivilDate | null; fim: CivilDate | null }) => {
+    if (novo.inicio === inicio && novo.fim === fim) return;
+    if (novo.fim !== null && perguntarAdiamento(fim, novo.fim)) {
+      setEtapa('escolha');
+      setMotivo('');
+      setPergunta({ inicio: novo.inicio, fim: novo.fim });
+      return;
+    }
+    onSalvar(novo);
+  };
+  const adiar = () => {
+    if (!pergunta || !fim || !motivo.trim()) return;
+    onSalvar({ ...pergunta, adiamento: textoAdiamento(fim, pergunta.fim, motivo) });
+    setPergunta(null);
+  };
+  const aoTeclar = (event: KeyboardEvent<HTMLInputElement>) => {
+    if (event.key === 'Enter') event.currentTarget.blur();
+    if (event.key === 'Escape') { desfazer(); event.currentTarget.blur(); }
+  };
+
   return (
     <span className="lg-periodo">
       <input
         type="date"
         className="lg-input lg-data"
         aria-label="De"
-        value={inicio ?? ''}
-        onChange={(event) => {
-          const novo = event.target.value || null;
-          onSalvar({ inicio: novo, fim: novo && fim && fim < novo ? novo : fim });
+        value={de}
+        onChange={(event) => setDe(event.target.value)}
+        onKeyDown={aoTeclar}
+        onBlur={() => {
+          const novo = de || null;
+          confirmar({ inicio: novo, fim: novo && fim && fim < novo ? novo : fim });
         }}
       />
       <span className="lg-ate">a</span>
@@ -69,13 +113,56 @@ export function CampoPeriodo({ inicio, fim, onSalvar }: {
         type="date"
         className="lg-input lg-data"
         aria-label="Até"
-        value={fim ?? ''}
+        value={ate}
         min={inicio ?? undefined}
-        onChange={(event) => {
-          const novo = event.target.value || null;
-          onSalvar({ inicio: novo && inicio && novo < inicio ? novo : inicio, fim: novo });
+        onChange={(event) => setAte(event.target.value)}
+        onKeyDown={aoTeclar}
+        onBlur={() => {
+          const novo = ate || null;
+          confirmar({ inicio: novo && inicio && novo < inicio ? novo : inicio, fim: novo });
         }}
       />
+      <Dialog open={pergunta !== null} onClose={desfazer} maxWidth="xs" fullWidth>
+        {pergunta && fim && (
+          <>
+            <DialogTitle>{etapa === 'escolha' ? 'Correção ou adiamento?' : 'Motivo do adiamento'}</DialogTitle>
+            <DialogContent>
+              <p className="lg-adiamento-pergunta">
+                O fim muda de {ddmm(fim)} para {ddmm(pergunta.fim)}.
+                {etapa === 'escolha'
+                  ? ' Na correção, só a data muda. No adiamento, a coluna Adiamento guarda de quando foi adiada, quantos dias e o motivo.'
+                  : ` Fica gravado: "${textoAdiamento(fim, pergunta.fim, motivo.trim() || '…')}".`}
+              </p>
+              {etapa === 'motivo' && (
+                <TextField
+                  autoFocus
+                  fullWidth
+                  size="small"
+                  label="Motivo"
+                  value={motivo}
+                  onChange={(event) => setMotivo(event.target.value)}
+                  onKeyDown={(event) => { if (event.key === 'Enter') adiar(); }}
+                  slotProps={{ htmlInput: { maxLength: MAX_MOTIVO_ADIAMENTO } }}
+                />
+              )}
+            </DialogContent>
+            <DialogActions>
+              {etapa === 'escolha' ? (
+                <>
+                  <Button onClick={desfazer}>Cancelar</Button>
+                  <Button onClick={() => { onSalvar(pergunta); setPergunta(null); }}>Correção</Button>
+                  <Button variant="contained" onClick={() => setEtapa('motivo')}>Adiamento</Button>
+                </>
+              ) : (
+                <>
+                  <Button onClick={() => setEtapa('escolha')}>Voltar</Button>
+                  <Button variant="contained" disabled={!motivo.trim()} onClick={adiar}>Salvar adiamento</Button>
+                </>
+              )}
+            </DialogActions>
+          </>
+        )}
+      </Dialog>
     </span>
   );
 }

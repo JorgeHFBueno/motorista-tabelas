@@ -1,4 +1,5 @@
 import WarningAmberRounded from '@mui/icons-material/WarningAmberRounded';
+import Popover from '@mui/material/Popover';
 import { useMemo, useState, type CSSProperties } from 'react';
 import { barrasDaLinha, dicaDaBarra, linhasDoCalendario, type LinhasPor } from '../domain/calendario';
 import { textoConflito } from '../domain/conflitos';
@@ -18,6 +19,8 @@ export function CalendarioSemanas({ programacoes, hoje, cadastros, conflitos, ac
   acoes: AcoesLogistica;
 }) {
   const [por, setPor] = useState<LinhasPor>('motorista');
+  /** Clique direito na barra: a dica aberta e maior, ainda no calendário. */
+  const [zoom, setZoom] = useState<{ ancora: HTMLElement; dica: string[]; avisos: string[] } | null>(null);
   const dias = useMemo(() => diasDoCalendario(hoje), [hoje]);
   const linhas = useMemo(() => linhasDoCalendario(programacoes, dias, por, cadastros), [programacoes, dias, por, cadastros]);
   const semanas = [0, 7, 14, 21].map((indice) => semanaDoId(semanaIdDe(dias[indice])));
@@ -76,7 +79,9 @@ export function CalendarioSemanas({ programacoes, hoje, cadastros, conflitos, ac
                     const lista = conflitos.get(programacao.id) ?? [];
                     const obra = programacao.obra ? cadastros.nomeObra(programacao.obra.id, programacao.obra.nome) : null;
                     const cor = statusExibido(programacao.status, cadastros.etiquetas).cor;
-                    const titulo = [...dicaDaBarra(programacao, por, linha.chave, cadastros), ...lista.map((conflito) => `⚠ ${textoConflito(conflito)}`)].join('\n');
+                    const dica = dicaDaBarra(programacao, por, linha.chave, cadastros);
+                    const avisos = lista.map((conflito) => `⚠ ${textoConflito(conflito)}`);
+                    const titulo = [...dica, ...avisos].join('\n');
                     return (
                       <button
                         type="button"
@@ -90,6 +95,7 @@ export function CalendarioSemanas({ programacoes, hoje, cadastros, conflitos, ac
                         } as CSSProperties}
                         title={titulo}
                         onClick={() => acoes.abrir(programacao.id)}
+                        onContextMenu={(event) => { event.preventDefault(); setZoom({ ancora: event.currentTarget, dica, avisos }); }}
                       >
                         {lista.length > 0 && <WarningAmberRounded fontSize="inherit" />}
                         <span>{obra ?? 'Sem obra'}</span>
@@ -103,6 +109,20 @@ export function CalendarioSemanas({ programacoes, hoje, cadastros, conflitos, ac
         </div>
       </div>
       <Legenda cadastros={cadastros} />
+      <Popover
+        open={zoom !== null}
+        anchorEl={zoom?.ancora}
+        onClose={() => setZoom(null)}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'left' }}
+        slotProps={{ paper: { className: 'lg-cal-zoom' } }}
+      >
+        {zoom && (
+          <>
+            {zoom.dica.map((linha, indice) => <p key={linha} className={indice === 0 ? 'lg-cal-zoom-titulo' : ''}>{linha}</p>)}
+            {zoom.avisos.map((linha) => <p key={linha} className="lg-cal-zoom-conflito">{linha}</p>)}
+          </>
+        )}
+      </Popover>
     </div>
   );
 }

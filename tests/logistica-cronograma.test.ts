@@ -14,10 +14,11 @@ import {
   conflitosAtivos, conflitosIgnorados, conflitosPorProgramacao, periodoDe, textoConflito,
 } from '../src/features/cronograma-logistica/domain/conflitos';
 import { barrasDaLinha, dicaDaBarra, linhasDoCalendario } from '../src/features/cronograma-logistica/domain/calendario';
+import { perguntarAdiamento, textoAdiamento } from '../src/features/cronograma-logistica/domain/adiamento';
 
 const programacao = (id: string, extra: Partial<Programacao> = {}): Programacao => ({
   id, cod: null, codAntigo: null, semanaId: '2026-W45', item: `Item ${id}`, status: '', inicio: null, fim: null,
-  motorista: null, auxiliar: null, veiculos: [], obra: null, expedicao: '', posicao: 0, conflitosIgnorados: [],
+  motorista: null, auxiliar: null, veiculos: [], obra: null, expedicao: '', adiamento: '', posicao: 0, conflitosIgnorados: [],
   criadoPor: null, criadoEm: null, modificadoPor: null, modificadoEm: null, ...extra,
 });
 
@@ -132,6 +133,17 @@ test('calendário: dica com Cod | Motivo, veículo e motorista fora da própria 
   assert.deepEqual(dicaDaBarra(item, 'motorista', 'm1', nomes), ['LOG-462601 | Deslocamento para Obra', 'Veículos: V-v1, V-v2', 'Auxiliar: P-x1']);
   assert.deepEqual(dicaDaBarra(item, 'veiculo', 'v1', nomes), ['LOG-462601 | Deslocamento para Obra', 'Veículo: V-v2', 'Motorista: P-m1', 'Auxiliar: P-x1']);
   assert.deepEqual(dicaDaBarra(programacao('b', { item: ' ', veiculos: [{ id: 'v1', nome: '' }] }), 'veiculo', 'v1', nomes), ['Sem código | Sem motivo']);
+});
+
+test('adiamento: só pergunta quando o fim que existia passa para depois; o texto leva o fim de antes, os dias e o motivo', () => {
+  assert.equal(perguntarAdiamento('2026-11-10', '2026-11-12'), true);
+  assert.equal(perguntarAdiamento('2026-11-10', '2026-11-08'), false); // antecipar não é adiar
+  assert.equal(perguntarAdiamento('2026-11-10', '2026-11-10'), false);
+  assert.equal(perguntarAdiamento(null, '2026-11-12'), false); // não tinha fim
+  assert.equal(perguntarAdiamento('2026-11-10', null), false); // tirou o fim
+  assert.equal(textoAdiamento('2026-11-10', '2026-11-11', ' chuva '), 'adiada de 10/11 (1 dia), pelo motivo de chuva');
+  assert.equal(textoAdiamento('2026-12-30', '2027-01-04', 'férias coletivas'), 'adiada de 30/12 (5 dias), pelo motivo de férias coletivas');
+  assert.ok(textoAdiamento('2026-11-10', '2026-11-30', 'x'.repeat(500)).length <= 200);
 });
 
 test('veículos: lista sem repetir, até 4; o documento antigo com um só veículo continua lido', () => {

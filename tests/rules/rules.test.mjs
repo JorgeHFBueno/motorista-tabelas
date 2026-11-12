@@ -1527,6 +1527,10 @@ test('[firestore] logistica: código da linha com o contador da semana; etiqueta
   await assertSucceeds(updateDoc(ref('lc1'), { status: '3', expedicao: 'Doca 2', ...alterou }));
   await assertFails(updateDoc(doc(dbAs('logistica'), 'logistica-programacoes', 'lc1'), { status: '4' }));
   await assertFails(updateDoc(ref('lc1'), { expedicao: 'x'.repeat(201), ...alterou }));
+  // Adiamento: o fim passa para depois e o texto vai junto; só texto, até 200.
+  await assertSucceeds(updateDoc(ref('lc1'), { fim: '2026-11-20', adiamento: 'adiada de 10/11 (10 dias), pelo motivo de chuva', ...alterou }));
+  await assertFails(updateDoc(ref('lc1'), { adiamento: 'x'.repeat(201), ...alterou }));
+  await assertFails(updateDoc(ref('lc1'), { adiamento: { de: '2026-11-10', dias: 10 }, ...alterou }));
 
   // Linhas de antes: sem código e com o texto do formato anterior. Só o código, sem assinar, passa ao número.
   await env.withSecurityRulesDisabled(async (context) => {

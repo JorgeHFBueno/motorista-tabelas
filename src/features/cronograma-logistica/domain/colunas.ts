@@ -25,7 +25,7 @@ export const COLUNAS: readonly DefColuna[] = [
   { chave: 'status', titulo: 'Status', largura: 150, ordenavel: true, ocultavel: true },
   { chave: 'expedicao', titulo: 'Expedição', largura: 180, ordenavel: true, ocultavel: true },
   { chave: 'nota', titulo: 'Nota', largura: 150, ordenavel: false, ocultavel: true },
-  { chave: 'adiamento', titulo: 'Adiamento', largura: 150, ordenavel: false, ocultavel: true },
+  { chave: 'adiamento', titulo: 'Adiamento', largura: 260, ordenavel: true, ocultavel: true },
   { chave: 'criadoPor', titulo: 'Criado por', largura: 160, ordenavel: true, ocultavel: true },
   { chave: 'modificadoPor', titulo: 'Modificado por', largura: 160, ordenavel: true, ocultavel: true },
 ];

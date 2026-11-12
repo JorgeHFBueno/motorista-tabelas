@@ -1440,7 +1440,7 @@ service cloud.firestore {
     function validLogisticaProgramacao(data) {
       return data.keys().hasOnly([
           'schemaVersion', 'cod', 'semanaId', 'item', 'status', 'inicio', 'fim', 'motorista', 'auxiliar', 'veiculo', 'veiculos',
-          'obra', 'expedicao', 'posicao', 'conflitosIgnorados', 'criadoPorUid', 'criadoPorNome', 'criadoEm',
+          'obra', 'expedicao', 'adiamento', 'posicao', 'conflitosIgnorados', 'criadoPorUid', 'criadoPorNome', 'criadoEm',
           'atualizadoPorUid', 'atualizadoPorNome', 'atualizadoEm'
         ])
         && data.schemaVersion == 1
@@ -1460,6 +1460,8 @@ service cloud.firestore {
         && (!('veiculos' in data) || logisticaVeiculos(data.veiculos))
         && logisticaRef(data.obra, 'id')
         && logisticaTextoOpcional(data, 'expedicao')
+        // Adiamento: só o texto ("adiada de dd/mm (x dias), pelo motivo de …"), sem data à parte.
+        && logisticaTextoOpcional(data, 'adiamento')
         && data.posicao is number
         // Conflitos ignorados: chaves "recurso|programação".
         && (!('conflitosIgnorados' in data) || (data.conflitosIgnorados is list && data.conflitosIgnorados.size() <= 100))

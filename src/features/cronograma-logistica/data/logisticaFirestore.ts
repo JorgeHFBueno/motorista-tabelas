@@ -63,6 +63,7 @@ export function programacaoDoDocumento(id: string, value: Record<string, unknown
     veiculos: veiculosDoDocumento(value),
     obra: refCadastro(value.obra),
     expedicao: texto(value.expedicao),
+    adiamento: texto(value.adiamento),
     posicao: typeof value.posicao === 'number' ? value.posicao : 0,
     conflitosIgnorados: Array.isArray(value.conflitosIgnorados) ? value.conflitosIgnorados.filter((chave): chave is string => typeof chave === 'string') : [],
     criadoPor: autoria(value.criadoPorUid, value.criadoPorNome),

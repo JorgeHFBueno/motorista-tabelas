@@ -73,6 +73,7 @@ function valorParaOrdenar(chave: ChaveColuna, programacao: Programacao, cadastro
       return indice >= 0 ? indice : null;
     }
     case 'expedicao': return programacao.expedicao;
+    case 'adiamento': return programacao.adiamento;
     case 'criadoPor': return nomeAutor(programacao.criadoPor, cadastros);
     case 'modificadoPor': return nomeAutor(programacao.modificadoPor, cadastros);
     default: return null;
@@ -153,8 +154,9 @@ function LinhaProgramacao({ programacao, cadastros, conflitos, todosConflitos, a
       case 'expedicao':
         return <CampoTexto valor={programacao.expedicao} maximo={200} onSalvar={(expedicao) => atualizar({ expedicao })} />;
       case 'nota':
-      case 'adiamento':
         return <span className="lg-em-breve">Vem Novidade Aí</span>;
+      case 'adiamento':
+        return programacao.adiamento ? <span className="lg-adiamento" title={programacao.adiamento}>{programacao.adiamento}</span> : null;
       case 'criadoPor':
       case 'modificadoPor': {
         const ref = chave === 'criadoPor' ? programacao.criadoPor : programacao.modificadoPor;

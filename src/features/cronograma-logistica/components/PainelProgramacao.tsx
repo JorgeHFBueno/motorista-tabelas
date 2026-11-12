@@ -80,6 +80,9 @@ export function PainelProgramacao({ programacao, aba, onAba, observacoes, eu, ca
               <label className="lg-painel-campo"><span>Expedição</span>
                 <CampoTexto valor={programacao.expedicao} maximo={200} onSalvar={(expedicao) => acoes.atualizar(programacao.id, { expedicao })} />
               </label>
+              {programacao.adiamento && (
+                <div className="lg-painel-campo"><span>Adiamento</span><span className="lg-painel-adiamento">{programacao.adiamento}</span></div>
+              )}
               <p className="lg-painel-autoria">
                 {[autoria('Criada', programacao.criadoPor, programacao.criadoEm, cadastros), autoria('Alterada', programacao.modificadoPor, programacao.modificadoEm, cadastros)]
                   .filter(Boolean).join(' · ')}
