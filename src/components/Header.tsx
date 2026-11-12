@@ -23,7 +23,7 @@ const botaoClaroSx = {
   '&:hover': { bgcolor: 'rgb(255 255 255 / 0.15)' },
 };
 
-// Notices do not exist yet: the bell opens a short note.
+// System notices do not exist yet: outside the Friday, the bell opens a short note.
 function BotaoAvisos() {
   const [ancora, setAncora] = useState<HTMLElement | null>(null);
   return (
@@ -51,6 +51,7 @@ export default function Header() {
   const [menuLateralOpen, setMenuLateralOpen] = useState(false);
   const [menuUsuario, setMenuUsuario] = useState<HTMLElement | null>(null);
   const comMenuLateral = Boolean(currentUser) && !SEM_MENU_LATERAL.includes(location.pathname);
+  const noFriday = location.pathname === '/friday' || location.pathname.startsWith('/friday/');
   const anterior = rotaAnterior(location.pathname);
   // Not before signing in.
   const comVoltar = Boolean(currentUser) && anterior !== null && !['/login', '/acesso-negado'].includes(location.pathname);
@@ -102,7 +103,8 @@ export default function Header() {
 
           {currentUser ? (
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-              <BotaoAvisos />
+              {/* In the Friday, the bell is the Friday's notices, placed here by its top bar (layout/Topo.tsx). */}
+              {noFriday ? <span id="ledur-header-avisos" className="ledur-header-avisos" /> : <BotaoAvisos />}
               <Button
                 aria-label="Menu do usuário"
                 onClick={(e) => setMenuUsuario(e.currentTarget)}

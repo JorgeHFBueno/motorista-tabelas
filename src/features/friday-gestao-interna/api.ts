@@ -10,6 +10,7 @@ import { CORES, fmtNumeroColuna, NOME_TRAVADO, nomeEspelhado } from './util.ts';
 import { converterColuna, nomeDoAlvo, type Alvo } from './quadro/mudarTipo.ts';
 import type { Coluna } from './quadro/tipos.ts';
 import { ErroTempo, fmtDuracao, lerTempo, operarTempo, sessaoAberta, semSessaoAberta, totalSegundos, type OpTempo } from './quadro/tempo.ts';
+import { destinatariosDaMencao, textoDoAviso } from './avisos.ts';
 
 // Camada de dados do Friday. As telas chamam req()/api como se houvesse um servidor (/api/...); aqui cada
 // chamada é atendida direto no Firestore, nas coleções "friday-<recurso>". O login é o do sistema (Firebase
@@ -525,7 +526,53 @@ async function historico(usuarioId?: string): Promise<Row[]> {
   }));
 }
 
-// Avisos (atribuição, menção, resposta) estão desligados até serem refeitos.
+// Avisos do sino: só menções (@). Respostas, atribuições e a ação "avisar pessoas" das automações seguem sem aviso.
+// Recebe quem foi marcado e entra no Friday, menos quem escreveu; na edição, só quem foi marcado agora.
+async function avisarMencoes(atualizacao: Row, antes?: unknown) {
+  const de = eu().id;
+  const para = destinatariosDaMencao({
+    marcados: atualizacao.mencoes, antes, autor: de,
+    podeReceber: uid => usuarios.some(p => p.id === uid && p.ativo && p.friday),
+  });
+  if (!para.length) return;
+  const onde = await ondeAbrir(atualizacao.item_id);
+  const texto = textoDoAviso(String(atualizacao.texto ?? ''), uid => usuarios.find(p => p.id === uid)?.nome);
+  for (const uid of para) {
+    await inserir('notificacoes', { usuario_id: uid, usuario_uid: uid, de_usuario_id: de, tipo: 'mencao', ...onde, atualizacao_id: atualizacao.id, texto });
+  }
+}
+
+// Quadro e item onde o aviso abre (subitem aparece no quadro principal, dentro do item pai).
+async function ondeAbrir(itemId: unknown): Promise<{ quadro_id: unknown; item_id: unknown }> {
+  const item = await buscar('itens', itemId);
+  if (!item) return { quadro_id: null, item_id: itemId };
+  const quadro = await buscar('quadros', item.quadro_id);
+  return quadro?.tipo === 'subitens' ? { quadro_id: quadro.quadro_pai_id, item_id: item.item_pai_id } : { quadro_id: item.quadro_id, item_id: item.id };
+}
+
+/**
+ * Avisos da pessoa (sino), em tempo real: os 50 mais recentes, com o nome do item e do quadro (null = apagado ou sem
+ * acesso). Como no histórico, o id do documento cresce com o tempo, e a ordem por ele dispensa índice composto.
+ */
+export function observarMeusAvisos(aoMudar: (lista: Row[]) => void): () => void {
+  const ler = memoria();
+  const nome = (r: Recurso, id: unknown) => ler(r, id).then(x => (x?.nome as string | undefined) ?? null, () => null);
+  let vez = 0;
+  return onSnapshot(query(colecao('notificacoes'), where('usuario_uid', '==', eu().uid), orderBy(documentId(), 'desc'), limit(50)), async snap => {
+    const minha = ++vez;
+    const lista = await Promise.all(snap.docs.map(async d => {
+      const n = d.data() as Row;
+      return { ...n, item_nome: await nome('itens', n.item_id), quadro_nome: await nome('quadros', n.quadro_id) };
+    }));
+    if (minha === vez) aoMudar(lista);
+  }, e => console.warn('[friday] avisos indisponíveis', e));
+}
+
+async function marcarAvisosComoLidos() {
+  const minhas = await consultar('notificacoes', { usuario_uid: eu().uid, lida: 0 });
+  await emLotes(minhas.map(n => lote => lote.update(ref('notificacoes', n.id), { lida: 1 })));
+  return { ok: true };
+}
 
 // ------------------------------------------------------------------ quadros e subitens
 // Quadro novo já utilizável: um grupo, colunas básicas e a visão de tabela.
@@ -1248,6 +1295,8 @@ async function criar(r: Recurso, corpo: unknown) {
   // próxima conciliação. O subitem novo vira uma entrada no registro do item pai, se o pai estiver vinculado (ex.: LOTE).
   if (r === 'itens') { const e = await escopoOficial(row.quadro_id); if (e) await gravarOficial(row.id, 'vincular'); }
   if (r === 'itens') await registrar({ quadro_id: row.quadro_id, item_id: row.id, item_nome: row.nome, acao: 'criou' });
+  // O aviso não impede a publicação: se falhar, a atualização fica gravada.
+  if (r === 'atualizacoes') await avisarMencoes(row).catch(e => console.warn('[friday] aviso de menção não gravado', e));
   return row;
 }
 
@@ -1307,6 +1356,9 @@ async function atualizar(r: Recurso, id: number, corpo: unknown): Promise<Row> {
       await registrar({ quadro_id: antes.quadro_id, item_id: id, item_nome: antes.nome, acao: 'moveu', de: de?.nome ?? null, para: para?.nome ?? null });
     }
   }
+  if (r === 'atualizacoes' && mudou.includes('mencoes')) {
+    await avisarMencoes({ ...antes, ...campos }, antes.mencoes).catch(e => console.warn('[friday] aviso de menção não gravado', e));
+  }
   return { ...antes, ...campos };
 }
 
@@ -1349,6 +1401,7 @@ async function rotear(metodo: string, url: string, corpo?: unknown): Promise<unk
   if (p[0] === 'busca' && metodo === 'GET') return busca(q.q);
   if (p[0] === 'meu-trabalho' && metodo === 'GET') return meuTrabalho();
   if (p[0] === 'historico' && metodo === 'GET') return historico(q.usuario_id);
+  if (p[0] === 'notificacoes' && p[1] === 'lidas' && metodo === 'POST') return marcarAvisosComoLidos();
   if (p[0] === 'arquivo' && metodo === 'GET') return arquivo(q.estado, Number(q.quadro_id) || null);
   if (p[0] === 'quadros' && p.length === 3) {
     const id = Number(p[1]);
