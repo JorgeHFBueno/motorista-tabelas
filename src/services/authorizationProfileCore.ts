@@ -50,27 +50,30 @@ export function createAuthorizationProfileReader(readFuncionario: ReadFuncionari
 
     const employeeDoc = await readFuncionario(uid);
     if (!employeeDoc.exists()) return emptyAuthorizationProfile();
+    return authorizationProfileFromData(employeeDoc.id, employeeDoc.data() ?? {});
+  };
+}
 
-    const data = employeeDoc.data() ?? {};
-    const profiles = data.perfis && typeof data.perfis === 'object'
-      ? data.perfis as Record<string, unknown>
-      : {};
+// Perfil de um funcionarios/{id} já lido (login e listas de pessoas, como a do Friday).
+export function authorizationProfileFromData(id: string, data: Record<string, unknown>): AuthorizationProfile {
+  const profiles = data.perfis && typeof data.perfis === 'object'
+    ? data.perfis as Record<string, unknown>
+    : {};
 
-    return {
-      exists: true,
-      source: 'funcionarios',
-      ativo: data.ativo === true,
-      adm2: profiles.adm2 === true,
-      motorista: profiles.motorista === true,
-      frentista: profiles.frentista === true,
-      mecanico: profiles.mecanico === true,
-      escritorio: profiles.escritorio === true,
-      engenharia: profiles.engenharia === true,
-      logistica: profiles.logistica === true,
-      autor: profiles.autor === true,
-      retr0: profiles.retr0 === true,
-      id: employeeDoc.id,
-      nome: typeof data.nome === 'string' && data.nome.trim() ? data.nome.trim() : null,
-    };
+  return {
+    exists: true,
+    source: 'funcionarios',
+    ativo: data.ativo === true,
+    adm2: profiles.adm2 === true,
+    motorista: profiles.motorista === true,
+    frentista: profiles.frentista === true,
+    mecanico: profiles.mecanico === true,
+    escritorio: profiles.escritorio === true,
+    engenharia: profiles.engenharia === true,
+    logistica: profiles.logistica === true,
+    autor: profiles.autor === true,
+    retr0: profiles.retr0 === true,
+    id,
+    nome: typeof data.nome === 'string' && data.nome.trim() ? data.nome.trim() : null,
   };
 }

@@ -5,6 +5,7 @@ import Header from './components/Header';
 import { CabecalhoPaginaProvider } from './components/cabecalhoPagina';
 import PrivateRoute from './components/PrivateRoute';
 import { temCredencial } from './services/credenciais';
+import { entraNoFriday } from './features/friday-gestao-interna/acesso';
 import NetworkStatusBanner from './components/NetworkStatusBanner';
 import PwaUpdateBanner from './components/PwaUpdateBanner';
 import PwaUpdateOverlay from './components/PwaUpdateOverlay';
@@ -70,7 +71,7 @@ export default function App() {
               <Route index element={<HomeDashboard />} />
               <Route path="perfil" element={<MeuPerfilPage />} />
             </Route>
-            <Route element={<PrivateRoute permite={(p) => temCredencial(p, 'escritorio', 'mecanico')} />}>
+            <Route element={<PrivateRoute permite={entraNoFriday} />}>
               <Route path="friday/*" element={<FridayApp />} />
             </Route>
             <Route element={<PrivateRoute permite={(p) => temCredencial(p, 'engenharia')} />}>

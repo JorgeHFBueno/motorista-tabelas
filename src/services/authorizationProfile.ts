@@ -2,7 +2,7 @@ import { doc, getDoc, serverTimestamp, updateDoc } from 'firebase/firestore';
 import { db } from '../firebase';
 import { createAuthorizationProfileReader } from './authorizationProfileCore';
 export type { AuthorizationProfile, FuncionarioDocument } from './authorizationProfileCore';
-export { createAuthorizationProfileReader, emptyAuthorizationProfile } from './authorizationProfileCore';
+export { authorizationProfileFromData, createAuthorizationProfileReader, emptyAuthorizationProfile } from './authorizationProfileCore';
 
 const EMPLOYEES_COLLECTION = 'funcionarios';
 

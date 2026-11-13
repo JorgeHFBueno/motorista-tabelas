@@ -22,6 +22,7 @@ import SupportAgentOutlinedIcon from '@mui/icons-material/SupportAgentOutlined';
 import NewspaperOutlinedIcon from '@mui/icons-material/NewspaperOutlined';
 import IconeDev from '../features/dev-toys/IconeDev';
 import IconeFriday from '../features/friday-gestao-interna/IconeFriday';
+import { CREDENCIAIS_FRIDAY } from '../features/friday-gestao-interna/acesso';
 import type { AuthorizationProfile } from '../services/authorizationProfile';
 import { temAlgumaCredencial, temCredencial, type Credencial } from '../services/credenciais';
 
@@ -57,7 +58,7 @@ export const menuPrincipal: MenuPrincipalItem[] = [
     color: '#EAF4FF',
     accent: '#1F4E8C',
     to: '/friday',
-    acesso: ['escritorio', 'mecanico'],
+    acesso: CREDENCIAIS_FRIDAY,
   },
   {
     label: 'Cadastros',

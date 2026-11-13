@@ -6,7 +6,8 @@ import { httpsCallable } from 'firebase/functions';
 import { deleteObject, getDownloadURL, ref as refArquivo, uploadBytes } from 'firebase/storage';
 import { getAuth } from 'firebase/auth';
 import { app, db, storage } from '../../firebase';
-import { getAuthorizationProfile } from '../../services/authorizationProfile';
+import { authorizationProfileFromData, getAuthorizationProfile } from '../../services/authorizationProfile';
+import { entraNoFriday } from './acesso.ts';
 import { functions } from './funcoes.ts';
 import { CORES, fmtNumeroColuna, NOME_TRAVADO, nomeEspelhado } from './util.ts';
 import { converterColuna, nomeDoAlvo, type Alvo } from './quadro/mudarTipo.ts';
@@ -23,7 +24,7 @@ import { avisoDeMencao, destinatariosDaMencao } from './avisos.ts';
 // sistema (funcionarios/{uid}) e aparecem nos registros pelo UID (células de pessoa, criado por, autor, @menções).
 export type Row = Record<string, any> & { id: number };
 // Pessoa do Friday = funcionário do sistema; o id é o próprio UID.
-// friday: tem a credencial escritorio, mecanico ou adm2 (entra no Friday); adm2: vê todos os quadros (permissões).
+// friday: entra no Friday (acesso.ts, a mesma regra da rota e do menu); adm2: vê todos os quadros (permissões).
 export type Pessoa = { id: string; uid: string; nome: string; email: string | null; cor: string; ativo: boolean; friday: boolean; adm2: boolean };
 
 // Recusa das regras do Firestore sai em português. Envolve as funções que as telas chamam.
@@ -442,9 +443,9 @@ export async function listarPessoas(): Promise<Pessoa[]> {
   usuarios = snap.docs.map(d => {
     const f = d.data();
     const email = typeof f.email === 'string' && f.email.trim() ? f.email.trim().toLowerCase() : null;
-    const nome = typeof f.nome === 'string' && f.nome.trim() ? f.nome.trim() : email ?? d.id;
-    const adm2 = f.perfis?.adm2 === true;
-    return { id: d.id, uid: d.id, nome, email, cor: corDaPessoa(d.id), ativo: f.ativo === true, friday: adm2 || f.perfis?.escritorio === true || f.perfis?.mecanico === true, adm2 };
+    const perfil = authorizationProfileFromData(d.id, f);
+    const nome = perfil.nome ?? email ?? d.id;
+    return { id: d.id, uid: d.id, nome, email, cor: corDaPessoa(d.id), ativo: perfil.ativo, friday: entraNoFriday(perfil), adm2: perfil.adm2 };
   }).sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'));
   return usuarios;
 }
