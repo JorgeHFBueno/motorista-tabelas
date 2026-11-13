@@ -121,3 +121,22 @@ test('arquivos pela API: nome do envio, coluna de arquivos recusada no /valor, f
   assert.equal(d.anexoLegivel({ ...anexo, coluna_id: null, atualizacao_id: 99 }, () => 'nunca').coluna, null);
   assert.deepEqual(d.entradaDaCelula(anexo), { id: 7, nome: 'Edital.pdf', mime: 'application/pdf', tamanho: 1234, url: 'https://x/y' });
 });
+
+test('aviso de menção pela API: cada marcado uma vez, nunca o autor, só quem entra no Friday', () => {
+  const funcionarios = new Map([
+    ['ana', funcionario({ escritorio: true })],
+    ['beto', funcionario({ mecanico: true })],
+    ['chefe', funcionario({ adm2: true })],
+    ['inativo', funcionario({ escritorio: true }, false)],
+    ['motorista', funcionario({ motorista: true })],
+    ['autor', funcionario({ escritorio: true })],
+  ]);
+  assert.deepEqual(d.destinatariosDaMencao(['ana', 'beto', 'ana', 'chefe', 'inativo', 'motorista', 'autor', 'sumido', ''], 'autor', funcionarios), ['ana', 'beto', 'chefe']);
+  assert.deepEqual(d.destinatariosDaMencao([], 'autor', funcionarios), []);
+});
+
+test('texto do aviso pela API: igual ao da tela (@{uid} vira @Nome, até 300 caracteres)', () => {
+  const nome = uid => ({ ana: 'Ana Souza' })[uid];
+  assert.equal(d.textoDoAviso('  Pedido de ART: @{ana} e @{xyz}  ', nome), 'mencionou você: Pedido de ART: @Ana Souza e @alguém');
+  assert.equal(d.textoDoAviso('x'.repeat(400), nome).length, 300);
+});

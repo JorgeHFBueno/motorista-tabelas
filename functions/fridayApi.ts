@@ -18,8 +18,8 @@ import { criarItem, gravarValorDoItem, lerItem, novoContexto, subquadroDe, vincu
 import { dataLocal, novoId } from './fridayMondayConverter.js';
 import { conteudoDoArquivo, FERRAMENTAS, responderMcp } from './fridayMcp.js';
 import {
-  anexoLegivel, casaBusca, colunaDoPedido, EntradaInvalida, entradaDaCelula, formatoChave, hashChave, LIMITE_ENVIO, mencoesDoTexto, nomeDoEnvio, palavrasDaBusca,
-  pessoaDaChave, podeVerQuadro, textoCelula, valorDaEntrada, valoresPorTitulo,
+  anexoLegivel, casaBusca, colunaDoPedido, destinatariosDaMencao, EntradaInvalida, entradaDaCelula, formatoChave, hashChave, LIMITE_ENVIO, mencoesDoTexto,
+  nomeDoEnvio, palavrasDaBusca, pessoaDaChave, podeVerQuadro, textoCelula, textoDoAviso, valorDaEntrada, valoresPorTitulo,
 } from './fridayApiDominio.js';
 
 type AnyRecord = Record<string, any>;
@@ -437,10 +437,40 @@ async function publicarAtualizacao(e: Escrita, itemId: number, corpo: AnyRecord)
   const texto = String(corpo.texto ?? '').trim().slice(0, 5000);
   if (!texto) throw new Recusa(400, 'Informe texto.');
   const id = novoId();
+  const mencoes = mencoesDoTexto(texto);
   await colecao('atualizacoes').doc(String(id)).set({
-    id, item_id: itemId, quadro_id: Number(item.quadro_id), texto, mencoes: mencoesDoTexto(texto), resposta_de: null, criado_em: dataLocal(), ...autorDaChave(e),
+    id, item_id: itemId, quadro_id: Number(item.quadro_id), texto, mencoes, resposta_de: null, criado_em: dataLocal(), ...autorDaChave(e),
   });
+  // O aviso não impede a publicação: se falhar, a atualização fica gravada (como na tela).
+  await avisarMencoes(e, item, id, texto, mencoes)
+    .catch(err => logger.warn('fridayApi: aviso de menção não gravado', { atualizacao: id, erro: (err as Error).message }));
   return { atualizacao: id, item: itemId };
+}
+
+/**
+ * Aviso de menção no sino (friday-notificacoes, tipo "mencao"), como a tela grava: um por pessoa marcada, nunca para quem
+ * escreveu e só para quem entra no Friday. Abre o item (no subitem, o item pai no quadro principal). Quem não vê um quadro
+ * restrito também recebe, com o trecho (decisão do responsável de 2026-11-12).
+ */
+async function avisarMencoes(e: Escrita, item: AnyRecord, atualizacaoId: number, texto: string, marcados: string[]) {
+  if (!marcados.length) return;
+  const snaps = await db.getAll(...marcados.slice(0, 100).map(u => db.collection('funcionarios').doc(u)));
+  const funcionarios = new Map(snaps.map(s => [s.id, s.data()]));
+  const para = destinatariosDaMencao(marcados, e.pessoa.uid, funcionarios);
+  if (!para.length) return;
+  const q = (await colecao('quadros').doc(String(item.quadro_id)).get()).data();
+  const sub = q?.tipo === 'subitens';
+  const onde = sub ? { quadro_id: q?.quadro_pai_id ?? null, item_id: item.item_pai_id ?? null } : { quadro_id: item.quadro_id, item_id: item.id };
+  const aviso = textoDoAviso(texto, uid => funcionarios.get(uid)?.nome);
+  const lote = db.batch();
+  for (const uid of para) {
+    const id = novoId();
+    lote.set(colecao('notificacoes').doc(String(id)), {
+      id, usuario_id: uid, usuario_uid: uid, de_usuario_id: e.pessoa.uid, tipo: 'mencao', ...onde,
+      atualizacao_id: atualizacaoId, texto: aviso, lida: 0, criado_em: dataLocal(),
+    });
+  }
+  await lote.commit();
 }
 
 // ---------------------------------------------------------------- MCP (as rotas acima como ferramentas)

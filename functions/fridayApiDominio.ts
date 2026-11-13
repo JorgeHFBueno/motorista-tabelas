@@ -114,6 +114,24 @@ export function valorDaEntrada(coluna: { tipo: string; titulo: string; config?: 
 /** Menções no texto de uma atualização (@{uid}), como a tela grava. */
 export const mencoesDoTexto = (texto: string) => [...new Set([...texto.matchAll(/@\{([^{}\s]+)\}/g)].map(m => m[1]))];
 
+// ---------------------------------------------------------------- aviso de menção (sino), como a tela (src/.../avisos.ts)
+/** Entra no Friday: funcionário ativo com escritorio, mecanico ou adm2 (como pessoaDaChave e as Rules). */
+export const entraNoFriday = (funcionario: AnyRecord | undefined) => {
+  const perfis = funcionario?.perfis ?? {};
+  return funcionario?.ativo === true && (perfis.escritorio === true || perfis.mecanico === true || perfis.adm2 === true);
+};
+
+/** Quem recebe o aviso de menção: cada marcado uma vez, nunca quem escreveu, só quem entra no Friday. */
+export function destinatariosDaMencao(marcados: string[], autor: string, funcionarios: Map<string, AnyRecord | undefined>): string[] {
+  return [...new Set(marcados)].filter(uid => uid && uid !== autor && entraNoFriday(funcionarios.get(uid)));
+}
+
+/** Texto gravado no aviso: "mencionou você: " e a atualização com @{uid} → @Nome, até 300 caracteres (como a tela). */
+export function textoDoAviso(texto: string, nome: (uid: string) => string | undefined): string {
+  const legivel = texto.replace(/@\{([^{}\s]+)\}/g, (_m, uid: string) => `@${nome(uid) ?? 'alguém'}`).trim();
+  return `mencionou você: ${legivel}`.slice(0, 300);
+}
+
 /** Quadro que a pessoa vê, como na tela: fora do arquivo e da lixeira; aberto, ou restrito com ela em "acesso"; adm2 vê todos. */
 export function podeVerQuadro(quadro: AnyRecord | undefined, pessoa: { uid: string; adm2: boolean }): boolean {
   if (!quadro || quadro.arquivado_em || quadro.excluido_em) return false;
