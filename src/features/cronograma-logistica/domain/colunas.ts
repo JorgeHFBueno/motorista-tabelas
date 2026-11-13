@@ -2,7 +2,7 @@
 import type { CSSProperties } from 'react';
 
 export type ChaveColuna =
-  | 'cod' | 'item' | 'periodo' | 'motorista' | 'auxiliar' | 'veiculos' | 'obra' | 'status'
+  | 'cod' | 'item' | 'periodo' | 'motorista' | 'auxiliar' | 'veiculos' | 'obra' | 'local' | 'status'
   | 'expedicao' | 'nota' | 'adiamento' | 'criadoPor' | 'modificadoPor';
 
 export interface DefColuna {
@@ -22,6 +22,7 @@ export const COLUNAS: readonly DefColuna[] = [
   { chave: 'auxiliar', titulo: 'Auxiliar', largura: 170, ordenavel: true, ocultavel: true },
   { chave: 'veiculos', titulo: 'Veículos', largura: 260, ordenavel: true, ocultavel: true },
   { chave: 'obra', titulo: 'Obra', largura: 200, ordenavel: true, ocultavel: true },
+  { chave: 'local', titulo: 'Local', largura: 260, ordenavel: true, ocultavel: true },
   { chave: 'status', titulo: 'Status', largura: 150, ordenavel: true, ocultavel: true },
   { chave: 'expedicao', titulo: 'Expedição', largura: 180, ordenavel: true, ocultavel: true },
   { chave: 'nota', titulo: 'Nota', largura: 150, ordenavel: false, ocultavel: true },

@@ -25,6 +25,7 @@ export { roboObras } from './roboObras.js';
 export { fridayApi } from './fridayApi.js';
 export { logisticaPessoasFriday } from './logisticaPessoas.js';
 export { logisticaPedidoNota } from './logisticaPedidoNota.js';
+export { logisticaLocal } from './logisticaLocal.js';
 export { funcionariosImportarFriday } from './funcionariosImportarFriday.js';
 
 export const api = onRequest(app);

@@ -9,10 +9,11 @@ import { useMemo, useState, type CSSProperties, type ReactNode } from 'react';
 import { textoCodigo } from '../domain/codigo';
 import { colunasVisiveis, fixacao, ordenarPor, type ChaveColuna, type ColunaVisivel, type PrefsColunas, type ValorOrdem } from '../domain/colunas';
 import { paresDeConflito, periodoDe } from '../domain/conflitos';
+import { textoLocal } from '../domain/local';
 import { MAX_VEICULOS, type Programacao, type RefPessoa } from '../domain/models';
 import { posicaoAoSoltar } from '../domain/ordem';
 import { rotuloSemana } from '../domain/semanas';
-import { CampoEscolha, CampoEscolhaVarios, CampoNota, CampoPeriodo, CampoStatus, CampoTexto } from './campos';
+import { CampoEscolha, CampoEscolhaVarios, CampoLocal, CampoNota, CampoPeriodo, CampoStatus, CampoTexto } from './campos';
 import { CabecalhoColuna, type MudarPrefs } from './Colunas';
 import { BotaoConflitos } from './Conflitos';
 import {
@@ -72,6 +73,7 @@ function valorParaOrdenar(chave: ChaveColuna, programacao: Programacao, cadastro
       const indice = cadastros.etiquetas.findIndex((etiqueta) => etiqueta.id === programacao.status);
       return indice >= 0 ? indice : null;
     }
+    case 'local': return programacao.local ? textoLocal(programacao.local) : null;
     case 'expedicao': return programacao.expedicao;
     case 'adiamento': return programacao.adiamento;
     case 'criadoPor': return nomeAutor(programacao.criadoPor, cadastros);
@@ -149,6 +151,8 @@ function LinhaProgramacao({ programacao, cadastros, conflitos, todosConflitos, a
         return <CampoEscolhaVarios rotulo="Veículos" maximo={MAX_VEICULOS} valores={opcoesVeiculos(programacao.veiculos, cadastros)} opcoes={cadastros.veiculos} onSalvar={(opcoes) => atualizar({ veiculos: refsCadastro(opcoes) })} />;
       case 'obra':
         return <CampoEscolha rotulo="Obra" valor={opcaoObra(programacao.obra, cadastros)} opcoes={cadastros.obras} onSalvar={(opcao) => atualizar({ obra: refCadastro(opcao) })} />;
+      case 'local':
+        return <CampoLocal local={programacao.local} onLer={(texto) => acoes.lerLocal(programacao, texto)} onRemover={() => atualizar({ local: null })} />;
       case 'status':
         return <CampoStatus valor={programacao.status} etiquetas={cadastros.etiquetas} onSalvar={(status) => atualizar({ status })} onSalvarEtiquetas={acoes.salvarEtiquetas} />;
       case 'expedicao':

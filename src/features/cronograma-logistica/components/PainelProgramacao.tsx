@@ -5,7 +5,7 @@ import Drawer from '@mui/material/Drawer';
 import { textoCodigo } from '../domain/codigo';
 import { MAX_VEICULOS, type Observacao, type Programacao, type RefPessoa } from '../domain/models';
 import { rotuloSemana } from '../domain/semanas';
-import { CampoEscolha, CampoEscolhaVarios, CampoNota, CampoPeriodo, CampoStatus, CampoTexto } from './campos';
+import { CampoEscolha, CampoEscolhaVarios, CampoLocal, CampoNota, CampoPeriodo, CampoStatus, CampoTexto } from './campos';
 import {
   opcaoObra, opcaoPessoa, opcoesVeiculos, refCadastro, refPessoa, refsCadastro,
   type AbaPainel, type AcoesLogistica, type CadastrosLogistica, type ConflitosLogistica,
@@ -74,6 +74,9 @@ export function PainelProgramacao({ programacao, aba, onAba, observacoes, eu, ca
               <label className="lg-painel-campo"><span>Obra</span>
                 <CampoEscolha rotulo="Obra" valor={opcaoObra(programacao.obra, cadastros)} opcoes={cadastros.obras} onSalvar={(opcao) => acoes.atualizar(programacao.id, { obra: refCadastro(opcao) })} />
               </label>
+              <div className="lg-painel-campo"><span>Local</span>
+                <CampoLocal local={programacao.local} onLer={(texto) => acoes.lerLocal(programacao, texto)} onRemover={() => acoes.atualizar(programacao.id, { local: null })} />
+              </div>
               <div className="lg-painel-campo"><span>Status</span>
                 <CampoStatus grande valor={programacao.status} etiquetas={cadastros.etiquetas} onSalvar={(status) => acoes.atualizar(programacao.id, { status })} onSalvarEtiquetas={acoes.salvarEtiquetas} />
               </div>

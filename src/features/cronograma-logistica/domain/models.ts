@@ -29,6 +29,8 @@ export interface Programacao {
   /** Um ou mais veículos (até MAX_VEICULOS), sem repetir. */
   veiculos: RefCadastro[];
   obra: RefCadastro | null;
+  /** Local pelo link do Google Maps (domain/local.ts); null sem local. */
+  local: LocalProgramacao | null;
   /** Texto livre da expedição. */
   expedicao: string;
   /** "adiada de dd/mm (x dias), pelo motivo de …": gravado quando o fim passa para depois como adiamento; '' sem adiamento. */
@@ -43,6 +45,15 @@ export interface Programacao {
   criadoEm: number | null;
   modificadoPor: RefPessoa | null;
   modificadoEm: number | null;
+}
+
+/** O link do Google Maps colado e o que a Function logisticaLocal leu dele (cidade e uf vazias quando não achou). */
+export interface LocalProgramacao {
+  link: string;
+  lat: number;
+  lng: number;
+  cidade: string;
+  uf: string;
 }
 
 export interface NotaProgramacao {
@@ -94,4 +105,4 @@ export interface Observacao {
 }
 
 /** Campos que a tela altera numa programação. */
-export type ProgramacaoEditavel = Pick<Programacao, 'item' | 'status' | 'inicio' | 'fim' | 'motorista' | 'auxiliar' | 'veiculos' | 'obra' | 'expedicao' | 'adiamento' | 'nota' | 'posicao'>;
+export type ProgramacaoEditavel = Pick<Programacao, 'item' | 'status' | 'inicio' | 'fim' | 'motorista' | 'auxiliar' | 'veiculos' | 'obra' | 'local' | 'expedicao' | 'adiamento' | 'nota' | 'posicao'>;

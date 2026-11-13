@@ -1596,6 +1596,19 @@ test('[firestore] logistica: código da linha com o contador da semana; etiqueta
   await assertFails(updateDoc(ref('lc1'), { nota: 'https://exemplo/nf.pdf', ...alterou }));
   const { url: _semUrl, ...semUrl } = nota();
   await assertFails(updateDoc(ref('lc1'), { nota: semUrl, ...alterou }));
+  // Local: o link do Maps e o que a Function leu, {link, lat, lng, cidade, uf}; null tira.
+  const local = (extra = {}) => ({ link: 'https://maps.app.goo.gl/abc', lat: -29.1678123, lng: -51.1794987, cidade: 'Caxias do Sul', uf: 'RS', ...extra });
+  await assertSucceeds(updateDoc(ref('lc1'), { local: local(), ...alterou }));
+  await assertSucceeds(updateDoc(ref('lc1'), { local: local({ cidade: '', uf: '', lat: 41, lng: 12 }), ...alterou }));
+  await assertSucceeds(updateDoc(ref('lc1'), { local: null, ...alterou }));
+  await assertFails(updateDoc(ref('lc1'), { local: local({ lat: 91 }), ...alterou }));
+  await assertFails(updateDoc(ref('lc1'), { local: local({ lng: '-51.1' }), ...alterou }));
+  await assertFails(updateDoc(ref('lc1'), { local: local({ link: 'javascript:alert(1)' }), ...alterou }));
+  await assertFails(updateDoc(ref('lc1'), { local: local({ cidade: 'x'.repeat(101) }), ...alterou }));
+  await assertFails(updateDoc(ref('lc1'), { local: local({ extra: true }), ...alterou }));
+  await assertFails(updateDoc(ref('lc1'), { local: 'https://maps.app.goo.gl/abc', ...alterou }));
+  const { uf: _semUf, ...semUf } = local();
+  await assertFails(updateDoc(ref('lc1'), { local: semUf, ...alterou }));
 
   // Linhas de antes: sem código e com o texto do formato anterior. Só o código, sem assinar, passa ao número.
   await env.withSecurityRulesDisabled(async (context) => {

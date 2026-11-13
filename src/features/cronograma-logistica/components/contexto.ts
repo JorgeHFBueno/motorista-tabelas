@@ -30,6 +30,8 @@ export interface AcoesLogistica {
   /** Envia o PDF da nota (troca o que houver); resolve depois de gravar ou de avisar o erro. */
   enviarNota: (programacao: Programacao, arquivo: File) => Promise<void>;
   removerNota: (programacao: Programacao) => void;
+  /** Lê o link do Google Maps colado e grava o local; true quando gravou. */
+  lerLocal: (programacao: Programacao, texto: string) => Promise<boolean>;
   /** Ignora o conflito (some nas duas linhas) ou volta a avisar. */
   ignorarConflito: (programacao: Programacao, conflito: Conflito, ignorar: boolean) => void;
 }

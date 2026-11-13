@@ -2,16 +2,20 @@ import {
   arrayRemove, arrayUnion, collection, deleteDoc, deleteField, doc, getDocs, onSnapshot, query, runTransaction, serverTimestamp, setDoc,
   updateDoc, where, writeBatch, type Timestamp,
 } from 'firebase/firestore';
-import { httpsCallable } from 'firebase/functions';
+import { connectFunctionsEmulator, httpsCallable } from 'firebase/functions';
 import { deleteObject, getDownloadURL, ref as refArquivo, uploadBytes } from 'firebase/storage';
 import { db, functions, storage } from '../../../firebase';
 import {
-  pessoaDoDocumento, veiculosDoDocumento, type AnexoObservacao, type NotaProgramacao, type Observacao, type Programacao, type ProgramacaoEditavel, type RefCadastro,
+  pessoaDoDocumento, veiculosDoDocumento, type AnexoObservacao, type LocalProgramacao, type NotaProgramacao, type Observacao, type Programacao, type ProgramacaoEditavel, type RefCadastro,
   type RefPessoa, type Semana,
 } from '../domain/models';
 import { codigoConvertido, codigoDaProgramacao } from '../domain/codigo';
 import { semanaDoId, semanaIdValido } from '../domain/semanas';
 import { ETIQUETAS_PADRAO, type EtiquetaStatus } from '../domain/status';
+
+if (import.meta.env.VITE_USE_FIREBASE_EMULATORS === 'true') {
+  try { connectFunctionsEmulator(functions, '127.0.0.1', 5001); } catch { /* já conectado */ }
+}
 
 // Cronograma Logístico (The Manuscript, 01_FIRESTORE/COLECOES/logistica.md). logistica, mecanico ou adm2 lê e grava.
 export const SEMANAS = 'logistica-semanas';
@@ -48,6 +52,13 @@ function notaDo(value: unknown): NotaProgramacao | null {
     : null;
 }
 
+function localDo(value: unknown): LocalProgramacao | null {
+  const local = value as Partial<LocalProgramacao> | null | undefined;
+  return local && typeof local.link === 'string' && typeof local.lat === 'number' && typeof local.lng === 'number'
+    ? { link: local.link, lat: local.lat, lng: local.lng, cidade: texto(local.cidade), uf: texto(local.uf) }
+    : null;
+}
+
 /** Quem criou/alterou: o UID e o nome gravado junto (as linhas de antes têm só o UID). */
 function autoria(uid: unknown, nome: unknown): RefPessoa | null {
   return typeof uid === 'string' && uid ? { uid, nome: texto(nome) } : null;
@@ -69,6 +80,7 @@ export function programacaoDoDocumento(id: string, value: Record<string, unknown
     auxiliar: pessoaDoDocumento(value.auxiliar),
     veiculos: veiculosDoDocumento(value),
     obra: refCadastro(value.obra),
+    local: localDo(value.local),
     expedicao: texto(value.expedicao),
     adiamento: texto(value.adiamento),
     nota: notaDo(value.nota),
@@ -141,6 +153,13 @@ export interface PessoasFriday { motoristas: PessoaFriday[]; auxiliares: PessoaF
 export async function pessoasDoFriday(): Promise<PessoasFriday> {
   const resultado = await httpsCallable<void, PessoasFriday>(functions, 'logisticaPessoasFriday')();
   return { motoristas: resultado.data?.motoristas ?? [], auxiliares: resultado.data?.auxiliares ?? [] };
+}
+
+/** Lê o link do Google Maps colado (a Function abre o link curto e acha cidade e estado); erro quando não acha o local. */
+export async function localDoMaps(texto: string): Promise<LocalProgramacao> {
+  const resultado = await httpsCallable<{ link: string }, LocalProgramacao>(functions, 'logisticaLocal', { timeout: 30_000 })({ link: texto });
+  const { link, lat, lng, cidade, uf } = resultado.data;
+  return { link, lat, lng, cidade: cidade ?? '', uf: uf ?? '' };
 }
 
 /** Etiquetas de status (logistica-config/status); sem o documento, as padrão. */

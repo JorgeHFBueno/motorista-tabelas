@@ -10,12 +10,14 @@ import AddRounded from '@mui/icons-material/AddRounded';
 import DeleteOutlineRounded from '@mui/icons-material/DeleteOutlineRounded';
 import EditOutlined from '@mui/icons-material/EditOutlined';
 import PictureAsPdfOutlined from '@mui/icons-material/PictureAsPdfOutlined';
+import PlaceOutlined from '@mui/icons-material/PlaceOutlined';
 import SwapHorizRounded from '@mui/icons-material/SwapHorizRounded';
 import UploadFileOutlined from '@mui/icons-material/UploadFileOutlined';
 import { useEffect, useRef, useState, type ChangeEvent, type KeyboardEvent } from 'react';
 import { MAX_MOTIVO_ADIAMENTO, perguntarAdiamento, textoAdiamento } from '../domain/adiamento';
 import { ddmm } from '../domain/semanas';
-import type { CivilDate, NotaProgramacao } from '../domain/models';
+import { linkDoMapa, textoLocal } from '../domain/local';
+import type { CivilDate, LocalProgramacao, NotaProgramacao } from '../domain/models';
 import {
   COR_SEM_STATUS, CORES_ETIQUETA, MAX_ETIQUETAS, etiquetasLimpas, novoIdEtiqueta, statusExibido, textoEscuro,
   type EtiquetaStatus,
@@ -89,6 +91,68 @@ export function CampoNota({ nota, onEnviar, onRemover }: {
         <button type="button" className="lg-nota-enviar" onClick={escolher}><UploadFileOutlined fontSize="inherit" />Enviar PDF</button>
       )}
     </span>
+  );
+}
+
+/**
+ * Local pelo link do Google Maps: colar (ou digitar e sair do campo) manda o link para a Function, que acha a coordenada,
+ * a cidade e o estado. Depois, o texto abre o Maps com o pino; ao lado, trocar o link e tirar o local.
+ */
+export function CampoLocal({ local, onLer, onRemover }: {
+  local: LocalProgramacao | null;
+  /** Lê e grava; true quando gravou (o erro a página avisa). */
+  onLer: (texto: string) => Promise<boolean>;
+  onRemover: () => void;
+}) {
+  const [editando, setEditando] = useState(false);
+  const [rascunho, setRascunho] = useState('');
+  const [lendo, setLendo] = useState(false);
+  const ocupado = useRef(false);
+  const fechar = () => { setEditando(false); setRascunho(''); };
+  const ler = (texto: string) => {
+    const limpo = texto.trim();
+    if (ocupado.current) return;
+    if (!limpo || limpo === local?.link) { fechar(); return; }
+    ocupado.current = true;
+    setLendo(true);
+    onLer(limpo)
+      .then((gravou) => { if (gravou) fechar(); })
+      .finally(() => { ocupado.current = false; setLendo(false); });
+  };
+  if (lendo) return <span className="lg-nota"><span className="lg-nota-enviando">Lendo o link…</span></span>;
+  if (local && !editando) {
+    const texto = textoLocal(local);
+    return (
+      <span className="lg-nota">
+        <a className="lg-nota-link" href={linkDoMapa(local)} target="_blank" rel="noreferrer" title={`${texto}: abrir no Google Maps`}>
+          <PlaceOutlined fontSize="inherit" /><span>{texto}</span>
+        </a>
+        <button type="button" className="lg-btn-icone lg-nota-acao" onClick={() => { setRascunho(local.link); setEditando(true); }} title="Trocar o link" aria-label="Trocar o link"><EditOutlined fontSize="inherit" /></button>
+        <button type="button" className="lg-btn-icone lg-nota-acao" onClick={onRemover} title="Tirar o local" aria-label="Tirar o local"><DeleteOutlineRounded fontSize="inherit" /></button>
+      </span>
+    );
+  }
+  return (
+    <input
+      className="lg-input"
+      value={rascunho}
+      maxLength={4000}
+      placeholder="Colar link do Maps"
+      autoFocus={editando}
+      onChange={(event) => setRascunho(event.target.value)}
+      onPaste={(event) => {
+        const colado = event.clipboardData.getData('text');
+        if (!colado.trim()) return;
+        event.preventDefault();
+        setRascunho(colado.trim());
+        ler(colado);
+      }}
+      onBlur={(event) => ler(event.currentTarget.value)}
+      onKeyDown={(event) => {
+        if (event.key === 'Enter') event.currentTarget.blur();
+        if (event.key === 'Escape') { ocupado.current = true; fechar(); window.setTimeout(() => { ocupado.current = false; }); }
+      }}
+    />
   );
 }
 

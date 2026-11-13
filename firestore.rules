@@ -1449,7 +1449,7 @@ service cloud.firestore {
     function validLogisticaProgramacao(data) {
       return data.keys().hasOnly([
           'schemaVersion', 'cod', 'semanaId', 'item', 'status', 'inicio', 'fim', 'motorista', 'auxiliar', 'veiculo', 'veiculos',
-          'obra', 'expedicao', 'adiamento', 'nota', 'posicao', 'conflitosIgnorados', 'criadoPorUid', 'criadoPorNome', 'criadoEm',
+          'obra', 'local', 'expedicao', 'adiamento', 'nota', 'posicao', 'conflitosIgnorados', 'criadoPorUid', 'criadoPorNome', 'criadoEm',
           'atualizadoPorUid', 'atualizadoPorNome', 'atualizadoEm'
         ])
         && data.schemaVersion == 1
@@ -1468,6 +1468,7 @@ service cloud.firestore {
         && (!('veiculo' in data) || logisticaRef(data.veiculo, 'id'))
         && (!('veiculos' in data) || logisticaVeiculos(data.veiculos))
         && logisticaRef(data.obra, 'id')
+        && logisticaLocal(data)
         && logisticaTextoOpcional(data, 'expedicao')
         // Adiamento: só o texto ("adiada|antecipada de dd/mm (x dias), pelo motivo de …"), sem data à parte.
         && logisticaTextoOpcional(data, 'adiamento')
@@ -1476,6 +1477,20 @@ service cloud.firestore {
         && (!('conflitosIgnorados' in data) || (data.conflitosIgnorados is list && data.conflitosIgnorados.size() <= 100))
         && logisticaTextoOpcional(data, 'criadoPorNome')
         && logisticaTextoOpcional(data, 'atualizadoPorNome');
+    }
+
+    // Local: o link do Google Maps colado e o que a Function logisticaLocal leu dele, {link, lat, lng, cidade, uf};
+    // null ou ausente é sem local.
+    function logisticaLocal(data) {
+      return !('local' in data) || data.local == null
+        || (data.local is map
+          && data.local.keys().hasAll(['link', 'lat', 'lng', 'cidade', 'uf'])
+          && data.local.keys().hasOnly(['link', 'lat', 'lng', 'cidade', 'uf'])
+          && data.local.link is string && data.local.link.size() <= 2000 && data.local.link.matches('^https?://[^ ]+$')
+          && data.local.lat is number && data.local.lat >= -90 && data.local.lat <= 90
+          && data.local.lng is number && data.local.lng >= -180 && data.local.lng <= 180
+          && data.local.cidade is string && data.local.cidade.size() <= 100
+          && data.local.uf is string && data.local.uf.size() <= 60);
     }
 
     // Nota: o PDF no Storage (logistica/notas/{programação}/{arquivo}), {caminho, url, nome, tamanho}; null ou ausente

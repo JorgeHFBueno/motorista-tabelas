@@ -16,10 +16,11 @@ import {
 import { barrasDaLinha, dicaDaBarra, linhasDoCalendario } from '../src/features/cronograma-logistica/domain/calendario';
 import { perguntarAdiamento, textoAdiamento } from '../src/features/cronograma-logistica/domain/adiamento';
 import { automacaoDaColuna, statusPorAutomacao } from '../src/features/cronograma-logistica/domain/automacoes';
+import { coordenadaCurta, linkDoMapa, textoLocal } from '../src/features/cronograma-logistica/domain/local';
 
 const programacao = (id: string, extra: Partial<Programacao> = {}): Programacao => ({
   id, cod: null, codAntigo: null, semanaId: '2026-W45', item: `Item ${id}`, status: '', inicio: null, fim: null,
-  motorista: null, auxiliar: null, veiculos: [], obra: null, expedicao: '', adiamento: '', nota: null, posicao: 0, conflitosIgnorados: [],
+  motorista: null, auxiliar: null, veiculos: [], obra: null, local: null, expedicao: '', adiamento: '', nota: null, posicao: 0, conflitosIgnorados: [],
   criadoPor: null, criadoEm: null, modificadoPor: null, modificadoEm: null, ...extra,
 });
 
@@ -295,4 +296,12 @@ test('motorista/auxiliar: item do Friday {id, nome}; a linha de antes guarda {ui
   assert.deepEqual(pessoaDoDocumento({ uid: 'abcUID', nome: 'Fernando' }), { id: 'abcUID', nome: 'Fernando' });
   assert.equal(pessoaDoDocumento(null), null);
   assert.equal(pessoaDoDocumento({ id: '', nome: 'x' }), null);
+});
+
+test('local: "Cidade - UF - coordenada" com 4 casas; o Maps com o pino na coordenada gravada', () => {
+  const local = { link: 'https://maps.app.goo.gl/abc', lat: -29.1678123, lng: -51.1794987, cidade: 'Caxias do Sul', uf: 'RS' };
+  assert.equal(textoLocal(local), 'Caxias do Sul - RS - -29.1678, -51.1795');
+  assert.equal(textoLocal({ ...local, cidade: '', uf: '' }), '-29.1678, -51.1795');
+  assert.equal(coordenadaCurta({ lat: 41.9, lng: 12.5 }), '41.9000, 12.5000');
+  assert.equal(linkDoMapa(local), 'https://www.google.com/maps/search/?api=1&query=-29.1678123%2C-51.1794987');
 });

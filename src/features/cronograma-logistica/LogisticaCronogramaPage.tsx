@@ -16,7 +16,7 @@ import { PainelProgramacao } from './components/PainelProgramacao';
 import { QuadroSemanas } from './components/QuadroSemanas';
 import { usePrefsColunas } from './components/usePrefsColunas';
 import {
-  abrirSemana, atualizarProgramacao, converterCodigo, criarProgramacao, darCodigo, enviarNota, ignorarConflito, pessoasDoFriday, type PessoasFriday, excluirProgramacao, observarEtiquetas, observarObservacoes,
+  abrirSemana, atualizarProgramacao, converterCodigo, criarProgramacao, darCodigo, enviarNota, ignorarConflito, localDoMaps, pessoasDoFriday, type PessoasFriday, excluirProgramacao, observarEtiquetas, observarObservacoes,
   observarProgramacoes, observarSemanas, salvarEtiquetas, MAX_ATRIBUIDOS_NOTA, observarAtribuidosNota, removerNota, salvarAtribuidosNota,
 } from './data/logisticaFirestore';
 import { statusPorAutomacao } from './domain/automacoes';
@@ -177,6 +177,9 @@ export default function LogisticaCronogramaPage() {
       if (!window.confirm(`Tirar a nota "${programacao.nota?.nome ?? ''}" desta programação?`)) return;
       removerNota(programacao, eu).catch(falhar('tirar a nota'));
     },
+    lerLocal: (programacao, texto) => localDoMaps(texto)
+      .then((local) => { atualizarProgramacao(programacao.id, { local }, eu).catch(falhar('salvar o local')); return true; })
+      .catch((error: unknown) => { falhar('ler o link do Maps')(error); return false; }),
     excluir: (programacao) => {
       if (!window.confirm(`Excluir a programação "${programacao.item}"?`)) return;
       setAbertaId((aberta) => (aberta === programacao.id ? null : aberta));
