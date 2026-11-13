@@ -68,7 +68,6 @@ async function seed() {
     await cliente(identities.socio, [CNPJ_A]);
     await cliente(identities.outro, [CNPJ_B]);
     await cliente(identities.inativo, [CNPJ_A], false);
-    await setDoc(doc(db, 'users', identities.cliente, 'notificacoes', 'n1'), { tipo: 'documento', titulo: 'Novo', mensagem: 'x', lida: false, criadoEm: t });
     await setDoc(doc(db, 'avisos', identities.cliente, 'itens', 'a1'), { area: 'portal', tipo: 'documento', titulo: 'Novo', mensagem: 'x', obraId: 'pob-a', rota: '/documentos', lida: false, criadoEm: t });
 
     await setDoc(doc(db, 'obras-v2', 'pob-a'), { nomeObra: 'Obra A' });
@@ -159,16 +158,8 @@ test('[firestore] portal users: created only by a Function; adm2 edits; nobody d
   await assertFails(deleteDoc(doc(dbAs('adm2'), 'users', identities.cliente)));
 });
 
-test('[firestore] portal users/notificacoes: the client reads its own and only marks them as read', async () => {
-  const db = dbAs('cliente');
-  const ref_ = doc(db, 'users', identities.cliente, 'notificacoes', 'n1');
-  await assertSucceeds(getDoc(ref_));
-  await assertSucceeds(getDocs(collection(db, 'users', identities.cliente, 'notificacoes')));
-  await assertSucceeds(updateDoc(ref_, { lida: true }));
-  await assertFails(updateDoc(ref_, { titulo: 'Mudado' }));
-  await assertFails(setDoc(doc(db, 'users', identities.cliente, 'notificacoes', 'n2'), { titulo: 'x', lida: false }));
-  await assertFails(deleteDoc(ref_));
-  await assertFails(getDoc(doc(dbAs('socio'), 'users', identities.cliente, 'notificacoes', 'n1')));
+test('[firestore] deleted users/notificacoes is closed, also to its owner', async () => {
+  await assertFails(getDocs(collection(dbAs('cliente'), 'users', identities.cliente, 'notificacoes')));
 });
 
 test('[firestore] portal notices in avisos: the client reads its own and only marks them as read; nobody creates or deletes', async () => {

@@ -1173,28 +1173,9 @@ test('[firestore] Friday: only adm2 changes restrito/acesso; a restricted copy n
   await assertSucceeds(updateDoc(doc(adm, 'friday-quadros', '102'), { acesso: ['uid-escritorio', 'uid-escritorio-fora'] }));
   await assertSucceeds(getDoc(doc(fora, 'friday-quadros', '102')));
 });
-test('[firestore] Friday notices: a mention is created only in the author\'s name, unread, for someone else', async () => {
-  const autor = dbAs('escritorio'), destino = dbAs('escritorioFora');
-  const aviso = (extra = {}) => ({
-    id: 900, usuario_id: 'uid-escritorio-fora', usuario_uid: 'uid-escritorio-fora', de_usuario_id: 'uid-escritorio', tipo: 'mencao',
-    quadro_id: 10, item_id: 20, atualizacao_id: 30, texto: 'mencionou você: @Fora confere', lida: 0, criado_em: '2026-11-12 16:30:00', ...extra,
-  });
-  await assertSucceeds(setDoc(doc(autor, 'friday-notificacoes', '900'), aviso()));
-  await assertFails(setDoc(doc(autor, 'friday-notificacoes', '901'), aviso({ id: 901, de_usuario_id: 'uid-escritorio-fora' })));
-  await assertFails(setDoc(doc(autor, 'friday-notificacoes', '902'), aviso({ id: 902, usuario_uid: 'uid-escritorio', usuario_id: 'uid-escritorio' })));
-  await assertFails(setDoc(doc(autor, 'friday-notificacoes', '903'), aviso({ id: 903, tipo: 'atribuicao' })));
-  await assertFails(setDoc(doc(autor, 'friday-notificacoes', '904'), aviso({ id: 904, lida: 1 })));
-  await assertFails(setDoc(doc(autor, 'friday-notificacoes', '905'), aviso({ id: 905, texto: 'x'.repeat(301) })));
-  await assertFails(setDoc(doc(autor, 'friday-notificacoes', '906'), aviso({ id: 906, extra: true })));
-  await assertFails(setDoc(doc(dbAs('canonicalFrentista'), 'friday-notificacoes', '907'), aviso({ id: 907, de_usuario_id: 'uid-canonical-frentista' })));
-  // Only the recipient reads it, marks it as read (nothing else) and deletes it.
-  await assertFails(getDoc(doc(autor, 'friday-notificacoes', '900')));
-  await assertSucceeds(getDoc(doc(destino, 'friday-notificacoes', '900')));
-  await assertFails(updateDoc(doc(autor, 'friday-notificacoes', '900'), { lida: 1 }));
-  await assertFails(updateDoc(doc(destino, 'friday-notificacoes', '900'), { texto: 'trocado' }));
-  await assertSucceeds(updateDoc(doc(destino, 'friday-notificacoes', '900'), { lida: 1 }));
-  await assertFails(deleteDoc(doc(autor, 'friday-notificacoes', '900')));
-  await assertSucceeds(deleteDoc(doc(destino, 'friday-notificacoes', '900')));
+test('[firestore] deleted friday-notificacoes is closed to everyone', async () => {
+  await assertFails(getDocs(collection(dbAs('escritorio'), 'friday-notificacoes')));
+  await assertFails(setDoc(doc(dbAs('escritorio'), 'friday-notificacoes', '900'), { usuario_uid: 'uid-escritorio-fora', de_usuario_id: 'uid-escritorio', tipo: 'mencao', lida: 0, texto: 'x' }));
 });
 test('[firestore] avisos: a Friday mention is created only in the author name, unread, for someone else, to a Friday route', async () => {
   const autor = dbAs('escritorio'), destino = dbAs('escritorioFora');
