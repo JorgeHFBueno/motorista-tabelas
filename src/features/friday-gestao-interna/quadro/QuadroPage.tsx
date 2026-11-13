@@ -22,6 +22,7 @@ import { Tabela } from './Tabela.tsx';
 import { infoColuna, infoTipo, pessoasDoQuadro, textoCelula, type Agrupar, type Coluna, type EstadoVisao, type Grupo, type Item, type Ordenacao, type Visao } from './tipos.ts';
 import { porPosicao, useQuadro } from './useQuadro.ts';
 import { Calendario, Cronograma, Kanban } from './Visoes.tsx';
+import LoadingFallback from '../../../components/LoadingFallback';
 
 const ICONE_VISAO = { tabela: Table2, kanban: IconeKanban, calendario: CalendarDays, cronograma: GanttChart };
 const NOME_VISAO = { tabela: 'Tabela', kanban: 'Kanban', calendario: 'Calendário', cronograma: 'Cronograma' };
@@ -103,7 +104,7 @@ export default function QuadroPage() {
   );
 
   if (q.erro) return <div className="vazio-grande"><h2>Quadro não encontrado</h2><p className="muted">{q.erro}</p></div>;
-  if (!dados) return <div className="carregando">Carregando quadro…</div>;
+  if (!dados) return <LoadingFallback label="Carregando quadro…" />;
 
   const { quadro, grupos } = dados;
   const nomeItem = String(quadro.nome_item ?? 'Item');
@@ -142,7 +143,7 @@ export default function QuadroPage() {
   const exportar = async (titulo: string, itens: Item[], cols: Coluna[]) => {
     try {
       await exportarExcel({ arquivo: `${quadro.nome} - ${titulo}`, nomeItem, colunas: cols, todasColunas: colunas, grupos, itens, sub: dados.sub, nomeUsuario: nav.nomeUsuario });
-    } catch (e) { alert(`Não foi possível gerar a planilha: ${(e as Error).message}`); }
+    } catch (e) { avisar(`Não foi possível gerar a planilha: ${(e as Error).message}`); }
   };
 
   const salvarNaVisao = async () => {

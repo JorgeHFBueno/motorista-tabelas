@@ -12,6 +12,7 @@ import {
 } from './calculo.ts';
 import { Grafico, type Selecao } from './Graficos.tsx';
 import { etapasDoFunil, modeloObras, modeloVendas, novoIdWidget } from './modelos.ts';
+import LoadingFallback from '../../../components/LoadingFallback';
 
 const NOME_TIPO: Record<TipoWidget, string> = {
   numero: 'Número', pizza: 'Pizza', colunas: 'Colunas', barras: 'Barras', linha: 'Linha', bateria: 'Bateria', funil: 'Funil',
@@ -105,7 +106,7 @@ export default function PainelPage({ painelId }: { painelId: number }) {
   const ctx = useMemo<Ctx>(() => ({ nomeUsuario: nav.nomeUsuario, nomeItem: id => nomesItens.get(Number(id)) }), [nav.nomeUsuario, nomesItens]);
 
   if (erro) return <div className="vazio-grande"><h2>Painel não encontrado</h2><p className="muted">{erro}</p></div>;
-  if (!painel) return <div className="carregando">Carregando painel…</div>;
+  if (!painel) return <LoadingFallback label="Carregando painel…" />;
 
   const salvarWidget = (w: Widget) => salvar({ widgets: widgets.some(x => x.id === w.id) ? widgets.map(x => (x.id === w.id ? w : x)) : [...widgets, w] });
   const usarModelo = async (nome: string, montar: (d: DadosQuadro[]) => Widget[]) => {
@@ -171,7 +172,7 @@ export default function PainelPage({ painelId }: { painelId: number }) {
           <p className="muted">O painel junta os itens dos quadros escolhidos. As colunas com o mesmo título viram uma só.</p>
           {podeEditar && <button className="fr-btn btn-primario" onClick={() => setEscolherQuadros(true)}><Database size={15} /> Escolher quadros</button>}
         </div>
-      ) : carregando && !dados.length ? <div className="carregando">Carregando dados…</div> : !widgets.length ? (
+      ) : carregando && !dados.length ? <LoadingFallback label="Carregando dados…" /> : !widgets.length ? (
         <div className="vazio-grande">
           <BarChart3 size={40} className="muted" />
           <h3>Nenhum widget ainda</h3>

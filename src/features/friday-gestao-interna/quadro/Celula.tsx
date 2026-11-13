@@ -4,7 +4,7 @@ import { copiarArquivosMonday, enviarArquivo, excluir, listar, type Pessoa, type
 import { useNav } from '../nav.tsx';
 import { calcular, textoResultado } from './formula.ts';
 import { IconeTipo, urlArquivo } from './Atualizacoes.tsx';
-import { Avatar, Popover, usePopover } from '../ui/base.tsx';
+import { Avatar, Popover, useAvisoRapido, usePopover } from '../ui/base.tsx';
 import { CORES, corTexto, diasEntre, fmtData, fmtDataComAno, fmtNumeroColuna, hojeISO, MONDAY_NA_TELA, somarDias } from '../util.ts';
 import { ehPrazo, itemConcluido, rotuloDe, vazio, type Coluna, type Item, type Rotulo } from './tipos.ts';
 import { CelulaTempo } from './CelulaTempo.tsx';
@@ -443,6 +443,7 @@ function CelulaFormula({ coluna, item, colunas, modo }: CelulaProps) {
 type ArquivoCelula = { id?: number; nome: string; mime?: string; tamanho?: number; monday_asset?: number; url?: string };
 const pendente = (a: ArquivoCelula) => !a.id && !a.url;
 function CelulaArquivos({ coluna, valor, onMudar, item }: CelulaProps) {
+  const avisar = useAvisoRapido();
   const nav = useNav();
   const pop = usePopover<HTMLDivElement>();
   const [copiando, setCopiando] = useState<string | null>(null);
@@ -460,7 +461,7 @@ function CelulaArquivos({ coluna, valor, onMudar, item }: CelulaProps) {
         novos.push({ id: a.id, nome: a.nome, mime: a.mime, tamanho: a.tamanho, url: a.url });
       }
       onMudar([...lista, ...novos]);
-    } catch (e) { alert((e as Error).message); } finally { setEnviando(false); }
+    } catch (e) { avisar((e as Error).message); } finally { setEnviando(false); }
   };
   // Copia de uma vez os arquivos "no monday" de todo o quadro (e dos subitens), em rodadas até não faltar nada.
   const copiarDoMonday = async () => {

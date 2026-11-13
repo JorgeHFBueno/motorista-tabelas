@@ -10,7 +10,7 @@ import NetworkStatusBanner from './components/NetworkStatusBanner';
 import PwaUpdateBanner from './components/PwaUpdateBanner';
 import PwaUpdateOverlay from './components/PwaUpdateOverlay';
 
-import { CircularProgress, Stack, Typography } from '@mui/material';
+import LoadingFallback from './components/LoadingFallback';
 
 const TabelaCombustivel = lazy(() => import('./components/TabelaCombustivel'));
 const CombustivelNovoPage = lazy(() => import('./pages/CombustivelNovoPage'));
@@ -41,15 +41,6 @@ const ManuscriptMapaPage = lazy(() => import('./pages/ManuscriptMapaPage'));
 const MeuPerfilPage = lazy(() => import('./pages/MeuPerfilPage'));
 const FridayApp = lazy(() => import('./features/friday-gestao-interna/App'));
 const DevToysPage = lazy(() => import('./features/dev-toys/DevToysPage'));
-
-function LoadingFallback({ label }: { label?: string }) {
-  return (
-    <Stack direction="row" spacing={1} alignItems="center" justifyContent="center" p={3}>
-      <CircularProgress size={22} />
-      <Typography variant="body2">{label ?? 'Carregando...'}</Typography>
-    </Stack>
-  );
-}
 
 console.log('[build]', import.meta.env.MODE, '__BUILD__', '1122');
 

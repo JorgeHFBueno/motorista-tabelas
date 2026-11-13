@@ -14,6 +14,7 @@ import ImportarMonday from './paginas/ImportarMonday.tsx';
 import ChavesApi from './paginas/ChavesApi.tsx';
 import Historico from './paginas/Historico.tsx';
 import './styles.css';
+import LoadingFallback from '../../components/LoadingFallback';
 
 // Friday — gestão interna em quadros (rota /friday do sistema). O acesso já foi validado pelo
 // EmployeeRoute do sistema; tudo aqui dentro fica sob .friday-root, inclusive os estilos.
@@ -44,7 +45,7 @@ function Friday() {
   const nav = useNav();
   const [recolhida, setRecolhida] = useState(false);
   if (nav.erro) return <div className="carregando">Não foi possível abrir o Friday: {nav.erro}</div>;
-  if (!nav.carregado || !nav.usuario) return <div className="carregando">Carregando…</div>;
+  if (!nav.carregado || !nav.usuario) return <LoadingFallback label="Carregando Friday…" />;
   return (
     <div className={`app${recolhida ? ' sem-lateral' : ''}`}>
       <Topo lateralRecolhida={recolhida} onExpandir={() => setRecolhida(false)} />

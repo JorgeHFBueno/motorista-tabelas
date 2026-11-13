@@ -11,6 +11,7 @@ import { tempoRelativo } from './Atualizacoes.tsx';
 import { lerAutomacoesMonday, type Importada } from './importarAutomacoes.ts';
 import { ehPrazo, infoColuna, statusPrincipal, type Coluna, type Grupo, type Rotulo } from './tipos.ts';
 import { useQuadro } from './useQuadro.ts';
+import LoadingFallback from '../../../components/LoadingFallback';
 
 // ---------------------------------------------------------------- modelo (o executor é a Function functions/fridayAutomacoes.ts)
 type Gatilho = { tipo: 'item_criado' | 'coluna_muda' | 'item_movido' | 'data_chega'; coluna_id?: number; grupo_id?: number | null; para?: string[]; de?: string[]; dias?: number; ponta?: 'inicio' | 'fim' };
@@ -189,7 +190,7 @@ export default function AutomacoesPage() {
 
   const ctx: Ctx = useMemo(() => ({ colunas: q.dados?.colunas ?? [], grupos: q.dados?.grupos ?? [], usuarios: nav.usuarios, quadros: nav.quadros.filter(x => x.tipo !== 'painel') }), [q.dados, nav.usuarios, nav.quadros]);
   if (q.erro) return <div className="vazio-grande"><h2>Quadro não encontrado</h2></div>;
-  if (!q.dados || !lista) return <div className="carregando">Carregando automações…</div>;
+  if (!q.dados || !lista) return <LoadingFallback label="Carregando automações…" />;
   const quadro = q.dados.quadro;
   const filtradas = lista.filter(a => !busca.trim() || `${a.nome ?? ''} ${JSON.stringify(a)}`.toLowerCase().includes(busca.trim().toLowerCase()));
   const nomeAuto = (id: number) => { const a = lista.find(x => x.id === id); return a ? a.nome || `Automação ${a.id}` : 'Automação excluída'; };

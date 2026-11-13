@@ -6,7 +6,7 @@ import {
 import { marcadosSemAcesso } from '../avisos.ts';
 import { atualizar, criar, enviarArquivo, excluir, listar, marcarAtualizacoesLidas, obter, type Pessoa, type Row } from '../api.ts';
 import { useNav } from '../nav.tsx';
-import { Avatar, Menu, Popover, useConfirmar, usePopover } from '../ui/base.tsx';
+import { Avatar, Menu, Popover, useAvisoRapido, useConfirmar, usePopover } from '../ui/base.tsx';
 import type { Item } from './tipos.ts';
 import type { Acoes } from './useQuadro.ts';
 
@@ -70,6 +70,7 @@ export function Composer({ item, respostaDe, compacto, onPublicado, onCancelar, 
   edicao?: string; onSalvar?: (texto: string, mencoes: string[]) => Promise<void>;
 }) {
   const nav = useNav();
+  const avisar = useAvisoRapido();
   const area = useRef<HTMLTextAreaElement>(null);
   const seletor = useRef<HTMLInputElement>(null);
   // Na edição, as marcas @{uid} voltam a ser "@Nome" na caixa (e de novo @{uid} ao salvar).
@@ -151,7 +152,7 @@ export function Composer({ item, respostaDe, compacto, onPublicado, onCancelar, 
       onPublicado?.(a, anexos);
       setTexto(''); setArquivos([]); setMencoes([]);
     } catch (e) {
-      alert((e as Error).message);
+      avisar((e as Error).message);
     } finally {
       setEnviando(null);
     }
@@ -357,6 +358,7 @@ function Cabecalho({ a, pequeno, onRemovido, onEditar }: { a: Row; pequeno?: boo
 export function Arquivos({ item, onContagem }: { item: Item; onContagem?: (n: number) => void }) {
   const nav = useNav();
   const confirmar = useConfirmar();
+  const avisarErro = useAvisoRapido();
   const seletor = useRef<HTMLInputElement>(null);
   const [anexos, setAnexos] = useState<Row[] | null>(null);
   const [enviando, setEnviando] = useState<string | null>(null);
@@ -374,7 +376,7 @@ export function Arquivos({ item, onContagem }: { item: Item; onContagem?: (n: nu
         const a = await enviarArquivo(item.id, f);
         setAnexos(x => [a, ...(x ?? [])]);
       }
-    } catch (e) { alert((e as Error).message); } finally { setEnviando(null); }
+    } catch (e) { avisarErro((e as Error).message); } finally { setEnviando(null); }
   };
   const quem = (id: unknown) => nav.nomeUsuario(id);
 

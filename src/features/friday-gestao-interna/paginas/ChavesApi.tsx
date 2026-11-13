@@ -3,7 +3,7 @@ import { Copy, KeyRound, PenLine, Plus } from 'lucide-react';
 import { useAuth } from '../../../contexts/AuthContext';
 import { criarChaveApi, ENDERECO_API, listarChavesApi, revogarChaveApi, type ChaveApi } from '../chavesApi.ts';
 import { useNav } from '../nav.tsx';
-import { Modal, useConfirmar } from '../ui/base.tsx';
+import { Modal, useAvisoRapido, useConfirmar } from '../ui/base.tsx';
 
 // Chaves da API do Friday (só adm2). Cada chave vale por uma pessoa e enxerga só o que ela vê no Friday. Pode ser só de
 // consulta ou também de escrita (POST); a escrita é definida na criação, fica registrado quem criou e cada gravação leva
@@ -14,6 +14,7 @@ export default function ChavesApi() {
   const { authorizationProfile } = useAuth();
   const nav = useNav();
   const confirmar = useConfirmar();
+  const avisar = useAvisoRapido();
   const [chaves, setChaves] = useState<ChaveApi[] | null>(null);
   const [erro, setErro] = useState<string | null>(null);
   const [nova, setNova] = useState(false);
@@ -27,7 +28,7 @@ export default function ChavesApi() {
   const nome = (uid: string) => nav.nomeUsuario(uid);
   const revogar = async (c: ChaveApi) => {
     if (!(await confirmar(`Revogar a chave “${c.nome}” (…${c.sufixo}) de ${nome(c.uid)}? Quem usa essa chave perde o acesso na hora.`, 'Revogar'))) return;
-    try { await revogarChaveApi(c.hash, nav.usuario!.id); await carregar(); } catch (e) { alert((e as Error).message); }
+    try { await revogarChaveApi(c.hash, nav.usuario!.id); await carregar(); } catch (e) { avisar((e as Error).message); }
   };
   const comEscrita = (chaves ?? []).filter(c => c.escrita && !c.revogada_em);
 
@@ -107,6 +108,7 @@ export default function ChavesApi() {
 function NovaChave({ onFechar, onCriada }: { onFechar: () => void; onCriada: (chave: string, pessoa: string, escrita: boolean) => void }) {
   const nav = useNav();
   const confirmar = useConfirmar();
+  const avisar = useAvisoRapido();
   const pessoas = nav.usuarios.filter(u => u.ativo && u.friday).sort((a, b) => a.nome.localeCompare(b.nome));
   const [uid, setUid] = useState('');
   const [descricao, setDescricao] = useState('');
@@ -116,7 +118,7 @@ function NovaChave({ onFechar, onCriada }: { onFechar: () => void; onCriada: (ch
     if (!uid || !descricao.trim()) return;
     if (escrita && !(await confirmar(`Criar uma chave que GRAVA no Friday em nome de ${nav.nomeUsuario(uid)}? Fica registrado que você a criou, e tudo o que ela gravar aparece na atividade com a marca “API”.`, 'Criar com escrita'))) return;
     setSalvando(true);
-    try { onCriada(await criarChaveApi(uid, descricao, nav.usuario!.id, escrita), nav.nomeUsuario(uid), escrita); } catch (e) { alert((e as Error).message); setSalvando(false); }
+    try { onCriada(await criarChaveApi(uid, descricao, nav.usuario!.id, escrita), nav.nomeUsuario(uid), escrita); } catch (e) { avisar((e as Error).message); setSalvando(false); }
   };
   return (
     <Modal titulo="Nova chave de API" onClose={onFechar}

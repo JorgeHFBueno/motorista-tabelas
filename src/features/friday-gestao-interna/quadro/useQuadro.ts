@@ -38,7 +38,7 @@ export function useQuadro(quadroId: number) {
   const gravar = async (p: Promise<unknown>) => {
     try {
       return await p;
-    } catch (e) { alert(`Não foi possível salvar: ${(e as Error).message}`); recarregar(); }
+    } catch (e) { avisar(`Não foi possível salvar: ${(e as Error).message}`); recarregar(); }
   };
   const tirarItens = (ids: number[]) => mudar(d => comItens(d, l => l.filter(i => !ids.includes(i.id) && !ids.includes(i.item_pai_id ?? -1))));
 

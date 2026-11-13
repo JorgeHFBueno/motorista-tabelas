@@ -3,7 +3,7 @@
 import { useEffect, useState, type MouseEvent } from 'react';
 import { ChevronLeft, ChevronRight, Download, Pause, Pencil, Play, Plus, Trash2 } from 'lucide-react';
 import type { Pessoa } from '../api.ts';
-import { Avatar, Popover, usePopover } from '../ui/base.tsx';
+import { Avatar, Popover, useAvisoRapido, useConfirmar, usePopover } from '../ui/base.tsx';
 import { hojeISO, inicioDaSemana, somarDias } from '../util.ts';
 import type { Coluna, Item } from './tipos.ts';
 import {
@@ -31,10 +31,14 @@ function useAgora(ligado: boolean) {
   return agora;
 }
 
-// Erro de gravação: o quadro só para ver já mostrou o aviso; o resto vira alerta.
-const avisarErro = (e: unknown) => { if ((e as Error).message !== 'somente leitura') alert((e as Error).message); };
+// Erro de gravação: o quadro só para ver já mostrou o aviso; o resto vira aviso no canto.
+function useAvisarErro() {
+  const avisar = useAvisoRapido();
+  return (e: unknown) => { if ((e as Error).message !== 'somente leitura') avisar((e as Error).message); };
+}
 
 export function CelulaTempo({ coluna, valor, usuarios, item, onTempo }: Props) {
+  const avisarErro = useAvisarErro();
   const pop = usePopover<HTMLDivElement>();
   const aberta = sessaoAberta(valor);
   const agora = useAgora(!!aberta);
@@ -69,6 +73,8 @@ export function CelulaTempo({ coluna, valor, usuarios, item, onTempo }: Props) {
 
 // ---------------------------------------------------------------- registro (lista de sessões)
 function RegistroTempo({ coluna, valor, usuarios, item, onTempo, agora }: Props & { agora: number }) {
+  const avisarErro = useAvisarErro();
+  const confirmar = useConfirmar();
   const [form, setForm] = useState<{ sessao?: Sessao } | null>(null);
   const sessoes = [...sessoesDe(valor)].sort((a, b) => Date.parse(b.inicio) - Date.parse(a.inicio));
   const usuario = (id: unknown) => usuarios.find(u => u.id === String(id));
@@ -80,7 +86,7 @@ function RegistroTempo({ coluna, valor, usuarios, item, onTempo, agora }: Props 
   }} />;
 
   const excluir = async (s: Sessao) => {
-    if (!confirm(`Apagar a sessão de ${fmtDuracao(duracaoSessao(s))} (${new Date(s.inicio).toLocaleDateString('pt-BR')})?`)) return;
+    if (!(await confirmar(`Apagar a sessão de ${fmtDuracao(duracaoSessao(s))} (${new Date(s.inicio).toLocaleDateString('pt-BR')})?`, 'Apagar'))) return;
     try { await onTempo!({ acao: 'excluir', sessao_id: s.id }); } catch (e) { avisarErro(e); }
   };
   const exportar = async () => {
