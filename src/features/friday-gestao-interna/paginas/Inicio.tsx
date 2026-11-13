@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Link, useNavigate } from '../rotas.tsx';
+import { Link, useNavigate } from 'react-router-dom';
 import { Folder, Plus, Star } from 'lucide-react';
 import { useNav } from '../nav.tsx';
 import { fmtData, hojeISO } from '../util.ts';
@@ -20,7 +20,7 @@ export default function Inicio() {
   const hora = new Date().getHours();
 
   const Cartao = ({ q }: { q: (typeof nav.quadros)[number] }) => (
-    <button className="cartao-quadro" onClick={() => navigate(`/quadros/${q.id}`)}>
+    <button className="cartao-quadro" onClick={() => navigate(`/friday/quadros/${q.id}`)}>
       <span className="cq-capa"><IconeQuadro q={q} size={22} /></span>
       <span className="cq-nome">{q.nome}{q.favorito ? <Star size={13} className="cq-fav" /> : null}</span>
       <small className="muted">{nav.areas.find(a => a.id === q.area_id)?.nome}{q.pasta_id ? ` · ${nav.pastas.find(p => p.id === q.pasta_id)?.nome ?? ''}` : ''}</small>
@@ -39,7 +39,7 @@ export default function Inicio() {
 
       <section className="inicio-resumo">
         {grupos.slice(0, 4).map(g => (
-          <Link key={g.nome} to="/meu-trabalho" className="resumo-cartao" style={{ borderTopColor: g.cor }}>
+          <Link key={g.nome} to="/friday/meu-trabalho" className="resumo-cartao" style={{ borderTopColor: g.cor }}>
             <strong>{meus ? g.itens.length : '–'}</strong><span>{g.nome}</span>
           </Link>
         ))}

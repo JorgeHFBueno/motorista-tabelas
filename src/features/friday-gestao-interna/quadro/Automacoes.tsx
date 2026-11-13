@@ -1,6 +1,5 @@
 import { Fragment, useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
-import { useParams } from 'react-router-dom';
-import { useNavigate } from '../rotas.tsx';
+import { useNavigate, useParams } from 'react-router-dom';
 import {
   AlertTriangle, ArrowLeft, CheckCircle2, Copy, History, MoreHorizontal, Pencil, Plus, Search, Trash2, Upload, X, Zap,
 } from 'lucide-react';
@@ -208,7 +207,7 @@ export default function AutomacoesPage() {
 
   return (
     <div className="pagina pagina-automacoes">
-      <button className="fr-btn-link voltar" onClick={() => navigate(`/quadros/${quadroId}`)}><ArrowLeft size={15} /> {quadro.nome}</button>
+      <button className="fr-btn-link voltar" onClick={() => navigate(`/friday/quadros/${quadroId}`)}><ArrowLeft size={15} /> {quadro.nome}</button>
       <header className="pagina-cab">
         <div>
           <h1><Zap size={22} className="ic-auto" /> Automações</h1>
@@ -249,7 +248,7 @@ export default function AutomacoesPage() {
                 <span className={`arquivo-ic${h.ok ? ' ok' : ' erro'}`}>{h.ok ? <CheckCircle2 size={16} /> : <AlertTriangle size={16} />}</span>
                 <div className="arquivo-nome">
                   <strong>{nomeAuto(h.automacao_id)}</strong>
-                  <small className="muted">Item <button className="fr-btn-link" onClick={() => navigate(`/quadros/${quadroId}?item=${h.item_id}`)}>{h.item_nome}</button> · {h.detalhe}</small>
+                  <small className="muted">Item <button className="fr-btn-link" onClick={() => navigate(`/friday/quadros/${quadroId}?item=${h.item_id}`)}>{h.item_nome}</button> · {h.detalhe}</small>
                 </div>
                 <small className="muted arquivo-quando">{tempoRelativo(h.criado_em)}</small>
               </div>

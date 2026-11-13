@@ -6,7 +6,7 @@ import { functions } from '../funcoes.ts';
 import { Modal } from '../ui/base.tsx';
 import { useAuth } from '../../../contexts/AuthContext';
 import { useNav } from '../nav.tsx';
-import { useNavigate } from '../rotas.tsx';
+import { useNavigate } from 'react-router-dom';
 import ImportarPessoas from './ImportarPessoas.tsx';
 
 // Importação dos quadros do monday (Functions fridayMondayInventario e fridayMondayImportarQuadro, só adm2).
@@ -220,7 +220,7 @@ function Importador() {
                       {ex?.estado === 'importando' ? 'Importando…' : ex?.estado === 'fila' ? 'Na fila' : ROTULO[q.situacao]}
                     </span>
                     {q.oficial && <button type="button" className="fr-btn" disabled={rodando} onClick={e => { e.preventDefault(); setPrevia(q); }}><Lock size={13} /> Prévia e atualizar</button>}
-                    {q.quadro_id != null && <button type="button" className="fr-btn" onClick={e => { e.preventDefault(); navigate(`/quadros/${q.quadro_id}`); }}>Abrir</button>}
+                    {q.quadro_id != null && <button type="button" className="fr-btn" onClick={e => { e.preventDefault(); navigate(`/friday/quadros/${q.quadro_id}`); }}>Abrir</button>}
                   </label>
                 </div>
               );

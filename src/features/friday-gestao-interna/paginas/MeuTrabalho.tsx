@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { useNavigate } from '../rotas.tsx';
+import { useNavigate } from 'react-router-dom';
 import { ChevronDown, ChevronRight } from 'lucide-react';
 import { meuTrabalho, type Row } from '../api.ts';
 import { useNav } from '../nav.tsx';
@@ -54,7 +54,7 @@ export default function MeuTrabalho() {
             <div className="mt-tabela" style={{ ['--cor-grupo' as string]: g.cor }}>
               <div className="mt-linha mt-cab"><span>Item</span><span>Quadro</span><span>Status</span><span>Data</span></div>
               {g.itens.map(i => (
-                <div key={i.id} className="mt-linha" onClick={() => navigate(`/quadros/${i.quadro_id}?item=${i.abrir_item_id ?? i.id}`)}>
+                <div key={i.id} className="mt-linha" onClick={() => navigate(`/friday/quadros/${i.quadro_id}?item=${i.abrir_item_id ?? i.id}`)}>
                   <span className="mt-nome">{i.nome}</span>
                   <span className="mt-quadro"><span className="bolinha" style={{ background: i.grupo_cor }} />{i.quadro_nome} · {i.grupo_nome}</span>
                   <span>{i.status?.texto ? <span className="mt-status" style={{ background: i.status.cor, color: corTexto(i.status.cor) }}>{i.status.texto}</span> : null}</span>

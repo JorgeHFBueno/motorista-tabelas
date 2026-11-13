@@ -1,5 +1,5 @@
 import { useEffect, useState, type CSSProperties, type ReactNode } from 'react';
-import { NavLink, useLocation, useNavigate } from '../rotas.tsx';
+import { NavLink, useLocation, useNavigate } from 'react-router-dom';
 import {
   ArrowDownAZ, Archive, ChevronDown, ChevronRight, ChevronsDownUp, ChevronsLeft, ChevronsUpDown, Copy, Folder, FolderOpen, FolderPlus, History, Home, KeyRound, LayoutDashboard, LayoutGrid,
   ListChecks, Lock, MoreHorizontal, Pencil, Plus, Search, Star, Trash2, FolderInput, CloudDownload,
@@ -52,7 +52,7 @@ export function Lateral({ onRecolher }: { onRecolher: () => void }) {
   };
   const larguraPadrao = () => { aplicarLargura(LARGURA_PADRAO); try { localStorage.removeItem('ledur:lateral'); } catch { /* sem armazenamento */ } };
 
-  const quadroAtual = Number(local.pathname.match(/^\/quadros\/(\d+)/)?.[1]) || null;
+  const quadroAtual = Number(local.pathname.match(/^\/friday\/quadros\/(\d+)/)?.[1]) || null;
   const pastasDaArea = nav.pastas.filter(p => p.area_id === nav.areaId);
   const quadrosDaArea = nav.quadros.filter(q => q.area_id === nav.areaId);
   const b = busca.trim().toLowerCase();
@@ -138,7 +138,7 @@ export function Lateral({ onRecolher }: { onRecolher: () => void }) {
   const renderQuadro = (q: Row, nivel: number) => (
     <div key={`q${q.id}`} className={`arvore-linha quadro${q.id === quadroAtual ? ' ativo' : ''}${arrastando === q.id ? ' arrastando' : ''}`}
       style={nivelCss(nivel)} title={q.nome} draggable onDragStart={() => setArrastando(q.id)} onDragEnd={() => { setArrastando(null); setSoltarEm(null); }}
-      onClick={() => navigate(`/quadros/${q.id}`)}>
+      onClick={() => navigate(`/friday/quadros/${q.id}`)}>
       <span className="seta-vazia" />
       <IconeQuadro q={q} />
       <span className="arvore-nome">{q.nome}</span>
@@ -146,8 +146,8 @@ export function Lateral({ onRecolher }: { onRecolher: () => void }) {
       <MenuQuadroLateral quadro={q} pastas={pastasDaArea} onMover={pid => moverQuadro(q.id, pid)} areas={outrasAreas} onMoverArea={aid => moverArea('quadros', q, aid)}
         onPermissoes={admin ? () => setPermissoes({ id: q.id, nome: q.nome }) : undefined}
         onRenomear={() => setModal({ tipo: 'renomear', alvo: q, tabela: 'quadros' })}
-        onArquivar={async () => { if (await confirmar(`Arquivar o quadro “${q.nome}”? Ele sai da lateral e pode ser restaurado em Arquivo e lixeira.`, 'Arquivar')) { await mudarEstado('quadros', q.id, 'arquivar'); await nav.recarregar(); if (q.id === quadroAtual) navigate('/'); } }}
-        onExcluir={async () => { if (await confirmar(`Mover o quadro “${q.nome}” para a lixeira? Dá para restaurar por 30 dias.`)) { await excluir('quadros', q.id); await nav.recarregar(); if (q.id === quadroAtual) navigate('/'); } }} />
+        onArquivar={async () => { if (await confirmar(`Arquivar o quadro “${q.nome}”? Ele sai da lateral e pode ser restaurado em Arquivo e lixeira.`, 'Arquivar')) { await mudarEstado('quadros', q.id, 'arquivar'); await nav.recarregar(); if (q.id === quadroAtual) navigate('/friday'); } }}
+        onExcluir={async () => { if (await confirmar(`Mover o quadro “${q.nome}” para a lixeira? Dá para restaurar por 30 dias.`)) { await excluir('quadros', q.id); await nav.recarregar(); if (q.id === quadroAtual) navigate('/friday'); } }} />
     </div>
   );
 
@@ -156,12 +156,12 @@ export function Lateral({ onRecolher }: { onRecolher: () => void }) {
   return (
     <aside className="lateral">
       <nav className="lateral-atalhos">
-        <NavLink to="/" end className={({ isActive }) => `atalho${isActive ? ' ativo' : ''}`}><Home size={17} /> Início</NavLink>
-        <NavLink to="/meu-trabalho" className={({ isActive }) => `atalho${isActive ? ' ativo' : ''}`}><ListChecks size={17} /> Meu trabalho</NavLink>
-        <NavLink to="/historico" className={({ isActive }) => `atalho${isActive ? ' ativo' : ''}`}><History size={17} /> Histórico</NavLink>
-        <NavLink to="/arquivo" className={({ isActive }) => `atalho${isActive ? ' ativo' : ''}`}><Archive size={17} /> Arquivo e lixeira</NavLink>
-        {adm2 && MONDAY_NA_TELA && <NavLink to="/importar-monday" className={({ isActive }) => `atalho${isActive ? ' ativo' : ''}`}><CloudDownload size={17} /> Importar do monday</NavLink>}
-        {adm2 && <NavLink to="/chaves-api" className={({ isActive }) => `atalho${isActive ? ' ativo' : ''}`}><KeyRound size={17} /> Chaves de API</NavLink>}
+        <NavLink to="/friday" end className={({ isActive }) => `atalho${isActive ? ' ativo' : ''}`}><Home size={17} /> Início</NavLink>
+        <NavLink to="/friday/meu-trabalho" className={({ isActive }) => `atalho${isActive ? ' ativo' : ''}`}><ListChecks size={17} /> Meu trabalho</NavLink>
+        <NavLink to="/friday/historico" className={({ isActive }) => `atalho${isActive ? ' ativo' : ''}`}><History size={17} /> Histórico</NavLink>
+        <NavLink to="/friday/arquivo" className={({ isActive }) => `atalho${isActive ? ' ativo' : ''}`}><Archive size={17} /> Arquivo e lixeira</NavLink>
+        {adm2 && MONDAY_NA_TELA && <NavLink to="/friday/importar-monday" className={({ isActive }) => `atalho${isActive ? ' ativo' : ''}`}><CloudDownload size={17} /> Importar do monday</NavLink>}
+        {adm2 && <NavLink to="/friday/chaves-api" className={({ isActive }) => `atalho${isActive ? ' ativo' : ''}`}><KeyRound size={17} /> Chaves de API</NavLink>}
         <button className="btn-icone recolher" onClick={onRecolher} title="Recolher lateral" aria-label="Recolher lateral"><ChevronsLeft size={16} /></button>
       </nav>
 
@@ -170,7 +170,7 @@ export function Lateral({ onRecolher }: { onRecolher: () => void }) {
           {favAberto ? <ChevronDown size={14} /> : <ChevronRight size={14} />}<Star size={15} /> Favoritos
         </button>
         {favAberto && (favoritos.length ? favoritos.map(q => (
-          <div key={q.id} className={`arvore-linha quadro${q.id === quadroAtual ? ' ativo' : ''}`} style={nivelCss(1)} title={q.nome} onClick={() => navigate(`/quadros/${q.id}`)}>
+          <div key={q.id} className={`arvore-linha quadro${q.id === quadroAtual ? ' ativo' : ''}`} style={nivelCss(1)} title={q.nome} onClick={() => navigate(`/friday/quadros/${q.id}`)}>
             <IconeQuadro q={q} /><span className="arvore-nome">{q.nome}</span>
           </div>
         )) : <div className="arvore-vazia" style={{ paddingLeft: 26 }}>Marque quadros com a estrela</div>)}
@@ -225,7 +225,7 @@ export function Lateral({ onRecolher }: { onRecolher: () => void }) {
           onSalvar={async nome => {
             const p = await criar('quadros', { nome, area_id: nav.areaId, pasta_id: modal.pastaId ?? null, tipo: 'painel', config: { quadros: [], widgets: [] } });
             await nav.recarregar();
-            navigate(`/quadros/${p.id}`);
+            navigate(`/friday/quadros/${p.id}`);
           }} />
       )}
       {modal?.tipo === 'pasta' && (
@@ -350,7 +350,7 @@ function MenuQuadroLateral({ quadro, pastas, onMover, areas, onMoverArea, onReno
               { rotulo: 'Mover para pasta', icone: <FolderInput size={15} />, onClick: () => setTimeout(() => { pop.abrir(); setMover('pasta'); }) },
               ...(areas.length ? [{ rotulo: 'Mover para área de trabalho', icone: <FolderInput size={15} />, onClick: () => setTimeout(() => { pop.abrir(); setMover('area'); }) }] : []),
               { rotulo: quadro.favorito ? 'Remover dos favoritos' : 'Adicionar aos favoritos', icone: <Star size={15} />, onClick: () => atualizar('quadros', quadro.id, { favorito: quadro.favorito ? 0 : 1 }).then(nav.recarregar) },
-              { rotulo: 'Duplicar', icone: <Copy size={15} />, onClick: async () => { const n = await duplicarQuadro(quadro.id, {}); await nav.recarregar(); navigate(`/quadros/${n.id}`); } },
+              { rotulo: 'Duplicar', icone: <Copy size={15} />, onClick: async () => { const n = await duplicarQuadro(quadro.id, {}); await nav.recarregar(); navigate(`/friday/quadros/${n.id}`); } },
               ...(onPermissoes ? [{ rotulo: 'Permissões', icone: <Lock size={15} />, onClick: onPermissoes }] : []),
               'separador',
               { rotulo: 'Arquivar quadro', icone: <Archive size={15} />, onClick: onArquivar },
@@ -393,7 +393,7 @@ export function NovoQuadroModal({ pastaId, onFechar }: { pastaId: number | null;
         const q = base ? await duplicarQuadro(base, { ...dados, com_itens: comItens }) : await criar('quadros', dados);
         await nav.recarregar();
         onFechar();
-        navigate(`/quadros/${q.id}`);
+        navigate(`/friday/quadros/${q.id}`);
       }}>
         <label className="campo-form">Nome do quadro<input className="input-cheio" autoFocus placeholder="Ex.: Obras 2027" value={nome} onChange={e => setNome(e.target.value)} /></label>
         <label className="campo-form">Pasta

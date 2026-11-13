@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { History } from 'lucide-react';
-import { useNavigate } from '../rotas.tsx';
+import { useNavigate } from 'react-router-dom';
 import { historico, type Row } from '../api.ts';
 import { useNav } from '../nav.tsx';
 import { DescricaoAtividade } from '../quadro/PainelItem.tsx';
@@ -46,7 +46,7 @@ export default function Historico() {
         : (
           <ul className="historico">
             {lista.map(a => {
-              const abrir = a.abrir_quadro_id ? () => navigate(`/quadros/${a.abrir_quadro_id}${a.abrir_item_id ? `?item=${a.abrir_item_id}` : ''}`) : undefined;
+              const abrir = a.abrir_quadro_id ? () => navigate(`/friday/quadros/${a.abrir_quadro_id}${a.abrir_item_id ? `?item=${a.abrir_item_id}` : ''}`) : undefined;
               return (
                 <li key={a.id} className={abrir ? 'abre' : ''} onClick={abrir} title={abrir ? 'Abrir' : 'Quadro excluído ou sem acesso'}>
                   <small className="muted">{dataBr(String(a.criado_em))}</small>

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
-import { useNavigate } from '../rotas.tsx';
+import { useNavigate } from 'react-router-dom';
 import { AlertTriangle, ArrowDown, ArrowUp, BarChart3, CalendarRange, Copy, Database, Eye, Filter, HardHat, LayoutDashboard, Lock, MoreHorizontal, Pencil, PieChart, Plus, Sparkles, Star, Trash2, X } from 'lucide-react';
 import { atualizar, completo, excluir, salvarFiltroGeralDoPainel, type Row } from '../api.ts';
 import { useNav } from '../nav.tsx';
@@ -120,7 +120,7 @@ export default function PainelPage({ painelId }: { painelId: number }) {
     setPainel(p => (p ? { ...p, config: { ...(p.config as ConfigPainel), geral: geralLocal } } : p));
     setGeralLocal(null);
   };
-  const irParaItem = (quadroId: number, itemId: number) => navigate(`/quadros/${quadroId}?item=${itemId}`);
+  const irParaItem = (quadroId: number, itemId: number) => navigate(`/friday/quadros/${quadroId}?item=${itemId}`);
   const moverWidget = (id: string, passo: number) => {
     const i = widgets.findIndex(x => x.id === id);
     const j = i + passo;
@@ -145,7 +145,7 @@ export default function PainelPage({ painelId }: { painelId: number }) {
           {podeEditar && <button className="fr-btn" onClick={() => setEscolherQuadros(true)}><Database size={15} /> Quadros ({idsQuadros.length})</button>}
           {podeEditar && <button className="fr-btn btn-primario" disabled={!dados.length} onClick={() => setEditando(widgetNovo())}><Plus size={15} /> Adicionar widget</button>}
           {podeEditar && <MenuPainel onVendas={usarVendas} onObras={usarObras} podeModelo={!!dados.length} classica={classica} onAparencia={() => salvar({ aparencia: classica ? undefined : 'classica' })}
-            onExcluir={async () => { if (await confirmar(`Mover o painel “${painel.nome}” para a lixeira? Dá para restaurar por 30 dias.`)) { await excluir('quadros', painelId); await nav.recarregar(); navigate('/'); } }} />}
+            onExcluir={async () => { if (await confirmar(`Mover o painel “${painel.nome}” para a lixeira? Dá para restaurar por 30 dias.`)) { await excluir('quadros', painelId); await nav.recarregar(); navigate('/friday'); } }} />}
         </div>
         <Editavel valor={String(painel.descricao ?? '')} placeholder="Adicionar descrição do painel" className="quadro-desc" onSalvar={v => { if (podeEditar) atualizarPainel({ descricao: v || null }); }} />
         {!podeEditar && <div className="aviso-leitura"><Eye size={15} /> Você pode ver este painel, mas não alterar.</div>}

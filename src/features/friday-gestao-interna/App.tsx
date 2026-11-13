@@ -1,7 +1,6 @@
 import { useLayoutEffect, useRef, useState } from 'react';
-import { Route, Routes, useParams } from 'react-router-dom';
+import { Navigate, Route, Routes, useParams } from 'react-router-dom';
 import { NavProvider, useNav } from './nav.tsx';
-import { Navigate } from './rotas.tsx';
 import { AvisoRapidoProvider, ConfirmarProvider } from './ui/base.tsx';
 import { Lateral } from './layout/Lateral.tsx';
 import { Topo } from './layout/Topo.tsx';
@@ -60,7 +59,7 @@ function Friday() {
           <Route path="quadros/:id/automacoes" element={<AutomacoesPage />} />
           <Route path="importar-monday" element={<ImportarMonday />} />
           <Route path="chaves-api" element={<ChavesApi />} />
-          <Route path="*" element={<Navigate to="/" replace />} />
+          <Route path="*" element={<Navigate to="/friday" replace />} />
         </Routes>
       </main>
     </div>

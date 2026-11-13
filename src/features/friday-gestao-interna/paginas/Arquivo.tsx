@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { useSearchParams } from 'react-router-dom';
-import { useNavigate } from '../rotas.tsx';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Archive, ArchiveRestore, Columns3, LayoutGrid, ListTree, Rows3, Search, Trash2 } from 'lucide-react';
 import { arquivo, excluir, mudarEstado, type Recurso, type Row } from '../api.ts';
 import { useNav } from '../nav.tsx';
@@ -45,7 +44,7 @@ export default function Arquivo() {
     await mudarEstado(TABELA[l.tipo], l.id, 'restaurar');
     setLista(x => x && x.filter(y => !(y.tipo === l.tipo && y.id === l.id)));
     if (l.tipo === 'quadro') await nav.recarregar();
-    avisar(`“${l.nome}” foi restaurado.`, { rotulo: 'Abrir', onClick: () => navigate(l.tipo === 'item' ? `/quadros/${l.quadro_id}?item=${l.id}` : `/quadros/${l.quadro_id}`) });
+    avisar(`“${l.nome}” foi restaurado.`, { rotulo: 'Abrir', onClick: () => navigate(l.tipo === 'item' ? `/friday/quadros/${l.quadro_id}?item=${l.id}` : `/friday/quadros/${l.quadro_id}`) });
   };
   const paraLixeira = async (l: Row) => {
     await excluir(TABELA[l.tipo], l.id);
