@@ -126,10 +126,26 @@ export function destinatariosDaMencao(marcados: string[], autor: string, funcion
   return [...new Set(marcados)].filter(uid => uid && uid !== autor && entraNoFriday(funcionarios.get(uid)));
 }
 
-/** Texto gravado no aviso: "mencionou você: " e a atualização com @{uid} → @Nome, até 300 caracteres (como a tela). */
-export function textoDoAviso(texto: string, nome: (uid: string) => string | undefined): string {
-  const legivel = texto.replace(/@\{([^{}\s]+)\}/g, (_m, uid: string) => `@${nome(uid) ?? 'alguém'}`).trim();
-  return `mencionou você: ${legivel}`.slice(0, 300);
+/**
+ * Aviso de menção no sino do sistema (avisos/{uid}/itens), igual ao da tela (src/features/friday-gestao-interna/avisos.ts),
+ * sem o criadoEm: título com o item, trecho de até 300 caracteres com @{uid} → @Nome, o quadro como local e a rota do
+ * item na aba Atualizações.
+ */
+export function avisoDeMencao(a: {
+  quadroId: unknown; itemId: unknown; itemNome: unknown; quadroNome: unknown; atualizacaoId: unknown; texto: string;
+  deUid: string; deNome: string; nome: (uid: string) => string | undefined;
+}) {
+  const item = typeof a.itemNome === 'string' && a.itemNome.trim() ? a.itemNome.trim() : 'um item';
+  const local = typeof a.quadroNome === 'string' && a.quadroNome.trim() ? a.quadroNome.trim().slice(0, 200) : null;
+  return {
+    area: 'friday', tipo: 'mencao',
+    titulo: `mencionou você em ${item}`.slice(0, 200),
+    mensagem: a.texto.replace(/@\{([^{}\s]+)\}/g, (_m, uid: string) => `@${a.nome(uid) ?? 'alguém'}`).trim().slice(0, 300),
+    rota: a.quadroId != null ? `/friday/quadros/${a.quadroId}?item=${a.itemId}&aba=atualizacoes` : '/friday/',
+    local, deUid: a.deUid, deNome: a.deNome,
+    origem: { colecao: 'friday-atualizacoes', id: String(a.atualizacaoId) },
+    lida: false,
+  };
 }
 
 /** Quadro que a pessoa vê, como na tela: fora do arquivo e da lixeira; aberto, ou restrito com ela em "acesso"; adm2 vê todos. */

@@ -420,6 +420,7 @@ service cloud.firestore {
       allow create, delete: if false;
 
       // Notices to the client, written by Functions; the client only marks them as read.
+      // Replaced by avisos/{uid}/itens (2026-11-13): stays only until the old notices are copied, then it goes.
       match /notificacoes/{notificacaoId} {
         allow read: if signedIn() && request.auth.uid == uid;
         allow update: if signedIn()
@@ -428,6 +429,38 @@ service cloud.firestore {
           && request.resource.data.lida is bool;
         allow create, delete: if false;
       }
+    }
+
+    // System notices (the bell in the WEB header and in the portal), from every area: avisos/{uid}/itens/{id}, one per
+    // person. Only that person reads them and marks them as read; nobody deletes. Functions write any kind (Admin SDK);
+    // from a screen, only a Friday mention, in the author's own name (as in funcionarios), unread, for someone else,
+    // opening a Friday route, with the server time.
+    function avisoDeMencaoDoFriday(d) {
+      return d.keys().hasOnly(['area', 'tipo', 'titulo', 'mensagem', 'rota', 'local', 'deUid', 'deNome', 'origem', 'lida', 'criadoEm'])
+        && d.keys().hasAll(['area', 'tipo', 'titulo', 'mensagem', 'rota', 'deUid', 'deNome', 'lida', 'criadoEm'])
+        && d.area == 'friday'
+        && d.tipo == 'mencao'
+        && d.deUid == request.auth.uid
+        && d.deNome == employee().get('nome', '')
+        && d.titulo is string && d.titulo.size() <= 200
+        && d.mensagem is string && d.mensagem.size() <= 300
+        && d.rota is string && d.rota.size() <= 200 && d.rota.matches('/friday/.*')
+        && (d.get('local', null) == null || (d.local is string && d.local.size() <= 200))
+        && (d.get('origem', null) == null || (d.origem is map && d.origem.keys().hasOnly(['colecao', 'id'])))
+        && d.lida == false
+        && d.criadoEm == request.time;
+    }
+
+    match /avisos/{uid}/itens/{avisoId} {
+      allow read: if signedIn() && request.auth.uid == uid;
+      allow update: if signedIn()
+        && request.auth.uid == uid
+        && changedOnly(['lida'])
+        && request.resource.data.lida is bool;
+      allow create: if fridayAccess()
+        && uid != request.auth.uid
+        && avisoDeMencaoDoFriday(request.resource.data);
+      allow delete: if false;
     }
 
     // Contract shown in the portal: same ID as obras-v2. Written only by the team; nobody deletes.
@@ -1199,6 +1232,7 @@ service cloud.firestore {
 
     // Avisos (sino): quem entra no Friday avisa outra pessoa de uma menção, sempre em nome próprio e como não lido;
     // só o destinatário lê, marca como lido ou apaga. Outros tipos de aviso vêm das Functions (Admin SDK).
+    // Replaced by avisos/{uid}/itens (2026-11-13): stays only until the old notices are copied, then it goes.
     match /friday-notificacoes/{notificacaoId} {
       allow create: if fridayAccess()
         && request.resource.data.keys().hasOnly(['id', 'usuario_id', 'usuario_uid', 'de_usuario_id', 'tipo', 'quadro_id',

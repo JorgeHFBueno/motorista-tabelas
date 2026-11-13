@@ -42,13 +42,13 @@ const mapNotification = (
     createdAt: data.criadoEm,
     origemColecao: typeof data.origem?.colecao === "string" ? data.origem.colecao : null,
     origemId: typeof data.origem?.id === "string" ? data.origem.id : null,
-    // users/{uid}/notificacoes (Manuscript users.md): the destination route is `rota`.
+    // avisos/{uid}/itens (Manuscript avisos.md): the destination route is `rota`.
     metadata: typeof data.rota === "string" ? { rotaDestino: data.rota } : undefined,
   };
 };
 
 const buildNotificationsCollection = (uid: string) =>
-  collection(db, "users", uid, "notificacoes");
+  collection(db, "avisos", uid, "itens");
 
 export const subscribeToNotifications = (
   uid: string,
@@ -79,7 +79,7 @@ export const markNotificationAsRead = async (
   uid: string,
   notificationId: string,
 ): Promise<void> => {
-  await updateDoc(doc(db, "users", uid, "notificacoes", notificationId), {
+  await updateDoc(doc(buildNotificationsCollection(uid), notificationId), {
     lida: true,
   });
 };

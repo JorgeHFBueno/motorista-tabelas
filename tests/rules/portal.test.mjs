@@ -69,6 +69,7 @@ async function seed() {
     await cliente(identities.outro, [CNPJ_B]);
     await cliente(identities.inativo, [CNPJ_A], false);
     await setDoc(doc(db, 'users', identities.cliente, 'notificacoes', 'n1'), { tipo: 'documento', titulo: 'Novo', mensagem: 'x', lida: false, criadoEm: t });
+    await setDoc(doc(db, 'avisos', identities.cliente, 'itens', 'a1'), { area: 'portal', tipo: 'documento', titulo: 'Novo', mensagem: 'x', obraId: 'pob-a', rota: '/documentos', lida: false, criadoEm: t });
 
     await setDoc(doc(db, 'obras-v2', 'pob-a'), { nomeObra: 'Obra A' });
     await setDoc(doc(db, 'obras-v2', 'pob-b'), { nomeObra: 'Obra B' });
@@ -168,6 +169,20 @@ test('[firestore] portal users/notificacoes: the client reads its own and only m
   await assertFails(setDoc(doc(db, 'users', identities.cliente, 'notificacoes', 'n2'), { titulo: 'x', lida: false }));
   await assertFails(deleteDoc(ref_));
   await assertFails(getDoc(doc(dbAs('socio'), 'users', identities.cliente, 'notificacoes', 'n1')));
+});
+
+test('[firestore] portal notices in avisos: the client reads its own and only marks them as read; nobody creates or deletes', async () => {
+  const db = dbAs('cliente');
+  const ref_ = doc(db, 'avisos', identities.cliente, 'itens', 'a1');
+  await assertSucceeds(getDoc(ref_));
+  await assertSucceeds(getDocs(collection(db, 'avisos', identities.cliente, 'itens')));
+  await assertSucceeds(updateDoc(ref_, { lida: true }));
+  await assertFails(updateDoc(ref_, { titulo: 'Mudado' }));
+  await assertFails(setDoc(doc(db, 'avisos', identities.cliente, 'itens', 'a2'), { area: 'portal', titulo: 'x', lida: false }));
+  await assertFails(setDoc(doc(db, 'avisos', identities.socio, 'itens', 'a3'), { area: 'portal', titulo: 'x', lida: false }));
+  await assertFails(deleteDoc(ref_));
+  await assertFails(getDoc(doc(dbAs('socio'), 'avisos', identities.cliente, 'itens', 'a1')));
+  await assertFails(getDocs(collection(dbAs('socio'), 'avisos', identities.cliente, 'itens')));
 });
 
 // ---------------------------------------------------------------- portal-obras

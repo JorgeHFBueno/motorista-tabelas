@@ -581,38 +581,6 @@ body.redimensionando .friday-root, body.redimensionando .friday-root * { cursor:
 .friday-root .arquivo-desc { flex: 1; min-width: 0; display: flex; flex-direction: column; }
 .friday-root .arquivo-desc .anexo-nome { font-size: 13.5px; }
 
-/* ---------------- avisos (sino) ---------------- */
-/* Sino do Friday no cabeçalho do sistema (components/Header.tsx), fora de .friday-root; mesmo desenho dos botões de lá. */
-.ledur-header-avisos { display: inline-flex; }
-.ledur-header-avisos .sino { position: relative; display: inline-flex; align-items: center; justify-content: center; width: 40px; height: 40px; border: 0; border-radius: 8px; background: rgb(255 255 255 / 0.10); color: #fff; cursor: pointer; }
-.ledur-header-avisos .sino:hover, .ledur-header-avisos .sino:focus-visible { background: rgb(255 255 255 / 0.15); }
-.ledur-header-avisos .sino-n { position: absolute; top: -5px; right: -5px; background: #d83a52; color: #fff; font-size: 10px; font-weight: 700; min-width: 18px; height: 18px; border-radius: 9px; display: grid; place-items: center; padding: 0 4px; border: 2px solid #12293b; }
-/* Painel do sino, no modelo do monday: título, busca e "Só não lidos" fixos; a lista rola por dentro. */
-.friday-root .fr-popover.avisos-painel { display: flex; flex-direction: column; overflow: hidden; padding: 0; max-height: min(620px, calc(100vh - 16px)); max-width: calc(100vw - 16px); }
-.friday-root .avisos-topo { display: flex; align-items: center; gap: 4px; padding: 14px 12px 6px 18px; }
-.friday-root .avisos-topo h3 { margin: 0; font-size: 22px; font-weight: 600; color: var(--texto); }
-.friday-root .avisos-filtros { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 12px; padding: 8px 18px 12px; border-bottom: 1px solid var(--borda-suave); }
-.friday-root .avisos-busca { display: flex; align-items: center; gap: 8px; flex: 1; min-width: 0; height: 34px; border: 1px solid var(--borda); border-radius: 6px; padding: 0 10px; color: var(--texto-2); background: var(--superficie); }
-.friday-root .avisos-busca:focus-within { border-color: var(--primaria); }
-.friday-root .avisos-busca input { border: 0; outline: 0; flex: 1; min-width: 0; background: none; font-size: 13px; }
-.friday-root .avisos-so-nao-lidos { display: flex; align-items: center; gap: 8px; margin: 0; font-size: 13px; color: var(--texto); white-space: nowrap; cursor: pointer; }
-.friday-root .avisos-vazio { padding: 16px 18px; margin: 0; }
-.friday-root .avisos-lista { flex: 1; min-height: 0; overflow-y: auto; padding: 4px 12px 12px; }
-.friday-root .avisos-grupo h4 { margin: 12px 6px 8px; font-size: 14px; font-weight: 700; color: var(--texto); }
-.friday-root .aviso { display: flex; gap: 10px; width: 100%; text-align: left; background: var(--superficie); border: 1px solid var(--borda-suave); border-radius: var(--raio); padding: 12px; margin-bottom: 8px; cursor: pointer; color: var(--texto); }
-.friday-root .aviso:hover { background: var(--superficie-2); }
-.friday-root .aviso.nao-lido { background: var(--selecao); border-color: transparent; }
-.friday-root .aviso.nao-lido:hover { background: var(--primaria-clara); }
-.friday-root .aviso-av { position: relative; flex: none; align-self: flex-start; display: inline-flex; }
-.friday-root .aviso-tipo { position: absolute; right: -3px; bottom: -3px; width: 18px; height: 18px; border-radius: 50%; background: var(--primaria); color: #fff; display: grid; place-items: center; border: 2px solid var(--superficie); }
-.friday-root .aviso-corpo { display: flex; flex-direction: column; gap: 6px; flex: 1; min-width: 0; font-size: 13px; }
-.friday-root .aviso-acao, .friday-root .aviso-trecho { display: -webkit-box; -webkit-box-orient: vertical; overflow: hidden; }
-.friday-root .aviso-acao { -webkit-line-clamp: 2; }
-.friday-root .aviso-trecho { -webkit-line-clamp: 2; color: var(--texto-2); }
-.friday-root .aviso-quadro { display: flex; align-items: center; gap: 6px; color: var(--texto-2); min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.friday-root .aviso-quadro svg { flex: none; }
-.friday-root .aviso-lado { display: flex; align-items: center; gap: 8px; flex: none; align-self: flex-start; color: var(--texto-2); font-size: 12px; }
-.friday-root .aviso-ponto { width: 9px; height: 9px; border-radius: 50%; background: var(--primaria); }
 .friday-root .bolha { color: var(--texto-3); }
 
 /* ---------------- menu de tipos de coluna ---------------- */

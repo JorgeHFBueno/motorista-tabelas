@@ -1,13 +1,13 @@
-import { Box, Button, Divider, IconButton, ListItemIcon, Menu, MenuItem, Popover, Tooltip, Typography } from '@mui/material';
+import { Box, Button, Divider, IconButton, ListItemIcon, Menu, MenuItem, Tooltip, Typography } from '@mui/material';
 import MenuRoundedIcon from '@mui/icons-material/MenuRounded';
 import PersonOutlineRoundedIcon from '@mui/icons-material/PersonOutlineRounded';
 import LogoutRoundedIcon from '@mui/icons-material/LogoutRounded';
 import ExpandMoreRoundedIcon from '@mui/icons-material/ExpandMoreRounded';
 import ArrowBackRoundedIcon from '@mui/icons-material/ArrowBackRounded';
-import { Bell } from 'lucide-react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useState } from 'react';
 import MenuLateral from './MenuLateral';
+import BotaoAvisos from './BotaoAvisos';
 import { useAuth } from '../contexts/AuthContext';
 import { rotaAnterior, useCabecalhoPagina } from './cabecalhoPagina';
 
@@ -23,26 +23,6 @@ const botaoClaroSx = {
   '&:hover': { bgcolor: 'rgb(255 255 255 / 0.15)' },
 };
 
-// System notices do not exist yet: outside the Friday, the bell opens a short note.
-function BotaoAvisos() {
-  const [ancora, setAncora] = useState<HTMLElement | null>(null);
-  return (
-    <>
-      <Tooltip title="Avisos">
-        <IconButton aria-label="Avisos" onClick={(e) => setAncora(e.currentTarget)} sx={{ ...botaoClaroSx, width: 40, height: 40 }}>
-          <Bell size={20} />
-        </IconButton>
-      </Tooltip>
-      <Popover open={Boolean(ancora)} anchorEl={ancora} onClose={() => setAncora(null)} anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }} transformOrigin={{ vertical: 'top', horizontal: 'right' }}>
-        <Box sx={{ p: 2, maxWidth: 300 }}>
-          <Typography fontWeight={700} gutterBottom>Avisos</Typography>
-          <Typography variant="body2" color="text.secondary">As notificações do sistema ainda serão implementadas.</Typography>
-        </Box>
-      </Popover>
-    </>
-  );
-}
-
 export default function Header() {
   const { currentUser, authorizationProfile, signOut } = useAuth();
   const location = useLocation();
@@ -51,7 +31,6 @@ export default function Header() {
   const [menuLateralOpen, setMenuLateralOpen] = useState(false);
   const [menuUsuario, setMenuUsuario] = useState<HTMLElement | null>(null);
   const comMenuLateral = Boolean(currentUser) && !SEM_MENU_LATERAL.includes(location.pathname);
-  const noFriday = location.pathname === '/friday' || location.pathname.startsWith('/friday/');
   const anterior = rotaAnterior(location.pathname);
   // Not before signing in.
   const comVoltar = Boolean(currentUser) && anterior !== null && !['/login', '/acesso-negado'].includes(location.pathname);
@@ -103,8 +82,8 @@ export default function Header() {
 
           {currentUser ? (
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-              {/* In the Friday, the bell is the Friday's notices, placed here by its top bar (layout/Topo.tsx). */}
-              {noFriday ? <span id="ledur-header-avisos" className="ledur-header-avisos" /> : <BotaoAvisos />}
+              {/* The system's notices, from every area (avisos/{uid}/itens). */}
+              <BotaoAvisos botaoSx={botaoClaroSx} />
               <Button
                 aria-label="Menu do usuário"
                 onClick={(e) => setMenuUsuario(e.currentTarget)}

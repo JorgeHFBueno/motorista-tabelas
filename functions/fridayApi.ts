@@ -8,6 +8,7 @@
 // Contrato: The Manuscript, 02_APIS_FUNCTIONS/09_ROBOS_EXTERNOS_DE_OBRAS.md ("Leitura do Friday por chave").
 import { HttpsError, onRequest } from 'firebase-functions/v2/https';
 import * as logger from 'firebase-functions/logger';
+import { FieldValue } from 'firebase-admin/firestore';
 import { getStorage } from 'firebase-admin/storage';
 import { db } from './firebaseAdmin.js';
 import { valorDoOficial, type CampoOficial } from './fridayCadastroConverter.js';
@@ -18,8 +19,8 @@ import { criarItem, gravarValorDoItem, lerItem, novoContexto, subquadroDe, vincu
 import { dataLocal, novoId } from './fridayMondayConverter.js';
 import { conteudoDoArquivo, FERRAMENTAS, responderMcp } from './fridayMcp.js';
 import {
-  anexoLegivel, casaBusca, colunaDoPedido, destinatariosDaMencao, EntradaInvalida, entradaDaCelula, formatoChave, hashChave, LIMITE_ENVIO, mencoesDoTexto,
-  nomeDoEnvio, palavrasDaBusca, pessoaDaChave, podeVerQuadro, textoCelula, textoDoAviso, valorDaEntrada, valoresPorTitulo,
+  anexoLegivel, avisoDeMencao, casaBusca, colunaDoPedido, destinatariosDaMencao, EntradaInvalida, entradaDaCelula, formatoChave, hashChave, LIMITE_ENVIO, mencoesDoTexto,
+  nomeDoEnvio, palavrasDaBusca, pessoaDaChave, podeVerQuadro, textoCelula, valorDaEntrada, valoresPorTitulo,
 } from './fridayApiDominio.js';
 
 type AnyRecord = Record<string, any>;
@@ -448,28 +449,29 @@ async function publicarAtualizacao(e: Escrita, itemId: number, corpo: AnyRecord)
 }
 
 /**
- * Aviso de menção no sino (friday-notificacoes, tipo "mencao"), como a tela grava: um por pessoa marcada, nunca para quem
+ * Aviso de menção no sino do sistema (avisos/{uid}/itens), como a tela grava: um por pessoa marcada, nunca para quem
  * escreveu e só para quem entra no Friday. Abre o item (no subitem, o item pai no quadro principal). Quem não vê um quadro
  * restrito também recebe, com o trecho (decisão do responsável de 2026-11-12).
  */
 async function avisarMencoes(e: Escrita, item: AnyRecord, atualizacaoId: number, texto: string, marcados: string[]) {
   if (!marcados.length) return;
-  const snaps = await db.getAll(...marcados.slice(0, 100).map(u => db.collection('funcionarios').doc(u)));
+  const autor = e.pessoa.uid;
+  const snaps = await db.getAll(...[...new Set([autor, ...marcados.slice(0, 100)])].map(u => db.collection('funcionarios').doc(u)));
   const funcionarios = new Map(snaps.map(s => [s.id, s.data()]));
-  const para = destinatariosDaMencao(marcados, e.pessoa.uid, funcionarios);
+  const para = destinatariosDaMencao(marcados, autor, funcionarios);
   if (!para.length) return;
   const q = (await colecao('quadros').doc(String(item.quadro_id)).get()).data();
   const sub = q?.tipo === 'subitens';
-  const onde = sub ? { quadro_id: q?.quadro_pai_id ?? null, item_id: item.item_pai_id ?? null } : { quadro_id: item.quadro_id, item_id: item.id };
-  const aviso = textoDoAviso(texto, uid => funcionarios.get(uid)?.nome);
+  const [pai, principal] = sub
+    ? await Promise.all([colecao('itens').doc(String(item.item_pai_id)).get(), colecao('quadros').doc(String(q?.quadro_pai_id)).get()])
+    : [null, null];
+  const aviso = avisoDeMencao({
+    quadroId: sub ? q?.quadro_pai_id ?? null : item.quadro_id, itemId: sub ? item.item_pai_id ?? null : item.id,
+    itemNome: sub ? pai?.data()?.nome ?? item.nome : item.nome, quadroNome: sub ? principal?.data()?.nome : q?.nome,
+    atualizacaoId, texto, deUid: autor, deNome: String(funcionarios.get(autor)?.nome ?? ''), nome: uid => funcionarios.get(uid)?.nome,
+  });
   const lote = db.batch();
-  for (const uid of para) {
-    const id = novoId();
-    lote.set(colecao('notificacoes').doc(String(id)), {
-      id, usuario_id: uid, usuario_uid: uid, de_usuario_id: e.pessoa.uid, tipo: 'mencao', ...onde,
-      atualizacao_id: atualizacaoId, texto: aviso, lida: 0, criado_em: dataLocal(),
-    });
-  }
+  for (const uid of para) lote.set(db.collection('avisos').doc(uid).collection('itens').doc(), { ...aviso, criadoEm: FieldValue.serverTimestamp() });
   await lote.commit();
 }
 

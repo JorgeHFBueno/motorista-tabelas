@@ -1,4 +1,4 @@
-// Regras puras dos avisos ao cliente do portal (users/{uid}/notificacoes e portal-emails): textos, chaves de dedupe,
+// Regras puras dos avisos ao cliente do portal (avisos/{uid}/itens e portal-emails): textos, chaves de dedupe,
 // detecção de mudanças, datas de São Paulo, dinheiro em centavos, e-mail em HTML/texto e a cópia de obras-v2.
 // Sem Firebase aqui: o que lê e grava fica em portalAvisos.ts e portalEmails.ts.
 // Contrato: The Manuscript, 01_FIRESTORE/COLECOES/portal.md e users.md.

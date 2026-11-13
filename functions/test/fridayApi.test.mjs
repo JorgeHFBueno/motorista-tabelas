@@ -135,8 +135,17 @@ test('aviso de menção pela API: cada marcado uma vez, nunca o autor, só quem 
   assert.deepEqual(d.destinatariosDaMencao([], 'autor', funcionarios), []);
 });
 
-test('texto do aviso pela API: igual ao da tela (@{uid} vira @Nome, até 300 caracteres)', () => {
+test('aviso de menção pela API: igual ao da tela (título com o item, trecho com @Nome até 300 caracteres, rota do item)', () => {
   const nome = uid => ({ ana: 'Ana Souza' })[uid];
-  assert.equal(d.textoDoAviso('  Pedido de ART: @{ana} e @{xyz}  ', nome), 'mencionou você: Pedido de ART: @Ana Souza e @alguém');
-  assert.equal(d.textoDoAviso('x'.repeat(400), nome).length, 300);
+  const base = { quadroId: 12, itemId: 34, itemNome: ' Pedido de ART ', quadroNome: 'TAREFAS', atualizacaoId: 56, deUid: 'autor', deNome: 'Jorge B', nome };
+  assert.deepEqual(d.avisoDeMencao({ ...base, texto: '  Confere: @{ana} e @{xyz}  ' }), {
+    area: 'friday', tipo: 'mencao', titulo: 'mencionou você em Pedido de ART', mensagem: 'Confere: @Ana Souza e @alguém',
+    rota: '/friday/quadros/12?item=34&aba=atualizacoes', local: 'TAREFAS', deUid: 'autor', deNome: 'Jorge B',
+    origem: { colecao: 'friday-atualizacoes', id: '56' }, lida: false,
+  });
+  assert.equal(d.avisoDeMencao({ ...base, texto: 'x'.repeat(400) }).mensagem.length, 300);
+  const semItem = d.avisoDeMencao({ ...base, quadroId: null, itemNome: null, quadroNome: '', texto: 'oi' });
+  assert.equal(semItem.titulo, 'mencionou você em um item');
+  assert.equal(semItem.rota, '/friday/');
+  assert.equal(semItem.local, null);
 });

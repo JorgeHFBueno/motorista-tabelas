@@ -1196,6 +1196,39 @@ test('[firestore] Friday notices: a mention is created only in the author\'s nam
   await assertFails(deleteDoc(doc(autor, 'friday-notificacoes', '900')));
   await assertSucceeds(deleteDoc(doc(destino, 'friday-notificacoes', '900')));
 });
+test('[firestore] avisos: a Friday mention is created only in the author name, unread, for someone else, to a Friday route', async () => {
+  const autor = dbAs('escritorio'), destino = dbAs('escritorioFora');
+  const aviso = (extra = {}) => ({
+    area: 'friday', tipo: 'mencao', titulo: 'mencionou você em Pedido de ART', mensagem: '@Escritorio fora confere',
+    rota: '/friday/quadros/10?item=20&aba=atualizacoes', local: 'TAREFAS', deUid: 'uid-escritorio', deNome: 'Escritorio',
+    origem: { colecao: 'friday-atualizacoes', id: '30' }, lida: false, criadoEm: serverTimestamp(), ...extra,
+  });
+  const em = (db, uid, id) => doc(db, 'avisos', uid, 'itens', id);
+  await assertSucceeds(setDoc(em(autor, 'uid-escritorio-fora', 'm1'), aviso()));
+  await assertSucceeds(setDoc(em(autor, 'uid-escritorio-fora', 'm1b'), aviso({ local: null, origem: null })));
+  await assertFails(setDoc(em(autor, 'uid-escritorio-fora', 'm2'), aviso({ deUid: 'uid-escritorio-fora' })));
+  await assertFails(setDoc(em(autor, 'uid-escritorio-fora', 'm3'), aviso({ deNome: 'Diretor' })));
+  await assertFails(setDoc(em(autor, 'uid-escritorio', 'm4'), aviso()));
+  await assertFails(setDoc(em(autor, 'uid-escritorio-fora', 'm5'), aviso({ tipo: 'atribuicao' })));
+  await assertFails(setDoc(em(autor, 'uid-escritorio-fora', 'm6'), aviso({ area: 'portal' })));
+  await assertFails(setDoc(em(autor, 'uid-escritorio-fora', 'm7'), aviso({ lida: true })));
+  await assertFails(setDoc(em(autor, 'uid-escritorio-fora', 'm8'), aviso({ mensagem: 'x'.repeat(301) })));
+  await assertFails(setDoc(em(autor, 'uid-escritorio-fora', 'm9'), aviso({ rota: 'https://exemplo.com/friday/' })));
+  await assertFails(setDoc(em(autor, 'uid-escritorio-fora', 'm10'), aviso({ rota: '/combustivel' })));
+  await assertFails(setDoc(em(autor, 'uid-escritorio-fora', 'm11'), aviso({ criadoEm: Timestamp.fromDate(new Date('2026-01-01T00:00:00Z')) })));
+  await assertFails(setDoc(em(autor, 'uid-escritorio-fora', 'm12'), aviso({ extra: true })));
+  await assertFails(setDoc(em(dbAs('canonicalFrentista'), 'uid-escritorio-fora', 'm13'), aviso({ deUid: 'uid-canonical-frentista' })));
+  // Only the recipient reads them and marks them as read (nothing else); nobody deletes.
+  await assertFails(getDoc(em(autor, 'uid-escritorio-fora', 'm1')));
+  await assertFails(getDocs(collection(autor, 'avisos', 'uid-escritorio-fora', 'itens')));
+  await assertSucceeds(getDoc(em(destino, 'uid-escritorio-fora', 'm1')));
+  await assertSucceeds(getDocs(query(collection(destino, 'avisos', 'uid-escritorio-fora', 'itens'), where('lida', '==', false))));
+  await assertFails(updateDoc(em(autor, 'uid-escritorio-fora', 'm1'), { lida: true }));
+  await assertFails(updateDoc(em(destino, 'uid-escritorio-fora', 'm1'), { mensagem: 'trocado' }));
+  await assertFails(updateDoc(em(destino, 'uid-escritorio-fora', 'm1'), { lida: 'sim' }));
+  await assertSucceeds(updateDoc(em(destino, 'uid-escritorio-fora', 'm1'), { lida: true }));
+  await assertFails(deleteDoc(em(destino, 'uid-escritorio-fora', 'm1')));
+});
 test('[firestore] Friday: friday-usuarios no longer exists in the rules', async () => {
   await assertFails(getDoc(doc(dbAs('canonicalFrentista'), 'friday-usuarios', 'uid-canonical-frentista')));
   await assertFails(setDoc(doc(dbAs('canonicalFrentista'), 'friday-usuarios', 'uid-canonical-frentista'), { id: 1, uid: 'uid-canonical-frentista', nome: 'A', acesso: 'membro', ativo: 1 }));

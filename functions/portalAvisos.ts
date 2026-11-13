@@ -1,8 +1,9 @@
 // Avisos ao cliente do portal: gatilhos nas coleções portal-*, o vencimento diário e a cópia automática de obras-v2.
-// Cada aviso vira users/{uid}/notificacoes/{id} e um e-mail na fila portal-emails/{id} (enviado por portalEmails.ts).
+// Cada aviso vira avisos/{uid}/itens/{id} (o sino do portal, area "portal") e um e-mail na fila portal-emails/{id}
+// (enviado por portalEmails.ts).
 // Destinatários: users com o CNPJ/CPF do contrato (portal-obras.clienteDocumento) em `documentos` e ativo == true.
 // Dedupe pelo id estável + .create(): um aviso já gravado não se repete.
-// Textos, chaves e detecção de mudanças: portalAvisosDominio.ts. Contrato: The Manuscript, 01_FIRESTORE/COLECOES/portal.md e users.md.
+// Textos, chaves e detecção de mudanças: portalAvisosDominio.ts. Contrato: The Manuscript, 01_FIRESTORE/COLECOES/portal.md e avisos.md.
 import { onDocumentCreated, onDocumentUpdated } from 'firebase-functions/v2/firestore';
 import { onSchedule } from 'firebase-functions/v2/scheduler';
 import * as logger from 'firebase-functions/logger';
@@ -47,8 +48,8 @@ async function destinatariosDo(clienteDocumento: unknown): Promise<Destinatario[
 
 async function entregarA(destinatario: Destinatario, aviso: Aviso) {
   const { uid } = destinatario;
-  const notificacao = criarSeNovo(db.collection('users').doc(uid).collection('notificacoes').doc(idNotificacao(uid, aviso.chave)), {
-    tipo: aviso.tipo, titulo: aviso.titulo, mensagem: aviso.mensagem, obraId: aviso.obraId, origem: aviso.origem, rota: aviso.rota,
+  const notificacao = criarSeNovo(db.collection('avisos').doc(uid).collection('itens').doc(idNotificacao(uid, aviso.chave)), {
+    area: 'portal', tipo: aviso.tipo, titulo: aviso.titulo, mensagem: aviso.mensagem, obraId: aviso.obraId, origem: aviso.origem, rota: aviso.rota,
     lida: false, criadoEm: FieldValue.serverTimestamp(),
   });
   const email = destinatario.email
