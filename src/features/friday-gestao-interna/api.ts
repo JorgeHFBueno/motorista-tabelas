@@ -4,7 +4,9 @@ import {
 } from 'firebase/firestore';
 import { httpsCallable } from 'firebase/functions';
 import { deleteObject, getDownloadURL, ref as refArquivo, uploadBytes } from 'firebase/storage';
-import { db, storage } from '../../firebase';
+import { getAuth } from 'firebase/auth';
+import { app, db, storage } from '../../firebase';
+import { getAuthorizationProfile } from '../../services/authorizationProfile';
 import { functions } from './funcoes.ts';
 import { CORES, fmtNumeroColuna, NOME_TRAVADO, nomeEspelhado } from './util.ts';
 import { converterColuna, nomeDoAlvo, type Alvo } from './quadro/mudarTipo.ts';
@@ -12,9 +14,9 @@ import type { Coluna } from './quadro/tipos.ts';
 import { ErroTempo, fmtDuracao, lerTempo, operarTempo, sessaoAberta, semSessaoAberta, totalSegundos, type OpTempo } from './quadro/tempo.ts';
 import { avisoDeMencao, destinatariosDaMencao } from './avisos.ts';
 
-// Camada de dados do Friday. As telas chamam req()/api como se houvesse um servidor (/api/...); aqui cada
-// chamada é atendida direto no Firestore, nas coleções "friday-<recurso>". O login é o do sistema (Firebase
-// Auth + funcionarios); quem pode ler e gravar é decidido pelas regras do Firestore.
+// Camada de dados do Friday: funções que as telas chamam direto, gravando no Firestore, nas coleções
+// "friday-<recurso>". Quem usa é a pessoa logada no sistema (ver meuUid e souAdm2); quem pode ler e gravar é
+// decidido pelas regras do Firestore.
 //
 // Os registros mantêm o id numérico do protótipo (campo "id", também usado como id do documento), porque as
 // telas comparam e guardam ids como números (ordenação, ligações). Pessoas são a exceção: são os funcionários do
@@ -24,17 +26,20 @@ export type Row = Record<string, any> & { id: number };
 // friday: tem a credencial escritorio, mecanico ou adm2 (entra no Friday); adm2: vê todos os quadros (permissões).
 export type Pessoa = { id: string; uid: string; nome: string; email: string | null; cor: string; ativo: boolean; friday: boolean; adm2: boolean };
 
-// Disparado quando a sessão acaba (as telas voltam a pedir login).
-export const SEM_SESSAO = 'ledur:sem-sessao';
-
-class ErroApi extends Error {
-  status: number;
-  constructor(status: number, mensagem: string) { super(mensagem); this.status = status; }
+// Recusa das regras do Firestore sai em português. Envolve as funções que as telas chamam.
+function emPortugues<A extends unknown[], R>(f: (...a: A) => Promise<R>): (...a: A) => Promise<R> {
+  return async (...a) => {
+    try {
+      return await f(...a);
+    } catch (e) {
+      if ((e as { code?: string }).code === 'permission-denied') throw new Error('Sem permissão para esta ação no Friday.');
+      throw e;
+    }
+  };
 }
 
 // ------------------------------------------------------------------ recursos e campos
-const RECURSOS = ['areas', 'pastas', 'quadros', 'grupos', 'colunas', 'itens', 'visoes', 'atualizacoes', 'atividades', 'anexos', 'automacoes', 'execucoes'] as const;
-type Recurso = (typeof RECURSOS)[number];
+export type Recurso = 'areas' | 'pastas' | 'quadros' | 'grupos' | 'colunas' | 'itens' | 'visoes' | 'atualizacoes' | 'atividades' | 'anexos' | 'automacoes' | 'execucoes';
 
 // Campos gravados de cada recurso (o que não estiver aqui é ignorado, como no esquema do protótipo).
 const CAMPOS: Record<Recurso, string[]> = {
@@ -63,7 +68,7 @@ const CAMPOS: Record<Recurso, string[]> = {
   execucoes: ['id', 'automacao_id', 'quadro_id', 'item_id', 'item_nome', 'chave', 'ok', 'detalhe', 'criado_em'],
 };
 const JSON_COLS: Partial<Record<Recurso, string[]>> = { quadros: ['config'], colunas: ['config'], itens: ['valores'], visoes: ['config'], atualizacoes: ['mencoes'], automacoes: ['gatilho', 'condicoes', 'acoes'] };
-// Campos que a API genérica não grava (têm rotas próprias).
+// Campos que criar/atualizar não gravam (têm funções próprias).
 const PROTEGIDOS: Partial<Record<Recurso, string[]>> = {
   areas: ['restrito'], pastas: ['restrito'], quadros: ['restrito', 'acesso', 'cadastro'],
   atualizacoes: ['quadro_id', 'editado_em', 'origem_id', 'autor_monday'], anexos: ['quadro_id'],
@@ -86,11 +91,6 @@ const ORDEM: Partial<Record<Recurso, 'posicao' | 'recentes'>> = {
 const ESCOPO_POSICAO: Partial<Record<Recurso, string>> = {
   areas: '', pastas: 'area_id', quadros: 'area_id', grupos: 'quadro_id', colunas: 'quadro_id', itens: 'grupo_id', visoes: 'quadro_id',
 };
-
-function recurso(nome: string): Recurso {
-  if (!(RECURSOS as readonly string[]).includes(nome)) throw new ErroApi(404, `recurso desconhecido: ${nome}`);
-  return nome as Recurso;
-}
 
 // ------------------------------------------------------------------ utilitários
 // Data e hora locais no formato do protótipo ("2026-10-19 14:30:00").
@@ -137,7 +137,7 @@ const normalizar = (v: unknown) => (typeof v === 'string' && /^-?\d+(\.\d+)?$/.t
 
 async function consultar(r: Recurso, filtros: Record<string, unknown> = {}): Promise<Row[]> {
   if (r === 'quadros') return consultarQuadros(filtros);
-  if (DO_QUADRO.has(r) && filtros.quadro_id == null) throw new ErroApi(500, `consulta de ${r} sem o quadro`);
+  if (DO_QUADRO.has(r) && filtros.quadro_id == null) throw new Error(`consulta de ${r} sem o quadro`);
   const condicoes = Object.entries(filtros).map(([k, v]) => where(k, '==', normalizar(v)));
   const snap = await getDocs(condicoes.length ? query(colecao(r), ...condicoes) : colecao(r));
   return snap.docs.map(d => d.data() as Row);
@@ -148,12 +148,12 @@ async function consultar(r: Recurso, filtros: Record<string, unknown> = {}): Pro
 async function consultarQuadros(filtros: Record<string, unknown> = {}): Promise<Row[]> {
   const condicoes = Object.entries(filtros).map(([k, v]) => where(k, '==', normalizar(v)));
   const dados = (s: { docs: { data: () => DocumentData }[] }) => s.docs.map(d => d.data() as Row);
-  if (eu().admin) return dados(await getDocs(condicoes.length ? query(colecao('quadros'), ...condicoes) : colecao('quadros')));
+  if (await souAdm2()) return dados(await getDocs(condicoes.length ? query(colecao('quadros'), ...condicoes) : colecao('quadros')));
   // A lista da pessoa vem só pelo acesso (sem índice composto) e os demais filtros são conferidos aqui.
   const casa = (q: Row) => Object.entries(filtros).every(([k, v]) => (q[k] ?? null) === (normalizar(v) ?? null));
   const [abertos, daLista] = await Promise.all([
     getDocs(query(colecao('quadros'), ...condicoes, where('restrito', '==', 0))),
-    getDocs(query(colecao('quadros'), where('acesso', 'array-contains', eu().uid))),
+    getDocs(query(colecao('quadros'), where('acesso', 'array-contains', meuUid()))),
   ]);
   const todos = new Map(dados(abertos).map(q => [q.id, q]));
   for (const q of dados(daLista)) if (casa(q)) todos.set(q.id, q);
@@ -163,7 +163,7 @@ async function consultarQuadros(filtros: Record<string, unknown> = {}): Promise<
 // Registros de vários quadros (Meu trabalho, busca, arquivo): adm2 consulta tudo de uma vez; os demais, os quadros que
 // veem, de 10 em 10 (as Rules leem o quadro de cada valor do "in", e 10 é o máximo que aceitam numa consulta).
 async function deVariosQuadros(r: Recurso, condicoes: QueryConstraint[], quadroIds?: number[]): Promise<Row[]> {
-  if (eu().admin && !quadroIds) return (await getDocs(query(colecao(r), ...condicoes))).docs.map(d => d.data() as Row);
+  if (!quadroIds && await souAdm2()) return (await getDocs(query(colecao(r), ...condicoes))).docs.map(d => d.data() as Row);
   const ids = quadroIds ?? (await consultarQuadros()).map(q => q.id);
   const lotes = [];
   for (let k = 0; k < ids.length; k += 10) lotes.push(getDocs(query(colecao(r), where('quadro_id', 'in', ids.slice(k, k + 10)), ...condicoes)));
@@ -356,7 +356,7 @@ async function comOficiais(item: Row): Promise<Row> {
 }
 const chamarGravacaoOficial = httpsCallable<{ itemId: number; op: string; colunaId?: number; valor?: unknown }, unknown>(functions, 'fridayCadastroGravar');
 async function gravarOficial(itemId: number, op: 'valor' | 'nome' | 'situacao' | 'vincular' | 'grupo', extra: { colunaId?: number; valor?: unknown } = {}) {
-  try { await chamarGravacaoOficial({ itemId, op, ...extra }); } catch (e) { throw new ErroApi(500, `Cadastro oficial: ${(e as Error).message}`); }
+  try { await chamarGravacaoOficial({ itemId, op, ...extra }); } catch (e) { throw new Error(`Cadastro oficial: ${(e as Error).message}`); }
 }
 async function quadroCadastro(quadroId: unknown) { return (await buscar('quadros', quadroId))?.cadastro as string | undefined; }
 
@@ -368,7 +368,7 @@ const chamarCampos = httpsCallable<{ quadroId: number; op: string; colunaId?: nu
   functions, 'fridayCadastroCampos', { timeout: 560_000 });
 type OpCampos = 'adicionar' | 'descontinuar' | 'subitens' | 'rotulos' | 'desfazer' | 'grupo' | 'grupo_descontinuar' | 'grupo_nome';
 export async function camposOficiais(dados: { quadroId: number; op: OpCampos; colunaId?: number; chave?: string; campos?: { coluna_id: number; chave: string }[]; grupoId?: number }) {
-  try { return (await chamarCampos(dados)).data; } catch (e) { throw new ErroApi(500, `Cadastro oficial: ${(e as Error).message}`); }
+  try { return (await chamarCampos(dados)).data; } catch (e) { throw new Error(`Cadastro oficial: ${(e as Error).message}`); }
 }
 
 // Grava muitos documentos em lotes (o Firestore aceita até 500 operações por lote).
@@ -380,27 +380,29 @@ async function emLotes(operacoes: ((lote: ReturnType<typeof writeBatch>) => void
   }
 }
 
-// ------------------------------------------------------------------ sessão (login do sistema)
-// id = UID. admin (áreas: criar, renomear, excluir) = perfis.adm2.
-export type Sessao = { id: string; uid: string; nome: string; email: string | null; cor: string; admin: boolean };
-let sessao: Sessao | null = null;
-
-function eu(): Sessao {
-  if (!sessao) throw new ErroApi(401, 'Sessão encerrada. Entre novamente no sistema.');
-  return sessao;
+// ------------------------------------------------------------------ quem usa (login do sistema)
+// A pessoa logada no sistema (Firebase Auth); o id dela no Friday é o UID.
+function meuUid(): string {
+  const uid = getAuth(app).currentUser?.uid;
+  if (!uid) throw new Error('Entre no sistema para usar o Friday.');
+  return uid;
 }
-// Abre a sessão com o funcionário logado. O Friday não guarda pessoas próprias: nome e e-mail vêm de funcionarios
-// e do login (o último acesso é gravado pela WEB, em funcionarios). Todo funcionário ativo lê e edita.
-export async function iniciarSessao(p: { uid: string; nome: string; email: string | null; adm2: boolean }): Promise<Sessao> {
-  sessao = { id: p.uid, uid: p.uid, nome: p.nome, email: p.email, cor: corDaPessoa(p.uid), admin: p.adm2 };
-  await prepararPrimeiroUso();
-  return sessao;
+// adm2 (ativo) do cadastro em funcionarios, pelo mesmo leitor do login do sistema; lido uma vez por pessoa.
+let perfil: { uid: string; adm2: Promise<boolean> } | undefined;
+function souAdm2(): Promise<boolean> {
+  const uid = meuUid();
+  if (perfil?.uid !== uid) {
+    const adm2 = getAuthorizationProfile(uid).then(p => p.ativo && p.adm2);
+    adm2.catch(() => { if (perfil?.adm2 === adm2) perfil = undefined; });
+    perfil = { uid, adm2 };
+  }
+  return perfil.adm2;
 }
 
 // Friday vazio: cria a área de trabalho inicial e um quadro de exemplo para começar. A área inicial tem
 // id fixo e é criada numa transação: se duas aberturas chegarem juntas, só uma prepara o resto.
 let primeiroUso: Promise<void> | null = null;
-function prepararPrimeiroUso() {
+export function prepararPrimeiroUso() {
   primeiroUso ??= criarPrimeiroUso().catch(e => { primeiroUso = null; throw e; });
   return primeiroUso;
 }
@@ -424,11 +426,10 @@ async function criarPrimeiroUso() {
   for (const [nome, rotulo] of exemplos) {
     const valores: Record<string, unknown> = {};
     if (status && rotulo !== '0') valores[String(status.id)] = rotulo;
-    if (pessoa) valores[String(pessoa.id)] = [eu().id];
-    await inserir('itens', { quadro_id: quadro.id, grupo_id: grupo?.id ?? null, nome, valores, criado_por: eu().id });
+    if (pessoa) valores[String(pessoa.id)] = [meuUid()];
+    await inserir('itens', { quadro_id: quadro.id, grupo_id: grupo?.id ?? null, nome, valores, criado_por: meuUid() });
   }
 }
-export function encerrarSessao() { sessao = null; }
 
 // ------------------------------------------------------------------ pessoas (funcionarios)
 const corDaPessoa = (uid: string) => CORES[hashDoUid(uid) % 16];
@@ -496,7 +497,7 @@ async function formatarValor(tipo: string, config: Record<string, any>, valor: u
 // ------------------------------------------------------------------ atividade e avisos
 async function registrar(a: { quadro_id: unknown; item_id?: unknown; item_nome?: unknown; acao: string; coluna_id?: unknown; coluna_titulo?: unknown; de?: unknown; para?: unknown }) {
   await inserir('atividades', {
-    quadro_id: Number(a.quadro_id), item_id: a.item_id ?? null, item_nome: a.item_nome ?? null, usuario_id: eu().id, automacao_id: null, acao: a.acao,
+    quadro_id: Number(a.quadro_id), item_id: a.item_id ?? null, item_nome: a.item_nome ?? null, usuario_id: meuUid(), automacao_id: null, acao: a.acao,
     coluna_id: a.coluna_id ?? null, coluna_titulo: a.coluna_titulo ?? null, de: a.de == null ? null : String(a.de), para: a.para == null ? null : String(a.para),
   });
 }
@@ -507,9 +508,9 @@ async function registrar(a: { quadro_id: unknown; item_id?: unknown; item_nome?:
 // Cada linha leva o nome do quadro e o que abrir (o quadro principal e o item pai, no caso de subitem); quadro_nome
 // null = quadro apagado ou que a pessoa não vê mais; sem abrir_quadro_id = quadro na lixeira.
 const TAMANHO_HISTORICO = 5;
-async function historico(usuarioId?: string): Promise<Row[]> {
-  const uid = usuarioId || eu().uid;
-  if (uid !== eu().uid && !eu().admin) throw new ErroApi(403, 'Só adm2 vê o histórico de outra pessoa.');
+export const historico = emPortugues(async function historico(usuarioId?: string): Promise<Row[]> {
+  const uid = usuarioId || meuUid();
+  if (uid !== meuUid() && !(await souAdm2())) throw new Error('Só adm2 vê o histórico de outra pessoa.');
   const snap = await getDocs(query(colecao('atividades'), where('usuario_id', '==', uid), orderBy(documentId(), 'desc'), limit(TAMANHO_HISTORICO)));
   const ler = memoria();
   const lerSemErro = (r: Recurso, id: unknown) => ler(r, id).catch(() => undefined);
@@ -521,14 +522,14 @@ async function historico(usuarioId?: string): Promise<Row[]> {
     const item = sub && a.item_id != null ? await lerSemErro('itens', a.item_id) : undefined;
     return { ...a, quadro_nome: qp?.nome ?? null, abrir_quadro_id: qp && qp.excluido_em == null ? qp.id : null, abrir_item_id: sub ? item?.item_pai_id ?? null : a.item_id };
   }));
-}
+});
 
 // Aviso de menção (@) no sino do sistema (avisos/{uid}/itens): recebe quem foi marcado e entra no Friday, menos quem
 // escreveu; na edição, só quem foi marcado agora. Abre o item na aba Atualizações (no subitem, o item pai). O nome de
 // quem escreveu vai como está em funcionarios, que é o que as Rules conferem. Respostas, atribuições e a ação "avisar
 // pessoas" das automações seguem sem aviso.
 async function avisarMencoes(atualizacao: Row, antes?: unknown) {
-  const de = eu().id;
+  const de = meuUid();
   const para = destinatariosDaMencao({
     marcados: atualizacao.mencoes, antes, autor: de,
     podeReceber: uid => usuarios.some(p => p.id === uid && p.ativo && p.friday),
@@ -566,13 +567,13 @@ const permissoesDe = (q: Row) => ({ restrito: Number(q.restrito) === 1 ? 1 : 0, 
 
 // Permissões de um quadro (só adm2 muda): aberto para quem entra no Friday, ou restrito a uma lista de funcionários.
 // O quadro de subitens recebe a mesma lista. adm2 vê todos os quadros, esteja ou não na lista.
-async function lerPermissoes(quadroId: number) {
+export const lerPermissoes = emPortugues(async function lerPermissoes(quadroId: number) {
   const q = await buscar('quadros', quadroId);
-  if (!q) throw new ErroApi(404, 'quadro não encontrado');
+  if (!q) throw new Error('quadro não encontrado');
   return { restrito: Number(q.restrito) === 1, lista: (q.acesso ?? []) as string[] };
-}
-async function gravarPermissoes(quadroId: number, corpo: unknown) {
-  if (!eu().admin) throw new ErroApi(403, 'Só administradores mudam as permissões dos quadros.');
+});
+export const gravarPermissoes = emPortugues(async function gravarPermissoes(quadroId: number, corpo: unknown) {
+  if (!(await souAdm2())) throw new Error('Só administradores mudam as permissões dos quadros.');
   const b = (corpo ?? {}) as { restrito?: boolean; lista?: unknown[] };
   const lista = [...new Set((b.lista ?? []).filter((u): u is string => typeof u === 'string' && !!u))];
   const campos = permissoesDe({ id: quadroId, restrito: b.restrito ? 1 : 0, acesso: lista });
@@ -581,7 +582,7 @@ async function gravarPermissoes(quadroId: number, corpo: unknown) {
   for (const id of [quadroId, ...subs.map(s => s.id)]) lote.update(ref('quadros', id), campos);
   await lote.commit();
   return { restrito: campos.restrito === 1, lista: campos.acesso ?? [] };
-}
+});
 
 // Grupo onde os subitens novos entram (o quadro de subitens tem um grupo só, que o usuário não vê).
 async function grupoDoSubquadro(subId: number): Promise<number> {
@@ -609,7 +610,7 @@ async function garantirSubquadro(pai: Row): Promise<number> {
 // documento nasce com "desde" = agora: o que já existia conta como lido. Os ids crescem com o tempo (novoId).
 type Leituras = { desde: number; itens: Record<string, number> };
 async function lerLeituras(): Promise<Leituras> {
-  const r = doc(db, 'friday-leituras', eu().uid);
+  const r = doc(db, 'friday-leituras', meuUid());
   const s = await getDoc(r);
   if (s.exists()) return { desde: Number(s.data().desde) || 0, itens: s.data().itens ?? {} };
   const nova = { desde: Date.now() * 1000, itens: {} };
@@ -617,18 +618,18 @@ async function lerLeituras(): Promise<Leituras> {
   return nova;
 }
 export async function marcarAtualizacoesLidas(itemId: number, ultimaId: number): Promise<void> {
-  await setDoc(doc(db, 'friday-leituras', eu().uid), { itens: { [String(itemId)]: ultimaId } }, { merge: true });
+  await setDoc(doc(db, 'friday-leituras', meuUid()), { itens: { [String(itemId)]: ultimaId } }, { merge: true });
 }
 // Por item, se há atualização de outra pessoa ainda não lida. Sem as leituras (falha ao ler), vale o "tem atualização".
 function novidades(lista: Row[], leituras: Leituras | null): Set<number> {
   const ultima = new Map<number, number>();
-  for (const a of lista) if (String(a.usuario_id) !== eu().id) ultima.set(Number(a.item_id), Math.max(ultima.get(Number(a.item_id)) ?? 0, Number(a.id)));
+  for (const a of lista) if (String(a.usuario_id) !== meuUid()) ultima.set(Number(a.item_id), Math.max(ultima.get(Number(a.item_id)) ?? 0, Number(a.id)));
   return new Set([...ultima].filter(([item, id]) => !leituras || id > Number(leituras.itens[item] ?? leituras.desde)).map(([item]) => item));
 }
 
-async function completo(id: number) {
+export const completo = emPortugues(async function completo(id: number) {
   const quadro = await comFavorito(await buscar('quadros', id));
-  if (!quadro) throw new ErroApi(404, 'quadro não encontrado');
+  if (!quadro) throw new Error('quadro não encontrado');
   const [grupos, colunas, visoes, itensTodos, atualizacoes, anexos, automacoes, sub, leituras] = await Promise.all([
     consultar('grupos', { quadro_id: id }), consultar('colunas', { quadro_id: id }), consultar('visoes', { quadro_id: id }), consultar('itens', { quadro_id: id }),
     consultar('atualizacoes', { quadro_id: id }), consultar('anexos', { quadro_id: id }), consultar('automacoes', { quadro_id: id, ativa: 1 }), subquadroDe(id),
@@ -700,22 +701,22 @@ async function completo(id: number) {
     }),
     sub: subDados,
   };
-}
+});
 
-async function criarSubitens(paiId: number) {
+export const criarSubitens = emPortugues(async function criarSubitens(paiId: number) {
   const pai = await buscar('quadros', paiId);
-  if (!pai) throw new ErroApi(404, 'quadro não encontrado');
+  if (!pai) throw new Error('quadro não encontrado');
   const subId = await garantirSubquadro(pai);
   const [sub, colunas, grupoId] = await Promise.all([buscar('quadros', subId), consultar('colunas', { quadro_id: subId }), grupoDoSubquadro(subId)]);
   return { ...sub, grupo_id: grupoId, colunas: ordenar('colunas', colunas) };
-}
+});
 
 type ItemImportado = { grupo_id?: number; grupo_nome?: string; nome: string; valores?: Record<string, unknown>; subitens?: { nome: string; valores?: Record<string, unknown> }[] };
 // Importação em lote (Excel): cria grupos pelo nome quando preciso, itens e subitens.
-async function importar(quadroId: number, corpo: unknown) {
+export const importarItens = emPortugues(async function importarItens(quadroId: number, corpo: unknown) {
   const quadro = await buscar('quadros', quadroId);
-  if (!quadro) throw new ErroApi(404, 'quadro não encontrado');
-  if (quadro.cadastro) throw new ErroApi(409, 'Importar do Excel num quadro oficial ainda não é suportado.');
+  if (!quadro) throw new Error('quadro não encontrado');
+  if (quadro.cadastro) throw new Error('Importar do Excel num quadro oficial ainda não é suportado.');
   const lista = ((corpo as { itens?: ItemImportado[] })?.itens ?? []) as ItemImportado[];
   const CORES_GRUPO = ['#579bfc', '#00a36c', '#a25ddc', '#fdab3d', '#e2445c', '#0086c0', '#ff642e', '#037f4c'];
   const [gruposAtuais, itensAtuais] = await Promise.all([consultar('grupos', { quadro_id: quadroId }), consultar('itens', { quadro_id: quadroId })]);
@@ -741,20 +742,20 @@ async function importar(quadroId: number, corpo: unknown) {
     const posicao = (ultima.get(gid) ?? 0) + 1;
     ultima.set(gid, posicao);
     const nomeItem = String(it.nome || 'Sem nome').slice(0, 500), valoresItem = semUndefined(it.valores ?? {});
-    const item = { ...padrao('itens'), id: novoId(), quadro_id: quadroId, grupo_id: gid, nome: nomeItem, posicao, valores: valoresItem, criado_por: eu().id, busca: prefixosBusca(nomeItem), pessoas: pessoasDosValores(valoresItem, pessoasQuadro) } as Row;
+    const item = { ...padrao('itens'), id: novoId(), quadro_id: quadroId, grupo_id: gid, nome: nomeItem, posicao, valores: valoresItem, criado_por: meuUid(), busca: prefixosBusca(nomeItem), pessoas: pessoasDosValores(valoresItem, pessoasQuadro) } as Row;
     novos.push(item);
     criados++;
     for (const [k, s] of (it.subitens ?? []).entries()) {
       if (!subquadro) { subquadro = await garantirSubquadro(quadro); subGrupo = await grupoDoSubquadro(subquadro); pessoasSub = await colunasPessoaDe(subquadro); }
       const nomeSub = String(s.nome || 'Sem nome').slice(0, 500), valoresSub = semUndefined(s.valores ?? {});
-      novos.push({ ...padrao('itens'), id: novoId(), quadro_id: subquadro, grupo_id: subGrupo, item_pai_id: item.id, nome: nomeSub, posicao: k + 1, valores: valoresSub, criado_por: eu().id, busca: prefixosBusca(nomeSub), pessoas: pessoasDosValores(valoresSub, pessoasSub) } as Row);
+      novos.push({ ...padrao('itens'), id: novoId(), quadro_id: subquadro, grupo_id: subGrupo, item_pai_id: item.id, nome: nomeSub, posicao: k + 1, valores: valoresSub, criado_por: meuUid(), busca: prefixosBusca(nomeSub), pessoas: pessoasDosValores(valoresSub, pessoasSub) } as Row);
       subCriados++;
     }
   }
   await emLotes(novos.map(n => lote => lote.set(ref('itens', n.id), n)));
   await registrar({ quadro_id: quadroId, acao: 'importou', para: `${criados} itens${subCriados ? ` e ${subCriados} subitens` : ''}` });
   return { criados, subitens: subCriados, grupos: gruposCriados };
-}
+});
 
 // Valores de um item copiado: o cronômetro ligado não vai junto (o mesmo tempo seria contado duas vezes).
 function valoresDaCopia(valores: Record<string, unknown> | undefined, colunas: Row[]) {
@@ -768,29 +769,29 @@ function valoresDaCopia(valores: Record<string, unknown> | undefined, colunas: R
   return v;
 }
 
-async function duplicarItem(id: number) {
+export const duplicarItem = emPortugues(async function duplicarItem(id: number) {
   const item = await buscar('itens', id);
-  if (!item) throw new ErroApi(404, 'item não encontrado');
+  if (!item) throw new Error('item não encontrado');
   const nome = `${item.nome} (cópia)`;
   const [completoItem, colunas] = await Promise.all([comOficiais(item), consultar('colunas', { quadro_id: item.quadro_id })]);
-  const novo = await inserir('itens', { quadro_id: item.quadro_id, grupo_id: item.grupo_id, item_pai_id: item.item_pai_id, nome, posicao: Number(item.posicao) + 0.5, valores: valoresDaCopia(completoItem.valores, colunas), criado_por: eu().id });
+  const novo = await inserir('itens', { quadro_id: item.quadro_id, grupo_id: item.grupo_id, item_pai_id: item.item_pai_id, nome, posicao: Number(item.posicao) + 0.5, valores: valoresDaCopia(completoItem.valores, colunas), criado_por: meuUid() });
   // A cópia de um item vinculado também vira registro: num cadastro existente, a Function decide (obras-v2 cria o contrato
   // na hora; os demais deixam o item sem vínculo até a conciliação); a cópia de um subitem vira uma entrada nova no
   // registro do item pai (ex.: LOTE de obras-v2).
   if (item.vinculo) await gravarOficial(novo.id, 'vincular');
   await registrar({ quadro_id: item.quadro_id, item_id: novo.id, item_nome: nome, acao: 'duplicou' });
   return novo;
-}
+});
 
 // Duplica a estrutura de um quadro (grupos, colunas, visões) e, se pedido, os itens.
 // Mover quadro ou pasta para outra área de trabalho (só adm2). A pasta leva as subpastas e os quadros de dentro;
 // o quadro leva o quadro interno dos subitens. O que foi movido entra na raiz da área de destino, no fim da lista.
-async function moverParaArea(r: 'quadros' | 'pastas', id: number, corpo: unknown) {
-  if (!eu().admin) throw new ErroApi(403, 'Só administradores movem pastas e quadros para outra área de trabalho.');
+export const moverParaArea = emPortugues(async function moverParaArea(r: 'quadros' | 'pastas', id: number, corpo: unknown) {
+  if (!(await souAdm2())) throw new Error('Só administradores movem pastas e quadros para outra área de trabalho.');
   const areaId = Number((corpo as { area_id?: unknown } | undefined)?.area_id);
-  if (!(await buscar('areas', areaId))) throw new ErroApi(404, 'Área de trabalho não encontrada.');
+  if (!(await buscar('areas', areaId))) throw new Error('Área de trabalho não encontrada.');
   const raiz = await buscar(r, id);
-  if (!raiz) throw new ErroApi(404, r === 'pastas' ? 'Pasta não encontrada.' : 'Quadro não encontrado.');
+  if (!raiz) throw new Error(r === 'pastas' ? 'Pasta não encontrada.' : 'Quadro não encontrado.');
   if (raiz.area_id === areaId) return { movidos: 0 };
   const origem = raiz.area_id;
   // Tudo é lido da área de origem: adm2 vê todos os quadros, inclusive os restritos e os de subitens.
@@ -808,13 +809,13 @@ async function moverParaArea(r: 'quadros' | 'pastas', id: number, corpo: unknown
   for (const qid of quadros) ops.push(l => l.update(ref('quadros', qid), r === 'quadros' && qid === id ? { area_id: areaId, pasta_id: null, posicao: fim } : { area_id: areaId }));
   await emLotes(ops);
   return { movidos: pastas.size + quadros.size };
-}
+});
 
-async function duplicarQuadro(id: number, corpo: unknown) {
+export const duplicarQuadro = emPortugues(async function duplicarQuadro(id: number, corpo: unknown) {
   const orig = await buscar('quadros', id);
-  if (!orig) throw new ErroApi(404, 'quadro não encontrado');
+  if (!orig) throw new Error('quadro não encontrado');
   const b = (corpo ?? {}) as { nome?: string; area_id?: number; pasta_id?: number | null; com_itens?: boolean };
-  if (orig.cadastro && b.com_itens) throw new ErroApi(409, 'Quadro oficial: só dá para duplicar a estrutura (sem itens).');
+  if (orig.cadastro && b.com_itens) throw new Error('Quadro oficial: só dá para duplicar a estrutura (sem itens).');
   const novo = await inserir('quadros', {
     area_id: b.area_id ?? orig.area_id, pasta_id: b.pasta_id !== undefined ? b.pasta_id : orig.pasta_id,
     nome: b.nome || `${orig.nome} (cópia)`, descricao: orig.descricao, nome_item: orig.nome_item, tipo: orig.tipo, config: orig.config,
@@ -842,12 +843,12 @@ async function duplicarQuadro(id: number, corpo: unknown) {
     if (!b.com_itens) continue;
     for (const it of ordenar('itens', itens.filter(i => i.grupo_id === g.id && i.item_pai_id == null))) {
       const valores = Object.fromEntries(Object.entries(valoresDaCopia(it.valores, colunas)).map(([k, x]) => [String(mapaCol.get(k) ?? k), x]));
-      copias.push({ ...padrao('itens'), id: novoId(), quadro_id: novo.id, grupo_id: ng.id, nome: it.nome, posicao: it.posicao, valores, criado_por: eu().id, busca: prefixosBusca(it.nome), pessoas: pessoasDosValores(valores, pessoasNovas) } as Row);
+      copias.push({ ...padrao('itens'), id: novoId(), quadro_id: novo.id, grupo_id: ng.id, nome: it.nome, posicao: it.posicao, valores, criado_por: meuUid(), busca: prefixosBusca(it.nome), pessoas: pessoasDosValores(valores, pessoasNovas) } as Row);
     }
   }
   await emLotes(copias.map(c => lote => lote.set(ref('itens', c.id), c)));
   return novo;
-}
+});
 
 // Grava só o filtro geral do painel: quem está com a tela aberta há tempo não sobrescreve os widgets de outra pessoa.
 export async function salvarFiltroGeralDoPainel(painelId: number, geral: unknown) {
@@ -861,10 +862,10 @@ export async function salvarFiltroGeralDoPainel(painelId: number, geral: unknown
  */
 export async function mudarTipoColuna(colunaId: number, alvo: Alvo, aplicar = false) {
   const coluna = await buscar('colunas', colunaId);
-  if (!coluna) throw new ErroApi(404, 'coluna não encontrada');
+  if (!coluna) throw new Error('coluna não encontrada');
   const oficial = await campoOficialDa(coluna);
   if (oficial && !(coluna.tipo === 'numero' && !coluna.config?.x10 && alvo.tipo === 'numero' && !alvo.x10)) {
-    throw new ErroApi(409, `“${coluna.titulo}” é um campo oficial: só o separador de milhar pode mudar.`);
+    throw new Error(`“${coluna.titulo}” é um campo oficial: só o separador de milhar pode mudar.`);
   }
   const itens = oficial ? [] : await consultar('itens', { quadro_id: coluna.quadro_id });
   const r = converterColuna(coluna as Coluna, alvo, itens.map(i => ({ id: i.id, nome: String(i.nome ?? ''), v: i.valores?.[String(colunaId)] })));
@@ -877,16 +878,16 @@ export async function mudarTipoColuna(colunaId: number, alvo: Alvo, aplicar = fa
 }
 
 // Altera o valor de uma célula (item x coluna) e registra a atividade.
-async function definirValor(itemId: number, corpo: unknown) {
+export const gravarValor = emPortugues(async function gravarValor(itemId: number, corpo: unknown) {
   const { coluna_id, valor: recebido } = (corpo ?? {}) as { coluna_id?: number; valor?: unknown };
   const [item, coluna] = await Promise.all([buscar('itens', itemId), buscar('colunas', coluna_id)]);
-  if (!item || !coluna) throw new ErroApi(404, 'item ou coluna não encontrado');
-  if (coluna.quadro_id !== item.quadro_id) throw new ErroApi(400, 'a coluna não pertence ao quadro do item');
+  if (!item || !coluna) throw new Error('item ou coluna não encontrado');
+  if (coluna.quadro_id !== item.quadro_id) throw new Error('a coluna não pertence ao quadro do item');
   // Controle de tempo pela rota genérica (ex.: importação): só sessões válidas. Iniciar e parar usam a rota /tempo.
   const valor = coluna.tipo === 'tempo' ? (lerTempo(recebido).sessoes.length ? lerTempo(recebido) : null) : recebido;
   const chave = String(coluna.id);
   const oficial = item.vinculo ? await campoOficialDa(coluna) : null;
-  if (oficial?.campo.somente_leitura) throw new ErroApi(409, `“${coluna.titulo}” é só leitura: o valor vem do cadastro ${oficial.registro.nome}.`);
+  if (oficial?.campo.somente_leitura) throw new Error(`“${coluna.titulo}” é só leitura: o valor vem do cadastro ${oficial.registro.nome}.`);
   const atual = oficial ? await comOficiais(item) : item;
   const antes = atual.valores?.[chave];
   const valores = { ...(atual.valores ?? {}) };
@@ -909,15 +910,15 @@ async function definirValor(itemId: number, corpo: unknown) {
     await registrar({ quadro_id: item.quadro_id, item_id: item.id, item_nome: item.nome, acao: 'alterou', coluna_id: coluna.id, coluna_titulo: coluna.titulo, de, para });
   }
   return { ...atual, valores, atualizado_em, pessoas };
-}
+});
 
 // Controle de tempo: iniciar, parar, lançar, corrigir ou apagar uma sessão. A conta é feita numa transação sobre o
 // valor gravado (não sobre o que a tela tinha), para duas pessoas não apagarem a sessão uma da outra.
-async function operarTempoItem(itemId: number, corpo: unknown) {
+export const operarTempoItem = emPortugues(async function operarTempoItem(itemId: number, corpo: unknown) {
   const { coluna_id, ...op } = (corpo ?? {}) as { coluna_id?: number } & OpTempo;
   const [item, coluna] = await Promise.all([buscar('itens', itemId), buscar('colunas', coluna_id)]);
-  if (!item || !coluna) throw new ErroApi(404, 'item ou coluna não encontrado');
-  if (coluna.quadro_id !== item.quadro_id || coluna.tipo !== 'tempo') throw new ErroApi(400, 'a coluna não é de controle de tempo deste quadro');
+  if (!item || !coluna) throw new Error('item ou coluna não encontrado');
+  if (coluna.quadro_id !== item.quadro_id || coluna.tipo !== 'tempo') throw new Error('a coluna não é de controle de tempo deste quadro');
   const chave = String(coluna.id);
   const atualizado_em = agora();
   let antes: unknown;
@@ -925,13 +926,13 @@ async function operarTempoItem(itemId: number, corpo: unknown) {
   try {
     await runTransaction(db, async t => {
       const s = await t.get(ref('itens', itemId));
-      if (!s.exists()) throw new ErroApi(404, 'item não encontrado');
+      if (!s.exists()) throw new Error('item não encontrado');
       antes = s.data().valores?.[chave];
-      depois = operarTempo(antes, op as OpTempo, eu().id);
+      depois = operarTempo(antes, op as OpTempo, meuUid());
       t.update(ref('itens', itemId), new FieldPath('valores', chave), depois == null ? deleteField() : depois, 'atualizado_em', atualizado_em);
     });
   } catch (e) {
-    if (e instanceof ErroTempo) throw new ErroApi(400, e.message);
+    if (e instanceof ErroTempo) throw new Error(e.message);
     throw e;
   }
   const config = coluna.config ?? {};
@@ -940,19 +941,19 @@ async function operarTempoItem(itemId: number, corpo: unknown) {
   const valores = { ...(item.valores ?? {}) };
   if (depois == null) delete valores[chave]; else valores[chave] = depois;
   return { ...item, valores, atualizado_em };
-}
+});
 
 // ------------------------------------------------------------------ arquivo, lixeira e exclusão definitiva
-async function mudarEstado(r: Recurso, id: number, acao: 'arquivar' | 'restaurar') {
-  if (!COM_ESTADO.has(r)) throw new ErroApi(400, acao === 'arquivar' ? 'não pode ser arquivado' : 'não pode ser restaurado');
+export const mudarEstado = emPortugues(async function mudarEstado(r: Recurso, id: number, acao: 'arquivar' | 'restaurar') {
+  if (!COM_ESTADO.has(r)) throw new Error(acao === 'arquivar' ? 'não pode ser arquivado' : 'não pode ser restaurado');
   const antes = await buscar(r, id);
-  if (!antes) throw new ErroApi(404, 'não encontrado');
+  if (!antes) throw new Error('não encontrado');
   const campos = acao === 'arquivar' ? { arquivado_em: agora() } : { arquivado_em: null, excluido_em: null };
   await updateDoc(ref(r, id), campos as DocumentData);
   if (r === 'itens' && antes.vinculo) await gravarOficial(id, 'situacao');
   if (r === 'itens') await registrar({ quadro_id: antes.quadro_id, item_id: antes.id, item_nome: antes.nome, acao: acao === 'arquivar' ? 'arquivou' : 'restaurou' });
   return { ...antes, ...campos };
-}
+});
 
 // Reúne o registro e tudo o que depende dele (como o ON DELETE CASCADE do protótipo).
 // `arquivos` junta os caminhos no Storage dos anexos apagados.
@@ -1014,7 +1015,7 @@ async function tirarDaColuna(anexo: Row) {
 
 // O que está arquivado ou na lixeira (quadros, grupos e itens), do mais recente para o mais antigo.
 // Abrir a lixeira também apaga de vez o que passou de 30 dias.
-async function arquivo(estado: string | undefined, quadroId: number | null) {
+export const arquivo = emPortugues(async function arquivo(estado: string | undefined, quadroId: number | null) {
   const lixeira = estado === 'lixeira';
   const campo = lixeira ? 'excluido_em' : 'arquivado_em';
   const doEstado = (x: Row) => x[campo] != null && (lixeira || x.excluido_em == null);
@@ -1052,7 +1053,7 @@ async function arquivo(estado: string | undefined, quadroId: number | null) {
   }
   const fora = new Set(vencidas);
   return linhas.filter(l => !fora.has(l)).slice(0, 1000).map(({ _r, ...l }) => { void _r; return { ...l, dias_restantes: lixeira ? restantes(l as Row) : null }; });
-}
+});
 
 // ------------------------------------------------------------------ meu trabalho, busca e avisos
 // Índices dos itens já existentes: gravados uma vez (marcador friday-meta/indices), por um adm2, que vê todos os quadros.
@@ -1068,7 +1069,7 @@ function garantirIndices(): Promise<boolean> {
 async function criarIndices(): Promise<boolean> {
   const marcador = doc(db, 'friday-meta', 'indices');
   if (Number((await getDoc(marcador)).data()?.versao) >= VERSAO_INDICES) return true;
-  if (!eu().admin) return false;
+  if (!(await souAdm2())) return false;
   const [itens, colunasPessoa] = await Promise.all([deVariosQuadros('itens', []), deVariosQuadros('colunas', [where('tipo', '==', 'pessoa')])]);
   const pessoaPorQuadro = new Map<number, Set<string>>();
   for (const c of colunasPessoa) {
@@ -1094,8 +1095,8 @@ async function criarIndices(): Promise<boolean> {
 type Consulta = { quadro: (id: unknown) => Promise<Row | undefined>; grupo: (id: unknown) => Promise<Row | undefined>; item: (id: unknown) => Promise<Row | undefined>; colunas: (quadroId: unknown) => Promise<Row[]> };
 
 // Itens em que a pessoa aparece em alguma coluna "pessoa", dos quadros que ela vê.
-async function meuTrabalho() {
-  const uid = eu().id;
+export const meuTrabalho = emPortugues(async function meuTrabalho() {
+  const uid = meuUid();
   // Com os índices, só os itens com a pessoa no índice; sem eles, todos os itens. Quadros, grupos e colunas, sob demanda.
   const itens = await deVariosQuadros('itens', (await garantirIndices()) ? [where('pessoas', 'array-contains', uid)] : []);
   const achar = memoria();
@@ -1104,7 +1105,7 @@ async function meuTrabalho() {
     quadro: id => achar('quadros', id), grupo: id => achar('grupos', id), item: id => achar('itens', id),
     colunas: qid => { if (!colunas.has(Number(qid))) colunas.set(Number(qid), consultar('colunas', { quadro_id: qid }).then(l => ordenar('colunas', l))); return colunas.get(Number(qid))!; },
   });
-}
+});
 
 async function montarMeuTrabalho(uid: string, itens: Row[], c: Consulta) {
   const out = [];
@@ -1139,7 +1140,7 @@ async function montarMeuTrabalho(uid: string, itens: Row[], c: Consulta) {
 // Busca por nome: com os índices, consulta os itens cujo nome tem uma palavra começando pela 1ª palavra digitada
 // e confere o termo inteiro aqui. Sem índices, lê os itens (com memória de 30 s) e filtra aqui.
 let itensBusca: { quando: number; lista: Promise<Row[]> } | null = null;
-async function busca(termo: string | undefined) {
+export const pesquisar = emPortugues(async function pesquisar(termo: string | undefined) {
   const t = semAcento(String(termo ?? '').trim());
   if (!t) return { quadros: [], itens: [] };
   let candidatos: Row[];
@@ -1171,7 +1172,7 @@ async function busca(termo: string | undefined) {
     // Subitem: abre o quadro principal no item pai.
     itens,
   };
-}
+});
 
 /**
  * As automações rodam no servidor (Function fridayAutomacoes), depois da gravação da tela. Cada execução fica em
@@ -1193,13 +1194,13 @@ export function observarAutomacoes(quadroId: number, aoRodar: () => void): () =>
 }
 
 // Lista do quadro com quantas vezes cada automação rodou e quando foi a última.
-async function automacoesDoQuadro(quadroId: number) {
+export const automacoesDoQuadro = emPortugues(async function automacoesDoQuadro(quadroId: number) {
   const [automacoes, execucoes] = await Promise.all([consultar('automacoes', { quadro_id: quadroId }), consultar('execucoes', { quadro_id: quadroId })]);
   return ordenar('automacoes', automacoes).map(a => {
     const ex = execucoes.filter(e => e.automacao_id === a.id);
     return { ...a, n_execucoes: ex.length, ultima_execucao: ex.map(e => String(e.criado_em)).sort().at(-1) ?? null, n_erros: ex.filter(e => !Number(e.ok)).length };
   });
-}
+});
 
 // ------------------------------------------------------------------ CRUD genérico
 // Favoritos por pessoa (friday-favoritos/{uid}: `quadros`, lista de ids). O campo `favorito` do quadro era de todos e
@@ -1207,7 +1208,7 @@ async function automacoesDoQuadro(quadroId: number) {
 // com os quadros que estavam marcados no campo antigo, para ninguém perder os seus.
 let favoritos: { uid: string; ids: Promise<Set<number>> } | undefined;
 function meusFavoritos(): Promise<Set<number>> {
-  const uid = eu().uid;
+  const uid = meuUid();
   if (favoritos?.uid !== uid) {
     const ids = (async () => {
       const r = doc(db, 'friday-favoritos', uid);
@@ -1230,11 +1231,11 @@ async function comFavorito<T extends Row | undefined>(q: T): Promise<T> {
 }
 async function marcarFavorito(quadroId: number, sim: boolean) {
   const ids = await meusFavoritos();
-  await setDoc(doc(db, 'friday-favoritos', eu().uid), { quadros: sim ? arrayUnion(quadroId) : arrayRemove(quadroId) }, { merge: true });
+  await setDoc(doc(db, 'friday-favoritos', meuUid()), { quadros: sim ? arrayUnion(quadroId) : arrayRemove(quadroId) }, { merge: true });
   if (sim) ids.add(quadroId); else ids.delete(quadroId);
 }
 
-async function listar(r: Recurso, q: Record<string, string>) {
+export const listar = emPortugues(async function listar(r: Recurso, q: Record<string, unknown> = {}) {
   const filtros: Record<string, unknown> = {};
   for (const [k, v] of Object.entries(q)) if (CAMPOS[r].includes(k)) filtros[k] = v;
   let rows = await consultar(r, filtros);
@@ -1247,21 +1248,21 @@ async function listar(r: Recurso, q: Record<string, string>) {
   }
   if (r === 'quadros') rows = await Promise.all(rows.map(comFavorito));
   return ordenar(r, rows).slice(0, Math.min(Number(q._limite) || 2000, 10000));
-}
+});
 
-async function obter(r: Recurso, id: number) {
+export const obter = emPortugues(async function obter(r: Recurso, id: number) {
   const row = await buscar(r, id);
-  if (!row) throw new ErroApi(404, 'não encontrado');
+  if (!row) throw new Error('não encontrado');
   return r === 'quadros' ? comFavorito(row) : row;
-}
+});
 
-async function criar(r: Recurso, corpo: unknown) {
-  if (SOMENTE_LEITURA.has(r) || r === 'anexos') throw new ErroApi(405, 'use a rota própria');
+export const criar = emPortugues(async function criar(r: Recurso, corpo: unknown) {
+  if (SOMENTE_LEITURA.has(r) || r === 'anexos') throw new Error(`${r}: use a função própria`);
   const b = { ...((corpo ?? {}) as Record<string, unknown>) };
   if (r === 'colunas' && !b.config) b.config = configPadrao(String(b.tipo));
   if (r === 'colunas' && !b.largura) b.largura = LARGURA_PADRAO[String(b.tipo)] ?? 140;
-  if ((r === 'itens' || r === 'automacoes') && !b.criado_por) b.criado_por = eu().id;
-  if (r === 'atualizacoes' && !b.usuario_id) b.usuario_id = eu().id;
+  if ((r === 'itens' || r === 'automacoes') && !b.criado_por) b.criado_por = meuUid();
+  if (r === 'atualizacoes' && !b.usuario_id) b.usuario_id = meuUid();
   const dados = limpar(r, b);
   if (r === 'atualizacoes') dados.quadro_id = (await buscar('itens', dados.item_id))?.quadro_id ?? null;
   const row = await inserir(r, dados);
@@ -1274,22 +1275,22 @@ async function criar(r: Recurso, corpo: unknown) {
   // O aviso não impede a publicação: se falhar, a atualização fica gravada.
   if (r === 'atualizacoes') await avisarMencoes(row).catch(e => console.warn('[friday] aviso de menção não gravado', e));
   return row;
-}
+});
 
-async function atualizar(r: Recurso, id: number, corpo: unknown): Promise<Row> {
-  if (SOMENTE_LEITURA.has(r)) throw new ErroApi(405, 'somente leitura');
+export const atualizar = emPortugues(async function atualizar(r: Recurso, id: number, corpo: unknown): Promise<Row> {
+  if (SOMENTE_LEITURA.has(r)) throw new Error('somente leitura');
   // Favorito: da pessoa, fora do documento do quadro.
   if (r === 'quadros' && corpo && typeof corpo === 'object' && 'favorito' in corpo) {
     const { favorito, ...resto } = corpo as Record<string, unknown>;
     const quadro = Object.keys(resto).length ? await atualizar(r, id, resto) : await buscar(r, id);
-    if (!quadro) throw new ErroApi(404, 'não encontrado');
+    if (!quadro) throw new Error('não encontrado');
     await marcarFavorito(id, !!Number(favorito));
     return comFavorito(quadro);
   }
   const antes = await buscar(r, id);
-  if (!antes) throw new ErroApi(404, 'não encontrado');
+  if (!antes) throw new Error('não encontrado');
   // Atualização já publicada: só quem escreveu altera.
-  if (r === 'atualizacoes' && String(antes.usuario_id) !== eu().id) throw new ErroApi(403, 'Só quem escreveu pode alterar esta atualização.');
+  if (r === 'atualizacoes' && String(antes.usuario_id) !== meuUid()) throw new Error('Só quem escreveu pode alterar esta atualização.');
   const dados = limpar(r, corpo);
   const mudou = Object.keys(dados).filter(k => !igual(antes[k], dados[k]));
   if (!mudou.length) return antes;
@@ -1298,7 +1299,7 @@ async function atualizar(r: Recurso, id: number, corpo: unknown): Promise<Row> {
     // Campo oficial: rótulos e opções podem ser acrescentados, mas não removidos (os dados oficiais usam os códigos deles).
     if (oficial.campo.rotulos?.length) {
       const novos = new Set(((((dados.config as Record<string, unknown>)?.[oficial.campo.tipo === 'status' ? 'rotulos' : 'opcoes'] ?? []) as { id: string }[]).map(x => String(x.id))));
-      if (oficial.campo.rotulos.some(x => !novos.has(x.friday_id))) throw new ErroApi(409, `“${antes.titulo}” é um campo oficial: rótulos podem ser acrescentados, mas não removidos.`);
+      if (oficial.campo.rotulos.some(x => !novos.has(x.friday_id))) throw new Error(`“${antes.titulo}” é um campo oficial: rótulos podem ser acrescentados, mas não removidos.`);
     }
   }
   const campos: Record<string, unknown> = Object.fromEntries(mudou.map(k => [k, dados[k]]));
@@ -1306,7 +1307,7 @@ async function atualizar(r: Recurso, id: number, corpo: unknown): Promise<Row> {
   // Atualização editada: guarda só quando foi editada (sem histórico de versões); a tela mostra "editado".
   if (r === 'atualizacoes' && mudou.includes('texto')) campos.editado_em = agora();
   if (r === 'itens' && mudou.includes('nome') && antes.vinculo && antes.vinculo.sub == null && (await registroDe(antes.vinculo.cadastro))?.nome_espelho?.length) {
-    throw new ErroApi(409, NOME_TRAVADO);
+    throw new Error(NOME_TRAVADO);
   }
   if (r === 'itens' && mudou.includes('nome')) campos.busca = prefixosBusca(dados.nome);
   await updateDoc(ref(r, id), campos as DocumentData);
@@ -1335,14 +1336,14 @@ async function atualizar(r: Recurso, id: number, corpo: unknown): Promise<Row> {
     await avisarMencoes({ ...antes, ...campos }, antes.mencoes).catch(e => console.warn('[friday] aviso de menção não gravado', e));
   }
   return { ...antes, ...campos };
-}
+});
 
-async function excluir(r: Recurso, id: number, definitivo: boolean) {
-  if (SOMENTE_LEITURA.has(r)) throw new ErroApi(405, 'não pode ser excluído');
+export const excluir = emPortugues(async function excluir(r: Recurso, id: number, definitivo = false) {
+  if (SOMENTE_LEITURA.has(r)) throw new Error('não pode ser excluído');
   const antes = await buscar(r, id);
-  if (!antes) throw new ErroApi(404, 'não encontrado');
-  if (r === 'atualizacoes' && String(antes.usuario_id) !== eu().id) throw new ErroApi(403, 'Só quem escreveu pode apagar esta atualização.');
-  if (r === 'colunas' && await campoOficialDa(antes)) throw new ErroApi(409, `“${antes.titulo}” é um campo oficial e não pode ser excluído.`);
+  if (!antes) throw new Error('não encontrado');
+  if (r === 'atualizacoes' && String(antes.usuario_id) !== meuUid()) throw new Error('Só quem escreveu pode apagar esta atualização.');
+  if (r === 'colunas' && await campoOficialDa(antes)) throw new Error(`“${antes.titulo}” é um campo oficial e não pode ser excluído.`);
   // Itens, grupos e quadros vão para a lixeira (restauráveis por 30 dias).
   if (COM_ESTADO.has(r) && !definitivo) {
     await updateDoc(ref(r, id), { excluido_em: agora() });
@@ -1354,63 +1355,7 @@ async function excluir(r: Recurso, id: number, definitivo: boolean) {
     if (r === 'anexos' && antes.coluna_id != null) await tirarDaColuna(antes);
   }
   if (r === 'itens') await registrar({ quadro_id: antes.quadro_id, item_id: id, item_nome: antes.nome, acao: 'excluiu' });
-}
-
-// ------------------------------------------------------------------ "rotas" (o mesmo contrato do servidor do protótipo)
-async function rotear(metodo: string, url: string, corpo?: unknown): Promise<unknown> {
-  const [caminho, qs] = url.split('?');
-  const q = Object.fromEntries(new URLSearchParams(qs ?? ''));
-  const p = caminho.replace(/^\/+|\/+$/g, '').split('/');
-  eu();
-  if (p[0] === 'auth') {
-    if (p[1] === 'eu' && metodo === 'GET') return eu();
-    if (p[1] === 'sair') return { ok: true };
-    throw new ErroApi(410, 'O login do Friday é o login do sistema.');
-  }
-  if (p[0] === 'admin') throw new ErroApi(501, 'Pessoas e acessos chegam na etapa de credenciais.');
-  if (p[0] === 'permissoes' && p[1] === 'quadro' && p.length === 3) {
-    if (metodo === 'GET') return lerPermissoes(Number(p[2]));
-    if (metodo === 'PUT') return gravarPermissoes(Number(p[2]), corpo);
-  }
-  if (p[0] === 'busca' && metodo === 'GET') return busca(q.q);
-  if (p[0] === 'meu-trabalho' && metodo === 'GET') return meuTrabalho();
-  if (p[0] === 'historico' && metodo === 'GET') return historico(q.usuario_id);
-  if (p[0] === 'arquivo' && metodo === 'GET') return arquivo(q.estado, Number(q.quadro_id) || null);
-  if (p[0] === 'quadros' && p.length === 3) {
-    const id = Number(p[1]);
-    if (p[2] === 'completo' && metodo === 'GET') return completo(id);
-    if (p[2] === 'subitens' && metodo === 'POST') return criarSubitens(id);
-    if (p[2] === 'importar' && metodo === 'POST') return importar(id, corpo);
-    if (p[2] === 'duplicar' && metodo === 'POST') return duplicarQuadro(id, corpo);
-    if (p[2] === 'automacoes' && metodo === 'GET') return automacoesDoQuadro(id);
-  }
-  if ((p[0] === 'quadros' || p[0] === 'pastas') && p[2] === 'mover-area' && metodo === 'POST') return moverParaArea(p[0], Number(p[1]), corpo);
-  if (p[0] === 'itens' && p[2] === 'duplicar' && metodo === 'POST') return duplicarItem(Number(p[1]));
-  if (p[0] === 'itens' && p[2] === 'valor' && metodo === 'PATCH') return definirValor(Number(p[1]), corpo);
-  if (p[0] === 'itens' && p[2] === 'tempo' && metodo === 'POST') return operarTempoItem(Number(p[1]), corpo);
-  if (p.length === 3 && (p[2] === 'arquivar' || p[2] === 'restaurar') && metodo === 'POST') return mudarEstado(recurso(p[0]), Number(p[1]), p[2]);
-  const r = recurso(p[0]);
-  if (p.length === 1 && metodo === 'GET') return listar(r, q);
-  if (p.length === 1 && metodo === 'POST') return criar(r, corpo);
-  if (p.length === 2) {
-    const id = Number(p[1]);
-    if (metodo === 'GET') return obter(r, id);
-    if (metodo === 'PATCH') return atualizar(r, id, corpo);
-    if (metodo === 'DELETE') return excluir(r, id, !!q.definitivo);
-  }
-  throw new ErroApi(404, `rota desconhecida: ${metodo} ${url}`);
-}
-
-export async function req<T>(method: string, url: string, body?: unknown): Promise<T> {
-  try {
-    return (await rotear(method.toUpperCase(), url, body)) as T;
-  } catch (e) {
-    if (e instanceof ErroApi && e.status === 401) window.dispatchEvent(new Event(SEM_SESSAO));
-    // Recusa das regras do Firestore: mensagem em português.
-    if ((e as { code?: string }).code === 'permission-denied') throw new Error('Sem permissão para esta ação no Friday.');
-    throw e;
-  }
-}
+});
 
 // Anexos: o arquivo vai para o Storage (friday/<quadro>/<item>/<anexo>-<nome>) e o registro para friday-anexos.
 const LIMITE_ANEXO = 25 * 1024 * 1024;
@@ -1431,7 +1376,7 @@ export async function enviarArquivo(itemId: number, arquivo: File, atualizacaoId
   try {
     const row: Row = {
       id, item_id: itemId, quadro_id: item.quadro_id, atualizacao_id: atualizacaoId ?? null, coluna_id: colunaId ?? null, nome: arquivo.name, mime,
-      tamanho: arquivo.size, arquivo: caminho, url: await getDownloadURL(alvo), usuario_id: eu().id, criado_em: agora(), origem_id: null,
+      tamanho: arquivo.size, arquivo: caminho, url: await getDownloadURL(alvo), usuario_id: meuUid(), criado_em: agora(), origem_id: null,
     };
     await setDoc(ref('anexos', id), row);
     return row;
@@ -1451,13 +1396,3 @@ export const copiarArquivosMonday = httpsCallable<{ quadroId: number }, { copiad
 export const trazerAtualizacoesMonday = httpsCallable<{ quadroId: number }, { trazidas: number; restantes: number; falhas: string[] }>(
   functions, 'fridayAtualizacoesMonday', { timeout: 560_000 });
 
-export const api = {
-  list: (r: string, filtros: Record<string, string | number> = {}) => {
-    const q = new URLSearchParams(Object.entries(filtros).map(([k, v]) => [k, String(v)])).toString();
-    return req<Row[]>('GET', q ? `${r}?${q}` : r);
-  },
-  get: (r: string, id: number) => req<Row>('GET', `${r}/${id}`),
-  create: (r: string, dados: Record<string, unknown>) => req<Row>('POST', r, dados),
-  update: (r: string, id: number, dados: Record<string, unknown>) => req<Row>('PATCH', `${r}/${id}`, dados),
-  remove: (r: string, id: number) => req<void>('DELETE', `${r}/${id}`),
-};

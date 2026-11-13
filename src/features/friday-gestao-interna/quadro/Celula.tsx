@@ -1,6 +1,6 @@
 import { useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { AlertCircle, AlertTriangle, Check, CheckCircle2, Circle, Download, ExternalLink, Lock, Paperclip, Pencil, Plus, Search, Star, Trash2, Upload, UserPlus, X } from 'lucide-react';
-import { api, copiarArquivosMonday, enviarArquivo, type Pessoa, type Row } from '../api.ts';
+import { copiarArquivosMonday, enviarArquivo, excluir, listar, type Pessoa, type Row } from '../api.ts';
 import { useNav } from '../nav.tsx';
 import { calcular, textoResultado } from './formula.ts';
 import { IconeTipo, urlArquivo } from './Atualizacoes.tsx';
@@ -375,7 +375,7 @@ function CelulaLink({ valor, onMudar }: CelulaProps) {
 const cacheItens = new Map<number, Promise<Row[]>>();
 export function itensDoQuadro(quadroId: number, renovar = false) {
   // Quadro ligado que a pessoa não vê: nenhum item (as tags ficam com "…").
-  if (renovar || !cacheItens.has(quadroId)) cacheItens.set(quadroId, api.list('itens', { quadro_id: quadroId }).catch(() => []));
+  if (renovar || !cacheItens.has(quadroId)) cacheItens.set(quadroId, listar('itens', { quadro_id: quadroId }).catch(() => []));
   return cacheItens.get(quadroId)!;
 }
 function useItensDoQuadro(quadroId: number | null | undefined) {
@@ -392,7 +392,7 @@ function CelulaLigacao({ coluna, valor, onMudar, onConfig }: CelulaProps) {
   const itens = useItensDoQuadro(alvo);
   const ids = (valor ?? []) as number[];
   const nomes = useMemo(() => new Map(itens.map(i => [i.id, i.nome])), [itens]);
-  useEffect(() => { if (pop.aberto && !alvo) api.list('quadros').then(setQuadros); }, [pop.aberto, alvo]);
+  useEffect(() => { if (pop.aberto && !alvo) listar('quadros').then(setQuadros); }, [pop.aberto, alvo]);
   const alternar = (id: number) => onMudar(ids.includes(id) ? ids.filter(x => x !== id) : [...ids, id]);
   return (
     <>
@@ -507,7 +507,7 @@ function CelulaArquivos({ coluna, valor, onMudar, item }: CelulaProps) {
                   : <span title="Este arquivo ainda está só no monday">{a.nome} <small className="selo-monday">no monday</small></span>}
                 {a.id && <a className="btn-icone" href={urlArquivo({ ...a, id: a.id }, true)} title="Baixar"><Download size={14} /></a>}
                 <button className="btn-icone" title="Remover da coluna" onClick={async () => {
-                  if (a.id) await api.remove('anexos', a.id);
+                  if (a.id) await excluir('anexos', a.id);
                   onMudar(lista.filter((_, j) => j !== k));
                 }}><Trash2 size={14} /></button>
               </div>

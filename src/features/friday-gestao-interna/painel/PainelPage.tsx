@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { useNavigate } from '../rotas.tsx';
 import { AlertTriangle, ArrowDown, ArrowUp, BarChart3, CalendarRange, Copy, Database, Eye, Filter, HardHat, LayoutDashboard, Lock, MoreHorizontal, Pencil, PieChart, Plus, Sparkles, Star, Trash2, X } from 'lucide-react';
-import { api, req, salvarFiltroGeralDoPainel, type Row } from '../api.ts';
+import { atualizar, completo, excluir, salvarFiltroGeralDoPainel, type Row } from '../api.ts';
 import { useNav } from '../nav.tsx';
 import { itensDoQuadro } from '../quadro/Celula.tsx';
 import { Editavel, Menu, Modal, Popover, useConfirmar, usePopover } from '../ui/base.tsx';
@@ -59,7 +59,7 @@ export default function PainelPage({ painelId }: { painelId: number }) {
 
   useEffect(() => {
     setPainel(null); setErro(''); setOcultos([]); setGeralLocal(null);
-    req<{ quadro: Row }>('GET', `quadros/${painelId}/completo`).then(r => setPainel(r.quadro)).catch(e => setErro(e.message));
+    completo(painelId).then(r => setPainel(r.quadro)).catch(e => setErro(e.message));
   }, [painelId]);
 
   // Itens de cada quadro de origem (cada um respeita a permissão de quem está vendo).
@@ -69,7 +69,7 @@ export default function PainelPage({ painelId }: { painelId: number }) {
     let vivo = true;
     setCarregando(true);
     const ids = chave.split(',').map(Number);
-    Promise.all(ids.map(id => req<DadosQuadro>('GET', `quadros/${id}/completo`).catch(() => null))).then(lista => {
+    Promise.all(ids.map(id => completo(id).then(d => d as unknown as DadosQuadro, () => null))).then(lista => {
       if (!vivo) return;
       setDados(lista.filter((d): d is DadosQuadro => !!d));
       setSemAcesso(ids.filter((_, i) => !lista[i]));
@@ -93,11 +93,11 @@ export default function PainelPage({ painelId }: { painelId: number }) {
     if (!painel) return;
     const novo = { ...config, ...mudar };
     setPainel({ ...painel, config: novo });
-    await api.update('quadros', painelId, { config: novo });
+    await atualizar('quadros', painelId, { config: novo });
   }, [painel, config, painelId]);
   const atualizarPainel = async (campos: Record<string, unknown>) => {
     setPainel(p => (p ? { ...p, ...campos } : p));
-    await api.update('quadros', painelId, campos);
+    await atualizar('quadros', painelId, campos);
     nav.recarregar();
   };
 
@@ -145,7 +145,7 @@ export default function PainelPage({ painelId }: { painelId: number }) {
           {podeEditar && <button className="fr-btn" onClick={() => setEscolherQuadros(true)}><Database size={15} /> Quadros ({idsQuadros.length})</button>}
           {podeEditar && <button className="fr-btn btn-primario" disabled={!dados.length} onClick={() => setEditando(widgetNovo())}><Plus size={15} /> Adicionar widget</button>}
           {podeEditar && <MenuPainel onVendas={usarVendas} onObras={usarObras} podeModelo={!!dados.length} classica={classica} onAparencia={() => salvar({ aparencia: classica ? undefined : 'classica' })}
-            onExcluir={async () => { if (await confirmar(`Mover o painel “${painel.nome}” para a lixeira? Dá para restaurar por 30 dias.`)) { await api.remove('quadros', painelId); await nav.recarregar(); navigate('/'); } }} />}
+            onExcluir={async () => { if (await confirmar(`Mover o painel “${painel.nome}” para a lixeira? Dá para restaurar por 30 dias.`)) { await excluir('quadros', painelId); await nav.recarregar(); navigate('/'); } }} />}
         </div>
         <Editavel valor={String(painel.descricao ?? '')} placeholder="Adicionar descrição do painel" className="quadro-desc" onSalvar={v => { if (podeEditar) atualizarPainel({ descricao: v || null }); }} />
         {!podeEditar && <div className="aviso-leitura"><Eye size={15} /> Você pode ver este painel, mas não alterar.</div>}

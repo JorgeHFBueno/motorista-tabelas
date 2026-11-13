@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { FileSpreadsheet, Upload } from 'lucide-react';
-import { req, type Pessoa, type Row } from '../api.ts';
+import { criarSubitens, importarItens, type Pessoa } from '../api.ts';
 import { Modal } from '../ui/base.tsx';
 import { CORES, fmtData, hojeISO } from '../util.ts';
 import { lerPlanilhas, type Bruto, type Planilha } from './excel.ts';
@@ -179,7 +179,7 @@ export function ImportarExcel({ quadroId, nomeItem, colunas, grupos, sub, acoes,
       let nSub = 0;
       if (abaSub && comSubitens) {
         let colsSub = sub?.colunas ?? [];
-        if (!sub) colsSub = ((await req<Row>('POST', `quadros/${quadroId}/subitens`)).colunas ?? []) as Coluna[];
+        if (!sub) colsSub = ((await criarSubitens(quadroId)).colunas ?? []) as Coluna[];
         const kp = abaSub.cabecalho.findIndex(h => normal(h) === 'item pai');
         const ks = abaSub.cabecalho.findIndex(h => normal(h) === 'subitem');
         const porNome = new Map<string, (typeof itens)[number]>();
@@ -206,7 +206,7 @@ export function ImportarExcel({ quadroId, nomeItem, colunas, grupos, sub, acoes,
       let criados = 0;
       for (let k = 0; k < itens.length; k += LOTE) {
         setProgresso(`Enviando ${Math.min(k + LOTE, itens.length)} de ${itens.length}…`);
-        const r = await req<{ criados: number }>('POST', `quadros/${quadroId}/importar`, { itens: itens.slice(k, k + LOTE) });
+        const r = await importarItens(quadroId, { itens: itens.slice(k, k + LOTE) });
         criados += r.criados;
       }
       await acoes.recarregar();

@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { History } from 'lucide-react';
 import { useNavigate } from '../rotas.tsx';
-import { req, type Row } from '../api.ts';
+import { historico, type Row } from '../api.ts';
 import { useNav } from '../nav.tsx';
 import { DescricaoAtividade } from '../quadro/PainelItem.tsx';
 
@@ -19,7 +19,7 @@ export default function Historico() {
   useEffect(() => {
     let vivo = true;
     setLista(null);
-    req<Row[]>('GET', `historico?usuario_id=${encodeURIComponent(uid)}`)
+    historico(uid)
       .then(l => { if (vivo) { setLista(l); setErro(null); } })
       .catch(e => { if (vivo) setErro((e as Error).message); });
     return () => { vivo = false; };

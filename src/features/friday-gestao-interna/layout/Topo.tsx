@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from '../rotas.tsx';
 import { ChevronsRight, LayoutGrid, Search } from 'lucide-react';
-import { req, type Row } from '../api.ts';
+import { pesquisar, type Row } from '../api.ts';
 import { Popover, usePopover } from '../ui/base.tsx';
 
 // Barra superior: busca global. O menu do usuário e o sino de avisos ficam no cabeçalho do sistema (components/Header.tsx).
@@ -14,7 +14,7 @@ export function Topo({ lateralRecolhida, onExpandir }: { lateralRecolhida: boole
   useEffect(() => {
     const t = busca.trim();
     if (!t) { setRes(null); return; }
-    const h = setTimeout(() => req<{ quadros: Row[]; itens: Row[] }>('GET', `busca?q=${encodeURIComponent(t)}`).then(setRes), 200);
+    const h = setTimeout(() => pesquisar(t).then(setRes), 200);
     return () => clearTimeout(h);
   }, [busca]);
 

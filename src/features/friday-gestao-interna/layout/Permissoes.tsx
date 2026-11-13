@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Lock, Trash2, Unlock } from 'lucide-react';
-import { req } from '../api.ts';
+import { gravarPermissoes, lerPermissoes } from '../api.ts';
 import { useNav } from '../nav.tsx';
 import { Avatar, Modal, useAvisoRapido } from '../ui/base.tsx';
 
@@ -13,7 +13,7 @@ export function Permissoes({ id, nome, onFechar }: { id: number; nome: string; o
   const [lista, setLista] = useState<string[] | null>(null);
   const [erro, setErro] = useState('');
   useEffect(() => {
-    req<{ restrito: boolean; lista: string[] }>('GET', `permissoes/quadro/${id}`)
+    lerPermissoes(id)
       .then(r => { setRestrito(r.restrito); setLista(r.lista); })
       .catch(e => setErro((e as Error).message));
   }, [id]);
@@ -22,7 +22,7 @@ export function Permissoes({ id, nome, onFechar }: { id: number; nome: string; o
   const fora = nav.usuarios.filter(u => u.ativo && u.friday && !u.adm2 && !lista?.includes(u.id));
   const salvar = async () => {
     try {
-      await req('PUT', `permissoes/quadro/${id}`, { restrito, lista: restrito ? lista : [] });
+      await gravarPermissoes(id, { restrito, lista: restrito ? lista : [] });
       await nav.recarregar();
       avisar(restrito ? `“${nome}” agora é restrito.` : `“${nome}” está aberto para a equipe.`);
       onFechar();

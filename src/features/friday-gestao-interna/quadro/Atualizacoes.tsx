@@ -4,7 +4,7 @@ import {
   Lock, MessageCircle, MoreHorizontal, Paperclip, Pencil, Reply, Trash2, Upload, X,
 } from 'lucide-react';
 import { marcadosSemAcesso } from '../avisos.ts';
-import { api, enviarArquivo, marcarAtualizacoesLidas, type Pessoa, type Row } from '../api.ts';
+import { atualizar, criar, enviarArquivo, excluir, listar, marcarAtualizacoesLidas, obter, type Pessoa, type Row } from '../api.ts';
 import { useNav } from '../nav.tsx';
 import { Avatar, Menu, Popover, useConfirmar, usePopover } from '../ui/base.tsx';
 import type { Item } from './tipos.ts';
@@ -89,7 +89,7 @@ export function Composer({ item, respostaDe, compacto, onPublicado, onCancelar, 
   const [quadro, setQuadro] = useState<Row | null>(null);
   useEffect(() => {
     let vivo = true;
-    api.get('quadros', item.quadro_id).then(q => { if (vivo) setQuadro(q); }, () => { if (vivo) setQuadro(null); });
+    obter('quadros', item.quadro_id).then(q => { if (vivo) setQuadro(q); }, () => { if (vivo) setQuadro(null); });
     return () => { vivo = false; };
   }, [item.quadro_id]);
   const semAcesso = marcadosSemAcesso(quadro, mencoes
@@ -142,7 +142,7 @@ export function Composer({ item, respostaDe, compacto, onPublicado, onCancelar, 
         return;
       }
       setEnviando('Publicando…');
-      const a = await api.create('atualizacoes', { item_id: item.id, usuario_id: nav.usuario?.id, texto: final || ' ', mencoes: ids, resposta_de: respostaDe ?? null });
+      const a = await criar('atualizacoes', { item_id: item.id, usuario_id: nav.usuario?.id, texto: final || ' ', mencoes: ids, resposta_de: respostaDe ?? null });
       const anexos: Row[] = [];
       for (const [i, f] of arquivos.entries()) {
         setEnviando(`Enviando arquivo ${i + 1} de ${arquivos.length}…`);
@@ -243,7 +243,7 @@ export function Atualizacoes({ item, acoes }: { item: Item; acoes: Acoes }) {
   const [anexos, setAnexos] = useState<Row[]>([]);
   useEffect(() => {
     const filtro = { quadro_id: item.quadro_id, item_id: item.id };
-    Promise.all([api.list('atualizacoes', filtro), api.list('anexos', filtro)]).then(([a, x]) => {
+    Promise.all([listar('atualizacoes', filtro), listar('anexos', filtro)]).then(([a, x]) => {
       setLista(a); setAnexos(x);
       // Abriu as atualizações: tudo lido (a bolha do item fica cinza).
       const ultima = Math.max(0, ...a.map(u => Number(u.id)));
@@ -285,7 +285,7 @@ function TextoOuEdicao({ a, item, editando, onFim, onEditado }: { a: Row; item: 
   if (!editando) return <TextoAtualizacao texto={a.texto} />;
   return (
     <Composer item={item} compacto edicao={a.texto} onCancelar={onFim}
-      onSalvar={async (texto, mencoes) => { onEditado(await api.update('atualizacoes', a.id, { texto, mencoes })); onFim(); }} />
+      onSalvar={async (texto, mencoes) => { onEditado(await atualizar('atualizacoes', a.id, { texto, mencoes })); onFim(); }} />
   );
 }
 
@@ -343,7 +343,7 @@ function Cabecalho({ a, pequeno, onRemovido, onEditar }: { a: Row; pequeno?: boo
           {menu.aberto && (
             <Popover ancora={menu.ref.current} onClose={menu.fechar} alinhar="fim" largura={200}>
               <Menu onEscolher={menu.fechar} itens={[{ rotulo: 'Editar', icone: <Pencil size={15} />, onClick: onEditar }, { rotulo: 'Excluir', icone: <Trash2 size={15} />, perigo: true, onClick: async () => {
-                if (await confirmar('Excluir esta atualização, as respostas e os arquivos dela?')) { await api.remove('atualizacoes', a.id); onRemovido(); }
+                if (await confirmar('Excluir esta atualização, as respostas e os arquivos dela?')) { await excluir('atualizacoes', a.id); onRemovido(); }
               } }]} />
             </Popover>
           )}
@@ -361,7 +361,7 @@ export function Arquivos({ item, onContagem }: { item: Item; onContagem?: (n: nu
   const [anexos, setAnexos] = useState<Row[] | null>(null);
   const [enviando, setEnviando] = useState<string | null>(null);
   const [arrastando, setArrastando] = useState(false);
-  useEffect(() => { api.list('anexos', { quadro_id: item.quadro_id, item_id: item.id }).then(setAnexos); }, [item.id, item.quadro_id]);
+  useEffect(() => { listar('anexos', { quadro_id: item.quadro_id, item_id: item.id }).then(setAnexos); }, [item.id, item.quadro_id]);
   const avisar = useRef(onContagem);
   avisar.current = onContagem;
   useEffect(() => { if (anexos) avisar.current?.(anexos.length); }, [anexos]);
@@ -391,7 +391,7 @@ export function Arquivos({ item, onContagem }: { item: Item; onContagem?: (n: nu
             <small className="muted">{fmtTamanho(a.tamanho ?? 0)} · {quem(a.usuario_id)} · {tempoRelativo(a.criado_em)}{a.atualizacao_id ? ' · em uma atualização' : ''}</small>
           </div>
           <a className="btn-icone" href={urlArquivo(a, true)} title="Baixar"><Download size={15} /></a>
-          <button className="btn-icone" title="Excluir" onClick={async () => { if (await confirmar(`Excluir o arquivo “${a.nome}”?`)) { await api.remove('anexos', a.id); setAnexos(x => x && x.filter(y => y.id !== a.id)); } }}><Trash2 size={15} /></button>
+          <button className="btn-icone" title="Excluir" onClick={async () => { if (await confirmar(`Excluir o arquivo “${a.nome}”?`)) { await excluir('anexos', a.id); setAnexos(x => x && x.filter(y => y.id !== a.id)); } }}><Trash2 size={15} /></button>
         </div>
       ))}
     </div>

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { api, observarAutomacoes, req, type Row } from '../api.ts';
+import { atualizar, completo, criar, criarSubitens, duplicarItem, excluir, gravarValor, mudarEstado, observarAutomacoes, operarTempoItem, type Row } from '../api.ts';
 import { useAvisoRapido } from '../ui/base.tsx';
 import { posEntre } from '../util.ts';
 import { colunaDoMenu, type Coluna, type Grupo, type Item, type Sub, type TipoMenu, type Visao } from './tipos.ts';
@@ -25,7 +25,7 @@ export function useQuadro(quadroId: number) {
 
   const recarregar = useCallback(async () => {
     try {
-      const d = await req<Dados>('GET', `quadros/${quadroId}/completo`);
+      const d = (await completo(quadroId)) as unknown as Dados;
       if (atual.current === quadroId) { setDados(d); setErro(null); }
     } catch (e) { setErro((e as Error).message); }
   }, [quadroId]);
@@ -78,7 +78,7 @@ export function useQuadro(quadroId: number) {
     })));
     return naFila(async () => {
       for (let k = 0; k < mudancas.length; k += 10) {
-        await gravar(Promise.all(mudancas.slice(k, k + 10).map(m => req('PATCH', `itens/${m.itemId}/valor`, { coluna_id: colunaId, valor: m.valor }))));
+        await gravar(Promise.all(mudancas.slice(k, k + 10).map(m => gravarValor(m.itemId, { coluna_id: colunaId, valor: m.valor }))));
       }
     });
   };
@@ -104,7 +104,7 @@ export function useQuadro(quadroId: number) {
   const garantirSub = async (): Promise<Sub> => {
     const s = dados?.sub;
     if (s?.grupo_id) return s;
-    const q = await req<Row>('POST', `quadros/${quadroId}/subitens`);
+    const q = (await criarSubitens(quadroId)) as Row;
     const novo: Sub = { quadro_id: q.id, grupo_id: q.grupo_id, nome_item: s?.nome_item ?? q.nome_item, colunas: s?.colunas.length ? s.colunas : (q.colunas as Coluna[]), itens: s?.itens ?? [] };
     mudar(d => ({ ...d, sub: { ...novo, itens: d.sub?.itens ?? [] } }));
     return novo;
@@ -116,45 +116,45 @@ export function useQuadro(quadroId: number) {
     // ---------------- quadro e visões
     atualizarQuadro: (campos: Record<string, unknown>) => {
       mudar(d => ({ ...d, quadro: { ...d.quadro, ...campos } }));
-      return gravar(api.update('quadros', quadroId, campos));
+      return gravar(atualizar('quadros', quadroId, campos));
     },
     criarVisao: async (nome: string, tipo: Visao['tipo'], coluna_id?: number, config: Visao['config'] = {}) => {
-      const v = (await api.create('visoes', { quadro_id: quadroId, nome, tipo, config: { ...config, ...(coluna_id ? { coluna_id } : {}) } })) as Visao;
+      const v = (await criar('visoes', { quadro_id: quadroId, nome, tipo, config: { ...config, ...(coluna_id ? { coluna_id } : {}) } })) as Visao;
       mudar(d => ({ ...d, visoes: [...d.visoes, v] }));
       return v;
     },
     atualizarVisao: (id: number, campos: Partial<Visao>) => {
       mudar(d => ({ ...d, visoes: d.visoes.map(v => (v.id === id ? { ...v, ...campos } : v)) }));
-      return gravar(api.update('visoes', id, campos));
+      return gravar(atualizar('visoes', id, campos));
     },
     excluirVisao: (id: number) => {
       mudar(d => ({ ...d, visoes: d.visoes.filter(v => v.id !== id) }));
-      return gravar(api.remove('visoes', id));
+      return gravar(excluir('visoes', id));
     },
 
     // ---------------- grupos
     criarGrupo: async (nome = 'Novo grupo', noTopo = true, cor?: string) => {
       const gs = dados?.grupos ?? [];
       const posicao = noTopo ? posEntre(null, gs[0]?.posicao) : posEntre(gs.at(-1)?.posicao, null);
-      const g = (await api.create('grupos', { quadro_id: quadroId, nome, posicao, cor: cor ?? '#579bfc' })) as Grupo;
+      const g = (await criar('grupos', { quadro_id: quadroId, nome, posicao, cor: cor ?? '#579bfc' })) as Grupo;
       mudar(d => ({ ...d, grupos: [...d.grupos, g].sort(porPosicao) }));
       return g;
     },
     atualizarGrupo: (id: number, campos: Partial<Grupo>) => {
       mudar(d => ({ ...d, grupos: d.grupos.map(g => (g.id === id ? { ...g, ...campos } : g)).sort(porPosicao) }));
-      return gravar(api.update('grupos', id, campos));
+      return gravar(atualizar('grupos', id, campos));
     },
     // Excluir manda para a lixeira; arquivar guarda fora da vista. Os dois podem ser restaurados.
     excluirGrupo: (id: number) => {
       mudar(d => ({ ...d, grupos: d.grupos.filter(g => g.id !== id), itens: d.itens.filter(i => i.grupo_id !== id) }));
-      return gravar(api.remove('grupos', id));
+      return gravar(excluir('grupos', id));
     },
     arquivarGrupo: (id: number) => {
       mudar(d => ({ ...d, grupos: d.grupos.filter(g => g.id !== id), itens: d.itens.filter(i => i.grupo_id !== id) }));
-      return gravar(req('POST', `grupos/${id}/arquivar`));
+      return gravar(mudarEstado('grupos', id, 'arquivar'));
     },
     restaurar: async (r: 'itens' | 'grupos', ids: number[]) => {
-      await gravar(Promise.all(ids.map(id => req('POST', `${r}/${id}/restaurar`))));
+      await gravar(Promise.all(ids.map(id => mudarEstado(r, id, 'restaurar'))));
       await recarregar();
     },
 
@@ -163,42 +163,42 @@ export function useQuadro(quadroId: number) {
       const cs = dados?.colunas ?? [];
       const idx = aposPosicao == null ? cs.length - 1 : cs.findIndex(c => c.posicao === aposPosicao);
       const posicao = posEntre(cs[idx]?.posicao ?? null, cs[idx + 1]?.posicao ?? null);
-      const c = (await api.create('colunas', { quadro_id: quadroId, ...colunaDoMenu(tipoMenu), titulo, posicao })) as Coluna;
+      const c = (await criar('colunas', { quadro_id: quadroId, ...colunaDoMenu(tipoMenu), titulo, posicao })) as Coluna;
       mudar(d => ({ ...d, colunas: [...d.colunas, c].sort(porPosicao) }));
       return c;
     },
     criarColunaSub: async (tipoMenu: TipoMenu, titulo: string) => {
       const s = await garantirSub();
-      const c = (await api.create('colunas', { quadro_id: s.quadro_id, ...colunaDoMenu(tipoMenu), titulo })) as Coluna;
+      const c = (await criar('colunas', { quadro_id: s.quadro_id, ...colunaDoMenu(tipoMenu), titulo })) as Coluna;
       mudar(d => (d.sub ? { ...d, sub: { ...d.sub, colunas: [...d.sub.colunas, c].sort(porPosicao) } } : d));
       return c;
     },
     renomearItensSub: async (nome: string) => {
       const s = await garantirSub();
       mudar(d => (d.sub ? { ...d, sub: { ...d.sub, nome_item: nome } } : d));
-      return gravar(api.update('quadros', s.quadro_id, { nome_item: nome }));
+      return gravar(atualizar('quadros', s.quadro_id, { nome_item: nome }));
     },
     atualizarColuna: (id: number, campos: Partial<Coluna>) => {
       mudar(d => comColunas(d, l => l.map(c => (c.id === id ? { ...c, ...campos } : c)).sort(porPosicao)));
-      return gravar(api.update('colunas', id, campos));
+      return gravar(atualizar('colunas', id, campos));
     },
     excluirColuna: (id: number) => {
       mudar(d => comColunas(d, l => l.filter(c => c.id !== id)));
-      return gravar(api.remove('colunas', id));
+      return gravar(excluir('colunas', id));
     },
 
     // ---------------- itens e subitens
     criarItem: async (grupoId: number, nome: string, noTopo = false, valores: Record<string, unknown> = {}) => {
       const doGrupo = (dados?.itens ?? []).filter(i => i.grupo_id === grupoId && !i.item_pai_id).sort(porPosicao);
       const posicao = noTopo ? posEntre(null, doGrupo[0]?.posicao) : posEntre(doGrupo.at(-1)?.posicao, null);
-      const it = (await api.create('itens', { quadro_id: quadroId, grupo_id: grupoId, nome, posicao, valores })) as Item;
+      const it = (await criar('itens', { quadro_id: quadroId, grupo_id: grupoId, nome, posicao, valores })) as Item;
       mudar(d => ({ ...d, itens: [...d.itens, { ...it, n_atualizacoes: 0 }] }));
       return it;
     },
     criarSubitem: async (paiId: number, nome: string) => {
       const s = await garantirSub();
       // Sem "posicao": o servidor coloca no fim dos subitens do mesmo pai.
-      const it = (await api.create('itens', { quadro_id: s.quadro_id, grupo_id: s.grupo_id, item_pai_id: paiId, nome })) as Item;
+      const it = (await criar('itens', { quadro_id: s.quadro_id, grupo_id: s.grupo_id, item_pai_id: paiId, nome })) as Item;
       mudar(d => (d.sub ? { ...d, sub: { ...d.sub, itens: [...d.sub.itens, { ...it, n_atualizacoes: 0 }] } } : d));
       return it;
     },
@@ -206,7 +206,7 @@ export function useQuadro(quadroId: number) {
       const antes = todosItens().find(i => i.id === id)?.nome;
       const renomear = (n: string) => {
         mudar(d => comItens(d, l => l.map(i => (i.id === id ? { ...i, nome: n } : i))));
-        return gravar(api.update('itens', id, { nome: n }));
+        return gravar(atualizar('itens', id, { nome: n }));
       };
       if (antes != null && antes !== nome) lembrar('Nome alterado.', () => renomear(antes));
       return renomear(nome);
@@ -224,28 +224,28 @@ export function useQuadro(quadroId: number) {
     // para quem chamou (o registro de tempo mostra a mensagem, como "o fim precisa ser depois do início"); a tela
     // recarrega, porque o erro pode vir de uma sessão que outra pessoa já mudou.
     tempo: async (itemId: number, colunaId: number, op: OpTempo) => {
-      const it = await req<Item>('POST', `itens/${itemId}/tempo`, { coluna_id: colunaId, ...op }).catch(e => { recarregar(); throw e; });
+      const it = await operarTempoItem(itemId, { coluna_id: colunaId, ...op }).catch(e => { recarregar(); throw e; });
       mudar(d => comItens(d, l => l.map(i => (i.id === itemId ? { ...i, valores: it.valores } : i))));
     },
     moverItem: (id: number, grupoId: number, posicao: number) => {
       const antes = dados?.itens.find(i => i.id === id);
       const mover = (g: number, p: number) => {
         mudar(d => ({ ...d, itens: d.itens.map(i => (i.id === id ? { ...i, grupo_id: g, posicao: p } : i)) }));
-        return gravar(api.update('itens', id, { grupo_id: g, posicao: p }));
+        return gravar(atualizar('itens', id, { grupo_id: g, posicao: p }));
       };
       if (antes) lembrar('Item movido.', () => mover(antes.grupo_id, antes.posicao));
       return mover(grupoId, posicao);
     },
     excluirItens: async (ids: number[]) => {
       tirarItens(ids);
-      await gravar(Promise.all(ids.map(id => api.remove('itens', id))));
+      await gravar(Promise.all(ids.map(id => excluir('itens', id))));
     },
     arquivarItens: async (ids: number[]) => {
       tirarItens(ids);
-      await gravar(Promise.all(ids.map(id => req('POST', `itens/${id}/arquivar`))));
+      await gravar(Promise.all(ids.map(id => mudarEstado('itens', id, 'arquivar'))));
     },
     duplicarItens: async (ids: number[]) => {
-      const novos = await Promise.all(ids.map(id => req<Item>('POST', `itens/${id}/duplicar`)));
+      const novos = (await Promise.all(ids.map(id => duplicarItem(id)))) as Item[];
       const marcar = (l: Item[]) => l.map(n => ({ ...n, n_atualizacoes: 0 }));
       mudar(d => ({
         ...d,
@@ -259,7 +259,7 @@ export function useQuadro(quadroId: number) {
       const mover = async (l: { id: number; grupo_id: number; posicao: number }[]) => {
         const m = new Map(l.map(x => [x.id, x]));
         mudar(d => ({ ...d, itens: d.itens.map(i => (m.has(i.id) ? { ...i, grupo_id: m.get(i.id)!.grupo_id, posicao: m.get(i.id)!.posicao } : i)) }));
-        await gravar(Promise.all(l.map(x => api.update('itens', x.id, { grupo_id: x.grupo_id, posicao: x.posicao }))));
+        await gravar(Promise.all(l.map(x => atualizar('itens', x.id, { grupo_id: x.grupo_id, posicao: x.posicao }))));
       };
       if (antes.length) lembrar(`${antes.length === 1 ? 'Item movido' : `${antes.length} itens movidos`}.`, () => mover(antes));
       await mover(ids.map((id, k) => ({ id, grupo_id: grupoId, posicao: fim + 1 + k })));

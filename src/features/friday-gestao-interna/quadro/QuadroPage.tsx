@@ -5,7 +5,7 @@ import {
   Activity, Archive, ArchiveRestore, ArrowDownUp, CalendarDays, ChevronDown, Columns3, Copy, Download, EyeOff, FileSpreadsheet, Filter, FolderInput, GanttChart, GripVertical, Group,
   Eye, Kanban as IconeKanban, Lock, LockOpen, MoreHorizontal, Pencil, Plus, Search, Star, Table2, Trash2, Upload, UserRound, X, Zap,
 } from 'lucide-react';
-import { req, type Pessoa, type Row } from '../api.ts';
+import { duplicarQuadro, excluir, mudarEstado, type Pessoa, type Row } from '../api.ts';
 import { useAuth } from '../../../contexts/AuthContext';
 import { DesfazerOficial, GrupoOficialDialogo, TornarOficial } from './TornarOficial.tsx';
 import { NomeModal } from '../layout/Lateral.tsx';
@@ -618,14 +618,14 @@ function MenuQuadro({ quadro, acoes, confirmar, temOcultas, onMostrarOcultas, on
     { rotulo: 'Exportar quadro inteiro para Excel', icone: <Download size={15} />, onClick: onExportarTudo },
     { rotulo: 'Importar itens do Excel', icone: <Upload size={15} />, onClick: onImportar },
     'separador',
-    { rotulo: 'Duplicar quadro (só estrutura)', icone: <Copy size={15} />, onClick: async () => { const n = await req<{ id: number }>('POST', `quadros/${quadro.id}/duplicar`, {}); await nav.recarregar(); navigate(`/quadros/${n.id}`); } },
-    { rotulo: 'Duplicar quadro com itens', icone: <Copy size={15} />, onClick: async () => { const n = await req<{ id: number }>('POST', `quadros/${quadro.id}/duplicar`, { com_itens: true }); await nav.recarregar(); navigate(`/quadros/${n.id}`); } },
+    { rotulo: 'Duplicar quadro (só estrutura)', icone: <Copy size={15} />, onClick: async () => { const n = await duplicarQuadro(quadro.id, {}); await nav.recarregar(); navigate(`/quadros/${n.id}`); } },
+    { rotulo: 'Duplicar quadro com itens', icone: <Copy size={15} />, onClick: async () => { const n = await duplicarQuadro(quadro.id, { com_itens: true }); await nav.recarregar(); navigate(`/quadros/${n.id}`); } },
     { rotulo: `Nome dos itens: “${quadro.nome_item ?? 'Item'}”`, icone: <Pencil size={15} />, onClick: () => setNomeItem(true) },
     ...(temOcultas ? [{ rotulo: 'Mostrar colunas ocultas', icone: <EyeOff size={15} />, onClick: onMostrarOcultas }] : []),
     { rotulo: 'Arquivo e lixeira deste quadro', icone: <ArchiveRestore size={15} />, onClick: () => navigate(`/arquivo?quadro=${quadro.id}`) },
     'separador',
-    { rotulo: 'Arquivar quadro', icone: <Archive size={15} />, onClick: async () => { if (await confirmar(`Arquivar o quadro “${quadro.nome}”? Ele sai da lateral e pode ser restaurado em Arquivo e lixeira.`, 'Arquivar')) { await req('POST', `quadros/${quadro.id}/arquivar`); onSaiu(); } } },
-    { rotulo: 'Excluir quadro', icone: <Trash2 size={15} />, perigo: true, onClick: async () => { if (await confirmar(`Mover o quadro “${quadro.nome}” para a lixeira? Dá para restaurar por 30 dias; depois disso ele é apagado de vez.`)) { await req('DELETE', `quadros/${quadro.id}`); onSaiu(); } } },
+    { rotulo: 'Arquivar quadro', icone: <Archive size={15} />, onClick: async () => { if (await confirmar(`Arquivar o quadro “${quadro.nome}”? Ele sai da lateral e pode ser restaurado em Arquivo e lixeira.`, 'Arquivar')) { await mudarEstado('quadros', quadro.id, 'arquivar'); onSaiu(); } } },
+    { rotulo: 'Excluir quadro', icone: <Trash2 size={15} />, perigo: true, onClick: async () => { if (await confirmar(`Mover o quadro “${quadro.nome}” para a lixeira? Dá para restaurar por 30 dias; depois disso ele é apagado de vez.`)) { await excluir('quadros', quadro.id); onSaiu(); } } },
   ];
   return (
     <>

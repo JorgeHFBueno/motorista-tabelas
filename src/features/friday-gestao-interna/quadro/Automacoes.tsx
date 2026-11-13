@@ -4,7 +4,7 @@ import { useNavigate } from '../rotas.tsx';
 import {
   AlertTriangle, ArrowLeft, CheckCircle2, Copy, History, MoreHorizontal, Pencil, Plus, Search, Trash2, Upload, X, Zap,
 } from 'lucide-react';
-import { api, req, type Pessoa, type Row } from '../api.ts';
+import { atualizar, automacoesDoQuadro, criar, excluir, listar, type Pessoa, type Row } from '../api.ts';
 import { useNav } from '../nav.tsx';
 import { Avatar, Menu, Modal, Popover, useConfirmar, usePopover } from '../ui/base.tsx';
 import { corTexto } from '../util.ts';
@@ -183,8 +183,8 @@ export default function AutomacoesPage() {
   const [importando, setImportando] = useState(false);
 
   const carregar = useCallback(() => {
-    req<Automacao[]>('GET', `quadros/${quadroId}/automacoes`).then(setLista);
-    api.list('execucoes', { quadro_id: quadroId, _limite: 300 }).then(setHistorico);
+    automacoesDoQuadro(quadroId).then(l => setLista(l as unknown as Automacao[]));
+    listar('execucoes', { quadro_id: quadroId, _limite: 300 }).then(setHistorico);
   }, [quadroId]);
   useEffect(carregar, [carregar]);
 
@@ -197,13 +197,13 @@ export default function AutomacoesPage() {
 
   const salvar = async (a: Automacao) => {
     const corpo = { quadro_id: quadroId, nome: a.nome || null, modo: a.modo, gatilho: a.gatilho, condicoes: a.condicoes, acoes: a.acoes, ativa: a.ativa ?? 1 };
-    if (a.id) await api.update('automacoes', a.id, corpo); else await api.create('automacoes', corpo);
+    if (a.id) await atualizar('automacoes', a.id, corpo); else await criar('automacoes', corpo);
     setEditando(null);
     carregar();
   };
   const alternar = async (a: Automacao) => {
     setLista(l => l && l.map(x => (x.id === a.id ? { ...x, ativa: a.ativa ? 0 : 1 } : x)));
-    await api.update('automacoes', a.id!, { ativa: a.ativa ? 0 : 1 });
+    await atualizar('automacoes', a.id!, { ativa: a.ativa ? 0 : 1 });
   };
 
   return (
@@ -235,7 +235,7 @@ export default function AutomacoesPage() {
             {filtradas.map(a => (
               <CartaoAutomacao key={a.id} a={a} ctx={ctx} onAlternar={() => alternar(a)} onEditar={() => setEditando(structuredClone(a))}
                 onDuplicar={() => setEditando({ ...structuredClone(a), id: undefined, nome: a.nome ? `${a.nome} (cópia)` : null })}
-                onExcluir={async () => { if (await confirmar('Excluir esta automação? O histórico dela também é apagado.')) { await api.remove('automacoes', a.id!); carregar(); } }} />
+                onExcluir={async () => { if (await confirmar('Excluir esta automação? O histórico dela também é apagado.')) { await excluir('automacoes', a.id!); carregar(); } }} />
             ))}
           </div>
         </>
@@ -503,7 +503,7 @@ function ValorAcao({ col, acao, ctx, onMudar }: { col: Coluna; acao: Acao; ctx: 
 
 function CriarItemDestino({ acao, ctx, onMudar }: { acao: Acao; ctx: Ctx; onMudar: (m: Partial<Acao>) => void }) {
   const [grupos, setGrupos] = useState<Row[]>([]);
-  useEffect(() => { if (acao.quadro_id) api.list('grupos', { quadro_id: acao.quadro_id }).then(setGrupos); else setGrupos([]); }, [acao.quadro_id]);
+  useEffect(() => { if (acao.quadro_id) listar('grupos', { quadro_id: acao.quadro_id }).then(setGrupos); else setGrupos([]); }, [acao.quadro_id]);
   return (
     <div className="auto-sub">
       <select value={acao.quadro_id ?? ''} onChange={e => onMudar({ quadro_id: Number(e.target.value) || undefined, grupo_id: null })}>
@@ -579,7 +579,7 @@ function ImportarAutomacoes({ quadroId, ctx, existentes, onFechar, onImportou }:
       for (const l of escolhidas) {
         const dono = donoDe(l.dono, ctx.usuarios);
         // Com pendência (ou desligada no monday), entra desligada para alguém completar.
-        await api.create('automacoes', {
+        await criar('automacoes', {
           quadro_id: quadroId, nome: null, ...l.regra!, ativa: l.pendencias.length || !l.ativa_no_monday ? 0 : 1, origem_id: l.origem_id, ...(dono ? { criado_por: dono.id } : {}),
         });
       }

@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from '../rotas.tsx';
 import { ChevronDown, ChevronRight } from 'lucide-react';
-import { req, type Row } from '../api.ts';
+import { meuTrabalho, type Row } from '../api.ts';
 import { useNav } from '../nav.tsx';
 import { corTexto, diasEntre, fmtData, hojeISO, inicioDaSemana, somarDias } from '../util.ts';
 
@@ -11,7 +11,7 @@ export const concluido = (i: Row) => !!i.concluido;
 export function useMeuTrabalho() {
   const nav = useNav();
   const [itens, setItens] = useState<Row[] | null>(null);
-  useEffect(() => { if (nav.usuario) req<Row[]>('GET', `meu-trabalho?usuario_id=${nav.usuario.id}`).then(setItens); }, [nav.usuario]);
+  useEffect(() => { if (nav.usuario) meuTrabalho().then(setItens); }, [nav.usuario]);
   return itens;
 }
 

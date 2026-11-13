@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Activity, Archive, CornerLeftUp, ListTree, Zap, MessageCircle, Paperclip, Rows3, Trash2, X } from 'lucide-react';
-import { api, type Row } from '../api.ts';
+import { listar, type Row } from '../api.ts';
 import { useNav } from '../nav.tsx';
 import { Avatar, Editavel, raizPortal } from '../ui/base.tsx';
 import { NOME_TRAVADO } from '../util.ts';
@@ -86,7 +86,7 @@ export function RegistroAtividade({ filtro }: { filtro: Record<string, number> }
   const nav = useNav();
   const [lista, setLista] = useState<Row[] | null>(null);
   const chave = JSON.stringify(filtro);
-  useEffect(() => { api.list('atividades', { ...JSON.parse(chave), _limite: 300 }).then(setLista); }, [chave]);
+  useEffect(() => { listar('atividades', { ...JSON.parse(chave), _limite: 300 }).then(setLista); }, [chave]);
   if (!lista) return <p className="muted">Carregando…</p>;
   if (!lista.length) return <div className="vazio-painel"><Activity size={36} /><p>Nenhuma atividade registrada.</p></div>;
   return (

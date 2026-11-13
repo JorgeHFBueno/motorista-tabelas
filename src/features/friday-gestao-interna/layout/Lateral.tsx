@@ -5,7 +5,7 @@ import {
   ListChecks, Lock, MoreHorizontal, Pencil, Plus, Search, Star, Trash2, FolderInput, CloudDownload,
 } from 'lucide-react';
 import { Permissoes } from './Permissoes.tsx';
-import { api, req, type Row } from '../api.ts';
+import { atualizar, criar, duplicarQuadro, excluir, moverParaArea, mudarEstado, type Recurso, type Row } from '../api.ts';
 import { useNav } from '../nav.tsx';
 import { useAuth } from '../../../contexts/AuthContext';
 import { Menu, Modal, Popover, useConfirmar, usePopover } from '../ui/base.tsx';
@@ -27,7 +27,7 @@ export function Lateral({ onRecolher }: { onRecolher: () => void }) {
   const confirmar = useConfirmar();
   const [busca, setBusca] = useState('');
   const [favAberto, setFavAberto] = useState(true);
-  const [modal, setModal] = useState<null | { tipo: 'quadro' | 'painel' | 'pasta' | 'area' | 'renomear'; pastaId?: number | null; alvo?: Row; tabela?: string }>(null);
+  const [modal, setModal] = useState<null | { tipo: 'quadro' | 'painel' | 'pasta' | 'area' | 'renomear'; pastaId?: number | null; alvo?: Row; tabela?: Recurso }>(null);
   const [arrastando, setArrastando] = useState<number | null>(null);
   const [soltarEm, setSoltarEm] = useState<number | 'raiz' | null>(null);
   const [permissoes, setPermissoes] = useState<{ id: number; nome: string } | null>(null);
@@ -59,7 +59,7 @@ export function Lateral({ onRecolher }: { onRecolher: () => void }) {
   const casa = (q: Row) => !b || q.nome.toLowerCase().includes(b);
 
   const moverQuadro = async (quadroId: number, pastaId: number | null) => {
-    await api.update('quadros', quadroId, { pasta_id: pastaId });
+    await atualizar('quadros', quadroId, { pasta_id: pastaId });
     nav.recarregar();
   };
   // Mover para outra área de trabalho: só adm2 (as Rules também conferem). A pasta leva o que está dentro.
@@ -71,7 +71,7 @@ export function Lateral({ onRecolher }: { onRecolher: () => void }) {
       const conteudo = n ? `, com ${n} ${n === 1 ? 'quadro' : 'quadros'} e as subpastas,` : '';
       if (!(await confirmar(`Mover a pasta “${alvo.nome}”${conteudo} para a área “${destino}”?`, 'Mover'))) return;
     }
-    await req('POST', `${r}/${alvo.id}/mover-area`, { area_id: areaId });
+    await moverParaArea(r, alvo.id, { area_id: areaId });
     await nav.recarregar();
   };
   const soltar = (pastaId: number | null) => {
@@ -83,7 +83,7 @@ export function Lateral({ onRecolher }: { onRecolher: () => void }) {
   const contar = (pastaId: number): number =>
     quadrosDaArea.filter(q => q.pasta_id === pastaId).length + pastasDaArea.filter(p => p.pasta_pai_id === pastaId).reduce((s, p) => s + contar(p.id), 0);
   const abrirTodas = async (aberta: 0 | 1) => {
-    await Promise.all(pastasDaArea.filter(p => !!p.aberta !== !!aberta).map(p => api.update('pastas', p.id, { aberta })));
+    await Promise.all(pastasDaArea.filter(p => !!p.aberta !== !!aberta).map(p => atualizar('pastas', p.id, { aberta })));
     nav.recarregar();
   };
   // Ordena pastas e quadros de A a Z dentro de cada nível (grava a nova posição).
@@ -95,8 +95,8 @@ export function Lateral({ onRecolher }: { onRecolher: () => void }) {
       for (const x of lista) m.set(x[chave] ?? null, [...(m.get(x[chave] ?? null) ?? []), x]);
       return [...m.values()];
     };
-    for (const irmas of grupos(pastasDaArea, 'pasta_pai_id')) [...irmas].sort(porNome).forEach((p, k) => { if (p.posicao !== k + 1) muda.push(api.update('pastas', p.id, { posicao: k + 1 })); });
-    for (const irmos of grupos(quadrosDaArea, 'pasta_id')) [...irmos].sort(porNome).forEach((q, k) => { if (q.posicao !== k + 1) muda.push(api.update('quadros', q.id, { posicao: k + 1 })); });
+    for (const irmas of grupos(pastasDaArea, 'pasta_pai_id')) [...irmas].sort(porNome).forEach((p, k) => { if (p.posicao !== k + 1) muda.push(atualizar('pastas', p.id, { posicao: k + 1 })); });
+    for (const irmos of grupos(quadrosDaArea, 'pasta_id')) [...irmos].sort(porNome).forEach((q, k) => { if (q.posicao !== k + 1) muda.push(atualizar('quadros', q.id, { posicao: k + 1 })); });
     await Promise.all(muda);
     nav.recarregar();
   };
@@ -111,7 +111,7 @@ export function Lateral({ onRecolher }: { onRecolher: () => void }) {
     return (
       <div key={`p${p.id}`}>
         <div className={`arvore-linha pasta${soltarEm === p.id ? ' alvo' : ''}`} style={nivelCss(nivel)} title={p.nome}
-          onClick={() => api.update('pastas', p.id, { aberta: p.aberta ? 0 : 1 }).then(nav.recarregar)}
+          onClick={() => atualizar('pastas', p.id, { aberta: p.aberta ? 0 : 1 }).then(nav.recarregar)}
           onDragOver={e => { if (arrastando != null) { e.preventDefault(); setSoltarEm(p.id); } }}
           onDragLeave={() => setSoltarEm(null)} onDrop={() => soltar(p.id)}>
           {aberta ? <ChevronDown size={14} className="seta" /> : <ChevronRight size={14} className="seta" />}
@@ -122,7 +122,7 @@ export function Lateral({ onRecolher }: { onRecolher: () => void }) {
           <MenuPasta pasta={p} areas={outrasAreas} onMoverArea={aid => moverArea('pastas', p, aid)}
             onNovoQuadro={() => setModal({ tipo: 'quadro', pastaId: p.id })} onNovoPainel={() => setModal({ tipo: 'painel', pastaId: p.id })} onSubpasta={() => setModal({ tipo: 'pasta', pastaId: p.id })}
             onRenomear={() => setModal({ tipo: 'renomear', alvo: p, tabela: 'pastas' })}
-            onExcluir={async () => { if (await confirmar(`Excluir a pasta “${p.nome}”? Os quadros dela vão para fora das pastas.`)) { await api.remove('pastas', p.id); nav.recarregar(); } }} />
+            onExcluir={async () => { if (await confirmar(`Excluir a pasta “${p.nome}”? Os quadros dela vão para fora das pastas.`)) { await excluir('pastas', p.id); nav.recarregar(); } }} />
         </div>
         {aberta && (
           <div className="arvore-filhos" style={nivelCss(nivel)}>
@@ -146,8 +146,8 @@ export function Lateral({ onRecolher }: { onRecolher: () => void }) {
       <MenuQuadroLateral quadro={q} pastas={pastasDaArea} onMover={pid => moverQuadro(q.id, pid)} areas={outrasAreas} onMoverArea={aid => moverArea('quadros', q, aid)}
         onPermissoes={admin ? () => setPermissoes({ id: q.id, nome: q.nome }) : undefined}
         onRenomear={() => setModal({ tipo: 'renomear', alvo: q, tabela: 'quadros' })}
-        onArquivar={async () => { if (await confirmar(`Arquivar o quadro “${q.nome}”? Ele sai da lateral e pode ser restaurado em Arquivo e lixeira.`, 'Arquivar')) { await req('POST', `quadros/${q.id}/arquivar`); await nav.recarregar(); if (q.id === quadroAtual) navigate('/'); } }}
-        onExcluir={async () => { if (await confirmar(`Mover o quadro “${q.nome}” para a lixeira? Dá para restaurar por 30 dias.`)) { await api.remove('quadros', q.id); await nav.recarregar(); if (q.id === quadroAtual) navigate('/'); } }} />
+        onArquivar={async () => { if (await confirmar(`Arquivar o quadro “${q.nome}”? Ele sai da lateral e pode ser restaurado em Arquivo e lixeira.`, 'Arquivar')) { await mudarEstado('quadros', q.id, 'arquivar'); await nav.recarregar(); if (q.id === quadroAtual) navigate('/'); } }}
+        onExcluir={async () => { if (await confirmar(`Mover o quadro “${q.nome}” para a lixeira? Dá para restaurar por 30 dias.`)) { await excluir('quadros', q.id); await nav.recarregar(); if (q.id === quadroAtual) navigate('/'); } }} />
     </div>
   );
 
@@ -179,7 +179,7 @@ export function Lateral({ onRecolher }: { onRecolher: () => void }) {
       <div className="lateral-secao area-secao">
         <div className="area-linha">
           <SeletorArea onNova={admin ? () => setModal({ tipo: 'area' }) : undefined} onRenomear={admin ? a => setModal({ tipo: 'renomear', alvo: a, tabela: 'areas' }) : undefined}
-            onExcluir={admin ? async a => { if (await confirmar(`Excluir a área “${a.nome}” com todas as pastas e quadros?`)) { await api.remove('areas', a.id); nav.recarregar(); } } : undefined} />
+            onExcluir={admin ? async a => { if (await confirmar(`Excluir a área “${a.nome}” com todas as pastas e quadros?`)) { await excluir('areas', a.id); nav.recarregar(); } } : undefined} />
           <button ref={mais.ref} className="btn-icone btn-mais" aria-label="Adicionar" onClick={mais.alternar}><Plus size={16} /></button>
           {mais.aberto && (
             <Popover ancora={mais.ref.current} onClose={mais.fechar} largura={260}>
@@ -223,22 +223,22 @@ export function Lateral({ onRecolher }: { onRecolher: () => void }) {
       {modal?.tipo === 'painel' && (
         <NomeModal titulo="Novo painel" rotulo="Nome do painel" onFechar={() => setModal(null)}
           onSalvar={async nome => {
-            const p = await api.create('quadros', { nome, area_id: nav.areaId, pasta_id: modal.pastaId ?? null, tipo: 'painel', config: { quadros: [], widgets: [] } });
+            const p = await criar('quadros', { nome, area_id: nav.areaId, pasta_id: modal.pastaId ?? null, tipo: 'painel', config: { quadros: [], widgets: [] } });
             await nav.recarregar();
             navigate(`/quadros/${p.id}`);
           }} />
       )}
       {modal?.tipo === 'pasta' && (
         <NomeModal titulo={modal.pastaId ? 'Nova subpasta' : 'Nova pasta'} rotulo="Nome da pasta" onFechar={() => setModal(null)}
-          onSalvar={async nome => { await api.create('pastas', { area_id: nav.areaId, pasta_pai_id: modal.pastaId ?? null, nome, aberta: 1 }); nav.recarregar(); }} />
+          onSalvar={async nome => { await criar('pastas', { area_id: nav.areaId, pasta_pai_id: modal.pastaId ?? null, nome, aberta: 1 }); nav.recarregar(); }} />
       )}
       {modal?.tipo === 'area' && (
         <NomeModal titulo="Nova área de trabalho" rotulo="Nome da área" onFechar={() => setModal(null)}
-          onSalvar={async nome => { const a = await api.create('areas', { nome, cor: CORES[nav.areas.length % CORES.length] }); await nav.recarregar(); nav.setAreaId(a.id); }} />
+          onSalvar={async nome => { const a = await criar('areas', { nome, cor: CORES[nav.areas.length % CORES.length] }); await nav.recarregar(); nav.setAreaId(a.id); }} />
       )}
       {modal?.tipo === 'renomear' && modal.alvo && (
         <NomeModal titulo="Renomear" rotulo="Novo nome" inicial={modal.alvo.nome} onFechar={() => setModal(null)}
-          onSalvar={async nome => { await api.update(modal.tabela!, modal.alvo!.id, { nome }); nav.recarregar(); }} />
+          onSalvar={async nome => { await atualizar(modal.tabela!, modal.alvo!.id, { nome }); nav.recarregar(); }} />
       )}
     </aside>
   );
@@ -349,8 +349,8 @@ function MenuQuadroLateral({ quadro, pastas, onMover, areas, onMoverArea, onReno
               { rotulo: 'Renomear', icone: <Pencil size={15} />, onClick: onRenomear },
               { rotulo: 'Mover para pasta', icone: <FolderInput size={15} />, onClick: () => setTimeout(() => { pop.abrir(); setMover('pasta'); }) },
               ...(areas.length ? [{ rotulo: 'Mover para área de trabalho', icone: <FolderInput size={15} />, onClick: () => setTimeout(() => { pop.abrir(); setMover('area'); }) }] : []),
-              { rotulo: quadro.favorito ? 'Remover dos favoritos' : 'Adicionar aos favoritos', icone: <Star size={15} />, onClick: () => api.update('quadros', quadro.id, { favorito: quadro.favorito ? 0 : 1 }).then(nav.recarregar) },
-              { rotulo: 'Duplicar', icone: <Copy size={15} />, onClick: async () => { const n = await req<{ id: number }>('POST', `quadros/${quadro.id}/duplicar`, {}); await nav.recarregar(); navigate(`/quadros/${n.id}`); } },
+              { rotulo: quadro.favorito ? 'Remover dos favoritos' : 'Adicionar aos favoritos', icone: <Star size={15} />, onClick: () => atualizar('quadros', quadro.id, { favorito: quadro.favorito ? 0 : 1 }).then(nav.recarregar) },
+              { rotulo: 'Duplicar', icone: <Copy size={15} />, onClick: async () => { const n = await duplicarQuadro(quadro.id, {}); await nav.recarregar(); navigate(`/quadros/${n.id}`); } },
               ...(onPermissoes ? [{ rotulo: 'Permissões', icone: <Lock size={15} />, onClick: onPermissoes }] : []),
               'separador',
               { rotulo: 'Arquivar quadro', icone: <Archive size={15} />, onClick: onArquivar },
@@ -390,7 +390,7 @@ export function NovoQuadroModal({ pastaId, onFechar }: { pastaId: number | null;
         e.preventDefault();
         if (!nome.trim()) return;
         const dados = { nome: nome.trim(), area_id: nav.areaId, pasta_id: pasta || null };
-        const q = base ? await req<{ id: number }>('POST', `quadros/${base}/duplicar`, { ...dados, com_itens: comItens }) : await api.create('quadros', dados);
+        const q = base ? await duplicarQuadro(base, { ...dados, com_itens: comItens }) : await criar('quadros', dados);
         await nav.recarregar();
         onFechar();
         navigate(`/quadros/${q.id}`);

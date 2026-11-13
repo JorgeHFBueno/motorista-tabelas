@@ -2,12 +2,12 @@ import { useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useNavigate } from '../rotas.tsx';
 import { Archive, ArchiveRestore, Columns3, LayoutGrid, ListTree, Rows3, Search, Trash2 } from 'lucide-react';
-import { req, type Row } from '../api.ts';
+import { arquivo, excluir, mudarEstado, type Recurso, type Row } from '../api.ts';
 import { useNav } from '../nav.tsx';
 import { useAvisoRapido, useConfirmar } from '../ui/base.tsx';
 import { fmtData } from '../util.ts';
 
-const TABELA: Record<string, string> = { quadro: 'quadros', grupo: 'grupos', item: 'itens', subitem: 'itens' };
+const TABELA: Record<string, Recurso> = { quadro: 'quadros', grupo: 'grupos', item: 'itens', subitem: 'itens' };
 const ICONE: Record<string, typeof Rows3> = { quadro: LayoutGrid, grupo: Columns3, item: Rows3, subitem: ListTree };
 const NOME_TIPO: Record<string, string> = { quadro: 'Quadro', grupo: 'Grupo', item: 'Item', subitem: 'Subitem' };
 
@@ -26,7 +26,7 @@ export default function Arquivo() {
 
   const carregar = () => {
     setLista(null);
-    req<Row[]>('GET', `arquivo?estado=${estado}${quadro ? `&quadro_id=${quadro}` : ''}`).then(setLista);
+    arquivo(estado, quadro || null).then(setLista);
   };
   useEffect(carregar, [estado, quadro]);
 
@@ -42,20 +42,20 @@ export default function Arquivo() {
   const nomeQuadro = quadro ? nav.quadros.find(q => q.id === quadro)?.nome ?? (lista ?? []).find(l => l.quadro_id === quadro)?.quadro_nome : null;
 
   const restaurar = async (l: Row) => {
-    await req('POST', `${TABELA[l.tipo]}/${l.id}/restaurar`);
+    await mudarEstado(TABELA[l.tipo], l.id, 'restaurar');
     setLista(x => x && x.filter(y => !(y.tipo === l.tipo && y.id === l.id)));
     if (l.tipo === 'quadro') await nav.recarregar();
     avisar(`“${l.nome}” foi restaurado.`, { rotulo: 'Abrir', onClick: () => navigate(l.tipo === 'item' ? `/quadros/${l.quadro_id}?item=${l.id}` : `/quadros/${l.quadro_id}`) });
   };
   const paraLixeira = async (l: Row) => {
-    await req('DELETE', `${TABELA[l.tipo]}/${l.id}`);
+    await excluir(TABELA[l.tipo], l.id);
     setLista(x => x && x.filter(y => !(y.tipo === l.tipo && y.id === l.id)));
     avisar(`“${l.nome}” foi para a lixeira.`);
   };
   const apagarDeVez = async (l: Row) => {
     const extra = l.tipo === 'quadro' ? ' com todos os grupos, itens, atualizações e arquivos' : l.tipo === 'grupo' ? ' com todos os itens' : '';
     if (!(await confirmar(`Apagar “${l.nome}”${extra} de vez? Isso não pode ser desfeito.`, 'Apagar de vez'))) return;
-    await req('DELETE', `${TABELA[l.tipo]}/${l.id}?definitivo=1`);
+    await excluir(TABELA[l.tipo], l.id, true);
     setLista(x => x && x.filter(y => !(y.tipo === l.tipo && y.id === l.id)));
   };
 
