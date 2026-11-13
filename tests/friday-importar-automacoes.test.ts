@@ -63,3 +63,27 @@ test('outras frases: arquivar, mudar status, data, quem criou; nomes inexistente
   assert.match(converterFrase('When Arquivo changes to Arquivar move item to GRUPO X', ctx).erro ?? '', /grupo/);
   assert.match(converterFrase('When Arquivo changes, notify someone', ctx).erro ?? '', /interno/);
 });
+
+// Arquivo do quadro TAREFAS (2026-11-13): cronômetro por status; as do monday AI não têm equivalente no Friday.
+test('TAREFAS: start/stop do controle de tempo viram iniciar/parar; monday AI e "nome do item muda" explicam a recusa', () => {
+  const tarefas = {
+    colunas: [
+      { id: 1, titulo: 'Pessoa', tipo: 'pessoa', config: {} },
+      { id: 2, titulo: 'Status', tipo: 'status', config: { rotulos: [{ id: '1', texto: 'Feito' }, { id: '2', texto: 'Parado' }, { id: '3', texto: 'Em progresso' }] } },
+      { id: 3, titulo: 'Controle de tempo', tipo: 'tempo', config: {} },
+      { id: 4, titulo: 'Data', tipo: 'data', config: {} },
+    ],
+    grupos: [{ id: 10, nome: 'TAREFAS' }, { id: 11, nome: 'TAREFAS FINALIZADAS' }],
+  };
+  const regra = (frase: string) => converterFrase(frase, tarefas);
+  assert.deepEqual(regra('When Status changes to Em progresso start Controle de tempo').regra, {
+    modo: 'todas', gatilho: { tipo: 'coluna_muda', coluna_id: 2, para: ['3'] }, condicoes: [], acoes: [{ tipo: 'definir', coluna_id: 3, valor: 'iniciar' }],
+  });
+  assert.deepEqual(regra('When Status changes to Feito stop Controle de tempo').regra?.acoes, [{ tipo: 'definir', coluna_id: 3, valor: 'parar' }]);
+  assert.deepEqual(regra('When Status changes to Parado stop Controle de tempo').regra?.gatilho, { tipo: 'coluna_muda', coluna_id: 2, para: ['2'] });
+  assert.match(regra('When Status changes to Feito stop Data').erro ?? '', /controle de tempo/);
+  assert.match(regra('When item name changes assign a person in Pessoa based on the task name').erro ?? '', /monday AI/);
+  assert.match(regra('When an item is created assign a person in Pessoa based on the task name').erro ?? '', /monday AI/);
+  assert.match(regra('When item name changes, archive item').erro ?? '', /nome do item muda/);
+  assert.deepEqual(regra('When Status changes to Feito move item to TAREFAS FINALIZADAS').regra?.acoes, [{ tipo: 'mover', grupo_id: 11 }]);
+});

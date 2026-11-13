@@ -72,9 +72,12 @@ export function converterFrase(frase: string, ctx: Ctx): Pick<Importada, 'regra'
   const fora = /\b(webhook|e-?mail|notify|notification|send|slack|integration)\b/;
   let t = norm(frase);
   if (fora.test(t)) return { erro: 'envia aviso ou dados para fora (webhook, e-mail, notificação): o Friday é interno', pendencias, avisos };
+  // monday AI: a pessoa (ou o valor) é escolhida lendo o texto da tarefa; as automações do Friday não têm IA.
+  if (/\bbased on\b/.test(t)) return { erro: 'é uma automação do monday AI (escolhe pelo texto da tarefa): o Friday não tem IA nas automações', pendencias, avisos };
   const depoisWhen = tira(t, /^when /);
   if (depoisWhen == null) return { erro: 'frase não reconhecida (não começa com "When")', pendencias, avisos };
   t = depoisWhen;
+  if (/^(the )?item name changes/.test(t)) return { erro: 'o Friday não tem o gatilho "quando o nome do item muda"', pendencias, avisos };
 
   // ---- Quando
   let gatilho: RegraImportada['gatilho'];
@@ -148,6 +151,11 @@ export function converterFrase(frase: string, ctx: Ctx): Pick<Importada, 'regra'
       const c = noInicio(r, colunas.filter(x => x.valor.tipo === 'pessoa'));
       if (!c) return { erro: 'a coluna de pessoa da ação não existe neste quadro', pendencias, avisos };
       acoes.push({ tipo: 'definir', coluna_id: c.valor.id, valor: ['0'], modo: 'adicionar' }); t = c.resto;
+    } else if ((r = tira(t, /^(start|stop) (the )?/)) != null) {
+      // Controle de tempo: "start/stop <coluna>" liga ou desliga o cronômetro.
+      const c = noInicio(r, colunas.filter(x => x.valor.tipo === 'tempo'));
+      if (!c) return { erro: 'a coluna de controle de tempo da ação não existe neste quadro', pendencias, avisos };
+      acoes.push({ tipo: 'definir', coluna_id: c.valor.id, valor: /^start/.test(t) ? 'iniciar' : 'parar' }); t = c.resto;
     } else if ((r = tira(t, /^create (a )?(new )?subitems?/)) != null) {
       acoes.push({ tipo: 'subitem', nome: '' }); pendencias.push('O arquivo não traz o nome do subitem: informe o nome.'); t = r;
     } else return { erro: `ação não reconhecida: “${t.slice(0, 60)}”`, pendencias, avisos };
