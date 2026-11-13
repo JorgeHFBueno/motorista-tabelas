@@ -7,7 +7,8 @@ import { useAuth } from '../../contexts/AuthContext';
 import { listFuncionariosAtivos } from '../../services/funcionarios-selecao.service';
 import { listObrasAtivas } from '../../services/obras.service';
 import { listItensFrota } from '../../services/veiculos.service';
-import { itemFrotaLabel, obraLabel, type ItemFrotaV2, type ObraV2, type PessoaV2 } from '../../utils/cadastrosV2';
+import { itemFrotaLabel, obraLabel, temPerfil, type ItemFrotaV2, type ObraV2, type PessoaV2 } from '../../utils/cadastrosV2';
+import { BotaoAtribuir } from './components/Atribuir';
 import { CalendarioSemanas } from './components/CalendarioSemanas';
 import { BarraColunas } from './components/Colunas';
 import type { AbaPainel, AcoesLogistica, CadastrosLogistica } from './components/contexto';
@@ -16,7 +17,7 @@ import { QuadroSemanas } from './components/QuadroSemanas';
 import { usePrefsColunas } from './components/usePrefsColunas';
 import {
   abrirSemana, atualizarProgramacao, converterCodigo, criarProgramacao, darCodigo, ignorarConflito, pessoasDoFriday, type PessoasFriday, excluirProgramacao, observarEtiquetas, observarObservacoes,
-  observarProgramacoes, observarSemanas, salvarEtiquetas,
+  observarProgramacoes, observarSemanas, salvarEtiquetas, MAX_ATRIBUIDOS_NOTA, observarAtribuidosNota, salvarAtribuidosNota,
 } from './data/logisticaFirestore';
 import { semCodigoEmOrdem } from './domain/codigo';
 import { ETIQUETAS_PADRAO, statusAoSalvarEtiquetas, type EtiquetaStatus } from './domain/status';
@@ -41,6 +42,7 @@ export default function LogisticaCronogramaPage() {
   const [programacoes, setProgramacoes] = useState<Programacao[] | null>(null);
   const [observacoes, setObservacoes] = useState<Observacao[]>([]);
   const [etiquetas, setEtiquetas] = useState<EtiquetaStatus[]>([...ETIQUETAS_PADRAO]);
+  const [atribuidosNota, setAtribuidosNota] = useState<string[]>([]);
   const [cadastrosBrutos, setCadastrosBrutos] = useState<{ pessoas: PessoaV2[]; veiculos: ItemFrotaV2[]; obras: ObraV2[] } | null>(null);
   const [pessoasFriday, setPessoasFriday] = useState<PessoasFriday | null>(null);
   const [erro, setErro] = useState<string | null>(null);
@@ -61,7 +63,8 @@ export default function LogisticaCronogramaPage() {
     const pararProgramacoes = observarProgramacoes(setProgramacoes, falha);
     const pararObservacoes = observarObservacoes(setObservacoes, (error) => setErro(`Não foi possível ler as observações: ${error.message}`));
     const pararEtiquetas = observarEtiquetas(setEtiquetas, (error) => setErro(`Não foi possível ler as etiquetas de status: ${error.message}`));
-    return () => { pararSemanas(); pararProgramacoes(); pararObservacoes(); pararEtiquetas(); };
+    const pararAtribuidos = observarAtribuidosNota(setAtribuidosNota, (error) => setErro(`Não foi possível ler quem recebe o pedido de nota: ${error.message}`));
+    return () => { pararSemanas(); pararProgramacoes(); pararObservacoes(); pararEtiquetas(); pararAtribuidos(); };
   }, []);
 
   useEffect(() => {
@@ -218,6 +221,13 @@ export default function LogisticaCronogramaPage() {
             </button>
             {(!cadastrosBrutos || !pessoasFriday) && <span className="lg-muted">Carregando motoristas, veículos e obras…</span>}
             <span className="lg-espaco" />
+            <BotaoAtribuir
+              atribuidos={atribuidosNota}
+              pessoas={(cadastrosBrutos?.pessoas ?? []).filter((pessoa) => temPerfil(pessoa, 'logistica', 'adm2')).map(({ uid: id, nome }) => ({ uid: id, nome }))}
+              nome={(id) => cadastros.nomePessoa(id, 'Sem nome')}
+              maximo={MAX_ATRIBUIDOS_NOTA}
+              onSalvar={(uids) => { salvarAtribuidosNota(uids, eu).catch(falhar('salvar quem recebe o pedido de nota')); }}
+            />
             <BarraColunas prefs={prefsColunas} mudar={mudarPrefsColunas} />
           </div>
           <QuadroSemanas

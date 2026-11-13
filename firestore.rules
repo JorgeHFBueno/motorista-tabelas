@@ -1526,17 +1526,24 @@ service cloud.firestore {
       allow delete: if isLogistica();
     }
 
-    // Etiquetas de status do quadro (só o documento "status"): lista de {id, nome, cor}, até 40; quem grava assina.
+    // Etiquetas de status do quadro ("status"): lista de {id, nome, cor}, até 40. Quem recebe o aviso de pedido de nota
+    // ("pedidoNota"): até 3 UIDs em "atribuidos" (a Function logisticaPedidoNota confere logistica/adm2). Quem grava assina.
     match /logistica-config/{configId} {
       allow read: if isLogistica();
       allow create, update: if isLogistica()
-        && configId == 'status'
-        && request.resource.data.keys().hasOnly(['schemaVersion', 'etiquetas', 'atualizadoPorUid', 'atualizadoEm'])
         && request.resource.data.schemaVersion == 1
-        && request.resource.data.etiquetas is list
-        && request.resource.data.etiquetas.size() <= 40
         && request.resource.data.atualizadoPorUid == request.auth.uid
-        && request.resource.data.atualizadoEm == request.time;
+        && request.resource.data.atualizadoEm == request.time
+        && (
+          (configId == 'status'
+            && request.resource.data.keys().hasOnly(['schemaVersion', 'etiquetas', 'atualizadoPorUid', 'atualizadoEm'])
+            && request.resource.data.etiquetas is list
+            && request.resource.data.etiquetas.size() <= 40)
+          || (configId == 'pedidoNota'
+            && request.resource.data.keys().hasOnly(['schemaVersion', 'atribuidos', 'atualizadoPorUid', 'atualizadoEm'])
+            && request.resource.data.atribuidos is list
+            && request.resource.data.atribuidos.size() <= 3)
+        );
       allow delete: if false;
     }
 

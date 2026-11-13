@@ -295,6 +295,7 @@
 .lg-th-borda:hover { background: var(--lg-primaria); opacity: .5; }
 body.lg-redimensionando, body.lg-redimensionando * { cursor: col-resize !important; user-select: none !important; }
 .lg-menu-coluna .MuiMenuItem-root { font-size: 14px; color: #323338; }
+.lg-menu-ajuda { list-style: none; max-width: 280px; padding: 6px 16px 8px; font-size: 12px; color: #676879; }
 
 /* colunas fixadas: paradas ao rolar a tabela para o lado */
 .lg-tabela .lg-fixa { position: sticky; z-index: 1; }

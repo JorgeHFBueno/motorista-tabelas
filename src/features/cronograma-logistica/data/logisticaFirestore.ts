@@ -149,6 +149,25 @@ export function observarEtiquetas(onData: (etiquetas: EtiquetaStatus[]) => void,
   }, onError);
 }
 
+/**
+ * Quem recebe o aviso "Novo Pedido de Nota" quando uma programação passa para "Ag. NF" (logistica-config/pedidoNota):
+ * até 3 UIDs, com logistica ou adm2. O aviso é gravado pela Function logisticaPedidoNota.
+ */
+export const MAX_ATRIBUIDOS_NOTA = 3;
+
+export function observarAtribuidosNota(onData: (uids: string[]) => void, onError: (error: Error) => void) {
+  return onSnapshot(doc(db, CONFIG, 'pedidoNota'), (snapshot) => {
+    const lista = snapshot.exists() && Array.isArray(snapshot.data().atribuidos) ? snapshot.data().atribuidos as unknown[] : [];
+    onData(lista.filter((uid): uid is string => typeof uid === 'string' && uid !== ''));
+  }, onError);
+}
+
+export async function salvarAtribuidosNota(atribuidos: readonly string[], eu: RefPessoa): Promise<void> {
+  await setDoc(doc(db, CONFIG, 'pedidoNota'), {
+    schemaVersion: 1, atribuidos: [...new Set(atribuidos)].slice(0, MAX_ATRIBUIDOS_NOTA), atualizadoPorUid: eu.uid, atualizadoEm: serverTimestamp(),
+  });
+}
+
 /** Quem altera uma programação assina: UID, o nome no momento (coluna "Modificado por") e o horário do servidor. */
 const assinatura = (eu: RefPessoa) => ({ atualizadoPorUid: eu.uid, atualizadoPorNome: eu.nome.slice(0, 200), atualizadoEm: serverTimestamp() });
 

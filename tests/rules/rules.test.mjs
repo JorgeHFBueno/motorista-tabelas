@@ -1635,6 +1635,20 @@ test('[firestore] logistica: código da linha com o contador da semana; etiqueta
   await assertFails(getDoc(config('engenharia')));
   await assertFails(setDoc(config('engenharia'), etiquetas(2, { atualizadoPorUid: 'uid-engenharia' })));
   await assertFails(deleteDoc(config('logistica')));
+
+  // Atribuídos do pedido de nota: só o documento "pedidoNota", até 3 UIDs, quem grava assina; ninguém fora da área.
+  const pedido = (atribuidos, extra = {}) => ({ schemaVersion: 1, atribuidos, atualizadoPorUid: 'uid-logistica', atualizadoEm: serverTimestamp(), ...extra });
+  await assertSucceeds(setDoc(config('logistica', 'pedidoNota'), pedido(['uid-logistica', 'uid-canonical-adm2', 'uid-mecanico'])));
+  await assertSucceeds(setDoc(config('logistica', 'pedidoNota'), pedido([])));
+  await assertSucceeds(getDoc(config('mecanico', 'pedidoNota')));
+  await assertFails(setDoc(config('logistica', 'pedidoNota'), pedido(['a', 'b', 'c', 'd'])));
+  await assertFails(setDoc(config('logistica', 'pedidoNota'), pedido('uid-logistica')));
+  await assertFails(setDoc(config('logistica', 'pedidoNota'), pedido([], { atualizadoPorUid: 'uid-canonical-adm2' })));
+  await assertFails(setDoc(config('logistica', 'pedidoNota'), pedido([], { etiquetas: [] })));
+  await assertFails(setDoc(config('logistica', 'status'), pedido([])));
+  await assertFails(getDoc(config('engenharia', 'pedidoNota')));
+  await assertFails(setDoc(config('engenharia', 'pedidoNota'), pedido([], { atualizadoPorUid: 'uid-engenharia' })));
+  await assertFails(deleteDoc(config('logistica', 'pedidoNota')));
 });
 
 test('[firestore] logistica: motorista e auxiliar do Friday {id, nome}; o {uid, nome} de antes continua aceito', async () => {
