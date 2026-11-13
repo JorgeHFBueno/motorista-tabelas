@@ -7,7 +7,7 @@ import {
 import { api, req, type Pessoa, type Row } from '../api.ts';
 import { useNav } from '../nav.tsx';
 import { Avatar, Menu, Modal, Popover, useConfirmar, usePopover } from '../ui/base.tsx';
-import { corTexto, MONDAY_NA_TELA } from '../util.ts';
+import { corTexto } from '../util.ts';
 import { tempoRelativo } from './Atualizacoes.tsx';
 import { lerAutomacoesMonday, type Importada } from './importarAutomacoes.ts';
 import { ehPrazo, infoColuna, statusPrincipal, type Coluna, type Grupo, type Rotulo } from './tipos.ts';
@@ -215,7 +215,7 @@ export default function AutomacoesPage() {
           <p className="muted">Regras do quadro: <b>quando</b> algo acontecer, <b>e só se</b> as condições baterem, <b>então</b> o app faz as ações sozinho.</p>
         </div>
         <div className="auto-cab-botoes">
-          {MONDAY_NA_TELA && <button className="fr-btn" onClick={() => setImportando(true)}><Upload size={16} /> Importar</button>}
+          <button className="fr-btn" onClick={() => setImportando(true)}><Upload size={16} /> Importar</button>
           <button className="fr-btn btn-primario" onClick={() => setEscolherModelo(true)}><Plus size={16} /> Criar automação</button>
         </div>
       </header>
