@@ -5,7 +5,7 @@ import Drawer from '@mui/material/Drawer';
 import { textoCodigo } from '../domain/codigo';
 import { MAX_VEICULOS, type Observacao, type Programacao, type RefPessoa } from '../domain/models';
 import { rotuloSemana } from '../domain/semanas';
-import { CampoEscolha, CampoEscolhaVarios, CampoPeriodo, CampoStatus, CampoTexto } from './campos';
+import { CampoEscolha, CampoEscolhaVarios, CampoNota, CampoPeriodo, CampoStatus, CampoTexto } from './campos';
 import {
   opcaoObra, opcaoPessoa, opcoesVeiculos, refCadastro, refPessoa, refsCadastro,
   type AbaPainel, type AcoesLogistica, type CadastrosLogistica, type ConflitosLogistica,
@@ -80,6 +80,9 @@ export function PainelProgramacao({ programacao, aba, onAba, observacoes, eu, ca
               <label className="lg-painel-campo"><span>Expedição</span>
                 <CampoTexto valor={programacao.expedicao} maximo={200} onSalvar={(expedicao) => acoes.atualizar(programacao.id, { expedicao })} />
               </label>
+              <div className="lg-painel-campo"><span>Nota</span>
+                <CampoNota nota={programacao.nota} onEnviar={(arquivo) => acoes.enviarNota(programacao, arquivo)} onRemover={() => acoes.removerNota(programacao)} />
+              </div>
               {programacao.adiamento && (
                 <div className="lg-painel-campo"><span>Adiamento</span><span className="lg-painel-adiamento">{programacao.adiamento}</span></div>
               )}

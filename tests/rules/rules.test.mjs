@@ -740,6 +740,19 @@ test('[storage] Logística: arquivos das observações (logistica, mecanico, adm
   await assertFails(deleteObject(ref(storageAs('engenharia'), caminho)));
   await assertSucceeds(deleteObject(ref(storageAs('adm2'), caminho)));
 });
+test('[storage] Logística: PDF da nota (logistica, mecanico, adm2), só PDF, até 25 MB, sem sobrescrever', async () => {
+  const pdf = new Uint8Array([0x25, 0x50, 0x44, 0x46]);
+  const caminho = 'logistica/notas/p1/1731500000000-NF.pdf';
+  await assertSucceeds(uploadBytes(ref(storageAs('logistica'), caminho), pdf, { contentType: 'application/pdf' }));
+  await assertSucceeds(getBytes(ref(storageAs('mecanico'), caminho)));
+  await assertFails(uploadBytes(ref(storageAs('logistica'), caminho), pdf, { contentType: 'application/pdf' }));
+  await assertFails(uploadBytes(ref(storageAs('logistica'), 'logistica/notas/p1/nota.xml'), pdf, { contentType: 'text/xml' }));
+  await assertFails(uploadBytes(ref(storageAs('logistica'), 'logistica/notas/p1/grande.pdf'), new Uint8Array(25 * 1024 * 1024 + 1), { contentType: 'application/pdf' }));
+  await assertFails(uploadBytes(ref(storageAs('engenharia'), 'logistica/notas/p1/x.pdf'), pdf, { contentType: 'application/pdf' }));
+  await assertFails(getBytes(ref(storageAs('engenharia'), caminho)));
+  await assertFails(deleteObject(ref(storageAs('engenharia'), caminho)));
+  await assertSucceeds(deleteObject(ref(storageAs('logistica'), caminho)));
+});
 test('[storage] Friday attachments of a restricted board follow its list (adm2 always)', async () => {
   const pdf = new Uint8Array([0x25, 0x50, 0x44, 0x46]);
   const caminho = 'friday/100/200/231-rh.pdf';
@@ -1572,6 +1585,17 @@ test('[firestore] logistica: código da linha com o contador da semana; etiqueta
   await assertSucceeds(updateDoc(ref('lc1'), { fim: '2026-11-20', adiamento: 'adiada de 10/11 (10 dias), pelo motivo de chuva', ...alterou }));
   await assertFails(updateDoc(ref('lc1'), { adiamento: 'x'.repeat(201), ...alterou }));
   await assertFails(updateDoc(ref('lc1'), { adiamento: { de: '2026-11-10', dias: 10 }, ...alterou }));
+  // Nota: o PDF da própria linha no Storage, {caminho, url, nome, tamanho}; null tira.
+  const nota = (extra = {}) => ({ caminho: 'logistica/notas/lc1/1731500000000-NF 123.pdf', url: 'https://exemplo/nf.pdf', nome: 'NF 123.pdf', tamanho: 2048, ...extra });
+  await assertSucceeds(updateDoc(ref('lc1'), { nota: nota(), status: '1', ...alterou }));
+  await assertSucceeds(updateDoc(ref('lc1'), { nota: null, ...alterou }));
+  await assertFails(updateDoc(ref('lc1'), { nota: nota({ caminho: 'logistica/notas/outra/nf.pdf' }), ...alterou }));
+  await assertFails(updateDoc(ref('lc1'), { nota: nota({ caminho: 'logistica/observacoes/lc1/nf.pdf' }), ...alterou }));
+  await assertFails(updateDoc(ref('lc1'), { nota: nota({ tamanho: 25 * 1024 * 1024 + 1 }), ...alterou }));
+  await assertFails(updateDoc(ref('lc1'), { nota: nota({ extra: true }), ...alterou }));
+  await assertFails(updateDoc(ref('lc1'), { nota: 'https://exemplo/nf.pdf', ...alterou }));
+  const { url: _semUrl, ...semUrl } = nota();
+  await assertFails(updateDoc(ref('lc1'), { nota: semUrl, ...alterou }));
 
   // Linhas de antes: sem código e com o texto do formato anterior. Só o código, sem assinar, passa ao número.
   await env.withSecurityRulesDisabled(async (context) => {

@@ -1449,7 +1449,7 @@ service cloud.firestore {
     function validLogisticaProgramacao(data) {
       return data.keys().hasOnly([
           'schemaVersion', 'cod', 'semanaId', 'item', 'status', 'inicio', 'fim', 'motorista', 'auxiliar', 'veiculo', 'veiculos',
-          'obra', 'expedicao', 'adiamento', 'posicao', 'conflitosIgnorados', 'criadoPorUid', 'criadoPorNome', 'criadoEm',
+          'obra', 'expedicao', 'adiamento', 'nota', 'posicao', 'conflitosIgnorados', 'criadoPorUid', 'criadoPorNome', 'criadoEm',
           'atualizadoPorUid', 'atualizadoPorNome', 'atualizadoEm'
         ])
         && data.schemaVersion == 1
@@ -1469,13 +1469,27 @@ service cloud.firestore {
         && (!('veiculos' in data) || logisticaVeiculos(data.veiculos))
         && logisticaRef(data.obra, 'id')
         && logisticaTextoOpcional(data, 'expedicao')
-        // Adiamento: só o texto ("adiada de dd/mm (x dias), pelo motivo de …"), sem data à parte.
+        // Adiamento: só o texto ("adiada|antecipada de dd/mm (x dias), pelo motivo de …"), sem data à parte.
         && logisticaTextoOpcional(data, 'adiamento')
         && data.posicao is number
         // Conflitos ignorados: chaves "recurso|programação".
         && (!('conflitosIgnorados' in data) || (data.conflitosIgnorados is list && data.conflitosIgnorados.size() <= 100))
         && logisticaTextoOpcional(data, 'criadoPorNome')
         && logisticaTextoOpcional(data, 'atualizadoPorNome');
+    }
+
+    // Nota: o PDF no Storage (logistica/notas/{programação}/{arquivo}), {caminho, url, nome, tamanho}; null ou ausente
+    // é sem nota.
+    function logisticaNota(data, programacaoId) {
+      return !('nota' in data) || data.nota == null
+        || (data.nota is map
+          && data.nota.keys().hasAll(['caminho', 'url', 'nome', 'tamanho'])
+          && data.nota.keys().hasOnly(['caminho', 'url', 'nome', 'tamanho'])
+          && data.nota.caminho is string
+          && data.nota.caminho.matches('^logistica/notas/' + programacaoId + '/[^/]{1,260}$')
+          && data.nota.url is string && data.nota.url.size() >= 1 && data.nota.url.size() <= 2000
+          && data.nota.nome is string && data.nota.nome.size() >= 1 && data.nota.nome.size() <= 200
+          && data.nota.tamanho is int && data.nota.tamanho >= 1 && data.nota.tamanho <= 25 * 1024 * 1024);
     }
 
     // Quem grava assina: o próprio UID e o horário do servidor (o nome vai em atualizadoPorNome).
@@ -1508,6 +1522,7 @@ service cloud.firestore {
       allow read: if isLogistica();
       allow create: if isLogistica()
         && validLogisticaProgramacao(request.resource.data)
+        && logisticaNota(request.resource.data, programacaoId)
         && logisticaAssinada(request.resource.data)
         && logisticaCodigoNumero(request.resource.data.get('cod', null))
         && request.resource.data.criadoPorUid == request.auth.uid
@@ -1516,6 +1531,7 @@ service cloud.firestore {
       // linha sem código ganha o número, a do formato anterior (texto) passa ao número. Número não muda mais.
       allow update: if isLogistica()
         && validLogisticaProgramacao(request.resource.data)
+        && logisticaNota(request.resource.data, programacaoId)
         && didNotChange(['semanaId', 'criadoPorUid', 'criadoPorNome', 'criadoEm'])
         && (
           (logisticaAssinada(request.resource.data) && request.resource.data.get('cod', null) == resource.data.get('cod', null))

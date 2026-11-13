@@ -311,6 +311,17 @@ body.lg-redimensionando, body.lg-redimensionando * { cursor: col-resize !importa
 /* células novas */
 .lg-cod { display: block; text-align: center; }
 .lg-em-breve { display: block; padding: 0 8px; color: var(--lg-texto-3); font-size: 12px; font-style: italic; text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+/* nota em PDF (célula e painel) e raio das automações no cabeçalho */
+.lg-nota { display: flex; align-items: center; gap: 2px; min-width: 0; padding: 0 6px; font-size: 13px; }
+.lg-nota-link { display: inline-flex; align-items: center; gap: 4px; min-width: 0; flex: 1; color: var(--lg-texto); text-decoration: none; }
+.lg-nota-link svg { flex: none; color: #d93025; font-size: 16px; }
+.lg-nota-link span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.lg-nota-link:hover span { text-decoration: underline; }
+.lg-nota-acao { flex: none; font-size: 16px; padding: 2px; }
+.lg-nota-enviar { display: inline-flex; align-items: center; gap: 4px; margin: 0 auto; padding: 2px 8px; border: 1px dashed var(--lg-borda); border-radius: 4px; background: none; color: var(--lg-texto-3); font-size: 12px; cursor: pointer; white-space: nowrap; }
+.lg-nota-enviar:hover { background: var(--lg-hover); color: var(--lg-texto); }
+.lg-nota-enviando { margin: 0 auto; color: var(--lg-texto-3); font-size: 12px; font-style: italic; }
+.lg-th-automacao { display: inline-flex; flex: none; color: #fdab3d; font-size: 15px; cursor: help; }
 .lg-autor { display: block; padding: 0 8px; color: var(--lg-texto-2); font-size: 13px; text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
 /* conflitos: balão (Popover, fora de .lg-pagina) e lista no painel */

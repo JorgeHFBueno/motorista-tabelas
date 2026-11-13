@@ -16,9 +16,10 @@ import { PainelProgramacao } from './components/PainelProgramacao';
 import { QuadroSemanas } from './components/QuadroSemanas';
 import { usePrefsColunas } from './components/usePrefsColunas';
 import {
-  abrirSemana, atualizarProgramacao, converterCodigo, criarProgramacao, darCodigo, ignorarConflito, pessoasDoFriday, type PessoasFriday, excluirProgramacao, observarEtiquetas, observarObservacoes,
-  observarProgramacoes, observarSemanas, salvarEtiquetas, MAX_ATRIBUIDOS_NOTA, observarAtribuidosNota, salvarAtribuidosNota,
+  abrirSemana, atualizarProgramacao, converterCodigo, criarProgramacao, darCodigo, enviarNota, ignorarConflito, pessoasDoFriday, type PessoasFriday, excluirProgramacao, observarEtiquetas, observarObservacoes,
+  observarProgramacoes, observarSemanas, salvarEtiquetas, MAX_ATRIBUIDOS_NOTA, observarAtribuidosNota, removerNota, salvarAtribuidosNota,
 } from './data/logisticaFirestore';
+import { statusPorAutomacao } from './domain/automacoes';
 import { semCodigoEmOrdem } from './domain/codigo';
 import { ETIQUETAS_PADRAO, statusAoSalvarEtiquetas, type EtiquetaStatus } from './domain/status';
 import { chaveConflito, conflitosAtivos, conflitosPorProgramacao } from './domain/conflitos';
@@ -162,11 +163,24 @@ export default function LogisticaCronogramaPage() {
       const posicao = Date.now();
       filaCriacao.current = filaCriacao.current.then(() => criarProgramacao(semanaId, item, posicao, eu)).catch(falhar('criar a programação'));
     },
-    atualizar: (id, alteracao) => { atualizarProgramacao(id, alteracao, eu).catch(falhar('salvar a alteração')); },
+    // As automações (domain/automacoes.ts) mudam o Status na mesma gravação.
+    atualizar: (id, alteracao) => {
+      const antes = (programacoes ?? []).find((item) => item.id === id);
+      const status = antes ? statusPorAutomacao(antes, alteracao, etiquetas) : null;
+      atualizarProgramacao(id, status !== null ? { ...alteracao, status } : alteracao, eu).catch(falhar('salvar a alteração'));
+    },
+    enviarNota: (programacao, arquivo) => {
+      const status = statusPorAutomacao(programacao, { nota: { caminho: '', url: '', nome: arquivo.name, tamanho: arquivo.size } }, etiquetas);
+      return enviarNota(programacao, arquivo, status !== null ? { status } : {}, eu).catch(falhar('enviar a nota'));
+    },
+    removerNota: (programacao) => {
+      if (!window.confirm(`Tirar a nota "${programacao.nota?.nome ?? ''}" desta programação?`)) return;
+      removerNota(programacao, eu).catch(falhar('tirar a nota'));
+    },
     excluir: (programacao) => {
       if (!window.confirm(`Excluir a programação "${programacao.item}"?`)) return;
       setAbertaId((aberta) => (aberta === programacao.id ? null : aberta));
-      excluirProgramacao(programacao.id).catch(falhar('excluir a programação'));
+      excluirProgramacao(programacao).catch(falhar('excluir a programação'));
     },
     abrir: (id, aba = 'programacao') => { setAbertaId(id); setAbaPainel(aba); },
     salvarEtiquetas: (novas) => {

@@ -27,6 +27,9 @@ export interface AcoesLogistica {
   excluir: (programacao: Programacao) => void;
   abrir: (id: string, aba?: AbaPainel) => void;
   salvarEtiquetas: (etiquetas: EtiquetaStatus[]) => void;
+  /** Envia o PDF da nota (troca o que houver); resolve depois de gravar ou de avisar o erro. */
+  enviarNota: (programacao: Programacao, arquivo: File) => Promise<void>;
+  removerNota: (programacao: Programacao) => void;
   /** Ignora o conflito (some nas duas linhas) ou volta a avisar. */
   ignorarConflito: (programacao: Programacao, conflito: Conflito, ignorar: boolean) => void;
 }

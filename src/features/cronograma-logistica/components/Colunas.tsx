@@ -1,5 +1,6 @@
 import ArrowDownwardRounded from '@mui/icons-material/ArrowDownwardRounded';
 import ArrowUpwardRounded from '@mui/icons-material/ArrowUpwardRounded';
+import BoltRounded from '@mui/icons-material/BoltRounded';
 import CloseRounded from '@mui/icons-material/CloseRounded';
 import MoreHorizRounded from '@mui/icons-material/MoreHorizRounded';
 import PushPinOutlined from '@mui/icons-material/PushPinOutlined';
@@ -11,6 +12,7 @@ import ListItemIcon from '@mui/material/ListItemIcon';
 import Menu from '@mui/material/Menu';
 import MenuItem from '@mui/material/MenuItem';
 import { useState } from 'react';
+import { automacaoDaColuna } from '../domain/automacoes';
 import { COLUNAS, fixacao, LARGURA_MAX, LARGURA_MIN, type ColunaVisivel, type PrefsColunas } from '../domain/colunas';
 
 export type MudarPrefs = (alterar: (atuais: PrefsColunas) => PrefsColunas) => void;
@@ -43,6 +45,7 @@ export function CabecalhoColuna({ coluna, prefs, mudar, onLarguraAoVivo }: {
   const ordenar = (novo: 1 | -1 | null) => mudar((atuais) => ({ ...atuais, ordem: novo ? { chave: coluna.chave, dir: novo } : null }));
   const fechar = () => setAncora(null);
   const { className, style } = fixacao(coluna);
+  const automacao = automacaoDaColuna(coluna.chave);
   return (
     <th className={`lg-th ${className}${dir ? ' is-ordenada' : ''}`} style={style}>
       <div className="lg-th-conteudo">
@@ -58,6 +61,7 @@ export function CabecalhoColuna({ coluna, prefs, mudar, onLarguraAoVivo }: {
           </button>
         )}
         <span className="lg-th-titulo">{fixa && <PushPinOutlined fontSize="inherit" />}{coluna.titulo}</span>
+        {automacao && <span className="lg-th-automacao" title={automacao} aria-label={automacao}><BoltRounded fontSize="inherit" /></span>}
         <button type="button" className="lg-th-menu" onClick={(event) => setAncora(event.currentTarget)} aria-label={`Menu da coluna ${coluna.titulo}`}>
           <MoreHorizRounded fontSize="inherit" />
         </button>

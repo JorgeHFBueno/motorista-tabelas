@@ -15,10 +15,11 @@ import {
 } from '../src/features/cronograma-logistica/domain/conflitos';
 import { barrasDaLinha, dicaDaBarra, linhasDoCalendario } from '../src/features/cronograma-logistica/domain/calendario';
 import { perguntarAdiamento, textoAdiamento } from '../src/features/cronograma-logistica/domain/adiamento';
+import { automacaoDaColuna, statusPorAutomacao } from '../src/features/cronograma-logistica/domain/automacoes';
 
 const programacao = (id: string, extra: Partial<Programacao> = {}): Programacao => ({
   id, cod: null, codAntigo: null, semanaId: '2026-W45', item: `Item ${id}`, status: '', inicio: null, fim: null,
-  motorista: null, auxiliar: null, veiculos: [], obra: null, expedicao: '', adiamento: '', posicao: 0, conflitosIgnorados: [],
+  motorista: null, auxiliar: null, veiculos: [], obra: null, expedicao: '', adiamento: '', nota: null, posicao: 0, conflitosIgnorados: [],
   criadoPor: null, criadoEm: null, modificadoPor: null, modificadoEm: null, ...extra,
 });
 
@@ -135,15 +136,38 @@ test('calendário: dica com Cod | Motivo, veículo e motorista fora da própria 
   assert.deepEqual(dicaDaBarra(programacao('b', { item: ' ', veiculos: [{ id: 'v1', nome: '' }] }), 'veiculo', 'v1', nomes), ['Sem código | Sem motivo']);
 });
 
-test('adiamento: só pergunta quando o fim que existia passa para depois; o texto leva o fim de antes, os dias e o motivo', () => {
+test('adiamento: pergunta sempre que o fim que existia muda de data; o texto leva o fim de antes, os dias e o motivo', () => {
   assert.equal(perguntarAdiamento('2026-11-10', '2026-11-12'), true);
-  assert.equal(perguntarAdiamento('2026-11-10', '2026-11-08'), false); // antecipar não é adiar
+  assert.equal(perguntarAdiamento('2026-11-20', '2026-11-18'), true); // dentro do prazo, antecipando: também pergunta
   assert.equal(perguntarAdiamento('2026-11-10', '2026-11-10'), false);
   assert.equal(perguntarAdiamento(null, '2026-11-12'), false); // não tinha fim
   assert.equal(perguntarAdiamento('2026-11-10', null), false); // tirou o fim
   assert.equal(textoAdiamento('2026-11-10', '2026-11-11', ' chuva '), 'adiada de 10/11 (1 dia), pelo motivo de chuva');
   assert.equal(textoAdiamento('2026-12-30', '2027-01-04', 'férias coletivas'), 'adiada de 30/12 (5 dias), pelo motivo de férias coletivas');
   assert.ok(textoAdiamento('2026-11-10', '2026-11-30', 'x'.repeat(500)).length <= 200);
+  assert.equal(textoAdiamento('2026-11-20', '2026-11-18', 'cliente pediu'), 'antecipada de 20/11 (2 dias), pelo motivo de cliente pediu');
+  assert.equal(textoAdiamento('2026-11-20', '2026-11-19', 'x'), 'antecipada de 20/11 (1 dia), pelo motivo de x');
+  assert.ok(textoAdiamento('2026-11-30', '2026-11-01', 'x'.repeat(500)).length <= 200);
+});
+
+test('automações: Expedição recebe valor → Ag. NF; Nota recebe o PDF → Em viagem; só quando o campo estava vazio', () => {
+  const nota = { caminho: 'logistica/notas/p/1-nf.pdf', url: 'u', nome: 'nf.pdf', tamanho: 1 };
+  const linha = programacao('p', { status: '3' });
+  assert.equal(statusPorAutomacao(linha, { expedicao: 'EXP 1234' }, ETIQUETAS_PADRAO), '2');
+  assert.equal(statusPorAutomacao(linha, { nota }, ETIQUETAS_PADRAO), '1');
+  assert.equal(statusPorAutomacao(linha, { expedicao: '   ' }, ETIQUETAS_PADRAO), null);
+  assert.equal(statusPorAutomacao(programacao('p', { status: '3', expedicao: 'EXP 1' }), { expedicao: 'EXP 2' }, ETIQUETAS_PADRAO), null); // troca não dispara
+  assert.equal(statusPorAutomacao(programacao('p', { status: '3', nota }), { nota: { ...nota, nome: 'outra.pdf' } }, ETIQUETAS_PADRAO), null);
+  assert.equal(statusPorAutomacao(programacao('p', { status: '2' }), { expedicao: 'EXP 1' }, ETIQUETAS_PADRAO), null); // já está em Ag. NF
+  assert.equal(statusPorAutomacao(linha, { motorista: null }, ETIQUETAS_PADRAO), null);
+  // Pelo nome da etiqueta (sem acento nem caixa), com a lista editada; sem a etiqueta, nada muda.
+  const editadas = [{ id: '30', nome: 'EM VIAGEM', cor: '#fff' }, { id: '31', nome: 'ag. nf', cor: '#fff' }];
+  assert.equal(statusPorAutomacao(linha, { nota }, editadas), '30');
+  assert.equal(statusPorAutomacao(linha, { expedicao: 'EXP 1' }, editadas), '31');
+  assert.equal(statusPorAutomacao(linha, { expedicao: 'EXP 1' }, [{ id: '1', nome: 'Carregar', cor: '#fff' }]), null);
+  assert.ok(automacaoDaColuna('expedicao')?.includes('Ag. NF'));
+  assert.ok(automacaoDaColuna('nota')?.includes('Em viagem'));
+  assert.equal(automacaoDaColuna('status'), null);
 });
 
 test('veículos: lista sem repetir, até 4; o documento antigo com um só veículo continua lido', () => {

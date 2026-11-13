@@ -9,10 +9,13 @@ import TextField from '@mui/material/TextField';
 import AddRounded from '@mui/icons-material/AddRounded';
 import DeleteOutlineRounded from '@mui/icons-material/DeleteOutlineRounded';
 import EditOutlined from '@mui/icons-material/EditOutlined';
-import { useEffect, useState, type KeyboardEvent } from 'react';
+import PictureAsPdfOutlined from '@mui/icons-material/PictureAsPdfOutlined';
+import SwapHorizRounded from '@mui/icons-material/SwapHorizRounded';
+import UploadFileOutlined from '@mui/icons-material/UploadFileOutlined';
+import { useEffect, useRef, useState, type ChangeEvent, type KeyboardEvent } from 'react';
 import { MAX_MOTIVO_ADIAMENTO, perguntarAdiamento, textoAdiamento } from '../domain/adiamento';
 import { ddmm } from '../domain/semanas';
-import type { CivilDate } from '../domain/models';
+import type { CivilDate, NotaProgramacao } from '../domain/models';
 import {
   COR_SEM_STATUS, CORES_ETIQUETA, MAX_ETIQUETAS, etiquetasLimpas, novoIdEtiqueta, statusExibido, textoEscuro,
   type EtiquetaStatus,
@@ -53,12 +56,48 @@ export function CampoTexto({ valor, onSalvar, placeholder, obrigatorio = false, 
   );
 }
 
+/** Nota em PDF: o nome abre o arquivo em outra aba (de onde se baixa); sem nota, o botão envia. Trocar e tirar ao lado. */
+export function CampoNota({ nota, onEnviar, onRemover }: {
+  nota: NotaProgramacao | null;
+  onEnviar: (arquivo: File) => Promise<void>;
+  onRemover: () => void;
+}) {
+  const entrada = useRef<HTMLInputElement>(null);
+  const [enviando, setEnviando] = useState(false);
+  const escolher = () => entrada.current?.click();
+  const aoEscolher = (event: ChangeEvent<HTMLInputElement>) => {
+    const arquivo = event.target.files?.[0];
+    event.target.value = '';
+    if (!arquivo) return;
+    setEnviando(true);
+    onEnviar(arquivo).finally(() => setEnviando(false));
+  };
+  return (
+    <span className="lg-nota">
+      <input ref={entrada} type="file" accept="application/pdf,.pdf" hidden onChange={aoEscolher} />
+      {enviando ? (
+        <span className="lg-nota-enviando">Enviando…</span>
+      ) : nota ? (
+        <>
+          <a className="lg-nota-link" href={nota.url} target="_blank" rel="noreferrer" title={`${nota.nome}: abrir ou baixar`}>
+            <PictureAsPdfOutlined fontSize="inherit" /><span>{nota.nome}</span>
+          </a>
+          <button type="button" className="lg-btn-icone lg-nota-acao" onClick={escolher} title="Trocar o PDF" aria-label="Trocar o PDF"><SwapHorizRounded fontSize="inherit" /></button>
+          <button type="button" className="lg-btn-icone lg-nota-acao" onClick={onRemover} title="Tirar a nota" aria-label="Tirar a nota"><DeleteOutlineRounded fontSize="inherit" /></button>
+        </>
+      ) : (
+        <button type="button" className="lg-nota-enviar" onClick={escolher}><UploadFileOutlined fontSize="inherit" />Enviar PDF</button>
+      )}
+    </span>
+  );
+}
+
 /** Período gravado; `adiamento` vai junto quando a pessoa diz que o novo fim é um adiamento. */
 export type AlteracaoPeriodo = { inicio: CivilDate | null; fim: CivilDate | null; adiamento?: string };
 
 /**
  * De/até; o "até" não aceita data antes do "de". Grava ao sair do campo (ou no Enter), não a cada tecla: assim a data
- * digitada pela metade não vale como mudança. Quando a linha já tinha fim e ele passa para depois, pergunta se é
+ * digitada pela metade não vale como mudança. Quando a linha já tinha fim e ele muda (para depois ou para antes), pergunta se é
  * correção (grava como sempre) ou adiamento (pede o motivo e grava também o texto do adiamento).
  */
 export function CampoPeriodo({ inicio, fim, onSalvar }: {
@@ -130,7 +169,7 @@ export function CampoPeriodo({ inicio, fim, onSalvar }: {
               <p className="lg-adiamento-pergunta">
                 O fim muda de {ddmm(fim)} para {ddmm(pergunta.fim)}.
                 {etapa === 'escolha'
-                  ? ' Na correção, só a data muda. No adiamento, a coluna Adiamento guarda de quando foi adiada, quantos dias e o motivo.'
+                  ? ' Na correção, só a data muda. No adiamento, a coluna Adiamento guarda o fim de antes, quantos dias e o motivo.'
                   : ` Fica gravado: "${textoAdiamento(fim, pergunta.fim, motivo.trim() || '…')}".`}
               </p>
               {etapa === 'motivo' && (

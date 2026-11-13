@@ -138,6 +138,18 @@ service firebase.storage {
       allow update: if false;
     }
 
+    // Cronograma Logístico: PDF da nota de uma programação, logistica/notas/{programacaoId}/{arquivo}. The same people,
+    // PDF only, up to 25 MB, never overwritten (a new note is a new file); deleted when the note is replaced or removed
+    // and with the programação.
+    match /logistica/notas/{programacaoId}/{arquivo} {
+      allow read, delete: if temArea('logistica', 'mecanico');
+      allow create: if temArea('logistica', 'mecanico')
+        && isNewObject()
+        && request.resource.size <= 25 * 1024 * 1024
+        && request.resource.contentType == 'application/pdf';
+      allow update: if false;
+    }
+
     // ================================================================ client portal (Manuscript portal.md)
 
     // Portal clients live in users/{uid} (not funcionarios) and see the files of the contracts of their CNPJ/CPF.

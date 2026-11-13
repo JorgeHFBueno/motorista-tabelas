@@ -6,7 +6,7 @@ import { httpsCallable } from 'firebase/functions';
 import { deleteObject, getDownloadURL, ref as refArquivo, uploadBytes } from 'firebase/storage';
 import { db, functions, storage } from '../../../firebase';
 import {
-  pessoaDoDocumento, veiculosDoDocumento, type AnexoObservacao, type Observacao, type Programacao, type ProgramacaoEditavel, type RefCadastro,
+  pessoaDoDocumento, veiculosDoDocumento, type AnexoObservacao, type NotaProgramacao, type Observacao, type Programacao, type ProgramacaoEditavel, type RefCadastro,
   type RefPessoa, type Semana,
 } from '../domain/models';
 import { codigoConvertido, codigoDaProgramacao } from '../domain/codigo';
@@ -41,6 +41,13 @@ const milis = (value: unknown) => {
   return horario && typeof horario.toMillis === 'function' ? horario.toMillis() : null;
 };
 
+function notaDo(value: unknown): NotaProgramacao | null {
+  const nota = value as Partial<NotaProgramacao> | null | undefined;
+  return nota && typeof nota.caminho === 'string' && typeof nota.url === 'string'
+    ? { caminho: nota.caminho, url: nota.url, nome: texto(nota.nome) || 'nota.pdf', tamanho: typeof nota.tamanho === 'number' ? nota.tamanho : 0 }
+    : null;
+}
+
 /** Quem criou/alterou: o UID e o nome gravado junto (as linhas de antes têm só o UID). */
 function autoria(uid: unknown, nome: unknown): RefPessoa | null {
   return typeof uid === 'string' && uid ? { uid, nome: texto(nome) } : null;
@@ -64,6 +71,7 @@ export function programacaoDoDocumento(id: string, value: Record<string, unknown
     obra: refCadastro(value.obra),
     expedicao: texto(value.expedicao),
     adiamento: texto(value.adiamento),
+    nota: notaDo(value.nota),
     posicao: typeof value.posicao === 'number' ? value.posicao : 0,
     conflitosIgnorados: Array.isArray(value.conflitosIgnorados) ? value.conflitosIgnorados.filter((chave): chave is string => typeof chave === 'string') : [],
     criadoPor: autoria(value.criadoPorUid, value.criadoPorNome),
@@ -264,11 +272,46 @@ export async function ignorarConflito(
   await lote.commit();
 }
 
-async function apagarArquivos(anexos: readonly AnexoObservacao[]): Promise<void> {
+async function apagarArquivos(anexos: readonly Pick<AnexoObservacao, 'caminho'>[]): Promise<void> {
   // Arquivo que já não existe não impede a exclusão da observação.
   await Promise.all(anexos.map((anexo) => deleteObject(refArquivo(storage, anexo.caminho)).catch((error: { code?: string }) => {
     if (error?.code !== 'storage/object-not-found') throw error;
   })));
+}
+
+export const ehPdf = (arquivo: File) => arquivo.type === 'application/pdf' || /\.pdf$/i.test(arquivo.name);
+
+/**
+ * Envia o PDF para logistica/notas/{programação}/ e grava `nota`, com o que mais vier na mesma gravação (o status da
+ * automação). Se a gravação falhar, o PDF novo é apagado; depois dela, o PDF de antes (troca de nota).
+ */
+export async function enviarNota(
+  programacao: Pick<Programacao, 'id' | 'nota'>,
+  arquivo: File,
+  extra: Partial<ProgramacaoEditavel>,
+  eu: RefPessoa,
+): Promise<void> {
+  if (!ehPdf(arquivo)) throw new Error(`“${arquivo.name}” não é PDF.`);
+  if (arquivo.size > LIMITE_ARQUIVO) throw new Error(`“${arquivo.name}” passa de 25 MB, o limite por arquivo.`);
+  const nome = arquivo.name.slice(0, 200);
+  const caminho = `logistica/notas/${programacao.id}/${Date.now()}-${nome.replace(/[/\\]/g, '_')}`;
+  const alvo = refArquivo(storage, caminho);
+  await uploadBytes(alvo, arquivo, { contentType: 'application/pdf', contentDisposition: `inline; filename*=UTF-8''${encodeURIComponent(nome)}` });
+  const nota: NotaProgramacao = { caminho, url: await getDownloadURL(alvo), nome, tamanho: arquivo.size };
+  try {
+    await updateDoc(doc(db, PROGRAMACOES, programacao.id), { ...extra, nota, ...assinatura(eu) });
+  } catch (error) {
+    await apagarArquivos([nota]).catch(() => undefined);
+    throw error;
+  }
+  if (programacao.nota) await apagarArquivos([programacao.nota]).catch(() => undefined);
+}
+
+/** Tira a nota da linha e apaga o PDF. */
+export async function removerNota(programacao: Pick<Programacao, 'id' | 'nota'>, eu: RefPessoa): Promise<void> {
+  if (!programacao.nota) return;
+  await updateDoc(doc(db, PROGRAMACOES, programacao.id), { nota: null, ...assinatura(eu) });
+  await apagarArquivos([programacao.nota]).catch(() => undefined);
 }
 
 async function excluirObservacaoComArquivos(observacao: Pick<Observacao, 'id' | 'anexos'>): Promise<void> {
@@ -276,14 +319,15 @@ async function excluirObservacaoComArquivos(observacao: Pick<Observacao, 'id' | 
   await deleteDoc(doc(db, OBSERVACOES, observacao.id));
 }
 
-/** Apaga as observações (e os arquivos) da programação e depois a programação. */
-export async function excluirProgramacao(id: string): Promise<void> {
-  const observacoes = await getDocs(query(collection(db, OBSERVACOES), where('programacaoId', '==', id)));
+/** Apaga as observações (e os arquivos) da programação, o PDF da nota e depois a programação. */
+export async function excluirProgramacao(programacao: Pick<Programacao, 'id' | 'nota'>): Promise<void> {
+  const observacoes = await getDocs(query(collection(db, OBSERVACOES), where('programacaoId', '==', programacao.id)));
   for (const item of observacoes.docs) {
     const observacao = observacaoDoDocumento(item.id, item.data());
     await excluirObservacaoComArquivos({ id: item.id, anexos: observacao?.anexos ?? [] });
   }
-  await deleteDoc(doc(db, PROGRAMACOES, id));
+  if (programacao.nota) await apagarArquivos([programacao.nota]);
+  await deleteDoc(doc(db, PROGRAMACOES, programacao.id));
 }
 
 /**

@@ -12,7 +12,7 @@ import { paresDeConflito, periodoDe } from '../domain/conflitos';
 import { MAX_VEICULOS, type Programacao, type RefPessoa } from '../domain/models';
 import { posicaoAoSoltar } from '../domain/ordem';
 import { rotuloSemana } from '../domain/semanas';
-import { CampoEscolha, CampoEscolhaVarios, CampoPeriodo, CampoStatus, CampoTexto } from './campos';
+import { CampoEscolha, CampoEscolhaVarios, CampoNota, CampoPeriodo, CampoStatus, CampoTexto } from './campos';
 import { CabecalhoColuna, type MudarPrefs } from './Colunas';
 import { BotaoConflitos } from './Conflitos';
 import {
@@ -154,7 +154,7 @@ function LinhaProgramacao({ programacao, cadastros, conflitos, todosConflitos, a
       case 'expedicao':
         return <CampoTexto valor={programacao.expedicao} maximo={200} onSalvar={(expedicao) => atualizar({ expedicao })} />;
       case 'nota':
-        return <span className="lg-em-breve">Vem Novidade Aí</span>;
+        return <CampoNota nota={programacao.nota} onEnviar={(arquivo) => acoes.enviarNota(programacao, arquivo)} onRemover={() => acoes.removerNota(programacao)} />;
       case 'adiamento':
         return programacao.adiamento ? <span className="lg-adiamento" title={programacao.adiamento}>{programacao.adiamento}</span> : null;
       case 'criadoPor':

@@ -33,6 +33,8 @@ export interface Programacao {
   expedicao: string;
   /** "adiada de dd/mm (x dias), pelo motivo de …": gravado quando o fim passa para depois como adiamento; '' sem adiamento. */
   adiamento: string;
+  /** PDF da nota (Storage logistica/notas/{programação}/); null sem nota. */
+  nota: NotaProgramacao | null;
   posicao: number;
   /** Conflitos que alguém mandou ignorar, pela chave "recurso|outra programação" (domain/conflitos.ts). */
   conflitosIgnorados: string[];
@@ -41,6 +43,13 @@ export interface Programacao {
   criadoEm: number | null;
   modificadoPor: RefPessoa | null;
   modificadoEm: number | null;
+}
+
+export interface NotaProgramacao {
+  caminho: string;
+  url: string;
+  nome: string;
+  tamanho: number;
 }
 
 export const MAX_VEICULOS = 4;
@@ -85,4 +94,4 @@ export interface Observacao {
 }
 
 /** Campos que a tela altera numa programação. */
-export type ProgramacaoEditavel = Pick<Programacao, 'item' | 'status' | 'inicio' | 'fim' | 'motorista' | 'auxiliar' | 'veiculos' | 'obra' | 'expedicao' | 'adiamento' | 'posicao'>;
+export type ProgramacaoEditavel = Pick<Programacao, 'item' | 'status' | 'inicio' | 'fim' | 'motorista' | 'auxiliar' | 'veiculos' | 'obra' | 'expedicao' | 'adiamento' | 'nota' | 'posicao'>;
