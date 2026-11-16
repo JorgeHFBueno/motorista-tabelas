@@ -50,6 +50,19 @@ export function statusExibido(valor: string, etiquetas: readonly EtiquetaStatus[
   return etiqueta ? { nome: etiqueta.nome, cor: etiqueta.cor, etiqueta } : { nome: valor, cor: COR_SEM_STATUS, etiqueta: null };
 }
 
+const normal = (texto: string) => texto.normalize('NFD').replace(/[̀-ͯ]/g, '').trim().toLocaleLowerCase('pt-BR');
+
+/** Mesmo nome de etiqueta, sem diferença de acento, maiúsculas e espaços nas pontas. */
+export const mesmoNome = (a: string, b: string) => normal(a) === normal(b);
+
+/** Status que encerram a programação: ela não continua nas semanas seguintes. */
+export const STATUS_ENCERRADOS = ['Finalizado', 'CANCELADO'] as const;
+
+export function statusEncerrado(valor: string, etiquetas: readonly EtiquetaStatus[]): boolean {
+  const { nome } = statusExibido(valor, etiquetas);
+  return STATUS_ENCERRADOS.some((encerrado) => mesmoNome(nome, encerrado));
+}
+
 export function novoIdEtiqueta(etiquetas: readonly EtiquetaStatus[]): string {
   return String(Math.max(0, ...etiquetas.map((item) => Number(item.id) || 0)) + 1);
 }

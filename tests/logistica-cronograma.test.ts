@@ -3,12 +3,12 @@ import test from 'node:test';
 import { pessoaDoDocumento, veiculosDoDocumento, type Programacao } from '../src/features/cronograma-logistica/domain/models';
 import { posicaoAoSoltar } from '../src/features/cronograma-logistica/domain/ordem';
 import {
-  COR_SEM_STATUS, ETIQUETAS_PADRAO, etiquetasLimpas, novoIdEtiqueta, statusAoSalvarEtiquetas, statusExibido, textoEscuro,
+  COR_SEM_STATUS, ETIQUETAS_PADRAO, etiquetasLimpas, novoIdEtiqueta, statusAoSalvarEtiquetas, statusEncerrado, statusExibido, textoEscuro,
 } from '../src/features/cronograma-logistica/domain/status';
 import { codigoConvertido, codigoDaProgramacao, semCodigoEmOrdem, textoCodigo } from '../src/features/cronograma-logistica/domain/codigo';
-import { colunasVisiveis, ordenarPor, prefsLimpas } from '../src/features/cronograma-logistica/domain/colunas';
+import { colunasVisiveis, ordenarPor, prefsLimpas, rotuloOrdem } from '../src/features/cronograma-logistica/domain/colunas';
 import {
-  diasDoCalendario, inicioDaSemanaId, organizarSemanas, proximaSemanaParaAbrir, rotuloSemana, semanaIdDe, semanaIdValido,
+  diasDoCalendario, inicioDaSemanaId, organizarSemanas, proximaSemanaParaAbrir, rotuloSemana, semanaIdDe, semanaIdValido, vindasDeAntes,
 } from '../src/features/cronograma-logistica/domain/semanas';
 import {
   conflitosAtivos, conflitosIgnorados, conflitosPorProgramacao, periodoDe, textoConflito,
@@ -151,24 +151,63 @@ test('adiamento: pergunta sempre que o fim que existia muda de data; o texto lev
   assert.ok(textoAdiamento('2026-11-30', '2026-11-01', 'x'.repeat(500)).length <= 200);
 });
 
-test('automações: Expedição recebe valor → Ag. NF; Nota recebe o PDF → Em viagem; só quando o campo estava vazio', () => {
+test('automações: Expedição recebe valor → Carregar; Nota recebe o PDF → Em viagem; só quando o campo estava vazio', () => {
   const nota = { caminho: 'logistica/notas/p/1-nf.pdf', url: 'u', nome: 'nf.pdf', tamanho: 1 };
-  const linha = programacao('p', { status: '3' });
-  assert.equal(statusPorAutomacao(linha, { expedicao: 'EXP 1234' }, ETIQUETAS_PADRAO), '2');
+  const linha = programacao('p', { status: '2' });
+  assert.equal(statusPorAutomacao(linha, { expedicao: 'EXP 1234' }, ETIQUETAS_PADRAO), '3');
   assert.equal(statusPorAutomacao(linha, { nota }, ETIQUETAS_PADRAO), '1');
   assert.equal(statusPorAutomacao(linha, { expedicao: '   ' }, ETIQUETAS_PADRAO), null);
-  assert.equal(statusPorAutomacao(programacao('p', { status: '3', expedicao: 'EXP 1' }), { expedicao: 'EXP 2' }, ETIQUETAS_PADRAO), null); // troca não dispara
-  assert.equal(statusPorAutomacao(programacao('p', { status: '3', nota }), { nota: { ...nota, nome: 'outra.pdf' } }, ETIQUETAS_PADRAO), null);
-  assert.equal(statusPorAutomacao(programacao('p', { status: '2' }), { expedicao: 'EXP 1' }, ETIQUETAS_PADRAO), null); // já está em Ag. NF
+  assert.equal(statusPorAutomacao(programacao('p', { status: '2', expedicao: 'EXP 1' }), { expedicao: 'EXP 2' }, ETIQUETAS_PADRAO), null); // troca não dispara
+  assert.equal(statusPorAutomacao(programacao('p', { status: '2', nota }), { nota: { ...nota, nome: 'outra.pdf' } }, ETIQUETAS_PADRAO), null);
+  assert.equal(statusPorAutomacao(programacao('p', { status: '3' }), { expedicao: 'EXP 1' }, ETIQUETAS_PADRAO), null); // já está em Carregar
   assert.equal(statusPorAutomacao(linha, { motorista: null }, ETIQUETAS_PADRAO), null);
+  assert.equal(statusPorAutomacao(linha, { status: '2' }, ETIQUETAS_PADRAO), null); // Ag. NF só avisa (Function), não muda nada aqui
   // Pelo nome da etiqueta (sem acento nem caixa), com a lista editada; sem a etiqueta, nada muda.
-  const editadas = [{ id: '30', nome: 'EM VIAGEM', cor: '#fff' }, { id: '31', nome: 'ag. nf', cor: '#fff' }];
+  const editadas = [{ id: '30', nome: 'EM VIAGEM', cor: '#fff' }, { id: '31', nome: ' carregar ', cor: '#fff' }];
   assert.equal(statusPorAutomacao(linha, { nota }, editadas), '30');
   assert.equal(statusPorAutomacao(linha, { expedicao: 'EXP 1' }, editadas), '31');
-  assert.equal(statusPorAutomacao(linha, { expedicao: 'EXP 1' }, [{ id: '1', nome: 'Carregar', cor: '#fff' }]), null);
-  assert.ok(automacaoDaColuna('expedicao')?.includes('Ag. NF'));
+  assert.equal(statusPorAutomacao(linha, { expedicao: 'EXP 1' }, [{ id: '1', nome: 'Ag. NF', cor: '#fff' }]), null);
+  assert.ok(automacaoDaColuna('expedicao')?.includes('Carregar'));
   assert.ok(automacaoDaColuna('nota')?.includes('Em viagem'));
-  assert.equal(automacaoDaColuna('status'), null);
+  assert.ok(automacaoDaColuna('nota')?.includes('Nota anexada'));
+  assert.ok(automacaoDaColuna('status')?.includes('Ag. NF'));
+  assert.equal(automacaoDaColuna('obra'), null);
+});
+
+test('semana atual: as não finalizadas nem canceladas de antes que terminam nela ou depois (ou sem fim)', () => {
+  // Semana 47 começa em 16/11/2026.
+  const linhas = [
+    programacao('termina-16', { semanaId: '2026-W46', fim: '2026-11-16', status: '1' }),
+    programacao('termina-20', { semanaId: '2026-W46', fim: '2026-11-20', status: '3', posicao: 2 }),
+    programacao('sem-fim', { semanaId: '2026-W45', fim: null, status: '' }),
+    programacao('terminou-15', { semanaId: '2026-W46', fim: '2026-11-15', status: '1' }),
+    programacao('finalizada', { semanaId: '2026-W46', fim: '2026-11-18', status: '4' }),
+    programacao('cancelada-nome', { semanaId: '2026-W46', fim: '2026-11-18', status: 'CANCELADO' }),
+    programacao('da-atual', { semanaId: '2026-W47', fim: '2026-11-18', status: '1' }),
+    programacao('futura', { semanaId: '2026-W48', fim: '2026-11-25', status: '1' }),
+  ];
+  const ids = vindasDeAntes(linhas, '2026-W47', (linha) => statusEncerrado(linha.status, ETIQUETAS_PADRAO)).map((linha) => linha.id);
+  assert.deepEqual(ids, ['sem-fim', 'termina-16', 'termina-20']);
+  assert.equal(statusEncerrado('4', ETIQUETAS_PADRAO), true);
+  assert.equal(statusEncerrado('finalizado', []), true); // texto livre de antes das etiquetas também conta
+  assert.equal(statusEncerrado('20', [{ id: '20', nome: ' cancelado ', cor: '#fff' }]), true);
+  assert.equal(statusEncerrado('', ETIQUETAS_PADRAO), false);
+});
+
+test('ordenar o Período pelo início ou pelo fim; a preferência guarda o fim só no Período', () => {
+  const linhas = [
+    programacao('a', { inicio: '2026-11-10', fim: '2026-11-20' }),
+    programacao('b', { inicio: '2026-11-12', fim: '2026-11-14' }),
+    programacao('c', { inicio: null, fim: null }),
+  ];
+  assert.deepEqual(ordenarPor(linhas, (l) => periodoDe(l)?.fim ?? null, 1).map((l) => l.id), ['b', 'a', 'c']);
+  assert.deepEqual(ordenarPor(linhas, (l) => periodoDe(l)?.fim ?? null, -1).map((l) => l.id), ['a', 'b', 'c']);
+  assert.deepEqual(prefsLimpas({ ordem: { chave: 'periodo', dir: 1, porFim: true } }).ordem, { chave: 'periodo', dir: 1, porFim: true });
+  assert.deepEqual(prefsLimpas({ ordem: { chave: 'item', dir: 1, porFim: true } }).ordem, { chave: 'item', dir: 1 });
+  assert.deepEqual(prefsLimpas({ ordem: { chave: 'periodo', dir: -1, porFim: 'sim' } }).ordem, { chave: 'periodo', dir: -1 });
+  assert.equal(rotuloOrdem({ chave: 'periodo', dir: 1, porFim: true }), 'Período: termina primeiro');
+  assert.equal(rotuloOrdem({ chave: 'periodo', dir: -1 }), 'Período: começa por último');
+  assert.equal(rotuloOrdem({ chave: 'obra', dir: 1 }), 'Ordenado por Obra');
 });
 
 test('veículos: lista sem repetir, até 4; o documento antigo com um só veículo continua lido', () => {

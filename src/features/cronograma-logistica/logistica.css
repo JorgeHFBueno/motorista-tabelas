@@ -81,6 +81,8 @@
 .lg-tabela tr:hover .lg-col-acao .lg-btn-icone, .lg-tabela .lg-col-acao .lg-btn-icone:focus-visible { opacity: 1; }
 .lg-item { display: flex; align-items: center; gap: 2px; padding-right: 4px; }
 .lg-item .lg-input { flex: 1; min-width: 0; }
+/* Programação de semana anterior que aparece na atual: selo com a semana de origem. */
+.lg-vinda { flex: none; margin-left: 4px; padding: 1px 5px; border-radius: 4px; background: var(--lg-hover); color: var(--lg-texto-2); font-size: 11px; font-weight: 600; cursor: default; }
 .lg-aviso { display: inline-flex; margin-left: 4px; padding: 2px; border: 0; border-radius: 4px; background: none; color: var(--lg-perigo) !important; cursor: pointer; }
 .lg-aviso:hover { background: #fbdcd6; }
 .lg-abrir { display: inline-flex; align-items: center; gap: 4px; height: 24px; padding: 0 6px; border: 1px solid var(--lg-borda); border-radius: 4px; background: var(--lg-superficie); color: var(--lg-texto-2); font-size: 12px; cursor: pointer; opacity: 0; }

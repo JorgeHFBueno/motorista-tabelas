@@ -38,7 +38,16 @@ export interface PrefsColunas {
   larguras: Partial<Record<ChaveColuna, number>>;
   fixas: ChaveColuna[];
   ocultas: ChaveColuna[];
-  ordem: { chave: ChaveColuna; dir: 1 | -1 } | null;
+  ordem: OrdemColuna | null;
+}
+
+/** Ordenação: coluna e sentido; no Período, `porFim` ordena pelo fim (termina primeiro / por último) em vez do início. */
+export interface OrdemColuna { chave: ChaveColuna; dir: 1 | -1; porFim?: true }
+
+/** Como a barra e o menu chamam a ordenação. */
+export function rotuloOrdem(ordem: OrdemColuna): string {
+  if (ordem.chave === 'periodo') return `Período: ${ordem.porFim ? 'termina' : 'começa'} ${ordem.dir === 1 ? 'primeiro' : 'por último'}`;
+  return `Ordenado por ${def(ordem.chave)?.titulo ?? ordem.chave}`;
 }
 
 export const PREFS_VAZIAS: PrefsColunas = { larguras: {}, fixas: [], ocultas: [], ordem: null };
@@ -55,13 +64,15 @@ export function prefsLimpas(valor: unknown): PrefsColunas {
     const coluna = def(chave);
     if (coluna && typeof largura === 'number' && Number.isFinite(largura)) larguras[coluna.chave] = Math.round(Math.min(LARGURA_MAX, Math.max(LARGURA_MIN, largura)));
   }
-  const ordem = bruto.ordem as { chave?: unknown; dir?: unknown } | null | undefined;
+  const ordem = bruto.ordem as { chave?: unknown; dir?: unknown; porFim?: unknown } | null | undefined;
   const colunaOrdem = def(ordem?.chave);
   return {
     larguras,
     fixas: chaves(bruto.fixas, () => true),
     ocultas: chaves(bruto.ocultas, (coluna) => coluna.ocultavel),
-    ordem: colunaOrdem?.ordenavel && (ordem?.dir === 1 || ordem?.dir === -1) ? { chave: colunaOrdem.chave, dir: ordem.dir } : null,
+    ordem: colunaOrdem?.ordenavel && (ordem?.dir === 1 || ordem?.dir === -1)
+      ? { chave: colunaOrdem.chave, dir: ordem.dir, ...(colunaOrdem.chave === 'periodo' && ordem.porFim === true ? { porFim: true as const } : {}) }
+      : null,
   };
 }
 

@@ -7,7 +7,7 @@ import OpenInFullRounded from '@mui/icons-material/OpenInFullRounded';
 import WarningAmberRounded from '@mui/icons-material/WarningAmberRounded';
 import { useMemo, useState, type CSSProperties, type ReactNode } from 'react';
 import { textoCodigo } from '../domain/codigo';
-import { colunasVisiveis, fixacao, ordenarPor, type ChaveColuna, type ColunaVisivel, type PrefsColunas, type ValorOrdem } from '../domain/colunas';
+import { colunasVisiveis, fixacao, ordenarPor, type ChaveColuna, type ColunaVisivel, type OrdemColuna, type PrefsColunas, type ValorOrdem } from '../domain/colunas';
 import { paresDeConflito, periodoDe } from '../domain/conflitos';
 import { textoLocal } from '../domain/local';
 import { MAX_VEICULOS, type Programacao, type RefPessoa } from '../domain/models';
@@ -59,12 +59,15 @@ interface Arraste {
 const nomeAutor = (ref: RefPessoa | null, cadastros: CadastrosLogistica) => (ref ? cadastros.nomePessoa(ref.uid, ref.nome) || ref.nome : '');
 const quando = (ms: number | null) => (ms === null ? '' : new Date(ms).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' }));
 
-/** Valor de cada coluna para ordenar (o que a célula mostra; status pela ordem das etiquetas). */
-function valorParaOrdenar(chave: ChaveColuna, programacao: Programacao, cadastros: CadastrosLogistica): ValorOrdem {
+/** Valor de cada coluna para ordenar (o que a célula mostra; status pela ordem das etiquetas; período pelo início ou fim). */
+function valorParaOrdenar({ chave, porFim }: OrdemColuna, programacao: Programacao, cadastros: CadastrosLogistica): ValorOrdem {
   switch (chave) {
     case 'cod': return programacao.cod;
     case 'item': return programacao.item;
-    case 'periodo': return periodoDe(programacao)?.inicio ?? null;
+    case 'periodo': {
+      const periodo = periodoDe(programacao);
+      return (porFim ? periodo?.fim : periodo?.inicio) ?? null;
+    }
     case 'motorista': return programacao.motorista ? cadastros.nomePessoa(programacao.motorista.id, programacao.motorista.nome) : null;
     case 'auxiliar': return programacao.auxiliar ? cadastros.nomePessoa(programacao.auxiliar.id, programacao.auxiliar.nome) : null;
     case 'veiculos': return programacao.veiculos.map((veiculo) => cadastros.nomeVeiculo(veiculo.id, veiculo.nome)).join(', ');
@@ -82,10 +85,12 @@ function valorParaOrdenar(chave: ChaveColuna, programacao: Programacao, cadastro
   }
 }
 
-function LinhaProgramacao({ programacao, cadastros, conflitos, todosConflitos, acoes, nObservacoes, arraste, colunas }: Comum & {
+function LinhaProgramacao({ programacao, cadastros, conflitos, todosConflitos, acoes, nObservacoes, arraste, colunas, vinda }: Comum & {
   programacao: Programacao;
   arraste: Arraste;
   colunas: ColunaVisivel[];
+  /** Vem de uma semana anterior (aparece na atual): não se arrasta nem recebe a arrastada. */
+  vinda?: boolean;
 }) {
   const lista = conflitos.get(programacao.id) ?? [];
   const nObs = nObservacoes.get(programacao.id) ?? 0;
@@ -103,7 +108,7 @@ function LinhaProgramacao({ programacao, cadastros, conflitos, todosConflitos, a
       case 'item':
         return (
           <span className="lg-item">
-            {arraste.ligado && (
+            {arraste.ligado && !vinda && (
               <span
                 className="lg-alca"
                 draggable
@@ -124,6 +129,11 @@ function LinhaProgramacao({ programacao, cadastros, conflitos, todosConflitos, a
                 acoes={acoes}
                 mostrarLinha={false}
               />
+            )}
+            {vinda && (
+              <span className="lg-vinda" title={`Da ${rotuloSemana(programacao.semanaId)}; aparece aqui até ser finalizada ou cancelada`}>
+                S{Number(programacao.semanaId.slice(6))}
+              </span>
             )}
             <CampoTexto valor={programacao.item} obrigatorio maximo={200} onSalvar={(item) => atualizar({ item })} />
             <button type="button" className="lg-abrir" onClick={() => acoes.abrir(programacao.id)} title="Abrir">
@@ -174,8 +184,8 @@ function LinhaProgramacao({ programacao, cadastros, conflitos, todosConflitos, a
   return (
     <tr
       className={classes}
-      onDragOver={(event) => { if (arraste.arrastando) { event.preventDefault(); arraste.onAlvo(programacao.id); } }}
-      onDrop={(event) => { event.preventDefault(); arraste.onSoltar(programacao.id); }}
+      onDragOver={vinda ? undefined : (event) => { if (arraste.arrastando) { event.preventDefault(); arraste.onAlvo(programacao.id); } }}
+      onDrop={vinda ? undefined : (event) => { event.preventDefault(); arraste.onSoltar(programacao.id); }}
     >
       {colunas.map((coluna) => {
         const { className, style } = fixacao(coluna);
@@ -219,10 +229,12 @@ function NovaProgramacao({ onCriar, arraste, colunas }: { onCriar: (item: string
   );
 }
 
-export function GrupoSemana({ semanaId, tipo, programacoes, aberto, onAlternar, tabela, ...comum }: Comum & {
+export function GrupoSemana({ semanaId, tipo, programacoes, vindas = [], aberto, onAlternar, tabela, ...comum }: Comum & {
   semanaId: string;
   tipo: TipoSemana;
   programacoes: Programacao[];
+  /** De semanas anteriores, ainda correndo (só na atual): vêm antes das da semana. */
+  vindas?: Programacao[];
   aberto: boolean;
   onAlternar: () => void;
   tabela: Tabela;
@@ -232,10 +244,11 @@ export function GrupoSemana({ semanaId, tipo, programacoes, aberto, onAlternar, 
   const pares = paresDeConflito(programacoes, (id) => comum.todosConflitos.get(id) ?? []);
   const nIgnorados = pares.filter((par) => par.conflito.ignorado).length;
   const ordem = prefs.ordem;
-  const linhas = useMemo(
-    () => (ordem ? ordenarPor(programacoes, (programacao) => valorParaOrdenar(ordem.chave, programacao, comum.cadastros), ordem.dir) : programacoes),
-    [programacoes, ordem, comum.cadastros],
-  );
+  const linhas = useMemo(() => {
+    const todas = [...vindas, ...programacoes];
+    return ordem ? ordenarPor(todas, (programacao) => valorParaOrdenar(ordem, programacao, comum.cadastros), ordem.dir) : todas;
+  }, [vindas, programacoes, ordem, comum.cadastros]);
+  const idsVindas = useMemo(() => new Set(vindas.map((programacao) => programacao.id)), [vindas]);
   const [arrastando, setArrastando] = useState<string | null>(null);
   const [alvo, setAlvo] = useState<string | null | undefined>(undefined);
   const terminar = () => { setArrastando(null); setAlvo(undefined); };
@@ -260,7 +273,10 @@ export function GrupoSemana({ semanaId, tipo, programacoes, aberto, onAlternar, 
         <button type="button" className="lg-grupo-cab" onClick={onAlternar} aria-expanded={aberto}>
           {aberto ? <ExpandMoreRounded /> : <ChevronRightRounded />}
           <span className="lg-grupo-nome">{rotuloSemana(semanaId)}{tipo === 'atual' ? ' (atual)' : ''}</span>
-          <span className="lg-grupo-total">{programacoes.length} {programacoes.length === 1 ? 'programação' : 'programações'}</span>
+          <span className="lg-grupo-total">
+            {programacoes.length} {programacoes.length === 1 ? 'programação' : 'programações'}
+            {vindas.length > 0 && ` + ${vindas.length} de semanas anteriores`}
+          </span>
         </button>
         {nConflitos > 0 && (
           <BotaoConflitos
@@ -297,7 +313,9 @@ export function GrupoSemana({ semanaId, tipo, programacoes, aberto, onAlternar, 
               </tr>
             </thead>
             <tbody>
-              {linhas.map((programacao) => <LinhaProgramacao key={programacao.id} programacao={programacao} arraste={arraste} colunas={colunas} {...comum} />)}
+              {linhas.map((programacao) => (
+                <LinhaProgramacao key={programacao.id} programacao={programacao} arraste={arraste} colunas={colunas} vinda={idsVindas.has(programacao.id)} {...comum} />
+              ))}
               <NovaProgramacao onCriar={(item) => comum.acoes.criar(semanaId, item)} arraste={arraste} colunas={colunas.length} />
             </tbody>
           </table>
@@ -307,11 +325,13 @@ export function GrupoSemana({ semanaId, tipo, programacoes, aberto, onAlternar, 
   );
 }
 
-export function QuadroSemanas({ futuras, atual, anteriores, porSemana, prefs, mudarPrefs, ...comum }: Comum & {
+export function QuadroSemanas({ futuras, atual, anteriores, porSemana, vindas, prefs, mudarPrefs, ...comum }: Comum & {
   futuras: string[];
   atual: string | null;
   anteriores: string[];
   porSemana: ReadonlyMap<string, Programacao[]>;
+  /** As de semanas anteriores que aparecem também na atual (domain/semanas.ts). */
+  vindas: Programacao[];
   prefs: PrefsColunas;
   mudarPrefs: MudarPrefs;
 }) {
@@ -336,6 +356,7 @@ export function QuadroSemanas({ futuras, atual, anteriores, porSemana, prefs, mu
       semanaId={id}
       tipo={tipo}
       programacoes={porSemana.get(id) ?? []}
+      vindas={tipo === 'atual' ? vindas : undefined}
       aberto={tipo === 'anterior' ? alternadas.has(id) : !alternadas.has(id)}
       onAlternar={() => alternar(id)}
       tabela={tabela}

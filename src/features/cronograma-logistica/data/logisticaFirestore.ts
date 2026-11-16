@@ -177,7 +177,7 @@ export function observarEtiquetas(onData: (etiquetas: EtiquetaStatus[]) => void,
 }
 
 /**
- * Quem recebe o aviso "Novo Pedido de Nota" quando uma programação passa para "Ag. NF" (logistica-config/pedidoNota):
+ * Quem recebe os avisos "Novo Pedido de Nota" (programação em "Ag. NF") e "Nota anexada" (logistica-config/pedidoNota):
  * até 3 UIDs, com logistica ou adm2. O aviso é gravado pela Function logisticaPedidoNota.
  */
 export const MAX_ATRIBUIDOS_NOTA = 3;

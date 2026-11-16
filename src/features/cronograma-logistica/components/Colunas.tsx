@@ -13,7 +13,7 @@ import Menu from '@mui/material/Menu';
 import MenuItem from '@mui/material/MenuItem';
 import { useState } from 'react';
 import { automacaoDaColuna } from '../domain/automacoes';
-import { COLUNAS, fixacao, LARGURA_MAX, LARGURA_MIN, type ColunaVisivel, type PrefsColunas } from '../domain/colunas';
+import { COLUNAS, fixacao, LARGURA_MAX, LARGURA_MIN, rotuloOrdem, type ColunaVisivel, type OrdemColuna, type PrefsColunas } from '../domain/colunas';
 
 export type MudarPrefs = (alterar: (atuais: PrefsColunas) => PrefsColunas) => void;
 
@@ -40,9 +40,28 @@ export function CabecalhoColuna({ coluna, prefs, mudar, onLarguraAoVivo }: {
   onLarguraAoVivo: (largura: { chave: ColunaVisivel['chave']; valor: number } | null) => void;
 }) {
   const [ancora, setAncora] = useState<HTMLElement | null>(null);
-  const dir = prefs.ordem?.chave === coluna.chave ? prefs.ordem.dir : null;
+  const minha = prefs.ordem?.chave === coluna.chave ? prefs.ordem : null;
+  const dir = minha?.dir ?? null;
   const fixa = prefs.fixas.includes(coluna.chave);
-  const ordenar = (novo: 1 | -1 | null) => mudar((atuais) => ({ ...atuais, ordem: novo ? { chave: coluna.chave, dir: novo } : null }));
+  // A seta inverte o sentido e mantém se o Período está pelo fim.
+  const ordenar = (novo: 1 | -1 | null, porFim = minha?.porFim === true) => mudar((atuais) => ({
+    ...atuais,
+    ordem: novo ? { chave: coluna.chave, dir: novo, ...(porFim ? { porFim: true as const } : {}) } : null,
+  }));
+  const periodo = coluna.chave === 'periodo';
+  // No Período, começa e termina primeiro / por último; nas outras, crescente e decrescente.
+  const opcoes: { ordem: OrdemColuna; rotulo: string }[] = periodo
+    ? [
+      { ordem: { chave: 'periodo', dir: 1 }, rotulo: 'Começa primeiro' },
+      { ordem: { chave: 'periodo', dir: -1 }, rotulo: 'Começa por último' },
+      { ordem: { chave: 'periodo', dir: 1, porFim: true }, rotulo: 'Termina primeiro' },
+      { ordem: { chave: 'periodo', dir: -1, porFim: true }, rotulo: 'Termina por último' },
+    ]
+    : [
+      { ordem: { chave: coluna.chave, dir: 1 }, rotulo: 'Ordenar crescente' },
+      { ordem: { chave: coluna.chave, dir: -1 }, rotulo: 'Ordenar decrescente' },
+    ];
+  const emUso = (ordem: OrdemColuna) => minha?.dir === ordem.dir && (minha.porFim === true) === (ordem.porFim === true);
   const fechar = () => setAncora(null);
   const { className, style } = fixacao(coluna);
   const automacao = automacaoDaColuna(coluna.chave);
@@ -54,7 +73,7 @@ export function CabecalhoColuna({ coluna, prefs, mudar, onLarguraAoVivo }: {
             type="button"
             className="lg-th-ordem"
             onClick={() => ordenar(dir === 1 ? -1 : 1)}
-            title={dir === 1 ? 'Crescente (clique para decrescente)' : dir === -1 ? 'Decrescente (clique para crescente)' : 'Ordenar por esta coluna'}
+            title={minha && periodo ? `${rotuloOrdem(minha)} (clique para inverter)` : dir === 1 ? 'Crescente (clique para decrescente)' : dir === -1 ? 'Decrescente (clique para crescente)' : 'Ordenar por esta coluna'}
             aria-label={`Ordenar por ${coluna.titulo}`}
           >
             {dir === 1 ? <ArrowUpwardRounded fontSize="inherit" /> : dir === -1 ? <ArrowDownwardRounded fontSize="inherit" /> : <SwapVertRounded fontSize="inherit" />}
@@ -83,8 +102,11 @@ export function CabecalhoColuna({ coluna, prefs, mudar, onLarguraAoVivo }: {
         })}
       />
       <Menu anchorEl={ancora} open={ancora !== null} onClose={fechar} slotProps={{ paper: { className: 'lg-menu-coluna' } }}>
-        {coluna.ordenavel && <MenuItem onClick={() => { ordenar(1); fechar(); }}><ListItemIcon><ArrowUpwardRounded fontSize="small" /></ListItemIcon>Ordenar crescente</MenuItem>}
-        {coluna.ordenavel && <MenuItem onClick={() => { ordenar(-1); fechar(); }}><ListItemIcon><ArrowDownwardRounded fontSize="small" /></ListItemIcon>Ordenar decrescente</MenuItem>}
+        {coluna.ordenavel && opcoes.map(({ ordem, rotulo }) => (
+          <MenuItem key={rotulo} selected={emUso(ordem)} onClick={() => { ordenar(ordem.dir, ordem.porFim === true); fechar(); }}>
+            <ListItemIcon>{ordem.dir === 1 ? <ArrowUpwardRounded fontSize="small" /> : <ArrowDownwardRounded fontSize="small" />}</ListItemIcon>{rotulo}
+          </MenuItem>
+        ))}
         {dir && <MenuItem onClick={() => { ordenar(null); fechar(); }}><ListItemIcon><CloseRounded fontSize="small" /></ListItemIcon>Tirar ordenação</MenuItem>}
         <MenuItem onClick={() => {
           mudar((atuais) => ({ ...atuais, fixas: fixa ? atuais.fixas.filter((chave) => chave !== coluna.chave) : [...atuais.fixas, coluna.chave] }));
@@ -112,7 +134,7 @@ export function BarraColunas({ prefs, mudar }: { prefs: PrefsColunas; mudar: Mud
       {ordenada && prefs.ordem && (
         <span className="lg-chip-ordem">
           {prefs.ordem.dir === 1 ? <ArrowUpwardRounded fontSize="inherit" /> : <ArrowDownwardRounded fontSize="inherit" />}
-          Ordenado por {ordenada.titulo}
+          {rotuloOrdem(prefs.ordem)}
           <button type="button" onClick={() => mudar((atuais) => ({ ...atuais, ordem: null }))} title="Tirar ordenação (volta à ordem da semana)" aria-label="Tirar ordenação">
             <CloseRounded fontSize="inherit" />
           </button>

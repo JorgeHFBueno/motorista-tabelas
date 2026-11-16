@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 
 const d = await import('../lib/logisticaPedidoNotaDominio.js');
 
-// Aviso "Novo Pedido de Nota" do Cronograma Logístico. Só dados fictícios.
+// Avisos "Novo Pedido de Nota" e "Nota anexada" do Cronograma Logístico. Só dados fictícios.
 const funcionario = (perfis, ativo = true) => ({ ativo, perfis });
 
 test('Ag. NF: pelo id da etiqueta com esse nome, pelo padrão sem lista e pelo nome nas linhas de antes', () => {
@@ -57,4 +57,25 @@ test('id do aviso: o mesmo evento e pessoa dão o mesmo id; outro evento, outro 
   assert.equal(d.idAvisoPedidoNota('ev1', 'ana'), d.idAvisoPedidoNota('ev1', 'ana'));
   assert.notEqual(d.idAvisoPedidoNota('ev1', 'ana'), d.idAvisoPedidoNota('ev2', 'ana'));
   assert.match(d.idAvisoPedidoNota('ev1', 'ana'), /^pnf_[0-9a-f]{28}$/);
+});
+
+test('nota anexada: só quando a programação recebe o PDF (não na troca nem ao tirar)', () => {
+  const nota = { caminho: 'logistica/notas/p/1-nf.pdf', url: 'u', nome: 'nf.pdf', tamanho: 1 };
+  assert.equal(d.recebeuNota({ nota: null }, { nota }), true);
+  assert.equal(d.recebeuNota(undefined, { nota }), true);
+  assert.equal(d.recebeuNota({}, { nota }), true);
+  assert.equal(d.recebeuNota({ nota }, { nota: { ...nota, caminho: 'logistica/notas/p/2-nf.pdf' } }), false);
+  assert.equal(d.recebeuNota({ nota }, { nota: null }), false);
+  assert.equal(d.recebeuNota({ nota: null }, { nota: { caminho: '' } }), false);
+});
+
+test('aviso de nota anexada: título com a expedição, detalhe com quem anexou; id próprio', () => {
+  const p = { expedicao: '4521', item: 'Pilares', obra: { id: 'o1', nome: 'Obra A' }, atualizadoPorNome: 'Ana' };
+  assert.deepEqual(d.avisoNotaAnexada('prog1', p), {
+    area: 'logistica', tipo: 'nota_anexada', titulo: 'Nota anexada - Expedição 4521',
+    mensagem: 'Pilares · Obra A · anexada por Ana', rota: '/logistica/cronograma', local: 'Cronograma Logístico',
+    origem: { colecao: 'logistica-programacoes', id: 'prog1' }, lida: false,
+  });
+  assert.match(d.idAvisoNotaAnexada('ev1', 'ana'), /^nta_[0-9a-f]{28}$/);
+  assert.notEqual(d.idAvisoNotaAnexada('ev1', 'ana'), d.idAvisoPedidoNota('ev1', 'ana'));
 });

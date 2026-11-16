@@ -9,8 +9,9 @@ import { useState } from 'react';
 const iniciais = (nome: string) => nome.split(/\s+/).filter(Boolean).slice(0, 2).map((p) => p[0]).join('').toUpperCase() || '?';
 
 /**
- * "Atribuir" na barra do quadro: até `maximo` pessoas (logistica ou adm2) que recebem no sino o aviso "Novo Pedido de
- * Nota" quando uma programação passa para "Ag. NF". Vale para o cronograma inteiro; cada marcação grava na hora.
+ * "Atribuir" na barra do quadro: até `maximo` pessoas (logistica ou adm2) que recebem no sino os avisos "Novo Pedido de
+ * Nota" (a programação passa para "Ag. NF") e "Nota anexada" (recebe o PDF). Vale para o cronograma inteiro; cada
+ * marcação grava na hora.
  */
 export function BotaoAtribuir({ atribuidos, pessoas, nome, maximo, onSalvar }: {
   atribuidos: string[];
@@ -31,7 +32,7 @@ export function BotaoAtribuir({ atribuidos, pessoas, nome, maximo, onSalvar }: {
         type="button"
         className={`lg-btn${atribuidos.length ? ' lg-btn-ativo' : ''}`}
         onClick={(event) => setAncora(event.currentTarget)}
-        title={atribuidos.length ? `Pedido de nota: ${atribuidos.map(nome).join(', ')}` : 'Quem recebe o aviso de pedido de nota (Ag. NF)'}
+        title={atribuidos.length ? `Avisos da nota: ${atribuidos.map(nome).join(', ')}` : 'Quem recebe os avisos da nota (Ag. NF e PDF anexado)'}
       >
         {atribuidos.length ? (
           <AvatarGroup max={maximo} sx={{ '& .MuiAvatar-root': { width: 22, height: 22, fontSize: 10, borderWidth: 1 } }}>
@@ -41,7 +42,7 @@ export function BotaoAtribuir({ atribuidos, pessoas, nome, maximo, onSalvar }: {
         Atribuir
       </button>
       <Menu anchorEl={ancora} open={ancora !== null} onClose={() => setAncora(null)} slotProps={{ paper: { className: 'lg-menu-coluna' } }}>
-        <li className="lg-menu-ajuda">Recebem o aviso "Novo Pedido de Nota" quando uma programação passa para Ag. NF (até {maximo}).</li>
+        <li className="lg-menu-ajuda">Recebem o aviso "Novo Pedido de Nota" quando uma programação passa para Ag. NF e "Nota anexada" quando ela recebe o PDF (até {maximo}).</li>
         {[...pessoas, ...fora].map((pessoa) => {
           const marcado = atribuidos.includes(pessoa.uid);
           return (

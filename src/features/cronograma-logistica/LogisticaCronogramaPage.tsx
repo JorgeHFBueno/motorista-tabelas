@@ -21,10 +21,10 @@ import {
 } from './data/logisticaFirestore';
 import { statusPorAutomacao } from './domain/automacoes';
 import { semCodigoEmOrdem } from './domain/codigo';
-import { ETIQUETAS_PADRAO, statusAoSalvarEtiquetas, type EtiquetaStatus } from './domain/status';
+import { ETIQUETAS_PADRAO, statusAoSalvarEtiquetas, statusEncerrado, type EtiquetaStatus } from './domain/status';
 import { chaveConflito, conflitosAtivos, conflitosPorProgramacao } from './domain/conflitos';
 import type { Observacao, Programacao, RefPessoa, Semana } from './domain/models';
-import { hojeCivil, organizarSemanas, proximaSemanaParaAbrir, rotuloSemana, semanaIdDe } from './domain/semanas';
+import { hojeCivil, organizarSemanas, proximaSemanaParaAbrir, rotuloSemana, semanaIdDe, vindasDeAntes } from './domain/semanas';
 import './logistica.css';
 
 /**
@@ -139,6 +139,8 @@ export default function LogisticaCronogramaPage() {
     for (const itens of mapa.values()) itens.sort((a, b) => a.posicao - b.posicao || a.id.localeCompare(b.id));
     return mapa;
   }, [lista]);
+  // As não encerradas de semanas anteriores que ainda correm aparecem também na semana atual.
+  const vindas = useMemo(() => vindasDeAntes(lista, atualId, (programacao) => statusEncerrado(programacao.status, etiquetas)), [lista, atualId, etiquetas]);
 
   // Observações por programação, da mais nova para a mais antiga (a que ainda não tem horário do servidor vem antes).
   const observacoesPor = useMemo(() => {
@@ -252,6 +254,7 @@ export default function LogisticaCronogramaPage() {
             atual={grupos.atual}
             anteriores={grupos.anteriores}
             porSemana={porSemana}
+            vindas={vindas}
             cadastros={cadastros}
             conflitos={conflitos}
             todosConflitos={todosConflitos}

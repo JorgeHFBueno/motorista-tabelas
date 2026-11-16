@@ -84,6 +84,21 @@ export function organizarSemanas(abertas: readonly string[], hoje: CivilDate) {
   };
 }
 
+/**
+ * Programações de semanas anteriores que aparecem também na semana atual: as não encerradas (status diferente de
+ * Finalizado e CANCELADO) que terminam na semana atual ou depois, ou que não têm fim. Ordem: semana, depois posição.
+ */
+export function vindasDeAntes<T extends { id: string; semanaId: string; fim: CivilDate | null; posicao: number }>(
+  linhas: readonly T[],
+  atualId: string,
+  encerrada: (linha: T) => boolean,
+): T[] {
+  const segunda = inicioDaSemanaId(atualId);
+  return linhas
+    .filter((linha) => linha.semanaId < atualId && (linha.fim === null || linha.fim >= segunda) && !encerrada(linha))
+    .sort((a, b) => a.semanaId.localeCompare(b.semanaId) || a.posicao - b.posicao || a.id.localeCompare(b.id));
+}
+
 /** Os 28 dias do calendário: da segunda da semana anterior ao domingo de daqui a duas semanas. */
 export function diasDoCalendario(hoje: CivilDate): CivilDate[] {
   const inicio = somarDias(segundaDaSemana(hoje), -7);
