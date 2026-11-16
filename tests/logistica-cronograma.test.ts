@@ -17,6 +17,7 @@ import { barrasDaLinha, dicaDaBarra, linhasDoCalendario } from '../src/features/
 import { perguntarAdiamento, textoAdiamento } from '../src/features/cronograma-logistica/domain/adiamento';
 import { automacaoDaColuna, statusPorAutomacao } from '../src/features/cronograma-logistica/domain/automacoes';
 import { coordenadaCurta, linkDoMapa, textoLocal } from '../src/features/cronograma-logistica/domain/local';
+import { feriadoEm, feriadosDoAno, fimDeSemana, pascoa } from '../src/features/cronograma-logistica/domain/feriados';
 
 const programacao = (id: string, extra: Partial<Programacao> = {}): Programacao => ({
   id, cod: null, codAntigo: null, semanaId: '2026-W45', item: `Item ${id}`, status: '', inicio: null, fim: null,
@@ -78,7 +79,8 @@ test('conflito: mesma pessoa (motorista ou auxiliar) ou mesmo veículo no mesmo 
     programacao('e', { item: 'Outro dia', inicio: '2026-11-09', motorista: { id: 'u1', nome: 'Ederson' } }),
   ];
   const conflitos = conflitosPorProgramacao(lista);
-  assert.deepEqual(conflitos.get('a')?.map(textoConflito).sort(), ['Ederson também em "Montagem" (04/11)', 'TRK-8I95 também em "Buscar" (03/11)']);
+  // 02/11 é Finados: o feriado também é conflito da linha (teste dos feriados mais abaixo).
+  assert.deepEqual(conflitos.get('a')?.map(textoConflito).sort(), ['Ederson também em "Montagem" (04/11)', 'Feriado: 02/11 - Finados', 'TRK-8I95 também em "Buscar" (03/11)']);
   assert.deepEqual(conflitos.get('b')?.map(textoConflito), ['Ederson também em "Transporte" (04/11)']);
   assert.deepEqual(conflitos.get('c')?.map(textoConflito), ['TRK-8I95 também em "Transporte" (03/11)']);
   assert.equal(conflitos.has('d'), false);
@@ -343,4 +345,41 @@ test('local: "Cidade - UF - coordenada" com 4 casas; o Maps com o pino na coorde
   assert.equal(textoLocal({ ...local, cidade: '', uf: '' }), '-29.1678, -51.1795');
   assert.equal(coordenadaCurta({ lat: 41.9, lng: 12.5 }), '41.9000, 12.5000');
   assert.equal(linkDoMapa(local), 'https://www.google.com/maps/search/?api=1&query=-29.1678123%2C-51.1794987');
+});
+
+test('feriados: nacionais fixos, os da Páscoa e o 20 de setembro do RS', () => {
+  assert.equal(pascoa(2026), '2026-04-05');
+  assert.equal(pascoa(2027), '2027-03-28');
+  assert.equal(pascoa(2024), '2024-03-31');
+  assert.deepEqual(feriadosDoAno(2026).map((f) => `${f.data.slice(5)} ${f.nome}`), [
+    '01-01 Confraternização Universal', '02-16 Carnaval', '02-17 Carnaval', '04-03 Sexta-feira Santa', '04-21 Tiradentes',
+    '05-01 Dia do Trabalho', '06-04 Corpus Christi', '09-07 Independência do Brasil', '09-20 Revolução Farroupilha (RS)',
+    '10-12 Nossa Senhora Aparecida', '11-02 Finados', '11-15 Proclamação da República', '11-20 Consciência Negra', '12-25 Natal',
+  ]);
+  assert.equal(feriadoEm('2026-11-20'), 'Consciência Negra');
+  assert.equal(feriadoEm('2027-03-26'), 'Sexta-feira Santa');
+  assert.equal(feriadoEm('2026-11-19'), null);
+  assert.equal(fimDeSemana('2026-11-21'), true); // sábado
+  assert.equal(fimDeSemana('2026-11-22'), true); // domingo
+  assert.equal(fimDeSemana('2026-11-23'), false);
+});
+
+test('feriado no período vira conflito da programação, um por dia, e pode ser ignorado', () => {
+  const linhas = [
+    programacao('pega', { inicio: '2026-11-19', fim: '2026-11-21' }),
+    programacao('dois', { inicio: '2026-12-24', fim: '2027-01-01', conflitosIgnorados: ['feriado|2026-12-25'] }),
+    programacao('fora', { inicio: '2026-11-16', fim: '2026-11-18' }),
+    programacao('sem-data'),
+  ];
+  const todos = conflitosPorProgramacao(linhas);
+  const pega = todos.get('pega') ?? [];
+  assert.equal(pega.length, 1);
+  assert.equal(pega[0].tipo, 'feriado');
+  assert.equal(pega[0].chave, 'feriado|2026-11-20');
+  assert.equal(textoConflito(pega[0]), 'Feriado: 20/11 - Consciência Negra');
+  assert.deepEqual((todos.get('dois') ?? []).map((c) => [c.primeiroDia, c.ignorado]), [['2026-12-25', true], ['2027-01-01', false]]);
+  assert.equal(conflitosAtivos(todos).get('dois')?.length, 1);
+  assert.equal(conflitosIgnorados(todos).get('dois')?.length, 1);
+  assert.equal(todos.has('fora'), false);
+  assert.equal(todos.has('sem-data'), false);
 });

@@ -1,3 +1,4 @@
+import { feriadoEm } from './feriados';
 import type { CivilDate, Programacao } from './models';
 import { ddmm, diferencaDias, somarDias } from './semanas';
 
@@ -14,13 +15,15 @@ export function diasDoPeriodo(periodo: { inicio: CivilDate; fim: CivilDate }): C
 }
 
 export interface Conflito {
-  tipo: 'pessoa' | 'veiculo';
+  /** 'feriado': o período pega um feriado (domain/feriados.ts); `nome` é o do feriado e não há outra programação. */
+  tipo: 'pessoa' | 'veiculo' | 'feriado';
   nome: string;
+  /** '' no feriado. */
   outraId: string;
   outroItem: string;
   outroCod: number | null;
   primeiroDia: CivilDate;
-  /** "p:id" (pessoa) ou "v:id" (veículo) e a outra programação: o que se grava em `conflitosIgnorados`. */
+  /** "p:id" (pessoa) ou "v:id" (veículo) e a outra programação, ou "feriado|AAAA-MM-DD": o que se grava em `conflitosIgnorados`. */
   chave: string;
   /** Uma das duas programações mandou ignorar este conflito: some do aviso nas duas. */
   ignorado: boolean;
@@ -29,10 +32,14 @@ export interface Conflito {
 /** Chave com que uma programação ignora o conflito com a outra no mesmo recurso. */
 export const chaveConflito = (recurso: string, outraId: string) => `${recurso}|${outraId}`;
 
+/** Chave com que uma programação ignora o feriado do dia. */
+export const chaveFeriado = (dia: CivilDate) => chaveConflito('feriado', dia);
+
 /**
- * Conflito: no mesmo dia, a mesma pessoa (motorista ou auxiliar) ou o mesmo veículo em duas programações.
- * Só aviso; devolve, por programação, um conflito por (recurso, outra programação), com o primeiro dia em comum,
- * inclusive os ignorados (marcados; conflitosAtivos e conflitosIgnorados separam).
+ * Conflito: no mesmo dia, a mesma pessoa (motorista ou auxiliar) ou o mesmo veículo em duas programações; ou um
+ * feriado dentro do período (um por dia de feriado). Só aviso; devolve, por programação, um conflito por (recurso,
+ * outra programação), com o primeiro dia em comum, e os feriados depois, inclusive os ignorados (marcados;
+ * conflitosAtivos e conflitosIgnorados separam).
  */
 export function conflitosPorProgramacao(
   programacoes: readonly Programacao[],
@@ -78,6 +85,19 @@ export function conflitosPorProgramacao(
       }
     }
   }
+  for (const programacao of programacoes) {
+    const periodo = periodoDe(programacao);
+    if (!periodo) continue;
+    for (const dia of diasDoPeriodo(periodo)) {
+      const feriado = feriadoEm(dia);
+      if (!feriado) continue;
+      const chave = chaveFeriado(dia);
+      resultado.set(programacao.id, [
+        ...(resultado.get(programacao.id) ?? []),
+        { tipo: 'feriado', nome: feriado, outraId: '', outroItem: '', outroCod: null, primeiroDia: dia, chave, ignorado: programacao.conflitosIgnorados.includes(chave) },
+      ]);
+    }
+  }
   return resultado;
 }
 
@@ -117,5 +137,6 @@ export function paresDeConflito(programacoes: readonly Programacao[], conflitos:
 }
 
 export function textoConflito(conflito: Conflito): string {
+  if (conflito.tipo === 'feriado') return `Feriado: ${ddmm(conflito.primeiroDia)} - ${conflito.nome}`;
   return `${conflito.nome} também em "${conflito.outroItem}" (${ddmm(conflito.primeiroDia)})`;
 }

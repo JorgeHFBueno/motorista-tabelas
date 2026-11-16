@@ -3,6 +3,7 @@ import Popover from '@mui/material/Popover';
 import { useMemo, useState, type CSSProperties } from 'react';
 import { barrasDaLinha, dicaDaBarra, linhasDoCalendario, type LinhasPor } from '../domain/calendario';
 import { textoConflito } from '../domain/conflitos';
+import { feriadoEm, fimDeSemana } from '../domain/feriados';
 import type { CivilDate, Programacao } from '../domain/models';
 import { ddmm, diasDoCalendario, semanaDoId, semanaIdDe } from '../domain/semanas';
 import { COR_SEM_STATUS, statusExibido, textoEscuro } from '../domain/status';
@@ -10,6 +11,9 @@ import type { AcoesLogistica, CadastrosLogistica, ConflitosLogistica } from './c
 
 const DIAS_SEMANA = ['D', 'S', 'T', 'Q', 'Q', 'S', 'S'];
 const MODOS: readonly (readonly [LinhasPor, string])[] = [['cod', 'Cod'], ['motorista', 'Motorista'], ['veiculo', 'Veículo']];
+
+/** Feriado com cor forte; sábado e domingo com cor leve (domain/feriados.ts). */
+const classeDoDia = (dia: CivilDate) => (feriadoEm(dia) ? 'is-feriado' : fimDeSemana(dia) ? 'is-fim-semana' : '');
 
 export function CalendarioSemanas({ programacoes, hoje, cadastros, conflitos, acoes }: {
   programacoes: readonly Programacao[];
@@ -55,8 +59,9 @@ export function CalendarioSemanas({ programacoes, hoje, cadastros, conflitos, ac
             <div className="lg-cal-dias">
               {dias.map((dia) => {
                 const diaSemana = new Date(`${dia}T00:00:00Z`).getUTCDay();
+                const feriado = feriadoEm(dia);
                 return (
-                  <div key={dia} className={`${dia === hoje ? 'is-hoje ' : ''}${diaSemana === 0 || diaSemana === 6 ? 'is-fim-semana' : ''}`}>
+                  <div key={dia} className={`${dia === hoje ? 'is-hoje ' : ''}${classeDoDia(dia)}`} title={feriado ? `Feriado: ${feriado}` : undefined}>
                     <small>{DIAS_SEMANA[diaSemana]}</small>{dia.slice(8, 10)}
                   </div>
                 );
@@ -70,10 +75,9 @@ export function CalendarioSemanas({ programacoes, hoje, cadastros, conflitos, ac
               <div className="lg-cal-linha" key={linha.chave} style={{ '--lg-faixas': faixas } as CSSProperties}>
                 <div className="lg-cal-nome" title={linha.nome}>{linha.nome}</div>
                 <div className="lg-cal-trilho">
-                  {dias.map((dia, indice) => {
-                    const diaSemana = new Date(`${dia}T00:00:00Z`).getUTCDay();
-                    return <i key={dia} className={`lg-cal-celula ${dia === hoje ? 'is-hoje' : ''} ${diaSemana === 0 || diaSemana === 6 ? 'is-fim-semana' : ''} ${indice % 7 === 0 ? 'is-segunda' : ''}`} />;
-                  })}
+                  {dias.map((dia, indice) => (
+                    <i key={dia} className={`lg-cal-celula ${dia === hoje ? 'is-hoje' : ''} ${classeDoDia(dia)} ${indice % 7 === 0 ? 'is-segunda' : ''}`} />
+                  ))}
                   {barras.map((barra) => {
                     const { programacao } = barra;
                     const lista = conflitos.get(programacao.id) ?? [];

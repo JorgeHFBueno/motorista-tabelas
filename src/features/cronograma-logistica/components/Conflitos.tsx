@@ -2,7 +2,7 @@ import WarningAmberRounded from '@mui/icons-material/WarningAmberRounded';
 import Popover from '@mui/material/Popover';
 import { useState, type ReactNode } from 'react';
 import { textoCodigo } from '../domain/codigo';
-import type { ItemConflito } from '../domain/conflitos';
+import { textoConflito, type ItemConflito } from '../domain/conflitos';
 import { ddmm } from '../domain/semanas';
 import type { AcoesLogistica } from './contexto';
 
@@ -17,7 +17,7 @@ export function ListaConflitos({ itens, acoes, mostrarLinha = true }: { itens: r
         <li key={`${programacao.id}-${conflito.chave}`} className={conflito.ignorado ? 'is-ignorado' : ''}>
           <div>
             {mostrarLinha && <strong>{comCodigo(programacao.cod, programacao.item)}</strong>}
-            <span>{conflito.nome} também em "{comCodigo(conflito.outroCod, conflito.outroItem)}" ({ddmm(conflito.primeiroDia)})</span>
+            <span>{conflito.tipo === 'feriado' ? textoConflito(conflito) : <>{conflito.nome} também em "{comCodigo(conflito.outroCod, conflito.outroItem)}" ({ddmm(conflito.primeiroDia)})</>}</span>
             {conflito.ignorado && <small>Ignorado</small>}
           </div>
           <button type="button" className="lg-conflitos-acao" onClick={() => acoes.ignorarConflito(programacao, conflito, !conflito.ignorado)}>

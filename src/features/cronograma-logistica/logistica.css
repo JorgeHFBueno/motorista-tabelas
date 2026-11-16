@@ -248,7 +248,9 @@
 .lg-cal-dias div { display: flex; flex-direction: column; align-items: center; justify-content: center; line-height: 1.1; font-size: 13px; border-left: 1px solid var(--lg-borda-suave); }
 .lg-cal-dias div:nth-child(7n + 1) { border-left: 2px solid var(--lg-borda); }
 .lg-cal-dias small { color: var(--lg-texto-3); font-size: 10px; }
-.lg-cal-dias .is-fim-semana { background: rgba(50, 51, 56, .045); }
+.lg-cal-dias .is-fim-semana { background: rgba(50, 51, 56, .07); }
+.lg-cal-dias .is-feriado { background: #fbd5db; color: #a3192f; font-weight: 600; cursor: help; }
+.lg-cal-dias .is-feriado small { color: #a3192f; }
 .lg-cal-dias .is-hoje { background: var(--lg-primaria); color: #fff; border-radius: 4px; }
 .lg-cal-dias .is-hoje small { color: #fff; }
 .lg-cal-linha { display: grid; grid-template-columns: 200px 1fr; min-height: calc(var(--lg-faixas) * var(--lg-faixa) + 8px); border-bottom: 1px solid var(--lg-borda-suave); }
@@ -256,7 +258,8 @@
 .lg-cal-trilho { position: relative; display: grid; grid-template-columns: repeat(var(--lg-dias), var(--lg-dia)); }
 .lg-cal-celula { border-left: 1px solid var(--lg-borda-suave); }
 .lg-cal-celula.is-segunda { border-left: 2px solid var(--lg-borda); }
-.lg-cal-celula.is-fim-semana { background: rgba(50, 51, 56, .045); }
+.lg-cal-celula.is-fim-semana { background: rgba(50, 51, 56, .07); }
+.lg-cal-celula.is-feriado { background: rgba(226, 68, 92, .16); }
 .lg-cal-celula.is-hoje { background: rgba(47, 111, 222, .08); }
 .lg-cal-barra-item { position: absolute; height: calc(var(--lg-faixa) - 4px); margin-left: 2px; display: flex; align-items: center; gap: 3px; padding: 0 6px; border: 0; border-radius: 4px; background: var(--lg-cor); color: #fff !important; font-size: 12px; font-weight: 600; text-align: left; cursor: pointer; overflow: hidden; white-space: nowrap; box-shadow: 0 1px 2px rgba(0, 0, 0, .15); }
 .lg-cal-barra-item span { overflow: hidden; text-overflow: ellipsis; }
