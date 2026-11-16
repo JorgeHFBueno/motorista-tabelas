@@ -90,3 +90,20 @@ export function segmentosNT(periodo: Periodo, inicioJanela: string, diasJanela: 
   });
   return result;
 }
+
+/** Valor de `draggingMaster` enquanto o "NT" da paleta é arrastado (escala Dias). */
+export const NT_ARRASTE = "__NT__";
+
+/**
+ * Estica ou encolhe um trecho NT pela ponta `edge`, como a barra do mestre: a ponta vai até `dataAlvo`,
+ * sem passar da outra ponta do trecho nem sair do período. Devolve a lista nova, já normalizada.
+ */
+export function redimensionarNaoTrabalhado(periodo: Periodo, trecho: NaoTrabalhado, edge: "start" | "end", dataAlvo: string): NaoTrabalhado[] | undefined {
+  const fimPeriodo = calculatedEnd(periodo.inicio, periodo.tempoPlanejado);
+  const fimTrecho = calculatedEnd(trecho.inicio, trecho.dias);
+  const limitar = (dia: string) => (dia < periodo.inicio ? periodo.inicio : dia > fimPeriodo ? fimPeriodo : dia);
+  const inicio = edge === "start" ? limitar(dataAlvo > fimTrecho ? fimTrecho : dataAlvo) : trecho.inicio;
+  const fim = edge === "end" ? limitar(dataAlvo < trecho.inicio ? trecho.inicio : dataAlvo) : fimTrecho;
+  const outros = desmarcarNaoTrabalhado(periodo, trecho) ?? [];
+  return normalizarNaoTrabalhados({ ...periodo, naoTrabalhados: [...outros, { inicio, dias: inclusiveCivilDays(inicio, fim)! }] });
+}

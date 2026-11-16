@@ -38,7 +38,9 @@ import { getDirectMasterDropInterval } from "./domain/dropPlanning";
 import { planPrioridadeMove } from "./domain/prioridade";
 import {
   juntarPeriodos,
+  marcarNaoTrabalhado,
   normalizarNaoTrabalhados,
+  NT_ARRASTE,
   type NaoTrabalhado,
 } from "./domain/naoTrabalhados";
 import { gravarPrioridadeLote } from "./data/prioridadeLote";
@@ -72,7 +74,7 @@ import {
   sameObraExceptMasters,
   updateObraStatusByLoteId,
 } from "./application/localPlanner";
-import { todayCivil } from "./domain/temporal";
+import { calculatedEnd, todayCivil } from "./domain/temporal";
 import {
   separarObrasPorSituacao,
   statusLoteConhecido,
@@ -241,7 +243,7 @@ function withResizeDrafts(
     string,
     Pick<
       ObraCronograma["mestresPlanejados"][number],
-      "inicio" | "tempoPlanejado"
+      "inicio" | "tempoPlanejado" | "naoTrabalhados"
     >
   >,
 ): ObraCronograma[] {
@@ -252,7 +254,9 @@ function withResizeDrafts(
       if (!draft) return mestre;
       if (
         draft.inicio === mestre.inicio &&
-        draft.tempoPlanejado === mestre.tempoPlanejado
+        draft.tempoPlanejado === mestre.tempoPlanejado &&
+        JSON.stringify(draft.naoTrabalhados ?? null) ===
+          JSON.stringify(mestre.naoTrabalhados ?? null)
       ) {
         drafts.delete(mestre.localId);
         return mestre;
@@ -354,7 +358,10 @@ export default function CronogramaObrasPage() {
   const mestresRef = useRef<MestreFirestore[]>([]);
   const alocacoesRef = useRef<AlocacaoFirestore[]>([]);
   const resizeDrafts = useRef(
-    new Map<string, { inicio: string; tempoPlanejado: number }>(),
+    new Map<
+      string,
+      { inicio: string; tempoPlanejado: number; naoTrabalhados?: NaoTrabalhado[] }
+    >(),
   );
   // Ctrl+Z: only this tab's own calendar actions; a reload clears it.
   const undoStack = useRef<UndoEntry[]>([]);
@@ -755,7 +762,34 @@ export default function CronogramaObrasPage() {
   const save = (next: ObraCronograma) => {
     void persistObra(next);
   };
-  const dropMaster = (obra: ObraCronograma, mestre: string, target: string) => {
+  const dropMaster = (
+    obra: ObraCronograma,
+    mestre: string,
+    target: string,
+    localId?: string,
+  ) => {
+    if (mestre === NT_ARRASTE) {
+      setDraggingMaster(null);
+      // NT marks one day on the mestre's bar under the pointer (or the only one covering that day).
+      const noDia = obra.mestresPlanejados.filter(
+        (item) =>
+          target >= item.inicio &&
+          target <= calculatedEnd(item.inicio, item.tempoPlanejado),
+      );
+      const alvo =
+        noDia.find((item) => item.localId === localId) ??
+        (noDia.length === 1 ? noDia[0] : null);
+      if (!alvo) {
+        setWriteError(
+          noDia.length
+            ? "Há mais de um mestre nesse dia: solte o NT sobre a barra do mestre."
+            : "Solte o NT num dia dentro do período de um mestre.",
+        );
+        return;
+      }
+      salvarNaoTrabalhados(alvo.localId, marcarNaoTrabalhado(alvo, target, 1));
+      return;
+    }
     if (zoom !== "year") {
       const interval = getDirectMasterDropInterval({
         obra,
@@ -877,10 +911,12 @@ export default function CronogramaObrasPage() {
     localId: string;
     inicio: string;
     tempoPlanejado: number;
+    naoTrabalhados?: NaoTrabalhado[];
   }) => {
     resizeDrafts.current.set(next.localId, {
       inicio: next.inicio,
       tempoPlanejado: next.tempoPlanejado,
+      naoTrabalhados: next.naoTrabalhados,
     });
     setObras(withResizeDrafts(confirmedObras.current, resizeDrafts.current));
   };
@@ -890,7 +926,12 @@ export default function CronogramaObrasPage() {
   };
   const resizeMaster = (
     obraId: string,
-    next: { localId: string; inicio: string; tempoPlanejado: number },
+    next: {
+      localId: string;
+      inicio: string;
+      tempoPlanejado: number;
+      naoTrabalhados?: NaoTrabalhado[];
+    },
   ) => {
     {
       const confirmed = confirmedObras.current
@@ -906,10 +947,11 @@ export default function CronogramaObrasPage() {
       if (next.tempoPlanejado !== confirmed.tempoPlanejado)
         patch.tempoPlanejado = next.tempoPlanejado;
       // NT stays on its dates: what falls outside the new period is dropped.
+      // The bar keeps its NT on the same dates; an NT edge drag brings its new NT. Outside the period it is dropped.
       const ntDepois = normalizarNaoTrabalhados({
         inicio: next.inicio,
         tempoPlanejado: next.tempoPlanejado,
-        naoTrabalhados: confirmed.naoTrabalhados,
+        naoTrabalhados: next.naoTrabalhados,
       });
       if (!mesmoNT(ntDepois, confirmed.naoTrabalhados))
         patch.naoTrabalhados = ntDepois;
@@ -1238,6 +1280,7 @@ export default function CronogramaObrasPage() {
       somenteLeitura={!podeEditar}
       onViewMasters={() => changeView("mestres")}
       showViewMasters={view === "obras"}
+      ntArrastavel={podeEditar && zoom === "day"}
       onDragStart={setDraggingMaster}
       onDragEnd={() => setDraggingMaster(null)}
       onAdd={podeEditar ? () => {

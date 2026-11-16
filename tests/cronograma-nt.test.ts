@@ -6,6 +6,7 @@ import {
   lerNaoTrabalhados,
   marcarNaoTrabalhado,
   normalizarNaoTrabalhados,
+  redimensionarNaoTrabalhado,
   rotuloDias,
   segmentosNT,
 } from "../src/features/cronograma-obras/domain/naoTrabalhados";
@@ -64,4 +65,13 @@ test("an NT day does not occupy the mestre: no conflict with another LOTE", () =
   const [comNT] = buildWorkloads([lote("a", "2026-10-01", 25, [{ inicio: "2026-10-20", dias: 3 }]), lote("b", "2026-10-20", 3)]);
   assert.equal(comNT.conflictDays, 0);
   assert.equal(comNT.diasProgramados, 25);
+});
+
+test("an NT stretch is stretched or shrunk by its edges, inside the period", () => {
+  const comNT = { ...periodo, naoTrabalhados: [{ inicio: "2026-10-20", dias: 3 }] };
+  assert.deepEqual(redimensionarNaoTrabalhado(comNT, { inicio: "2026-10-20", dias: 3 }, "end", "2026-10-24"), [{ inicio: "2026-10-20", dias: 5 }]);
+  assert.deepEqual(redimensionarNaoTrabalhado(comNT, { inicio: "2026-10-20", dias: 3 }, "start", "2026-10-21"), [{ inicio: "2026-10-21", dias: 2 }]);
+  // Past the other edge it stops at one day; outside the period it stops at the period.
+  assert.deepEqual(redimensionarNaoTrabalhado(comNT, { inicio: "2026-10-20", dias: 3 }, "start", "2026-10-30"), [{ inicio: "2026-10-22", dias: 1 }]);
+  assert.deepEqual(redimensionarNaoTrabalhado(comNT, { inicio: "2026-10-20", dias: 3 }, "end", "2026-12-01"), [{ inicio: "2026-10-20", dias: 6 }]);
 });

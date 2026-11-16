@@ -37,7 +37,7 @@ import {
   weeklyTimelineCells,
 } from "../domain/temporal";
 import { getDirectMasterDropInterval } from "../domain/dropPlanning";
-import { rotuloDias, segmentosNT } from "../domain/naoTrabalhados";
+import { NT_ARRASTE, redimensionarNaoTrabalhado, rotuloDias, segmentosNT, type NaoTrabalhado } from "../domain/naoTrabalhados";
 import { requiresContractReview } from "../data/source/obrasV2CronogramaAdapter";
 import {
   resizeMasterPlanning,
@@ -105,7 +105,8 @@ interface Props {
   onSelectMasters: (obra: ObraCronograma) => void;
   onSelectMaster: (selection: MasterSelection) => void;
   onOpenContract: (contrato: ContratoCronograma) => void;
-  onDropMaster: (obra: ObraCronograma, nome: string, target: string) => void;
+  /** `localId`: the allocation under the pointer (the "NT" drop marks that one). */
+  onDropMaster: (obra: ObraCronograma, nome: string, target: string, localId?: string) => void;
   onResizeMasterPreview: (mestre: MestrePlanejado) => void;
   onResizeMasterCommit: (obraId: string, mestre: MestrePlanejado) => void;
   onResizeMasterCancel: (id: string) => void;
@@ -205,6 +206,7 @@ function MasterStrips({
     mestre: MestrePlanejado,
     edge: MasterResizeEdge,
     event: React.PointerEvent<HTMLButtonElement>,
+    trecho?: NaoTrabalhado,
   ) => void;
   onSelectMaster?: (selection: MasterSelection) => void;
 }) {
@@ -236,6 +238,7 @@ function MasterStrips({
           <i
             key={`${segment.mestre.localId}-${segment.offset}-${index}`}
             className="co-master-strip"
+            data-alocacao-id={segment.mestre.localId}
             role="button"
             tabIndex={0}
             onClick={(event) => {
@@ -282,16 +285,38 @@ function MasterStrips({
                 />
               </>
             )}
-            {segmentosNT(segment.mestre, addDays(bucketStart, segment.offset), segment.days).map((nt) => (
-              <span
-                key={nt.offset}
-                className="co-master-nt"
-                aria-label="Dias não trabalhados"
-                style={{ left: `${(nt.offset / segment.days) * 100}%`, width: `${(nt.days / segment.days) * 100}%` }}
-              >
-                NT
-              </span>
-            ))}
+            {segmentosNT(segment.mestre, addDays(bucketStart, segment.offset), segment.days).map((nt) => {
+              const trecho = { inicio: addDays(addDays(bucketStart, segment.offset), nt.offset), dias: nt.days };
+              return (
+                <span
+                  key={nt.offset}
+                  className="co-master-nt"
+                  aria-label="Dias não trabalhados"
+                  title={`NT · ${formatDateShort(trecho.inicio)} → ${formatDateShort(addDays(trecho.inicio, trecho.dias - 1))}`}
+                  style={{ left: `${(nt.offset / segment.days) * 100}%`, width: `${(nt.days / segment.days) * 100}%` }}
+                >
+                  {onResize && zoom === "day" && (
+                    <>
+                      <button
+                        type="button"
+                        className="co-master-nt-handle is-start"
+                        aria-label={`Ajustar início do NT de ${segment.mestre.nome}`}
+                        onPointerDown={(event) => onResize(segment.mestre, "start", event, trecho)}
+                        onClick={(event) => event.stopPropagation()}
+                      />
+                      <button
+                        type="button"
+                        className="co-master-nt-handle is-end"
+                        aria-label={`Ajustar fim do NT de ${segment.mestre.nome}`}
+                        onPointerDown={(event) => onResize(segment.mestre, "end", event, trecho)}
+                        onClick={(event) => event.stopPropagation()}
+                      />
+                    </>
+                  )}
+                  NT
+                </span>
+              );
+            })}
             {label && <span className="co-master-strip-label">{label}</span>}
           </i>
         );
@@ -318,6 +343,7 @@ function MonthSummary({
     mestre: MestrePlanejado,
     edge: MasterResizeEdge,
     event: React.PointerEvent<HTMLButtonElement>,
+    trecho?: NaoTrabalhado,
   ) => void;
   onSelectMaster: (selection: MasterSelection) => void;
 }) {
@@ -462,12 +488,13 @@ const ObraCells = memo(function ObraCells({
   draggingMaster: string | null;
   display: CalendarDisplayOptions;
   masterLanes?: ReadonlyMap<MestrePlanejado, MasterAllocationLane>;
-  onDropMaster: (obra: ObraCronograma, target: string) => void;
+  onDropMaster: (obra: ObraCronograma, target: string, localId?: string) => void;
   onResizeMaster?: (
     obra: ObraCronograma,
     mestre: MestrePlanejado,
     edge: MasterResizeEdge,
     event: React.PointerEvent<HTMLButtonElement>,
+    trecho?: NaoTrabalhado,
   ) => void;
   onSelectMaster?: (selection: MasterSelection) => void;
 }) {
@@ -476,7 +503,9 @@ const ObraCells = memo(function ObraCells({
   const days = dailyHeader(calendarYear);
   const weeks = weeklyTimelineCells(calendarYear);
   const validTarget = (target: string) =>
-    zoom !== "year" &&
+    draggingMaster === NT_ARRASTE
+      ? zoom === "day" && obra.mestresPlanejados.some((mestre) => target >= mestre.inicio && target <= addDays(mestre.inicio, mestre.tempoPlanejado - 1))
+      : zoom !== "year" &&
     Boolean(
       getDirectMasterDropInterval({
         obra,
@@ -484,6 +513,8 @@ const ObraCells = memo(function ObraCells({
         hoje: todayCivil(),
       }),
     );
+  const alocacaoSob = (event: DragEvent) =>
+    (event.target as HTMLElement | null)?.closest<HTMLElement>("[data-alocacao-id]")?.dataset.alocacaoId;
   const events = (target: string) => ({
     onDragOver: (event: DragEvent) => {
       if (draggingMaster && validTarget(target)) {
@@ -500,7 +531,7 @@ const ObraCells = memo(function ObraCells({
       event.preventDefault();
       event.stopPropagation();
       setOver(null);
-      if (draggingMaster && validTarget(target)) onDropMaster(obra, target);
+      if (draggingMaster && validTarget(target)) onDropMaster(obra, target, alocacaoSob(event));
     },
   });
   const resize = onResizeMaster
@@ -508,7 +539,8 @@ const ObraCells = memo(function ObraCells({
         mestre: MestrePlanejado,
         edge: MasterResizeEdge,
         event: React.PointerEvent<HTMLButtonElement>,
-      ) => onResizeMaster(obra, mestre, edge, event)
+        trecho?: NaoTrabalhado,
+      ) => onResizeMaster(obra, mestre, edge, event, trecho)
     : undefined;
   const dayTarget = (event: DragEvent) => {
     const bounds = event.currentTarget.getBoundingClientRect();
@@ -531,7 +563,7 @@ const ObraCells = memo(function ObraCells({
       event.stopPropagation();
       const target = dayTarget(event);
       setOver(null);
-      if (target && draggingMaster && validTarget(target)) onDropMaster(obra, target);
+      if (target && draggingMaster && validTarget(target)) onDropMaster(obra, target, alocacaoSob(event));
     },
   };
   const weekTarget = (event: DragEvent) => {
@@ -555,7 +587,7 @@ const ObraCells = memo(function ObraCells({
       event.stopPropagation();
       const target = weekTarget(event);
       setOver(null);
-      if (target && draggingMaster && validTarget(target)) onDropMaster(obra, target);
+      if (target && draggingMaster && validTarget(target)) onDropMaster(obra, target, alocacaoSob(event));
     },
   };
   const cell = (
@@ -1063,6 +1095,7 @@ export const GanttGrid = memo(function GanttGrid({
     mestre: MestrePlanejado,
     edge: MasterResizeEdge,
     event: React.PointerEvent<HTMLButtonElement>,
+    trecho?: NaoTrabalhado,
   ) => {
     event.preventDefault();
     event.stopPropagation();
@@ -1097,7 +1130,9 @@ export const GanttGrid = memo(function GanttGrid({
         ? clientXToCalendarDay({ ...geometry, clientX: latestMove.clientX })
         : null;
       if (date) {
-        draft = resizeMasterPlanning(obra, mestre, edge, date);
+        draft = trecho
+          ? { ...mestre, naoTrabalhados: redimensionarNaoTrabalhado(mestre, trecho, edge, date) }
+          : resizeMasterPlanning(obra, mestre, edge, date);
         onResizeMasterPreview(draft);
       }
       latestMove = null;
@@ -1139,9 +1174,9 @@ export const GanttGrid = memo(function GanttGrid({
   const stableStartMasterResize = useLatestCallback(startMasterResize);
   const stableSelectMaster = useLatestCallback(onSelectMaster);
   const stableDropMaster = useLatestCallback(
-    (obra: ObraCronograma, target: string) => {
+    (obra: ObraCronograma, target: string, localId?: string) => {
       const mestre = draggingMasterRef.current;
-      if (mestre) onDropMaster(obra, mestre, target);
+      if (mestre) onDropMaster(obra, mestre, target, localId);
     },
   );
   const groups = useMemo(() => {

@@ -401,16 +401,14 @@
 .co-masters-cell { align-items: center; cursor: pointer; gap: 3px; }
 .co-master-name-chip { background: var(--co-master-color); border-radius: 999px; color: #fff; font-size: .57rem; font-style: normal; font-weight: 800; max-width: 100%; overflow: hidden; padding: 3px 5px; text-overflow: ellipsis; }
 .co-period-details { display: grid; gap: 6px; list-style: none; margin: 8px 0 0; padding: 0; }.co-period-details li, .co-other-works article { background: #edf4f7; border: 1px solid #d6e3e9; border-radius: 5px; color: #31566e; font-size: .72rem; padding: 8px; }.co-other-works { display: grid; gap: 8px; }.co-other-works article { display: grid; gap: 5px; }.co-other-works span { font-variant-numeric: tabular-nums; }.co-current-work { color: #294455; display: block; font-size: .88rem; margin-bottom: 7px; }.co-drawer-body h4 { color: #637784; font-size: .66rem; letter-spacing: .04em; margin: 16px 0 0; text-transform: uppercase; }
-.co-period-line { align-items: center; display: flex; flex-wrap: wrap; gap: 4px 10px; justify-content: space-between; }
+.co-period-line { align-items: baseline; display: flex; flex-wrap: wrap; gap: 4px 10px; justify-content: space-between; }
+.co-period-line strong { font-weight: 750; }
+.co-period-join { display: block; margin-top: 4px; padding: 2px 0; }
+.co-nt-chip--inline { padding: 0 5px; }
 .co-nt-list { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 6px; }
 .co-nt-chip { align-items: center; background: repeating-linear-gradient(135deg, #fff 0 4px, #eef2f4 4px 8px); border: 1px dashed #93a7b3; border-radius: 4px; color: #24323b; display: inline-flex; font-size: .68rem; font-weight: 700; gap: 4px; padding: 2px 4px 2px 7px; }
 .co-nt-chip button { background: transparent; border: 0; color: #5b6f7b; cursor: pointer; font-size: .85rem; line-height: 1; padding: 0 3px; }
 .co-nt-chip button:hover { color: #b3263a; }
-.co-nt-form { align-items: end; display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
-.co-nt-form label { color: #637784; display: grid; font-size: .6rem; font-weight: 750; gap: 2px; letter-spacing: .04em; text-transform: uppercase; }
-.co-nt-form input { border: 1px solid #ccd8df; border-radius: 4px; font: inherit; font-size: .74rem; height: 28px; padding: 0 6px; }
-.co-nt-form input[type="number"] { width: 58px; }
-.co-nt-form .co-button { height: 28px; padding: 0 10px; }
 .co-period-details li.is-selected { background: #dceaf3; border-color: #2f6b98; box-shadow: inset 3px 0 0 #2f6b98; font-weight: 700; }
 .co-shortcut-hint { font-size: .68rem; margin: 10px 0 0; }
 .co-shortcut-hint kbd { background: #fff; border: 1px solid #c9d6de; color: #294455; border-radius: 3px; font: inherit; font-weight: 700; padding: 0 4px; }
@@ -483,6 +481,13 @@
 /* NT (não trabalhado): the mestre stays on the work, the stretch is hatched over the bar. */
 .co-master-nt { align-items: center; background: repeating-linear-gradient(135deg, rgb(255 255 255 / .78) 0 4px, rgb(255 255 255 / .45) 4px 8px); bottom: 0; color: #24323b; display: flex; font-size: .58rem; font-weight: 800; justify-content: center; letter-spacing: .04em; overflow: hidden; pointer-events: none; position: absolute; top: 0; z-index: 1; }
 .co-master-strips--alert-on .co-master-strip { height: calc(100% / var(--co-master-count)); top: calc((var(--co-master-index) * 100%) / var(--co-master-count)); }
+/* NT stretch edges (Dias scale): above the bar's own edges, so an NT at the end of the bar is stretched, not the bar. */
+.co-master-nt-handle { background: transparent; border: 0; bottom: 0; cursor: ew-resize; padding: 0; pointer-events: auto; position: absolute; top: 0; width: min(8px, 40%); z-index: 5; }
+.co-master-nt-handle.is-start { left: 0; border-left: 2px solid transparent; }.co-master-nt-handle.is-end { right: 0; border-right: 2px solid transparent; }
+.co-master-nt:hover .co-master-nt-handle { border-color: #24323b; }
+.co-master-nt:has(.co-master-nt-handle) { pointer-events: auto; }
+/* The "NT" chip in the palette: hatched like the NT stretch on the bar. */
+.co-master-chip--nt { background: repeating-linear-gradient(135deg, #fff 0 4px, #e3e9ed 4px 8px); border: 1px dashed #6f8593; color: #24323b; }
 .co-master-resize-handle { background: transparent; border: 0; bottom: 0; cursor: ew-resize; opacity: 0; padding: 0; position: absolute; top: 0; width: min(16px, 50%); z-index: 4; }
 .co-master-resize-handle::after { background: rgb(255 255 255 / .8); bottom: 2px; content: ''; opacity: 0; position: absolute; top: 2px; width: 1px; }
 .co-master-resize-handle.is-start { left: 0; }.co-master-resize-handle.is-start::after { left: 2px; }.co-master-resize-handle.is-end { right: 0; }.co-master-resize-handle.is-end::after { right: 2px; }
