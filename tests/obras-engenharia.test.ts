@@ -75,12 +75,14 @@ test('mestres: um período por alocação, fim = início + dias − 1, LOTE pelo
     { id: '2', mestreId: 'dine', obraId: 'z', inicio: '2026-05-10', tempoPlanejado: 3 },
     { id: '1', mestreId: 'jefe', obraId: 'a', inicio: '2026-04-01', tempoPlanejado: 30 },
     { id: '3', mestreId: 'novo', inicio: '2026-06-01', tempoPlanejado: 1 },
+    { id: '5', mestreId: 'dine', obraId: 'a', inicio: '2026-07-01', tempoPlanejado: 21, naoTrabalhados: [{ inicio: '2026-07-10', dias: 3 }] },
     { id: '4', mestreId: 'dine', obraId: 'a', inicio: 'inválido', tempoPlanejado: 3 },
   ], { dine: 'DINE', jefe: 'JEFE' }, obraDetalheFromV2('c1', contrato)!.nomesLotes);
-  assert.deepEqual(periodos.map((p) => [p.mestre, p.lote, p.inicio, p.fim, p.dias]), [
-    ['JEFE', 'LOTE 1', '2026-04-01', '2026-04-30', 30],
-    ['DINE', 'LOTE VELHO', '2026-05-10', '2026-05-12', 3],
-    ['novo', 'Contrato', '2026-06-01', '2026-06-01', 1],
+  assert.deepEqual(periodos.map((p) => [p.mestre, p.lote, p.inicio, p.fim, p.dias, p.diasTexto]), [
+    ['JEFE', 'LOTE 1', '2026-04-01', '2026-04-30', 30, '30 dias'],
+    ['DINE', 'LOTE VELHO', '2026-05-10', '2026-05-12', 3, '3 dias'],
+    ['novo', 'Contrato', '2026-06-01', '2026-06-01', 1, '1 dia'],
+    ['DINE', 'LOTE 1', '2026-07-01', '2026-07-21', 21, '21 dias (3 NT)'],
   ]);
 });
 

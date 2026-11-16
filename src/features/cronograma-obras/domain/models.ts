@@ -1,3 +1,4 @@
+import type { NaoTrabalhado } from './naoTrabalhados';
 export const MONTHS = ['JAN', 'FEV', 'MAR', 'ABR', 'MAI', 'JUN', 'JUL', 'AGO', 'SET', 'OUT', 'NOV', 'DEZ'] as const;
 /** O status vem de obras-v2 como texto livre; a UI o apresenta sem reinterpretá-lo. */
 export type CronogramaStatus = string;
@@ -7,7 +8,7 @@ export type CivilDate = string;
 /** Formato de importação da planilha legado; não é exposto à UI. */
 export interface RawCronogramaObra { sourceRow: number; local: string; status: CronogramaStatus; contrato: string | null; empresa: string; mestre: string | null; prev: string | null; dias: string | null; progresso: string | null; descricao: string | null; allocations: ReadonlyArray<readonly [weekIndex: number, days: number]>; }
 /** mestreKey is local today; a future source may provide the preferred uid. */
-export interface MestrePlanejado { localId: string; mestreId?: string; mestreKey?: string; nome: string; inicio: CivilDate; tempoPlanejado: number; }
+export interface MestrePlanejado { localId: string; mestreId?: string; mestreKey?: string; nome: string; inicio: CivilDate; tempoPlanejado: number; /** Dias NT (não trabalhados) dentro do período. */ naoTrabalhados?: NaoTrabalhado[]; }
 export interface ObraCatalogo { id: string; targetType?: 'obra' | 'contrato'; /** Set only for a real LOTE: its key in obras-v2 `lotes`. */ loteId?: string; /** obras-v2 `lotes.{id}.prioridade`: order inside "Próxima a iniciar" (lower first). */ prioridade?: number; allocationAllowed?: boolean; sourceRow: number; contratoId?: string; contratoNome?: string; codObra: string; siglaObra: string; nomeObra: string; local: string; status: CronogramaStatus; empresa: string; mestreInicial: string | null; descricao: string | null; }
 /** The work planning period comes from its parent contract and can be absent. */
 export interface ObraCronograma extends ObraCatalogo { inicioPlanejado: CivilDate | null; tempoPlanejado: number | null; mestresPlanejados: MestrePlanejado[]; }

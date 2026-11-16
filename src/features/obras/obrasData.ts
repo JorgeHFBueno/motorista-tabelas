@@ -6,6 +6,7 @@ import { loadMondaySerpSnapshot, syncMondaySerpMeasurements } from '../../servic
 import type { MedicoesObra } from './obraRelatorioPdf';
 import { CRONOGRAMA_COLLECTION } from '../cronograma-obras/data/cronogramaFirestore';
 import { MESTRES_COLLECTION } from '../cronograma-obras/data/mestresFirestore';
+import { lerNaoTrabalhados } from '../cronograma-obras/domain/naoTrabalhados';
 import { obraDetalheFromV2, type AlocacaoObra, type CampoEditavelObra, type ObraDetalhe } from './obrasDomain';
 
 const OBRAS_V2 = 'obras-v2';
@@ -53,6 +54,7 @@ export async function carregarAlocacoesDaObra(contratoId: string): Promise<Aloca
       ...(typeof data.obraId === 'string' ? { obraId: data.obraId } : {}),
       inicio: typeof data.inicio === 'string' ? data.inicio : '',
       tempoPlanejado: typeof data.tempoPlanejado === 'number' ? data.tempoPlanejado : 0,
+      ...(lerNaoTrabalhados(data.naoTrabalhados) ? { naoTrabalhados: lerNaoTrabalhados(data.naoTrabalhados) } : {}),
     };
   });
 }

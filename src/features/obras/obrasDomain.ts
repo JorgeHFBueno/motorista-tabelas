@@ -1,6 +1,7 @@
 import type { AtividadeV2 } from '../../services/atividade-normalizer';
 import type { NormalizedCombustivel } from '../../services/combustivel-normalizer';
 import { calculatedEnd, isValidCivilDate } from '../cronograma-obras/domain/temporal';
+import { rotuloDias, type NaoTrabalhado } from '../cronograma-obras/domain/naoTrabalhados';
 
 // Obra de obras-v2 (The Manuscript, 01_FIRESTORE/COLECOES/obras-v2.md): um contrato com os LOTEs em `lotes`.
 // O cadastro é do Friday; em /engenharia/obras a WEB só grava o `local`.
@@ -112,8 +113,9 @@ export function filtrarObras(obras: ObraDetalhe[], busca: string, filtro: Filtro
 }
 
 /** Alocação de monday-cronograma (01_FIRESTORE/COLECOES/engenharia-monday.md): `obraId` é a chave do LOTE. */
-export type AlocacaoObra = { id: string; mestreId: string; obraId?: string; inicio: string; tempoPlanejado: number };
-export type PeriodoMestre = { id: string; mestre: string; lote: string; inicio: string; fim: string; dias: number };
+export type AlocacaoObra = { id: string; mestreId: string; obraId?: string; inicio: string; tempoPlanejado: number; naoTrabalhados?: NaoTrabalhado[] };
+/** `diasTexto`: "21 dias" ou "21 dias (3 NT)", como no CronoObra. */
+export type PeriodoMestre = { id: string; mestre: string; lote: string; inicio: string; fim: string; dias: number; diasTexto: string };
 
 /** Um período por alocação, na ordem do início; o fim é o do CronoObra (início + dias − 1). */
 export function periodosDosMestres(alocacoes: AlocacaoObra[], nomesMestres: Record<string, string>, nomesLotes: Record<string, string>): PeriodoMestre[] {
@@ -126,6 +128,7 @@ export function periodosDosMestres(alocacoes: AlocacaoObra[], nomesMestres: Reco
       inicio: item.inicio,
       fim: calculatedEnd(item.inicio, item.tempoPlanejado),
       dias: item.tempoPlanejado,
+      diasTexto: rotuloDias(item),
     }))
     .sort((a, b) => a.inicio.localeCompare(b.inicio) || a.mestre.localeCompare(b.mestre, 'pt-BR'));
 }

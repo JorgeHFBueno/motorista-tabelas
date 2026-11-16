@@ -3,6 +3,8 @@
  * nesta aba. Recarregar a página zera a pilha.
  */
 
+import type { NaoTrabalhado } from "./naoTrabalhados";
+
 export type AlocacaoUndoSnapshot = {
   id: string;
   obraId?: string;
@@ -10,14 +12,16 @@ export type AlocacaoUndoSnapshot = {
   mestreId: string;
   inicio: string;
   tempoPlanejado: number;
+  naoTrabalhados?: NaoTrabalhado[];
 };
 
-type Periodo = { inicio: string; tempoPlanejado: number };
+/** `naoTrabalhados` ausente = nenhum dia NT. */
+type Periodo = { inicio: string; tempoPlanejado: number; naoTrabalhados?: NaoTrabalhado[] };
 
-export type UndoEntry =
+type SingleUndoEntry =
   /** O usuário soltou um mestre: desfazer apaga a alocação criada. */
   | { kind: "create"; mestreNome: string; alocacao: AlocacaoUndoSnapshot }
-  /** O usuário mudou dias ou deslocou: desfazer volta o período anterior. */
+  /** O usuário mudou dias, deslocou ou marcou NT: desfazer volta o período anterior. */
   | {
       kind: "update";
       mestreNome: string;
@@ -28,6 +32,11 @@ export type UndoEntry =
     }
   /** O usuário apagou com Del: desfazer recria a alocação com o mesmo ID. */
   | { kind: "delete"; mestreNome: string; alocacao: AlocacaoUndoSnapshot };
+
+export type UndoEntry =
+  | SingleUndoEntry
+  /** Várias alocações numa ação só (ex.: "Juntar" dois períodos): desfaz todas ou nenhuma. */
+  | { kind: "group"; mestreNome: string; entries: SingleUndoEntry[] };
 
 export type UndoOperation =
   | { type: "delete"; id: string }
@@ -49,18 +58,25 @@ export function dropUndoFor(
   stack: readonly UndoEntry[],
   id: string,
 ): UndoEntry[] {
-  return stack.filter(
-    (entry) => (entry.kind === "update" ? entry.id : entry.alocacao.id) !== id,
-  );
+  return stack.filter((entry) => !undoIds(entry).includes(id));
 }
 
+const singleId = (entry: SingleUndoEntry) =>
+  entry.kind === "update" ? entry.id : entry.alocacao.id;
+
+/** IDs das alocações que uma ação tocou. */
+export const undoIds = (entry: UndoEntry): string[] =>
+  entry.kind === "group" ? entry.entries.map(singleId) : [singleId(entry)];
+
 const samePeriod = (
-  current: { mestreId: string; inicio: string; tempoPlanejado: number },
-  expected: { mestreId: string; inicio: string; tempoPlanejado: number },
+  current: { mestreId: string } & Periodo,
+  expected: { mestreId: string } & Periodo,
 ) =>
   current.mestreId === expected.mestreId &&
   current.inicio === expected.inicio &&
-  current.tempoPlanejado === expected.tempoPlanejado;
+  current.tempoPlanejado === expected.tempoPlanejado &&
+  JSON.stringify(current.naoTrabalhados ?? null) ===
+    JSON.stringify(expected.naoTrabalhados ?? null);
 
 /**
  * Decide como desfazer `entry` olhando o estado atual da alocação no
@@ -68,7 +84,7 @@ const samePeriod = (
  * depois da ação, não sobrescreve: devolve o erro a mostrar.
  */
 export function planUndo(
-  entry: UndoEntry,
+  entry: SingleUndoEntry,
   current: AlocacaoUndoSnapshot | null,
 ): { ok: true; operation: UndoOperation } | { ok: false; message: string } {
   const changed = {
@@ -89,9 +105,29 @@ export function planUndo(
     samePeriod(current, { mestreId: entry.mestreId, ...entry.after })
     ? {
         ok: true,
-        operation: { type: "update", id: entry.id, patch: entry.before },
+        operation: {
+          type: "update",
+          id: entry.id,
+          // Explicit key: undefined NT removes the field.
+          patch: { inicio: entry.before.inicio, tempoPlanejado: entry.before.tempoPlanejado, naoTrabalhados: entry.before.naoTrabalhados },
+        },
       }
     : changed;
+}
+
+/** Como `planUndo`, para qualquer ação: um grupo só é desfeito se todas as alocações estiverem como ficaram. */
+export function planUndoAll(
+  entry: UndoEntry,
+  currentOf: (id: string) => AlocacaoUndoSnapshot | null,
+): { ok: true; operations: UndoOperation[] } | { ok: false; message: string } {
+  const entries = entry.kind === "group" ? entry.entries : [entry];
+  const operations: UndoOperation[] = [];
+  for (const item of entries) {
+    const plan = planUndo(item, currentOf(singleId(item)));
+    if (!plan.ok) return plan;
+    operations.push(plan.operation);
+  }
+  return { ok: true, operations };
 }
 
 /** Atalhos não valem enquanto o usuário digita num campo. */

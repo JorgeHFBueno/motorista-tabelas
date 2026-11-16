@@ -37,6 +37,7 @@ import {
   weeklyTimelineCells,
 } from "../domain/temporal";
 import { getDirectMasterDropInterval } from "../domain/dropPlanning";
+import { rotuloDias, segmentosNT } from "../domain/naoTrabalhados";
 import { requiresContractReview } from "../data/source/obrasV2CronogramaAdapter";
 import {
   resizeMasterPlanning,
@@ -241,7 +242,7 @@ function MasterStrips({
               event.stopPropagation();
               onSelectMaster?.(masterSelectionForPeriod(obra, segment.mestre));
             }}
-            title={`${segment.mestre.nome}\n${formatDateShort(segment.mestre.inicio)} → ${formatDateShort(addDays(segment.mestre.inicio, segment.mestre.tempoPlanejado - 1))}\n${segment.mestre.tempoPlanejado} dias`}
+            title={`${segment.mestre.nome}\n${formatDateShort(segment.mestre.inicio)} → ${formatDateShort(addDays(segment.mestre.inicio, segment.mestre.tempoPlanejado - 1))}\n${rotuloDias(segment.mestre)}`}
             style={
               {
                 ...colorStyle(
@@ -281,6 +282,16 @@ function MasterStrips({
                 />
               </>
             )}
+            {segmentosNT(segment.mestre, addDays(bucketStart, segment.offset), segment.days).map((nt) => (
+              <span
+                key={nt.offset}
+                className="co-master-nt"
+                aria-label="Dias não trabalhados"
+                style={{ left: `${(nt.offset / segment.days) * 100}%`, width: `${(nt.days / segment.days) * 100}%` }}
+              >
+                NT
+              </span>
+            ))}
             {label && <span className="co-master-strip-label">{label}</span>}
           </i>
         );

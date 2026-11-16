@@ -36,11 +36,16 @@ import {
 } from "./domain/cronograma";
 import { getDirectMasterDropInterval } from "./domain/dropPlanning";
 import { planPrioridadeMove } from "./domain/prioridade";
+import {
+  juntarPeriodos,
+  normalizarNaoTrabalhados,
+  type NaoTrabalhado,
+} from "./domain/naoTrabalhados";
 import { gravarPrioridadeLote } from "./data/prioridadeLote";
 import {
   dropUndoFor,
   isEditableTarget,
-  planUndo,
+  planUndoAll,
   pushUndo,
   type AlocacaoUndoSnapshot,
   type UndoEntry,
@@ -162,7 +167,9 @@ function sameMasters(
         item.mestreKey === right[index].mestreKey &&
         item.nome === right[index].nome &&
         item.inicio === right[index].inicio &&
-        item.tempoPlanejado === right[index].tempoPlanejado,
+        item.tempoPlanejado === right[index].tempoPlanejado &&
+        JSON.stringify(item.naoTrabalhados ?? null) ===
+          JSON.stringify(right[index].naoTrabalhados ?? null),
     )
   );
 }
@@ -208,6 +215,9 @@ function hydrateFirestoreAlocacoes(
                 nome: mestre.nome,
                 inicio: alocacao.inicio,
                 tempoPlanejado: alocacao.tempoPlanejado,
+                ...(alocacao.naoTrabalhados
+                  ? { naoTrabalhados: alocacao.naoTrabalhados }
+                  : {}),
               },
             ]
           : [];
@@ -262,8 +272,16 @@ function undoSnapshot(alocacao: AlocacaoFirestore): AlocacaoUndoSnapshot {
     mestreId: alocacao.mestreId,
     inicio: alocacao.inicio,
     tempoPlanejado: alocacao.tempoPlanejado,
+    ...(alocacao.naoTrabalhados
+      ? { naoTrabalhados: alocacao.naoTrabalhados }
+      : {}),
   };
 }
+
+const mesmoNT = (
+  a: readonly NaoTrabalhado[] | undefined,
+  b: readonly NaoTrabalhado[] | undefined,
+) => JSON.stringify(a ?? null) === JSON.stringify(b ?? null);
 
 function withOptimisticAlocacao(
   obras: readonly ObraCronograma[],
@@ -879,10 +897,22 @@ export default function CronogramaObrasPage() {
         .find((obra) => obra.id === obraId)
         ?.mestresPlanejados.find((item) => item.localId === next.localId);
       if (!confirmed) return;
-      const patch: { inicio?: string; tempoPlanejado?: number } = {};
+      const patch: {
+        inicio?: string;
+        tempoPlanejado?: number;
+        naoTrabalhados?: NaoTrabalhado[];
+      } = {};
       if (next.inicio !== confirmed.inicio) patch.inicio = next.inicio;
       if (next.tempoPlanejado !== confirmed.tempoPlanejado)
         patch.tempoPlanejado = next.tempoPlanejado;
+      // NT stays on its dates: what falls outside the new period is dropped.
+      const ntDepois = normalizarNaoTrabalhados({
+        inicio: next.inicio,
+        tempoPlanejado: next.tempoPlanejado,
+        naoTrabalhados: confirmed.naoTrabalhados,
+      });
+      if (!mesmoNT(ntDepois, confirmed.naoTrabalhados))
+        patch.naoTrabalhados = ntDepois;
       if (!Object.keys(patch).length) {
         cancelResizeMaster(next.localId);
         return;
@@ -898,8 +928,13 @@ export default function CronogramaObrasPage() {
           before: {
             inicio: confirmed.inicio,
             tempoPlanejado: confirmed.tempoPlanejado,
+            naoTrabalhados: confirmed.naoTrabalhados,
           },
-          after: { inicio: next.inicio, tempoPlanejado: next.tempoPlanejado },
+          after: {
+            inicio: next.inicio,
+            tempoPlanejado: next.tempoPlanejado,
+            naoTrabalhados: ntDepois,
+          },
         });
       void alocacoesSource
         .updateAlocacao(next.localId, patch)
@@ -954,9 +989,10 @@ export default function CronogramaObrasPage() {
     const entry = undoStack.current.at(-1);
     if (!entry) return;
     undoStack.current = undoStack.current.slice(0, -1);
-    const id = entry.kind === "update" ? entry.id : entry.alocacao.id;
-    const current = alocacoesRef.current.find((item) => item.id === id);
-    const plan = planUndo(entry, current ? undoSnapshot(current) : null);
+    const plan = planUndoAll(entry, (id) => {
+      const current = alocacoesRef.current.find((item) => item.id === id);
+      return current ? undoSnapshot(current) : null;
+    });
     if (!plan.ok) {
       setWriteError(plan.message);
       return;
@@ -966,27 +1002,110 @@ export default function CronogramaObrasPage() {
       setWriteError(
         `Não foi possível desfazer: ${cause instanceof Error ? cause.message : String(cause)}`,
       );
-    const { operation } = plan;
-    try {
-      if (operation.type === "delete") {
-        void alocacoesSource.deleteAlocacao(operation.id).catch(fail);
-      } else if (operation.type === "update") {
-        resizeDrafts.current.delete(operation.id);
-        void alocacoesSource
-          .updateAlocacao(operation.id, operation.patch)
-          .catch(fail);
-      } else {
-        const { id: recreatedId, ...alocacao } = operation.alocacao;
-        void alocacoesSource
-          .createAlocacao(
-            { ...alocacao, criadoPorFuncionarioId: criadorAtual() },
-            alocacoesSource.createAlocacaoReference(recreatedId),
-          )
-          .catch(fail);
+    void (async () => {
+      try {
+        for (const operation of plan.operations) {
+          if (operation.type === "delete") {
+            await alocacoesSource.deleteAlocacao(operation.id);
+          } else if (operation.type === "update") {
+            resizeDrafts.current.delete(operation.id);
+            await alocacoesSource.updateAlocacao(operation.id, operation.patch);
+          } else {
+            const { id: recreatedId, ...alocacao } = operation.alocacao;
+            await alocacoesSource.createAlocacao(
+              { ...alocacao, criadoPorFuncionarioId: criadorAtual() },
+              alocacoesSource.createAlocacaoReference(recreatedId),
+            );
+          }
+        }
+      } catch (cause) {
+        fail(cause);
       }
-    } catch (cause) {
-      fail(cause);
-    }
+    })();
+  };
+  /** Marks or unmarks NT days of one allocation (the Detalhes do mestre panel). */
+  const salvarNaoTrabalhados = (
+    localId: string,
+    naoTrabalhados: NaoTrabalhado[] | undefined,
+  ) => {
+    const alocacao = alocacoesRef.current.find((item) => item.id === localId);
+    if (!alocacao || mesmoNT(alocacao.naoTrabalhados, naoTrabalhados)) return;
+    setWriteError(null);
+    undoStack.current = pushUndo(undoStack.current, {
+      kind: "update",
+      mestreNome:
+        mestres.find((mestre) => mestre.id === alocacao.mestreId)?.nome ??
+        "mestre",
+      id: localId,
+      mestreId: alocacao.mestreId,
+      before: {
+        inicio: alocacao.inicio,
+        tempoPlanejado: alocacao.tempoPlanejado,
+        naoTrabalhados: alocacao.naoTrabalhados,
+      },
+      after: {
+        inicio: alocacao.inicio,
+        tempoPlanejado: alocacao.tempoPlanejado,
+        naoTrabalhados,
+      },
+    });
+    void alocacoesSource
+      .updateAlocacao(localId, { naoTrabalhados })
+      .catch((cause: unknown) => {
+        undoStack.current = dropUndoFor(undoStack.current, localId);
+        setWriteError(
+          `Os dias NT não foram salvos: ${cause instanceof Error ? cause.message : String(cause)}`,
+        );
+      });
+  };
+  /** "Juntar": the first period grows to cover both, the gap becomes NT, and the second is removed. */
+  const juntarAlocacoes = (primeiroId: string, segundoId: string) => {
+    const a = alocacoesRef.current.find((item) => item.id === primeiroId);
+    const b = alocacoesRef.current.find((item) => item.id === segundoId);
+    if (!a || !b || a.mestreId !== b.mestreId) return;
+    const junto = juntarPeriodos(a, b);
+    const mestreNome =
+      mestres.find((mestre) => mestre.id === a.mestreId)?.nome ?? "mestre";
+    setWriteError(null);
+    const entry = {
+      kind: "group" as const,
+      mestreNome,
+      entries: [
+        {
+          kind: "update" as const,
+          mestreNome,
+          id: a.id,
+          mestreId: a.mestreId,
+          before: {
+            inicio: a.inicio,
+            tempoPlanejado: a.tempoPlanejado,
+            naoTrabalhados: a.naoTrabalhados,
+          },
+          after: {
+            inicio: junto.inicio,
+            tempoPlanejado: junto.tempoPlanejado,
+            naoTrabalhados: junto.naoTrabalhados,
+          },
+        },
+        { kind: "delete" as const, mestreNome, alocacao: undoSnapshot(b) },
+      ],
+    };
+    undoStack.current = pushUndo(undoStack.current, entry);
+    void (async () => {
+      try {
+        await alocacoesSource.updateAlocacao(a.id, {
+          inicio: junto.inicio,
+          tempoPlanejado: junto.tempoPlanejado,
+          naoTrabalhados: junto.naoTrabalhados,
+        });
+        await alocacoesSource.deleteAlocacao(b.id);
+      } catch (cause) {
+        undoStack.current = undoStack.current.filter((item) => item !== entry);
+        setWriteError(
+          `Os períodos não foram juntados: ${cause instanceof Error ? cause.message : String(cause)}`,
+        );
+      }
+    })();
   };
   const calendarShortcut = useRef<(event: KeyboardEvent) => void>(() => {});
   useEffect(() => {
@@ -1482,6 +1601,8 @@ export default function CronogramaObrasPage() {
         obras={obras}
         masterKey={masterPanel?.key ?? null}
         selectedLocalId={masterPanel?.localId ?? null}
+        onSalvarNaoTrabalhados={podeEditar ? salvarNaoTrabalhados : undefined}
+        onJuntar={podeEditar ? juntarAlocacoes : undefined}
         allKeys={masters.map(normalizeMestreKey)}
         onClose={() => setMasterPanel(null)}
       />

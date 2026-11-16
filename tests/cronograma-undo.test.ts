@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   dropUndoFor,
+  planUndoAll,
   isEditableTarget,
   planUndo,
   pushUndo,
@@ -55,7 +56,7 @@ test("undoing a drop fails when someone else moved or removed it", () => {
 test("undoing a resize restores the previous period while it is unchanged", () => {
   assert.deepEqual(planUndo(resized, alocacao), {
     ok: true,
-    operation: { type: "update", id: "a1", patch: { inicio: "2026-10-01", tempoPlanejado: 10 } },
+    operation: { type: "update", id: "a1", patch: { inicio: "2026-10-01", tempoPlanejado: 10, naoTrabalhados: undefined } },
   });
   assert.equal(planUndo(resized, { ...alocacao, tempoPlanejado: 20 }).ok, false);
   assert.equal(planUndo(resized, null).ok, false);
@@ -72,4 +73,25 @@ test("shortcuts are ignored while typing in a field", () => {
   assert.equal(isEditableTarget({ tagName: "DIV", isContentEditable: true } as unknown as EventTarget), true);
   assert.equal(isEditableTarget({ tagName: "I" } as unknown as EventTarget), false);
   assert.equal(isEditableTarget(null), false);
+});
+
+test("NT changes are part of the period: a later NT edit by someone else blocks the undo", () => {
+  const marcou: UndoEntry = { ...resized, before: { inicio: "2026-10-05", tempoPlanejado: 14 }, after: { inicio: "2026-10-05", tempoPlanejado: 14, naoTrabalhados: [{ inicio: "2026-10-08", dias: 2 }] } };
+  const atual = { ...alocacao, naoTrabalhados: [{ inicio: "2026-10-08", dias: 2 }] };
+  assert.deepEqual(planUndo(marcou, atual), { ok: true, operation: { type: "update", id: "a1", patch: { inicio: "2026-10-05", tempoPlanejado: 14, naoTrabalhados: undefined } } });
+  assert.equal(planUndo(marcou, { ...atual, naoTrabalhados: [{ inicio: "2026-10-08", dias: 3 }] }).ok, false);
+});
+
+test("Juntar is undone as one action: both allocations or none", () => {
+  const b: AlocacaoUndoSnapshot = { ...alocacao, id: "a2", inicio: "2026-10-23", tempoPlanejado: 5 };
+  const juntou: UndoEntry = { kind: "group", mestreNome: "DILAMAR", entries: [
+    { kind: "update", mestreNome: "DILAMAR", id: "a1", mestreId: "m-dilamar", before: { inicio: "2026-10-05", tempoPlanejado: 14 }, after: { inicio: "2026-10-05", tempoPlanejado: 23, naoTrabalhados: [{ inicio: "2026-10-19", dias: 4 }] } },
+    { kind: "delete", mestreNome: "DILAMAR", alocacao: b },
+  ] };
+  const juntada = { ...alocacao, tempoPlanejado: 23, naoTrabalhados: [{ inicio: "2026-10-19", dias: 4 }] };
+  const plan = planUndoAll(juntou, (id) => (id === "a1" ? juntada : null));
+  assert.equal(plan.ok, true);
+  assert.deepEqual(plan.ok ? plan.operations.map((op) => op.type) : [], ["update", "recreate"]);
+  assert.equal(planUndoAll(juntou, (id) => (id === "a1" ? juntada : b)).ok, false);
+  assert.deepEqual(dropUndoFor([juntou, created], "a2"), [created]);
 });

@@ -83,7 +83,7 @@ export function createObraRelatorioPdf(relatorio: RelatorioObra) {
   drawing.section('MESTRES ALOCADOS');
   if (relatorio.mestres.status === 'erro') indisponivel('Não foi possível carregar as alocações do CronoObra.');
   else if (!relatorio.mestres.data.length) vazio('Nenhum mestre alocado no CronoObra.');
-  else drawing.table(['Mestre', 'LOTE', 'Início', 'Fim', 'Dias'], relatorio.mestres.data.map((item) => [item.mestre, item.lote, dataCivilTexto(item.inicio), dataCivilTexto(item.fim), item.dias]), [110, 203, 75, 75, 60], direita([4]));
+  else drawing.table(['Mestre', 'LOTE', 'Início', 'Fim', 'Dias'], relatorio.mestres.data.map((item) => [item.mestre, item.lote, dataCivilTexto(item.inicio), dataCivilTexto(item.fim), item.diasTexto]), [110, 173, 75, 75, 90], direita([4]));
 
   drawing.section('VEÍCULOS QUE FORAM PARA A OBRA');
   if (relatorio.veiculos.status === 'erro') indisponivel('Não foi possível carregar as atividades.');

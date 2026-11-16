@@ -1,5 +1,6 @@
 import type { CronogramaFilters, CronogramaIndicators, MestreWorkload, ObraCronograma } from './models';
 import { addDays, eachDay, intersectsRange, weeklyHeader, yearDays } from './temporal';
+import { ehNaoTrabalhado } from './naoTrabalhados';
 
 export function filterObras(obras: ObraCronograma[], filters: CronogramaFilters): ObraCronograma[] {
   const term = filters.search.trim().toLocaleLowerCase('pt-BR');
@@ -18,8 +19,11 @@ export function buildWorkloads(obras: ObraCronograma[], year = 2026): MestreWork
   obras.forEach((obra) => obra.mestresPlanejados.forEach((item) => { if (item.nome && item.tempoPlanejado > 0) byMaster.set(item.nome, [...(byMaster.get(item.nome) ?? []), obra]); }));
   return [...byMaster.entries()].sort(([a], [b]) => a.localeCompare(b, 'pt-BR')).map(([mestre, works]) => {
     const daily = yearDays(year).map((date) => {
-      const active = [...new Map(obras.filter((obra) => obra.mestresPlanejados.some((item) => item.nome === mestre && intersectsRange(item.inicio, item.tempoPlanejado, date, 1))).map((obra) => [obra.id, obra])).values()];
-      return { date, obras: active, conflict: active.length > 1 };
+      const naData = (obra: ObraCronograma) => obra.mestresPlanejados.filter((item) => item.nome === mestre && intersectsRange(item.inicio, item.tempoPlanejado, date, 1));
+      const active = [...new Map(obras.filter((obra) => naData(obra).length).map((obra) => [obra.id, obra])).values()];
+      // A day NT (não trabalhado) keeps the mestre on that work but does not occupy him: no conflict.
+      const working = active.filter((obra) => naData(obra).some((item) => !ehNaoTrabalhado(item, date)));
+      return { date, obras: active, conflict: working.length > 1 };
     });
     const weekly = weeklyHeader(year).map((start) => {
       const days = daily.filter((day) => day.date >= start && day.date <= addDays(start, 6));

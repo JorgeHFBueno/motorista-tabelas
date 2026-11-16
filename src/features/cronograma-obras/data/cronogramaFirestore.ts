@@ -1,7 +1,9 @@
-import { collection, deleteDoc, doc, onSnapshot, serverTimestamp, setDoc, updateDoc, type Firestore, type Unsubscribe } from 'firebase/firestore';
+import { collection, deleteDoc, deleteField, doc, onSnapshot, serverTimestamp, setDoc, updateDoc, type Firestore, type Unsubscribe } from 'firebase/firestore';
 import { db } from '../../../firebase';
 import { reconcileAlocacoes, type AlocacaoChange } from './alocacaoReconciliation';
 export { reconcileAlocacoes, type AlocacaoChange } from './alocacaoReconciliation';
+
+import type { NaoTrabalhado } from '../domain/naoTrabalhados';
 
 export const CRONOGRAMA_COLLECTION = 'monday-cronograma';
 
@@ -12,11 +14,14 @@ export type AlocacaoFirestore = {
   mestreId: string;
   inicio: string;
   tempoPlanejado: number;
+  /** Dias NT (não trabalhados) dentro do período; ausente = nenhum. */
+  naoTrabalhados?: NaoTrabalhado[];
   criadoPorFuncionarioId: string;
 };
 
 export type CreateAlocacao = Omit<AlocacaoFirestore, 'id'>;
-export type UpdateAlocacao = Partial<Pick<AlocacaoFirestore, 'obraId' | 'contratoId' | 'mestreId' | 'inicio' | 'tempoPlanejado'>>;
+/** `naoTrabalhados: undefined` apaga o campo. */
+export type UpdateAlocacao = Partial<Pick<AlocacaoFirestore, 'obraId' | 'contratoId' | 'mestreId' | 'inicio' | 'tempoPlanejado' | 'naoTrabalhados'>>;
 
 function valid(data: unknown, id: string): AlocacaoFirestore | null {
   const value = data as Partial<AlocacaoFirestore>;
@@ -42,12 +47,14 @@ export class CronogramaFirestoreRepository {
   }
 
   async createAlocacao(input: CreateAlocacao, reference = this.createAlocacaoReference()): Promise<string> {
-    await setDoc(reference, { ...input, criadoEm: serverTimestamp(), atualizadoEm: serverTimestamp() });
+    const { naoTrabalhados, ...rest } = input;
+    await setDoc(reference, { ...rest, ...(naoTrabalhados?.length ? { naoTrabalhados } : {}), criadoEm: serverTimestamp(), atualizadoEm: serverTimestamp() });
     return reference.id;
   }
 
   async updateAlocacao(id: string, patch: UpdateAlocacao): Promise<void> {
-    await updateDoc(doc(this.firestore, CRONOGRAMA_COLLECTION, id), { ...patch, atualizadoEm: serverTimestamp() });
+    const nt = 'naoTrabalhados' in patch ? { naoTrabalhados: patch.naoTrabalhados?.length ? patch.naoTrabalhados : deleteField() } : {};
+    await updateDoc(doc(this.firestore, CRONOGRAMA_COLLECTION, id), { ...patch, ...nt, atualizadoEm: serverTimestamp() });
   }
 
   async deleteAlocacao(id: string): Promise<void> {

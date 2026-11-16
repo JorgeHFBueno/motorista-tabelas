@@ -293,7 +293,7 @@ export default function ObraDetalhesPage() {
           <Tabela
             cabecalho={['Mestre', 'LOTE', 'Início', 'Fim', 'Dias']}
             direita={[4]}
-            linhas={itens.map((item) => [item.mestre, item.lote, dataCivilTexto(item.inicio), dataCivilTexto(item.fim), item.dias])}
+            linhas={itens.map((item) => [item.mestre, item.lote, dataCivilTexto(item.inicio), dataCivilTexto(item.fim), item.diasTexto])}
           />
         ) : <Vazio>Nenhum mestre alocado no CronoObra.</Vazio>}
       </Secao>
