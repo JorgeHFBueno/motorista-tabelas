@@ -86,6 +86,7 @@ import {
   type CronogramaPerfMode,
 } from "./debug/cronogramaPerf";
 import "./styles/cronograma-obras.css";
+import "./styles/tema-mki.css";
 
 const INITIAL_FILTERS: CronogramaFilters = {
   search: "",
@@ -312,14 +313,11 @@ type CronogramaObrasViewProps = {
   fontes?: FontesCronograma;
   /** Dados fictícios (/testes): qualquer um que entra pode editar, porque nada é salvo. */
   edicaoLiberada?: boolean;
-  /** Identidade visual em teste (/testes/mki). */
-  tema?: "mki";
 };
 
 export function CronogramaObrasView({
   fontes = FONTES_FIRESTORE,
   edicaoLiberada = false,
-  tema,
 }: CronogramaObrasViewProps) {
   countCronogramaRender("CronogramaObrasPage");
   const {
@@ -332,6 +330,11 @@ export function CronogramaObrasView({
   // Área Engenharia em "ver": o cronograma só mostra (sem arrastar, redimensionar, priorizar, criar mestre nem editar).
   const podeEditar =
     edicaoLiberada || editaArea(authorizationProfile, "engenharia");
+  // The panels (drawers, menus) open outside the page: the theme class also goes on <body> while it is open.
+  useEffect(() => {
+    document.body.classList.add("co-tema-mki");
+    return () => document.body.classList.remove("co-tema-mki");
+  }, []);
   const [view, setView] = useState<"obras" | "mestres">("obras");
   const [sectionViews, setSectionViews] = useState<WorkSectionViews>(
     DEFAULT_WORK_SECTION_VIEWS,
@@ -1303,7 +1306,7 @@ export function CronogramaObrasView({
 
   return (
     <GravarStatusLoteContext.Provider value={fontes.gravarStatusLote}>
-    <main className={`co-page co-zoom--${zoom}${tema ? ` co-tema-${tema}` : ""}`}>
+    <main className={`co-page co-zoom--${zoom} co-tema-mki`}>
       <section className="co-indicators-bar">
         <div className="co-indicators-group">
           <div>
