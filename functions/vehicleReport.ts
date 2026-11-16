@@ -1,5 +1,5 @@
 import { HttpsError, onCall } from 'firebase-functions/v2/https';
-import { temCredencial } from './credenciais.js';
+import { editaArea, veArea, type Nivel } from './credenciais.js';
 import { defineSecret } from 'firebase-functions/params';
 import { db } from './firebaseAdmin.js';
 
@@ -49,10 +49,10 @@ export async function queryErp(queryId: typeof VEHICLE_ERP_QUERY_ALLOWLIST[numbe
   } finally { clearTimeout(timer); }
 }
 
-/** Mirrors the /frota policy: active employee with mecanico or logistica (or adm2). */
-export async function assertFrotaAuthorization(uid: string) {
+/** Mirrors the /frota policy: the Frota area at the level ('ver' reads, 'editar' writes), or adm2. */
+export async function assertFrotaAuthorization(uid: string, nivel: Nivel) {
   const employee = await db.collection('funcionarios').doc(uid).get();
-  if (!temCredencial(employee.data(), 'mecanico', 'logistica')) {
+  if (!(nivel === 'ver' ? veArea : editaArea)(employee.data(), 'frota')) {
     throw new HttpsError('permission-denied', 'Acesso não autorizado.');
   }
 }
@@ -60,7 +60,7 @@ export async function assertFrotaAuthorization(uid: string) {
 /** Authenticated, backend-only ERP gateway. Query IDs are intentionally not client input. */
 export const getVehicleErpCosts = onCall({ region: 'southamerica-east1', secrets: [erpToken], timeoutSeconds: 60 }, async (request) => {
   if (!request.auth) throw new HttpsError('unauthenticated', 'Autenticação obrigatória.');
-  await assertFrotaAuthorization(request.auth.uid);
+  await assertFrotaAuthorization(request.auth.uid, 'ver');
   const placa = normalizePlate(request.data?.placa);
   const dataInicial = String(request.data?.dataInicial ?? '');
   const dataFinal = String(request.data?.dataFinal ?? '');

@@ -1,5 +1,5 @@
 import { createSign } from 'node:crypto';
-import { temCredencial } from './credenciais.js';
+import { editaArea, temCredencial, veArea } from './credenciais.js';
 import { HttpsError, onCall } from 'firebase-functions/v2/https';
 import { defineSecret } from 'firebase-functions/params';
 import { db } from './firebaseAdmin.js';
@@ -290,7 +290,7 @@ const service = new ManuscriptService(new ManuscriptGitHubClient(() => ({ appId:
 async function assertReader(uid: string | undefined) {
   if (!uid) throw new HttpsError('unauthenticated', 'Autenticação obrigatória.');
   const employee = await db.collection('funcionarios').doc(uid).get();
-  if (!temCredencial(employee.data(), 'autor')) throw new HttpsError('permission-denied', 'Acesso não autorizado.'); // autor (ou adm2)
+  if (!veArea(employee.data(), 'manuscript')) throw new HttpsError('permission-denied', 'Acesso não autorizado.'); // área manuscript (ou adm2)
 }
 const callableOptions = { region: 'southamerica-east1', secrets: [manuscriptGithubAppId, manuscriptGithubInstallationId, manuscriptGithubPrivateKey], timeoutSeconds: 60 };
 export const manuscriptListTree = onCall(callableOptions, async (request) => { try { await assertReader(request.auth?.uid); return await service.listTree(); } catch (error) { throw cleanError(error); } });
@@ -300,13 +300,13 @@ export const manuscriptGetBacklinks = onCall(callableOptions, async (request) =>
 export const manuscriptGetDocumentGraph = onCall(callableOptions, async (request) => { try { await assertReader(request.auth?.uid); return await service.getDocumentGraph(request.data?.path); } catch (error) { throw cleanError(error); } });
 export const manuscriptGetDocumentHistory = onCall(callableOptions, async (request) => { try { await assertReader(request.auth?.uid); return await service.getDocumentHistory(request.data?.path, request.data?.limit); } catch (error) { throw cleanError(error); } });
 export const manuscriptGetSystemGraph = onCall(callableOptions, async (request) => { try { await assertReader(request.auth?.uid); return await service.getSystemGraph(); } catch (error) { throw cleanError(error); } });
-/** Chat do Manuscript: credencial retr0 ou autor (ou adm2, que tem autor de graça; 2026-11-06), pago com os créditos de API. */
+/** Chat do Manuscript: área manuscript em editar (ou adm2) ou a credencial retr0, pago com os créditos de API. */
 export const manuscriptChat = onCall({ ...callableOptions, secrets: [...callableOptions.secrets, anthropicApiKey], timeoutSeconds: 300, memory: '512MiB' }, async (request, response) => {
   try {
     const uid = request.auth?.uid;
     if (!uid) throw new HttpsError('unauthenticated', 'Autenticação obrigatória.');
     const employee = await db.collection('funcionarios').doc(uid).get();
-    if (!temCredencial(employee.data(), 'retr0', 'autor')) throw new HttpsError('permission-denied', 'Acesso não autorizado.');
+    if (!(editaArea(employee.data(), 'manuscript') || temCredencial(employee.data(), 'retr0'))) throw new HttpsError('permission-denied', 'Acesso não autorizado.');
     const { history, question } = validateChatInput(request.data?.historico, request.data?.pergunta);
     const apiKey = anthropicApiKey.value();
     if (!apiKey) throw new HttpsError('failed-precondition', 'MANUSCRIPT_CHAT_NOT_CONFIGURED');

@@ -61,6 +61,16 @@ const identities = {
   retr0: { uid: 'uid-retr0', email: 'retr0@example.com' },
   retr0b: { uid: 'uid-retr0b', email: 'retr0b@example.com' },
   retr0c: { uid: 'uid-retr0c', email: 'retr0c@example.com' },
+  // WEB areas (funcionarios.areas, 2026-11-16).
+  combVer: { uid: 'uid-comb-ver', email: 'comb-ver@example.com' },
+  combEditar: { uid: 'uid-comb-editar', email: 'comb-editar@example.com' },
+  areasVazias: { uid: 'uid-areas-vazias', email: 'areas-vazias@example.com' },
+  fridayArea: { uid: 'uid-friday-area', email: 'friday-area@example.com' },
+  portalVer: { uid: 'uid-portal-ver', email: 'portal-ver@example.com' },
+  portalEditar: { uid: 'uid-portal-editar', email: 'portal-editar@example.com' },
+  logVer: { uid: 'uid-log-ver', email: 'log-ver@example.com' },
+  logEditar: { uid: 'uid-log-editar', email: 'log-editar@example.com' },
+  frotaEditar: { uid: 'uid-frota-editar', email: 'frota-editar@example.com' },
 };
 
 function dbAs(name, tokenOverrides = {}) {
@@ -118,6 +128,19 @@ async function seed() {
     await employeeLike('uid-retr0', 'Retr0', 'retr0@example.com', true, { retr0: true });
     await employeeLike('uid-retr0b', 'Retr0 B', 'retr0b@example.com', true, { retr0: true });
     await employeeLike('uid-retr0c', 'Retr0 C', 'retr0c@example.com', true, { retr0: true });
+    const comAreas = (uid, nome, perfis, areas) => setDoc(doc(db, 'funcionarios', uid), {
+      nome, email: `${uid}@example.com`, ativo: true, perfis: { frentista: false, adm2: false, motorista: false, ...perfis }, areas,
+      createdAt: Timestamp.fromMillis(1), updatedAt: Timestamp.fromMillis(1),
+    });
+    await comAreas('uid-comb-ver', 'Comb ver', {}, { combustivel: 'ver' });
+    await comAreas('uid-comb-editar', 'Comb editar', {}, { combustivel: 'editar' });
+    await comAreas('uid-areas-vazias', 'Areas vazias', { logistica: true, escritorio: true, engenharia: true }, {});
+    await comAreas('uid-friday-area', 'Friday area', {}, { friday: 'editar' });
+    await comAreas('uid-portal-ver', 'Portal ver', {}, { portal: 'ver' });
+    await comAreas('uid-portal-editar', 'Portal editar', {}, { portal: 'editar' });
+    await comAreas('uid-log-ver', 'Log ver', {}, { logistica: 'ver' });
+    await comAreas('uid-log-editar', 'Log editar', {}, { logistica: 'editar' });
+    await comAreas('uid-frota-editar', 'Frota editar', {}, { frota: 'editar' });
     await setDoc(doc(db, '00-autorizados', 'legacy-only@example.com'), { nome: 'Legacy only', ativo: true, adm2: true });
     await setDoc(doc(db, 'veiculos-v2', 'vv-inativo'), {
       schemaVersion: 2, cadastro: { ativo: false }, identificacao: { categoria: 'PLACA', identificador: 'OLD1A23', nome: 'Caminhão parado' },
@@ -335,7 +358,7 @@ test('[firestore] atividades: Frota (mecanico, logistica, adm2) and Engenharia l
   }
 });
 test('[firestore] activity update is denied', async () => assertFails(updateDoc(doc(dbAs('adm2'), 'atividades', 'historic'), { motivo: 'changed' })));
-test('[firestore] KM normalization: logistica and adm2 correct only an activity km, as a non-negative integer', async () => {
+test('[firestore] KM normalization: Frota editar (legacy logistica/mecanico) and adm2 correct only an activity km, as a non-negative integer', async () => {
   await env.withSecurityRulesDisabled(async (ctx) => {
     await setDoc(doc(ctx.firestore(), 'veiculos-v2', 'vv-normalizacao'), {
       schemaVersion: 2, cadastro: { ativo: true }, identificacao: { categoria: 'PLACA', identificador: 'NOR1M23', nome: 'Caminhão normalização' },
@@ -346,7 +369,9 @@ test('[firestore] KM normalization: logistica and adm2 correct only an activity 
   const ref_ = (quem) => doc(dbAs(quem), 'atividades', 'km-errado');
   await assertSucceeds(updateDoc(ref_('logistica'), { km: 180783 }));
   await assertSucceeds(updateDoc(ref_('adm2'), { km: 180784 }));
-  await assertFails(updateDoc(ref_('mecanico'), { km: 180785 }));
+  await assertSucceeds(updateDoc(ref_('mecanico'), { km: 180785 }));
+  await assertSucceeds(updateDoc(ref_('frotaEditar'), { km: 180786 }));
+  await assertFails(updateDoc(ref_('engenharia'), { km: 180787 }));
   await assertFails(updateDoc(ref_('user'), { km: 180785 }));
   await assertFails(updateDoc(ref_('logistica'), { km: 180785, motivo: 'outro' }));
   await assertFails(updateDoc(ref_('logistica'), { km: 180785.5 }));
@@ -1752,4 +1777,95 @@ test('[firestore] dev-salas: só retr0; entra com vaga, só quem criou começa, 
   await assertSucceeds(mudar(b, 'n1', { jogadores: ['uid-retr0', 'uid-retr0c'], nomes: ['RETR0', 'C'] }, 3));
   await assertFails(mudar(a, 'n1', { jogadores: ['uid-retr0'], nomes: ['RETR0'] }, 4));
   await assertSucceeds(deleteDoc(doc(a, 'dev-salas', 'n1')));
+});
+
+// ================================================================ WEB areas (funcionarios.areas, 2026-11-16)
+
+test('[firestore] areas: Combustível ver reads fuel and pumps but writes nothing; editar corrects, deletes and records entries', async () => {
+  await env.withSecurityRulesDisabled(async (ctx) => {
+    await setDoc(doc(ctx.firestore(), '03-combustivel', 'fuel-areas'), { lf: 1 });
+  });
+  await assertSucceeds(getDoc(doc(dbAs('combVer'), '03-combustivel', 'fuel-areas')));
+  await assertSucceeds(getDocs(collection(dbAs('combVer'), '03-combustivel')));
+  await assertSucceeds(getDoc(doc(dbAs('combVer'), 'bombas', 'diesel_patio')));
+  await assertFails(updateDoc(doc(dbAs('combVer'), '03-combustivel', 'fuel-areas'), { lf: 2 }));
+  await assertFails(deleteDoc(doc(dbAs('combVer'), '03-combustivel', 'fuel-areas')));
+  await assertFails(updateDoc(doc(dbAs('combVer'), 'bombas', 'diesel_patio'), { montanteAtual: 1001 }));
+  await assertFails(setDoc(doc(dbAs('combVer'), '03-combustivel', 'fuel-areas-v2'), v2Output({ criadoPor: { uid: 'uid-comb-ver', nome: 'Comb ver' } })));
+  await assertSucceeds(updateDoc(doc(dbAs('combEditar'), '03-combustivel', 'fuel-areas'), { lf: 3 }));
+  await assertSucceeds(deleteDoc(doc(dbAs('combEditar'), '03-combustivel', 'fuel-areas')));
+});
+
+test('[firestore] areas: Combustível editar launches a V2 output (WEB)', async () => {
+  // No meter: the shared vehicle's reading may already be higher (only the mechanic lowers it).
+  await coherentV2Write('fuel-v2-web-comb-editar', { criadoPor: { uid: 'uid-comb-editar', nome: 'Comb editar' }, modalidadeAbastecimento: 'galao', quilometragem: undefined }, 'combEditar');
+});
+
+test('[firestore] areas: a document with `areas` ignores its old credentials', async () => {
+  const db = dbAs('areasVazias');
+  await assertFails(getDocs(collection(db, '03-combustivel')));
+  await assertFails(getDocs(collection(db, 'logistica-programacoes')));
+  await assertFails(setDoc(doc(db, 'friday-grupos', '50'), { id: 50, quadro_id: 10, nome: 'Sem area' }));
+  await assertFails(getDocs(collection(db, 'portal-noticias')));
+  await assertFails(getDocs(collection(db, 'monday-cronograma')));
+  await assertFails(getDocs(collection(db, 'funcionarios')));
+});
+
+test('[firestore] areas: a document without `areas` keeps the access of its old credentials', async () => {
+  await assertSucceeds(getDocs(collection(dbAs('logistica'), '03-combustivel')));
+  await assertSucceeds(getDocs(collection(dbAs('mecanico'), 'logistica-programacoes')));
+  await assertSucceeds(setDoc(doc(dbAs('escritorio'), 'friday-grupos', '51'), { id: 51, quadro_id: 10, nome: 'Legado' }));
+  await assertSucceeds(getDocs(collection(dbAs('engenharia'), 'monday-cronograma')));
+  await assertSucceeds(getDoc(doc(dbAs('engenharia'), 'portal-noticias', 'pn-legado')));
+  await assertFails(getDocs(collection(dbAs('autor'), '03-combustivel')));
+});
+
+test('[firestore] areas: Friday (one level) enters with friday; without it, no', async () => {
+  await assertSucceeds(setDoc(doc(dbAs('fridayArea'), 'friday-grupos', '52'), { id: 52, quadro_id: 10, nome: 'Area friday' }));
+  await assertSucceeds(getDoc(doc(dbAs('fridayArea'), 'friday-quadros', '10')));
+  await assertFails(getDoc(doc(dbAs('fridayArea'), 'friday-quadros', '100')), 'restricted board without the person');
+  await assertFails(setDoc(doc(dbAs('combEditar'), 'friday-grupos', '53'), { id: 53, quadro_id: 10, nome: 'Sem friday' }));
+});
+
+test('[firestore] areas: Portal ver reads the team side; editar writes', async () => {
+  await assertSucceeds(getDoc(doc(dbAs('portalVer'), 'portal-noticias', 'pn-area')));
+  await assertSucceeds(getDocs(collection(dbAs('portalVer'), 'users')));
+  await assertFails(setDoc(doc(dbAs('portalVer'), 'portal-noticias', 'pn-area'), { titulo: 'x' }));
+  await assertSucceeds(setDoc(doc(dbAs('portalEditar'), 'portal-noticias', 'pn-area'), { titulo: 'x' }));
+  await assertFails(getDoc(doc(dbAs('combEditar'), 'portal-noticias', 'pn-area')));
+});
+
+test('[firestore] areas: Logística ver reads the schedule; editar writes it', async () => {
+  await assertSucceeds(getDoc(doc(dbAs('logVer'), 'logistica-semanas', '2026-W45')));
+  await assertFails(setDoc(doc(dbAs('logVer'), 'logistica-config', 'status'), {
+    schemaVersion: 1, etiquetas: [], atualizadoPorUid: 'uid-log-ver', atualizadoEm: serverTimestamp(),
+  }));
+  await assertSucceeds(setDoc(doc(dbAs('logEditar'), 'logistica-config', 'status'), {
+    schemaVersion: 1, etiquetas: [], atualizadoPorUid: 'uid-log-editar', atualizadoEm: serverTimestamp(),
+  }));
+});
+
+test('[firestore] areas: Frota editar corrects only the meter of a fuel record; Combustível editar anything', async () => {
+  await env.withSecurityRulesDisabled(async (ctx) => {
+    await setDoc(doc(ctx.firestore(), '03-combustivel', 'fuel-medidor'), { quilometragem: 100, horimetro: null, lf: 1 });
+  });
+  await assertSucceeds(updateDoc(doc(dbAs('frotaEditar'), '03-combustivel', 'fuel-medidor'), { quilometragem: 90 }));
+  await assertFails(updateDoc(doc(dbAs('frotaEditar'), '03-combustivel', 'fuel-medidor'), { lf: 2 }));
+  await assertFails(deleteDoc(doc(dbAs('frotaEditar'), '03-combustivel', 'fuel-medidor')));
+  await assertSucceeds(getDoc(doc(dbAs('frotaEditar'), '03-combustivel', 'fuel-medidor')));
+});
+
+test('[storage] areas: Friday, Portal and Logística files follow the area and its level', async () => {
+  const pdf = new Uint8Array([0x25, 0x50, 0x44, 0x46]);
+  const png = new Uint8Array([0x89, 0x50, 0x4e, 0x47]);
+  await assertSucceeds(uploadBytes(ref(storageAs('fridayArea'), 'friday/10/20/60-area.pdf'), pdf, { contentType: 'application/pdf' }));
+  await assertFails(uploadBytes(ref(storageAs('areasVazias'), 'friday/10/20/61-area.pdf'), pdf, { contentType: 'application/pdf' }));
+  await assertSucceeds(uploadBytes(ref(storageAs('portalEditar'), 'portal/noticias/pn-area/foto.png'), png, { contentType: 'image/png' }));
+  await assertFails(uploadBytes(ref(storageAs('portalVer'), 'portal/noticias/pn-area/foto2.png'), png, { contentType: 'image/png' }));
+  await assertSucceeds(getBytes(ref(storageAs('portalVer'), 'portal/noticias/pn-area/foto.png')));
+  await assertSucceeds(uploadBytes(ref(storageAs('logEditar'), 'logistica/observacoes/ob-area/a.pdf'), pdf, { contentType: 'application/pdf' }));
+  await assertSucceeds(getBytes(ref(storageAs('logVer'), 'logistica/observacoes/ob-area/a.pdf')));
+  await assertFails(uploadBytes(ref(storageAs('logVer'), 'logistica/observacoes/ob-area/b.pdf'), pdf, { contentType: 'application/pdf' }));
+  await assertFails(deleteObject(ref(storageAs('logVer'), 'logistica/observacoes/ob-area/a.pdf')));
+  await assertSucceeds(deleteObject(ref(storageAs('logEditar'), 'logistica/observacoes/ob-area/a.pdf')));
 });

@@ -18,6 +18,8 @@ test('the users list reads every employee in a single call, not one read per acc
   assert.equal(users[1].funcionario, null);
   assert.equal(users[0].funcionario.nome, 'ANA');
   assert.equal(users[0].funcionario.credenciais.escritorio, true);
+  // Areas in force: the old escritorio stands for Friday, Cadastros and Portal until the migration writes `areas`.
+  assert.deepEqual(users[0].funcionario.areas, { friday: 'editar', cadastros: 'editar', portal: 'editar' });
 });
 
 test('an employee who is also in users/{uid} stays in the list', async () => {

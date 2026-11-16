@@ -1,6 +1,6 @@
 import { HttpsError, onCall } from 'firebase-functions/v2/https';
 import { db } from './firebaseAdmin.js';
-import { temCredencial } from './credenciais.js';
+import { veArea } from './credenciais.js';
 import { textoCelula } from './fridayApiDominio.js';
 
 // Pessoas do Cronograma Logístico (WEB /logistica/cronograma) tiradas de dois quadros do Friday, que a logística não lê
@@ -50,7 +50,7 @@ export interface LogisticaPessoasStore {
 export function createLogisticaPessoasService(store: LogisticaPessoasStore) {
   return async (uid: string | undefined): Promise<{ motoristas: PessoaFriday[]; auxiliares: PessoaFriday[] }> => {
     if (!uid) throw new HttpsError('unauthenticated', 'Autenticação obrigatória.');
-    if (!temCredencial(await store.getEmployee(uid), 'logistica', 'mecanico')) throw new HttpsError('permission-denied', 'Acesso não autorizado.');
+    if (!veArea(await store.getEmployee(uid), 'logistica')) throw new HttpsError('permission-denied', 'Acesso não autorizado.');
     const [funcionarios, curriculos, colunas] = await Promise.all([
       store.itensDoQuadro(QUADRO_FUNCIONARIOS),
       store.itensDoQuadro(QUADRO_CURRICULOS),

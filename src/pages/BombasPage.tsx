@@ -40,7 +40,7 @@ import {
   type FuelMovement,
 } from '../services/bombasService';
 import { useAuth } from '../contexts/AuthContext';
-import { temCredencial } from '../services/credenciais';
+import { editaArea } from '../services/credenciais';
 import { useAuthorizationProfile } from '../hooks/useAuthorizationProfile';
 import {
   DIESEL_PATIO_ID,
@@ -79,7 +79,7 @@ function bombaName(bomba: Bomba): string {
 export default function BombasPage() {
   const { currentUser } = useAuth();
   const { profile, loading: authorizationLoading } = useAuthorizationProfile();
-  const canRegister = temCredencial(profile, 'logistica', 'mecanico');
+  const canRegister = editaArea(profile, 'combustivel');
   const [bombas, setBombas] = useState<Bomba[]>([]);
   const [selectedId, setSelectedId] = useState('');
   const [movements, setMovements] = useState<FuelMovement[]>([]);

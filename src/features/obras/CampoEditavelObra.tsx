@@ -7,7 +7,7 @@ import { LOCAIS_SUGERIDOS } from './locaisSugeridos';
 const AJUDA_SINONIMO = 'Outro nome pelo qual a obra é conhecida; aparece antes do nome. Pode ficar vazio.';
 
 /** Campo gravável do detalhe da obra: o valor com o lápis e, na edição, o formulário com Salvar e Cancelar. */
-export default function CampoEditavel({ campo, valor, vazio, destaque, salvando, onSalvar }: {
+export default function CampoEditavel({ campo, valor, vazio, destaque, salvando, onSalvar, somenteLeitura = false }: {
   campo: CampoEditavelObra;
   valor: string;
   /** Texto e botão quando falta o valor (o local também quando é "CORRIGIR"). */
@@ -16,6 +16,8 @@ export default function CampoEditavel({ campo, valor, vazio, destaque, salvando,
   salvando: boolean;
   /** Devolve true quando gravou, para fechar a edição. */
   onSalvar: (valor: string) => Promise<boolean>;
+  /** Área Engenharia em "ver": só o valor, sem lápis nem botão. */
+  somenteLeitura?: boolean;
 }) {
   const [editado, setEditado] = useState<string | null>(null); // null = fora da edição
   const rotulo = ROTULOS_CAMPOS[campo];
@@ -32,7 +34,7 @@ export default function CampoEditavel({ campo, valor, vazio, destaque, salvando,
           >
             {vazio ? vazio.texto : valor}
           </Typography>
-          {vazio ? (
+          {somenteLeitura ? null : vazio ? (
             <Button size="small" variant={obrigatorio ? 'contained' : 'outlined'} onClick={() => setEditado('')}>{vazio.botao}</Button>
           ) : (
             <Tooltip title={`Editar ${rotulo.toLowerCase()}`}>

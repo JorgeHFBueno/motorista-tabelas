@@ -86,7 +86,7 @@ export const erpVeiculosDiario = onSchedule({ schedule: 'every day 03:00', timeZ
 /** "Atualizar agora" (Frota: mecanico, logistica ou adm2): os veículos pedidos ou, sem `veiculoIds`, toda a frota com placa. */
 export const atualizarErpVeiculos = onCall({ region: REGIAO, secrets: [erpToken], timeoutSeconds: 300 }, async (request) => {
   if (!request.auth) throw new HttpsError('unauthenticated', 'Autenticação obrigatória.');
-  await assertFrotaAuthorization(request.auth.uid);
+  await assertFrotaAuthorization(request.auth.uid, 'editar');
   const ids = Array.isArray(request.data?.veiculoIds) ? (request.data.veiculoIds as unknown[]).filter((id): id is string => typeof id === 'string' && /^[\w-]{1,128}$/.test(id)) : undefined;
   if (ids && ids.length > 200) throw new HttpsError('invalid-argument', 'Veículos demais.');
   const token = erpToken.value();

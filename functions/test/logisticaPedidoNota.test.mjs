@@ -29,6 +29,8 @@ test('só avisa ao entrar em Ag. NF: não na troca do nome para o id nem quando 
 test('destinatários: até 3, sem repetir, ativos com logistica ou adm2, menos quem mudou o status', () => {
   const funcionarios = new Map([
     ['ana', funcionario({ logistica: true })],
+    ['bia', { ativo: true, perfis: {}, areas: { logistica: 'ver' } }],
+    ['caio', { ativo: true, perfis: { logistica: true }, areas: { frota: 'editar' } }],
     ['chefe', funcionario({ adm2: true })],
     ['escritorio', funcionario({ escritorio: true })],
     ['inativo', funcionario({ logistica: true }, false)],
@@ -39,6 +41,8 @@ test('destinatários: até 3, sem repetir, ativos com logistica ou adm2, menos q
   assert.deepEqual(d.destinatariosPedidoNota(['inativo', 'sumido', 'autor'], 'autor', funcionarios), []);
   assert.deepEqual(d.destinatariosPedidoNota(['ana', 'chefe', 'autor', 'quarto'], 'autor', funcionarios), ['ana', 'chefe']);
   assert.deepEqual(d.destinatariosPedidoNota(null, 'x', funcionarios), []);
+  // Area logistica (ver is enough to be told); a migrated document no longer reads the old logistica.
+  assert.deepEqual(d.destinatariosPedidoNota(['bia', 'caio'], 'x', funcionarios), ['bia']);
 });
 
 test('aviso: título com a expedição, detalhe com item, obra e quem pediu, abre o cronograma', () => {

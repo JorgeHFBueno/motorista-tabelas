@@ -4,12 +4,16 @@ import type { UserRecord } from 'firebase-admin/auth';
 import { FieldValue } from 'firebase-admin/firestore';
 
 import { adminAuth, db } from './firebaseAdmin.js';
-import { exigirCredenciais, AdminRequest } from './adminAuth.js';
-import { CREDENCIAIS, credenciaisDe, lerCredenciais, mesclarCredenciais, migrarPerfis, temCredencialSoAdm2, type Credencial, type Credenciais } from './credenciais.js';
+import { exigirArea, AdminRequest } from './adminAuth.js';
+import { areaDaRota } from './adminAuthorization.js';
+import {
+  CREDENCIAIS, credenciaisDe, lerAreas, lerCredenciais, limparCredenciaisAntigas, mesclarCredenciais, migrarAreas,
+  mudaCredencialProibida, semCredenciais, temCredencialSoAdm2, type Areas, type Credenciais,
+} from './credenciais.js';
 import { lerNovoCliente } from './portalClientes.js';
 import { listarAdminUsers, montarAdminUser, type DadosFuncionario } from './adminUsersList.js';
 
-// Users administration of the WEB (Cadastros), adm2 only. Contract: Manuscript funcionarios.md ("Credenciais",
+// Users administration of the WEB (Cadastros). Contract: Manuscript funcionarios.md ("Credenciais",
 // "Usuários na WEB"). Users are born here or, without a password, in the Friday import of monday people
 // (fridayMondayPessoas); each one is an Auth account plus funcionarios/{uid}.
 const adminApp = express();
@@ -21,14 +25,16 @@ const clientsCollection = db.collection('users');
 adminApp.use(cors({ origin: true }));
 adminApp.use(express.json());
 
-// Firebase Auth plus the credentials of each WEB area in funcionarios/{uid}.perfis, by the first segment after
-// /api/admin (adm2 always enters): users (Cadastros) = escritorio; clientes (Portal do cliente) = engenharia,
-// escritorio; anything else (maintenance) = adm2 only.
-const CREDENCIAIS_DA_ROTA = new Map<string, Credencial[]>([['users', ['escritorio']], ['clientes', ['engenharia', 'escritorio']]]);
-adminApp.use('/api/admin', (req: AdminRequest, res, next) =>
-  exigirCredenciais(...(CREDENCIAIS_DA_ROTA.get(req.path.split('/')[1]) ?? []))(req, res, next));
+// Firebase Auth plus the WEB area of each group of endpoints (areaDaRota; adm2 always enters).
+adminApp.use('/api/admin', (req: AdminRequest, res, next) => {
+  const { area, nivel } = areaDaRota(req.path, req.method);
+  return exigirArea(area, nivel)(req, res, next);
+});
 
 const ehAdm2 = (req: AdminRequest) => req.authorization?.credenciais.adm2 === true;
+
+// Areas of a request: undefined when not sent; null when invalid. Only adm2 sends them (checked by the caller).
+const areasDoPedido = (valor: unknown): Areas | null | undefined => (valor === undefined ? undefined : lerAreas(valor));
 
 const PHONE_LOGIN_DOMAIN = '@example.com';
 
@@ -43,6 +49,7 @@ function normalizeAuthorizedEmail(rawEmail: unknown, celular: unknown) {
 }
 
 const algumaCredencial = (c: Credenciais) => CREDENCIAIS.some((k) => c[k]);
+const algumaArea = (a: Areas | undefined) => !!a && Object.keys(a).length > 0;
 
 // One getAll for every account in the list, instead of one read per account.
 async function lerFuncionarios(uids: string[]) {
@@ -69,9 +76,11 @@ adminApp.get('/api/admin/users', async (_req, res) => {
   }
 });
 
-// POST /api/admin/users/register - Auth account + funcionarios/{uid} with the credentials
+// POST /api/admin/users/register - Auth account + funcionarios/{uid} with the credentials and the WEB areas (`areas`,
+// adm2 only; a new person always gets the map, empty when not sent).
 adminApp.post('/api/admin/users/register', async (req: AdminRequest, res) => {
   const { nome, email, password, credenciais, celular } = req.body ?? {};
+  const areas = areasDoPedido(req.body?.areas);
   const normalizedNome = typeof nome === 'string' ? nome.trim() : '';
   const normalizedEmail = normalizeAuthorizedEmail(email, celular);
   const passwordValue = typeof password === 'string' ? password.trim() : '';
@@ -80,8 +89,10 @@ adminApp.post('/api/admin/users/register', async (req: AdminRequest, res) => {
   if (!normalizedNome) { res.status(400).json({ error: 'missing_nome' }); return; }
   if (!normalizedEmail) { res.status(400).json({ error: 'missing_email' }); return; }
   if (!passwordValue) { res.status(400).json({ error: 'missing_password' }); return; }
-  if (!perfis || !algumaCredencial(perfis)) { res.status(400).json({ error: 'invalid_credenciais' }); return; }
-  if (!ehAdm2(req) && temCredencialSoAdm2(perfis)) { res.status(403).json({ error: 'forbidden_credencial' }); return; }
+  if (areas === null) { res.status(400).json({ error: 'invalid_areas' }); return; }
+  if (!perfis || !(algumaCredencial(perfis) || algumaArea(areas))) { res.status(400).json({ error: 'invalid_credenciais' }); return; }
+  if (!ehAdm2(req) && areas !== undefined) { res.status(403).json({ error: 'forbidden_area' }); return; }
+  if (!ehAdm2(req) && mudaCredencialProibida(semCredenciais(), perfis)) { res.status(403).json({ error: 'forbidden_credencial' }); return; }
 
   let createdUid: string | null = null;
   let reusedExistingAuth = false;
@@ -118,6 +129,7 @@ adminApp.post('/api/admin/users/register', async (req: AdminRequest, res) => {
       email: normalizedEmail,
       ativo: true,
       perfis,
+      areas: areas ?? {},
       ...(perfis.motorista ? { motorista: { ordem: 0 } } : {}),
       createdAt: FieldValue.serverTimestamp(),
       updatedAt: FieldValue.serverTimestamp(),
@@ -141,13 +153,17 @@ adminApp.post('/api/admin/users/register', async (req: AdminRequest, res) => {
   }
 });
 
-// PATCH /api/admin/users/:uid - credentials and situation of an employee. Name and login are not edited here:
-// each person changes their own in Meu perfil.
+// PATCH /api/admin/users/:uid - credentials, WEB areas (adm2 only; the whole map) and situation of an employee. Name
+// and login are not edited here: each person changes their own in Meu perfil. A non-adm2 caller changes only the app
+// credentials (motorista, frentista, mecanico).
 adminApp.patch('/api/admin/users/:uid', async (req: AdminRequest, res) => {
   const { uid } = req.params;
   const { ativo, credenciais } = req.body ?? {};
   if (typeof ativo !== 'boolean') { res.status(400).json({ error: 'invalid_ativo' }); return; }
   if (!lerCredenciais(credenciais)) { res.status(400).json({ error: 'invalid_credenciais' }); return; }
+  const areas = areasDoPedido(req.body?.areas);
+  if (areas === null) { res.status(400).json({ error: 'invalid_areas' }); return; }
+  if (!ehAdm2(req) && areas !== undefined) { res.status(403).json({ error: 'forbidden_area' }); return; }
 
   try {
     const employeeRef = employeesCollection.doc(uid);
@@ -155,16 +171,18 @@ adminApp.patch('/api/admin/users/:uid', async (req: AdminRequest, res) => {
     if (!employee.exists) { res.status(404).json({ error: 'employee_not_found' }); return; }
     // Credentials left out of the request keep their current value.
     const perfis = mesclarCredenciais(employee.get('perfis'), credenciais)!;
-    if (uid === req.user?.uid && (!ativo || !(ehAdm2(req) ? perfis.adm2 : perfis.escritorio))) {
+    // Nobody locks themselves out: an adm2 keeps its adm2; a non-adm2 (who cannot change areas) keeps its account on.
+    if (uid === req.user?.uid && (!ativo || (ehAdm2(req) && !perfis.adm2))) {
       res.status(400).json({ error: ehAdm2(req) ? 'cannot_remove_own_adm2' : 'cannot_remove_own_access' });
       return;
     }
     if (!ehAdm2(req) && temCredencialSoAdm2(credenciaisDe(employee.get('perfis')))) { res.status(403).json({ error: 'protected_account' }); return; }
-    if (!ehAdm2(req) && temCredencialSoAdm2(perfis)) { res.status(403).json({ error: 'forbidden_credencial' }); return; }
+    if (!ehAdm2(req) && mudaCredencialProibida(credenciaisDe(employee.get('perfis')), perfis)) { res.status(403).json({ error: 'forbidden_credencial' }); return; }
     await adminAuth.updateUser(uid, { disabled: !ativo });
     await employeeRef.update({
       ativo,
       perfis,
+      ...(areas !== undefined ? { areas } : {}),
       ...(perfis.motorista && employee.get('motorista') == null ? { motorista: { ordem: 0 } } : {}),
       updatedAt: FieldValue.serverTimestamp(),
     });
@@ -311,27 +329,37 @@ adminApp.post('/api/admin/clientes/:uid/senha', async (req: AdminRequest, res) =
   }
 });
 
-// POST /api/admin/manutencao/credenciais - data migration of the switch: frentista = frentista || adm1; adm1 and user
-// leave the documents. { executar: false } only counts (simulation); { executar: true } writes.
+// POST /api/admin/manutencao/credenciais - data migration of the WEB areas (owner's decision, 2026-11-16), adm2 only.
+// { etapa: 'areas' } writes `areas` from the old credentials on documents without it (perfis untouched);
+// { etapa: 'limpar' } removes the old WEB credentials from perfis, only after every active person has `areas`.
+// { executar: false } only counts (simulation); { executar: true } writes, in batches of 400.
 adminApp.post('/api/admin/manutencao/credenciais', async (req: AdminRequest, res) => {
+  const etapa = req.body?.etapa;
   const executar = req.body?.executar === true;
+  if (etapa !== 'areas' && etapa !== 'limpar') { res.status(400).json({ error: 'invalid_etapa' }); return; }
   try {
     const snap = await employeesCollection.get();
-    const mudancas = snap.docs.map((d) => ({ ref: d.ref, ...migrarPerfis(d.get('perfis')) })).filter((m) => m.mudou);
+    if (etapa === 'limpar' && snap.docs.some((d) => d.get('ativo') === true && d.get('areas') === undefined)) {
+      res.status(409).json({ error: 'areas_pendentes' });
+      return;
+    }
+    const mudancas = snap.docs.flatMap((d): { ref: typeof d.ref; dados: Record<string, unknown> }[] => {
+      if (etapa === 'areas') {
+        const m = migrarAreas(d.data());
+        return m.mudou ? [{ ref: d.ref, dados: { areas: m.areas } }] : [];
+      }
+      const m = limparCredenciaisAntigas(d.get('perfis'));
+      return m.mudou ? [{ ref: d.ref, dados: { perfis: m.perfis } }] : [];
+    });
     if (executar) {
       for (let k = 0; k < mudancas.length; k += 400) {
         const lote = db.batch();
-        for (const m of mudancas.slice(k, k + 400)) lote.update(m.ref, { perfis: m.perfis, updatedAt: FieldValue.serverTimestamp() });
+        for (const m of mudancas.slice(k, k + 400)) lote.update(m.ref, { ...m.dados, updatedAt: FieldValue.serverTimestamp() });
         await lote.commit();
       }
-      console.info('credenciais:migracao', { por: req.user?.uid, alterados: mudancas.length });
+      console.info('credenciais:migracao', { etapa, por: req.user?.uid, alterados: mudancas.length });
     }
-    res.json({
-      executado: executar,
-      funcionarios: snap.size,
-      alterados: mudancas.length,
-      frentistas: mudancas.filter((m) => m.perfis.frentista).length,
-    });
+    res.json({ etapa, executado: executar, funcionarios: snap.size, alterados: mudancas.length });
   } catch (err) {
     console.error('Failed to migrate credentials', err);
     res.status(500).json({ error: 'migration_failed' });

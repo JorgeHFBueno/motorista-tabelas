@@ -1,7 +1,7 @@
 // Regras puras dos avisos "Novo Pedido de Nota" e "Nota anexada" do Cronograma Logístico (sem Firebase; teste em
 // test/logisticaPedidoNota.test.mjs). Contrato: The Manuscript, 01_FIRESTORE/COLECOES/logistica.md e avisos.md.
 import { createHash } from 'node:crypto';
-import { temCredencial } from './credenciais.js';
+import { veArea } from './credenciais.js';
 
 type AnyRecord = Record<string, any>;
 
@@ -38,10 +38,10 @@ export function recebeuNota(antes: AnyRecord | undefined, depois: AnyRecord | un
   return temNota(depois) && !temNota(antes);
 }
 
-/** Atribuídos válidos: até 3 UIDs distintos, ativos e com logistica ou adm2, menos quem fez a alteração. */
+/** Atribuídos válidos: até 3 UIDs distintos, ativos e com a área logistica ou adm2, menos quem fez a alteração. */
 export function destinatariosPedidoNota(atribuidos: unknown, autor: unknown, funcionarios: Map<string, AnyRecord | undefined>): string[] {
   const uids = Array.isArray(atribuidos) ? atribuidos.filter((u): u is string => typeof u === 'string' && u !== '') : [];
-  return [...new Set(uids)].slice(0, MAX_ATRIBUIDOS).filter(uid => uid !== autor && temCredencial(funcionarios.get(uid), 'logistica'));
+  return [...new Set(uids)].slice(0, MAX_ATRIBUIDOS).filter(uid => uid !== autor && veArea(funcionarios.get(uid), 'logistica'));
 }
 
 function aviso(programacaoId: string, p: AnyRecord, tipo: string, titulo: string, acao: string) {

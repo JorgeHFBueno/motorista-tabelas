@@ -34,7 +34,8 @@ import { AvisoSnackbar, CabecalhoAba, SeletorArquivo, Vazio, type Aviso } from '
 
 // Documents of the contract shown to the client (portal-documentos). adm2 sends, moves to the trash and restores.
 
-export default function ContratoDocumentosTab({ contrato }: { contrato: ContratoPortal }) {
+// podeEditar false: área portal só em "ver"; sem enviar, mover para a lixeira nem restaurar.
+export default function ContratoDocumentosTab({ contrato, podeEditar }: { contrato: ContratoPortal; podeEditar: boolean }) {
   const pessoa = usePessoaAtual();
   const [documentos, setDocumentos] = useState<DocumentoContrato[] | null>(null);
   const [erro, setErro] = useState(false);
@@ -89,7 +90,7 @@ export default function ContratoDocumentosTab({ contrato }: { contrato: Contrato
           <MenuItem value="">Todas</MenuItem>
           {CATEGORIAS_DOCUMENTO.map((item) => <MenuItem key={item.id} value={item.id}>{item.rotulo}</MenuItem>)}
         </TextField>
-        {!lixeira && (
+        {!lixeira && podeEditar && (
           <Button variant="contained" startIcon={<UploadFileIcon />} onClick={() => setDialogo(true)} disabled={!pessoa}>Enviar documento</Button>
         )}
       </CabecalhoAba>
@@ -129,13 +130,13 @@ export default function ContratoDocumentosTab({ contrato }: { contrato: Contrato
                     <Tooltip title="Abrir">
                       <span><IconButton size="small" onClick={() => abrir(documento)} disabled={!documento.arquivo}><OpenInNewIcon fontSize="small" /></IconButton></span>
                     </Tooltip>
-                    <Tooltip title={lixeira ? 'Restaurar' : 'Mover para a lixeira'}>
+                    {podeEditar && <Tooltip title={lixeira ? 'Restaurar' : 'Mover para a lixeira'}>
                       <span>
                         <IconButton size="small" onClick={() => alternarLixeira(documento)} disabled={!pessoa || ocupado === documento.id}>
                           {lixeira ? <RestoreFromTrashIcon fontSize="small" /> : <DeleteOutlineIcon fontSize="small" />}
                         </IconButton>
                       </span>
-                    </Tooltip>
+                    </Tooltip>}
                   </TableCell>
                 </TableRow>
               ))}

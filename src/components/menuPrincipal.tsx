@@ -22,11 +22,13 @@ import SupportAgentOutlinedIcon from '@mui/icons-material/SupportAgentOutlined';
 import NewspaperOutlinedIcon from '@mui/icons-material/NewspaperOutlined';
 import IconeDev from '../features/dev-toys/IconeDev';
 import IconeFriday from '../features/friday-gestao-interna/IconeFriday';
-import { CREDENCIAIS_FRIDAY } from '../features/friday-gestao-interna/acesso';
 import type { AuthorizationProfile } from '../services/authorizationProfile';
-import { temAlgumaCredencial, temCredencial, type Credencial } from '../services/credenciais';
+import { editaArea, temAlgumaCredencial, temCredencial, veArea } from '../services/credenciais';
+import type { Area } from '../services/areasWeb';
 
-type Acesso = 'qualquer' | Exclude<Credencial, 'adm2'>[];
+// 'qualquer': qualquer credencial ou área; 'retr0': só a credencial retr0 (DEV); { editar }: editar uma das áreas;
+// senão, ver uma das áreas.
+type Acesso = 'qualquer' | 'retr0' | Area[] | { editar: Area[] };
 
 // Áreas do sistema: cards da Home e menu lateral aberto pelo cabeçalho nas demais páginas.
 export type MenuPrincipalItem = {
@@ -35,7 +37,7 @@ export type MenuPrincipalItem = {
   color: string;
   accent: string;
   to?: string;
-  // Quem vê: 'qualquer' credencial ou as credenciais da área (o adm2 vê tudo, salvo as exclusivas, como retr0).
+  // Quem vê: 'qualquer', 'retr0' ou quem vê uma das áreas (o adm2 vê tudo, salvo a DEV).
   acesso: Acesso;
   // Subitens do grupo: o card da Home mostra a descrição. Sem acesso próprio, vale o do grupo; o grupo aparece se algum subitem aparecer.
   children?: Array<{ label: string; to: string; icon: ReactNode; descricao: string; acesso?: Acesso }>;
@@ -50,7 +52,7 @@ export const menuPrincipal: MenuPrincipalItem[] = [
     color: '#EDF3F7',
     accent: '#174F76',
     to: '/the-manuscript/mapa',
-    acesso: ['autor'],
+    acesso: ['manuscript'],
   },
   {
     label: 'Friday',
@@ -58,18 +60,18 @@ export const menuPrincipal: MenuPrincipalItem[] = [
     color: '#EAF4FF',
     accent: '#1F4E8C',
     to: '/friday',
-    acesso: CREDENCIAIS_FRIDAY,
+    acesso: ['friday'],
   },
   {
     label: 'Cadastros',
     icon: <AssignmentIndIcon fontSize="large" />,
     color: '#EAF2F8',
     accent: '#2F6B98',
-    acesso: ['escritorio'],
+    acesso: ['cadastros'],
     children: [
       { label: 'Usuários', to: '/cadastros/editar/usuarios', icon: <PeopleAltOutlinedIcon />, descricao: 'Contas do sistema, credenciais e o QR/PIN do Kiosk' },
-      { label: 'Novo usuário', to: '/cadastros/usuarios/novo', icon: <PersonAddAltOutlinedIcon />, descricao: 'Cadastrar um funcionário com login' },
-      // Meu perfil é de qualquer credencial: quem não tem escritorio vê o grupo só com ele.
+      { label: 'Novo usuário', to: '/cadastros/usuarios/novo', icon: <PersonAddAltOutlinedIcon />, descricao: 'Cadastrar um funcionário com login', acesso: { editar: ['cadastros'] } },
+      // Meu perfil é de qualquer credencial ou área: quem não vê Cadastros vê o grupo só com ele.
       { label: 'Meu perfil', to: '/perfil', icon: <PersonOutlineRoundedIcon />, descricao: 'Seus dados, login e senha', acesso: 'qualquer' },
     ],
   },
@@ -78,7 +80,7 @@ export const menuPrincipal: MenuPrincipalItem[] = [
     icon: <DirectionsCarFilledIcon fontSize="large" />,
     color: '#EEF5F1',
     accent: '#2E9D6F',
-    acesso: ['mecanico', 'logistica'],
+    acesso: ['frota'],
     // Ordem em grade de duas colunas: Veículos | Registros, Checklists | KPI.
     children: [
       { label: 'Veículos', to: '/frota/veiculos', icon: <LocalShippingOutlinedIcon />, descricao: 'Frota, manutenções e custos de cada veículo' },
@@ -93,7 +95,7 @@ export const menuPrincipal: MenuPrincipalItem[] = [
     color: '#FFF6E8',
     accent: '#E79A25',
     // /combustivel não tem página própria.
-    acesso: ['logistica', 'mecanico'],
+    acesso: ['combustivel'],
     children: [
       { label: 'Registros', to: '/combustivel/registros', icon: <ReceiptLongOutlinedIcon />, descricao: 'Histórico e lançamento de abastecimentos' },
       { label: 'Bombas', to: '/combustivel/bombas', icon: <OilBarrelOutlinedIcon />, descricao: 'Estoque, montante e entradas de diesel' },
@@ -116,7 +118,7 @@ export const menuPrincipal: MenuPrincipalItem[] = [
     icon: <LocalShippingOutlinedIcon fontSize="large" />,
     color: '#EEF3FA',
     accent: '#3A6EA5',
-    acesso: ['logistica', 'mecanico'],
+    acesso: ['logistica'],
     children: [{ label: 'Cronograma', to: '/logistica/cronograma', icon: <CalendarMonthIcon />, descricao: 'Quem sai, para qual obra, com qual veículo e por quê' }],
   },
   {
@@ -125,7 +127,7 @@ export const menuPrincipal: MenuPrincipalItem[] = [
     icon: <HandshakeOutlinedIcon fontSize="large" />,
     color: '#EAF2F8',
     accent: '#2F6B98',
-    acesso: ['engenharia', 'escritorio'],
+    acesso: ['portal'],
     children: [
       { label: 'Clientes', to: '/portal-cliente/clientes', icon: <PeopleAltOutlinedIcon />, descricao: 'Logins dos clientes e os CNPJ/CPF de cada um' },
       { label: 'Contratos', to: '/portal-cliente/contratos', icon: <DescriptionOutlinedIcon />, descricao: 'Contratos publicados para os clientes' },
@@ -139,15 +141,17 @@ export const menuPrincipal: MenuPrincipalItem[] = [
     color: '#080603',
     accent: '#FFB000',
     to: '/dev',
-    acesso: ['retr0'],
+    acesso: 'retr0',
     crt: true,
   },
 ];
 
 const temAcesso = (profile: AuthorizationProfile | null, acesso: Acesso) =>
-  acesso === 'qualquer' ? temAlgumaCredencial(profile) : temCredencial(profile, ...acesso);
+  acesso === 'qualquer' ? temAlgumaCredencial(profile)
+    : acesso === 'retr0' ? temCredencial(profile, 'retr0')
+      : Array.isArray(acesso) ? veArea(profile, ...acesso) : editaArea(profile, ...acesso.editar);
 
-// Cada área aparece para quem tem a sua credencial; o adm2 vê tudo, salvo as exclusivas (retr0). Um grupo mostra só os subitens
+// Cada área aparece para quem a vê (areas); o adm2 vê tudo, salvo a DEV (retr0). Um grupo mostra só os subitens
 // que a pessoa pode abrir e some sem nenhum. Quem só tem credenciais do app (motorista, frentista) vê Cadastros com o Meu perfil.
 export function filtrarMenuPrincipal(profile: AuthorizationProfile | null): MenuPrincipalItem[] {
   return menuPrincipal.flatMap((item) => {

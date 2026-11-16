@@ -1,5 +1,5 @@
 import { FieldValue } from 'firebase-admin/firestore';
-import { temCredencial } from '../credenciais.js';
+import { editaArea, temCredencial } from '../credenciais.js';
 import { HttpsError, onCall } from 'firebase-functions/v2/https';
 import { db } from '../firebaseAdmin.js';
 import { createQrToken, formatQrPayload, hashPin, hashQrToken, isValidPin, isValidPinHash } from './kioskSecurity.js';
@@ -51,9 +51,9 @@ function requireProvisionInput(data: unknown): string {
   return requireUid((data as { uid?: unknown }).uid);
 }
 
-// Kiosk credentials are managed in Cadastros: escritorio (or adm2).
+// Kiosk credentials are managed in Cadastros: the Cadastros area at 'editar' (or adm2).
 function isActiveAdmin(employee: Employee): boolean {
-  return temCredencial(employee, 'escritorio');
+  return editaArea(employee, 'cadastros');
 }
 
 function isQrConfigured(credential: Credential): boolean {

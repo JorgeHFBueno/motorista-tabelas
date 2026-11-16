@@ -1,6 +1,6 @@
 import { HttpsError, onCall } from 'firebase-functions/v2/https';
 import { db } from './firebaseAdmin.js';
-import { temCredencial } from './credenciais.js';
+import { veArea } from './credenciais.js';
 
 // Local de uma programação do Cronograma Logístico (WEB /logistica/cronograma): a pessoa cola um link do Google Maps e
 // a WEB grava a coordenada, a cidade e o estado. O link curto (maps.app.goo.gl), que o celular gera ao compartilhar, só
@@ -130,7 +130,7 @@ const arredondar = (n: number) => Math.round(n * 1e7) / 1e7;
 export function createLogisticaLocalService(store: LogisticaLocalStore) {
   return async (uid: string | undefined, dados: unknown): Promise<LocalLido> => {
     if (!uid) throw new HttpsError('unauthenticated', 'Autenticação obrigatória.');
-    if (!temCredencial(await store.getEmployee(uid), 'logistica', 'mecanico')) throw new HttpsError('permission-denied', 'Acesso não autorizado.');
+    if (!veArea(await store.getEmployee(uid), 'logistica')) throw new HttpsError('permission-denied', 'Acesso não autorizado.');
     const url = linkDoTexto((dados as AnyRecord | null)?.link);
     if (!url) throw new HttpsError('invalid-argument', 'Cole um link do Google Maps.');
 

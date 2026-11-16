@@ -4,7 +4,7 @@ import test from 'node:test';
 
 const source = (path: string) => readFileSync(path, 'utf8');
 
-test('menu Engenharia disponibiliza Cronograma, Prazos e Obras para a credencial engenharia (adm2 entra em tudo)', () => {
+test('menu Engenharia disponibiliza Cronograma, Prazos e Obras para a área engenharia (adm2 entra em tudo)', () => {
   const menu = source('src/components/menuPrincipal.tsx');
   const home = source('src/pages/HomeDashboard.tsx');
 
@@ -13,7 +13,8 @@ test('menu Engenharia disponibiliza Cronograma, Prazos e Obras para a credencial
   // /engenharia/obras voltou em 2026-10-30 como a lista de obras-v2 (a conciliação antiga saiu em 2026-10-27).
   assert.match(menu, /label: 'Obras', to: '\/engenharia\/obras'/);
   assert.match(menu, /label: 'Cronograma', to: '\/engenharia\/cronograma'/);
-  assert.match(menu, /acesso === 'qualquer' \? temAlgumaCredencial\(profile\) : temCredencial\(profile, \.\.\.acesso\)/);
+  // Áreas da WEB (2026-11-16): o item aparece para quem vê a área.
+  assert.match(menu, /Array\.isArray\(acesso\) \? veArea\(profile, \.\.\.acesso\)/);
   assert.match(menu, /CalendarMonthIcon/);
   assert.match(menu, /label: 'Prazos contratuais', to: '\/engenharia\/prazos'/);
   assert.match(home, /<Collapse in=\{expandedGroup === action\.label\}/);

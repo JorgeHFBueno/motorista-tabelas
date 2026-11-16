@@ -2,10 +2,11 @@ import { Request, Response, NextFunction } from 'express';
 import type { DecodedIdToken } from 'firebase-admin/auth';
 import { adminAuth, db } from './firebaseAdmin.js';
 import {
+  autorizaArea,
   createAdminAuthorizationReader,
   type AdminAuthorization,
 } from './adminAuthorization.js';
-import type { Credencial } from './credenciais.js';
+import type { Area, Nivel } from './credenciais.js';
 
 const employeesCollection = db.collection('funcionarios');
 const readAdminAuthorization = createAdminAuthorizationReader(async (uid) => {
@@ -18,17 +19,18 @@ export interface AdminRequest extends Request {
   authorization?: AdminAuthorization;
 }
 
-// Firebase Auth proves identity; funcionarios/{auth.uid} grants access. Each group of endpoints accepts the
-// credentials of its WEB area; adm2 always enters (no credential: adm2 only).
-export function exigirCredenciais(...aceitas: Credencial[]) {
-  return (req: AdminRequest, res: Response, next: NextFunction) => autorizar(req, res, next, aceitas);
+// Firebase Auth proves identity; funcionarios/{auth.uid} grants access. Each group of endpoints asks for its WEB
+// area at a level ('ver' or 'editar'); adm2 always enters (no area: adm2 only).
+export function exigirArea(area: Area | undefined, nivel: Nivel) {
+  return (req: AdminRequest, res: Response, next: NextFunction) => autorizar(req, res, next, area, nivel);
 }
 
 async function autorizar(
   req: AdminRequest,
   res: Response,
   next: NextFunction,
-  aceitas: Credencial[],
+  area: Area | undefined,
+  nivel: Nivel,
 ) {
   const authHeader = req.headers.authorization || '';
   const match = authHeader.match(/^Bearer (.*)$/);
@@ -49,7 +51,7 @@ async function autorizar(
 
   try {
     const authorization = await readAdminAuthorization(decoded.uid);
-    if (!authorization.ativo || !(authorization.credenciais.adm2 || aceitas.some((c) => authorization.credenciais[c]))) {
+    if (!autorizaArea(authorization, area, nivel)) {
       res.status(403).json({ error: 'forbidden' });
       return;
     }

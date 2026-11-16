@@ -59,7 +59,7 @@ import {
     motoristaNome,
 } from '../components/manutencaoFormShared';
 import { useAuth } from '../contexts/AuthContext';
-import { temCredencial } from '../services/credenciais';
+import { editaArea } from '../services/credenciais';
 import { db } from '../firebase';
 import { normalizeFornecedorNumero } from '../services/fornecedores.service';
 import { normalizarMovimentoCombustivel } from '../services/combustivel-normalizer';
@@ -300,9 +300,10 @@ export default function FrotaVeiculoDetalhesPage() {
     const { id } = useParams();
     const navigate = useNavigate();
     const { authorizationProfile } = useAuth();
-    const isAdmin = temCredencial(authorizationProfile, 'mecanico', 'logistica');
-    // Correções de KM/horímetro: quem já corrige 03-combustivel (Rules: logistica ou adm2).
-    const podeNormalizarKm = temCredencial(authorizationProfile, 'logistica');
+    const isAdmin = editaArea(authorizationProfile, 'frota');
+    // Correções de KM/horímetro: a transação grava atividades e veículos (Frota) e saídas de 03-combustivel
+    // (Combustível), então pede editar nas duas áreas, como as Rules.
+    const podeNormalizarKm = editaArea(authorizationProfile, 'frota') && editaArea(authorizationProfile, 'combustivel');
     const [normalizacaoAberta, setNormalizacaoAberta] = useState(false);
 
     const [veiculo, setVeiculo] = useState<ItemFrotaV2 | null>(null);
@@ -1354,7 +1355,8 @@ export default function FrotaVeiculoDetalhesPage() {
                             selectedDocData={selectedDocData}
                             selectedTipo={selectedTipo}
                             loading={selectedLoading}
-                            isAdmin={isAdmin}
+                            // Abastecimento é 03-combustivel: editar ou excluir pede também editar Combustível (Rules).
+                            isAdmin={isAdmin && (selectedTipo !== 'abastecimento' || editaArea(authorizationProfile, 'combustivel'))}
                             diagnostico={isAdmin && showErp ? erpDiagnostico : null}
                             error={selectedError}
                             onReload={handleReloadSelected}

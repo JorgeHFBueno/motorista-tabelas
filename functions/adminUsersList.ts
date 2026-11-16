@@ -1,6 +1,6 @@
 import type { UserRecord } from 'firebase-admin/auth';
 import { Timestamp } from 'firebase-admin/firestore';
-import { credenciaisDe } from './credenciais.js';
+import { areasDe, credenciaisDe } from './credenciais.js';
 
 // Users list of Cadastros → Usuários (adminApi GET /api/admin/users). Contract: Manuscript funcionarios.md ("Usuários na WEB").
 export type DadosFuncionario = Record<string, unknown> | undefined;
@@ -24,6 +24,8 @@ export function montarAdminUser(user: ContaAdmin, f: DadosFuncionario) {
       email: typeof f.email === 'string' ? f.email : null,
       ativo: f.ativo === true,
       credenciais: credenciaisDe(f.perfis),
+      // WEB areas in force (the `areas` map, or the ones the old credentials stand for).
+      areas: areasDe(f),
       ultimoAcesso: isoDe(f.ultimoAcesso),
     } : null,
   };

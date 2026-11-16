@@ -13,7 +13,7 @@ const TITULOS: Record<MomentoEquipe, string> = {
   chegada: 'Chegada da equipe na obra',
 };
 
-function CartaoMomento({ contrato, momento }: { contrato: ContratoPortal; momento: MomentoEquipe }) {
+function CartaoMomento({ contrato, momento, podeEditar }: { contrato: ContratoPortal; momento: MomentoEquipe; podeEditar: boolean }) {
   const pessoa = usePessoaAtual();
   const confirmacao = confirmacaoDe(contrato.equipe?.[momento]);
   const [valor, setValor] = useState(() => (confirmacao ? dataHoraParaInput(confirmacao.dataHora) : ''));
@@ -58,7 +58,7 @@ function CartaoMomento({ contrato, momento }: { contrato: ContratoPortal; moment
             {confirmacao.confirmadoEm ? ` em ${formatarDataHora(confirmacao.confirmadoEm)}` : ''}.
           </Typography>
         )}
-        <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} alignItems={{ xs: 'stretch', sm: 'center' }}>
+        {podeEditar && <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} alignItems={{ xs: 'stretch', sm: 'center' }}>
           <TextField
             size="small"
             type="datetime-local"
@@ -71,29 +71,30 @@ function CartaoMomento({ contrato, momento }: { contrato: ContratoPortal; moment
             sx={{ flex: 1 }}
           />
           <Button onClick={() => setValor(dataHoraParaInput(new Date()))} disabled={salvando}>Usar agora</Button>
-        </Stack>
+        </Stack>}
         {erro && <Alert severity="error">{erro}</Alert>}
-        <Stack direction="row" spacing={1} justifyContent="flex-end">
+        {podeEditar && <Stack direction="row" spacing={1} justifyContent="flex-end">
           <Button color="error" onClick={() => void gravar(null)} disabled={salvando || !confirmacao || !pessoa}>Limpar</Button>
           <Button variant="contained" onClick={() => void gravar(dataHora)} disabled={salvando || !dataHora || !pessoa}>
             {salvando ? 'Gravando…' : 'Confirmar'}
           </Button>
-        </Stack>
+        </Stack>}
       </Stack>
       <Snackbar open={!!aviso} autoHideDuration={4000} onClose={() => setAviso(null)} message={aviso} />
     </Paper>
   );
 }
 
-export default function EquipeObraTab({ contrato }: { contrato: ContratoPortal }) {
+// podeEditar false: área portal só em "ver"; os cartões mostram só o que foi confirmado.
+export default function EquipeObraTab({ contrato, podeEditar }: { contrato: ContratoPortal; podeEditar: boolean }) {
   return (
     <Stack spacing={2}>
       <Typography variant="body2" color="text.secondary">
         O cliente vê a data e a hora confirmadas e quem confirmou. Sem ligação, por enquanto, com as atividades do app dos motoristas.
       </Typography>
       <Stack direction={{ xs: 'column', md: 'row' }} spacing={2}>
-        <CartaoMomento contrato={contrato} momento="saida" />
-        <CartaoMomento contrato={contrato} momento="chegada" />
+        <CartaoMomento contrato={contrato} momento="saida" podeEditar={podeEditar} />
+        <CartaoMomento contrato={contrato} momento="chegada" podeEditar={podeEditar} />
       </Stack>
     </Stack>
   );

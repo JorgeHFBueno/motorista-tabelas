@@ -59,7 +59,8 @@ function Barra({ valor }: { valor: number }) {
   );
 }
 
-export default function ProgressoObraTab({ contrato }: { contrato: ContratoPortal }) {
+// podeEditar false: área portal só em "ver"; tudo fica travado e os botões somem.
+export default function ProgressoObraTab({ contrato, podeEditar }: { contrato: ContratoPortal; podeEditar: boolean }) {
   const pessoa = usePessoaAtual();
   const salvo = useMemo(() => recalcularProgresso(contrato.progresso), [contrato.progresso]);
   const [rascunho, setRascunho] = useState<ProgressoObra | null>(null);
@@ -122,9 +123,11 @@ export default function ProgressoObraTab({ contrato }: { contrato: ContratoPorta
               Média simples das etapas; cada etapa é a média dos seus itens, em percentual informado ou em checklist (feito ou não).
             </Typography>
           </Box>
-          <Stack direction="row" spacing={1} justifyContent="flex-end" flexShrink={0}>
-            <Button startIcon={<AddIcon />} variant="outlined" onClick={adicionarEtapa} disabled={salvando}>Adicionar etapa</Button>
-          </Stack>
+          {podeEditar && (
+            <Stack direction="row" spacing={1} justifyContent="flex-end" flexShrink={0}>
+              <Button startIcon={<AddIcon />} variant="outlined" onClick={adicionarEtapa} disabled={salvando}>Adicionar etapa</Button>
+            </Stack>
+          )}
         </Stack>
         <Box mt={2}><Barra valor={atual.progressoGeral} /></Box>
         {rascunho && (
@@ -149,9 +152,9 @@ export default function ProgressoObraTab({ contrato }: { contrato: ContratoPorta
       {atual.etapas.length === 0 ? (
         <Alert
           severity="info"
-          action={<Button color="inherit" size="small" onClick={() => setRascunho(progressoPadrao())} disabled={salvando}>Usar o modelo padrão</Button>}
+          action={podeEditar ? <Button color="inherit" size="small" onClick={() => setRascunho(progressoPadrao())} disabled={salvando}>Usar o modelo padrão</Button> : undefined}
         >
-          Nenhuma etapa cadastrada. Adicione uma etapa ou use o modelo padrão (Projeto, Produção, Fundação e Montagem).
+          {podeEditar ? 'Nenhuma etapa cadastrada. Adicione uma etapa ou use o modelo padrão (Projeto, Produção, Fundação e Montagem).' : 'Nenhuma etapa cadastrada.'}
         </Alert>
       ) : atual.etapas.map((etapa) => (
         <Accordion
@@ -180,7 +183,7 @@ export default function ProgressoObraTab({ contrato }: { contrato: ContratoPorta
                   label="Nome da etapa"
                   value={etapa.nome}
                   onChange={(event) => alterarEtapa(etapa.id, (e) => ({ ...e, nome: event.target.value }))}
-                  disabled={salvando}
+                  disabled={salvando || !podeEditar}
                   sx={{ flex: 1 }}
                 />
                 <TextField
@@ -189,7 +192,7 @@ export default function ProgressoObraTab({ contrato }: { contrato: ContratoPorta
                   label="Acompanhamento"
                   value={etapa.modoControle}
                   onChange={(event) => alterarEtapa(etapa.id, (e) => ({ ...e, modoControle: event.target.value as ModoControle }))}
-                  disabled={salvando}
+                  disabled={salvando || !podeEditar}
                   sx={{ minWidth: 200 }}
                   helperText={etapa.modoControle === 'checklist' ? 'Cada item: feito (100%) ou não (0%).' : 'Cada item: percentual de 0 a 100.'}
                 >
@@ -207,7 +210,7 @@ export default function ProgressoObraTab({ contrato }: { contrato: ContratoPorta
                       label="Item"
                       value={item.nome}
                       onChange={(event) => alterarItem(etapa.id, item.id, { nome: event.target.value })}
-                      disabled={salvando}
+                      disabled={salvando || !podeEditar}
                       sx={{ flex: 1 }}
                     />
                     {etapa.modoControle === 'checklist' ? (
@@ -216,7 +219,7 @@ export default function ProgressoObraTab({ contrato }: { contrato: ContratoPorta
                           <Checkbox
                             checked={item.progresso >= 100}
                             onChange={(event) => alterarItem(etapa.id, item.id, { progresso: event.target.checked ? 100 : 0 })}
-                            disabled={salvando}
+                            disabled={salvando || !podeEditar}
                           />
                         )}
                         label="Concluído"
@@ -229,7 +232,7 @@ export default function ProgressoObraTab({ contrato }: { contrato: ContratoPorta
                           min={0}
                           max={100}
                           step={5}
-                          disabled={salvando}
+                          disabled={salvando || !podeEditar}
                           aria-label={`Progresso de ${item.nome}`}
                           sx={{ flex: 1 }}
                         />
@@ -238,29 +241,29 @@ export default function ProgressoObraTab({ contrato }: { contrato: ContratoPorta
                           type="number"
                           value={item.progresso}
                           onChange={(event) => alterarItem(etapa.id, item.id, { progresso: limitarProgresso(event.target.value) })}
-                          disabled={salvando}
+                          disabled={salvando || !podeEditar}
                           slotProps={{ htmlInput: { min: 0, max: 100, step: 1, 'aria-label': `Percentual de ${item.nome}` } }}
                           sx={{ width: 90 }}
                         />
                       </Stack>
                     )}
                     <Chip size="small" color={COR_STATUS[item.status]} label={ROTULOS_STATUS[item.status]} sx={{ alignSelf: { xs: 'flex-start', md: 'center' } }} />
-                    <Tooltip title="Excluir item">
+                    {podeEditar && <Tooltip title="Excluir item">
                       <span>
                         <IconButton
                           aria-label={`Excluir o item ${item.nome}`}
                           onClick={() => alterarEtapa(etapa.id, (e) => ({ ...e, itens: e.itens.filter((i) => i.id !== item.id) }))}
-                          disabled={salvando}
+                          disabled={salvando || !podeEditar}
                         >
                           <DeleteOutlineIcon />
                         </IconButton>
                       </span>
-                    </Tooltip>
+                    </Tooltip>}
                   </Stack>
                 </Paper>
               ))}
 
-              <Stack direction="row" spacing={1} justifyContent="space-between">
+              {podeEditar && <Stack direction="row" spacing={1} justifyContent="space-between">
                 <Button startIcon={<AddIcon />} onClick={() => adicionarItem(etapa.id)} disabled={salvando}>Adicionar item</Button>
                 <Button
                   color="error"
@@ -269,11 +272,11 @@ export default function ProgressoObraTab({ contrato }: { contrato: ContratoPorta
                     if (!window.confirm(`Excluir a etapa "${etapa.nome}" e os seus itens?`)) return;
                     alterar((progresso) => ({ ...progresso, etapas: progresso.etapas.filter((e) => e.id !== etapa.id) }));
                   }}
-                  disabled={salvando}
+                  disabled={salvando || !podeEditar}
                 >
                   Excluir etapa
                 </Button>
-              </Stack>
+              </Stack>}
             </Stack>
           </AccordionDetails>
         </Accordion>

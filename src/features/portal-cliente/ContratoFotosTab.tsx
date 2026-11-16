@@ -30,7 +30,8 @@ import { AvisoSnackbar, CabecalhoAba, SeletorArquivo, Vazio, type Aviso } from '
 
 // Photos of the work shown to the client (portal-fotos), by stage. adm2 sends, moves to the trash and restores.
 
-export default function ContratoFotosTab({ contrato }: { contrato: ContratoPortal }) {
+// podeEditar false: área portal só em "ver"; sem enviar, mover para a lixeira nem restaurar.
+export default function ContratoFotosTab({ contrato, podeEditar }: { contrato: ContratoPortal; podeEditar: boolean }) {
   const pessoa = usePessoaAtual();
   const [fotos, setFotos] = useState<FotoContrato[] | null>(null);
   const [erro, setErro] = useState(false);
@@ -85,7 +86,7 @@ export default function ContratoFotosTab({ contrato }: { contrato: ContratoPorta
           <MenuItem value="">Todas</MenuItem>
           {ETAPAS_FOTO.map((item) => <MenuItem key={item.id} value={item.id}>{item.rotulo}</MenuItem>)}
         </TextField>
-        {!lixeira && (
+        {!lixeira && podeEditar && (
           <Button variant="contained" startIcon={<AddPhotoAlternateIcon />} onClick={() => setDialogo(true)} disabled={!pessoa}>Enviar foto</Button>
         )}
       </CabecalhoAba>
@@ -114,13 +115,13 @@ export default function ContratoFotosTab({ contrato }: { contrato: ContratoPorta
                 <Tooltip title="Abrir">
                   <span><IconButton size="small" onClick={() => abrir(foto)} disabled={!foto.arquivo}><OpenInNewIcon fontSize="small" /></IconButton></span>
                 </Tooltip>
-                <Tooltip title={lixeira ? 'Restaurar' : 'Mover para a lixeira'}>
+                {podeEditar && <Tooltip title={lixeira ? 'Restaurar' : 'Mover para a lixeira'}>
                   <span>
                     <IconButton size="small" onClick={() => alternarLixeira(foto)} disabled={!pessoa || ocupado === foto.id}>
                       {lixeira ? <RestoreFromTrashIcon fontSize="small" /> : <DeleteOutlineIcon fontSize="small" />}
                     </IconButton>
                   </span>
-                </Tooltip>
+                </Tooltip>}
               </Stack>
             </Paper>
           ))}

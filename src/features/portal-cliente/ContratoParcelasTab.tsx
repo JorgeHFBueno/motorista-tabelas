@@ -87,7 +87,8 @@ function Campo({ rotulo, valor, detalhe }: { rotulo: string; valor: ReactNode; d
   );
 }
 
-export default function ContratoParcelasTab({ contrato }: { contrato: ContratoPortal }) {
+// podeEditar false: área portal só em "ver"; sem criar, editar, boleto, conferência nem lixeira.
+export default function ContratoParcelasTab({ contrato, podeEditar }: { contrato: ContratoPortal; podeEditar: boolean }) {
   const pessoa = usePessoaAtual();
   const [parcelas, setParcelas] = useState<ParcelaContrato[] | null>(null);
   const [erro, setErro] = useState(false);
@@ -149,7 +150,7 @@ export default function ContratoParcelasTab({ contrato }: { contrato: ContratoPo
   return (
     <Paper variant="outlined" sx={{ p: { xs: 2, sm: 3 } }}>
       <CabecalhoAba titulo="Parcelas" lixeira={lixeira} quantidadeLixeira={quantidadeLixeira} onAlternarLixeira={() => setLixeira((v) => !v)}>
-        {!lixeira && (
+        {!lixeira && podeEditar && (
           <Button variant="contained" startIcon={<AddIcon />} onClick={() => setDialogo({ tipo: 'nova' })} disabled={!pessoa || !parcelas}>Nova parcela</Button>
         )}
       </CabecalhoAba>
@@ -220,7 +221,7 @@ export default function ContratoParcelasTab({ contrato }: { contrato: ContratoPo
                     <TableCell sx={{ whiteSpace: 'nowrap' }}>
                       <Stack spacing={0.5} alignItems="flex-start">
                         {parcela.boleto && <Link component="button" variant="body2" onClick={() => abrir(parcela.boleto)}>Abrir boleto</Link>}
-                        {!lixeira && (
+                        {!lixeira && podeEditar && (
                           <Button component="label" size="small" disabled={travada}>
                             {parcela.boleto ? 'Trocar' : 'Enviar boleto'}
                             <input
@@ -235,7 +236,7 @@ export default function ContratoParcelasTab({ contrato }: { contrato: ContratoPo
                             />
                           </Button>
                         )}
-                        {!parcela.boleto && lixeira && '—'}
+                        {!parcela.boleto && (lixeira || !podeEditar) && '—'}
                       </Stack>
                     </TableCell>
                     <TableCell sx={{ minWidth: 160 }}>
@@ -252,7 +253,7 @@ export default function ContratoParcelasTab({ contrato }: { contrato: ContratoPo
                       ) : '—'}
                     </TableCell>
                     <TableCell align="right" sx={{ whiteSpace: 'nowrap' }}>
-                      {!lixeira && (
+                      {!lixeira && podeEditar && (
                         <>
                           <Tooltip title="Editar">
                             <span><IconButton size="small" onClick={() => setDialogo({ tipo: 'editar', parcela })} disabled={travada}><EditOutlinedIcon fontSize="small" /></IconButton></span>
@@ -269,13 +270,13 @@ export default function ContratoParcelasTab({ contrato }: { contrato: ContratoPo
                           )}
                         </>
                       )}
-                      <Tooltip title={lixeira ? 'Restaurar' : 'Mover para a lixeira'}>
+                      {podeEditar && <Tooltip title={lixeira ? 'Restaurar' : 'Mover para a lixeira'}>
                         <span>
                           <IconButton size="small" onClick={() => alternarLixeira(parcela)} disabled={travada}>
                             {lixeira ? <RestoreFromTrashIcon fontSize="small" /> : <DeleteOutlineIcon fontSize="small" />}
                           </IconButton>
                         </span>
-                      </Tooltip>
+                      </Tooltip>}
                     </TableCell>
                   </TableRow>
                 );

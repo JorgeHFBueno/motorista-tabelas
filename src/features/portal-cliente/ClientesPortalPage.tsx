@@ -28,6 +28,8 @@ import CheckCircleOutlineIcon from '@mui/icons-material/CheckCircleOutline';
 import CloseIcon from '@mui/icons-material/Close';
 import { contarContratosPorDocumento, criarCliente, definirClienteAtivo, definirSenhaCliente, listarClientes, salvarCliente } from './clientesApi';
 import { apenasDigitos, formatarDocumento, normalizarDocumento, type ClientePortal } from './portalDominio';
+import { useAuth } from '../../contexts/AuthContext';
+import { editaArea } from '../../services/credenciais';
 
 // Clientes do portal (engenharia, escritorio ou adm2): login de cada cliente e os CNPJ/CPF que ele representa. Contrato: The Manuscript,
 // 01_FIRESTORE/COLECOES/users.md e 03_APLICACAO_WEB/16_PORTAL_DO_CLIENTE.md ("Telas do adm2 na WEB").
@@ -91,9 +93,10 @@ function DocumentosEditor({ valores, onChange, contratos, disabled }: {
   );
 }
 
-function ClienteLinha({ cliente, contratos, onEditar, onSenha, onSituacao }: {
+function ClienteLinha({ cliente, contratos, podeEditar, onEditar, onSenha, onSituacao }: {
   cliente: ClientePortal;
   contratos: number;
+  podeEditar: boolean;
   onEditar: () => void;
   onSenha: () => void;
   onSituacao: () => void;
@@ -121,7 +124,7 @@ function ClienteLinha({ cliente, contratos, onEditar, onSenha, onSituacao }: {
         </Typography>
       </Box>
       <Typography sx={{ fontSize: 15, fontWeight: 600 }} color={contratos ? 'text.primary' : 'text.secondary'}>{contratosTexto(contratos)}</Typography>
-      <Stack direction="row" spacing={0.5} justifyContent={{ xs: 'flex-start', md: 'flex-end' }}>
+      {podeEditar && <Stack direction="row" spacing={0.5} justifyContent={{ xs: 'flex-start', md: 'flex-end' }}>
         <Tooltip title="Editar nome e CNPJ/CPF">
           <IconButton aria-label={`Editar ${cliente.nome}`} onClick={onEditar}><EditOutlinedIcon fontSize="small" /></IconButton>
         </Tooltip>
@@ -133,7 +136,7 @@ function ClienteLinha({ cliente, contratos, onEditar, onSenha, onSituacao }: {
             {cliente.ativo ? <BlockOutlinedIcon fontSize="small" /> : <CheckCircleOutlineIcon fontSize="small" />}
           </IconButton>
         </Tooltip>
-      </Stack>
+      </Stack>}
     </Box>
   );
 }
@@ -141,6 +144,8 @@ function ClienteLinha({ cliente, contratos, onEditar, onSenha, onSituacao }: {
 const NOVO_VAZIO = { nome: '', email: '', senha: '', documentos: [''] };
 
 export default function ClientesPortalPage() {
+  // Área portal só em "ver": a lista aparece sem as ações (a adminApi e as Rules recusam do mesmo jeito).
+  const podeEditar = editaArea(useAuth().authorizationProfile, 'portal');
   const [clientes, setClientes] = useState<ClientePortal[]>([]);
   const [contratos, setContratos] = useState<Map<string, number>>(new Map());
   const [loading, setLoading] = useState(true);
@@ -257,7 +262,7 @@ export default function ClientesPortalPage() {
             htmlInput: { 'aria-label': 'Buscar por nome, login ou CNPJ/CPF' },
           }}
         />
-        <Button variant="contained" startIcon={<AddIcon />} onClick={() => { setDialogErro(null); setNovo(NOVO_VAZIO); }}>Novo cliente</Button>
+        {podeEditar && <Button variant="contained" startIcon={<AddIcon />} onClick={() => { setDialogErro(null); setNovo(NOVO_VAZIO); }}>Novo cliente</Button>}
       </Stack>
 
       <Box mt={3}>
@@ -275,6 +280,7 @@ export default function ClientesPortalPage() {
                 key={cliente.uid}
                 cliente={cliente}
                 contratos={contratosDe(cliente)}
+                podeEditar={podeEditar}
                 onEditar={() => { setDialogErro(null); setEditando({ cliente, nome: cliente.nome, documentos: cliente.documentos.length ? cliente.documentos.map(formatarDocumento) : [''] }); }}
                 onSenha={() => { setDialogErro(null); setSenha(''); setConfirmacao(''); setSenhaDe(cliente); }}
                 onSituacao={() => { setDialogErro(null); setSituacaoDe(cliente); }}

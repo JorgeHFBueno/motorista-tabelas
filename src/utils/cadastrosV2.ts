@@ -1,3 +1,4 @@
+import { areasDoFuncionario, type Areas } from '../services/areasWeb';
 // Leitura dos cadastros ligados só por ID (The Manuscript, 01_FIRESTORE/COLECOES): veiculos-v2, obras-v2 e funcionarios.
 // Funções puras; os serviços em src/services leem o Firestore e usam estas funções.
 
@@ -109,12 +110,14 @@ export interface PessoaV2 {
   uid: string;
   nome: string;
   perfis: Record<string, boolean>;
+  // Áreas da WEB em vigor (2026-11-16).
+  areas?: Areas;
 }
 
 export function pessoaFromFuncionario(uid: string, data: Record<string, unknown>): PessoaV2 | null {
   if (data.ativo !== true || typeof data.nome !== 'string' || !data.nome.trim()) return null;
   const perfis = Object.fromEntries(Object.entries(record(data.perfis)).map(([key, value]) => [key, value === true]));
-  return { uid, nome: data.nome, perfis };
+  return { uid, nome: data.nome, perfis, areas: areasDoFuncionario(data) };
 }
 
 export function temPerfil(pessoa: PessoaV2, ...perfis: string[]) {

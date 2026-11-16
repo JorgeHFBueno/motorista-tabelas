@@ -4,6 +4,7 @@ import TableRowsRounded from '@mui/icons-material/TableRowsRounded';
 import Alert from '@mui/material/Alert';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
+import { editaArea } from '../../services/credenciais';
 import { listFuncionariosAtivos } from '../../services/funcionarios-selecao.service';
 import { listObrasAtivas } from '../../services/obras.service';
 import { listItensFrota } from '../../services/veiculos.service';
@@ -36,8 +37,10 @@ type Aba = 'quadro' | 'calendario';
 const mensagem = (error: unknown) => (error instanceof Error ? error.message : String(error));
 
 export default function LogisticaCronogramaPage() {
-  const { currentUser } = useAuth();
+  const { currentUser, authorizationProfile } = useAuth();
   const uid = currentUser?.uid ?? '';
+  // Área Logística em "ver": a página só mostra (as Rules recusam a gravação do mesmo jeito).
+  const podeEditar = editaArea(authorizationProfile, 'logistica');
   const [aba, setAba] = useState<Aba>('quadro');
   const [semanas, setSemanas] = useState<Semana[] | null>(null);
   const [programacoes, setProgramacoes] = useState<Programacao[] | null>(null);
@@ -80,17 +83,17 @@ export default function LogisticaCronogramaPage() {
     return () => { vivo = false; };
   }, []);
 
-  // Abertura automática: a semana atual nasce vazia quando alguém abre a página e ela ainda não existe.
+  // Abertura automática: a semana atual nasce vazia quando alguém que edita abre a página e ela ainda não existe.
   useEffect(() => {
-    if (!semanas || !uid || semanas.some((semana) => semana.id === atualId) || tentouAbrirAtual.current === atualId) return;
+    if (!podeEditar || !semanas || !uid || semanas.some((semana) => semana.id === atualId) || tentouAbrirAtual.current === atualId) return;
     tentouAbrirAtual.current = atualId;
     abrirSemana(atualId, 'automatica', uid).catch((error) => setErro(`Não foi possível abrir a semana atual: ${mensagem(error)}`));
-  }, [semanas, uid, atualId]);
+  }, [podeEditar, semanas, uid, atualId]);
 
   // Linhas de antes do código recebem um, na ordem da tela, uma de cada vez (o contador da semana é o mesmo); as do
-  // código antigo (texto) passam ao número, com a mesma ordem. Nenhuma das duas assina a linha.
+  // código antigo (texto) passam ao número, com a mesma ordem. Nenhuma das duas assina a linha. Só quem edita grava.
   useEffect(() => {
-    if (!programacoes || !uid) return;
+    if (!podeEditar || !programacoes || !uid) return;
     const pendentes = semCodigoEmOrdem(programacoes).filter((programacao) => !codigosPedidos.current.has(programacao.id));
     const antigos = programacoes.filter((programacao) => programacao.codAntigo !== null && !codigosPedidos.current.has(programacao.id));
     if (!pendentes.length && !antigos.length) return;
@@ -99,7 +102,7 @@ export default function LogisticaCronogramaPage() {
       for (const programacao of antigos) await converterCodigo(programacao);
       for (const programacao of pendentes) await darCodigo(programacao.id);
     })().catch((error) => setErro(`Não foi possível gerar o código das linhas: ${mensagem(error)}`));
-  }, [programacoes, uid]);
+  }, [podeEditar, programacoes, uid]);
 
   const cadastros = useMemo<CadastrosLogistica>(() => {
     const pessoas = cadastrosBrutos?.pessoas ?? [];
@@ -159,7 +162,20 @@ export default function LogisticaCronogramaPage() {
   // Quem grava assina com o UID e o nome do momento (colunas "Criado por" e "Modificado por").
   const nomeEu = cadastros.nomePessoa(uid, currentUser?.displayName || currentUser?.email || '');
   const eu = useMemo<RefPessoa>(() => ({ uid, nome: nomeEu }), [uid, nomeEu]);
-  const acoes = useMemo<AcoesLogistica>(() => ({
+  // Em "ver", as ações que gravam não fazem nada (a tela também as esconde).
+  const acoes = useMemo<AcoesLogistica>(() => (!podeEditar ? {
+    podeEditar: false,
+    criar: () => undefined,
+    atualizar: () => undefined,
+    enviarNota: () => Promise.resolve(),
+    removerNota: () => undefined,
+    lerLocal: () => Promise.resolve(false),
+    excluir: () => undefined,
+    abrir: (id, aba = 'programacao') => { setAbertaId(id); setAbaPainel(aba); },
+    salvarEtiquetas: () => undefined,
+    ignorarConflito: () => undefined,
+  } : {
+    podeEditar: true,
     // A posição é o momento da criação: linhas criadas em sequência, antes do retorno do Firestore, não empatam.
     criar: (semanaId, item) => {
       const posicao = Date.now();
@@ -202,7 +218,7 @@ export default function LogisticaCronogramaPage() {
         : ladoOutro ? ignorarConflito(outra!, chaveOutra, false, eu) : Promise.resolve();
       promessa.catch(falhar(ignorar ? 'ignorar o conflito' : 'voltar a avisar o conflito'));
     },
-  }), [eu, falhar, programacoes, etiquetas]);
+  }), [podeEditar, eu, falhar, programacoes, etiquetas]);
 
   const iniciarNovaSemana = () => {
     if (!proxima) return;
@@ -229,7 +245,7 @@ export default function LogisticaCronogramaPage() {
       ) : aba === 'quadro' ? (
         <>
           <div className="lg-barra">
-            <button
+            {podeEditar && <button
               type="button"
               className="lg-btn lg-btn-primario"
               onClick={iniciarNovaSemana}
@@ -237,16 +253,16 @@ export default function LogisticaCronogramaPage() {
               title={proxima ? `Abre a ${rotuloSemana(proxima)}` : 'Já dá para programar até duas semanas à frente da atual'}
             >
               <AddRounded fontSize="small" /> Iniciar nova semana
-            </button>
+            </button>}
             {(!cadastrosBrutos || !pessoasFriday) && <span className="lg-muted">Carregando motoristas, veículos e obras…</span>}
             <span className="lg-espaco" />
-            <BotaoAtribuir
+            {podeEditar && <BotaoAtribuir
               atribuidos={atribuidosNota}
-              pessoas={(cadastrosBrutos?.pessoas ?? []).filter((pessoa) => temPerfil(pessoa, 'logistica', 'adm2')).map(({ uid: id, nome }) => ({ uid: id, nome }))}
+              pessoas={(cadastrosBrutos?.pessoas ?? []).filter((pessoa) => temPerfil(pessoa, 'adm2') || Boolean(pessoa.areas?.logistica)).map(({ uid: id, nome }) => ({ uid: id, nome }))}
               nome={(id) => cadastros.nomePessoa(id, 'Sem nome')}
               maximo={MAX_ATRIBUIDOS_NOTA}
               onSalvar={(uids) => { salvarAtribuidosNota(uids, eu).catch(falhar('salvar quem recebe o pedido de nota')); }}
-            />
+            />}
             <BarraColunas prefs={prefsColunas} mudar={mudarPrefsColunas} />
           </div>
           <QuadroSemanas

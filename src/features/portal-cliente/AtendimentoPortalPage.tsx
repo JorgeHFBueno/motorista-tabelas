@@ -44,6 +44,8 @@ import {
 } from './atendimentosPortalData';
 import { abrirArquivo, usePessoaAtual } from './portalArquivos';
 import { apenasDigitos, formatarDocumento } from './portalDominio';
+import { useAuth } from '../../contexts/AuthContext';
+import { editaArea } from '../../services/credenciais';
 
 // Support tickets of the client portal, team side (adm2). The Manuscript: 01_FIRESTORE/COLECOES/portal.md
 // (portal-atendimentos) and 03_APLICACAO_WEB/16_PORTAL_DO_CLIENTE.md.
@@ -160,6 +162,8 @@ function Mensagem({ mensagem, onAbrirAnexo }: { mensagem: MensagemAtendimento; o
 
 export default function AtendimentoPortalPage() {
   const pessoa = usePessoaAtual();
+  // Área portal só em "ver": lê os chamados sem responder, atribuir, mudar o status nem marcar como lido.
+  const podeEditar = editaArea(useAuth().authorizationProfile, 'portal');
   const [atendimentos, setAtendimentos] = useState<Atendimento[]>([]);
   const [obras, setObras] = useState<Map<string, ObraResumo>>(new Map());
   const [carregando, setCarregando] = useState(true);
@@ -211,7 +215,8 @@ export default function AtendimentoPortalPage() {
   }, [selecionadoId]);
 
   const selecionado = useMemo(() => atendimentos.find((item) => item.id === selecionadoId) ?? null, [atendimentos, selecionadoId]);
-  const podeAlterar = !!selecionado && obrasCarregadas && contratoConfere(selecionado, obras);
+  const contratoOk = !!selecionado && obrasCarregadas && contratoConfere(selecionado, obras);
+  const podeAlterar = contratoOk && podeEditar;
 
   // Opening a ticket (and keeping it open while the client writes) marks it read by the team.
   useEffect(() => {
@@ -351,7 +356,7 @@ export default function AtendimentoPortalPage() {
                     </Box>
                   </Box>
 
-                  {obrasCarregadas && !podeAlterar && <Alert severity="warning">{MSG_CONTRATO_MUDOU}</Alert>}
+                  {obrasCarregadas && !contratoOk && <Alert severity="warning">{MSG_CONTRATO_MUDOU}</Alert>}
 
                   <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2} alignItems={{ xs: 'stretch', sm: 'center' }}>
                     <TextField

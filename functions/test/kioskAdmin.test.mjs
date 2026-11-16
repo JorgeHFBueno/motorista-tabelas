@@ -13,6 +13,9 @@ function fixture() {
     ['common', { ativo: true, perfis: {}, nome: 'Common' }],
     ['escritorio', { ativo: true, perfis: { escritorio: true }, nome: 'Escritorio' }],
     ['logisticaOnly', { ativo: true, perfis: { logistica: true }, nome: 'Logistica' }],
+    ['cadastrosEditar', { ativo: true, perfis: {}, areas: { cadastros: 'editar' }, nome: 'Cadastros' }],
+    ['cadastrosVer', { ativo: true, perfis: {}, areas: { cadastros: 'ver' }, nome: 'Cadastros ver' }],
+    ['escritorioMigrado', { ativo: true, perfis: { escritorio: true }, areas: { portal: 'editar' }, nome: 'Migrado' }],
     ['inactiveAdmin', { ativo: false, perfis: { adm2: true } }],
     ['target', { ativo: true, perfis: { frentista: true }, nome: 'Target' }],
     ['inactiveTarget', { ativo: false, perfis: { frentista: true }, nome: 'Inactive' }],
@@ -33,7 +36,7 @@ function fixture() {
   return { service: createKioskAdminService(store), credentials, audits };
 }
 
-test('authorization permits only active funcionarios with escritorio or adm2 (Cadastros), with no legacy fallback', async () => {
+test('authorization permits only active funcionarios who edit Cadastros (areas, or escritorio before the migration) or adm2', async () => {
   const { service } = fixture();
   await assert.rejects(() => service.provision(undefined, { uid: 'target' }), (error) => error.code === 'unauthenticated');
   await assert.rejects(() => service.revoke(undefined, { uid: 'target' }), (error) => error.code === 'unauthenticated');
@@ -44,6 +47,9 @@ test('authorization permits only active funcionarios with escritorio or adm2 (Ca
   await errorCode(() => service.provision('logisticaOnly', { uid: 'target' }));
   await service.provision('admin', { uid: 'target' });
   await service.provision('escritorio', { uid: 'target' });
+  await service.provision('cadastrosEditar', { uid: 'target' });
+  await errorCode(() => service.provision('cadastrosVer', { uid: 'target' }));
+  await errorCode(() => service.provision('escritorioMigrado', { uid: 'target' }));
 });
 
 test('provision validates targets, creates a 256-bit payload, hashes only its token, and preserves PIN', async () => {

@@ -1,14 +1,17 @@
 import { getAuth } from 'firebase/auth';
 import { app } from '../firebase';
 import type { Credenciais } from './credenciais';
+import type { Areas } from './areasWeb';
 import { descreverLogin, formatarCelular } from './loginIdentifier';
 
-// Usuários da WEB (Cadastros: escritorio ou adm2), pela Function adminApi. Contrato: The Manuscript, funcionarios.md.
+// Usuários da WEB (área Cadastros: ver lista; editar o resto; as áreas da WEB, só o adm2), pela Function adminApi. Contrato: The Manuscript, funcionarios.md.
 export type FuncionarioResumo = {
   nome: string | null;
   email: string | null;
   ativo: boolean;
   credenciais: Credenciais;
+  // Áreas da WEB em vigor (o mapa areas ou, sem ele, as das credenciais antigas).
+  areas?: Areas;
   ultimoAcesso: string | null;
 };
 
@@ -28,6 +31,8 @@ export type RegisterAuthorizedUserInput = {
   email: string;
   password: string;
   credenciais: Credenciais;
+  // Só o adm2 envia.
+  areas?: Areas;
   celular: boolean;
 };
 
@@ -35,6 +40,8 @@ export type UpdateAdminUserInput = {
   uid: string;
   ativo: boolean;
   credenciais: Credenciais;
+  // Só o adm2 envia; substitui o mapa inteiro.
+  areas?: Areas;
 };
 
 // contaExistente: já havia conta com esse login (sem funcionário); a senha dela passou a ser a informada.
@@ -47,21 +54,25 @@ const MENSAGENS: Record<string, string> = {
   invalid_token: 'Sua sessão expirou. Faça login novamente.',
   expired_token: 'Sua sessão expirou. Faça login novamente.',
   authorization_unavailable: 'Não foi possível verificar sua autorização agora. Tente novamente.',
-  forbidden: 'Seu usuário não tem a credencial desta área (Cadastros: escritório; Portal do cliente: engenharia ou escritório).',
-  forbidden_credencial: 'Só o adm2 dá ou tira as credenciais adm2 e retr0.',
+  forbidden: 'Seu usuário não tem acesso a esta área (ou só pode ver).',
+  forbidden_credencial: 'Você só pode dar ou tirar as credenciais Motorista, Frentista e Mecânico.',
+  forbidden_area: 'Só o adm2 muda as áreas da WEB.',
+  invalid_areas: 'Áreas da WEB inválidas.',
   protected_account: 'Esta conta tem adm2 ou retr0: só o adm2 a altera ou define a senha dela.',
   missing_nome: 'Informe o nome.',
   missing_email: 'Informe um login válido.',
   missing_password: 'Informe a senha inicial.',
   invalid_password: 'A senha precisa ter ao menos 6 caracteres.',
-  invalid_credenciais: 'Marque ao menos uma credencial.',
+  invalid_credenciais: 'Marque ao menos uma credencial do app ou uma área da WEB.',
   invalid_ativo: 'Informe a situação do usuário.',
   cannot_remove_own_adm2: 'Você não pode tirar a sua própria credencial adm2 nem se desativar.',
-  cannot_remove_own_access: 'Você não pode tirar a sua própria credencial escritório nem se desativar.',
+  cannot_remove_own_access: 'Você não pode tirar o seu próprio acesso a Cadastros nem se desativar.',
   employee_already_exists: 'Já existe um funcionário com este login.',
   employee_not_found: 'Esta conta não tem funcionário: cadastre em Novo usuário ou exclua a conta.',
   employee_exists: 'Funcionário não se exclui: desative-o.',
   client_account: 'Este login é de um cliente do portal: administre-o em Portal do cliente → Clientes.',
+  areas_pendentes: 'Ainda há pessoas ativas sem áreas: rode antes a etapa "Gravar áreas".',
+  invalid_etapa: 'Etapa da migração inválida.',
   'auth/user-not-found': 'Usuário não encontrado no login do sistema.',
   'auth/invalid-email': 'O login informado é inválido.',
   'auth/invalid-password': 'A senha não atende aos requisitos do Firebase.',
@@ -112,7 +123,7 @@ export function registerAuthorizedUser(input: RegisterAuthorizedUserInput) {
 export async function updateUser(input: UpdateAdminUserInput): Promise<AdminUser> {
   const data = await requestAdminApi<{ user: AdminUser }>(`/users/${encodeURIComponent(input.uid)}`, {
     method: 'PATCH',
-    body: JSON.stringify({ ativo: input.ativo, credenciais: input.credenciais }),
+    body: JSON.stringify({ ativo: input.ativo, credenciais: input.credenciais, ...(input.areas ? { areas: input.areas } : {}) }),
   }, 'Erro ao atualizar o usuário.');
   return data.user;
 }
@@ -135,4 +146,15 @@ export function nomeDoUsuario(user: AdminUser) {
 export function loginDoUsuario(user: AdminUser) {
   const login = descreverLogin(user.email);
   return login.tipo === 'celular' ? `Celular ${formatarCelular(login.valor)}` : login.valor || '—';
+}
+
+export type EtapaMigracaoAreas = 'areas' | 'limpar';
+export type ResultadoMigracaoAreas = { etapa: EtapaMigracaoAreas; executado: boolean; funcionarios: number; alterados: number };
+
+/**
+ * Migração das áreas da WEB (2026-11-16; só adm2): 'areas' grava o mapa areas em quem ainda não tem, a partir das
+ * credenciais antigas; 'limpar' tira as credenciais antigas dos perfis. executar: false só conta.
+ */
+export function migrarAreas(etapa: EtapaMigracaoAreas, executar: boolean) {
+  return requestAdminApi<ResultadoMigracaoAreas>('/manutencao/credenciais', { method: 'POST', body: JSON.stringify({ etapa, executar }) }, 'Erro na migração das áreas.');
 }

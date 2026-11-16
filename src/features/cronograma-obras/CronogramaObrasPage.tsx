@@ -73,6 +73,7 @@ import {
   statusLoteConhecido,
 } from "./domain/contractStatus";
 import { useAuth } from "../../contexts/AuthContext";
+import { editaArea } from "../../services/credenciais";
 import {
   beginCronogramaPerf,
   collectCronogramaDom,
@@ -296,6 +297,8 @@ function withOptimisticAlocacao(
 export default function CronogramaObrasPage() {
   countCronogramaRender("CronogramaObrasPage");
   const { currentUser, authorizationLoading, authorizationProfile } = useAuth();
+  // Área Engenharia em "ver": o cronograma só mostra (sem arrastar, redimensionar, priorizar, criar mestre nem editar).
+  const podeEditar = editaArea(authorizationProfile, "engenharia");
   const [view, setView] = useState<"obras" | "mestres">("obras");
   const [sectionViews, setSectionViews] = useState<WorkSectionViews>(
     DEFAULT_WORK_SECTION_VIEWS,
@@ -998,6 +1001,7 @@ export default function CronogramaObrasPage() {
         addingMaster
       )
         return;
+      if (!podeEditar) return;
       if (event.key === "Delete" && masterPanel) {
         event.preventDefault();
         deleteAlocacao(masterPanel.localId);
@@ -1111,15 +1115,16 @@ export default function CronogramaObrasPage() {
     <MasterPalette
       masters={masters}
       draggingMaster={draggingMaster}
-      disabled={zoom === "year"}
+      disabled={zoom === "year" || !podeEditar}
+      somenteLeitura={!podeEditar}
       onViewMasters={() => changeView("mestres")}
       showViewMasters={view === "obras"}
       onDragStart={setDraggingMaster}
       onDragEnd={() => setDraggingMaster(null)}
-      onAdd={() => {
+      onAdd={podeEditar ? () => {
         setNewMasterError(null);
         setMasterDialog(true);
-      }}
+      } : undefined}
     />
   );
 
@@ -1315,9 +1320,9 @@ export default function CronogramaObrasPage() {
               focusDate={focusDate}
               onFocusDate={setFocusDate}
               onStatusConfirmed={applyConfirmedLoteStatus}
-              onMovePrioridade={(lista, movedId, targetIndex) =>
+              onMovePrioridade={podeEditar ? (lista, movedId, targetIndex) =>
                 void movePrioridade(lista, movedId, targetIndex)
-              }
+              : undefined}
               onSelect={(obra) => {
                 setMasterPanel(null);
                 setMastersPanelId(null);
@@ -1334,9 +1339,9 @@ export default function CronogramaObrasPage() {
                 setMasterPanel({ obraId, key: mestreKey, localId });
               }}
               onOpenContract={setContractDetails}
-              onDropMaster={dropMaster}
-              onResizeMasterPreview={resizeMasterPreview}
-              onResizeMasterCommit={resizeMaster}
+              onDropMaster={podeEditar ? dropMaster : () => undefined}
+              onResizeMasterPreview={podeEditar ? resizeMasterPreview : () => undefined}
+              onResizeMasterCommit={podeEditar ? resizeMaster : () => undefined}
               onResizeMasterCancel={cancelResizeMaster}
             /></CronogramaProfiler>
           </section>
@@ -1439,9 +1444,9 @@ export default function CronogramaObrasPage() {
             setMasterPanel({ obraId, key: mestreKey, localId });
           }}
           onOpenContract={setContractDetails}
-          onDropMaster={dropMaster}
-          onResizeMasterPreview={resizeMasterPreview}
-          onResizeMasterCommit={resizeMaster}
+          onDropMaster={podeEditar ? dropMaster : () => undefined}
+          onResizeMasterPreview={podeEditar ? resizeMasterPreview : () => undefined}
+          onResizeMasterCommit={podeEditar ? resizeMaster : () => undefined}
           onResizeMasterCancel={cancelResizeMaster}
           /></CronogramaProfiler>
         </>
@@ -1465,6 +1470,7 @@ export default function CronogramaObrasPage() {
         obra={selected}
         masters={masters}
         mastersOnly={Boolean(mastersPanelId)}
+        readOnly={!podeEditar}
         onClose={() => {
           setSelectedId(null);
           setMastersPanelId(null);

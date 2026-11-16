@@ -4,7 +4,7 @@ import './App.css';
 import Header from './components/Header';
 import { CabecalhoPaginaProvider } from './components/cabecalhoPagina';
 import PrivateRoute from './components/PrivateRoute';
-import { temCredencial } from './services/credenciais';
+import { editaArea, temCredencial, veArea } from './services/credenciais';
 import { entraNoFriday } from './features/friday-gestao-interna/acesso';
 import NetworkStatusBanner from './components/NetworkStatusBanner';
 import PwaUpdateBanner from './components/PwaUpdateBanner';
@@ -56,8 +56,9 @@ export default function App() {
           <Routes>
             <Route path="login" element={<LoginPage />} />
             <Route path="acesso-negado" element={<AccessDeniedPage />} />
-            {/* Credenciais (The Manuscript, funcionarios.md): qualquer credencial entra na Home reduzida e no Meu perfil;
-                cada área confere a sua e o adm2 entra em todas, salvo na DEV. */}
+            {/* Acesso (The Manuscript, funcionarios.md): qualquer credencial ou área entra na Home e no Meu perfil; cada
+                área da WEB pede ao menos "ver" (o "editar" é conferido nas telas, nas Rules e nas Functions); o adm2 entra
+                em todas, salvo na DEV. */}
             <Route element={<PrivateRoute permite={() => true} />}>
               <Route index element={<HomeDashboard />} />
               <Route path="perfil" element={<MeuPerfilPage />} />
@@ -65,7 +66,7 @@ export default function App() {
             <Route element={<PrivateRoute permite={entraNoFriday} />}>
               <Route path="friday/*" element={<FridayApp />} />
             </Route>
-            <Route element={<PrivateRoute permite={(p) => temCredencial(p, 'engenharia')} />}>
+            <Route element={<PrivateRoute permite={(p) => veArea(p, 'engenharia')} />}>
               <Route path="engenharia/cronograma" element={<CronogramaObrasPage />} />
               <Route path="engenharia/prazos" element={<PrazosContratuaisPage />} />
               <Route path="engenharia/obras" element={<ObrasPage />} />
@@ -77,29 +78,37 @@ export default function App() {
             <Route element={<PrivateRoute permite={(p) => temCredencial(p, 'retr0')} />}>
               <Route path="dev" element={<DevToysPage />} />
             </Route>
-            <Route element={<PrivateRoute permite={(p) => temCredencial(p, 'autor')} />}>
+            <Route element={<PrivateRoute permite={(p) => veArea(p, 'manuscript')} />}>
               <Route path="the-manuscript/mapa" element={<ManuscriptMapaPage />} />
               <Route path="the-manuscript/*" element={<TheManuscriptPage />} />
             </Route>
-            <Route element={<PrivateRoute permite={(p) => temCredencial(p, 'escritorio')} />}>
-              <Route path="cadastros/usuarios/novo" element={<CadastroUsuarioNovoPage />} />
+            <Route element={<PrivateRoute permite={(p) => veArea(p, 'cadastros')} />}>
               <Route path="cadastros/editar/usuarios" element={<CadastroUsuariosEditarPage />} />
             </Route>
+            <Route element={<PrivateRoute permite={(p) => editaArea(p, 'cadastros')} />}>
+              <Route path="cadastros/usuarios/novo" element={<CadastroUsuarioNovoPage />} />
+            </Route>
             {/* Frota e Combustível são grupos, como Engenharia: /frota e /combustivel não têm página própria. */}
-            <Route element={<PrivateRoute permite={(p) => temCredencial(p, 'mecanico', 'logistica')} />}>
+            <Route element={<PrivateRoute permite={(p) => veArea(p, 'frota')} />}>
               <Route path="frota/veiculos" element={<FrotaVeiculosPage />} />
               <Route path="frota/veiculos/:id" element={<FrotaVeiculoDetalhesPage />} />
               <Route path="frota/registros" element={<RegistrosPage />} />
               <Route path="frota/checklists" element={<ChecklistsPage />} />
               <Route path="frota/checklists/:id" element={<ChecklistDetalhePage />} />
               <Route path="frota/analytics" element={<FrotaAnalyticsPage />} />
+            </Route>
+            <Route element={<PrivateRoute permite={(p) => veArea(p, 'combustivel')} />}>
               <Route path="combustivel/registros" element={<TabelaCombustivel />} />
-              <Route path="combustivel/registros/novo" element={<CombustivelNovoPage />} />
               <Route path="combustivel/bombas" element={<BombasPage />} />
+            </Route>
+            <Route element={<PrivateRoute permite={(p) => editaArea(p, 'combustivel')} />}>
+              <Route path="combustivel/registros/novo" element={<CombustivelNovoPage />} />
+            </Route>
+            <Route element={<PrivateRoute permite={(p) => veArea(p, 'logistica')} />}>
               <Route path="logistica/cronograma" element={<LogisticaCronogramaPage />} />
             </Route>
             {/* Portal do cliente, lado da equipe: The Manuscript, 16_PORTAL_DO_CLIENTE.md. */}
-            <Route element={<PrivateRoute permite={(p) => temCredencial(p, 'engenharia', 'escritorio')} />}>
+            <Route element={<PrivateRoute permite={(p) => veArea(p, 'portal')} />}>
               <Route path="portal-cliente/clientes" element={<ClientesPortalPage />} />
               <Route path="portal-cliente/contratos" element={<ContratosPortalPage />} />
               <Route path="portal-cliente/contratos/:id" element={<ContratoPortalPage />} />

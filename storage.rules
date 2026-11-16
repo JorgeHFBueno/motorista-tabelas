@@ -23,14 +23,32 @@ service firebase.storage {
         && firestore.get(employeePath()).data.get('perfis', {}).get(perfil, false) == true;
     }
 
-    // WEB area open to adm2 and to up to two credentials (repeat the key to use only one); one read of the profile.
-    function temArea(a, b) {
-      return isAuthorized()
-        && (
-          firestore.get(employeePath()).data.get('perfis', {}).get('adm2', false) == true
-          || firestore.get(employeePath()).data.get('perfis', {}).get(a, false) == true
-          || firestore.get(employeePath()).data.get('perfis', {}).get(b, false) == true
-        );
+    // WEB areas, the same as nivelArea in firestore.rules (Manuscript funcionarios.md, 2026-11-16): `areas` when the
+    // document has it, otherwise 'editar' in the areas of its old credentials. One read of the profile.
+    function nivelArea(a) {
+      let f = isAuthorized() ? firestore.get(employeePath()).data : {};
+      let p = f.get('perfis', {});
+      return p.get('adm2', false) == true ? 'editar'
+        : ('areas' in f ? f.areas.get(a, '') : (nivelLegado(p, a) ? 'editar' : ''));
+    }
+
+    // Old credentials (documents without `areas`, until the migration).
+    function nivelLegado(p, a) {
+      return (a in ['frota', 'combustivel', 'logistica'] && (p.get('mecanico', false) == true || p.get('logistica', false) == true))
+        || (a == 'friday' && (p.get('mecanico', false) == true || p.get('escritorio', false) == true))
+        || (a in ['cadastros', 'portal'] && p.get('escritorio', false) == true)
+        || (a in ['engenharia', 'portal'] && p.get('engenharia', false) == true)
+        || (a == 'manuscript' && p.get('autor', false) == true);
+    }
+
+    // Sees the WEB area (reads): 'ver' or 'editar'; adm2 sees every area.
+    function veArea(a) {
+      return nivelArea(a) in ['ver', 'editar'];
+    }
+
+    // Edits the WEB area (writes, corrections, deletions); adm2 edits every area.
+    function editaArea(a) {
+      return nivelArea(a) == 'editar';
     }
 
     // Mechanic checklist (app): mechanics and adm2 send the photos.
@@ -38,14 +56,9 @@ service firebase.storage {
       return hasPerfil('mecanico') || hasPerfil('adm2');
     }
 
-    // Reading them: the checklist (mecanico) and Frota on the WEB (mecanico, logistica), adm2 included.
+    // Reading them: the checklist (app mecanico) and the WEB Frota area, adm2 included.
     function isChecklistV2Reader() {
-      return temArea('mecanico', 'logistica');
-    }
-
-    // Client portal, team side (WEB /portal-cliente): engenharia, escritorio or adm2.
-    function isEquipePortal() {
-      return temArea('engenharia', 'escritorio');
+      return hasPerfil('mecanico') || veArea('frota');
     }
 
     // Writing over an existing object is evaluated as create; resource == null keeps files from being replaced.
@@ -107,10 +120,10 @@ service firebase.storage {
     }
 
     // Friday attachments: friday/{quadroId}/{itemId}/{anexoId}-{nome}. Same access as the board in Firestore
-    // (escritorio, mecanico or adm2; a restricted board only for its "acesso" list, adm2 always), up to 25 MB, never
+    // (friday area or adm2; a restricted board only for its "acesso" list, adm2 always), up to 25 MB, never
     // overwritten; deleted together with the attachment record.
     function isFridayUser() {
-      return temArea('escritorio', 'mecanico');
+      return veArea('friday');
     }
 
     function fridayBoardAllowed(quadroId) {
@@ -127,23 +140,25 @@ service firebase.storage {
       allow update: if false;
     }
 
-    // Cronograma Logístico: arquivos das observações, logistica/observacoes/{observacaoId}/{arquivo}. logistica,
-    // mecanico or adm2 (the same as logistica-observacoes in Firestore), up to 25 MB, never overwritten; deleted
-    // together with the observation or the programação.
+    // Cronograma Logístico: arquivos das observações, logistica/observacoes/{observacaoId}/{arquivo}. Logística area
+    // (ver reads, editar sends and deletes; the same as logistica-observacoes in Firestore), up to 25 MB, never
+    // overwritten; deleted together with the observation or the programação.
     match /logistica/observacoes/{observacaoId}/{arquivo} {
-      allow read, delete: if temArea('logistica', 'mecanico');
-      allow create: if temArea('logistica', 'mecanico')
+      allow read: if veArea('logistica');
+      allow delete: if editaArea('logistica');
+      allow create: if editaArea('logistica')
         && isNewObject()
         && request.resource.size <= 25 * 1024 * 1024;
       allow update: if false;
     }
 
-    // Cronograma Logístico: PDF da nota de uma programação, logistica/notas/{programacaoId}/{arquivo}. The same people,
+    // Cronograma Logístico: PDF da nota de uma programação, logistica/notas/{programacaoId}/{arquivo}. The same area,
     // PDF only, up to 25 MB, never overwritten (a new note is a new file); deleted when the note is replaced or removed
     // and with the programação.
     match /logistica/notas/{programacaoId}/{arquivo} {
-      allow read, delete: if temArea('logistica', 'mecanico');
-      allow create: if temArea('logistica', 'mecanico')
+      allow read: if veArea('logistica');
+      allow delete: if editaArea('logistica');
+      allow create: if editaArea('logistica')
         && isNewObject()
         && request.resource.size <= 25 * 1024 * 1024
         && request.resource.contentType == 'application/pdf';
@@ -184,42 +199,42 @@ service firebase.storage {
     }
 
     match /portal/obras/{obraId}/documentos/{documentoId}/{arquivo} {
-      allow read: if isPortalClienteDe('portal-obras', obraId) || isEquipePortal();
-      allow create: if isEquipePortal() && isPortalArquivo(50 * 1024 * 1024);
+      allow read: if isPortalClienteDe('portal-obras', obraId) || veArea('portal');
+      allow create: if editaArea('portal') && isPortalArquivo(50 * 1024 * 1024);
       allow update, delete: if false;
     }
 
     match /portal/obras/{obraId}/fotos/{fotoId}/{arquivo} {
-      allow read: if isPortalClienteDe('portal-obras', obraId) || isEquipePortal();
-      allow create: if isEquipePortal()
+      allow read: if isPortalClienteDe('portal-obras', obraId) || veArea('portal');
+      allow create: if editaArea('portal')
         && isPortalArquivo(20 * 1024 * 1024)
         && request.resource.contentType.matches('image/.*');
       allow update, delete: if false;
     }
 
     match /portal/obras/{obraId}/parcelas/{parcelaId}/boleto/{arquivo} {
-      allow read: if isPortalClienteDe('portal-obras', obraId) || isEquipePortal();
-      allow create: if isEquipePortal() && isPortalPdfOuImagem(10 * 1024 * 1024);
+      allow read: if isPortalClienteDe('portal-obras', obraId) || veArea('portal');
+      allow create: if editaArea('portal') && isPortalPdfOuImagem(10 * 1024 * 1024);
       allow update, delete: if false;
     }
 
     match /portal/obras/{obraId}/parcelas/{parcelaId}/comprovante/{arquivo} {
-      allow read: if isPortalClienteDe('portal-obras', obraId) || isEquipePortal();
-      allow create: if (isPortalClienteDe('portal-obras', obraId) || isEquipePortal())
+      allow read: if isPortalClienteDe('portal-obras', obraId) || veArea('portal');
+      allow create: if (isPortalClienteDe('portal-obras', obraId) || editaArea('portal'))
         && isPortalPdfOuImagem(10 * 1024 * 1024);
       allow update, delete: if false;
     }
 
     match /portal/atendimentos/{atendimentoId}/{mensagemId}/{arquivo} {
-      allow read: if isPortalClienteDe('portal-atendimentos', atendimentoId) || isEquipePortal();
-      allow create: if (isPortalClienteDe('portal-atendimentos', atendimentoId) || isEquipePortal())
+      allow read: if isPortalClienteDe('portal-atendimentos', atendimentoId) || veArea('portal');
+      allow create: if (isPortalClienteDe('portal-atendimentos', atendimentoId) || editaArea('portal'))
         && isPortalArquivo(10 * 1024 * 1024);
       allow update, delete: if false;
     }
 
     match /portal/noticias/{noticiaId}/{arquivo} {
-      allow read: if isPortalClienteAtivo() || isEquipePortal();
-      allow create: if isEquipePortal()
+      allow read: if isPortalClienteAtivo() || veArea('portal');
+      allow create: if editaArea('portal')
         && isPortalArquivo(10 * 1024 * 1024)
         && request.resource.contentType.matches('image/.*');
       allow update, delete: if false;

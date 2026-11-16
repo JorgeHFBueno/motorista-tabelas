@@ -6,7 +6,7 @@ import { HttpsError, onCall } from 'firebase-functions/v2/https';
 import { onSchedule } from 'firebase-functions/v2/scheduler';
 import * as logger from 'firebase-functions/logger';
 import { db } from '../firebaseAdmin.js';
-import { temCredencial } from '../credenciais.js';
+import { editaArea } from '../credenciais.js';
 import { COLECAO_NOTICIAS } from './config.js';
 import { executarColeta, type ResumoColeta } from './coleta.js';
 import type { NoticiaExistente, NoticiasStore } from './salvar.js';
@@ -88,7 +88,7 @@ export const portalNoticiasAtualizar = onCall({ region: REGIAO, timeoutSeconds: 
   const uid = request.auth?.uid;
   if (!uid) throw new HttpsError('unauthenticated', 'Autenticação obrigatória.');
   const funcionario = await db.collection('funcionarios').doc(uid).get();
-  if (!temCredencial(funcionario.data(), 'engenharia', 'escritorio')) throw new HttpsError('permission-denied', 'Acesso não autorizado.');
+  if (!editaArea(funcionario.data(), 'portal')) throw new HttpsError('permission-denied', 'Acesso não autorizado.');
   try {
     return await coletar('manual', uid);
   } catch (e) {

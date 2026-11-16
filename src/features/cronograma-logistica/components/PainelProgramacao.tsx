@@ -42,7 +42,9 @@ export function PainelProgramacao({ programacao, aba, onAba, observacoes, eu, ca
             <span className="lg-painel-semana">{programacao.cod !== null ? `${textoCodigo(programacao.cod)} · ` : ''}{rotuloSemana(programacao.semanaId)}</span>
             <button type="button" className="lg-btn-icone" onClick={onFechar} aria-label="Fechar"><CloseRounded /></button>
           </div>
-          <CampoTexto className="lg-painel-titulo" valor={programacao.item} obrigatorio maximo={200} onSalvar={(item) => acoes.atualizar(programacao.id, { item })} />
+          {acoes.podeEditar
+            ? <CampoTexto className="lg-painel-titulo" valor={programacao.item} obrigatorio maximo={200} onSalvar={(item) => acoes.atualizar(programacao.id, { item })} />
+            : <span className="lg-input lg-painel-titulo lg-so-ler-texto">{programacao.item}</span>}
           <nav className="lg-painel-abas" aria-label="Seções">
             <button type="button" className={aba === 'programacao' ? 'on' : ''} onClick={() => onAba('programacao')}>Programação</button>
             <button type="button" className={aba === 'observacoes' ? 'on' : ''} onClick={() => onAba('observacoes')}>
@@ -50,7 +52,7 @@ export function PainelProgramacao({ programacao, aba, onAba, observacoes, eu, ca
             </button>
           </nav>
           {aba === 'observacoes' ? (
-            <ObservacoesProgramacao programacaoId={programacao.id} observacoes={observacoes} eu={eu} cadastros={cadastros} />
+            <ObservacoesProgramacao programacaoId={programacao.id} observacoes={observacoes} eu={eu} cadastros={cadastros} podeEditar={acoes.podeEditar} />
           ) : (
             <>
               {lista.length > 0 && (
@@ -59,6 +61,8 @@ export function PainelProgramacao({ programacao, aba, onAba, observacoes, eu, ca
                   <ListaConflitos itens={lista.map((conflito) => ({ programacao, conflito }))} acoes={acoes} mostrarLinha={false} />
                 </div>
               )}
+              {/* Em "ver", os campos ficam desligados; links da nota e do local continuam abrindo. */}
+              <fieldset disabled={!acoes.podeEditar} className="lg-so-ler">
               <label className="lg-painel-campo"><span>Período</span>
                 <CampoPeriodo inicio={programacao.inicio} fim={programacao.fim} onSalvar={(periodo) => acoes.atualizar(programacao.id, periodo)} />
               </label>
@@ -86,6 +90,7 @@ export function PainelProgramacao({ programacao, aba, onAba, observacoes, eu, ca
               <div className="lg-painel-campo"><span>Nota</span>
                 <CampoNota nota={programacao.nota} onEnviar={(arquivo) => acoes.enviarNota(programacao, arquivo)} onRemover={() => acoes.removerNota(programacao)} />
               </div>
+              </fieldset>
               {programacao.adiamento && (
                 <div className="lg-painel-campo"><span>Adiamento</span><span className="lg-painel-adiamento">{programacao.adiamento}</span></div>
               )}
@@ -93,9 +98,11 @@ export function PainelProgramacao({ programacao, aba, onAba, observacoes, eu, ca
                 {[autoria('Criada', programacao.criadoPor, programacao.criadoEm, cadastros), autoria('Alterada', programacao.modificadoPor, programacao.modificadoEm, cadastros)]
                   .filter(Boolean).join(' · ')}
               </p>
-              <button type="button" className="lg-btn lg-btn-perigo" onClick={() => acoes.excluir(programacao)}>
-                <DeleteOutlineRounded fontSize="small" /> Excluir programação
-              </button>
+              {acoes.podeEditar && (
+                <button type="button" className="lg-btn lg-btn-perigo" onClick={() => acoes.excluir(programacao)}>
+                  <DeleteOutlineRounded fontSize="small" /> Excluir programação
+                </button>
+              )}
             </>
           )}
         </div>

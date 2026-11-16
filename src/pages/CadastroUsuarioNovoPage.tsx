@@ -15,7 +15,9 @@ import {
   TextField,
 } from '@mui/material';
 import useAdminUsers from '../hooks/useAdminUsers';
-import { CREDENCIAIS, CREDENCIAIS_SO_ADM2, semCredenciais, type Credencial, type Credenciais } from '../services/credenciais';
+import { CREDENCIAIS, CREDENCIAIS_ANTIGAS, CREDENCIAIS_DO_CADASTRO, semCredenciais, type Credencial, type Credenciais } from '../services/credenciais';
+import type { Areas } from '../services/areasWeb';
+import AreasWebEditor from '../components/AreasWebEditor';
 import { useAuth } from '../contexts/AuthContext';
 
 type UsuarioFormState = {
@@ -24,6 +26,7 @@ type UsuarioFormState = {
   celular: boolean;
   password: string;
   credenciais: Credenciais;
+  areas: Areas;
 };
 
 type UsuarioFormErrors = {
@@ -39,6 +42,7 @@ const DEFAULT_FORM: UsuarioFormState = {
   celular: false,
   password: '',
   credenciais: semCredenciais(),
+  areas: {},
 };
 
 function normalizeEmailInput(value: string, celular: boolean) {
@@ -75,8 +79,8 @@ function validateForm(form: UsuarioFormState) {
     errors.password = 'Informe a senha inicial.';
   }
 
-  if (!Object.values(form.credenciais).some(Boolean)) {
-    errors.credenciais = 'Marque ao menos uma credencial.';
+  if (!Object.values(form.credenciais).some(Boolean) && Object.keys(form.areas).length === 0) {
+    errors.credenciais = 'Marque ao menos uma credencial do app ou uma área da WEB.';
   }
 
   return errors;
@@ -114,6 +118,7 @@ export default function CadastroUsuarioNovoPage() {
         email: form.email.trim(),
         password: form.password.trim(),
         credenciais: form.credenciais,
+        ...(souAdm2 ? { areas: form.areas } : {}),
         celular: form.celular,
       });
       // Conta que já existia: a tela fica aberta com o aviso, para a administração avisar a pessoa da senha.
@@ -203,15 +208,15 @@ export default function CadastroUsuarioNovoPage() {
             />
 
             <FormControl error={Boolean(errors.credenciais)} component="fieldset">
-              <FormLabel component="legend">Credenciais</FormLabel>
+              <FormLabel component="legend">Credenciais do app</FormLabel>
               <FormGroup>
-                {CREDENCIAIS.map((c) => (
+                {CREDENCIAIS.filter((c) => !CREDENCIAIS_ANTIGAS.includes(c.chave)).map((c) => (
                   <FormControlLabel
                     key={c.chave}
                     control={(
                       <Checkbox
                         checked={form.credenciais[c.chave]}
-                        disabled={!souAdm2 && CREDENCIAIS_SO_ADM2.includes(c.chave)}
+                        disabled={!souAdm2 && !CREDENCIAIS_DO_CADASTRO.includes(c.chave)}
                         onChange={(event) => {
                           const marcada = event.target.checked;
                           setForm((prev) => ({ ...prev, credenciais: { ...prev.credenciais, [c.chave as Credencial]: marcada } }));
@@ -224,8 +229,17 @@ export default function CadastroUsuarioNovoPage() {
                   />
                 ))}
               </FormGroup>
-              <FormHelperText>{errors.credenciais ?? 'Cada credencial libera as suas telas; a pessoa pode ter várias. O adm2 entra em tudo e só ele dá adm2 ou retr0.'}</FormHelperText>
+              <FormHelperText>{errors.credenciais ?? 'As credenciais valem no app; a WEB abre pelas áreas abaixo. O adm2 entra em tudo e só ele dá adm2, retr0 e áreas.'}</FormHelperText>
             </FormControl>
+
+            <AreasWebEditor
+              areas={form.areas}
+              somenteLeitura={!souAdm2}
+              onChange={(areas) => {
+                setForm((prev) => ({ ...prev, areas }));
+                setErrors((prev) => ({ ...prev, credenciais: undefined }));
+              }}
+            />
 
             {submitError && <Alert severity="error">{submitError}</Alert>}
 

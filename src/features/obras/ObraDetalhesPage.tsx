@@ -28,6 +28,8 @@ import {
   gravarCampoObra,
 } from './obrasData';
 import CampoEditavel from './CampoEditavelObra';
+import { useAuth } from '../../contexts/AuthContext';
+import { editaArea } from '../../services/credenciais';
 import {
   contratoTexto,
   dataCivilTexto,
@@ -106,6 +108,8 @@ const Vazio = ({ children }: { children: ReactNode }) => <Typography color="text
 
 export default function ObraDetalhesPage() {
   const { id = '' } = useParams();
+  // Área Engenharia em "ver": local e sinônimo só aparecem (as Rules recusam a gravação do mesmo jeito).
+  const podeEditar = editaArea(useAuth().authorizationProfile, 'engenharia');
   const [obra, setObra] = useState<ObraDetalhe | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -227,6 +231,7 @@ export default function ObraDetalhesPage() {
             vazio={semLocal ? { texto: 'Local a corrigir', botao: 'Cadastrar local' } : null}
             destaque
             salvando={salvandoCampo}
+            somenteLeitura={!podeEditar}
             onSalvar={(valor) => salvarCampo('local', valor)}
           />
           <CampoEditavel
@@ -234,6 +239,7 @@ export default function ObraDetalhesPage() {
             valor={obra.siglaObra}
             vazio={obra.siglaObra ? null : { texto: 'Sem sinônimo', botao: 'Cadastrar sinônimo' }}
             salvando={salvandoCampo}
+            somenteLeitura={!podeEditar}
             onSalvar={(valor) => salvarCampo('siglaObra', valor)}
           />
         </Stack>

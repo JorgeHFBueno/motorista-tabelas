@@ -125,12 +125,13 @@ function Escrever({ programacaoId, eu }: { programacaoId: string; eu: RefPessoa 
   );
 }
 
-/** Observações da programação, da mais nova para a mais antiga; só o autor exclui a sua. */
-export function ObservacoesProgramacao({ programacaoId, observacoes, eu, cadastros }: {
+/** Observações da programação, da mais nova para a mais antiga; só o autor exclui a sua. Em "ver", só a leitura. */
+export function ObservacoesProgramacao({ programacaoId, observacoes, eu, cadastros, podeEditar }: {
   programacaoId: string;
   observacoes: readonly Observacao[];
   eu: RefPessoa;
   cadastros: CadastrosLogistica;
+  podeEditar: boolean;
 }) {
   const [erro, setErro] = useState<string | null>(null);
   const excluir = (observacao: Observacao) => {
@@ -140,7 +141,7 @@ export function ObservacoesProgramacao({ programacaoId, observacoes, eu, cadastr
   };
   return (
     <div className="lg-obs">
-      <Escrever key={programacaoId} programacaoId={programacaoId} eu={eu} />
+      {podeEditar && <Escrever key={programacaoId} programacaoId={programacaoId} eu={eu} />}
       {erro && <p className="lg-obs-erro" role="alert">{erro}</p>}
       {observacoes.length === 0 && (
         <div className="lg-obs-vazio">
@@ -155,7 +156,7 @@ export function ObservacoesProgramacao({ programacaoId, observacoes, eu, cadastr
             <strong>{cadastros.nomePessoa(observacao.autor.uid, observacao.autor.nome)}</strong>
             <small>{quando(observacao.criadoEm)}</small>
             <span className="lg-espaco" />
-            {observacao.autor.uid === eu.uid && (
+            {podeEditar && observacao.autor.uid === eu.uid && (
               <button type="button" className="lg-btn-icone" title="Excluir" aria-label="Excluir observação" onClick={() => excluir(observacao)}>
                 <DeleteOutlineRounded fontSize="small" />
               </button>

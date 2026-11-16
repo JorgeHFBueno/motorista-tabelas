@@ -21,6 +21,8 @@ test('a chave vale pela pessoa: ativa, com escritorio ou adm2, e chave não revo
   assert.deepEqual(d.pessoaDaChave(reg, funcionario({ escritorio: true })), { uid: 'uid-ana', adm2: false, escrita: false });
   assert.deepEqual(d.pessoaDaChave(reg, funcionario({ adm2: true })), { uid: 'uid-ana', adm2: true, escrita: false });
   assert.deepEqual(d.pessoaDaChave(reg, funcionario({ mecanico: true })), { uid: 'uid-ana', adm2: false, escrita: false });
+  assert.deepEqual(d.pessoaDaChave(reg, { ativo: true, perfis: {}, areas: { friday: 'editar' } }), { uid: 'uid-ana', adm2: false, escrita: false }, 'área friday');
+  assert.equal(d.pessoaDaChave(reg, { ativo: true, perfis: { escritorio: true }, areas: { portal: 'editar' } }), null, 'migrado sem a área friday');
   assert.equal(d.pessoaDaChave({ ...reg, revogada_em: '2026-11-10 10:00:00' }, funcionario({ escritorio: true })), null, 'revogada');
   assert.equal(d.pessoaDaChave(reg, funcionario({ escritorio: true }, false)), null, 'desligada');
   assert.equal(d.pessoaDaChave(reg, funcionario({ motorista: true })), null, 'sem acesso ao Friday');

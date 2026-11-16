@@ -15,6 +15,8 @@ import ProgressoObraTab from './ProgressoObraTab';
 import PublicarContratoDialog from './PublicarContratoDialog';
 import { contratoPortalDe } from './contratosPortalDominio';
 import { PORTAL_COLECOES, type ContratoPortal } from './portalDominio';
+import { useAuth } from '../../contexts/AuthContext';
+import { editaArea } from '../../services/credenciais';
 
 // A contract in the client portal (adm2): portal-obras/{id}, same id as obras-v2/{id}.
 // The Manuscript: 01_FIRESTORE/COLECOES/portal.md and 03_APLICACAO_WEB/16_PORTAL_DO_CLIENTE.md.
@@ -32,6 +34,8 @@ const ABAS: Array<{ valor: Aba; rotulo: string }> = [
 type Estado<T> = { status: 'carregando' } | { status: 'erro' } | { status: 'ok'; data: T };
 
 export default function ContratoPortalPage() {
+  // Área portal só em "ver": as abas aparecem só para consulta (as Rules recusam a gravação do mesmo jeito).
+  const podeEditar = editaArea(useAuth().authorizationProfile, 'portal');
   const { id = '' } = useParams();
   const [obra, setObra] = useState<Estado<ObraDetalhe | null>>({ status: 'carregando' });
   const [contrato, setContrato] = useState<Estado<ContratoPortal | null>>({ status: 'carregando' });
@@ -82,7 +86,7 @@ export default function ContratoPortalPage() {
           <Alert severity="info">
             Este contrato não está publicado no portal: os clientes não o veem.
             <Stack direction="row" spacing={1} sx={{ mt: 1.5 }}>
-              <Button variant="contained" size="small" onClick={() => setPublicando(true)}>Publicar no portal</Button>
+              {podeEditar && <Button variant="contained" size="small" onClick={() => setPublicando(true)}>Publicar no portal</Button>}
             </Stack>
           </Alert>
         ) : (
@@ -102,12 +106,12 @@ export default function ContratoPortalPage() {
           {ABAS.map((item) => <Tab key={item.valor} value={item.valor} label={item.rotulo} />)}
         </Tabs>
       </Paper>
-      {aba === 'resumo' && <ContratoResumoTab contrato={publicado} obra={obraV2} />}
-      {aba === 'progresso' && <ProgressoObraTab contrato={publicado} />}
-      {aba === 'equipe' && <EquipeObraTab contrato={publicado} />}
-      {aba === 'documentos' && <ContratoDocumentosTab contrato={publicado} />}
-      {aba === 'fotos' && <ContratoFotosTab contrato={publicado} />}
-      {aba === 'parcelas' && <ContratoParcelasTab contrato={publicado} />}
+      {aba === 'resumo' && <ContratoResumoTab contrato={publicado} obra={obraV2} podeEditar={podeEditar} />}
+      {aba === 'progresso' && <ProgressoObraTab contrato={publicado} podeEditar={podeEditar} />}
+      {aba === 'equipe' && <EquipeObraTab contrato={publicado} podeEditar={podeEditar} />}
+      {aba === 'documentos' && <ContratoDocumentosTab contrato={publicado} podeEditar={podeEditar} />}
+      {aba === 'fotos' && <ContratoFotosTab contrato={publicado} podeEditar={podeEditar} />}
+      {aba === 'parcelas' && <ContratoParcelasTab contrato={publicado} podeEditar={podeEditar} />}
     </Container>
   );
 }

@@ -2,7 +2,7 @@ import { HttpsError, onCall } from 'firebase-functions/v2/https';
 import * as logger from 'firebase-functions/logger';
 import { FieldValue } from 'firebase-admin/firestore';
 import { adminAuth, db } from './firebaseAdmin.js';
-import { credenciaisDe, temCredencial } from './credenciais.js';
+import { credenciaisDe, editaArea } from './credenciais.js';
 import { nomesBatem } from './fridayMondayPessoas.js';
 import { QUADRO_FUNCIONARIOS } from './logisticaPessoas.js';
 
@@ -168,7 +168,7 @@ export function novoFuncionario(p: { nome: string; celular: string; id: string }
 export function createImportarFridayService(store: ImportarFridayStore) {
   async function exigirAcesso(uid: string | undefined) {
     if (!uid) throw new HttpsError('unauthenticated', 'Autenticação obrigatória.');
-    if (!temCredencial(await store.getEmployee(uid), 'escritorio')) throw new HttpsError('permission-denied', 'Acesso não autorizado.');
+    if (!editaArea(await store.getEmployee(uid), 'cadastros')) throw new HttpsError('permission-denied', 'Acesso não autorizado.');
   }
 
   async function situacaoAtual(): Promise<{ pessoas: Interno[]; livres: { uid: string; nome: string; ativo: boolean }[] }> {

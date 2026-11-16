@@ -1,5 +1,7 @@
-// Credenciais independentes de funcionarios/{uid}.perfis (The Manuscript, funcionarios.md, "Credenciais").
-// adm1 (substituído por frentista) e user não são mais lidos.
+import { areasDoFuncionario, type Areas } from './areasWeb';
+
+// Credenciais independentes de funcionarios/{uid}.perfis (The Manuscript, funcionarios.md, "Credenciais") e as áreas
+// da WEB (funcionarios/{uid}.areas, desde 2026-11-16). adm1 (substituído por frentista) e user não são mais lidos.
 export interface AuthorizationProfile {
   exists: boolean;
   source: 'funcionarios' | null;
@@ -13,6 +15,8 @@ export interface AuthorizationProfile {
   logistica: boolean;
   autor: boolean;
   retr0: boolean;
+  /** Áreas da WEB em vigor: o mapa areas ou, sem ele, as que as credenciais antigas representam. */
+  areas: Areas;
   id: string | null;
   nome: string | null;
 }
@@ -39,6 +43,7 @@ export function emptyAuthorizationProfile(): AuthorizationProfile {
     logistica: false,
     autor: false,
     retr0: false,
+    areas: {},
     id: null,
     nome: null,
   };
@@ -73,6 +78,7 @@ export function authorizationProfileFromData(id: string, data: Record<string, un
     logistica: profiles.logistica === true,
     autor: profiles.autor === true,
     retr0: profiles.retr0 === true,
+    areas: areasDoFuncionario(data),
     id,
     nome: typeof data.nome === 'string' && data.nome.trim() ? data.nome.trim() : null,
   };

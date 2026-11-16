@@ -44,6 +44,8 @@ import {
 } from './noticiasPortalData';
 import { abrirArquivo, enviarArquivo, usePessoaAtual } from './portalArquivos';
 import { caminhosPortal, LIMITES_ARQUIVO, type ArquivoPortal } from './portalDominio';
+import { useAuth } from '../../contexts/AuthContext';
+import { editaArea } from '../../services/credenciais';
 
 // News of the client portal, team side (adm2). The Manuscript: 01_FIRESTORE/COLECOES/portal.md (portal-noticias)
 // and 03_APLICACAO_WEB/16_PORTAL_DO_CLIENTE.md. adm2 writes the institutional ones; the external ones come from a
@@ -224,6 +226,7 @@ function NoticiaDialog({
 function LinhaNoticia({
   noticia,
   ocupado,
+  podeEditar,
   onEditar,
   onStatus,
   onLixeira,
@@ -232,6 +235,7 @@ function LinhaNoticia({
 }: {
   noticia: Noticia;
   ocupado: boolean;
+  podeEditar: boolean;
   onEditar: () => void;
   onStatus: (status: StatusNoticia) => void;
   onLixeira: () => void;
@@ -255,7 +259,7 @@ function LinhaNoticia({
         {naLixeira ? ` · na lixeira desde ${dataCurta(noticia.excluidoEm)}${noticia.excluidoPor?.nome ? `, por ${noticia.excluidoPor.nome}` : ''}` : ''}
       </Typography>
       <Stack direction="row" spacing={1} mt={1} flexWrap="wrap" useFlexGap>
-        {naLixeira ? (
+        {!podeEditar ? null : naLixeira ? (
           <Button size="small" variant="outlined" disabled={ocupado} onClick={onRestaurar}>Restaurar</Button>
         ) : (
           <>
@@ -283,6 +287,8 @@ function LinhaNoticia({
 
 export default function NoticiasPortalPage() {
   const pessoa = usePessoaAtual();
+  // Área portal só em "ver": a lista aparece sem criar, editar, publicar, lixeira nem buscar as externas.
+  const podeEditar = editaArea(useAuth().authorizationProfile, 'portal');
   const [noticias, setNoticias] = useState<Noticia[]>([]);
   const [carregando, setCarregando] = useState(true);
   const [erro, setErro] = useState<string | null>(null);
@@ -357,17 +363,17 @@ export default function NoticiasPortalPage() {
             htmlInput: { 'aria-label': 'Buscar título, resumo ou fonte' },
           }}
         />
-        <Button
+        {podeEditar && <Button
           variant="outlined"
           onClick={() => void buscarExternas()}
           disabled={buscandoExternas}
           startIcon={buscandoExternas ? <CircularProgress size={16} /> : undefined}
         >
           Buscar notícias externas agora
-        </Button>
-        <Button variant="contained" startIcon={<AddIcon />} onClick={() => setEdicao({ id: novoIdNoticia(), atual: null })}>
+        </Button>}
+        {podeEditar && <Button variant="contained" startIcon={<AddIcon />} onClick={() => setEdicao({ id: novoIdNoticia(), atual: null })}>
           Nova notícia
-        </Button>
+        </Button>}
       </Stack>
 
       <Stack direction={{ xs: 'column', md: 'row' }} spacing={2} mt={2} flexWrap="wrap" useFlexGap>
@@ -398,6 +404,7 @@ export default function NoticiasPortalPage() {
                 key={noticia.id}
                 noticia={noticia}
                 ocupado={ocupadoId === noticia.id}
+                podeEditar={podeEditar}
                 onEditar={() => setEdicao({ id: noticia.id, atual: noticia })}
                 onStatus={(novo) => void executar(
                   noticia.id,

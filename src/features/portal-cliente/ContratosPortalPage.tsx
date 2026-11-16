@@ -23,11 +23,14 @@ import { listarContratos } from './contratosPortalData';
 import { filtrarContratos, type FiltroContratos, type LinhaContrato } from './contratosPortalDominio';
 import PublicarContratoDialog from './PublicarContratoDialog';
 import { formatarDocumento } from './portalDominio';
+import { useAuth } from '../../contexts/AuthContext';
+import { editaArea } from '../../services/credenciais';
 
 // Contracts in the client portal (adm2): every obras-v2 contract, published (portal-obras/{id}) or not.
 // The Manuscript: 03_APLICACAO_WEB/16_PORTAL_DO_CLIENTE.md, "Telas do adm2 na WEB".
 
-function LinhaContratoPortal({ linha, onOpen, onPublicar }: { linha: LinhaContrato; onOpen: () => void; onPublicar: () => void }) {
+// onPublicar ausente: área portal só em "ver" (sem o botão Publicar).
+function LinhaContratoPortal({ linha, onOpen, onPublicar }: { linha: LinhaContrato; onOpen: () => void; onPublicar?: () => void }) {
   const { obra, portal } = linha;
   const detalhes = [obra.numeroContrato && `Contrato ${obra.numeroContrato}`, !localPendente(obra.local) && obra.local].filter(Boolean).join(' · ');
   return (
@@ -60,7 +63,7 @@ function LinhaContratoPortal({ linha, onOpen, onPublicar }: { linha: LinhaContra
         ) : (
           <Stack direction="row" spacing={1} alignItems="center" justifyContent={{ xs: 'flex-start', sm: 'flex-end' }}>
             <Chip label="Não publicado" size="small" variant="outlined" />
-            <Button size="small" variant="outlined" onClick={onPublicar}>Publicar no portal</Button>
+            {onPublicar && <Button size="small" variant="outlined" onClick={onPublicar}>Publicar no portal</Button>}
           </Stack>
         )}
       </Box>
@@ -70,6 +73,7 @@ function LinhaContratoPortal({ linha, onOpen, onPublicar }: { linha: LinhaContra
 
 export default function ContratosPortalPage() {
   const navigate = useNavigate();
+  const podeEditar = editaArea(useAuth().authorizationProfile, 'portal');
   const [filtro, setFiltro] = useState<FiltroContratos>('TODOS');
   const [busca, setBusca] = useState('');
   const [linhas, setLinhas] = useState<LinhaContrato[]>([]);
@@ -138,7 +142,7 @@ export default function ContratosPortalPage() {
                 key={linha.obra.id}
                 linha={linha}
                 onOpen={() => abrir(linha.obra.id)}
-                onPublicar={() => setPublicando(linha.obra)}
+                onPublicar={podeEditar ? () => setPublicando(linha.obra) : undefined}
               />
             ))}
           </Paper>

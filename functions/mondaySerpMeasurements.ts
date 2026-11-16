@@ -1,5 +1,5 @@
 import { HttpsError, onCall } from 'firebase-functions/v2/https';
-import { temCredencial } from './credenciais.js';
+import { editaArea } from './credenciais.js';
 import { defineSecret } from 'firebase-functions/params';
 import * as logger from 'firebase-functions/logger';
 import { Timestamp } from 'firebase-admin/firestore';
@@ -29,10 +29,10 @@ export function consolidateMeasurements(rows: ErpRow[]): { qtd_notas: number; va
   }, { qtd_notas: 0, valor_bruto_servico: 0 });
 }
 
-// Engineering screens: active employee with engenharia (or adm2) in funcionarios/{uid}.
+// Engineering screens: the Engenharia area at 'editar' (or adm2) in funcionarios/{uid}.
 async function assertCronoObraAuthorization(uid: string) {
   const employee = await db.collection('funcionarios').doc(uid).get();
-  if (temCredencial(employee.data(), 'engenharia')) return;
+  if (editaArea(employee.data(), 'engenharia')) return;
   throw new HttpsError('permission-denied', 'Acesso não autorizado.');
 }
 

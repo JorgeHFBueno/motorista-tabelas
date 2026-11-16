@@ -1,6 +1,7 @@
 // Regras da API de leitura do Friday (fridayApi.ts), sem Firestore, para serem testadas.
 // Contrato: The Manuscript, 02_APIS_FUNCTIONS/09_ROBOS_EXTERNOS_DE_OBRAS.md ("Leitura do Friday por chave").
 import { createHash } from 'node:crypto';
+import { veArea } from './credenciais.js';
 
 type AnyRecord = Record<string, any>;
 
@@ -10,14 +11,13 @@ export const formatoChave = (chave: unknown): chave is string => typeof chave ==
 export const hashChave = (chave: string) => createHash('sha256').update(chave).digest('hex');
 
 /**
- * Quem a chave representa: funcionário ativo com acesso ao Friday (credencial escritorio, mecanico ou adm2), como nas Rules.
+ * Quem a chave representa: funcionário ativo com acesso ao Friday (área friday ou adm2), como nas Rules.
  * escrita: a chave foi criada com escrita (POST); sem isso, só consulta.
  */
 export function pessoaDaChave(registro: AnyRecord | undefined, funcionario: AnyRecord | undefined): { uid: string; adm2: boolean; escrita: boolean } | null {
   if (!registro || registro.revogada_em || typeof registro.uid !== 'string') return null;
-  const perfis = funcionario?.perfis ?? {};
-  if (funcionario?.ativo !== true || (perfis.escritorio !== true && perfis.mecanico !== true && perfis.adm2 !== true)) return null;
-  return { uid: registro.uid, adm2: perfis.adm2 === true, escrita: registro.escrita === true };
+  if (!entraNoFriday(funcionario)) return null;
+  return { uid: registro.uid, adm2: (funcionario?.perfis as AnyRecord | undefined)?.adm2 === true, escrita: registro.escrita === true };
 }
 
 // ---------------------------------------------------------------- escrita (chave com escrita)
@@ -115,11 +115,8 @@ export function valorDaEntrada(coluna: { tipo: string; titulo: string; config?: 
 export const mencoesDoTexto = (texto: string) => [...new Set([...texto.matchAll(/@\{([^{}\s]+)\}/g)].map(m => m[1]))];
 
 // ---------------------------------------------------------------- aviso de menção (sino), como a tela (src/.../avisos.ts)
-/** Entra no Friday: funcionário ativo com escritorio, mecanico ou adm2 (como pessoaDaChave e as Rules). */
-export const entraNoFriday = (funcionario: AnyRecord | undefined) => {
-  const perfis = funcionario?.perfis ?? {};
-  return funcionario?.ativo === true && (perfis.escritorio === true || perfis.mecanico === true || perfis.adm2 === true);
-};
+/** Entra no Friday: funcionário ativo com a área friday (um nível só) ou adm2 (como pessoaDaChave e as Rules). */
+export const entraNoFriday = (funcionario: AnyRecord | undefined) => veArea(funcionario, 'friday');
 
 /** Quem recebe o aviso de menção: cada marcado uma vez, nunca quem escreveu, só quem entra no Friday. */
 export function destinatariosDaMencao(marcados: string[], autor: string, funcionarios: Map<string, AnyRecord | undefined>): string[] {

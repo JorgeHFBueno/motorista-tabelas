@@ -21,20 +21,23 @@ import KeyOutlinedIcon from '@mui/icons-material/KeyOutlined';
 import DeleteOutlineRoundedIcon from '@mui/icons-material/DeleteOutlineRounded';
 import QrCode2RoundedIcon from '@mui/icons-material/QrCode2Rounded';
 import { nomeDoUsuario, type AdminUser } from '../services/adminUsersApi';
-import { CREDENCIAIS } from '../services/credenciais';
+import { CREDENCIAIS, CREDENCIAIS_ANTIGAS } from '../services/credenciais';
+import { AREAS } from '../services/areasWeb';
 import { isKioskCredentialEligible } from '../services/kioskCredentialEligibility';
 import type { ModoEdicaoUsuario } from './AdminUserEditModal';
 
 interface AdminUsersEditTableProps {
   rows: AdminUser[];
   loading: boolean;
-  // Each cell opens its own popup: the name, everything; Credenciais, only the boxes; Situação, activate/deactivate.
+  // Each cell opens its own popup: the name, everything; Acesso, credentials and areas; Situação, activate/deactivate.
   onEdit: (row: AdminUser, modo: ModoEdicaoUsuario) => void;
   onSenha: (row: AdminUser) => void;
   onExcluir: (row: AdminUser) => void;
   // Kiosk QR and PIN: only for whoever can use the Kiosk (active, frentista or adm2).
   onKiosk: (row: AdminUser) => void;
   dateFormatter: Intl.DateTimeFormat;
+  // Área Cadastros só em "ver": a lista aparece sem as ações (as Functions recusam a gravação do mesmo jeito).
+  podeEditar: boolean;
 }
 
 type Coluna = 'nome' | 'situacao' | 'ultimoAcesso';
@@ -69,13 +72,17 @@ function formatDate(value: string | null | undefined, dateFormatter: Intl.DateTi
 }
 
 // One row; memo keeps the rows that did not change from rendering again when the filter or another row changes.
-const Linha = memo(function Linha({ row, onEdit, onSenha, onExcluir, onKiosk, dateFormatter }: Omit<AdminUsersEditTableProps, 'rows' | 'loading'> & { row: AdminUser }) {
+const Linha = memo(function Linha({ row, onEdit, onSenha, onExcluir, onKiosk, dateFormatter, podeEditar }: Omit<AdminUsersEditTableProps, 'rows' | 'loading'> & { row: AdminUser }) {
   const nome = nomeDoUsuario(row);
-  const marcadas = CREDENCIAIS.filter((c) => row.funcionario?.credenciais[c.chave]);
+  // Credenciais do app (as antigas, só da WEB, aparecem como áreas) e as áreas da WEB, com "(ver)" quando só vê.
+  const marcadas = [
+    ...CREDENCIAIS.filter((c) => !CREDENCIAIS_ANTIGAS.includes(c.chave) && row.funcionario?.credenciais[c.chave]).map((c) => ({ chave: c.chave, rotulo: c.rotulo, area: false })),
+    ...AREAS.filter((a) => row.funcionario?.areas?.[a.chave]).map((a) => ({ chave: a.chave, rotulo: row.funcionario?.areas?.[a.chave] === 'ver' ? `${a.rotulo} (ver)` : a.rotulo, area: true })),
+  ];
   return (
     <TableRow hover>
       <TableCell>
-        {!row.funcionario ? nome : (
+        {!row.funcionario || !podeEditar ? nome : (
           <ButtonBase aria-label={`Abrir os dados de ${nome}`} onClick={() => onEdit(row, 'completo')} sx={{ ...celulaSx, fontWeight: 500, '&:hover, &:focus-visible': { ...celulaSx['&:hover, &:focus-visible'], color: 'secondary.main', textDecoration: 'underline' } }}>
             {nome}
           </ButtonBase>
@@ -83,24 +90,24 @@ const Linha = memo(function Linha({ row, onEdit, onSenha, onExcluir, onKiosk, da
       </TableCell>
       <TableCell>
         {!row.funcionario ? <Chip size="small" color="warning" variant="outlined" label="Sem funcionário" /> : (
-          <ButtonBase aria-label={`Credenciais de ${nome}`} onClick={() => onEdit(row, 'credenciais')} sx={celulaSx}>
+          <ButtonBase aria-label={`Acesso de ${nome}`} disabled={!podeEditar} onClick={() => onEdit(row, 'credenciais')} sx={celulaSx}>
             {marcadas.length
-              ? <Stack direction="row" spacing={0.5} useFlexGap flexWrap="wrap">{marcadas.map((c) => <Chip key={c.chave} size="small" label={c.rotulo} sx={{ cursor: 'inherit' }} />)}</Stack>
-              : <Typography variant="body2" color="text.secondary">Nenhuma</Typography>}
+              ? <Stack direction="row" spacing={0.5} useFlexGap flexWrap="wrap">{marcadas.map((c) => <Chip key={c.chave} size="small" variant={c.area ? 'outlined' : 'filled'} label={c.rotulo} sx={{ cursor: 'inherit' }} />)}</Stack>
+              : <Typography variant="body2" color="text.secondary">Nenhum</Typography>}
           </ButtonBase>
         )}
       </TableCell>
       <TableCell>
         {!row.funcionario ? <Typography variant="body2" color="text.secondary">—</Typography> : (
           <Chip size="small" color={row.funcionario.ativo ? 'success' : 'default'} label={row.funcionario.ativo ? 'Ativo' : 'Inativo'}
-            aria-label={`${row.funcionario.ativo ? 'Desativar' : 'Ativar'} ${nome}`} onClick={() => onEdit(row, 'situacao')} />
+            aria-label={`${row.funcionario.ativo ? 'Desativar' : 'Ativar'} ${nome}`} onClick={podeEditar ? () => onEdit(row, 'situacao') : undefined} />
         )}
       </TableCell>
       <TableCell sx={{ whiteSpace: 'nowrap' }}>{formatDate(ultimoAcesso(row), dateFormatter)}</TableCell>
       <TableCell sx={{ whiteSpace: 'nowrap' }}>
-        <Stack direction="row" spacing={0.5}>
+        {podeEditar && <Stack direction="row" spacing={0.5}>
           {row.funcionario && (
-            <Tooltip title="Editar dados, situação e credenciais">
+            <Tooltip title="Editar dados, situação e acesso">
               <IconButton aria-label={`Editar ${nome}`} onClick={() => onEdit(row, 'completo')}><EditOutlinedIcon fontSize="small" /></IconButton>
             </Tooltip>
           )}
@@ -117,7 +124,7 @@ const Linha = memo(function Linha({ row, onEdit, onSenha, onExcluir, onKiosk, da
               <IconButton aria-label={`Excluir a conta de ${nome}`} color="error" onClick={() => onExcluir(row)}><DeleteOutlineRoundedIcon fontSize="small" /></IconButton>
             </Tooltip>
           )}
-        </Stack>
+        </Stack>}
       </TableCell>
     </TableRow>
   );
@@ -154,7 +161,7 @@ export default function AdminUsersEditTable({ rows, loading, ...acoes }: AdminUs
           <TableHead>
             <TableRow>
               <TableCell sx={{ minWidth: 200 }}>{cabecalho('nome', 'Nome')}</TableCell>
-              <TableCell sx={{ minWidth: 220 }}>Credenciais</TableCell>
+              <TableCell sx={{ minWidth: 220 }}>Acesso</TableCell>
               <TableCell>{cabecalho('situacao', 'Situação')}</TableCell>
               <TableCell>{cabecalho('ultimoAcesso', 'Último acesso')}</TableCell>
               <TableCell>Ações</TableCell>

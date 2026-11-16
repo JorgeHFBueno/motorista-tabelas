@@ -17,12 +17,15 @@ import {
   Typography,
 } from '@mui/material';
 import { loginDoUsuario, nomeDoUsuario, type AdminUser } from '../services/adminUsersApi';
-import { CREDENCIAIS, CREDENCIAIS_SO_ADM2, semCredenciais, type Credencial, type Credenciais } from '../services/credenciais';
+import { CREDENCIAIS, CREDENCIAIS_ANTIGAS, CREDENCIAIS_DO_CADASTRO, semCredenciais, type Credencial, type Credenciais } from '../services/credenciais';
+import type { Areas } from '../services/areasWeb';
+import AreasWebEditor from './AreasWebEditor';
 import { useAuth } from '../contexts/AuthContext';
 
-export type AdminUserEditValues = { ativo: boolean; credenciais: Credenciais };
-// completo: every piece of data plus situation and credentials (the name or Ações → Editar); credenciais: only the boxes
-// (the Credenciais cell); situacao: only activate/deactivate (the Situação cell).
+// areas: só quando quem salva é adm2 (a adminApi recusa de outra pessoa).
+export type AdminUserEditValues = { ativo: boolean; credenciais: Credenciais; areas?: Areas };
+// completo: every piece of data plus situation, credentials and WEB areas (the name or Ações → Editar); credenciais: only
+// the credentials and areas (the Acesso cell); situacao: only activate/deactivate (the Situação cell).
 export type ModoEdicaoUsuario = 'completo' | 'credenciais' | 'situacao';
 
 interface AdminUserEditModalProps {
@@ -47,15 +50,17 @@ const Dado = ({ rotulo, children }: { rotulo: string; children: ReactNode }) => 
 export default function AdminUserEditModal({ open, user, modo, onClose, onSave, saving, submitError, dateFormatter }: AdminUserEditModalProps) {
   const [ativo, setAtivo] = useState(true);
   const [credenciais, setCredenciais] = useState<Credenciais>(semCredenciais());
+  const [areas, setAreas] = useState<Areas>({});
   const souAdm2 = useAuth().authorizationProfile?.adm2 === true;
 
   useEffect(() => {
     setAtivo(user?.funcionario?.ativo ?? true);
     setCredenciais(user?.funcionario?.credenciais ?? semCredenciais());
+    setAreas(user?.funcionario?.areas ?? {});
   }, [user]);
 
   const nome = user ? nomeDoUsuario(user) : '';
-  const nenhuma = !Object.values(credenciais).some(Boolean);
+  const nenhuma = !CREDENCIAIS.some((c) => !CREDENCIAIS_ANTIGAS.includes(c.chave) && credenciais[c.chave]) && Object.keys(areas).length === 0;
   const data = (valor: string | null | undefined) => {
     const d = valor ? new Date(valor) : null;
     return d && !Number.isNaN(d.getTime()) ? dateFormatter.format(d) : '—';
@@ -88,14 +93,15 @@ export default function AdminUserEditModal({ open, user, modo, onClose, onSave, 
     );
   }
 
+  // Credenciais do app (e a retr0); as antigas, só da WEB, não aparecem: viraram áreas e vão como estão.
   const caixas = (
     <div>
-      {modo === 'completo' && <FormLabel component="legend">Credenciais</FormLabel>}
+      <FormLabel component="legend">Credenciais do app</FormLabel>
       <FormGroup>
-        {CREDENCIAIS.map((c) => (
+        {CREDENCIAIS.filter((c) => !CREDENCIAIS_ANTIGAS.includes(c.chave)).map((c) => (
           <FormControlLabel
             key={c.chave}
-            control={<Checkbox checked={credenciais[c.chave] === true} disabled={!souAdm2 && CREDENCIAIS_SO_ADM2.includes(c.chave)} onChange={(e) => setCredenciais((prev) => ({ ...prev, [c.chave as Credencial]: e.target.checked }))} />}
+            control={<Checkbox checked={credenciais[c.chave] === true} disabled={!souAdm2 && !CREDENCIAIS_DO_CADASTRO.includes(c.chave)} onChange={(e) => setCredenciais((prev) => ({ ...prev, [c.chave as Credencial]: e.target.checked }))} />}
             label={<><strong>{c.rotulo}</strong> — {c.descricao}</>}
           />
         ))}
@@ -105,7 +111,7 @@ export default function AdminUserEditModal({ open, user, modo, onClose, onSave, 
 
   return (
     <Dialog open={open} onClose={saving ? undefined : onClose} fullWidth maxWidth="sm">
-      <DialogTitle>{modo === 'credenciais' ? `Credenciais de ${nome}` : nome}</DialogTitle>
+      <DialogTitle>{modo === 'credenciais' ? `Acesso de ${nome}` : nome}</DialogTitle>
       <DialogContent>
         <Stack spacing={2} sx={{ pt: 1 }}>
           {submitError && <Alert severity="error">{submitError}</Alert>}
@@ -129,12 +135,14 @@ export default function AdminUserEditModal({ open, user, modo, onClose, onSave, 
             </>
           )}
           {caixas}
-          {nenhuma && <Alert severity="warning">Sem nenhuma credencial, a pessoa não entra no app nem na WEB.</Alert>}
+          <Divider />
+          <AreasWebEditor areas={areas} onChange={setAreas} somenteLeitura={!souAdm2} />
+          {nenhuma && <Alert severity="warning">Sem nenhuma credencial e nenhuma área, a pessoa não entra no app nem na WEB.</Alert>}
         </Stack>
       </DialogContent>
       <DialogActions>
         <Button onClick={onClose} disabled={saving}>Cancelar</Button>
-        <Button variant="contained" onClick={() => void onSave({ ativo: modo === 'completo' ? ativo : atual, credenciais })} disabled={saving}>Salvar</Button>
+        <Button variant="contained" onClick={() => void onSave({ ativo: modo === 'completo' ? ativo : atual, credenciais, ...(souAdm2 ? { areas } : {}) })} disabled={saving}>Salvar</Button>
       </DialogActions>
     </Dialog>
   );

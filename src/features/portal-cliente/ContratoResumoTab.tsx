@@ -29,7 +29,8 @@ const formularioDe = (contrato: ContratoPortal): Formulario => ({
   documento: formatarDocumento(contrato.clienteDocumento),
 });
 
-export default function ContratoResumoTab({ contrato, obra }: { contrato: ContratoPortal; obra: ObraDetalhe | null }) {
+// podeEditar false: área portal só em "ver"; os campos ficam travados e sem os botões.
+export default function ContratoResumoTab({ contrato, obra, podeEditar }: { contrato: ContratoPortal; obra: ObraDetalhe | null; podeEditar: boolean }) {
   const pessoa = usePessoaAtual();
   const [form, setForm] = useState<Formulario>(() => formularioDe(contrato));
   const [temAtendimentos, setTemAtendimentos] = useState<boolean | null>(null);
@@ -48,7 +49,7 @@ export default function ContratoResumoTab({ contrato, obra }: { contrato: Contra
   const campo = (chave: keyof Formulario) => ({
     value: form[chave],
     onChange: (event: { target: { value: string } }) => setForm((atual) => ({ ...atual, [chave]: event.target.value })),
-    disabled: salvando,
+    disabled: salvando || !podeEditar,
     fullWidth: true,
   });
 
@@ -104,9 +105,11 @@ export default function ContratoResumoTab({ contrato, obra }: { contrato: Contra
         <Box>
           <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} justifyContent="space-between" alignItems={{ xs: 'stretch', sm: 'center' }}>
             <Typography variant="h6">Dados do contrato no portal</Typography>
-            <Button variant="outlined" size="small" onClick={copiarDeObras} disabled={!obra || salvando}>
-              Copiar de novo de obras-v2
-            </Button>
+            {podeEditar && (
+              <Button variant="outlined" size="small" onClick={copiarDeObras} disabled={!obra || salvando}>
+                Copiar de novo de obras-v2
+              </Button>
+            )}
           </Stack>
           <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
             Nome, local e número do contrato são cópias de obras-v2 feitas na publicação; uma mudança em obras-v2 não chega
@@ -141,7 +144,7 @@ export default function ContratoResumoTab({ contrato, obra }: { contrato: Contra
           label="CNPJ/CPF do cliente"
           required
           {...campo('documento')}
-          disabled={salvando || temAtendimentos === true}
+          disabled={salvando || !podeEditar || temAtendimentos === true}
           onBlur={() => { if (documento) setForm((atual) => ({ ...atual, documento: formatarDocumento(documento) })); }}
           error={!documento}
           helperText={
@@ -158,12 +161,14 @@ export default function ContratoResumoTab({ contrato, obra }: { contrato: Contra
           <Typography variant="body2" color="text.secondary">
             Um contrato publicado não pode ser retirado do portal (as regras do Firestore não permitem excluir).
           </Typography>
-          <Stack direction="row" spacing={1} justifyContent="flex-end">
-            <Button onClick={() => { setForm(formularioDe(contrato)); setErro(null); }} disabled={salvando}>Descartar</Button>
-            <Button variant="contained" onClick={() => void salvar()} disabled={salvando || invalido || !pessoa}>
-              {salvando ? 'Salvando…' : 'Salvar'}
-            </Button>
-          </Stack>
+          {podeEditar && (
+            <Stack direction="row" spacing={1} justifyContent="flex-end">
+              <Button onClick={() => { setForm(formularioDe(contrato)); setErro(null); }} disabled={salvando}>Descartar</Button>
+              <Button variant="contained" onClick={() => void salvar()} disabled={salvando || invalido || !pessoa}>
+                {salvando ? 'Salvando…' : 'Salvar'}
+              </Button>
+            </Stack>
+          )}
         </Stack>
       </Stack>
       <Snackbar open={!!aviso} autoHideDuration={4000} onClose={() => setAviso(null)} message={aviso} />

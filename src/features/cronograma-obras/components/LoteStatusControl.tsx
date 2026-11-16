@@ -3,9 +3,13 @@ import { createPortal } from 'react-dom';
 import type { ObraCronograma } from '../domain/models';
 import { loteStatusColor, loteStatusFromLabel, LOTE_START_OPTIONS, LOTE_STATUS_OPTIONS, LoteStatusRequestError, type LoteStatus, type LoteStatusCode, updateLoteStatus } from '../../../services/loteStatusService';
 import { StatusBadge } from './StatusBadge';
+import { useAuth } from '../../../contexts/AuthContext';
+import { editaArea } from '../../../services/credenciais';
 
 /** Operational action; the parent section owns the canonical classification. */
 export function LoteStatusControl({ obra, canStart, canFinish = false, onStatusConfirmed }: { obra: ObraCronograma; canStart: boolean; canFinish?: boolean; onStatusConfirmed?: (contratoId: string, loteId: string, status: LoteStatus) => void }) {
+  // Área Engenharia em "ver": só o badge (a Function fridayCadastroGravar recusa do mesmo jeito).
+  const podeEditar = editaArea(useAuth().authorizationProfile, 'engenharia');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [updated, setUpdated] = useState(false);
@@ -19,6 +23,7 @@ export function LoteStatusControl({ obra, canStart, canFinish = false, onStatusC
 
   const action = canFinish ? "finish" : canStart ? "start" : null;
   const alreadyFinished = ['Finalizado'].includes(obra.status);
+  if (!podeEditar) return <StatusBadge status={obra.status} />;
   if (!realLote || !action || alreadyFinished) return <StatusBadge status={obra.status} />;
 
   const saveStatus = async (novoStatus: LoteStatusCode) => {

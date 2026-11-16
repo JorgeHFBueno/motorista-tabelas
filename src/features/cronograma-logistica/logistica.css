@@ -346,3 +346,8 @@ body.lg-redimensionando, body.lg-redimensionando * { cursor: col-resize !importa
 .lg-painel-conflitos .lg-conflitos li { padding: 4px 0; background: none; }
 .lg-painel-conflitos.is-ignorados { background: #f6f7fb; color: #676879; }
 .lg-painel-autoria { margin: 4px 0 0; color: #9699a6; font-size: 12px; }
+/* Área Logística em "ver": campos desligados sem mudar o desenho; o texto do item no lugar do campo. */
+.lg-so-ler { display: contents; border: 0; margin: 0; padding: 0; min-width: 0; }
+.lg-so-ler :disabled { cursor: default; }
+.lg-so-ler .lg-input:hover { border-color: transparent; }
+.lg-so-ler-texto { display: flex; align-items: center; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

@@ -100,6 +100,8 @@ function LinhaProgramacao({ programacao, cadastros, conflitos, todosConflitos, a
     arraste.arrastando && arraste.alvo === programacao.id ? 'is-alvo' : '',
   ].filter(Boolean).join(' ');
   const atualizar = acoes.atualizar.bind(null, programacao.id);
+  // Em "ver", os campos ficam desligados (fieldset disabled); links da nota e do local continuam abrindo.
+  const soLer = (conteudo: ReactNode) => (acoes.podeEditar ? conteudo : <fieldset disabled className="lg-so-ler">{conteudo}</fieldset>);
 
   const celula = (chave: ChaveColuna): ReactNode => {
     switch (chave) {
@@ -108,7 +110,7 @@ function LinhaProgramacao({ programacao, cadastros, conflitos, todosConflitos, a
       case 'item':
         return (
           <span className="lg-item">
-            {arraste.ligado && !vinda && (
+            {arraste.ligado && acoes.podeEditar && !vinda && (
               <span
                 className="lg-alca"
                 draggable
@@ -135,7 +137,9 @@ function LinhaProgramacao({ programacao, cadastros, conflitos, todosConflitos, a
                 S{Number(programacao.semanaId.slice(6))}
               </span>
             )}
-            <CampoTexto valor={programacao.item} obrigatorio maximo={200} onSalvar={(item) => atualizar({ item })} />
+            {acoes.podeEditar
+              ? <CampoTexto valor={programacao.item} obrigatorio maximo={200} onSalvar={(item) => atualizar({ item })} />
+              : <span className="lg-input lg-so-ler-texto" title={programacao.item}>{programacao.item}</span>}
             <button type="button" className="lg-abrir" onClick={() => acoes.abrir(programacao.id)} title="Abrir">
               <OpenInFullRounded fontSize="inherit" />
             </button>
@@ -189,12 +193,14 @@ function LinhaProgramacao({ programacao, cadastros, conflitos, todosConflitos, a
     >
       {colunas.map((coluna) => {
         const { className, style } = fixacao(coluna);
-        return <td key={coluna.chave} className={`lg-col-${coluna.chave} ${className}`} style={style}>{celula(coluna.chave)}</td>;
+        return <td key={coluna.chave} className={`lg-col-${coluna.chave} ${className}`} style={style}>{coluna.chave === 'item' ? celula('item') : soLer(celula(coluna.chave))}</td>;
       })}
       <td className="lg-col-acao">
-        <button type="button" className="lg-btn-icone" onClick={() => acoes.excluir(programacao)} title="Excluir" aria-label={`Excluir ${programacao.item}`}>
-          <DeleteOutlineRounded fontSize="small" />
-        </button>
+        {acoes.podeEditar && (
+          <button type="button" className="lg-btn-icone" onClick={() => acoes.excluir(programacao)} title="Excluir" aria-label={`Excluir ${programacao.item}`}>
+            <DeleteOutlineRounded fontSize="small" />
+          </button>
+        )}
       </td>
     </tr>
   );
@@ -316,7 +322,7 @@ export function GrupoSemana({ semanaId, tipo, programacoes, vindas = [], aberto,
               {linhas.map((programacao) => (
                 <LinhaProgramacao key={programacao.id} programacao={programacao} arraste={arraste} colunas={colunas} vinda={idsVindas.has(programacao.id)} {...comum} />
               ))}
-              <NovaProgramacao onCriar={(item) => comum.acoes.criar(semanaId, item)} arraste={arraste} colunas={colunas.length} />
+              {comum.acoes.podeEditar && <NovaProgramacao onCriar={(item) => comum.acoes.criar(semanaId, item)} arraste={arraste} colunas={colunas.length} />}
             </tbody>
           </table>
         </div>

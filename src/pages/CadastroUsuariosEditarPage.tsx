@@ -20,10 +20,13 @@ import {
 import AdminUserEditModal, { type AdminUserEditValues, type ModoEdicaoUsuario } from '../components/AdminUserEditModal';
 import AdminUsersEditTable from '../components/AdminUsersEditTable';
 import KioskCredenciaisDialog from '../components/kiosk/KioskCredenciaisDialog';
+import MigracaoAreas from '../components/MigracaoAreas';
 import ImportarFuncionariosFridayDialog from '../components/ImportarFuncionariosFridayDialog';
 import useAdminUsers from '../hooks/useAdminUsers';
 import { loginDoUsuario, nomeDoUsuario, type AdminUser } from '../services/adminUsersApi';
-import { CREDENCIAIS } from '../services/credenciais';
+import { CREDENCIAIS, editaArea } from '../services/credenciais';
+import { AREAS } from '../services/areasWeb';
+import { useAuth } from '../contexts/AuthContext';
 import { useTituloPagina } from '../components/cabecalhoPagina';
 import { getKioskCredentialStatus, type KioskCredentialStatus } from '../services/kioskCredentials';
 import { kioskFunctionErrorMessage, uniqueUidBatches } from '../services/kioskCredentialsUtils';
@@ -32,10 +35,12 @@ import { kioskCredentialEligibleUsers } from '../services/kioskCredentialEligibi
 type Aviso = { message: string; severity: 'success' | 'error' } | null;
 const erroDe = (e: unknown, padrao: string) => (e instanceof Error ? e.message : padrao);
 
-// Tela central de usuários (Cadastros: escritorio ou adm2; só o adm2 mexe em adm2 e retr0): todas as contas do login (menos as dos clientes do portal), credenciais, situação, senha nova e exclusão das
+// Tela central de usuários (área Cadastros: ver = lista; editar = o resto; só o adm2 mexe em adm2, retr0 e nas áreas da WEB): todas as contas do login (menos as dos clientes do portal), credenciais, situação, senha nova e exclusão das
 // contas sem funcionário, e o QR e o PIN do Kiosk de cada frentista (antes, a tela /cadastros/usuarios/kiosk). Contrato: The Manuscript, funcionarios.md ("Usuários na WEB").
 export default function CadastroUsuariosEditarPage() {
   useTituloPagina('Usuários');
+  const perfil = useAuth().authorizationProfile;
+  const podeEditar = editaArea(perfil, 'cadastros');
   // A save changes only that row (the server answers with the updated person): reloading the whole list meant the
   // adminApi listing every account again, with "carregando" in the table.
   const { users, loading, error, reload, updateUser, deleteUser, definirSenha } = useAdminUsers({ refreshOnChange: false });
@@ -89,7 +94,10 @@ export default function CadastroUsuariosEditarPage() {
     return users.filter((user) => {
       if (apenasAtivos && user.funcionario?.ativo !== true) return false;
       if (!term) return true;
-      const credenciais = CREDENCIAIS.filter((c) => user.funcionario?.credenciais[c.chave]).map((c) => c.rotulo).join(' ');
+      const credenciais = [
+        ...CREDENCIAIS.filter((c) => user.funcionario?.credenciais[c.chave]).map((c) => c.rotulo),
+        ...AREAS.filter((a) => user.funcionario?.areas?.[a.chave]).map((a) => a.rotulo),
+      ].join(' ');
       return [nomeDoUsuario(user), loginDoUsuario(user), user.email ?? '', credenciais].some((t) => t.toLowerCase().includes(term));
     });
   }, [search, apenasAtivos, users]);
@@ -99,9 +107,9 @@ export default function CadastroUsuariosEditarPage() {
     try {
       setSaving(true);
       setSubmitError(null);
-      await updateUser({ uid: editing.user.uid, ativo: values.ativo, credenciais: values.credenciais });
+      await updateUser({ uid: editing.user.uid, ativo: values.ativo, credenciais: values.credenciais, areas: values.areas });
       const nome = nomeDoUsuario(editing.user);
-      setSnackbar({ message: editing.modo === 'situacao' ? `${nome} ${values.ativo ? 'ativado' : 'desativado'}.` : editing.modo === 'credenciais' ? `Credenciais de ${nome} atualizadas.` : 'Usuário atualizado.', severity: 'success' });
+      setSnackbar({ message: editing.modo === 'situacao' ? `${nome} ${values.ativo ? 'ativado' : 'desativado'}.` : editing.modo === 'credenciais' ? `Acesso de ${nome} atualizado.` : 'Usuário atualizado.', severity: 'success' });
       setEditing(null);
     } catch (saveError) {
       setSubmitError(erroDe(saveError, 'Erro ao atualizar o usuário.'));
@@ -143,6 +151,7 @@ export default function CadastroUsuariosEditarPage() {
   return (
     <Container maxWidth="lg" sx={{ py: 3 }}>
       <Stack spacing={3}>
+        {perfil?.adm2 && <MigracaoAreas onExecutou={() => void reload()} />}
         <Paper elevation={1} sx={{ p: { xs: 2, sm: 3 } }}>
           <Stack spacing={2}>
             <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2} alignItems={{ sm: 'center' }}>
@@ -150,8 +159,8 @@ export default function CadastroUsuariosEditarPage() {
               <Stack direction="row" spacing={2} alignItems="center" justifyContent="space-between" sx={{ flexShrink: 0 }}>
                 <FormControlLabel sx={{ mr: 0 }} control={<Switch checked={apenasAtivos} onChange={(e) => setApenasAtivos(e.target.checked)} />} label="Apenas ativos" />
                 <Stack direction="row" spacing={1}>
-                  <Button variant="outlined" onClick={() => setImportando(true)} sx={{ whiteSpace: 'nowrap' }}>Importar</Button>
-                  <Button variant="contained" component={RouterLink} to="/cadastros/usuarios/novo" sx={{ whiteSpace: 'nowrap' }}>Novo usuário</Button>
+                  {podeEditar && <Button variant="outlined" onClick={() => setImportando(true)} sx={{ whiteSpace: 'nowrap' }}>Importar</Button>}
+                  {podeEditar && <Button variant="contained" component={RouterLink} to="/cadastros/usuarios/novo" sx={{ whiteSpace: 'nowrap' }}>Novo usuário</Button>}
                 </Stack>
               </Stack>
             </Stack>
@@ -166,6 +175,7 @@ export default function CadastroUsuariosEditarPage() {
             {!loading && !error && filteredUsers.length === 0 && <Alert severity="info">Nenhum usuário encontrado para o filtro.</Alert>}
 
             <AdminUsersEditTable
+              podeEditar={podeEditar}
               rows={filteredUsers}
               loading={loading}
               onEdit={abrirEdicao}

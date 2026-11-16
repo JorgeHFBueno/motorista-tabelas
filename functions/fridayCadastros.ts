@@ -3,7 +3,7 @@ import * as logger from 'firebase-functions/logger';
 import { FieldPath, FieldValue, Timestamp } from 'firebase-admin/firestore';
 import { db } from './firebaseAdmin.js';
 import { exigirAdm2 } from './fridayMondayImport.js';
-import { temCredencial, type Credencial } from './credenciais.js';
+import { editaArea, temCredencial, veArea } from './credenciais.js';
 import { dataLocal, novoId, quadroLiberado } from './fridayMondayConverter.js';
 import {
   cadastroExistente, caminhoDaMarca, campoComRotuloNovo, gravarCaminho, itemDoRegistro, lerCaminho, novoRegistro, valorDesativado, valorParaContrato, valorParaGravarExistente,
@@ -128,11 +128,14 @@ export const fridayCadastroPromover = onCall({ region: REGIAO, timeoutSeconds: 5
 });
 
 // ---------------------------------------------------------------- C2: gravação do quadro oficial
-/** Quem usa o Friday: credencial escritorio ou mecanico (ou adm2), como nas Rules `friday-*`; a gravação aceita também engenharia (CronoObra). */
-async function exigirFuncionarioAtivo(uid: string | undefined, ...aceitas: Credencial[]): Promise<string> {
+type Funcionario = Record<string, unknown> | undefined;
+const entraNoFriday = (f: Funcionario) => veArea(f, 'friday');
+
+/** Quem usa o Friday: área friday (ou adm2), como nas Rules `friday-*`; a gravação aceita também quem edita a Engenharia (CronoObra). */
+async function exigirFuncionarioAtivo(uid: string | undefined, pode: (f: Funcionario) => boolean = entraNoFriday): Promise<string> {
   if (!uid) throw new HttpsError('unauthenticated', 'Autenticação obrigatória.');
   const f = await db.collection('funcionarios').doc(uid).get();
-  if (!temCredencial(f.data(), ...(aceitas.length ? aceitas : ['escritorio', 'mecanico'] as const))) throw new HttpsError('permission-denied', 'Acesso não autorizado.');
+  if (!pode(f.data())) throw new HttpsError('permission-denied', 'Acesso não autorizado.');
   return uid;
 }
 
@@ -434,7 +437,7 @@ async function alvoPeloRegistro(registro: unknown, campoChave: unknown, texto: u
  * Sem `itemId`, o valor pode vir pelo registro oficial (`registro`, `campo`, `texto`; só `op: 'valor'`).
  */
 export const fridayCadastroGravar = onCall({ region: REGIAO, timeoutSeconds: 60, memory: '512MiB' }, async (request) => {
-  const uid = await exigirFuncionarioAtivo(request.auth?.uid, 'escritorio', 'mecanico', 'engenharia');
+  const uid = await exigirFuncionarioAtivo(request.auth?.uid, (f) => entraNoFriday(f) || editaArea(f, 'engenharia'));
   const d = (request.data ?? {}) as { itemId?: unknown; op?: unknown; colunaId?: unknown; valor?: unknown; registro?: unknown; campo?: unknown; texto?: unknown };
   const op = String(d.op ?? '') as Operacao;
   if (!OPERACOES.includes(op)) throw new HttpsError('invalid-argument', 'Operação inválida.');

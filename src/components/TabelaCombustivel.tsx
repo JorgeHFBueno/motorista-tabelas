@@ -9,7 +9,7 @@ import { useNavigate } from 'react-router-dom';
 import type { Registro } from '../types';
 import useCombustivel from '../hooks/useCombustivel';
 import { useAuth } from '../contexts/AuthContext';
-import { temCredencial } from '../services/credenciais';
+import { editaArea } from '../services/credenciais';
 import * as XLSX from 'xlsx';
 import useOnlineStatus from '../hooks/useOnlineStatus';
 import { formatarHorimetroX10, formatarKm, formatarLitrosX10 } from '../utils/formatters';
@@ -73,7 +73,7 @@ export default function TabelaCombustivel() {
   const { data: rows, loading, remove } = useCombustivel();
   const principalGridApiRef = useGridApiRef();
   const navigate = useNavigate();
-  const isAdmin = temCredencial(useAuth().authorizationProfile, 'logistica', 'mecanico');
+  const isAdmin = editaArea(useAuth().authorizationProfile, 'combustivel');
   const { isOnline } = useOnlineStatus();
 
   const [view, setView] = useState<View>('principal');
@@ -552,9 +552,11 @@ export default function TabelaCombustivel() {
         </Alert>
       )}
       <Stack direction="row" spacing={2} mt={2}>
-        <Button variant="contained" onClick={() => navigate('/combustivel/registros/novo')} sx={{ mb: 1 }}>
-          Novo
-        </Button>
+        {isAdmin && (
+          <Button variant="contained" onClick={() => navigate('/combustivel/registros/novo')} sx={{ mb: 1 }}>
+            Novo
+          </Button>
+        )}
         <Button
           variant={view === 'principal' ? 'contained' : 'outlined'}
           onClick={() => setView('principal')}

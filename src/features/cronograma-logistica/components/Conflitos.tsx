@@ -20,9 +20,11 @@ export function ListaConflitos({ itens, acoes, mostrarLinha = true }: { itens: r
             <span>{conflito.tipo === 'feriado' ? textoConflito(conflito) : <>{conflito.nome} também em "{comCodigo(conflito.outroCod, conflito.outroItem)}" ({ddmm(conflito.primeiroDia)})</>}</span>
             {conflito.ignorado && <small>Ignorado</small>}
           </div>
-          <button type="button" className="lg-conflitos-acao" onClick={() => acoes.ignorarConflito(programacao, conflito, !conflito.ignorado)}>
-            {conflito.ignorado ? 'Voltar a avisar' : 'Ignorar'}
-          </button>
+          {acoes.podeEditar && (
+            <button type="button" className="lg-conflitos-acao" onClick={() => acoes.ignorarConflito(programacao, conflito, !conflito.ignorado)}>
+              {conflito.ignorado ? 'Voltar a avisar' : 'Ignorar'}
+            </button>
+          )}
         </li>
       ))}
     </ul>

@@ -5,7 +5,7 @@ import WarningAmberRoundedIcon from '@mui/icons-material/WarningAmberRounded';
 import { type CSSProperties, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
-import { temCredencial } from '../services/credenciais';
+import { editaArea, temCredencial } from '../services/credenciais';
 import { manuscriptGetSystemGraph, type ManuscriptChatProgress, type ManuscriptSystemGraphResponse, type ManuscriptSystemNode } from '../services/manuscript';
 import SystemGraphCanvas, { type GraphSearchHighlight } from '../features/the-manuscript/SystemGraphCanvas';
 import { ENTITY_COLORS, domainColor, nodeColor } from '../features/the-manuscript/systemGraphColors';
@@ -60,7 +60,7 @@ function Details({ graph, node, onSelect, onClose }: { graph: ManuscriptSystemGr
 export default function ManuscriptMapaPage() {
   const navigate = useNavigate();
   const { authorizationProfile } = useAuth();
-  const chatEnabled = temCredencial(authorizationProfile, 'retr0', 'autor');
+  const chatEnabled = temCredencial(authorizationProfile, 'retr0') || editaArea(authorizationProfile, 'manuscript');
   const [params, setParams] = useSearchParams();
   const [graph, setGraph] = useState<ManuscriptSystemGraphResponse | null>(null);
   const [error, setError] = useState('');
