@@ -5,6 +5,8 @@ import LockOutlinedIcon from '@mui/icons-material/LockOutlined';
 import { useAuth } from '../contexts/AuthContext';
 import usePerfil from '../hooks/usePerfil';
 import ReautenticarDialog from '../components/ReautenticarDialog';
+import GoogleAgendaCartao from '../components/GoogleAgendaCartao';
+import { veArea } from '../services/credenciais';
 import { getFuncionarioData } from '../services/authorizationProfile';
 import { camposExtrasFuncionario, iniciais, perfisMarcados } from '../services/funcionarios';
 import { descreverLogin, formatarCelular, isValidEmailIdentifier, normalizePhoneIdentifier, PHONE_LOGIN_DOMAIN, type TipoLogin } from '../services/loginIdentifier';
@@ -43,7 +45,7 @@ function textoLogin(email: unknown) {
 const gradeCamposSx = { display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' }, gap: 2.5 };
 
 export default function MeuPerfilPage() {
-  const { currentUser, signOut, refreshAuthorizationProfile } = useAuth();
+  const { currentUser, signOut, refreshAuthorizationProfile, authorizationProfile } = useAuth();
   const navigate = useNavigate();
   const { updatePassword, reauthenticate } = usePerfil();
   const loginAtual = descreverLogin(currentUser?.email);
@@ -216,6 +218,8 @@ export default function MeuPerfilPage() {
             </Stack>
           )}
         </Paper>
+
+        {veArea(authorizationProfile, 'friday') && <GoogleAgendaCartao />}
 
         <Paper variant="outlined" sx={{ p: { xs: 2, sm: 3 } }}>
           <Typography variant="h6" gutterBottom>Acesso</Typography>

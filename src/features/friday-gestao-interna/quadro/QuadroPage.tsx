@@ -7,6 +7,7 @@ import {
 import { duplicarQuadro, excluir, mudarEstado, type Pessoa, type Row } from '../api.ts';
 import { useAuth } from '../../../contexts/AuthContext';
 import { DesfazerOficial, GrupoOficialDialogo, TornarOficial } from './TornarOficial.tsx';
+import { AgendaQuadro } from './AgendaQuadro.tsx';
 import { NomeModal } from '../layout/Lateral.tsx';
 import { Permissoes } from '../layout/Permissoes.tsx';
 import { useNav } from '../nav.tsx';
@@ -598,6 +599,7 @@ function MenuQuadro({ quadro, acoes, confirmar, temOcultas, onMostrarOcultas, on
   const pop = usePopover<HTMLButtonElement>();
   const [nomeItem, setNomeItem] = useState(false);
   const [permissoes, setPermissoes] = useState(false);
+  const [agenda, setAgenda] = useState(false);
   const [oficializar, setOficializar] = useState<'quadro' | 'subitens' | 'desfazer' | 'grupo' | 'grupo_descontinuar' | null>(null);
   const existente = quadro.oficial?.modo === 'existente';
   const adm2 = useAuth().authorizationProfile?.adm2 === true;
@@ -621,6 +623,7 @@ function MenuQuadro({ quadro, acoes, confirmar, temOcultas, onMostrarOcultas, on
     { rotulo: 'Duplicar quadro (só estrutura)', icone: <Copy size={15} />, onClick: async () => { const n = await duplicarQuadro(quadro.id, {}); await nav.recarregar(); navigate(`/friday/quadros/${n.id}`); } },
     { rotulo: 'Duplicar quadro com itens', icone: <Copy size={15} />, onClick: async () => { const n = await duplicarQuadro(quadro.id, { com_itens: true }); await nav.recarregar(); navigate(`/friday/quadros/${n.id}`); } },
     { rotulo: `Nome dos itens: “${quadro.nome_item ?? 'Item'}”`, icone: <Pencil size={15} />, onClick: () => setNomeItem(true) },
+    { rotulo: quadro.config?.agenda ? 'Google Agenda (ligada)' : 'Google Agenda', icone: <CalendarDays size={15} />, onClick: () => setAgenda(true) },
     ...(temOcultas ? [{ rotulo: 'Mostrar colunas ocultas', icone: <EyeOff size={15} />, onClick: onMostrarOcultas }] : []),
     { rotulo: 'Arquivo e lixeira deste quadro', icone: <ArchiveRestore size={15} />, onClick: () => navigate(`/friday/arquivo?quadro=${quadro.id}`) },
     'separador',
@@ -631,6 +634,8 @@ function MenuQuadro({ quadro, acoes, confirmar, temOcultas, onMostrarOcultas, on
     <>
       <button ref={pop.ref} className="btn-icone" aria-label="Menu do quadro" onClick={pop.alternar}><MoreHorizontal size={18} /></button>
       {pop.aberto && <Popover ancora={pop.ref.current} onClose={pop.fechar} alinhar="fim" largura={280}><Menu onEscolher={pop.fechar} itens={itens} /></Popover>}
+      {agenda && <AgendaQuadro config={quadro.config} colunas={acoes.dados?.colunas ?? []} onFechar={() => setAgenda(false)}
+        onSalvar={a => { const config = { ...(quadro.config ?? {}), agenda: a }; if (!a) delete config.agenda; acoes.atualizarQuadro({ config }); }} />}
       {permissoes && <Permissoes id={Number(quadro.id)} nome={String(quadro.nome)} onFechar={() => { setPermissoes(false); acoes.recarregar(); }} />}
       {oficializar === 'quadro' && <TornarOficial quadro={quadro} colunas={acoes.dados?.colunas ?? []} onFechar={() => setOficializar(null)} onPronto={() => { setOficializar(null); acoes.recarregar(); }} />}
       {oficializar === 'subitens' && acoes.dados?.sub && <TornarOficial quadro={quadro} colunas={acoes.dados.sub.colunas}
