@@ -1,7 +1,11 @@
 /*
- * Identidade visual do CronoObra (tema "mki", 2026-11-16): a do Cronograma Logístico (cronograma-logistica/logistica.css),
- * aprovada em /testes/mki. Sob .co-tema-mki, na página e no <body> (os painéis abrem fora da página).
+ * /testes/mki: o CronoObra com a identidade visual do Cronograma Logístico (cronograma-logistica/logistica.css).
+ * Tudo sob .co-tema-mki (na página e no <body>, para os painéis), sem mexer no visual de produção.
  */
+
+/* aviso de dados fictícios */
+.mki-aviso { align-items: center; background: #fff6e0; border-bottom: 1px solid #f1d58a; color: #6b5212; display: flex; flex-wrap: wrap; font-size: 13px; gap: 6px 10px; padding: 8px 28px; }
+.mki-aviso strong { font-weight: 700; }
 
 /* tokens e página */
 .co-tema-mki {
