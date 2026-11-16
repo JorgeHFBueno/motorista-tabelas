@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Link as RouterLink, useNavigate } from 'react-router-dom';
 import { getAuth, sendPasswordResetEmail } from 'firebase/auth';
 import { app } from '../firebase';
 import { useAuth } from '../contexts/AuthContext';
@@ -7,6 +7,7 @@ import {
   Alert,
   Box,
   Button,
+  Link,
   Paper,
   Stack,
   TextField,
@@ -116,6 +117,7 @@ export default function LoginPage() {
           <Button type="button" variant="text" size="small" onClick={() => void enviarLinkDeSenha()} disabled={enviandoLink}>
             {enviandoLink ? 'Enviando...' : 'Primeiro acesso ou esqueci minha senha'}
           </Button>
+          <Link component={RouterLink} to="/privacidade" variant="caption" color="text.secondary" align="center">Política de privacidade</Link>
         </Stack>
       </Paper>
     </Box>

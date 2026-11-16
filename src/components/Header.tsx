@@ -14,7 +14,7 @@ import { rotaAnterior, useCabecalhoPagina } from './cabecalhoPagina';
 // Header in the client portal's model: menu button, back button, page title and subtitle, notices and the signed-in user.
 // Back goes up the URL to the nearest page, until the Home (rotaAnterior); the pages have no back buttons of their own.
 // Pages without the side menu: the Home is the menu itself; the others are for whoever has not signed in yet.
-const SEM_MENU_LATERAL = ['/', '/login', '/acesso-negado'];
+const SEM_MENU_LATERAL = ['/', '/login', '/acesso-negado', '/privacidade'];
 
 const botaoClaroSx = {
   color: '#fff',
