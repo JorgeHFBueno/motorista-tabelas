@@ -1,6 +1,6 @@
 import { Bell, Loader2 } from "lucide-react";
-import { useMemo } from "react";
-import { useNavigate } from "react-router-dom";
+import { useEffect, useMemo, useState } from "react";
+import { useLocation, useNavigate } from "react-router-dom";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -11,6 +11,8 @@ import {
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
 import { useNotifications } from "@/hooks/useNotifications";
+import { useAuth } from "@/contexts/AuthContext";
+import { estadoPush, ligarPush, registrarAparelho, type EstadoPush } from "@/services/notifications/push.service";
 
 interface NotificationBellProps {
   className?: string;
@@ -35,6 +37,10 @@ const formatNotificationDate = (value?: { toDate?: () => Date; seconds?: number 
 
 const NotificationBell = ({ className }: NotificationBellProps) => {
   const navigate = useNavigate();
+  const local = useLocation();
+  const { user } = useAuth();
+  const uid = user?.uid;
+  const [push, setPush] = useState<EstadoPush | null>(null);
   const {
     notifications,
     unreadCount,
@@ -43,6 +49,33 @@ const NotificationBell = ({ className }: NotificationBellProps) => {
     markAsRead,
     markAllAsRead,
   } = useNotifications(20);
+
+  // Push: o estado deste navegador; ligado, renova o aparelho (o token do navegador pode mudar).
+  useEffect(() => {
+    if (!uid) return;
+    let vivo = true;
+    estadoPush().then((estado) => {
+      if (!vivo) return;
+      setPush(estado);
+      if (estado === "ligado") registrarAparelho(uid).catch((e) => console.warn("[avisos] aparelho não registrado", e));
+    }, (e) => console.warn("[avisos] push indisponível", e));
+    return () => { vivo = false; };
+  }, [uid]);
+
+  // Veio de uma notificação do sistema: marca o aviso como lido e tira o ?aviso= do endereço.
+  useEffect(() => {
+    const params = new URLSearchParams(local.search);
+    const id = params.get("aviso");
+    if (!id || !uid) return;
+    void markAsRead(id);
+    params.delete("aviso");
+    const resto = params.toString();
+    navigate({ pathname: local.pathname, search: resto ? `?${resto}` : "", hash: local.hash }, { replace: true });
+  }, [local.search, local.pathname, local.hash, uid, navigate, markAsRead]);
+
+  const ligar = () => {
+    if (uid) ligarPush(uid).then(setPush, (e) => { console.warn("[avisos] push não ligado", e); setPush("desligado"); });
+  };
 
   const badgeText = useMemo(() => {
     if (unreadCount <= 0) return null;
@@ -94,6 +127,17 @@ const NotificationBell = ({ className }: NotificationBellProps) => {
             {isMarkingAll ? "Marcando..." : "Marcar todas"}
           </Button>
         </div>
+
+        {(push === "desligado" || push === "bloqueado") && (
+          <div className="mx-3 mt-3 flex items-center gap-2 rounded-md bg-muted/60 p-2 text-xs">
+            <span className="flex-1">
+              {push === "desligado"
+                ? "Receba as notificações neste aparelho, mesmo com o portal fechado."
+                : "As notificações estão bloqueadas neste navegador. Para receber, libere em Notificações, no cadeado ao lado do endereço."}
+            </span>
+            {push === "desligado" && <Button size="sm" onClick={ligar}>Ativar</Button>}
+          </div>
+        )}
 
         <ScrollArea className="max-h-[360px]">
           {isLoading ? (

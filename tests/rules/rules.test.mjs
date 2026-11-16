@@ -1222,6 +1222,24 @@ test('[firestore] deleted friday-notificacoes is closed to everyone', async () =
   await assertFails(getDocs(collection(dbAs('escritorio'), 'friday-notificacoes')));
   await assertFails(setDoc(doc(dbAs('escritorio'), 'friday-notificacoes', '900'), { usuario_uid: 'uid-escritorio-fora', de_usuario_id: 'uid-escritorio', tipo: 'mencao', lida: 0, texto: 'x' }));
 });
+test('[firestore] avisos/dispositivos: only the owner registers, reads and removes its devices', async () => {
+  const dono = dbAs('escritorio'), outro = dbAs('escritorioFora');
+  const aparelho = (extra = {}) => ({ token: 'tok-1', app: 'interno', navegador: 'Chrome no Windows', atualizadoEm: serverTimestamp(), ...extra });
+  const em = (db, id = 'd1', uid = 'uid-escritorio') => doc(db, 'avisos', uid, 'dispositivos', id);
+  await assertSucceeds(setDoc(em(dono), aparelho()));
+  await assertSucceeds(setDoc(em(dono), aparelho({ token: 'tok-2' })));
+  await assertSucceeds(getDoc(em(dono)));
+  await assertSucceeds(getDocs(collection(dono, 'avisos', 'uid-escritorio', 'dispositivos')));
+  await assertFails(setDoc(em(outro), aparelho()));
+  await assertFails(getDoc(em(outro)));
+  await assertFails(getDocs(collection(outro, 'avisos', 'uid-escritorio', 'dispositivos')));
+  await assertFails(deleteDoc(em(outro)));
+  await assertFails(setDoc(em(dono, 'd2'), aparelho({ token: '' })));
+  await assertFails(setDoc(em(dono, 'd2'), aparelho({ app: 'outro' })));
+  await assertFails(setDoc(em(dono, 'd2'), aparelho({ extra: true })));
+  await assertFails(setDoc(em(dono, 'd2'), aparelho({ atualizadoEm: Timestamp.fromDate(new Date('2026-01-01T00:00:00Z')) })));
+  await assertSucceeds(deleteDoc(em(dono)));
+});
 test('[firestore] avisos: a Friday mention is created only in the author name, unread, for someone else, to a Friday route', async () => {
   const autor = dbAs('escritorio'), destino = dbAs('escritorioFora');
   const aviso = (extra = {}) => ({

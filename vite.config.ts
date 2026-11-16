@@ -22,6 +22,8 @@ export default defineConfig({
         globIgnores: ['**/react-plotly-*.js'],
         navigateFallback: '/index.html',
         maximumFileSizeToCacheInBytes: 10 * 1024 * 1024,
+        // Push dos avisos do sistema (notificação do Windows/Android): public/push-sw.js.
+        importScripts: ['push-sw.js'],
       },
       devOptions: {
         enabled: false,

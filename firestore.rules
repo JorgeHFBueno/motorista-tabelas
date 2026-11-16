@@ -446,6 +446,22 @@ service cloud.firestore {
       allow delete: if false;
     }
 
+    // Devices that receive the notices as system notifications (push, Function avisosPush): one per browser, written
+    // by its owner when push is turned on. Only the owner reads, writes and deletes them; the Function drops dead ones.
+    match /avisos/{uid}/dispositivos/{dispositivoId} {
+      allow read, delete: if signedIn() && request.auth.uid == uid;
+      allow create, update: if signedIn()
+        && request.auth.uid == uid
+        && request.resource.data.keys().hasOnly(['token', 'app', 'navegador', 'atualizadoEm'])
+        && request.resource.data.token is string
+        && request.resource.data.token.size() > 0
+        && request.resource.data.token.size() <= 4096
+        && request.resource.data.app in ['interno', 'portal']
+        && request.resource.data.navegador is string
+        && request.resource.data.navegador.size() <= 300
+        && request.resource.data.atualizadoEm == request.time;
+    }
+
     // Contract shown in the portal: same ID as obras-v2. Written only by the team; nobody deletes.
     function validPortalObra(obraId) {
       let data = request.resource.data;

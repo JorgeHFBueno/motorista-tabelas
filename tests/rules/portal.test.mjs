@@ -163,6 +163,12 @@ test('[firestore] deleted users/notificacoes is closed, also to its owner', asyn
   await assertFails(getDocs(collection(dbAs('cliente'), 'users', identities.cliente, 'notificacoes')));
 });
 
+test('[firestore] portal client registers its own push device (app portal)', async () => {
+  const ref_ = doc(dbAs('cliente'), 'avisos', identities.cliente, 'dispositivos', 'd1');
+  await assertSucceeds(setDoc(ref_, { token: 'tok-c', app: 'portal', navegador: 'Safari', atualizadoEm: serverTimestamp() }));
+  await assertFails(getDoc(doc(dbAs('socio'), 'avisos', identities.cliente, 'dispositivos', 'd1')));
+});
+
 test('[firestore] portal notices in avisos: the client reads its own and only marks them as read; nobody creates or deletes', async () => {
   const db = dbAs('cliente');
   const ref_ = doc(db, 'avisos', identities.cliente, 'itens', 'a1');

@@ -1,14 +1,16 @@
 import { useEffect, useState } from 'react';
-import { Avatar, Box, ButtonBase, FormControlLabel, IconButton, InputAdornment, Menu, MenuItem, Popover, Switch, TextField, Tooltip, Typography } from '@mui/material';
+import { Avatar, Box, Button, ButtonBase, FormControlLabel, IconButton, InputAdornment, Menu, MenuItem, Popover, Switch, TextField, Tooltip, Typography } from '@mui/material';
 import { AtSign, Bell, Building2, CheckCheck, LayoutGrid, MoreHorizontal, Search, X } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { marcarAvisoComoLido, marcarTodosComoLidos, observarAvisos } from '../services/avisos';
 import { agruparAvisos, filtrarAvisos, tempoRelativo, type Aviso } from '../services/avisosCore';
+import { estadoPush, ligarPush, registrarAparelho, type EstadoPush } from '../services/push';
 
 // Sino do sistema, no cabeçalho de todas as telas: os avisos da pessoa (avisos/{uid}/itens), de qualquer área, em tempo
 // real. O painel segue o do monday: busca, "Só não lidos", grupos por período e, em cada cartão, o tempo e a bolinha de
-// não lido à direita. Clicar marca como lido e abre a tela do aviso (rota).
+// não lido à direita. Clicar marca como lido e abre a tela do aviso (rota). Com o push ligado neste navegador, o aviso
+// também vira notificação do sistema operacional; o clique nela abre a rota com ?aviso=<id>, que aqui marca como lido.
 
 const CORES = ['#579bfc', '#00c875', '#fdab3d', '#e2445c', '#a25ddc', '#037f4c', '#ff642e', '#0086c0'];
 const corDe = (nome: string) => CORES[[...nome].reduce((s, c) => (s * 31 + c.charCodeAt(0)) >>> 0, 7) % CORES.length];
@@ -20,6 +22,8 @@ export default function BotaoAvisos({ botaoSx }: Props) {
   const { currentUser } = useAuth();
   const uid = currentUser?.uid;
   const navigate = useNavigate();
+  const local = useLocation();
+  const [push, setPush] = useState<EstadoPush | null>(null);
   const [lista, setLista] = useState<Aviso[]>([]);
   const [ancora, setAncora] = useState<HTMLElement | null>(null);
   const [ancoraMais, setAncoraMais] = useState<HTMLElement | null>(null);
@@ -30,6 +34,33 @@ export default function BotaoAvisos({ botaoSx }: Props) {
     if (!uid) { setLista([]); return undefined; }
     return observarAvisos(uid, setLista);
   }, [uid]);
+
+  // Push: o estado deste navegador; ligado, renova o aparelho (o token do navegador pode mudar).
+  useEffect(() => {
+    if (!uid) return;
+    let vivo = true;
+    estadoPush().then((estado) => {
+      if (!vivo) return;
+      setPush(estado);
+      if (estado === 'ligado') registrarAparelho(uid).catch(e => console.warn('[avisos] aparelho não registrado', e));
+    });
+    return () => { vivo = false; };
+  }, [uid]);
+
+  // Veio de uma notificação do sistema: marca o aviso como lido e tira o ?aviso= do endereço.
+  useEffect(() => {
+    const params = new URLSearchParams(local.search);
+    const id = params.get('aviso');
+    if (!id || !uid) return;
+    marcarAvisoComoLido(uid, id).catch(e => console.warn('[avisos] não marcado como lido', e));
+    params.delete('aviso');
+    const resto = params.toString();
+    navigate({ pathname: local.pathname, search: resto ? `?${resto}` : '', hash: local.hash }, { replace: true });
+  }, [local.search, local.pathname, local.hash, uid, navigate]);
+
+  const ligar = () => {
+    if (uid) ligarPush(uid).then(setPush, e => { console.warn('[avisos] push não ligado', e); setPush('desligado'); });
+  };
 
   const naoLidas = lista.filter(n => !n.lida).length;
   const fechar = () => { setAncoraMais(null); setAncora(null); };
@@ -81,6 +112,16 @@ export default function BotaoAvisos({ botaoSx }: Props) {
             <MenuItem onClick={marcarTodos} sx={{ gap: 1, fontSize: 14 }}><CheckCheck size={15} />Marcar todos como lidos</MenuItem>
           </Menu>
         </Box>
+        {(push === 'desligado' || push === 'bloqueado') && (
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mx: 2.25, mt: 0.5, px: 1.5, py: 1, borderRadius: 2, bgcolor: '#f0f6ff', fontSize: 13 }}>
+            <Box component="span" sx={{ flex: 1 }}>
+              {push === 'desligado'
+                ? 'Receba os avisos como notificação neste computador, mesmo com o sistema fechado.'
+                : 'As notificações estão bloqueadas neste navegador. Para receber, libere em Notificações, no cadeado ao lado do endereço.'}
+            </Box>
+            {push === 'desligado' && <Button size="small" variant="contained" onClick={ligar} sx={{ flex: 'none' }}>Ativar</Button>}
+          </Box>
+        )}
         <Box sx={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '10px 12px', px: 2.25, pt: 1, pb: 1.5, borderBottom: 1, borderColor: 'divider' }}>
           <TextField
             size="small" placeholder="Buscar por pessoa, título ou local" value={busca} onChange={e => setBusca(e.target.value)}
