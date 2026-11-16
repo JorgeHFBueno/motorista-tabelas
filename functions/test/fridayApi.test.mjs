@@ -4,7 +4,9 @@ import assert from 'node:assert/strict';
 const d = await import('../lib/fridayApiDominio.js');
 
 // API de leitura do Friday por chave. Só dados fictícios.
-const funcionario = (perfis, ativo = true) => ({ ativo, perfis });
+// Áreas da WEB (2026-11-16): entra no Friday quem tem a área friday (ou adm2).
+const funcionario = (perfis, ativo = true, areas = {}) => ({ ativo, perfis, areas });
+const friday = { friday: 'editar' };
 
 test('chave: formato fri_ + 40 letras/números; o banco guarda só o SHA-256', () => {
   const chave = `fri_${'aB3'.repeat(13)}x`;
@@ -16,16 +18,17 @@ test('chave: formato fri_ + 40 letras/números; o banco guarda só o SHA-256', (
   assert.notEqual(d.hashChave(chave), chave);
 });
 
-test('a chave vale pela pessoa: ativa, com escritorio ou adm2, e chave não revogada', () => {
+test('a chave vale pela pessoa: ativa, com a área friday ou adm2, e chave não revogada', () => {
   const reg = { uid: 'uid-ana', nome: 'Robô' };
-  assert.deepEqual(d.pessoaDaChave(reg, funcionario({ escritorio: true })), { uid: 'uid-ana', adm2: false, escrita: false });
+  assert.deepEqual(d.pessoaDaChave(reg, funcionario({}, true, friday)), { uid: 'uid-ana', adm2: false, escrita: false });
   assert.deepEqual(d.pessoaDaChave(reg, funcionario({ adm2: true })), { uid: 'uid-ana', adm2: true, escrita: false });
-  assert.deepEqual(d.pessoaDaChave(reg, funcionario({ mecanico: true })), { uid: 'uid-ana', adm2: false, escrita: false });
+  assert.deepEqual(d.pessoaDaChave(reg, funcionario({ mecanico: true }, true, friday)), { uid: 'uid-ana', adm2: false, escrita: false });
   assert.deepEqual(d.pessoaDaChave(reg, { ativo: true, perfis: {}, areas: { friday: 'editar' } }), { uid: 'uid-ana', adm2: false, escrita: false }, 'área friday');
   assert.equal(d.pessoaDaChave(reg, { ativo: true, perfis: { escritorio: true }, areas: { portal: 'editar' } }), null, 'migrado sem a área friday');
-  assert.equal(d.pessoaDaChave({ ...reg, revogada_em: '2026-11-10 10:00:00' }, funcionario({ escritorio: true })), null, 'revogada');
-  assert.equal(d.pessoaDaChave(reg, funcionario({ escritorio: true }, false)), null, 'desligada');
+  assert.equal(d.pessoaDaChave({ ...reg, revogada_em: '2026-11-10 10:00:00' }, funcionario({}, true, friday)), null, 'revogada');
+  assert.equal(d.pessoaDaChave(reg, funcionario({}, false, friday)), null, 'desligada');
   assert.equal(d.pessoaDaChave(reg, funcionario({ motorista: true })), null, 'sem acesso ao Friday');
+  assert.equal(d.pessoaDaChave(reg, { ativo: true, perfis: { escritorio: true, mecanico: true } }), null, 'credencial antiga sem áreas');
   assert.equal(d.pessoaDaChave(undefined, funcionario({ adm2: true })), null, 'chave inexistente');
 });
 
@@ -67,8 +70,8 @@ test('busca: cada palavra começa uma palavra do nome, sem acento', () => {
 });
 
 test('escrita: só a chave criada com escrita; coluna pelo título ou id', () => {
-  assert.equal(d.pessoaDaChave({ uid: 'u', escrita: true }, funcionario({ escritorio: true })).escrita, true);
-  assert.equal(d.pessoaDaChave({ uid: 'u' }, funcionario({ escritorio: true })).escrita, false, 'chave antiga = só consulta');
+  assert.equal(d.pessoaDaChave({ uid: 'u', escrita: true }, funcionario({}, true, friday)).escrita, true);
+  assert.equal(d.pessoaDaChave({ uid: 'u' }, funcionario({}, true, friday)).escrita, false, 'chave antiga = só consulta');
   const cols = [{ id: 1, titulo: 'Situação' }, { id: 2, titulo: 'Nº Contrato' }, { id: 3, titulo: 'Obs' }, { id: 4, titulo: 'Obs' }];
   assert.equal(d.colunaDoPedido(cols, 'situacao').id, 1);
   assert.equal(d.colunaDoPedido(cols, 2).id, 2);
@@ -126,12 +129,12 @@ test('arquivos pela API: nome do envio, coluna de arquivos recusada no /valor, f
 
 test('aviso de menção pela API: cada marcado uma vez, nunca o autor, só quem entra no Friday', () => {
   const funcionarios = new Map([
-    ['ana', funcionario({ escritorio: true })],
-    ['beto', funcionario({ mecanico: true })],
+    ['ana', funcionario({}, true, friday)],
+    ['beto', funcionario({ mecanico: true }, true, friday)],
     ['chefe', funcionario({ adm2: true })],
-    ['inativo', funcionario({ escritorio: true }, false)],
+    ['inativo', funcionario({}, false, friday)],
     ['motorista', funcionario({ motorista: true })],
-    ['autor', funcionario({ escritorio: true })],
+    ['autor', funcionario({}, true, friday)],
   ]);
   assert.deepEqual(d.destinatariosDaMencao(['ana', 'beto', 'ana', 'chefe', 'inativo', 'motorista', 'autor', 'sumido', ''], 'autor', funcionarios), ['ana', 'beto', 'chefe']);
   assert.deepEqual(d.destinatariosDaMencao([], 'autor', funcionarios), []);

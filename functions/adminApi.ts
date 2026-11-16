@@ -7,7 +7,7 @@ import { adminAuth, db } from './firebaseAdmin.js';
 import { exigirArea, AdminRequest } from './adminAuth.js';
 import { areaDaRota } from './adminAuthorization.js';
 import {
-  CREDENCIAIS, credenciaisDe, lerAreas, lerCredenciais, limparCredenciaisAntigas, mesclarCredenciais, migrarAreas,
+  CREDENCIAIS, credenciaisDe, lerAreas, lerCredenciais, mesclarCredenciais,
   mudaCredencialProibida, semCredenciais, temCredencialSoAdm2, type Areas, type Credenciais,
 } from './credenciais.js';
 import { lerNovoCliente } from './portalClientes.js';
@@ -326,43 +326,6 @@ adminApp.post('/api/admin/clientes/:uid/senha', async (req: AdminRequest, res) =
   } catch (err: any) {
     console.error('Failed to set client password', err);
     res.status(err?.code === 'auth/user-not-found' ? 404 : 400).json({ error: err?.code ?? 'set_password_failed' });
-  }
-});
-
-// POST /api/admin/manutencao/credenciais - data migration of the WEB areas (owner's decision, 2026-11-16), adm2 only.
-// { etapa: 'areas' } writes `areas` from the old credentials on documents without it (perfis untouched);
-// { etapa: 'limpar' } removes the old WEB credentials from perfis, only after every active person has `areas`.
-// { executar: false } only counts (simulation); { executar: true } writes, in batches of 400.
-adminApp.post('/api/admin/manutencao/credenciais', async (req: AdminRequest, res) => {
-  const etapa = req.body?.etapa;
-  const executar = req.body?.executar === true;
-  if (etapa !== 'areas' && etapa !== 'limpar') { res.status(400).json({ error: 'invalid_etapa' }); return; }
-  try {
-    const snap = await employeesCollection.get();
-    if (etapa === 'limpar' && snap.docs.some((d) => d.get('ativo') === true && d.get('areas') === undefined)) {
-      res.status(409).json({ error: 'areas_pendentes' });
-      return;
-    }
-    const mudancas = snap.docs.flatMap((d): { ref: typeof d.ref; dados: Record<string, unknown> }[] => {
-      if (etapa === 'areas') {
-        const m = migrarAreas(d.data());
-        return m.mudou ? [{ ref: d.ref, dados: { areas: m.areas } }] : [];
-      }
-      const m = limparCredenciaisAntigas(d.get('perfis'));
-      return m.mudou ? [{ ref: d.ref, dados: { perfis: m.perfis } }] : [];
-    });
-    if (executar) {
-      for (let k = 0; k < mudancas.length; k += 400) {
-        const lote = db.batch();
-        for (const m of mudancas.slice(k, k + 400)) lote.update(m.ref, { ...m.dados, updatedAt: FieldValue.serverTimestamp() });
-        await lote.commit();
-      }
-      console.info('credenciais:migracao', { etapa, por: req.user?.uid, alterados: mudancas.length });
-    }
-    res.json({ etapa, executado: executar, funcionarios: snap.size, alterados: mudancas.length });
-  } catch (err) {
-    console.error('Failed to migrate credentials', err);
-    res.status(500).json({ error: 'migration_failed' });
   }
 });
 

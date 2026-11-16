@@ -11,8 +11,8 @@ function fixture() {
   const employees = new Map([
     ['admin', { ativo: true, perfis: { adm2: true }, nome: 'Admin' }],
     ['common', { ativo: true, perfis: {}, nome: 'Common' }],
-    ['escritorio', { ativo: true, perfis: { escritorio: true }, nome: 'Escritorio' }],
-    ['logisticaOnly', { ativo: true, perfis: { logistica: true }, nome: 'Logistica' }],
+    ['escritorioAntigo', { ativo: true, perfis: { escritorio: true }, nome: 'Escritorio sem areas' }],
+    ['logisticaOnly', { ativo: true, perfis: {}, areas: { frota: 'editar', combustivel: 'editar', logistica: 'editar' }, nome: 'Logistica' }],
     ['cadastrosEditar', { ativo: true, perfis: {}, areas: { cadastros: 'editar' }, nome: 'Cadastros' }],
     ['cadastrosVer', { ativo: true, perfis: {}, areas: { cadastros: 'ver' }, nome: 'Cadastros ver' }],
     ['escritorioMigrado', { ativo: true, perfis: { escritorio: true }, areas: { portal: 'editar' }, nome: 'Migrado' }],
@@ -36,7 +36,7 @@ function fixture() {
   return { service: createKioskAdminService(store), credentials, audits };
 }
 
-test('authorization permits only active funcionarios who edit Cadastros (areas, or escritorio before the migration) or adm2', async () => {
+test('authorization permits only active funcionarios who edit Cadastros (areas) or adm2', async () => {
   const { service } = fixture();
   await assert.rejects(() => service.provision(undefined, { uid: 'target' }), (error) => error.code === 'unauthenticated');
   await assert.rejects(() => service.revoke(undefined, { uid: 'target' }), (error) => error.code === 'unauthenticated');
@@ -46,7 +46,7 @@ test('authorization permits only active funcionarios who edit Cadastros (areas, 
   await errorCode(() => service.provision('legacyOnly', { uid: 'target' }));
   await errorCode(() => service.provision('logisticaOnly', { uid: 'target' }));
   await service.provision('admin', { uid: 'target' });
-  await service.provision('escritorio', { uid: 'target' });
+  await errorCode(() => service.provision('escritorioAntigo', { uid: 'target' }));
   await service.provision('cadastrosEditar', { uid: 'target' });
   await errorCode(() => service.provision('cadastrosVer', { uid: 'target' }));
   await errorCode(() => service.provision('escritorioMigrado', { uid: 'target' }));

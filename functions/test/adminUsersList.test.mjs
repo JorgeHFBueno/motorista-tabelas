@@ -9,7 +9,7 @@ test('the users list reads every employee in a single call, not one read per acc
   const chamadas = [];
   const ler = async (uids) => {
     chamadas.push(uids);
-    return new Map([['a', { nome: 'ANA', ativo: true, perfis: { escritorio: true } }], ['b', undefined]]);
+    return new Map([['a', { nome: 'ANA', ativo: true, perfis: { motorista: true }, areas: { friday: 'editar', cadastros: 'ver', portal: 'editar' } }], ['b', undefined]]);
   };
   const users = await listarAdminUsers([conta('a'), conta('b'), conta('cliente')], new Set(['cliente']), ler);
   assert.deepEqual(chamadas, [['a', 'b', 'cliente']]);
@@ -17,9 +17,8 @@ test('the users list reads every employee in a single call, not one read per acc
   assert.deepEqual(users.map((u) => u.uid), ['a', 'b']);
   assert.equal(users[1].funcionario, null);
   assert.equal(users[0].funcionario.nome, 'ANA');
-  assert.equal(users[0].funcionario.credenciais.escritorio, true);
-  // Areas in force: the old escritorio stands for Friday, Cadastros and Portal until the migration writes `areas`.
-  assert.deepEqual(users[0].funcionario.areas, { friday: 'editar', cadastros: 'editar', portal: 'editar' });
+  assert.equal(users[0].funcionario.credenciais.motorista, true);
+  assert.deepEqual(users[0].funcionario.areas, { friday: 'editar', cadastros: 'ver', portal: 'editar' });
 });
 
 test('an employee who is also in users/{uid} stays in the list', async () => {

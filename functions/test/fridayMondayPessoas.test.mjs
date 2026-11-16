@@ -38,15 +38,21 @@ test('pessoas do monday: novo, já funcionário, ligado e fora', () => {
   assert.deepEqual([r[10].situacao, r[10].motivo], ['fora', 'o funcionário já está ligado a outro usuário do monday']);
 });
 
-test('pedido de criar: ids sem repetir e ao menos uma credencial', () => {
-  const ok = lerPedido({ ids: ['1', 1, '2', 'x'], credenciais: { escritorio: true } });
+test('pedido de criar: ids sem repetir e ao menos uma credencial ou área', () => {
+  const ok = lerPedido({ ids: ['1', 1, '2', 'x'], credenciais: { motorista: true } });
   assert.deepEqual(ok.ids, ['1', '2']);
-  assert.equal(ok.credenciais.escritorio, true);
+  assert.equal(ok.credenciais.motorista, true);
   assert.equal(ok.credenciais.adm2, false);
-  assert.ok('erro' in lerPedido({ ids: [], credenciais: { escritorio: true } }));
+  assert.deepEqual(ok.areas, {});
+  // Só áreas da WEB, sem credencial do app (o escritório de antes).
+  const soAreas = lerPedido({ ids: ['3'], credenciais: {}, areas: { friday: 'editar' } });
+  assert.deepEqual(soAreas.areas, { friday: 'editar' });
+  assert.ok('erro' in lerPedido({ ids: ['1'], credenciais: { escritorio: true } }), 'escritorio is no longer a credential');
+  assert.ok('erro' in lerPedido({ ids: ['1'], credenciais: {}, areas: { friday: 'ver' } }), 'Friday has one level');
+  assert.ok('erro' in lerPedido({ ids: [], credenciais: { motorista: true } }));
   assert.ok('erro' in lerPedido({ ids: ['1'], credenciais: {} }));
-  assert.ok('erro' in lerPedido({ ids: ['1'], credenciais: { escritorio: 'sim' } }));
-  assert.ok('erro' in lerPedido({ ids: Array.from({ length: 101 }, (_, i) => String(i + 1)), credenciais: { escritorio: true } }));
+  assert.ok('erro' in lerPedido({ ids: ['1'], credenciais: { motorista: 'sim' } }));
+  assert.ok('erro' in lerPedido({ ids: Array.from({ length: 101 }, (_, i) => String(i + 1)), credenciais: { motorista: true } }));
 });
 
 test('nomes que batem: mesmo primeiro nome, sem acento nem "da/de/do", o curto contido no longo', () => {

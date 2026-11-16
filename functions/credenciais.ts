@@ -1,6 +1,7 @@
-// Independent credentials of funcionarios/{uid}.perfis (Manuscript funcionarios.md, "Credenciais"). Each flow checks
-// its own credential and adm2 enters everything except the exclusive ones (below). adm1 (replaced by frentista) and user are no longer read.
-export const CREDENCIAIS = ['adm2', 'motorista', 'frentista', 'mecanico', 'escritorio', 'engenharia', 'logistica', 'autor', 'retr0'] as const;
+// Independent credentials of funcionarios/{uid}.perfis (Manuscript funcionarios.md, "Credenciais"): the app ones and
+// retr0 (WEB DEV). The WEB areas are in `areas` (below). adm2 enters everything except the exclusive ones. The old WEB
+// credentials (escritorio, engenharia, logistica, autor) left perfis on 2026-11-16 and are ignored if sent.
+export const CREDENCIAIS = ['adm2', 'motorista', 'frentista', 'mecanico', 'retr0'] as const;
 // Credentials adm2 does not get for free (retr0: WEB DEV area, owner's decision on 2026-10-30).
 export type Credencial = (typeof CREDENCIAIS)[number];
 export type Credenciais = Record<Credencial, boolean>;
@@ -30,14 +31,10 @@ export const CREDENCIAIS_SO_ADM2: readonly Credencial[] = ['adm2', ...CREDENCIAI
 // Credentials a non-adm2 person of Cadastros (editar) may give or take: the app ones.
 export const CREDENCIAIS_DO_CADASTRO: readonly Credencial[] = ['motorista', 'frentista', 'mecanico'];
 
-/** A non-adm2 change that touches a credential outside CREDENCIAIS_DO_CADASTRO (adm2, retr0 or an old WEB one). */
+/** A non-adm2 change that touches a credential outside CREDENCIAIS_DO_CADASTRO (adm2 or retr0). */
 export function mudaCredencialProibida(antes: Credenciais, depois: Credenciais): boolean {
   return CREDENCIAIS.some((c) => !CREDENCIAIS_DO_CADASTRO.includes(c) && antes[c] !== depois[c]);
 }
-
-// Old WEB-only credentials (2026-11-06). Since 2026-11-16 the WEB reads `areas` (below); these keys only feed the
-// areas of a document that has no `areas` yet, and only adm2 changes them. They leave perfis after the migration.
-export const CREDENCIAIS_ANTIGAS: readonly Credencial[] = ['escritorio', 'engenharia', 'logistica', 'autor'];
 
 // ---------------------------------------------------------------- WEB areas (owner's decision, 2026-11-16)
 // funcionarios/{uid}.areas = { area: 'ver' | 'editar' }; a missing area = no access. adm2 sees and edits every area.
@@ -48,25 +45,6 @@ export type Area = (typeof AREAS)[number];
 export type Nivel = 'ver' | 'editar';
 export type Areas = Partial<Record<Area, Nivel>>;
 export const AREAS_NIVEL_UNICO: readonly Area[] = ['friday'];
-
-// Areas each old credential stood for (the migration table approved on 2026-11-16, everyone at 'editar').
-export const AREAS_DA_CREDENCIAL_ANTIGA: Readonly<Partial<Record<Credencial, readonly Area[]>>> = {
-  mecanico: ['frota', 'combustivel', 'logistica', 'friday'],
-  logistica: ['frota', 'combustivel', 'logistica'],
-  escritorio: ['friday', 'cadastros', 'portal'],
-  engenharia: ['engenharia', 'portal'],
-  autor: ['manuscript'],
-};
-
-/** Areas a document's old credentials stand for, all at 'editar'. */
-export function areasDasCredenciais(perfis: unknown): Areas {
-  const c = credenciaisDe(perfis);
-  const areas: Areas = {};
-  for (const [credencial, lista] of Object.entries(AREAS_DA_CREDENCIAL_ANTIGA)) {
-    if (c[credencial as Credencial]) for (const a of lista ?? []) areas[a] = 'editar';
-  }
-  return areas;
-}
 
 /** Valid areas of a stored map (unknown keys and values are dropped; Friday is always 'editar'). */
 export function areasValidas(valor: unknown): Areas {
@@ -79,10 +57,9 @@ export function areasValidas(valor: unknown): Areas {
   return areas;
 }
 
-/** Areas in force: the `areas` map when the document has one, otherwise the ones its old credentials stand for. */
+/** Areas in force: the `areas` map (a document without it has none). */
 export function areasDe(funcionario: Funcionario): Areas {
-  if (!funcionario) return {};
-  return 'areas' in funcionario ? areasValidas(funcionario.areas) : areasDasCredenciais(funcionario.perfis);
+  return funcionario ? areasValidas(funcionario.areas) : {};
 }
 
 /** Active employee who sees the area (adm2 sees every area). */
@@ -112,20 +89,6 @@ export function lerAreas(entrada: unknown): Areas | null {
   return valores as Areas;
 }
 
-/** Migration step 'areas': the areas map for a document without one. */
-export function migrarAreas(funcionario: Funcionario): { areas: Areas; mudou: boolean } {
-  if (funcionario && 'areas' in funcionario) return { areas: areasValidas(funcionario.areas), mudou: false };
-  return { areas: areasDasCredenciais(funcionario?.perfis), mudou: true };
-}
-
-/** Migration step 'limpar': the perfis map without the old WEB credentials. */
-export function limparCredenciaisAntigas(perfis: unknown): { perfis: Record<string, unknown>; mudou: boolean } {
-  const valores = perfis && typeof perfis === 'object' ? { ...(perfis as Record<string, unknown>) } : {};
-  const mudou = CREDENCIAIS_ANTIGAS.some((c) => c in valores);
-  for (const c of CREDENCIAIS_ANTIGAS) delete valores[c];
-  return { perfis: valores, mudou };
-}
-
 /** The credentials hold one that only adm2 manages. */
 export function temCredencialSoAdm2(c: Credenciais | null | undefined): boolean {
   return !!c && CREDENCIAIS_SO_ADM2.some((k) => c[k]);
@@ -148,7 +111,7 @@ export function lerCredenciais(entrada: unknown): Credenciais | null {
 
 /**
  * Credentials of a PATCH: the keys sent replace the current ones and the keys left out stay as they are (the app's
- * DEV → Usuários screen sends only the credentials it knows; a missing key must not wipe retr0, autor or logistica).
+ * DEV → Usuários screen sends only the credentials it knows, and still the old escritorio and engenharia, ignored).
  */
 export function mesclarCredenciais(atuais: unknown, entrada: unknown): Credenciais | null {
   const lidas = lerCredenciais(entrada);

@@ -21,7 +21,7 @@ import KeyOutlinedIcon from '@mui/icons-material/KeyOutlined';
 import DeleteOutlineRoundedIcon from '@mui/icons-material/DeleteOutlineRounded';
 import QrCode2RoundedIcon from '@mui/icons-material/QrCode2Rounded';
 import { nomeDoUsuario, type AdminUser } from '../services/adminUsersApi';
-import { CREDENCIAIS, CREDENCIAIS_ANTIGAS } from '../services/credenciais';
+import { CREDENCIAIS } from '../services/credenciais';
 import { AREAS } from '../services/areasWeb';
 import { isKioskCredentialEligible } from '../services/kioskCredentialEligibility';
 import type { ModoEdicaoUsuario } from './AdminUserEditModal';
@@ -74,9 +74,9 @@ function formatDate(value: string | null | undefined, dateFormatter: Intl.DateTi
 // One row; memo keeps the rows that did not change from rendering again when the filter or another row changes.
 const Linha = memo(function Linha({ row, onEdit, onSenha, onExcluir, onKiosk, dateFormatter, podeEditar }: Omit<AdminUsersEditTableProps, 'rows' | 'loading'> & { row: AdminUser }) {
   const nome = nomeDoUsuario(row);
-  // Credenciais do app (as antigas, só da WEB, aparecem como áreas) e as áreas da WEB, com "(ver)" quando só vê.
+  // Credenciais do app e as áreas da WEB, com "(ver)" quando só vê.
   const marcadas = [
-    ...CREDENCIAIS.filter((c) => !CREDENCIAIS_ANTIGAS.includes(c.chave) && row.funcionario?.credenciais[c.chave]).map((c) => ({ chave: c.chave, rotulo: c.rotulo, area: false })),
+    ...CREDENCIAIS.filter((c) => row.funcionario?.credenciais[c.chave]).map((c) => ({ chave: c.chave, rotulo: c.rotulo, area: false })),
     ...AREAS.filter((a) => row.funcionario?.areas?.[a.chave]).map((a) => ({ chave: a.chave, rotulo: row.funcionario?.areas?.[a.chave] === 'ver' ? `${a.rotulo} (ver)` : a.rotulo, area: true })),
   ];
   return (

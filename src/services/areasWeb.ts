@@ -19,15 +19,6 @@ export type Areas = Partial<Record<Area, Nivel>>;
 export const AREAS_NIVEL_UNICO: readonly Area[] = ['friday'];
 const CHAVES = AREAS.map((a) => a.chave) as readonly string[];
 
-// Áreas que cada credencial antiga representava (tabela da migração de 2026-11-16, todas em 'editar').
-const AREAS_DA_CREDENCIAL_ANTIGA: Record<string, readonly Area[]> = {
-  mecanico: ['frota', 'combustivel', 'logistica', 'friday'],
-  logistica: ['frota', 'combustivel', 'logistica'],
-  escritorio: ['friday', 'cadastros', 'portal'],
-  engenharia: ['engenharia', 'portal'],
-  autor: ['manuscript'],
-};
-
 /** Áreas válidas de um mapa gravado (chaves e níveis desconhecidos saem; o Friday é sempre 'editar'). */
 export function areasValidas(valor: unknown): Areas {
   const v = valor && typeof valor === 'object' && !Array.isArray(valor) ? (valor as Record<string, unknown>) : {};
@@ -38,13 +29,7 @@ export function areasValidas(valor: unknown): Areas {
   return areas;
 }
 
-/** Áreas em vigor de um funcionarios/{uid}: o mapa areas, se o documento tem; senão, as das credenciais antigas. */
+/** Áreas em vigor de um funcionarios/{uid}: o mapa areas (documento sem ele não tem área). */
 export function areasDoFuncionario(data: Record<string, unknown>): Areas {
-  if ('areas' in data) return areasValidas(data.areas);
-  const perfis = data.perfis && typeof data.perfis === 'object' ? (data.perfis as Record<string, unknown>) : {};
-  const areas: Areas = {};
-  for (const [credencial, lista] of Object.entries(AREAS_DA_CREDENCIAL_ANTIGA)) {
-    if (perfis[credencial] === true) for (const a of lista) areas[a] = 'editar';
-  }
-  return areas;
+  return areasValidas(data.areas);
 }

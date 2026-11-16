@@ -15,7 +15,7 @@ import {
   TextField,
 } from '@mui/material';
 import useAdminUsers from '../hooks/useAdminUsers';
-import { CREDENCIAIS, CREDENCIAIS_ANTIGAS, CREDENCIAIS_DO_CADASTRO, semCredenciais, type Credencial, type Credenciais } from '../services/credenciais';
+import { CREDENCIAIS, CREDENCIAIS_DO_CADASTRO, semCredenciais, type Credencial, type Credenciais } from '../services/credenciais';
 import type { Areas } from '../services/areasWeb';
 import AreasWebEditor from '../components/AreasWebEditor';
 import { useAuth } from '../contexts/AuthContext';
@@ -210,7 +210,7 @@ export default function CadastroUsuarioNovoPage() {
             <FormControl error={Boolean(errors.credenciais)} component="fieldset">
               <FormLabel component="legend">Credenciais do app</FormLabel>
               <FormGroup>
-                {CREDENCIAIS.filter((c) => !CREDENCIAIS_ANTIGAS.includes(c.chave)).map((c) => (
+                {CREDENCIAIS.map((c) => (
                   <FormControlLabel
                     key={c.chave}
                     control={(

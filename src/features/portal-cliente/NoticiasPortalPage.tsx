@@ -65,7 +65,7 @@ const tamanho = (bytes: number) => (bytes >= 1024 * 1024 ? `${(bytes / (1024 * 1
 
 type Edicao = { id: string; atual: Noticia | null };
 
-// Same ingestion as the 12-hour schedule (Function portalNoticiasAtualizar: engenharia, escritorio or adm2).
+// Same ingestion as the 12-hour schedule (Function portalNoticiasAtualizar: portal area at editar, or adm2).
 type ResumoColeta = { fontes: number; lidas: number; aceitas: number; criadas: number; atualizadas: number; ignoradas: number; rebaixadas: number };
 const buscarNoticiasExternas = httpsCallable<void, ResumoColeta>(functions, 'portalNoticiasAtualizar', { timeout: 320_000 });
 

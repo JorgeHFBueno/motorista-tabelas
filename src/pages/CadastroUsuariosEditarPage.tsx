@@ -20,7 +20,6 @@ import {
 import AdminUserEditModal, { type AdminUserEditValues, type ModoEdicaoUsuario } from '../components/AdminUserEditModal';
 import AdminUsersEditTable from '../components/AdminUsersEditTable';
 import KioskCredenciaisDialog from '../components/kiosk/KioskCredenciaisDialog';
-import MigracaoAreas from '../components/MigracaoAreas';
 import ImportarFuncionariosFridayDialog from '../components/ImportarFuncionariosFridayDialog';
 import useAdminUsers from '../hooks/useAdminUsers';
 import { loginDoUsuario, nomeDoUsuario, type AdminUser } from '../services/adminUsersApi';
@@ -151,7 +150,6 @@ export default function CadastroUsuariosEditarPage() {
   return (
     <Container maxWidth="lg" sx={{ py: 3 }}>
       <Stack spacing={3}>
-        {perfil?.adm2 && <MigracaoAreas onExecutou={() => void reload()} />}
         <Paper elevation={1} sx={{ p: { xs: 2, sm: 3 } }}>
           <Stack spacing={2}>
             <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2} alignItems={{ sm: 'center' }}>

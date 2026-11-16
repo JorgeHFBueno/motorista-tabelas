@@ -47,7 +47,7 @@ test('cidade e estado: sigla no Brasil, nome do estado fora; cidade, town ou vil
 });
 
 function servico({ redirecionamentos = {}, endereco = { city: 'Caxias do Sul', 'ISO3166-2-lvl4': 'BR-RS' }, achado = null } = {}) {
-  const funcionarios = { log: { ativo: true, perfis: { logistica: true } }, mec: { ativo: true, perfis: { mecanico: true } }, adm: { ativo: true, perfis: { adm2: true } }, eng: { ativo: true, perfis: { engenharia: true } } };
+  const funcionarios = { log: { ativo: true, perfis: {}, areas: { frota: 'editar', combustivel: 'editar', logistica: 'editar' } }, mec: { ativo: true, perfis: { mecanico: true }, areas: { frota: 'editar', combustivel: 'editar', logistica: 'editar', friday: 'editar' } }, adm: { ativo: true, perfis: { adm2: true } }, eng: { ativo: true, perfis: {}, areas: { engenharia: 'editar', portal: 'editar' } } };
   const chamadas = { redirecionamento: [], enderecoDa: [], buscar: [] };
   const service = createLogisticaLocalService({
     async getEmployee(uid) { return funcionarios[uid]; },
@@ -58,7 +58,7 @@ function servico({ redirecionamentos = {}, endereco = { city: 'Caxias do Sul', '
   return { service, chamadas };
 }
 
-test('só logistica, mecanico ou adm2; link obrigatório', async () => {
+test('só quem vê a área logistica, ou adm2; link obrigatório', async () => {
   const { service } = servico();
   await assert.rejects(service(undefined, { link: LUGAR }), (e) => e.code === 'unauthenticated');
   for (const uid of ['eng', 'nao-existe']) await assert.rejects(service(uid, { link: LUGAR }), (e) => e.code === 'permission-denied');

@@ -71,8 +71,6 @@ const MENSAGENS: Record<string, string> = {
   employee_not_found: 'Esta conta não tem funcionário: cadastre em Novo usuário ou exclua a conta.',
   employee_exists: 'Funcionário não se exclui: desative-o.',
   client_account: 'Este login é de um cliente do portal: administre-o em Portal do cliente → Clientes.',
-  areas_pendentes: 'Ainda há pessoas ativas sem áreas: rode antes a etapa "Gravar áreas".',
-  invalid_etapa: 'Etapa da migração inválida.',
   'auth/user-not-found': 'Usuário não encontrado no login do sistema.',
   'auth/invalid-email': 'O login informado é inválido.',
   'auth/invalid-password': 'A senha não atende aos requisitos do Firebase.',
@@ -146,15 +144,4 @@ export function nomeDoUsuario(user: AdminUser) {
 export function loginDoUsuario(user: AdminUser) {
   const login = descreverLogin(user.email);
   return login.tipo === 'celular' ? `Celular ${formatarCelular(login.valor)}` : login.valor || '—';
-}
-
-export type EtapaMigracaoAreas = 'areas' | 'limpar';
-export type ResultadoMigracaoAreas = { etapa: EtapaMigracaoAreas; executado: boolean; funcionarios: number; alterados: number };
-
-/**
- * Migração das áreas da WEB (2026-11-16; só adm2): 'areas' grava o mapa areas em quem ainda não tem, a partir das
- * credenciais antigas; 'limpar' tira as credenciais antigas dos perfis. executar: false só conta.
- */
-export function migrarAreas(etapa: EtapaMigracaoAreas, executar: boolean) {
-  return requestAdminApi<ResultadoMigracaoAreas>('/manutencao/credenciais', { method: 'POST', body: JSON.stringify({ etapa, executar }) }, 'Erro na migração das áreas.');
 }

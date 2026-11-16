@@ -17,7 +17,7 @@ const Campo = ({ rotulo, children }: { rotulo: string; children: ReactNode }) =>
 );
 
 // Kiosk QR and PIN of one employee, opened from the Ações column in Usuários (the /cadastros/usuarios/kiosk screen was merged
-// here on 2026-11-10). The Kiosk Functions check escritorio themselves; only active frentista/adm2 get the button.
+// here on 2026-11-10). The Kiosk Functions check the Cadastros area (editar) themselves; only active frentista/adm2 get the button.
 // The status comes from Usuários, which fetches everyone's when it opens; the popup only asks again after an action.
 type Props = {
   user: AdminUser | null;

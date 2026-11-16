@@ -67,7 +67,8 @@ const perfil = (credenciais: Partial<AuthorizationProfile>): AuthorizationProfil
 const grupo = (p: AuthorizationProfile, label: string) => filtrarMenuPrincipal(p).find((item) => item.label === label)?.children?.map((c) => c.label);
 
 test('Meu perfil fica dentro de Cadastros e continua aberto a qualquer credencial (2026-11-10)', () => {
-  assert.deepEqual(grupo(perfil({ escritorio: true }), 'Cadastros'), ['Usuários', 'Novo usuário', 'Meu perfil']);
+  assert.deepEqual(grupo(perfil({ areas: { cadastros: 'editar' } }), 'Cadastros'), ['Usuários', 'Novo usuário', 'Meu perfil']);
+  assert.deepEqual(grupo(perfil({ areas: { cadastros: 'ver' } }), 'Cadastros'), ['Usuários', 'Meu perfil']);
   assert.deepEqual(grupo(perfil({ motorista: true }), 'Cadastros'), ['Meu perfil']);
   assert.deepEqual(filtrarMenuPrincipal(perfil({ motorista: true })).map((i) => i.label), ['Cadastros']);
   assert.equal(filtrarMenuPrincipal(perfil({ adm2: true })).some((i) => i.label === 'Meu perfil'), false);

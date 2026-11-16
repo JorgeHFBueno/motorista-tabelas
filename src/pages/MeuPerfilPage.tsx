@@ -8,7 +8,7 @@ import ReautenticarDialog from '../components/ReautenticarDialog';
 import GoogleAgendaCartao from '../components/GoogleAgendaCartao';
 import { veArea } from '../services/credenciais';
 import { getFuncionarioData } from '../services/authorizationProfile';
-import { camposExtrasFuncionario, iniciais, perfisMarcados } from '../services/funcionarios';
+import { areasMarcadas, camposExtrasFuncionario, iniciais, perfisMarcados } from '../services/funcionarios';
 import { descreverLogin, formatarCelular, isValidEmailIdentifier, normalizePhoneIdentifier, PHONE_LOGIN_DOMAIN, type TipoLogin } from '../services/loginIdentifier';
 import { atualizarMeuPerfil, pedeLoginRecente } from '../services/meuPerfil';
 
@@ -80,7 +80,7 @@ export default function MeuPerfilPage() {
   if (!currentUser) return null;
 
   const nome = typeof funcionario?.nome === 'string' && funcionario.nome.trim() ? funcionario.nome.trim() : currentUser.displayName || currentUser.email || '';
-  const perfis = perfisMarcados(funcionario?.perfis);
+  const perfis = [...perfisMarcados(funcionario?.perfis), ...areasMarcadas(funcionario?.areas)];
   const ordemMotorista = (funcionario?.motorista as { ordem?: unknown } | undefined)?.ordem;
   const extras = funcionario ? camposExtrasFuncionario(funcionario) : [];
   const nomeCadastro = typeof funcionario?.nome === 'string' ? funcionario.nome : '';
@@ -208,7 +208,7 @@ export default function MeuPerfilPage() {
               <Box>
                 <Stack direction="row" spacing={0.75} alignItems="center">
                   <LockOutlinedIcon fontSize="small" color="action" />
-                  <Typography variant="caption" color="text.secondary">Credenciais</Typography>
+                  <Typography variant="caption" color="text.secondary">Credenciais e áreas da WEB</Typography>
                 </Stack>
                 <Stack direction="row" spacing={1} useFlexGap flexWrap="wrap" sx={{ mt: 0.75 }}>
                   {perfis.length ? perfis.map((perfil) => <Chip key={perfil} label={perfil} />) : <Typography>Nenhum perfil</Typography>}

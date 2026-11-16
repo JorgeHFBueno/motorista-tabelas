@@ -53,12 +53,13 @@ async function seed() {
   await env.withSecurityRulesDisabled(async (context) => {
     const db = context.firestore();
     const t = Timestamp.fromMillis(1);
-    const funcionario = (uid, perfis) => setDoc(doc(db, 'funcionarios', uid), {
-      nome: uid, email: `${uid}@example.com`, ativo: true, perfis: { frentista: false, adm2: false, motorista: false, ...perfis },
+    // Áreas da WEB (2026-11-16): a equipe do portal tem a área portal.
+    const funcionario = (uid, perfis, areas = {}) => setDoc(doc(db, 'funcionarios', uid), {
+      nome: uid, email: `${uid}@example.com`, ativo: true, perfis: { frentista: false, adm2: false, motorista: false, ...perfis }, areas,
     });
     await funcionario(identities.adm2, { adm2: true });
-    await funcionario(identities.engenharia, { engenharia: true });
-    await funcionario(identities.escritorio, { escritorio: true });
+    await funcionario(identities.engenharia, {}, { engenharia: 'editar', portal: 'editar' });
+    await funcionario(identities.escritorio, {}, { friday: 'editar', cadastros: 'editar', portal: 'editar' });
     await funcionario(identities.frentista, { frentista: true });
 
     const cliente = (uid, documentos, ativo = true) => setDoc(doc(db, 'users', uid), {

@@ -102,7 +102,7 @@ function loja(extra = {}) {
   return {
     log,
     store: {
-      async getEmployee(uid) { return { esc: { ativo: true, perfis: { escritorio: true } }, mot: { ativo: true, perfis: { motorista: true } } }[uid]; },
+      async getEmployee(uid) { return { esc: { ativo: true, perfis: {}, areas: { cadastros: 'editar' } }, ver: { ativo: true, perfis: {}, areas: { cadastros: 'ver' } }, mot: { ativo: true, perfis: { motorista: true } } }[uid]; },
       async itensDoQuadro() { return [item(1, 'Ana Souza', '51999990001', CPF_A), item(2, 'Bruno Lima', '51999990002', ''), item(3, 'Caio', '51999990003', CPF_B), item(4, 'Sem tel', '', CPF_A)]; },
       async colunasDoQuadro() { return [{ id: 1, titulo: 'Telefone', tipo: 'telefone' }, { id: 2, titulo: 'CPF', tipo: 'texto' }]; },
       async funcionarios() { return funcionarios; },
@@ -118,11 +118,12 @@ function loja(extra = {}) {
   };
 }
 
-test('serviço: só escritorio ou adm2; a tela não recebe o CPF', async () => {
+test('serviço: só quem edita Cadastros ou adm2; a tela não recebe o CPF', async () => {
   const { store } = loja();
   const s = createImportarFridayService(store);
   await assert.rejects(s.listar(undefined), { code: 'unauthenticated' });
   await assert.rejects(s.listar('mot'), { code: 'permission-denied' });
+  await assert.rejects(s.listar('ver'), { code: 'permission-denied' });
   const { pessoas, livres } = await s.listar('esc');
   assert.equal(pessoas.length, 4);
   assert.ok(pessoas.every(p => !('cpf' in p)));

@@ -5,7 +5,7 @@ if (import.meta.env.VITE_USE_FIREBASE_EMULATORS === 'true') {
   try { connectFunctionsEmulator(functions, '127.0.0.1', 5001); } catch { /* já conectado */ }
 }
 
-// Importar do quadro FUNCIONARIOS do Friday (Function funcionariosImportarFriday; escritorio ou adm2). Contrato: The
+// Importar do quadro FUNCIONARIOS do Friday (Function funcionariosImportarFriday; área Cadastros em editar ou adm2). Contrato: The
 // Manuscript, funcionarios.md ("Usuários na WEB") e 05_CADASTROS.md.
 export type SituacaoImportar = 'novo' | 'funcionario' | 'vinculado' | 'incompleto' | 'fora';
 export type PessoaQuadro = {

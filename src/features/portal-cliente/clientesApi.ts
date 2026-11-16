@@ -3,7 +3,7 @@ import { collection, doc, getDocs, serverTimestamp, updateDoc } from 'firebase/f
 import { app, db } from '../../firebase';
 import { PORTAL_COLECOES, type ClientePortal } from './portalDominio';
 
-// Clientes do portal (users/{uid}), pela equipe: engenharia, escritorio ou adm2. Contrato: The Manuscript, 01_FIRESTORE/COLECOES/users.md.
+// Clientes do portal (users/{uid}), pela equipe: área portal (editar) ou adm2. Contrato: The Manuscript, 01_FIRESTORE/COLECOES/users.md.
 // A conta do login nasce e é ativada/desativada pela Function adminApi; nome e CNPJ/CPF a equipe grava direto no Firestore.
 
 const API_BASE = '/api/admin';

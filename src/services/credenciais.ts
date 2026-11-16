@@ -9,12 +9,6 @@ export const CREDENCIAIS = [
   { chave: 'motorista', rotulo: 'Motorista', descricao: 'Saída e Chegada no app; aparece na lista de motoristas' },
   { chave: 'frentista', rotulo: 'Frentista', descricao: 'Combustível no app e no Kiosk' },
   { chave: 'mecanico', rotulo: 'Mecânico', descricao: 'Checklist no app; registra Saída e Chegada por outra pessoa' },
-  // Credenciais antigas, só da WEB (2026-11-06): desde 2026-11-16 a WEB lê as áreas (areasWeb.ts). Elas só valem para
-  // quem ainda não tem o mapa areas e saem dos perfis depois da migração.
-  { chave: 'escritorio', rotulo: 'Escritório', descricao: 'Antiga: Friday, Cadastros e Portal do cliente' },
-  { chave: 'engenharia', rotulo: 'Engenharia', descricao: 'Antiga: Engenharia e Portal do cliente' },
-  { chave: 'logistica', rotulo: 'Logística', descricao: 'Antiga: Frota, Combustível e Logística' },
-  { chave: 'autor', rotulo: 'Autor', descricao: 'Antiga: The Manuscript' },
   { chave: 'retr0', rotulo: 'Retr0', descricao: 'Área DEV (/dev), na WEB; nem o adm2 entra sem ela' },
 ] as const;
 
@@ -30,9 +24,6 @@ export const CREDENCIAIS_EXCLUSIVAS: readonly Credencial[] = ['retr0'];
 // Credenciais que só o adm2 dá ou tira; conta que tem uma delas só o adm2 muda. A adminApi confere o mesmo
 // (functions/credenciais.ts).
 export const CREDENCIAIS_SO_ADM2: readonly Credencial[] = ['adm2', ...CREDENCIAIS_EXCLUSIVAS];
-
-// Credenciais antigas, só da WEB: só o adm2 muda e saem depois da migração das áreas.
-export const CREDENCIAIS_ANTIGAS: readonly Credencial[] = ['escritorio', 'engenharia', 'logistica', 'autor'];
 
 // Credenciais do app que quem edita Cadastros (sem ser adm2) pode dar ou tirar.
 export const CREDENCIAIS_DO_CADASTRO: readonly Credencial[] = ['motorista', 'frentista', 'mecanico'];

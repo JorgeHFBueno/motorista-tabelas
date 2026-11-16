@@ -4,7 +4,9 @@ import assert from 'node:assert/strict';
 const d = await import('../lib/logisticaPedidoNotaDominio.js');
 
 // Avisos "Novo Pedido de Nota" e "Nota anexada" do Cronograma Logístico. Só dados fictícios.
-const funcionario = (perfis, ativo = true) => ({ ativo, perfis });
+// Áreas da WEB (2026-11-16): `logistica` = a área logistica (ver basta para receber o aviso).
+const funcionario = (perfis, ativo = true, areas = {}) => ({ ativo, perfis, areas });
+const LOG = { frota: 'editar', combustivel: 'editar', logistica: 'editar' };
 
 test('Ag. NF: pelo id da etiqueta com esse nome, pelo padrão sem lista e pelo nome nas linhas de antes', () => {
   assert.deepEqual([...d.idsAgNf(undefined)], ['2']);
@@ -26,22 +28,22 @@ test('só avisa ao entrar em Ag. NF: não na troca do nome para o id nem quando 
   assert.equal(d.entrouEmAgNf({ status: '2' }, undefined, ids), false);
 });
 
-test('destinatários: até 3, sem repetir, ativos com logistica ou adm2, menos quem mudou o status', () => {
+test('destinatários: até 3, sem repetir, ativos com a área logistica ou adm2, menos quem mudou o status', () => {
   const funcionarios = new Map([
-    ['ana', funcionario({ logistica: true })],
+    ['ana', funcionario({}, true, LOG)],
     ['bia', { ativo: true, perfis: {}, areas: { logistica: 'ver' } }],
     ['caio', { ativo: true, perfis: { logistica: true }, areas: { frota: 'editar' } }],
     ['chefe', funcionario({ adm2: true })],
-    ['escritorio', funcionario({ escritorio: true })],
-    ['inativo', funcionario({ logistica: true }, false)],
-    ['autor', funcionario({ logistica: true })],
-    ['quarto', funcionario({ logistica: true })],
+    ['escritorio', funcionario({}, true, { friday: 'editar', cadastros: 'editar', portal: 'editar' })],
+    ['inativo', funcionario({}, false, LOG)],
+    ['autor', funcionario({}, true, LOG)],
+    ['quarto', funcionario({}, true, LOG)],
   ]);
   assert.deepEqual(d.destinatariosPedidoNota(['ana', 'chefe', 'ana', 'escritorio'], 'x', funcionarios), ['ana', 'chefe']);
   assert.deepEqual(d.destinatariosPedidoNota(['inativo', 'sumido', 'autor'], 'autor', funcionarios), []);
   assert.deepEqual(d.destinatariosPedidoNota(['ana', 'chefe', 'autor', 'quarto'], 'autor', funcionarios), ['ana', 'chefe']);
   assert.deepEqual(d.destinatariosPedidoNota(null, 'x', funcionarios), []);
-  // Area logistica (ver is enough to be told); a migrated document no longer reads the old logistica.
+  // Area logistica (ver is enough to be told); the old logistica credential no longer counts.
   assert.deepEqual(d.destinatariosPedidoNota(['bia', 'caio'], 'x', funcionarios), ['bia']);
 });
 

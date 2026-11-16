@@ -41,24 +41,12 @@ service cloud.firestore {
 
     // WEB areas (Manuscript funcionarios.md, 2026-11-16): funcionarios/{uid}.areas = { area: 'ver' | 'editar' }.
     // Areas: combustivel, frota, logistica, engenharia, portal, cadastros, manuscript, friday (one level, 'editar').
-    // A document with `areas` uses only it; one without it (before the migration) gets 'editar' in the areas its old
-    // credentials stood for: mecanico → frota, combustivel, logistica, friday; logistica → frota, combustivel,
-    // logistica; escritorio → friday, cadastros, portal; engenharia → engenharia, portal; autor → manuscript.
-    // One read of the profile; '' = no access.
+    // A missing area (or a document without `areas`) = no access; adm2 edits every area. One read of the profile;
+    // '' = no access.
     function nivelArea(a) {
       let f = isAuthorized() ? employee() : {};
       let p = f.get('perfis', {});
-      return p.get('adm2', false) == true ? 'editar'
-        : ('areas' in f ? f.areas.get(a, '') : (nivelLegado(p, a) ? 'editar' : ''));
-    }
-
-    // Old credentials (documents without `areas`, until the migration).
-    function nivelLegado(p, a) {
-      return (a in ['frota', 'combustivel', 'logistica'] && (p.get('mecanico', false) == true || p.get('logistica', false) == true))
-        || (a == 'friday' && (p.get('mecanico', false) == true || p.get('escritorio', false) == true))
-        || (a in ['cadastros', 'portal'] && p.get('escritorio', false) == true)
-        || (a in ['engenharia', 'portal'] && p.get('engenharia', false) == true)
-        || (a == 'manuscript' && p.get('autor', false) == true);
+      return p.get('adm2', false) == true ? 'editar' : f.get('areas', {}).get(a, '');
     }
 
     // Sees the WEB area (reads): 'ver' or 'editar'; adm2 sees every area.

@@ -25,27 +25,20 @@ async function load(data?: Record<string, unknown>) {
   return createAuthorizationProfileReader(async (uid) => document(uid, data))('uid');
 }
 
-test('credentials: each WEB area checks its own and adm2 enters everything (credenciais 2026-10-23)', async () => {
+test('app credentials: each flow checks its own and adm2 enters everything; WEB areas are in areas-web.test.ts', async () => {
   const adm2 = await load(canonicalData(true, { adm2: true }));
-  const escritorio = await load(canonicalData(true, { escritorio: true }));
-  const engenharia = await load(canonicalData(true, { engenharia: true }));
+  const frentista = await load(canonicalData(true, { frentista: true }));
   const motorista = await load(canonicalData(true, { motorista: true }));
 
   assert.equal(temCredencial(adm2), true);
-  assert.equal(temCredencial(adm2, 'escritorio'), true);
-  assert.equal(temCredencial(adm2, 'engenharia'), true);
-
-  assert.equal(temCredencial(escritorio, 'escritorio'), true);
-  assert.equal(temCredencial(escritorio, 'engenharia'), false);
-  assert.equal(temCredencial(escritorio), false, 'without accepted credentials, only adm2');
-  assert.equal(temCredencial(escritorio), false);
-
-  assert.equal(temCredencial(engenharia, 'engenharia'), true);
-  assert.equal(temCredencial(engenharia, 'escritorio'), false);
+  assert.equal(temCredencial(adm2, 'frentista'), true);
+  assert.equal(temCredencial(frentista, 'frentista'), true);
+  assert.equal(temCredencial(frentista, 'mecanico'), false);
+  assert.equal(temCredencial(frentista), false, 'without accepted credentials, only adm2');
 
   // App-only credentials still enter the WEB (Meu perfil), but no area.
   assert.equal(temAlgumaCredencial(motorista), true);
-  assert.equal(temCredencial(motorista, 'escritorio', 'engenharia'), false);
+  assert.deepEqual(motorista.areas, {});
 });
 
 test('retr0 is exclusive: only who holds it enters /dev, not even adm2 (2026-10-30)', async () => {
@@ -55,7 +48,7 @@ test('retr0 is exclusive: only who holds it enters /dev, not even adm2 (2026-10-
   const inativo = await load(canonicalData(false, { retr0: true }));
 
   assert.equal(temCredencial(adm2, 'retr0'), false);
-  assert.equal(temCredencial(adm2, 'retr0', 'escritorio'), true, 'another accepted credential still lets adm2 in');
+  assert.equal(temCredencial(adm2, 'retr0', 'mecanico'), true, 'another accepted credential still lets adm2 in');
   assert.equal(temCredencial(retr0, 'retr0'), true);
   assert.equal(temCredencial(retr0), false, 'retr0 is not adm2');
   assert.equal(temAlgumaCredencial(retr0), true);
@@ -63,28 +56,10 @@ test('retr0 is exclusive: only who holds it enters /dev, not even adm2 (2026-10-
   assert.equal(temCredencial(inativo, 'retr0'), false);
 });
 
-test('area credentials of 2026-11-06: logistica, autor, mecanico, escritorio, engenharia; adm2 still enters all', async () => {
-  const adm2 = await load(canonicalData(true, { adm2: true }));
-  const logistica = await load(canonicalData(true, { logistica: true }));
-  const autor = await load(canonicalData(true, { autor: true }));
-  const mecanico = await load(canonicalData(true, { mecanico: true }));
-
-  assert.equal(logistica.logistica, true);
-  assert.equal(autor.autor, true);
-  assert.equal(temAlgumaCredencial(logistica), true);
-  assert.equal(temAlgumaCredencial(autor), true);
-
-  // Frota, Bombas and Logística accept mecanico and logistica; Combustível only logistica.
-  assert.equal(temCredencial(logistica, 'mecanico', 'logistica'), true);
-  assert.equal(temCredencial(mecanico, 'mecanico', 'logistica'), true);
-  assert.equal(temCredencial(mecanico, 'logistica'), false);
-  assert.equal(temCredencial(logistica), false, 'logistica is not adm2');
-
-  // The Manuscript: autor; its chat: retr0 or autor (adm2 enters through autor).
-  assert.equal(temCredencial(autor, 'autor'), true);
-  assert.equal(temCredencial(autor, 'retr0', 'autor'), true);
-  assert.equal(temCredencial(adm2, 'retr0', 'autor'), true);
-  assert.equal(temCredencial(logistica, 'autor'), false);
+test('old WEB credentials (escritorio, engenharia, logistica, autor) are no longer read (cleanup of 2026-11-16)', async () => {
+  const antigo = await load(canonicalData(true, { escritorio: true, engenharia: true, logistica: true, autor: true }));
+  assert.deepEqual(antigo.areas, {});
+  assert.equal(temAlgumaCredencial(antigo), false);
 });
 
 test('adm1, user, inactive and missing funcionarios have no WEB entry', async () => {
@@ -160,11 +135,11 @@ test('profile fields are interpreted strictly as boolean true', async () => {
   const profile = await load({
     nome: 'Strict',
     ativo: 1,
-    perfis: { adm2: 1, frentista: 'true', motorista: true, escritorio: true },
+    perfis: { adm2: 1, frentista: 'true', motorista: true, mecanico: true },
   });
   assert.deepEqual(
-    { ativo: profile.ativo, adm2: profile.adm2, frentista: profile.frentista, motorista: profile.motorista, escritorio: profile.escritorio },
-    { ativo: false, adm2: false, frentista: false, motorista: true, escritorio: true },
+    { ativo: profile.ativo, adm2: profile.adm2, frentista: profile.frentista, motorista: profile.motorista, mecanico: profile.mecanico },
+    { ativo: false, adm2: false, frentista: false, motorista: true, mecanico: true },
   );
 });
 

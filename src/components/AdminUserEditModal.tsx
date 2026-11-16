@@ -17,7 +17,7 @@ import {
   Typography,
 } from '@mui/material';
 import { loginDoUsuario, nomeDoUsuario, type AdminUser } from '../services/adminUsersApi';
-import { CREDENCIAIS, CREDENCIAIS_ANTIGAS, CREDENCIAIS_DO_CADASTRO, semCredenciais, type Credencial, type Credenciais } from '../services/credenciais';
+import { CREDENCIAIS, CREDENCIAIS_DO_CADASTRO, semCredenciais, type Credencial, type Credenciais } from '../services/credenciais';
 import type { Areas } from '../services/areasWeb';
 import AreasWebEditor from './AreasWebEditor';
 import { useAuth } from '../contexts/AuthContext';
@@ -60,7 +60,7 @@ export default function AdminUserEditModal({ open, user, modo, onClose, onSave, 
   }, [user]);
 
   const nome = user ? nomeDoUsuario(user) : '';
-  const nenhuma = !CREDENCIAIS.some((c) => !CREDENCIAIS_ANTIGAS.includes(c.chave) && credenciais[c.chave]) && Object.keys(areas).length === 0;
+  const nenhuma = !CREDENCIAIS.some((c) => credenciais[c.chave]) && Object.keys(areas).length === 0;
   const data = (valor: string | null | undefined) => {
     const d = valor ? new Date(valor) : null;
     return d && !Number.isNaN(d.getTime()) ? dateFormatter.format(d) : '—';
@@ -93,12 +93,12 @@ export default function AdminUserEditModal({ open, user, modo, onClose, onSave, 
     );
   }
 
-  // Credenciais do app (e a retr0); as antigas, só da WEB, não aparecem: viraram áreas e vão como estão.
+  // Credenciais do app (e a retr0); a WEB abre pelas áreas, abaixo.
   const caixas = (
     <div>
       <FormLabel component="legend">Credenciais do app</FormLabel>
       <FormGroup>
-        {CREDENCIAIS.filter((c) => !CREDENCIAIS_ANTIGAS.includes(c.chave)).map((c) => (
+        {CREDENCIAIS.map((c) => (
           <FormControlLabel
             key={c.chave}
             control={<Checkbox checked={credenciais[c.chave] === true} disabled={!souAdm2 && !CREDENCIAIS_DO_CADASTRO.includes(c.chave)} onChange={(e) => setCredenciais((prev) => ({ ...prev, [c.chave as Credencial]: e.target.checked }))} />}

@@ -65,6 +65,7 @@ const identities = {
   combVer: { uid: 'uid-comb-ver', email: 'comb-ver@example.com' },
   combEditar: { uid: 'uid-comb-editar', email: 'comb-editar@example.com' },
   areasVazias: { uid: 'uid-areas-vazias', email: 'areas-vazias@example.com' },
+  semAreas: { uid: 'uid-sem-areas', email: 'sem-areas@example.com' },
   fridayArea: { uid: 'uid-friday-area', email: 'friday-area@example.com' },
   portalVer: { uid: 'uid-portal-ver', email: 'portal-ver@example.com' },
   portalEditar: { uid: 'uid-portal-editar', email: 'portal-editar@example.com' },
@@ -111,20 +112,24 @@ async function seed() {
     await setDoc(doc(db, '00-autorizados', 'canonical-precedence@example.com'), { nome: 'Legacy elevation', ativo: true, adm2: true });
     await setDoc(doc(db, '00-autorizados', 'canonical-inactive-precedence@example.com'), { nome: 'Legacy active', ativo: true, adm2: true });
     // 00-autorizados no longer authorizes: the legacy identities also have their funcionarios document.
-    const employeeLike = (uid, nome, email, ativo, perfis) => setDoc(doc(db, 'funcionarios', uid), {
-      nome, email, ativo, perfis: { frentista: false, adm2: false, motorista: false, ...perfis },
+    // Identities as the 2026-11-16 migration left them: app credentials in perfis and the WEB areas in `areas`
+    // (mecanico → frota, combustivel, logistica, friday; "escritorio" → friday, cadastros, portal; "engenharia" →
+    // engenharia, portal; "logistica" → frota, combustivel, logistica; "autor" → manuscript).
+    const employeeLike = (uid, nome, email, ativo, perfis, areas = {}) => setDoc(doc(db, 'funcionarios', uid), {
+      nome, email, ativo, perfis: { frentista: false, adm2: false, motorista: false, ...perfis }, areas,
       createdAt: Timestamp.fromMillis(1), updatedAt: Timestamp.fromMillis(1),
     });
+    const editar = (...lista) => Object.fromEntries(lista.map((a) => [a, 'editar']));
     await employeeLike('uid-frentista', 'Frentista', 'frentista@example.com', true, { frentista: true });
     await employeeLike('uid-adm2', 'Adm2', 'adm2@example.com', true, { adm2: true });
     await employeeLike('uid-admin', 'Admin claim', 'admin@example.com', true, {});
     await employeeLike('uid-inactive', 'Inactive', 'inactive@example.com', false, { adm2: true });
-    await employeeLike('uid-mecanico', 'Mecanico', 'mecanico@example.com', true, { mecanico: true });
-    await employeeLike('uid-escritorio', 'Escritorio', 'escritorio@example.com', true, { escritorio: true });
-    await employeeLike('uid-escritorio-fora', 'Escritorio fora', 'escritorio-fora@example.com', true, { escritorio: true });
-    await employeeLike('uid-engenharia', 'Engenharia', 'engenharia@example.com', true, { engenharia: true });
-    await employeeLike('uid-logistica', 'Logistica', 'logistica@example.com', true, { logistica: true });
-    await employeeLike('uid-autor', 'Autor', 'autor@example.com', true, { autor: true });
+    await employeeLike('uid-mecanico', 'Mecanico', 'mecanico@example.com', true, { mecanico: true }, editar('frota', 'combustivel', 'logistica', 'friday'));
+    await employeeLike('uid-escritorio', 'Escritorio', 'escritorio@example.com', true, {}, editar('friday', 'cadastros', 'portal'));
+    await employeeLike('uid-escritorio-fora', 'Escritorio fora', 'escritorio-fora@example.com', true, {}, editar('friday', 'cadastros', 'portal'));
+    await employeeLike('uid-engenharia', 'Engenharia', 'engenharia@example.com', true, {}, editar('engenharia', 'portal'));
+    await employeeLike('uid-logistica', 'Logistica', 'logistica@example.com', true, {}, editar('frota', 'combustivel', 'logistica'));
+    await employeeLike('uid-autor', 'Autor', 'autor@example.com', true, {}, editar('manuscript'));
     await employeeLike('uid-retr0', 'Retr0', 'retr0@example.com', true, { retr0: true });
     await employeeLike('uid-retr0b', 'Retr0 B', 'retr0b@example.com', true, { retr0: true });
     await employeeLike('uid-retr0c', 'Retr0 C', 'retr0c@example.com', true, { retr0: true });
@@ -135,6 +140,8 @@ async function seed() {
     await comAreas('uid-comb-ver', 'Comb ver', {}, { combustivel: 'ver' });
     await comAreas('uid-comb-editar', 'Comb editar', {}, { combustivel: 'editar' });
     await comAreas('uid-areas-vazias', 'Areas vazias', { logistica: true, escritorio: true, engenharia: true }, {});
+    // Old credentials without the `areas` map: since the cleanup of 2026-11-16 they no longer give WEB access.
+    await setDoc(doc(db, 'funcionarios', 'uid-sem-areas'), { nome: 'Sem areas', email: 'sem-areas@example.com', ativo: true, perfis: { logistica: true, escritorio: true, engenharia: true, autor: true }, createdAt: Timestamp.fromMillis(1), updatedAt: Timestamp.fromMillis(1) });
     await comAreas('uid-friday-area', 'Friday area', {}, { friday: 'editar' });
     await comAreas('uid-portal-ver', 'Portal ver', {}, { portal: 'ver' });
     await comAreas('uid-portal-editar', 'Portal editar', {}, { portal: 'editar' });
@@ -1811,7 +1818,15 @@ test('[firestore] areas: a document with `areas` ignores its old credentials', a
   await assertFails(getDocs(collection(db, 'funcionarios')));
 });
 
-test('[firestore] areas: a document without `areas` keeps the access of its old credentials', async () => {
+test('[firestore] areas: old credentials without `areas` give no WEB access (cleanup of 2026-11-16)', async () => {
+  const db = dbAs('semAreas');
+  await assertFails(getDocs(collection(db, '03-combustivel')));
+  await assertFails(setDoc(doc(db, 'friday-grupos', '53'), { id: 53, quadro_id: 10, nome: 'Sem areas' }));
+  await assertFails(getDocs(collection(db, 'portal-noticias')));
+  await assertFails(getDocs(collection(db, 'monday-cronograma')));
+});
+
+test('[firestore] areas: the migrated identities keep their access', async () => {
   await assertSucceeds(getDocs(collection(dbAs('logistica'), '03-combustivel')));
   await assertSucceeds(getDocs(collection(dbAs('mecanico'), 'logistica-programacoes')));
   await assertSucceeds(setDoc(doc(dbAs('escritorio'), 'friday-grupos', '51'), { id: 51, quadro_id: 10, nome: 'Legado' }));

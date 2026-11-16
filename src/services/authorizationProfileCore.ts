@@ -10,10 +10,6 @@ export interface AuthorizationProfile {
   motorista: boolean;
   frentista: boolean;
   mecanico: boolean;
-  escritorio: boolean;
-  engenharia: boolean;
-  logistica: boolean;
-  autor: boolean;
   retr0: boolean;
   /** Áreas da WEB em vigor: o mapa areas ou, sem ele, as que as credenciais antigas representam. */
   areas: Areas;
@@ -38,10 +34,6 @@ export function emptyAuthorizationProfile(): AuthorizationProfile {
     motorista: false,
     frentista: false,
     mecanico: false,
-    escritorio: false,
-    engenharia: false,
-    logistica: false,
-    autor: false,
     retr0: false,
     areas: {},
     id: null,
@@ -73,10 +65,6 @@ export function authorizationProfileFromData(id: string, data: Record<string, un
     motorista: profiles.motorista === true,
     frentista: profiles.frentista === true,
     mecanico: profiles.mecanico === true,
-    escritorio: profiles.escritorio === true,
-    engenharia: profiles.engenharia === true,
-    logistica: profiles.logistica === true,
-    autor: profiles.autor === true,
     retr0: profiles.retr0 === true,
     areas: areasDoFuncionario(data),
     id,

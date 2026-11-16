@@ -31,7 +31,7 @@ import { apenasDigitos, formatarDocumento, normalizarDocumento, type ClientePort
 import { useAuth } from '../../contexts/AuthContext';
 import { editaArea } from '../../services/credenciais';
 
-// Clientes do portal (engenharia, escritorio ou adm2): login de cada cliente e os CNPJ/CPF que ele representa. Contrato: The Manuscript,
+// Clientes do portal (área portal ou adm2): login de cada cliente e os CNPJ/CPF que ele representa. Contrato: The Manuscript,
 // 01_FIRESTORE/COLECOES/users.md e 03_APLICACAO_WEB/16_PORTAL_DO_CLIENTE.md ("Telas do adm2 na WEB").
 
 type Aviso = { message: string; severity: 'success' | 'error' } | null;

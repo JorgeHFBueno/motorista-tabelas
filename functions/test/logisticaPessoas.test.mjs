@@ -29,13 +29,14 @@ test('coluna "Função Desejada" pelo título, sem acento nem maiúsculas', () =
   assert.equal(colunaPeloTitulo([{ id: 1, titulo: 'Cargo' }], 'Função Desejada'), null);
 });
 
-test('só logistica, mecanico ou adm2 ativos; devolve os dois quadros', async () => {
+test('só quem vê a área logistica, ou adm2, ativos; devolve os dois quadros', async () => {
   const funcionarios = {
-    log: { ativo: true, perfis: { logistica: true } },
-    mec: { ativo: true, perfis: { mecanico: true } },
+    log: { ativo: true, perfis: {}, areas: { frota: 'editar', combustivel: 'editar', logistica: 'editar' } },
+    mec: { ativo: true, perfis: { mecanico: true }, areas: { frota: 'editar', combustivel: 'editar', logistica: 'editar', friday: 'editar' } },
     adm: { ativo: true, perfis: { adm2: true } },
-    eng: { ativo: true, perfis: { engenharia: true } },
-    inativo: { ativo: false, perfis: { logistica: true } },
+    eng: { ativo: true, perfis: {}, areas: { engenharia: 'editar', portal: 'editar' } },
+    inativo: { ativo: false, perfis: {}, areas: { frota: 'editar', combustivel: 'editar', logistica: 'editar' } },
+    antigo: { ativo: true, perfis: { logistica: true } },
   };
   const pedidos = [];
   const service = createLogisticaPessoasService({
@@ -48,5 +49,5 @@ test('só logistica, mecanico ou adm2 ativos; devolve os dois quadros', async ()
   }
   assert.deepEqual([...new Set(pedidos)].sort(), [QUADRO_CURRICULOS, QUADRO_FUNCIONARIOS].sort());
   await assert.rejects(service(undefined), (e) => e.code === 'unauthenticated');
-  for (const uid of ['eng', 'inativo', 'nao-existe']) await assert.rejects(service(uid), (e) => e.code === 'permission-denied');
+  for (const uid of ['eng', 'inativo', 'antigo', 'nao-existe']) await assert.rejects(service(uid), (e) => e.code === 'permission-denied');
 });

@@ -1,9 +1,10 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { camposExtrasFuncionario, iniciais, perfisMarcados } from '../src/services/funcionarios';
+import { areasMarcadas, camposExtrasFuncionario, iniciais, perfisMarcados } from '../src/services/funcionarios';
 
 test('profile page lists only the true credentials, in the list order', () => {
-  assert.deepEqual(perfisMarcados({ user: true, adm1: true, motorista: true, adm2: true, mecanico: true, engenharia: true, escritorio: false, novo: true }), ['Adm2', 'Motorista', 'Mecânico', 'Engenharia']);
+  assert.deepEqual(perfisMarcados({ user: true, adm1: true, motorista: true, adm2: true, mecanico: true, engenharia: true, escritorio: false, novo: true }), ['Adm2', 'Motorista', 'Mecânico']);
+  assert.deepEqual(areasMarcadas({ portal: 'ver', combustivel: 'editar', x: 'editar' }), ['Combustível', 'Portal do cliente (ver)']);
   assert.deepEqual(perfisMarcados(undefined), []);
   assert.deepEqual(perfisMarcados('adm2'), []);
 });

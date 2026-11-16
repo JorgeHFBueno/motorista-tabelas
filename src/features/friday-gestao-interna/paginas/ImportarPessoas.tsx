@@ -4,6 +4,7 @@ import { Link2, RefreshCw, Search, UserRound, UserPlus } from 'lucide-react';
 import { functions } from '../funcoes.ts';
 import { useNav } from '../nav.tsx';
 import { CREDENCIAIS, semCredenciais, type Credencial } from '../../../services/credenciais';
+import { AREAS, type Areas } from '../../../services/areasWeb';
 
 // Pessoas do monday → funcionários do sistema (Function fridayMondayPessoas, só adm2). Quem é novo ganha conta sem
 // senha e define a dela pelo "Primeiro acesso" do login; quem já é funcionário só é ligado ao monday. Quem já está aqui
@@ -19,7 +20,7 @@ type Livre = { uid: string; nome: string; ativo: boolean };
 type Resultado = { id: string; nome: string; resultado: 'criado' | 'vinculado' | 'erro'; mensagem?: string };
 
 const listar = httpsCallable<{ modo: 'listar' }, { pessoas: Pessoa[]; livres: Livre[] }>(functions, 'fridayMondayPessoas', { timeout: 310_000 });
-const criar = httpsCallable<{ modo: 'criar'; ids: string[]; credenciais: Record<string, boolean> }, { resultados: Resultado[] }>(functions, 'fridayMondayPessoas', { timeout: 310_000 });
+const criar = httpsCallable<{ modo: 'criar'; ids: string[]; credenciais: Record<string, boolean>; areas: Areas }, { resultados: Resultado[] }>(functions, 'fridayMondayPessoas', { timeout: 310_000 });
 const ligar = httpsCallable<{ modo: 'ligar'; mondayId: string; uid: string }, { resultado: Resultado }>(functions, 'fridayMondayPessoas', { timeout: 310_000 });
 
 const ROTULO: Record<Situacao, string> = { novo: 'Novo', funcionario: 'Já é funcionário', vinculado: 'Ligado', fora: 'Fora' };
@@ -35,7 +36,9 @@ export default function ImportarPessoas() {
   const [erro, setErro] = useState<string | null>(null);
   const [busca, setBusca] = useState('');
   const [marcados, setMarcados] = useState<Set<string>>(new Set());
-  const [credenciais, setCredenciais] = useState(() => ({ ...semCredenciais(), escritorio: true }));
+  const [credenciais, setCredenciais] = useState(() => semCredenciais());
+  // Áreas da WEB das contas novas, em "editar" (2026-11-16): começa só com o Friday.
+  const [areas, setAreas] = useState<Areas>({ friday: 'editar' });
   const [rodando, setRodando] = useState(false);
   const [resultados, setResultados] = useState<Resultado[] | null>(null);
 
@@ -58,14 +61,14 @@ export default function ImportarPessoas() {
   // "Marcar todas" deixa de fora quem parece já ser funcionário: criar duplicaria a pessoa.
   const marcaveisEmLote = marcaveis.filter(p => !p.sugestao);
   const novosMarcados = marcaveis.filter(p => marcados.has(p.id) && p.situacao === 'novo').length;
-  const semCredencial = novosMarcados > 0 && !CREDENCIAIS.some(c => credenciais[c.chave]);
+  const semCredencial = novosMarcados > 0 && !CREDENCIAIS.some(c => credenciais[c.chave]) && !Object.keys(areas).length;
   const marcar = (id: string) => setMarcados(m => { const n = new Set(m); if (n.has(id)) n.delete(id); else n.add(id); return n; });
 
   const executar = async () => {
     if (!marcados.size || rodando || semCredencial) return;
     setRodando(true); setResultados(null); setErro(null);
     try {
-      const { data } = await criar({ modo: 'criar', ids: [...marcados], credenciais });
+      const { data } = await criar({ modo: 'criar', ids: [...marcados], credenciais, areas });
       setResultados(data.resultados);
       setMarcados(new Set());
       await Promise.all([carregar(), nav.recarregar()]);
@@ -91,14 +94,21 @@ export default function ImportarPessoas() {
       <p className="muted">Traz as pessoas do monday como funcionários do sistema. Quem é <b>novo</b> ganha uma conta <b>sem senha</b>: no login, em “Primeiro acesso ou esqueci minha senha”, a pessoa recebe no e-mail o link para criar a senha. Quem <b>já é funcionário</b> (mesmo e-mail) só é ligado ao monday, sem mudar as credenciais. Quem já está no sistema com <b>outro login</b> (celular ou outro e-mail) aparece como novo: use <b>Ligar a funcionário</b> para não duplicar; quando o nome bate, o funcionário vem sugerido. Com a ligação, reimportar um quadro preenche as colunas de pessoa.</p>
 
       <div className="importar-progresso">
-        <strong>Credenciais das contas novas</strong>
+        <strong>Credenciais do app das contas novas</strong>
         <div className="seletor-tipos">
           {CREDENCIAIS.map(c => (
             <button key={c.chave} type="button" title={c.descricao} className={`chip-sub${credenciais[c.chave] ? ' on' : ''}`} disabled={rodando}
               onClick={() => setCredenciais(x => ({ ...x, [c.chave]: !x[c.chave as Credencial] }))}>{c.rotulo}</button>
           ))}
         </div>
-        {semCredencial && <small className="texto-alerta">Marque ao menos uma credencial para criar as contas novas.</small>}
+        <strong>Áreas da WEB das contas novas (editar)</strong>
+        <div className="seletor-tipos">
+          {AREAS.map(a => (
+            <button key={a.chave} type="button" className={`chip-sub${areas[a.chave] ? ' on' : ''}`} disabled={rodando}
+              onClick={() => setAreas(x => { const y = { ...x }; if (y[a.chave]) delete y[a.chave]; else y[a.chave] = 'editar'; return y; })}>{a.rotulo}</button>
+          ))}
+        </div>
+        {semCredencial && <small className="texto-alerta">Marque ao menos uma credencial ou área para criar as contas novas.</small>}
       </div>
 
       <div className="arquivo-barra pessoas-barra">

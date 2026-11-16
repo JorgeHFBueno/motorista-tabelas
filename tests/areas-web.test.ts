@@ -16,14 +16,8 @@ test('areas: a document with the map uses only it; ver lets in, editar also edit
   assert.equal(veArea(p, 'logistica'), false, 'with the map, the old logistica credential no longer counts');
 });
 
-test('areas: without the map, the old credentials stand for their areas at editar (migration table)', () => {
-  const mecanico = perfil({ perfis: { mecanico: true } });
-  assert.deepEqual(mecanico.areas, { frota: 'editar', combustivel: 'editar', logistica: 'editar', friday: 'editar' });
-  const escritorio = perfil({ perfis: { escritorio: true } });
-  assert.deepEqual(escritorio.areas, { friday: 'editar', cadastros: 'editar', portal: 'editar' });
-  assert.deepEqual(perfil({ perfis: { engenharia: true } }).areas, { engenharia: 'editar', portal: 'editar' });
-  assert.deepEqual(perfil({ perfis: { autor: true } }).areas, { manuscript: 'editar' });
-  assert.deepEqual(perfil({ perfis: { motorista: true, frentista: true } }).areas, {});
+test('areas: without the map there is no WEB area, old credentials included (cleanup of 2026-11-16)', () => {
+  assert.deepEqual(perfil({ perfis: { mecanico: true, escritorio: true, engenharia: true, autor: true, logistica: true } }).areas, {});
 });
 
 test('areas: adm2 sees and edits every area; an inactive person none', () => {

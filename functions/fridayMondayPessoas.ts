@@ -4,7 +4,7 @@ import * as logger from 'firebase-functions/logger';
 import { FieldValue } from 'firebase-admin/firestore';
 import { adminAuth, db } from './firebaseAdmin.js';
 import { mondayApiToken } from './mondayClient.js';
-import { CREDENCIAIS, lerCredenciais, type Credenciais } from './credenciais.js';
+import { CREDENCIAIS, lerAreas, lerCredenciais, type Areas, type Credenciais } from './credenciais.js';
 import { exigirAdm2, gql } from './fridayMondayImport.js';
 
 // Pessoas do monday → funcionários do sistema (só adm2). O monday só é lido.
@@ -78,15 +78,17 @@ export function classificarPessoas(
   });
 }
 
-/** Pedido de "criar": ids do monday (sem repetir, até 100) e as credenciais das contas novas (ao menos uma). */
-export function lerPedido(dados: unknown): { ids: string[]; credenciais: Credenciais } | { erro: string } {
+/** Pedido de "criar": ids do monday (sem repetir, até 100) e as credenciais e áreas da WEB das contas novas (ao menos uma). */
+export function lerPedido(dados: unknown): { ids: string[]; credenciais: Credenciais; areas: Areas } | { erro: string } {
   const d = (dados ?? {}) as Record<string, unknown>;
   const ids = Array.isArray(d.ids) ? [...new Set(d.ids.map(String).filter(id => /^\d+$/.test(id)))] : [];
   if (!ids.length) return { erro: 'Escolha ao menos uma pessoa.' };
   if (ids.length > MAX_POR_CHAMADA) return { erro: `No máximo ${MAX_POR_CHAMADA} pessoas por vez.` };
   const credenciais = lerCredenciais(d.credenciais);
-  if (!credenciais || !CREDENCIAIS.some(c => credenciais[c])) return { erro: 'Marque ao menos uma credencial.' };
-  return { ids, credenciais };
+  const areas = lerAreas(d.areas ?? {});
+  if (!credenciais || !areas) return { erro: 'Credenciais ou áreas inválidas.' };
+  if (!CREDENCIAIS.some(c => credenciais[c]) && !Object.keys(areas).length) return { erro: 'Marque ao menos uma credencial ou área.' };
+  return { ids, credenciais, areas };
 }
 
 async function usuariosDoMonday(token: string): Promise<UsuarioMonday[]> {
@@ -141,7 +143,7 @@ async function situacaoAtual(usuarios: UsuarioMonday[]): Promise<{ pessoas: Pess
 export type ResultadoPessoa = { id: string; nome: string; resultado: 'criado' | 'vinculado' | 'erro'; mensagem?: string };
 
 /** Cria ou liga as pessoas escolhidas, de acordo com a situação recalculada agora (não a da tela). */
-export async function criarPessoas(pessoas: PessoaMonday[], credenciais: Credenciais): Promise<ResultadoPessoa[]> {
+export async function criarPessoas(pessoas: PessoaMonday[], credenciais: Credenciais, areas: Areas = {}): Promise<ResultadoPessoa[]> {
   const out: ResultadoPessoa[] = [];
   for (const p of pessoas) {
     try {
@@ -166,7 +168,7 @@ export async function criarPessoas(pessoas: PessoaMonday[], credenciais: Credenc
       }
       try {
         await db.collection('funcionarios').doc(uid).create({
-          nome: p.nome || p.email, email: p.email, ativo: true, perfis: credenciais,
+          nome: p.nome || p.email, email: p.email, ativo: true, perfis: credenciais, areas,
           ...(credenciais.motorista ? { motorista: { ordem: 0 } } : {}),
           mondayId: p.id, createdAt: FieldValue.serverTimestamp(), updatedAt: FieldValue.serverTimestamp(),
         });
@@ -213,7 +215,7 @@ export const fridayMondayPessoas = onCall({ region: REGIAO, secrets: [mondayApiT
   const atuais = (await situacaoAtual(await usuariosDoMonday(token))).pessoas;
   const escolhidas = pedido.ids.map(id => atuais.find(p => p.id === id)).filter((p): p is PessoaMonday => !!p);
   if (escolhidas.length !== pedido.ids.length) throw new HttpsError('not-found', 'Alguma pessoa escolhida não está mais no monday.');
-  const resultados = await criarPessoas(escolhidas, pedido.credenciais);
+  const resultados = await criarPessoas(escolhidas, pedido.credenciais, pedido.areas);
   logger.info('friday-monday-pessoas', { por: request.auth?.uid, criados: resultados.filter(r => r.resultado === 'criado').length, vinculados: resultados.filter(r => r.resultado === 'vinculado').length, erros: resultados.filter(r => r.resultado === 'erro').length });
   return { resultados };
 });

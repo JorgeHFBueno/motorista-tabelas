@@ -23,22 +23,12 @@ service firebase.storage {
         && firestore.get(employeePath()).data.get('perfis', {}).get(perfil, false) == true;
     }
 
-    // WEB areas, the same as nivelArea in firestore.rules (Manuscript funcionarios.md, 2026-11-16): `areas` when the
-    // document has it, otherwise 'editar' in the areas of its old credentials. One read of the profile.
+    // WEB areas, the same as nivelArea in firestore.rules (Manuscript funcionarios.md, 2026-11-16): `areas`; a missing
+    // area = no access; adm2 edits every area. One read of the profile.
     function nivelArea(a) {
       let f = isAuthorized() ? firestore.get(employeePath()).data : {};
       let p = f.get('perfis', {});
-      return p.get('adm2', false) == true ? 'editar'
-        : ('areas' in f ? f.areas.get(a, '') : (nivelLegado(p, a) ? 'editar' : ''));
-    }
-
-    // Old credentials (documents without `areas`, until the migration).
-    function nivelLegado(p, a) {
-      return (a in ['frota', 'combustivel', 'logistica'] && (p.get('mecanico', false) == true || p.get('logistica', false) == true))
-        || (a == 'friday' && (p.get('mecanico', false) == true || p.get('escritorio', false) == true))
-        || (a in ['cadastros', 'portal'] && p.get('escritorio', false) == true)
-        || (a in ['engenharia', 'portal'] && p.get('engenharia', false) == true)
-        || (a == 'manuscript' && p.get('autor', false) == true);
+      return p.get('adm2', false) == true ? 'editar' : f.get('areas', {}).get(a, '');
     }
 
     // Sees the WEB area (reads): 'ver' or 'editar'; adm2 sees every area.
