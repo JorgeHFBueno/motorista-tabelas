@@ -1,7 +1,8 @@
-import { useEffect, useRef, useState } from 'react';
+import { useContext, useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import type { ObraCronograma } from '../domain/models';
-import { loteStatusColor, loteStatusFromLabel, LOTE_START_OPTIONS, LOTE_STATUS_OPTIONS, LoteStatusRequestError, type LoteStatus, type LoteStatusCode, updateLoteStatus } from '../../../services/loteStatusService';
+import { loteStatusColor, loteStatusFromLabel, LOTE_START_OPTIONS, LOTE_STATUS_OPTIONS, LoteStatusRequestError, type LoteStatus, type LoteStatusCode } from '../../../services/loteStatusService';
+import { GravarStatusLoteContext } from '../data/fontesCronograma';
 import { StatusBadge } from './StatusBadge';
 import { useAuth } from '../../../contexts/AuthContext';
 import { editaArea } from '../../../services/credenciais';
@@ -10,6 +11,7 @@ import { editaArea } from '../../../services/credenciais';
 export function LoteStatusControl({ obra, canStart, canFinish = false, onStatusConfirmed }: { obra: ObraCronograma; canStart: boolean; canFinish?: boolean; onStatusConfirmed?: (contratoId: string, loteId: string, status: LoteStatus) => void }) {
   // Área Engenharia em "ver": só o badge (a Function fridayCadastroGravar recusa do mesmo jeito).
   const podeEditar = editaArea(useAuth().authorizationProfile, 'engenharia');
+  const gravarStatusLote = useContext(GravarStatusLoteContext);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [updated, setUpdated] = useState(false);
@@ -30,7 +32,7 @@ export function LoteStatusControl({ obra, canStart, canFinish = false, onStatusC
     if (saving) return;
     setSaving(true); setError(null); setUpdated(false);
     try {
-      const gravado = await updateLoteStatus(obra.contratoId!, obra.loteId!, novoStatus);
+      const gravado = await gravarStatusLote(obra.contratoId!, obra.loteId!, novoStatus);
       onStatusConfirmed?.(obra.contratoId!, obra.loteId!, gravado);
       setUpdated(true);
     } catch (cause) {

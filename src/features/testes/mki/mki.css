@@ -1,0 +1,141 @@
+/*
+ * /testes/mki: o CronoObra com a identidade visual do Cronograma Logístico (cronograma-logistica/logistica.css).
+ * Tudo sob .co-tema-mki (na página e no <body>, para os painéis), sem mexer no visual de produção.
+ */
+
+/* aviso de dados fictícios */
+.mki-aviso { align-items: center; background: #fff6e0; border-bottom: 1px solid #f1d58a; color: #6b5212; display: flex; flex-wrap: wrap; font-size: 13px; gap: 6px 10px; padding: 8px 28px; }
+.mki-aviso strong { font-weight: 700; }
+
+/* tokens e página */
+.co-tema-mki {
+  --mki-fundo: #f6f7fb;
+  --mki-superficie: #ffffff;
+  --mki-hover: #f5f6f8;
+  --mki-borda: #d0d4e4;
+  --mki-borda-suave: #e6e9ef;
+  --mki-texto: #323338;
+  --mki-texto-2: #676879;
+  --mki-texto-3: #9699a6;
+  --mki-primaria: #2f6fde;
+  --mki-primaria-hover: #1f5bc4;
+  --mki-primaria-clara: #dce8fb;
+  --mki-perigo: #d83a52;
+  --co-weekend-shade: rgba(50, 51, 56, .07);
+  --co-holiday-shade: rgba(226, 68, 92, .16);
+  --co-today-shade: rgba(47, 111, 222, .10);
+}
+.co-page.co-tema-mki { --co-ink: var(--mki-texto); --co-muted: var(--mki-texto-2); --co-line: var(--mki-borda-suave); --co-line-soft: var(--mki-borda-suave); --co-accent: var(--mki-primaria); background: var(--mki-fundo); color: var(--mki-texto); padding-top: 16px; }
+
+/* botões e alternâncias */
+.co-tema-mki .co-button { background: var(--mki-superficie); border: 1px solid var(--mki-borda); border-radius: 4px; color: var(--mki-texto); font-size: 13px; font-weight: 500; height: 32px; padding: 0 12px; }
+.co-tema-mki .co-button:hover { background: var(--mki-hover); }
+.co-tema-mki .co-button--primary { background: var(--mki-primaria); border-color: var(--mki-primaria); color: #fff; }
+.co-tema-mki .co-button--primary:hover { background: var(--mki-primaria-hover); }
+.co-tema-mki .co-button--ghost { background: none; border-color: transparent; color: var(--mki-texto-2); }
+.co-tema-mki .co-view-switch { background: none; border: 0; border-bottom: 1px solid var(--mki-borda-suave); border-radius: 0; gap: 2px; padding: 0; }
+.co-tema-mki .co-view-switch button { border-bottom: 2px solid transparent; border-radius: 4px 4px 0 0; color: var(--mki-texto-2); font-size: 14px; min-width: 0; padding: 8px 12px; }
+.co-tema-mki .co-view-switch button:hover { background: var(--mki-hover); }
+.co-tema-mki .co-view-switch button.is-active { background: none; border-bottom-color: var(--mki-primaria); box-shadow: none; color: var(--mki-texto); }
+
+/* indicadores */
+.co-tema-mki .co-indicators-bar { border: 1px solid var(--mki-borda-suave); border-radius: 8px; box-shadow: none; }
+.co-tema-mki .co-indicators-group > div { border-right-color: var(--mki-borda-suave); }
+.co-tema-mki .co-indicators-group span { color: var(--mki-texto-2); font-size: 13px; font-weight: 400; }
+.co-tema-mki .co-indicators-group strong { color: var(--mki-texto); font-size: 20px; font-weight: 600; }
+.co-tema-mki .co-indicators-group .has-alert strong { color: var(--mki-perigo); }
+
+/* filtros */
+.co-tema-mki .co-filters { border: 1px solid var(--mki-borda-suave); border-radius: 8px; box-shadow: none; gap: 10px 12px; padding: 12px; }
+.co-tema-mki .co-filters label, .co-tema-mki .co-status-filter > span { color: var(--mki-texto-2); font-size: 13px; font-weight: 600; letter-spacing: 0; text-transform: none; }
+.co-tema-mki .co-filters select, .co-tema-mki .co-filters input, .co-tema-mki .co-search { background: var(--mki-superficie); border: 1px solid var(--mki-borda); border-radius: 4px; color: var(--mki-texto); font-size: 14px; height: 32px; }
+.co-tema-mki .co-search input { border: 0; height: auto; }
+.co-tema-mki .co-filters select:focus, .co-tema-mki .co-filters input:focus, .co-tema-mki .co-search:focus-within { border-color: var(--mki-primaria); box-shadow: 0 0 0 2px var(--mki-primaria-clara); }
+.co-tema-mki .co-status-chip { border-color: var(--mki-borda); border-radius: 4px; color: var(--mki-texto); font-size: 13px; font-weight: 500; height: 28px; }
+
+/* grupos (as seções viram grupos coloridos, como as semanas da Logística) */
+.co-tema-mki .co-contract-sections { gap: 28px; }
+.co-tema-mki .co-contract-sections > section { --mki-grupo: var(--mki-primaria); background: none; border: 0; box-shadow: none; padding: 0; }
+.co-tema-mki .co-contract-sections > section:nth-of-type(2) { --mki-grupo: #9d50dd; }
+.co-tema-mki .co-contract-sections > section:nth-of-type(3) { --mki-grupo: #00a35c; }
+.co-tema-mki .co-section-heading { align-items: center; margin-bottom: 6px; }
+.co-tema-mki .co-section-heading h2 { color: var(--mki-grupo, var(--mki-primaria)); font-size: 18px; font-weight: 600; margin: 0; white-space: nowrap; }
+.co-tema-mki .co-masters-section-heading h2 { color: var(--mki-texto); }
+.co-tema-mki .co-text-section-toggle { color: var(--mki-grupo); font-size: 14px; font-weight: 600; }
+
+/* tabela */
+.co-tema-mki .co-gantt, .co-tema-mki .co-text-table { border: 1px solid var(--mki-borda-suave); border-radius: 6px; box-shadow: none; }
+.co-tema-mki .co-left-header, .co-tema-mki .co-timeline-header, .co-tema-mki .co-text-head { background: var(--mki-superficie); border-bottom: 1px solid var(--mki-borda); }
+.co-tema-mki .co-left-header > span, .co-tema-mki .co-text-head > span { border-right-color: var(--mki-borda-suave); color: var(--mki-texto-2); font-size: 13px; font-weight: 400; letter-spacing: 0; text-transform: none; }
+.co-tema-mki .co-left-header > span:not(.co-sort-header):hover, .co-tema-mki .co-sort-header:hover { background: var(--mki-hover); color: var(--mki-texto); }
+.co-tema-mki .co-left-header, .co-tema-mki .co-left-row, .co-tema-mki .co-text-head, .co-tema-mki .co-text-row { box-shadow: inset 6px 0 0 var(--mki-grupo, var(--mki-primaria)); }
+.co-tema-mki .co-left-header > span:first-child, .co-tema-mki .co-left-row > span:first-child, .co-tema-mki .co-text-head > span:first-child, .co-tema-mki .co-text-row > span:first-child { padding-left: 14px; }
+.co-tema-mki .co-grid-row, .co-tema-mki .co-text-row { border-bottom: 1px solid var(--mki-borda-suave); }
+.co-tema-mki .co-grid-row:hover, .co-tema-mki .co-text-row:hover { background: #f9fafc; }
+.co-tema-mki .co-grid-row.is-selected { background: var(--mki-primaria-clara); box-shadow: none; }
+.co-tema-mki .co-left-row { border-right: 1px solid var(--mki-borda); }
+.co-tema-mki .co-left-row > span, .co-tema-mki .co-text-row > span { border-right-color: var(--mki-borda-suave); color: var(--mki-texto); font-size: 13px; }
+.co-tema-mki .co-left-row > span:first-child { color: var(--mki-texto); font-size: 13px; font-weight: 600; }
+.co-tema-mki .co-start-date { color: var(--mki-texto); text-decoration: none; }
+.co-tema-mki .co-start-date:hover { color: var(--mki-primaria); text-decoration: underline; }
+
+/* subgrupos: Públicas/Privadas e Próxima a iniciar */
+.co-tema-mki .co-work-type-divider { background: var(--mki-superficie); border-color: var(--mki-borda-suave); color: var(--mki-texto-2); font-size: 12px; font-weight: 600; letter-spacing: 0; text-transform: none; }
+.co-tema-mki .co-work-type-divider--publica, .co-tema-mki .co-work-type-divider--privada, .co-tema-mki .co-work-type-divider--sem-classificacao { background: var(--mki-fundo); color: var(--mki-texto-2); }
+.co-tema-mki .co-work-stage-divider { border-top: 2px solid var(--mki-primaria); font-size: 14px; }
+.co-tema-mki .co-work-stage-divider--proxima-a-iniciar { background: var(--mki-primaria-clara); color: var(--mki-primaria); }
+
+/* status: célula cheia na cor do status */
+.co-tema-mki .co-left-row > span:has(> .co-monday-status-control), .co-tema-mki .co-text-row > span:has(> .co-monday-status-control) { padding: 0; }
+.co-tema-mki .co-monday-status-control { height: 100%; width: 100%; }
+.co-tema-mki .co-monday-status-trigger { border-radius: 0; font-size: 13px; font-weight: 500; height: 100%; justify-content: center; min-height: 41px; width: 100%; }
+.co-tema-mki .co-monday-status-trigger:hover { filter: brightness(1.06); }
+.co-tema-mki .co-start-button { border-radius: 0; height: 100%; justify-content: center; min-height: 37px; width: 100%; }
+
+/* calendário */
+.co-tema-mki .co-timeline-year { color: var(--mki-texto-2); font-weight: 600; }
+.co-tema-mki .co-months > div { border-right: 2px solid var(--mki-borda); color: var(--mki-texto-2); font-size: 13px; font-weight: 600; letter-spacing: 0; }
+.co-tema-mki .co-weeks > div { border-color: var(--mki-borda-suave); color: var(--mki-texto-2); font-size: 12px; font-weight: 400; }
+.co-tema-mki .co-days > div { border-color: var(--mki-borda-suave); color: var(--mki-texto); flex-direction: column; font-size: 11px; line-height: 1.05; }
+.co-tema-mki .co-days > div::after { color: var(--mki-texto-3); content: attr(data-dow); font-size: 9px; }
+.co-tema-mki .co-days > .is-week-start { border-left: 2px solid var(--mki-borda); }
+.co-tema-mki .co-days > .is-weekend { background: rgba(50, 51, 56, .07); }
+.co-tema-mki .co-days > .is-holiday { background: #fbd5db; color: #a3192f; cursor: help; font-weight: 600; }
+.co-tema-mki .co-days > .is-holiday::after { color: #a3192f; }
+.co-tema-mki .co-days > .is-today { background: var(--mki-primaria); border-radius: 4px; color: #fff; font-weight: 600; }
+.co-tema-mki .co-days > .is-today::after { color: #fff; }
+.co-tema-mki .co-day-timeline { background: var(--co-day-grid), var(--co-day-shade); }
+
+/* barras de mestre e NT */
+.co-tema-mki .co-master-strip { border-radius: 4px; }
+.co-tema-mki .co-master-strips--alert-off .co-master-strip { inset-block: 5px; }
+.co-tema-mki .co-master-strip-label { font-size: 13px; font-weight: 600; letter-spacing: 0; }
+.co-tema-mki .co-master-nt { border-radius: 0; }
+
+/* paleta de mestres */
+.co-tema-mki .co-master-palette { background: none; }
+.co-tema-mki .co-master-chip { border-radius: 4px; font-size: 13px; font-weight: 600; letter-spacing: 0; padding: 6px 10px; }
+.co-tema-mki .co-master-view { border: 1px solid var(--mki-borda); border-radius: 4px; color: var(--mki-texto); font-weight: 500; }
+.co-tema-mki .co-master-name-chip { border-radius: 4px; font-weight: 600; }
+
+/* painéis (fora da página: <body> com .co-tema-mki) */
+.co-tema-mki .co-drawer { color: var(--mki-texto); font-size: 14px; }
+.co-tema-mki .co-drawer-header { background: var(--mki-superficie); border-bottom: 1px solid var(--mki-borda-suave); }
+.co-tema-mki .co-eyebrow { color: var(--mki-primaria); font-size: 13px; font-weight: 600; letter-spacing: 0; text-transform: none; }
+.co-tema-mki .co-drawer-header h2 { color: var(--mki-texto); font-size: 20px; font-weight: 600; }
+.co-tema-mki .co-drawer-body h3 { color: var(--mki-texto); font-size: 14px; font-weight: 600; }
+.co-tema-mki .co-drawer-body h4 { color: var(--mki-texto-2); font-size: 13px; font-weight: 600; letter-spacing: 0; text-transform: none; }
+.co-tema-mki .co-period-details li, .co-tema-mki .co-other-works article { background: var(--mki-superficie); border: 1px solid var(--mki-borda-suave); border-radius: 6px; color: var(--mki-texto); font-size: 13px; }
+.co-tema-mki .co-period-details li.is-selected { background: var(--mki-primaria-clara); border-color: var(--mki-primaria); box-shadow: none; }
+.co-tema-mki .co-inline-action { color: var(--mki-primaria); font-size: 13px; font-weight: 500; }
+
+/* subgrupos com a faixa do grupo e sem caixa alta */
+.co-tema-mki .co-work-type-divider__fixed { border-right-color: var(--mki-borda); box-shadow: inset 6px 0 0 var(--mki-grupo, var(--mki-primaria)); }
+.co-tema-mki .co-work-type-divider, .co-tema-mki .co-work-type-divider * { text-transform: none; }
+.co-tema-mki .co-work-type-divider__fixed > span { padding-left: 16px; }
+.co-tema-mki .co-work-stage-divider .co-work-type-divider__fixed > span { font-weight: 600; }
+
+/* linhas de contrato nas tabelas de texto: neutras, como as linhas da Logística */
+.co-tema-mki .co-text-row--contract { background: var(--mki-superficie); color: var(--mki-texto); font-weight: 600; }
+.co-tema-mki .co-text-row--contract:hover { background: #f9fafc; }
+.co-tema-mki .co-text-row--child { background: var(--mki-superficie); }

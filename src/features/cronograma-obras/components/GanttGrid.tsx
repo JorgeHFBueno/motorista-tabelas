@@ -37,6 +37,7 @@ import {
   weeklyTimelineCells,
 } from "../domain/temporal";
 import { getDirectMasterDropInterval } from "../domain/dropPlanning";
+import { feriadoEm } from "../../cronograma-logistica/domain/feriados";
 import { NT_ARRASTE, redimensionarNaoTrabalhado, rotuloDias, segmentosNT, type NaoTrabalhado } from "../domain/naoTrabalhados";
 import { requiresContractReview } from "../data/source/obrasV2CronogramaAdapter";
 import {
@@ -447,10 +448,36 @@ function dailyGridStyle(
         .map((day, index) => (day.isMonthStart ? boundary(index, MONTH_GRID_LINE, 3) : null))
         .filter(Boolean),
     ].join(", "),
+    "--co-day-shade": dayShade(days),
     ...(dropIndex === null
       ? {}
       : { "--co-day-drop-left": `${dropIndex * BUCKET_WIDTH.day}px` }),
   } as React.CSSProperties;
+}
+
+const dayShadeCache = new Map<string, string>();
+/**
+ * Weekend, holiday and today shading for the daily body, as in the Cronograma Logístico. Only a theme paints it
+ * (`background: var(--co-day-grid), var(--co-day-shade)`, /testes/mki).
+ */
+function dayShade(days: ReturnType<typeof dailyHeader>): string {
+  const hoje = todayCivil();
+  const key = `${days[0]?.date}-${days.length}-${hoje}`;
+  const cached = dayShadeCache.get(key);
+  if (cached) return cached;
+  const w = BUCKET_WIDTH.day;
+  const day = (index: number, color: string) =>
+    `linear-gradient(to right, ${color}, ${color}) ${index * w}px 0 / ${w}px 100% no-repeat`;
+  // Saturdays and Sundays repeat every 7 days from the first Saturday.
+  const firstSaturday = (6 - new Date(`${days[0].date}T00:00:00Z`).getUTCDay() + 7) % 7;
+  const weekend = `repeating-linear-gradient(to right, var(--co-weekend-shade, transparent) 0 ${2 * w}px, transparent ${2 * w}px ${7 * w}px) ${firstSaturday * w}px 0 / 100% 100% no-repeat`;
+  const shade = [
+    ...days.map((item, index) => (item.date === hoje ? day(index, "var(--co-today-shade, transparent)") : null)).filter(Boolean),
+    ...days.map((item, index) => (feriadoEm(item.date) ? day(index, "var(--co-holiday-shade, transparent)") : null)).filter(Boolean),
+    weekend,
+  ].join(", ");
+  dayShadeCache.set(key, shade);
+  return shade;
 }
 
 /** Weekly equivalent of the paint-only daily grid. */

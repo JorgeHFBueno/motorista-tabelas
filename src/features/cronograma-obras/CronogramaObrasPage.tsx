@@ -15,19 +15,12 @@ import { MasterPalette } from "./components/MasterPalette";
 import { ObraDrawer } from "./components/ObraDrawer";
 import { MasterDetailsDrawer } from "./components/MasterDetailsDrawer";
 import { WorkloadPanel } from "./components/WorkloadPanel";
+import type { AlocacaoFirestore } from "./data/cronogramaFirestore";
 import {
-  CronogramaFirestoreRepository,
-  type AlocacaoFirestore,
-} from "./data/cronogramaFirestore";
-import {
-  FirestoreMestresDataSource,
   nextMestreColor,
   type MestreFirestore,
 } from "./data/mestresFirestore";
-import {
-  applyContratosChanges,
-  ObrasV2CronogramaDataSource,
-} from "./data/source/obrasV2CronogramaDataSource";
+import { applyContratosChanges } from "./data/source/obrasV2CronogramaDataSource";
 import {
   allMasters,
   buildWorkloads,
@@ -43,7 +36,8 @@ import {
   NT_ARRASTE,
   type NaoTrabalhado,
 } from "./domain/naoTrabalhados";
-import { gravarPrioridadeLote } from "./data/prioridadeLote";
+import { FONTES_FIRESTORE } from "./data/fontesFirestore";
+import { GravarStatusLoteContext, type FontesCronograma } from "./data/fontesCronograma";
 import {
   dropUndoFor,
   isEditableTarget,
@@ -93,9 +87,6 @@ import {
 } from "./debug/cronogramaPerf";
 import "./styles/cronograma-obras.css";
 
-const source = new ObrasV2CronogramaDataSource();
-const mestresSource = new FirestoreMestresDataSource();
-const alocacoesSource = new CronogramaFirestoreRepository();
 const INITIAL_FILTERS: CronogramaFilters = {
   search: "",
   status: [],
@@ -316,11 +307,31 @@ function withOptimisticAlocacao(
   });
 }
 
-export default function CronogramaObrasPage() {
+type CronogramaObrasViewProps = {
+  /** De onde lê e para onde grava; padrão: o Firestore de produção. */
+  fontes?: FontesCronograma;
+  /** Dados fictícios (/testes): qualquer um que entra pode editar, porque nada é salvo. */
+  edicaoLiberada?: boolean;
+  /** Identidade visual em teste (/testes/mki). */
+  tema?: "mki";
+};
+
+export function CronogramaObrasView({
+  fontes = FONTES_FIRESTORE,
+  edicaoLiberada = false,
+  tema,
+}: CronogramaObrasViewProps) {
   countCronogramaRender("CronogramaObrasPage");
+  const {
+    contratos: source,
+    mestres: mestresSource,
+    alocacoes: alocacoesSource,
+    gravarPrioridadeLote,
+  } = fontes;
   const { currentUser, authorizationLoading, authorizationProfile } = useAuth();
   // Área Engenharia em "ver": o cronograma só mostra (sem arrastar, redimensionar, priorizar, criar mestre nem editar).
-  const podeEditar = editaArea(authorizationProfile, "engenharia");
+  const podeEditar =
+    edicaoLiberada || editaArea(authorizationProfile, "engenharia");
   const [view, setView] = useState<"obras" | "mestres">("obras");
   const [sectionViews, setSectionViews] = useState<WorkSectionViews>(
     DEFAULT_WORK_SECTION_VIEWS,
@@ -551,7 +562,7 @@ export default function CronogramaObrasPage() {
       unsubscribeObras();
       unsubscribeAlocacoes();
     };
-  }, []);
+  }, [source, mestresSource, alocacoesSource]);
   const contractMap = useMemo(
     () => new Map(contratos.map((contrato) => [contrato.id, contrato])),
     [contratos],
@@ -1291,7 +1302,8 @@ export default function CronogramaObrasPage() {
   );
 
   return (
-    <main className={`co-page co-zoom--${zoom}`}>
+    <GravarStatusLoteContext.Provider value={fontes.gravarStatusLote}>
+    <main className={`co-page co-zoom--${zoom}${tema ? ` co-tema-${tema}` : ""}`}>
       <section className="co-indicators-bar">
         <div className="co-indicators-group">
           <div>
@@ -1654,5 +1666,10 @@ export default function CronogramaObrasPage() {
         onClose={() => setContractDetails(null)}
       />
     </main>
+    </GravarStatusLoteContext.Provider>
   );
+}
+
+export default function CronogramaObrasPage() {
+  return <CronogramaObrasView />;
 }
