@@ -4,18 +4,22 @@
 // script fora do repositório, não pela tela (decisão de 2026-10-28). Funções puras, sem Firestore.
 // Contrato: The Manuscript, 03_APLICACAO_WEB/14_FRIDAY_CADASTROS_OFICIAIS.md e 01_FIRESTORE/COLECOES/veiculos-v2.md.
 
-import { acrescentarRotulos, chaveValida, rotulosOficiais, TIPOS_OFICIAIS, valorOficial, type CampoOficial, type RotuloOficial } from './fridayCadastroConverter.js';
+import { acrescentarRotulos, chaveValida, coordenadaDoLink, rotulosOficiais, TIPOS_OFICIAIS, valorOficial, type CampoOficial, type RotuloOficial } from './fridayCadastroConverter.js';
 
 type AnyRecord = Record<string, any>;
 
-/** Tipos do contrato e as colunas do Friday compatíveis com cada um (texto aceita rótulo: grava o texto do rótulo). */
-export type TipoContrato = 'texto' | 'numero' | 'caixa' | 'opcao' | 'data';
+/**
+ * Tipos do contrato e as colunas do Friday compatíveis com cada um (texto aceita rótulo: grava o texto do rótulo).
+ * Coordenada: `{ lat, lng }` em graus decimais, lida do link (o texto "lat, lng" ou o endereço do Google Maps).
+ */
+export type TipoContrato = 'texto' | 'numero' | 'caixa' | 'opcao' | 'data' | 'coordenada';
 export const COLUNAS_COMPATIVEIS: Record<TipoContrato, string[]> = {
   texto: ['texto', 'texto_longo', 'telefone', 'email', 'status'],
   numero: ['numero', 'avaliacao'],
   caixa: ['caixa'],
   opcao: ['status'],
   data: ['data'],
+  coordenada: ['link'],
 };
 
 export type CampoContrato = {
@@ -121,7 +125,10 @@ const OBRAS_V2: CadastroExistente = {
   ],
   subitens: {
     chave: 'lotes', nome_caminho: 'nome', ordem_caminho: 'ordem',
-    campos: [{ caminho: 'status', titulo: 'Status do LOTE', tipo: 'texto', obrigatorio: false, nulo: true }],
+    campos: [
+      { caminho: 'status', titulo: 'Status do LOTE', tipo: 'texto', obrigatorio: false, nulo: true },
+      { caminho: 'coordenada', titulo: 'Coordenada do LOTE', tipo: 'coordenada', obrigatorio: false, nulo: true },
+    ],
   },
   situacao_por_formula: { caminho: 'situacao', status: { caminho: 'status', quando: 'Obra Finalizada', sim: 'FINALIZADA', nao: 'CONTRATADA' } },
 };
@@ -284,6 +291,11 @@ export function valorParaContrato(campo: CampoExistente, valor: unknown): { valo
   switch (campo.tipo_contrato) {
     case 'texto': return campo.exato ? (String(valor).trim() ? { valor: String(valor) } : { vazio: true }) : { valor: String(valor).trim() };
     case 'data': return /^\d{4}-\d{2}-\d{2}/.test(String(valor)) ? { valor: String(valor).slice(0, 10) } : { erro: `Data inválida em "${campo.titulo}".` };
+    case 'coordenada': {
+      if (typeof valor === 'object' && !String((valor as AnyRecord).url ?? '').trim() && !String((valor as AnyRecord).texto ?? '').trim()) return { vazio: true };
+      const c = coordenadaDoLink(valor);
+      return c ? { valor: c } : { erro: `Coordenada inválida em "${campo.titulo}": use o texto "latitude, longitude" (ex.: -29.502239, -51.966187).` };
+    }
     case 'numero': {
       let n = Number(valor);
       if (!Number.isFinite(n)) return { erro: `Número inválido em "${campo.titulo}".` };

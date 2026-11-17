@@ -276,7 +276,8 @@ async function colunasPessoaDe(quadroId: unknown): Promise<Set<string>> {
 // Contrato: The Manuscript, 03_APLICACAO_WEB/14_FRIDAY_CADASTROS_OFICIAIS.md.
 // Cadastro existente (C5): `chave` é o caminho no documento ("identificacao.nome"); `escala` (×10) e `somente_leitura` vêm do contrato.
 type CampoOficial = { chave: string; titulo: string; tipo: string; coluna_id: number; rotulos?: { codigo: string; friday_id: string }[]; situacao: string; escala?: number; somente_leitura?: boolean;
-  secundario?: boolean }; // secundário: alimentado pela coluna de outro campo (ex.: Categoria a partir do Tipo do Veículo); não aparece na tela
+  secundario?: boolean; // secundário: alimentado pela coluna de outro campo (ex.: Categoria a partir do Tipo do Veículo); não aparece na tela
+  tipo_contrato?: string }; // cadastro existente: tipo do campo no contrato (coordenada = { lat, lng }, mostrada como link)
 // subitens: subitens oficiais (C3) — cada subitem é uma entrada do mapa `chave` no documento oficial do item pai.
 type SubOficial = { chave: string; quadro_id: number; campos: CampoOficial[]; situacao: string };
 // grupo: grupo oficial (opcional) — o nome do grupo de cada item fica no campo `chave` do documento oficial.
@@ -315,6 +316,11 @@ async function campoOficialDa(coluna: Row): Promise<(EscopoOficial & { campo: Ca
 // Valor oficial → valor da célula no Friday (status/lista por código; pessoas por UID, como no Friday).
 function valorDoOficial(c: CampoOficial, v: unknown): unknown {
   if (v == null) return undefined;
+  if (c.tipo_contrato === 'coordenada') {
+    // Igual a linkDaCoordenada (functions/fridayCadastroConverter.ts): o Google Maps com o pino e o texto "lat, lng".
+    const p = v as { lat?: unknown; lng?: unknown };
+    return typeof p.lat === 'number' && typeof p.lng === 'number' ? { url: `https://www.google.com/maps?q=${p.lat},${p.lng}`, texto: `${p.lat}, ${p.lng}` } : undefined;
+  }
   if (c.escala && typeof v === 'number') { const r = v / c.escala; return Math.abs(r - Math.round(r)) < 1e-6 ? Math.round(r) : r; }
   switch (c.tipo) {
     case 'caixa': return v === true ? true : undefined;
