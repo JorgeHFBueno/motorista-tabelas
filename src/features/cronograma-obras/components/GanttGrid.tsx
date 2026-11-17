@@ -127,8 +127,9 @@ const BUCKET_WIDTH: Record<Exclude<ZoomCronograma, "year">, number> = {
   week: 44,
   month: 88,
 };
-const DAY_GRID_LINE = "#dfe8ec";
-const WEEK_GRID_LINE = "#b7c8d1";
+// Grid line colors; a theme (/testes) can change them through these CSS variables.
+const DAY_GRID_LINE = "var(--co-grid-line-day, #dfe8ec)";
+const WEEK_GRID_LINE = "var(--co-grid-line-week, #b7c8d1)";
 const displayRawValue = (value: unknown): string => {
   if (value === null || value === undefined) return "â€”";
   if (typeof value === "string") return value.trim() || "â€”";
@@ -139,7 +140,7 @@ const displayRawValue = (value: unknown): string => {
   }
   return "â€”";
 };
-const MONTH_GRID_LINE = "#8ca6b6";
+const MONTH_GRID_LINE = "var(--co-grid-line-month, #8ca6b6)";
 const colorStyle = (key: string): React.CSSProperties =>
   ({
     "--co-master-color": getMestreColor(key).background,
@@ -450,6 +451,7 @@ function dailyGridStyle(
       ...days
         .map((day, index) => (day.isMonthStart ? boundary(index, MONTH_GRID_LINE, 3) : null))
         .filter(Boolean),
+      `repeating-linear-gradient(to right, var(--co-grid-band, transparent) 0 ${7 * BUCKET_WIDTH.day}px, transparent ${7 * BUCKET_WIDTH.day}px ${14 * BUCKET_WIDTH.day}px) ${Math.max(0, days.findIndex((day) => day.isWeekStart)) * BUCKET_WIDTH.day}px 0 / 100% 100% no-repeat`,
     ].join(", "),
     "--co-day-shade": dayShade(days),
     ...(dropIndex === null
@@ -496,6 +498,7 @@ function weeklyGridStyle(
       ...weeks
         .map((week, index) => (week.isMonthStart ? boundary(index, MONTH_GRID_LINE, 3) : null))
         .filter(Boolean),
+      `repeating-linear-gradient(to right, var(--co-grid-band, transparent) 0 var(--co-week-width), transparent var(--co-week-width) calc(2 * var(--co-week-width)))`,
     ].join(", "),
     ...(dropIndex === null ? {} : { "--co-week-drop-left": `${dropIndex * BUCKET_WIDTH.week}px` }),
   } as React.CSSProperties;

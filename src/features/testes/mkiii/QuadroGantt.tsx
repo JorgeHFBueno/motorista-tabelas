@@ -12,7 +12,7 @@ import { addDays, formatDateShort, todayCivil, yearDays } from "../../cronograma
 import { feriadoEm, fimDeSemana } from "../../cronograma-logistica/domain/feriados";
 
 /**
- * /testes/mkii: grade nova de "Obra iniciada", feita para o CronoObra (não é o GanttGrid). Uma linha por LOTE, com
+ * /testes/mkiii: grade nova de "Obra iniciada", feita para o CronoObra (não é o GanttGrid). Uma linha por LOTE, com
  * as colunas fixas à esquerda (Obra em duas linhas, Status, Mestres, Início) e o calendário do ano à direita, no mesmo
  * rolar. Recebe as mesmas props do GanttGrid, então gravar, desfazer, NT e prioridade continuam os da página.
  */

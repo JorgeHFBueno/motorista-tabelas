@@ -6,8 +6,8 @@ import { criarFontesFicticias } from "./fontesFicticias";
 import "./testes.css";
 
 /**
- * Base dos testes de visual do CronoObra (/testes/mki, /testes/mkii): o mesmo componente da produção, com dados
- * fictícios em memória e um tema. O CSS de cada tema fica na pasta do teste, sob .co-tema-<tema>.
+ * Base dos testes de visual do CronoObra (/testes/mki, /testes/mkii, /testes/mkiii): a página da produção, com dados
+ * fictícios em memória, um tema e, se o teste quiser, outra grade para "Obra iniciada". CSS na pasta de cada teste.
  */
 export function TesteCronogramaPage({ tema, nome, gradeIniciadas }: { tema: "mki" | "mkii"; nome: string; gradeIniciadas?: ComponentType<GanttGridProps> }) {
   const fontes = useMemo(() => criarFontesFicticias(), []);
