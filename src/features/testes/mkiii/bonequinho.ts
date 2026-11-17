@@ -1,36 +1,90 @@
 import { getMestreColor, normalizeMestreKey } from "../../cronograma-obras/domain/mestres";
 
 /**
- * /testes/mkiii: ao arrastar um mestre da paleta, a imagem do arraste vira um bonequinho na cor do mestre, com o nome
- * embaixo (como o do Google Maps); o ponteiro fica nos pés, que marcam o dia em que ele vai cair. A paleta é a da
- * produção: este ouvinte roda no document, depois dela, e troca só a imagem do arraste. NT e "+" ficam como estão.
+ * /testes/mkiii: ao arrastar um mestre da paleta, um bonequinho na cor do mestre acompanha o ponteiro, como o do Google
+ * Maps: balança para o lado conforme a velocidade do arraste (até 50°) e volta ao prumo quando o ponteiro para;
+ * pendurado, levanta os braços e as pernas balançam; sobre uma linha do calendário, abre os braços para pousar. Os pés
+ * ficam no ponteiro, que marca o dia em que ele cai. A paleta é a da produção: o ouvinte roda no document, depois
+ * dela, e troca só a imagem do arraste (por uma transparente). NT e "+" ficam como estão.
  */
+const INCLINACAO_MAXIMA = 50;
+const GANHO = 2.4;
+const FIGURA = `<svg viewBox="0 0 40 64" width="44" height="70" aria-hidden="true">
+  <g class="qg-pm-braco is-esq"><rect x="7.5" y="22" width="6" height="15" rx="3"/></g>
+  <g class="qg-pm-braco is-dir"><rect x="26.5" y="22" width="6" height="15" rx="3"/></g>
+  <g class="qg-pm-perna is-esq"><rect x="12.5" y="38" width="7" height="20" rx="3.5"/></g>
+  <g class="qg-pm-perna is-dir"><rect x="20.5" y="38" width="7" height="20" rx="3.5"/></g>
+  <rect class="qg-pm-tronco" x="10" y="19" width="20" height="25" rx="8"/>
+  <circle class="qg-pm-cabeca" cx="20" cy="10" r="8.5"/>
+  <ellipse cx="17" cy="7" rx="3" ry="2" fill="rgba(255,255,255,.55)"/>
+</svg>`;
+/** Transparent drag image, so only the figure shows. */
+const TRANSPARENTE = "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7";
+
 export function ligarBonequinho(): () => void {
-  const imagem = document.createElement("div");
-  imagem.className = "qg-bonequinho";
-  imagem.setAttribute("aria-hidden", "true");
-  document.body.appendChild(imagem);
+  const vazio = new Image();
+  vazio.src = TRANSPARENTE;
+  const boneco = document.createElement("div");
+  boneco.className = "qg-pegman";
+  boneco.setAttribute("aria-hidden", "true");
+  boneco.innerHTML = `<span class="qg-pegman-nome"></span><div class="qg-pegman-corpo">${FIGURA}</div><span class="qg-pegman-alvo"></span>`;
+  document.body.appendChild(boneco);
+  const nome = boneco.querySelector<HTMLElement>(".qg-pegman-nome")!;
+
+  let ativo = false;
+  let ultimoX = 0;
+  let parado = 0;
+  const posicionar = (x: number, y: number) => {
+    boneco.style.transform = `translate3d(${x}px, ${y}px, 0)`;
+    const inclinacao = Math.max(-INCLINACAO_MAXIMA, Math.min(INCLINACAO_MAXIMA, (x - ultimoX) * GANHO));
+    ultimoX = x;
+    boneco.style.setProperty("--r", `${inclinacao}deg`);
+    // Back to plumb when the pointer stops (dragover keeps firing, but not always).
+    window.clearTimeout(parado);
+    parado = window.setTimeout(() => boneco.style.setProperty("--r", "0deg"), 60);
+  };
 
   const aoArrastar = (event: DragEvent) => {
     const chip = (event.target as HTMLElement | null)?.closest?.<HTMLElement>(".co-master-chip");
     if (!chip || !event.dataTransfer || chip.matches(".co-master-chip--nt, .co-master-add")) return;
-    const nome = chip.textContent?.trim() ?? "";
-    const cor = getMestreColor(normalizeMestreKey(nome));
-    imagem.replaceChildren();
-    imagem.style.setProperty("--qg-boneco", cor.background);
-    imagem.insertAdjacentHTML("beforeend", `<svg viewBox="0 0 40 56" width="40" height="56"><ellipse cx="20" cy="53" rx="9" ry="3" fill="rgba(15,23,42,.35)"/><circle cx="20" cy="10" r="8" fill="var(--qg-boneco)" stroke="#fff" stroke-width="2.5"/><path d="M8 34c0-8 5-14 12-14s12 6 12 14v4h-5v13h-14v-13H8z" fill="var(--qg-boneco)" stroke="#fff" stroke-width="2.5" stroke-linejoin="round"/></svg>`);
-    const etiqueta = document.createElement("span");
-    etiqueta.textContent = nome;
-    etiqueta.style.background = cor.background;
-    etiqueta.style.color = cor.text;
-    imagem.appendChild(etiqueta);
-    const largura = imagem.offsetWidth;
-    // Pointer on the feet (bottom of the figure).
-    event.dataTransfer.setDragImage(imagem, largura / 2, 54);
+    const mestre = chip.textContent?.trim() ?? "";
+    const cor = getMestreColor(normalizeMestreKey(mestre));
+    boneco.style.setProperty("--qg-boneco", cor.background);
+    nome.textContent = mestre;
+    nome.style.background = cor.background;
+    nome.style.color = cor.text;
+    event.dataTransfer.setDragImage(vazio, 0, 0);
+    ultimoX = event.clientX;
+    boneco.classList.remove("is-pousou", "is-pousando");
+    boneco.classList.add("is-ativo");
+    ativo = true;
+    posicionar(event.clientX, event.clientY);
+  };
+  const aoMover = (event: DragEvent) => {
+    if (!ativo || (event.clientX === 0 && event.clientY === 0)) return;
+    posicionar(event.clientX, event.clientY);
+    boneco.classList.toggle("is-pousando", Boolean((event.target as HTMLElement | null)?.closest?.(".qg-trilho.is-recebendo")));
+  };
+  const aoSoltar = (event: DragEvent) => {
+    if (!ativo) return;
+    ativo = false;
+    window.clearTimeout(parado);
+    boneco.style.setProperty("--r", "0deg");
+    const pousou = boneco.classList.contains("is-pousando") && event.dataTransfer?.dropEffect !== "none";
+    boneco.classList.remove("is-pousando");
+    if (pousou) {
+      boneco.classList.add("is-pousou");
+      window.setTimeout(() => boneco.classList.remove("is-ativo", "is-pousou"), 320);
+    } else boneco.classList.remove("is-ativo");
   };
   document.addEventListener("dragstart", aoArrastar);
+  document.addEventListener("dragover", aoMover, true);
+  document.addEventListener("dragend", aoSoltar);
   return () => {
     document.removeEventListener("dragstart", aoArrastar);
-    imagem.remove();
+    document.removeEventListener("dragover", aoMover, true);
+    document.removeEventListener("dragend", aoSoltar);
+    window.clearTimeout(parado);
+    boneco.remove();
   };
 }

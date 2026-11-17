@@ -29,7 +29,7 @@ const periodosDo = (workload: MestreWorkload): Periodo[] =>
   workload.obras.flatMap((obra) => obra.mestresPlanejados.filter((mestre) => mestre.nome === workload.mestre && mestre.tempoPlanejado > 0).map((mestre) => ({ obra, mestre })));
 
 export function QuadroMestres({ workloads, contratos, zoom, centerRequest, onSelectMaster }: GanttGridProps) {
-  const { hoje, dias, dw, geo, rolagem, fundo, largura } = useCalendario(zoom, centerRequest);
+  const { zoom: zoomCal, hoje, dias, dw, geo, rolagem, fundo, largura } = useCalendario(zoom, centerRequest);
   const larguraEsq = COLUNAS.reduce((total, coluna) => total + coluna.largura, 0);
   const estilo = { "--qg-esq": `${larguraEsq}px`, "--qg-esq-colunas": COLUNAS.map((coluna) => `${coluna.largura}px`).join(" "), "--qg-total": `${larguraEsq + largura}px` } as CSSProperties;
 
@@ -73,7 +73,7 @@ export function QuadroMestres({ workloads, contratos, zoom, centerRequest, onSel
       <div className="qg-rolagem" ref={rolagem}>
         <div className="qg-cab">
           <div className="qg-esq qg-esq--cab">{COLUNAS.map((coluna) => <span key={coluna.rotulo}>{coluna.rotulo}</span>)}</div>
-          <CabecalhoCalendario geo={geo} zoom={zoom} hoje={hoje} />
+          <CabecalhoCalendario geo={geo} zoom={zoomCal} hoje={hoje} />
         </div>
         {workloads.length ? workloads.map(linha) : <p className="qg-vazio">Nenhum mestre planejado com estes filtros.</p>}
       </div>

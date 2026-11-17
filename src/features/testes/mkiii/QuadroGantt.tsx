@@ -16,6 +16,7 @@ import { nextTableSort, sortContractGroups, sortObras, type ColumnId, type Table
 import { getBucketTimelineAggregate, layoutMasterAllocationLanes } from "../../cronograma-obras/domain/timelineAggregation";
 import { addDays, formatDateShort, inclusiveCivilDays } from "../../cronograma-obras/domain/temporal";
 import { CabecalhoCalendario, useCalendario, type Geometria } from "./calendario";
+import { useColunasOcultas } from "./colunasVisiveis";
 
 /**
  * /testes/mkiii: grade nova de "Obra iniciada", feita para o CronoObra (não é o GanttGrid). Uma linha por LOTE (ou por
@@ -43,7 +44,7 @@ const GRUPO_NOME: Record<string, string> = { "OBRAS PÚBLICAS": "Obras públicas
 
 export function QuadroGantt(props: GanttGridProps) {
   const { obras, contratos, zoom, viewMode = "flat", draggingMaster, selectedId, centerRequest, display, onSelect, onSelectMasters, onSelectMaster, onOpenContract, onDropMaster, onResizeMasterPreview, onResizeMasterCommit, onResizeMasterCancel, onStatusConfirmed, onMovePrioridade, onApagarSelecao } = props;
-  const { hoje, dias, dw, geo, rolagem, fundo, largura: larguraCalendario } = useCalendario(zoom, centerRequest);
+  const { zoom: zoomCal, hoje, dias, dw, geo, rolagem, fundo, largura: larguraCalendario } = useCalendario(zoom, centerRequest);
   const [sort, setSort] = useState<TableSort>({ column: null, direction: null });
   const [completo, setCompleto] = useState(true);
   const [larguras, setLarguras] = useState<Partial<Record<Coluna["id"], number>>>({});
@@ -122,7 +123,11 @@ export function QuadroGantt(props: GanttGridProps) {
     document.addEventListener("pointermove", mover);
     document.addEventListener("pointerup", soltar);
   };
-  const colunas = COLUNAS.filter((coluna) => completo || !coluna.complementar).map((coluna) => ({ ...coluna, largura: larguras[coluna.id] ?? coluna.largura }));
+  const ocultas = useColunasOcultas();
+  const escolhidas = COLUNAS.filter((coluna) => !ocultas.has(coluna.id));
+  // "‹" hides the complementary columns, unless they are the only ones chosen in "Colunas".
+  const encolhidas = escolhidas.filter((coluna) => !coluna.complementar);
+  const colunas = (completo || !encolhidas.length ? escolhidas : encolhidas).map((coluna) => ({ ...coluna, largura: larguras[coluna.id] ?? coluna.largura }));
   const larguraEsq = colunas.reduce((total, coluna) => total + coluna.largura, 0);
   const gradeEsq = colunas.map((coluna) => `${coluna.largura}px`).join(" ");
   const comBase = display.liveAlerts;
@@ -343,7 +348,7 @@ export function QuadroGantt(props: GanttGridProps) {
               {completo ? <ChevronLeftRounded fontSize="inherit" /> : <ChevronRightRounded fontSize="inherit" />}
             </button>
           </div>
-          <CabecalhoCalendario geo={geo} zoom={zoom} hoje={hoje} />
+          <CabecalhoCalendario geo={geo} zoom={zoomCal} hoje={hoje} />
         </div>
         {linhas.length ? linhas : <p className="qg-vazio">Nenhuma obra iniciada com estes filtros.</p>}
       </div>

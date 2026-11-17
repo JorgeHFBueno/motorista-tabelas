@@ -324,9 +324,10 @@ type CronogramaObrasViewProps = {
   /**
    * Layout em abas em teste (/testes/mkiii): Cronograma | Mestres | Prazos Contratuais no topo, no lugar da barra de
    * indicadores; Visualização ao lado de Dias/Semanas, com "Nome do mestre" dentro. `prazos` é o conteúdo da aba.
-   * Na aba Mestres não há filtro de Status nem a paleta de mestres, e a carga dos mestres ignora o Status.
+   * Na aba Mestres não há filtro de Status, paleta de mestres nem a tabela "Carga dos Mestres", e a carga dos mestres
+   * ignora o Status. `filtrosCronograma` entra no cartão de filtros da aba Cronograma (ex.: "Colunas").
    */
-  abas?: { prazos: ReactNode };
+  abas?: { prazos: ReactNode; filtrosCronograma?: ReactNode };
 };
 
 export function CronogramaObrasView({
@@ -1521,7 +1522,7 @@ export function CronogramaObrasView({
         companies={[...new Set(obras.map((obra) => obra.empresa))]}
         masters={masters}
         onChange={setFilters}
-      />}
+      >{view === "obras" && abas?.filtrosCronograma}</FiltersBar>}
       {addingMaster && (
         <div
           className="co-master-modal"
@@ -1729,7 +1730,7 @@ export function CronogramaObrasView({
       ) : (
         <div className="co-aba-prazos">{abas?.prazos}</div>
       )}
-      {view === "mestres" && <WorkloadPanel workloads={workloads} />}
+      {view === "mestres" && !abas && <WorkloadPanel workloads={workloads} />}
       {viewTransition && (
         <div
           className="co-view-transition-overlay"

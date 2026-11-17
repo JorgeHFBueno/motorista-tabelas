@@ -138,9 +138,6 @@ body.qg-laceando, body.qg-laceando * { cursor: crosshair !important; user-select
 /* Visualização ao lado de Dias/Semanas */
 .co-tema-mkii .co-section-heading .co-section-views-control { margin-left: auto; }
 .co-tema-mkii .co-section-heading .co-section-views-trigger { background: #fff; border: 1px solid #cbd5e1; border-radius: 8px; height: 34px; width: 38px; }
-/* aba Prazos Contratuais dentro do cartão */
-.co-tema-mkii .co-aba-prazos { background: var(--k-cartao); border-radius: 14px; box-shadow: 0 1px 3px rgba(15, 23, 42, .08), 0 8px 24px rgba(15, 23, 42, .06); overflow: hidden; }
-.co-tema-mkii .co-aba-prazos .pz-page { background: transparent; min-height: 0; }
 
 /* linhas do calendário: onde cada linha começa e termina fica visível */
 .qg-linha { border-bottom: 1px solid #b4bfcd; }
@@ -156,7 +153,65 @@ body.qg-laceando, body.qg-laceando * { cursor: crosshair !important; user-select
 .qm-conflito { background: repeating-linear-gradient(135deg, rgba(220, 38, 38, .22) 0 5px, rgba(220, 38, 38, .1) 5px 10px); border-bottom: 3px solid #dc2626; cursor: help; bottom: 0; pointer-events: auto; position: absolute; top: 0; }
 .qm-barra { z-index: 1; }
 
-/* bonequinho do arraste: fora da tela, só serve de imagem */
-.qg-bonequinho { align-items: center; display: flex; flex-direction: column; left: -400px; pointer-events: none; position: fixed; top: -400px; }
-.qg-bonequinho svg { filter: drop-shadow(0 2px 2px rgba(15, 23, 42, .35)); }
-.qg-bonequinho span { border: 2px solid #fff; border-radius: 999px; box-shadow: 0 2px 6px rgba(15, 23, 42, .3); font: 800 11px/1.2 Inter, system-ui, sans-serif; letter-spacing: .03em; margin-top: 2px; padding: 3px 9px; white-space: nowrap; }
+/* bonequinho do arraste (como o do Google Maps): segue o ponteiro, com os pés nele; balança com a velocidade */
+.qg-pegman { display: none; left: 0; pointer-events: none; position: fixed; top: 0; z-index: 2000; }
+.qg-pegman.is-ativo { display: block; }
+.qg-pegman-corpo { height: 70px; left: -22px; position: absolute; rotate: var(--r, 0deg); top: -64px; transform-origin: 50% 0; transition: rotate .14s ease-out; width: 44px; }
+.qg-pegman svg { display: block; filter: drop-shadow(0 3px 3px rgba(15, 23, 42, .35)); overflow: visible; }
+.qg-pegman svg rect, .qg-pegman .qg-pm-cabeca { fill: var(--qg-boneco); stroke: rgba(15, 23, 42, .5); stroke-width: 1.4; }
+.qg-pm-braco, .qg-pm-perna { transform-box: fill-box; transition: transform .18s ease-out; }
+.qg-pm-braco { transform-origin: 50% 3px; }
+.qg-pm-perna { transform-origin: 50% 3px; }
+/* pendurado: braços para cima, pernas balançando */
+.qg-pm-braco.is-esq { transform: rotate(150deg); }
+.qg-pm-braco.is-dir { transform: rotate(-150deg); }
+.qg-pegman.is-ativo:not(.is-pousando) .qg-pm-perna.is-esq { animation: qg-pm-perna .45s ease-in-out infinite alternate; }
+.qg-pegman.is-ativo:not(.is-pousando) .qg-pm-perna.is-dir { animation: qg-pm-perna .45s ease-in-out infinite alternate-reverse; }
+@keyframes qg-pm-perna { from { transform: rotate(-14deg); } to { transform: rotate(14deg); } }
+/* sobre uma linha do calendário: abre os braços e mostra onde cai */
+.qg-pegman.is-pousando .qg-pm-braco.is-esq { transform: rotate(75deg); }
+.qg-pegman.is-pousando .qg-pm-braco.is-dir { transform: rotate(-75deg); }
+.qg-pegman.is-pousando .qg-pm-perna.is-esq { transform: rotate(6deg); }
+.qg-pegman.is-pousando .qg-pm-perna.is-dir { transform: rotate(-6deg); }
+.qg-pegman-alvo { border: 2px solid var(--qg-boneco); border-radius: 50%; height: 10px; left: -14px; opacity: 0; position: absolute; top: -5px; transition: opacity .15s; width: 28px; }
+.qg-pegman.is-pousando .qg-pegman-alvo { animation: qg-pm-alvo .9s ease-out infinite; opacity: 1; }
+@keyframes qg-pm-alvo { from { box-shadow: 0 0 0 0 rgba(79, 70, 229, .45); } to { box-shadow: 0 0 0 10px rgba(79, 70, 229, 0); } }
+.qg-pegman.is-pousou .qg-pegman-corpo { animation: qg-pm-pouso .3s ease-out; transform-origin: 50% 100%; }
+@keyframes qg-pm-pouso { 0% { scale: 1 1; } 40% { scale: 1.15 .8; } 100% { scale: 1 1; opacity: 0; } }
+.qg-pegman-nome { border: 2px solid #fff; border-radius: 999px; box-shadow: 0 2px 6px rgba(15, 23, 42, .3); font: 800 11px/1.2 Inter, system-ui, sans-serif; left: 0; letter-spacing: .03em; padding: 3px 9px; position: absolute; top: -104px; transform: translateX(-50%); white-space: nowrap; }
+
+/* "Colunas" no cartão de filtros do Cronograma */
+.co-tema-mkii .qg-colunas .co-status-chip { --co-status-color: #1e293b; }
+.co-tema-mkii .qg-colunas .co-status-chip:disabled { cursor: not-allowed; opacity: .75; }
+
+/* aba Prazos Contratuais (QuadroPrazos) */
+.qp { display: grid; gap: 0; }
+/* com as abas, a página não estica as linhas quando o conteúdo é mais curto que a tela */
+.co-tema-mkii.co-page:has(> .co-abas) { align-content: start; }
+.qp-cab-coluna { cursor: default; }
+.qp-filtros { margin-bottom: 14px; }
+.qp-contagem { background: rgba(15, 23, 42, .08); border-radius: 999px; font-size: 11px; margin-left: 2px; padding: 0 6px; }
+.co-status-chip.is-active .qp-contagem { background: rgba(255, 255, 255, .25); }
+.qp-aviso { align-items: center; background: #fffbeb; border: 1px solid #fcd34d; border-radius: 10px; color: #78350f; display: flex; flex-wrap: wrap; font-size: 13px; gap: 6px; margin: 0 0 14px; padding: 10px 14px; }
+.qp-aviso.is-erro { background: #fef2f2; border-color: #fca5a5; color: #7f1d1d; }
+.qp-aviso a { color: inherit; font-weight: 700; }
+.qp-ref { color: var(--k-texto-2); font-size: 12px; }
+.qp .co-section-heading .qp-hoje { margin-left: auto; }
+.qp-grade .qg-rolagem { max-height: calc(100vh - 300px); }
+.qp-posicao { color: #94a3b8; flex: 0 0 22px; font-size: 12px; font-variant-numeric: tabular-nums; font-weight: 700; }
+.qp-link { align-items: center; color: #0f172a; display: inline-flex; gap: 4px; text-decoration: none; }
+.qp-link svg { color: #94a3b8; flex: 0 0 auto; font-size: 13px; }
+.qp-link:hover { color: #4f46e5; text-decoration: underline; }
+.qp-obs { color: #64748b; font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.qp-alerta { color: #d97706; flex: 0 0 auto; font-size: 18px !important; margin-left: auto; }
+.qp-negativo { color: var(--k-perigo); font-weight: 800; }
+.qp-etiqueta { border-radius: 999px; font-size: 11px; font-weight: 800; padding: 3px 10px; white-space: nowrap; }
+.qp-barra { align-items: center; border-radius: 6px; box-shadow: 0 1px 2px rgba(15, 23, 42, .25); cursor: help; display: flex; height: 22px; overflow: hidden; position: absolute; top: 15px; }
+.qp-decorrido { bottom: 0; left: 0; position: absolute; top: 0; }
+.qp-barra-rotulo { font-size: 11px; font-weight: 800; padding: 0 9px; position: absolute; white-space: nowrap; }
+.qp-linha.is-vencido .qp-barra { box-shadow: 0 0 0 2px rgba(192, 0, 0, .25); }
+.qp-legenda { align-items: center; color: var(--k-texto-2); display: flex; flex-wrap: wrap; font-size: 12px; gap: 6px 18px; padding: 12px 2px 0; }
+.qp-legenda span { align-items: center; display: inline-flex; gap: 3px; }
+.qp-legenda i { border-radius: 3px; display: inline-block; height: 10px; width: 14px; }
+.qp-legenda span > i + i { margin-right: 4px; }
+.qp-legenda-nota { color: var(--k-texto-3); flex-basis: 100%; }
