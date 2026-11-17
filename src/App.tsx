@@ -34,7 +34,6 @@ const ContratosPortalPage = lazy(() => import('./features/portal-cliente/Contrat
 const ContratoPortalPage = lazy(() => import('./features/portal-cliente/ContratoPortalPage'));
 const AtendimentoPortalPage = lazy(() => import('./features/portal-cliente/AtendimentoPortalPage'));
 const NoticiasPortalPage = lazy(() => import('./features/portal-cliente/NoticiasPortalPage'));
-const PrazosContratuaisPage = lazy(() => import('./features/prazos-contratuais/PrazosContratuaisPage'));
 const ObrasPage = lazy(() => import('./features/obras/ObrasPage'));
 const ObraDetalhesPage = lazy(() => import('./features/obras/ObraDetalhesPage'));
 const TheManuscriptPage = lazy(() => import('./pages/TheManuscriptPage'));
@@ -43,8 +42,6 @@ const MeuPerfilPage = lazy(() => import('./pages/MeuPerfilPage'));
 const FridayApp = lazy(() => import('./features/friday-gestao-interna/App'));
 const DevToysPage = lazy(() => import('./features/dev-toys/DevToysPage'));
 const TesteMkiPage = lazy(() => import('./features/testes/mki/TesteMkiPage'));
-const TesteMkiiPage = lazy(() => import('./features/testes/mkii/TesteMkiiPage'));
-const TesteMkiiiPage = lazy(() => import('./features/testes/mkiii/TesteMkiiiPage'));
 
 console.log('[build]', import.meta.env.MODE, '__BUILD__', '1122');
 
@@ -73,19 +70,16 @@ export default function App() {
             </Route>
             <Route element={<PrivateRoute permite={(p) => veArea(p, 'engenharia')} />}>
               <Route path="engenharia/cronograma" element={<CronogramaObrasPage />} />
-              <Route path="engenharia/prazos" element={<PrazosContratuaisPage />} />
               <Route path="engenharia/obras" element={<ObrasPage />} />
               <Route path="engenharia/obras/:id" element={<ObraDetalhesPage />} />
             </Route>
             {/* Checklist do mecânico para celular (src/features/checklist-mecanico): pausado desde 2026-11-10, sem rota nem
                 item de menu, porque quem ia usar saiu. The Manuscript, 06_REGISTROS_E_CHECKLISTS.md. */}
-            {/* /testes: provas de conceito e de interface com dados fictícios (nada grava no Firestore). MKI: o CronoObra
-                com o visual do Cronograma Logístico; MKII: visual novo; MKIII: o MKII
-                com uma grade própria. Abertos a quem vê a Engenharia. */}
+            {/* /testes: provas de conceito e de interface com dados fictícios (nada grava no Firestore). O MKIII foi para a
+                produção (/engenharia/cronograma) em 2026-11-17; o MKI fica reservado para os próximos testes. Aberto a quem
+                vê a Engenharia. */}
             <Route element={<PrivateRoute permite={(p) => veArea(p, 'engenharia')} />}>
               <Route path="testes/mki" element={<TesteMkiPage />} />
-              <Route path="testes/mkii" element={<TesteMkiiPage />} />
-              <Route path="testes/mkiii" element={<TesteMkiiiPage />} />
             </Route>
             {/* Área DEV: só a credencial retr0, nem o adm2 entra sem ela. */}
             <Route element={<PrivateRoute permite={(p) => temCredencial(p, 'retr0')} />}>

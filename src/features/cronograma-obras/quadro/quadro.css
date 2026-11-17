@@ -1,6 +1,6 @@
 /*
- * /testes/mkiii: estilos da grade própria (QuadroGantt) de "Obra iniciada". Usa os tokens do tema MKII (--k-*), que a
- * página também carrega.
+ * CronoObra: estilos das grades QuadroGantt, QuadroMestres, QuadroLista e QuadroPrazos, das abas e do bonequinho. Usa os
+ * tokens do tema (--k-*, styles/tema.css).
  */
 .co-tema-mkii {
   --qg-calendario: #eef1f6;
@@ -209,7 +209,7 @@ body.qg-laceando, body.qg-laceando * { cursor: crosshair !important; user-select
 .qp-legenda span { align-items: center; display: inline-flex; gap: 3px; }
 .qp-legenda i { border-radius: 3px; display: inline-block; height: 10px; width: 14px; }
 .qp-legenda span > i + i { margin-right: 4px; }
-/* Prazos: contadores e barra de filtros como na tela original, no cartão do MKIII */
+/* Prazos: contadores e barra de filtros como na antiga página de Prazos, no cartão do tema */
 .qp-filtros { background: var(--k-cartao); border-radius: 12px; box-shadow: 0 1px 3px rgba(15, 23, 42, .08); display: grid; gap: 12px; margin-bottom: 14px; padding: 14px; }
 .qp-contadores { align-items: center; display: flex; flex-wrap: wrap; gap: 8px; }
 .qp-contador { align-items: baseline; background: var(--pz-fundo); border: 2px solid transparent; border-radius: 10px; color: var(--pz-texto); cursor: pointer; display: inline-flex; font: inherit; gap: 7px; min-width: 120px; padding: 7px 14px; transition: opacity .15s, border-color .15s, box-shadow .15s; }

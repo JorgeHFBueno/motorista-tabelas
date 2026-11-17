@@ -1,15 +1,15 @@
 import type { CSSProperties } from "react";
-import type { GanttGridProps } from "../../cronograma-obras/components/GanttGrid";
-import { masterSelectionForPeriod } from "../../cronograma-obras/domain/masterPlanningDetails";
-import { getMestreColor, normalizeMestreKey } from "../../cronograma-obras/domain/mestres";
-import type { MestrePlanejado, MestreWorkload, ObraCronograma } from "../../cronograma-obras/domain/models";
-import { diasNT, rotuloDias, segmentosNT } from "../../cronograma-obras/domain/naoTrabalhados";
-import { addDays, formatDateShort } from "../../cronograma-obras/domain/temporal";
-import { layoutMasterAllocationLanes } from "../../cronograma-obras/domain/timelineAggregation";
+import type { GanttGridProps } from "../components/GanttGrid";
+import { masterSelectionForPeriod } from "../domain/masterPlanningDetails";
+import { getMestreColor, normalizeMestreKey } from "../domain/mestres";
+import type { MestrePlanejado, MestreWorkload, ObraCronograma } from "../domain/models";
+import { diasNT, rotuloDias, segmentosNT } from "../domain/naoTrabalhados";
+import { addDays, formatDateShort } from "../domain/temporal";
+import { layoutMasterAllocationLanes } from "../domain/timelineAggregation";
 import { CabecalhoCalendario, useCalendario, type Geometria } from "./calendario";
 
 /**
- * /testes/mkiii: aba Mestres. Uma linha por mestre (Mestre, Obras, Dias, Não trabalhado, Conflitos) e, no calendário,
+ * CronoObra: aba Mestres. Uma linha por mestre (Mestre, Obras, Dias, Não trabalhado, Conflitos) e, no calendário,
  * uma barra por período em cada obra; períodos que se sobrepõem ficam em faixas diferentes, então a linha cresce e
  * mostra todas as obras do mestre no mesmo dia. Dias em conflito ficam em vermelho. Clique na barra: detalhes.
  */

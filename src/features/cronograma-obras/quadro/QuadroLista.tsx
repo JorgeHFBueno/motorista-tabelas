@@ -1,16 +1,16 @@
 import ExpandMoreRounded from "@mui/icons-material/ExpandMoreRounded";
 import { useState, type CSSProperties } from "react";
-import type { ContractTextTableProps } from "../../cronograma-obras/components/ContractTextTable";
-import { StatusBadge } from "../../cronograma-obras/components/StatusBadge";
-import { buildFlatWorkGroupsByWorkType, groupContractGroupsByWorkType, groupObrasByContract, type ContractGroup } from "../../cronograma-obras/domain/contractGroups";
-import { startedMasterPeriods } from "../../cronograma-obras/domain/masterPlanningDetails";
-import { getMestreColor } from "../../cronograma-obras/domain/mestres";
-import type { ContratoCronograma, ObraCronograma } from "../../cronograma-obras/domain/models";
-import { nextTableSort, sortContractGroups, sortObras, type ColumnId, type TableSort } from "../../cronograma-obras/domain/tableSort";
-import { formatDateShort, inclusiveCivilDays, todayCivil } from "../../cronograma-obras/domain/temporal";
+import type { ContractTextTableProps } from "../components/ContractTextTable";
+import { StatusBadge } from "../components/StatusBadge";
+import { buildFlatWorkGroupsByWorkType, groupContractGroupsByWorkType, groupObrasByContract, type ContractGroup } from "../domain/contractGroups";
+import { startedMasterPeriods } from "../domain/masterPlanningDetails";
+import { getMestreColor } from "../domain/mestres";
+import type { ContratoCronograma, ObraCronograma } from "../domain/models";
+import { nextTableSort, sortContractGroups, sortObras, type ColumnId, type TableSort } from "../domain/tableSort";
+import { formatDateShort, inclusiveCivilDays, todayCivil } from "../domain/temporal";
 
 /**
- * /testes/mkiii: Obra finalizada no mesmo padrão da grade de Obra iniciada (sem calendário): Obra com o LOTE e o
+ * CronoObra: Obra finalizada no mesmo padrão da grade de Obra iniciada (sem calendário): Obra com o LOTE e o
  * contrato, Contrato, Emp., Status, Mestres (os que já começaram, como na produção), Início e Dias; ordenável;
  * na visão Contratos, cada contrato abre os seus LOTEs. Recebe as mesmas props da ContractTextTable.
  */

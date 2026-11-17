@@ -1,10 +1,10 @@
 import { useEffect, useMemo, useRef, type CSSProperties } from "react";
-import { MONTHS } from "../../cronograma-obras/domain/models";
-import { formatDateShort, inclusiveCivilDays, eachDay, todayCivil, yearDays } from "../../cronograma-obras/domain/temporal";
+import { MONTHS } from "../domain/models";
+import { formatDateShort, inclusiveCivilDays, eachDay, todayCivil, yearDays } from "../domain/temporal";
 import { feriadoEm, fimDeSemana } from "../../cronograma-logistica/domain/feriados";
 
 /**
- * /testes/mkiii: calendário usado pelas grades QuadroGantt (Cronograma), QuadroMestres (Mestres) e QuadroPrazos
+ * CronoObra: calendário usado pelas grades QuadroGantt (Cronograma), QuadroMestres (Mestres) e QuadroPrazos
  * (Prazos Contratuais). Por padrão, o ano corrente; Prazos passa o intervalo dos contratos.
  */
 export type ZoomCalendario = "day" | "week" | "month";

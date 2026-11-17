@@ -1,6 +1,6 @@
 import CloseRounded from '@mui/icons-material/CloseRounded'; import SearchRounded from '@mui/icons-material/SearchRounded'; import type { CronogramaFilters } from '../domain/models';
 import { loteStatusColor, LOTE_STATUS_OPTIONS } from '../../../services/loteStatusService';
-interface Props { filters: CronogramaFilters; statuses: string[]; companies: string[]; masters: string[]; onChange: (next: CronogramaFilters) => void; /** Hides the Status chips (Mestres tab of /testes/mkiii). */ semStatus?: boolean; /** Extra controls at the end (e.g. "Colunas" in /testes/mkiii). */ children?: React.ReactNode; }
+interface Props { filters: CronogramaFilters; statuses: string[]; companies: string[]; masters: string[]; onChange: (next: CronogramaFilters) => void; /** Hides the Status chips (Mestres tab). */ semStatus?: boolean; /** Extra controls at the end (e.g. "Colunas"). */ children?: React.ReactNode; }
 const ORDEM_STATUS = LOTE_STATUS_OPTIONS.map((status) => status.label);
 /** The 6 LOTE statuses first, in the Friday order; any other status (e.g. a contract's situação) after, alphabetically. */
 const ordenarStatus = (statuses: string[]) => [...new Set(statuses)].filter(Boolean).sort((a, b) => { const ia = ORDEM_STATUS.indexOf(a); const ib = ORDEM_STATUS.indexOf(b); return (ia < 0 ? ORDEM_STATUS.length : ia) - (ib < 0 ? ORDEM_STATUS.length : ib) || a.localeCompare(b, 'pt-BR'); });

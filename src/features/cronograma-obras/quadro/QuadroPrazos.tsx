@@ -11,10 +11,10 @@ import {
 import { CabecalhoCalendario, useCalendario, type Geometria } from "./calendario";
 
 /**
- * /testes/mkiii: aba Prazos Contratuais refeita na linguagem das outras abas: cartão com os contadores por situação e a
+ * CronoObra: aba Prazos Contratuais (substituiu a página /engenharia/prazos), na linguagem das outras abas: cartão com os contadores por situação e a
  * barra de filtros como na tela original, seção com título e Semanas/Meses, grade com colunas fixas e o mesmo
  * calendário. As contas (situação, dias restantes, %
- * decorrido, ordem, o que conferir no Friday) são as da tela de produção (`montarPrazos`); muda só a apresentação.
+ * decorrido, ordem, o que conferir no Friday) são as de `montarPrazos`, as mesmas da antiga página.
  */
 const EMPRESAS = ["LEDUR", "ARTEBASE"];
 /** The columns of the original screen; "‹" hides the complementary ones, leaving Obra, Situação do prazo and Lotes. */

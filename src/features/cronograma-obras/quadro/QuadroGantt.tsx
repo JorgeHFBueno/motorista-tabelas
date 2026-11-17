@@ -2,24 +2,24 @@ import ChevronLeftRounded from "@mui/icons-material/ChevronLeftRounded";
 import ChevronRightRounded from "@mui/icons-material/ChevronRightRounded";
 import ExpandMoreRounded from "@mui/icons-material/ExpandMoreRounded";
 import { useEffect, useMemo, useRef, useState, type CSSProperties, type DragEvent, type PointerEvent, type ReactNode } from "react";
-import type { GanttGridProps } from "../../cronograma-obras/components/GanttGrid";
-import { LoteStatusControl } from "../../cronograma-obras/components/LoteStatusControl";
-import { buildStartedFlatWorkStages, groupContractGroupsByWorkType, groupObrasByContract, type ContractGroup } from "../../cronograma-obras/domain/contractGroups";
-import { masterSelectionForPeriod, recentStartedMaster } from "../../cronograma-obras/domain/masterPlanningDetails";
-import { isEditableTarget } from "../../cronograma-obras/domain/undoStack";
-import { resizeMasterPlanning, type MasterResizeEdge } from "../../cronograma-obras/domain/masterResize";
-import { getMestreColor, normalizeMestreKey } from "../../cronograma-obras/domain/mestres";
-import type { ContratoCronograma, MestrePlanejado, ObraCronograma } from "../../cronograma-obras/domain/models";
-import { NT_ARRASTE, redimensionarNaoTrabalhado, rotuloDias, segmentosNT, type NaoTrabalhado } from "../../cronograma-obras/domain/naoTrabalhados";
-import { clampColumnWidth } from "../../cronograma-obras/domain/obraGridColumns";
-import { nextTableSort, sortContractGroups, sortObras, type ColumnId, type TableSort } from "../../cronograma-obras/domain/tableSort";
-import { getBucketTimelineAggregate, layoutMasterAllocationLanes } from "../../cronograma-obras/domain/timelineAggregation";
-import { addDays, formatDateShort, inclusiveCivilDays } from "../../cronograma-obras/domain/temporal";
+import type { GanttGridProps } from "../components/GanttGrid";
+import { LoteStatusControl } from "../components/LoteStatusControl";
+import { buildStartedFlatWorkStages, groupContractGroupsByWorkType, groupObrasByContract, type ContractGroup } from "../domain/contractGroups";
+import { masterSelectionForPeriod, recentStartedMaster } from "../domain/masterPlanningDetails";
+import { isEditableTarget } from "../domain/undoStack";
+import { resizeMasterPlanning, type MasterResizeEdge } from "../domain/masterResize";
+import { getMestreColor, normalizeMestreKey } from "../domain/mestres";
+import type { ContratoCronograma, MestrePlanejado, ObraCronograma } from "../domain/models";
+import { NT_ARRASTE, redimensionarNaoTrabalhado, rotuloDias, segmentosNT, type NaoTrabalhado } from "../domain/naoTrabalhados";
+import { clampColumnWidth } from "../domain/obraGridColumns";
+import { nextTableSort, sortContractGroups, sortObras, type ColumnId, type TableSort } from "../domain/tableSort";
+import { getBucketTimelineAggregate, layoutMasterAllocationLanes } from "../domain/timelineAggregation";
+import { addDays, formatDateShort, inclusiveCivilDays } from "../domain/temporal";
 import { CabecalhoCalendario, useCalendario, type Geometria } from "./calendario";
 import { useColunasOcultas } from "./colunasVisiveis";
 
 /**
- * /testes/mkiii: grade nova de "Obra iniciada", feita para o CronoObra (não é o GanttGrid). Uma linha por LOTE (ou por
+ * CronoObra: grade de "Obra iniciada" (nasceu no /testes/mkiii; não é o GanttGrid). Uma linha por LOTE (ou por
  * contrato, na visão Contratos), com as colunas à esquerda (Obra com o LOTE e o contrato, Emp., Status, Mestres, Início,
  * Dias; ordenáveis, de largura ajustável e com "›" para encolher) e o calendário do ano à direita, no mesmo rolar. Recebe
  * as mesmas props do GanttGrid, então gravar, desfazer, NT, prioridade e Linha de Base continuam os da página.

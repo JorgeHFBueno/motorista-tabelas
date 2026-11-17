@@ -10,7 +10,6 @@ import ReceiptLongOutlinedIcon from '@mui/icons-material/ReceiptLongOutlined';
 import OilBarrelOutlinedIcon from '@mui/icons-material/OilBarrelOutlined';
 import EngineeringIcon from '@mui/icons-material/Engineering';
 import CalendarMonthIcon from '@mui/icons-material/CalendarMonth';
-import EventBusyIcon from '@mui/icons-material/EventBusy';
 import ConstructionIcon from '@mui/icons-material/Construction';
 import MenuBookRoundedIcon from '@mui/icons-material/MenuBookRounded';
 import PersonOutlineRoundedIcon from '@mui/icons-material/PersonOutlineRounded';
@@ -108,8 +107,7 @@ export const menuPrincipal: MenuPrincipalItem[] = [
     accent: '#6B5CA5',
     acesso: ['engenharia'],
     children: [
-      { label: 'Cronograma', to: '/engenharia/cronograma', icon: <CalendarMonthIcon />, descricao: 'Andamento das obras ao longo do tempo' },
-      { label: 'Prazos contratuais', to: '/engenharia/prazos', icon: <EventBusyIcon />, descricao: 'Prazos dos contratos das obras públicas' },
+      { label: 'Cronograma', to: '/engenharia/cronograma', icon: <CalendarMonthIcon />, descricao: 'Andamento das obras, mestres e prazos contratuais' },
       { label: 'Obras', to: '/engenharia/obras', icon: <ConstructionIcon />, descricao: 'Lista das obras e o detalhe de cada uma' },
     ],
   },

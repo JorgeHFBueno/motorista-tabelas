@@ -26,7 +26,6 @@ const TITULOS: Array<{ padrao: string } & TituloPagina> = [
   { padrao: '/friday/*', ...FRIDAY },
   // Cronograma logos (hourglass): "Engenharia · Ledur" here, "Frota · Ledur" on the logistics one.
   { padrao: '/engenharia/cronograma', titulo: 'Cronograma de Obras', logo: '/logo-cronograma-engenharia.svg' },
-  { padrao: '/engenharia/prazos', titulo: 'Cronograma de prazos contratuais' },
   { padrao: '/engenharia/obras', titulo: 'Obras' },
   { padrao: '/engenharia/obras/:id', titulo: 'Detalhes da Obra' },
   { padrao: '/dev', titulo: 'DEV' },

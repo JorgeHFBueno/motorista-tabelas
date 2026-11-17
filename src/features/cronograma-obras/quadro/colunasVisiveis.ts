@@ -1,7 +1,7 @@
 import { useSyncExternalStore } from "react";
 
 /**
- * /testes/mkiii: colunas da grade de Obra iniciada que o usuário escondeu em "Colunas" (no cartão de filtros). Fica
+ * CronoObra: colunas da grade de Obra iniciada que o usuário escondeu em "Colunas" (no cartão de filtros). Fica
  * em memória: recarregar a página mostra todas de novo.
  */
 export type ColunaQuadro = "obra" | "empresa" | "status" | "mestres" | "inicio" | "dias";

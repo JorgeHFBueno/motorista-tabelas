@@ -1,7 +1,7 @@
-import { getMestreColor, normalizeMestreKey } from "../../cronograma-obras/domain/mestres";
+import { getMestreColor, normalizeMestreKey } from "../domain/mestres";
 
 /**
- * /testes/mkiii: ao arrastar um mestre da paleta, um bonequinho na cor do mestre acompanha o ponteiro, como o do Google
+ * CronoObra: ao arrastar um mestre da paleta, um bonequinho na cor do mestre acompanha o ponteiro, como o do Google
  * Maps. Ele vai segurado pela cabeça: o ponteiro fica entre o nome e a cabeça, e é ele que marca o dia em que o mestre
  * cai. Balança para o lado conforme a velocidade do arraste (até 50°) e volta ao prumo quando o ponteiro para;
  * pendurado, levanta os braços e as pernas balançam; sobre uma linha do calendário, abre os braços para pousar.

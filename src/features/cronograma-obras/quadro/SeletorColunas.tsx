@@ -1,6 +1,6 @@
 import { alternarColuna, COLUNAS_QUADRO, useColunasOcultas } from "./colunasVisiveis";
 
-/** /testes/mkiii: "Colunas" no cartão de filtros do Cronograma; cada chip mostra ou esconde uma coluna da grade. */
+/** CronoObra: "Colunas" no cartão de filtros do Cronograma; cada chip mostra ou esconde uma coluna da grade. */
 export function SeletorColunas() {
   const ocultas = useColunasOcultas();
   const visiveis = COLUNAS_QUADRO.length - ocultas.size;

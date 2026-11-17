@@ -87,6 +87,15 @@ import {
   type CronogramaPerfMode,
 } from "./debug/cronogramaPerf";
 import "./styles/cronograma-obras.css";
+import "./styles/tema.css";
+import "./quadro/quadro.css";
+import { carregarPrazos } from "../prazos-contratuais/data/prazosDataSource";
+import { ligarBonequinho } from "./quadro/bonequinho";
+import { QuadroGantt } from "./quadro/QuadroGantt";
+import { QuadroLista } from "./quadro/QuadroLista";
+import { QuadroMestres } from "./quadro/QuadroMestres";
+import { QuadroPrazos } from "./quadro/QuadroPrazos";
+import { SeletorColunas } from "./quadro/SeletorColunas";
 
 const INITIAL_FILTERS: CronogramaFilters = {
   search: "",
@@ -313,16 +322,16 @@ type CronogramaObrasViewProps = {
   fontes?: FontesCronograma;
   /** Dados fictícios (/testes): qualquer um que entra pode editar, porque nada é salvo. */
   edicaoLiberada?: boolean;
-  /** Identidade visual em teste (/testes/mki, /testes/mkii). */
+  /** Identidade visual: "mkii" na produção (styles/tema.css); "mki" no /testes/mki. */
   tema?: "mki" | "mkii";
-  /** Grade de "Obra iniciada" em teste (/testes/mkiii); padrão: GanttGrid. */
+  /** Grade de "Obra iniciada": QuadroGantt na produção; padrão (layout anterior, /testes/mki): GanttGrid. */
   gradeIniciadas?: ComponentType<GanttGridProps>;
-  /** Lista de "Obra finalizada" em teste (/testes/mkiii); padrão: ContractTextTable. */
+  /** Lista de "Obra finalizada": QuadroLista na produção; padrão: ContractTextTable. */
   tabelaFinalizadas?: ComponentType<ContractTextTableProps>;
-  /** Grade da visão Mestres em teste (/testes/mkiii); padrão: GanttGrid. */
+  /** Grade da visão Mestres: QuadroMestres na produção; padrão: GanttGrid. */
   gradeMestres?: ComponentType<GanttGridProps>;
   /**
-   * Layout em abas em teste (/testes/mkiii): Cronograma | Mestres | Prazos Contratuais no topo, no lugar da barra de
+   * Layout em abas (produção): Cronograma | Mestres | Prazos Contratuais no topo, no lugar da barra de
    * indicadores; Visualização ao lado de Dias/Semanas, com "Nome do mestre" dentro. `prazos` é o conteúdo da aba.
    * Na aba Mestres não há filtro de Status, paleta de mestres nem a tabela "Carga dos Mestres", e a carga dos mestres
    * ignora o Status. `filtrosCronograma` entra no cartão de filtros da aba Cronograma (ex.: "Colunas").
@@ -1775,6 +1784,23 @@ export function CronogramaObrasView({
   );
 }
 
+/** Abas da produção: Prazos Contratuais (no lugar da antiga página /engenharia/prazos) e "Colunas" nos filtros. */
+const ABAS_CRONOGRAMA = { prazos: <QuadroPrazos carregar={carregarPrazos} />, filtrosCronograma: <SeletorColunas /> };
+
+/**
+ * /engenharia/cronograma: o layout que nasceu no /testes/mkiii (2026-11-17). Tema "quadro de planejamento"
+ * (styles/tema.css), abas Cronograma | Mestres | Prazos Contratuais e as grades próprias (quadro/).
+ */
 export default function CronogramaObrasPage() {
-  return <CronogramaObrasView />;
+  // Drawers and menus render outside the page: the theme class goes on <body> while the page is open. The drag
+  // figure follows the pointer when a mestre is dragged from the palette.
+  useEffect(() => {
+    document.body.classList.add("co-tema-mkii");
+    const desligarBonequinho = ligarBonequinho();
+    return () => {
+      document.body.classList.remove("co-tema-mkii");
+      desligarBonequinho();
+    };
+  }, []);
+  return <CronogramaObrasView tema="mkii" gradeIniciadas={QuadroGantt} gradeMestres={QuadroMestres} tabelaFinalizadas={QuadroLista} abas={ABAS_CRONOGRAMA} />;
 }
