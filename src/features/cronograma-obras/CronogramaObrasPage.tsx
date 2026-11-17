@@ -319,9 +319,12 @@ type CronogramaObrasViewProps = {
   gradeIniciadas?: ComponentType<GanttGridProps>;
   /** Lista de "Obra finalizada" em teste (/testes/mkiii); padrão: ContractTextTable. */
   tabelaFinalizadas?: ComponentType<ContractTextTableProps>;
+  /** Grade da visão Mestres em teste (/testes/mkiii); padrão: GanttGrid. */
+  gradeMestres?: ComponentType<GanttGridProps>;
   /**
    * Layout em abas em teste (/testes/mkiii): Cronograma | Mestres | Prazos Contratuais no topo, no lugar da barra de
    * indicadores; Visualização ao lado de Dias/Semanas, com "Nome do mestre" dentro. `prazos` é o conteúdo da aba.
+   * Na aba Mestres não há filtro de Status nem a paleta de mestres, e a carga dos mestres ignora o Status.
    */
   abas?: { prazos: ReactNode };
 };
@@ -332,6 +335,7 @@ export function CronogramaObrasView({
   tema,
   gradeIniciadas: GradeIniciadas = GanttGrid,
   tabelaFinalizadas: TabelaFinalizadas = ContractTextTable,
+  gradeMestres: GradeMestres = GanttGrid,
   abas,
 }: CronogramaObrasViewProps) {
   countCronogramaRender("CronogramaObrasPage");
@@ -632,7 +636,9 @@ export function CronogramaObrasView({
     ],
     [obrasDasSecoes],
   );
-  const workloads = useMemo(() => measureCronogramaCompute("buildWorkloads", () => buildWorkloads(filtered)), [filtered]);
+  // Tabs layout (/testes): the Mestres tab has no Status filter, so its load ignores the Status chosen in Cronograma.
+  const obrasMestres = useMemo(() => (abas ? filterObras(obras, { ...filters, status: [] }) : filtered), [abas, obras, filters, filtered]);
+  const workloads = useMemo(() => measureCronogramaCompute("buildWorkloads", () => buildWorkloads(obrasMestres)), [obrasMestres]);
   const indicators = useMemo(() => calculateIndicators(filtered), [filtered]);
   const timelineYears = useRef<number[]>([]);
   const years = useMemo(() => {
@@ -1509,6 +1515,7 @@ export function CronogramaObrasView({
         ref={scheduleContentRef}
       >
       {view !== "prazos" && <FiltersBar
+        semStatus={Boolean(abas) && view === "mestres"}
         filters={filters}
         statuses={[...new Set(obras.map((obra) => obra.status))]}
         companies={[...new Set(obras.map((obra) => obra.empresa))]}
@@ -1678,17 +1685,17 @@ export function CronogramaObrasView({
         <>
           <header className="co-section-heading co-masters-section-heading">
             <h2>Mestres</h2>
-            {masterPalette}
+            {!abas && masterPalette}
             {!abas && <button type="button" className="co-button co-button--secondary" disabled={isViewTransitioning} onClick={() => changeView("obras")}>
               <ArrowBackRounded fontSize="small" />
               Voltar para Obras
             </button>}
           </header>
-          <CronogramaProfiler id="GanttGrid"><GanttGrid
+          <CronogramaProfiler id="GanttGrid"><GradeMestres
           view={view}
           zoom={zoom}
           years={years}
-          obras={filtered}
+          obras={obrasMestres}
           contratos={contractMap}
           workloads={workloads}
           selectedId={selectedId}

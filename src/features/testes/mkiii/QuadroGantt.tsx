@@ -9,13 +9,13 @@ import { masterSelectionForPeriod, recentStartedMaster } from "../../cronograma-
 import { isEditableTarget } from "../../cronograma-obras/domain/undoStack";
 import { resizeMasterPlanning, type MasterResizeEdge } from "../../cronograma-obras/domain/masterResize";
 import { getMestreColor, normalizeMestreKey } from "../../cronograma-obras/domain/mestres";
-import { MONTHS, type ContratoCronograma, type MestrePlanejado, type ObraCronograma } from "../../cronograma-obras/domain/models";
+import type { ContratoCronograma, MestrePlanejado, ObraCronograma } from "../../cronograma-obras/domain/models";
 import { NT_ARRASTE, redimensionarNaoTrabalhado, rotuloDias, segmentosNT, type NaoTrabalhado } from "../../cronograma-obras/domain/naoTrabalhados";
 import { clampColumnWidth } from "../../cronograma-obras/domain/obraGridColumns";
 import { nextTableSort, sortContractGroups, sortObras, type ColumnId, type TableSort } from "../../cronograma-obras/domain/tableSort";
 import { getBucketTimelineAggregate, layoutMasterAllocationLanes } from "../../cronograma-obras/domain/timelineAggregation";
-import { addDays, formatDateShort, inclusiveCivilDays, todayCivil, yearDays } from "../../cronograma-obras/domain/temporal";
-import { feriadoEm, fimDeSemana } from "../../cronograma-logistica/domain/feriados";
+import { addDays, formatDateShort, inclusiveCivilDays } from "../../cronograma-obras/domain/temporal";
+import { CabecalhoCalendario, useCalendario, type Geometria } from "./calendario";
 
 /**
  * /testes/mkiii: grade nova de "Obra iniciada", feita para o CronoObra (não é o GanttGrid). Uma linha por LOTE (ou por
@@ -23,19 +23,10 @@ import { feriadoEm, fimDeSemana } from "../../cronograma-logistica/domain/feriad
  * Dias; ordenáveis, de largura ajustável e com "›" para encolher) e o calendário do ano à direita, no mesmo rolar. Recebe
  * as mesmas props do GanttGrid, então gravar, desfazer, NT, prioridade e Linha de Base continuam os da página.
  */
-const LARGURA_DIA = { day: 30, week: 12 } as const;
-const DOW = ["D", "S", "T", "Q", "Q", "S", "S"];
-const diaNum = (d: string) => Date.UTC(Number(d.slice(0, 4)), Number(d.slice(5, 7)) - 1, Number(d.slice(8, 10))) / 864e5;
-const semanaIso = (d: string) => {
-  const t = new Date(`${d}T00:00:00Z`);
-  t.setUTCDate(t.getUTCDate() + 4 - (t.getUTCDay() || 7));
-  return Math.ceil(((t.getTime() - Date.UTC(t.getUTCFullYear(), 0, 1)) / 864e5 + 1) / 7);
-};
 const ALTURA_FAIXA = 24;
 /** Linha de Base: faixa no alto da linha; as barras descem para não cobri-la. */
 const ALTURA_BASE = 8;
 
-type Geometria = { inicio: string; dias: string[]; dw: number; indice: (d: string) => number };
 /** A selected period (whole allocation) or one NT stretch inside it. */
 type ItemSelecionado = { tipo: "periodo"; localId: string } | { tipo: "nt"; localId: string; trecho: NaoTrabalhado };
 const chaveDe = (item: ItemSelecionado) => (item.tipo === "periodo" ? item.localId : `nt|${item.localId}|${item.trecho.inicio}`);
@@ -52,12 +43,7 @@ const GRUPO_NOME: Record<string, string> = { "OBRAS PÚBLICAS": "Obras públicas
 
 export function QuadroGantt(props: GanttGridProps) {
   const { obras, contratos, zoom, viewMode = "flat", draggingMaster, selectedId, centerRequest, display, onSelect, onSelectMasters, onSelectMaster, onOpenContract, onDropMaster, onResizeMasterPreview, onResizeMasterCommit, onResizeMasterCancel, onStatusConfirmed, onMovePrioridade, onApagarSelecao } = props;
-  const hoje = todayCivil();
-  const ano = Number(hoje.slice(0, 4));
-  const dias = useMemo(() => yearDays(ano), [ano]);
-  const dw = zoom === "day" ? LARGURA_DIA.day : LARGURA_DIA.week;
-  const geo: Geometria = useMemo(() => ({ inicio: dias[0], dias, dw, indice: (d: string) => diaNum(d) - diaNum(dias[0]) }), [dias, dw]);
-  const rolagem = useRef<HTMLDivElement>(null);
+  const { hoje, dias, dw, geo, rolagem, fundo, largura: larguraCalendario } = useCalendario(zoom, centerRequest);
   const [sort, setSort] = useState<TableSort>({ column: null, direction: null });
   const [completo, setCompleto] = useState(true);
   const [larguras, setLarguras] = useState<Partial<Record<Coluna["id"], number>>>({});
@@ -141,19 +127,6 @@ export function QuadroGantt(props: GanttGridProps) {
   const gradeEsq = colunas.map((coluna) => `${coluna.largura}px`).join(" ");
   const comBase = display.liveAlerts;
 
-  // Opens with today near the start of the calendar (and again on Dias/Semanas or "hoje").
-  useEffect(() => {
-    const el = rolagem.current;
-    if (el) el.scrollLeft = Math.max(0, (geo.indice(hoje) - (zoom === "day" ? 7 : 21)) * dw);
-  }, [zoom, centerRequest, dw, geo, hoje]);
-
-  const meses = useMemo(() => MONTHS.map((nome, m) => {
-    const doMes = dias.filter((d) => Number(d.slice(5, 7)) === m + 1);
-    return { nome, inicio: geo.indice(doMes[0]), dias: doMes.length };
-  }), [dias, geo]);
-  const segundas = useMemo(() => dias.map((d, i) => ({ d, i })).filter(({ d }) => new Date(`${d}T00:00:00Z`).getUTCDay() === 1), [dias]);
-  const fundo = useMemo(() => fundoDoCalendario(dias, dw, zoom === "day", hoje), [dias, dw, zoom, hoje]);
-  const larguraCalendario = dias.length * dw;
   const estiloGrade = { "--qg-esq": `${larguraEsq}px`, "--qg-esq-colunas": gradeEsq, "--qg-total": `${larguraEsq + larguraCalendario}px` } as CSSProperties;
 
   // Priority drag ("Próxima a iniciar"), with refs: hovering does not re-render the grid.
@@ -370,36 +343,12 @@ export function QuadroGantt(props: GanttGridProps) {
               {completo ? <ChevronLeftRounded fontSize="inherit" /> : <ChevronRightRounded fontSize="inherit" />}
             </button>
           </div>
-          <div className="qg-cab-cal" style={{ width: larguraCalendario }}>
-            <div className="qg-meses">{meses.map((mes) => <div key={mes.nome} style={{ left: mes.inicio * dw, width: mes.dias * dw }}>{mes.nome}</div>)}</div>
-            {zoom === "day" ? (
-              <div className="qg-dias">{dias.map((d, i) => { const feriado = feriadoEm(d); return <div key={d} title={feriado ?? undefined} className={`${d === hoje ? "is-hoje " : ""}${feriado ? "is-feriado " : ""}${fimDeSemana(d) ? "is-fds " : ""}${new Date(`${d}T00:00:00Z`).getUTCDay() === 1 ? "is-segunda" : ""}`} style={{ left: i * dw, width: dw }}><b>{d.slice(8)}</b><small>{DOW[new Date(`${d}T00:00:00Z`).getUTCDay()]}</small></div>; })}</div>
-            ) : (
-              <div className="qg-semanas">{segundas.map(({ d, i }) => <div key={d} className={geo.indice(hoje) >= i && geo.indice(hoje) < i + 7 ? "is-atual" : ""} style={{ left: i * dw, width: 7 * dw }} title={`Semana de ${formatDateShort(d)}`}>S{semanaIso(d)}</div>)}</div>
-            )}
-          </div>
+          <CabecalhoCalendario geo={geo} zoom={zoom} hoje={hoje} />
         </div>
         {linhas.length ? linhas : <p className="qg-vazio">Nenhuma obra iniciada com estes filtros.</p>}
       </div>
     </section>
   );
-}
-
-/** Calendar paint for the rows: alternating weeks, week and month lines, weekends, holidays and today. */
-function fundoDoCalendario(dias: string[], dw: number, porDia: boolean, hoje: string): CSSProperties {
-  const coluna = (i: number, largura: number, cor: string) => `linear-gradient(${cor}, ${cor}) ${i * dw}px 0 / ${largura}px 100% no-repeat`;
-  const primeiraSegunda = dias.findIndex((d) => new Date(`${d}T00:00:00Z`).getUTCDay() === 1);
-  const camadas: string[] = [];
-  const iHoje = dias.indexOf(hoje);
-  if (iHoje >= 0) camadas.push(coluna(iHoje, dw, "var(--qg-hoje)"), coluna(iHoje, 2, "var(--qg-hoje-linha)"));
-  dias.forEach((d, i) => { if (d.slice(8) === "01") camadas.push(coluna(i, 2, "var(--qg-linha-mes)")); });
-  if (porDia) {
-    dias.forEach((d, i) => { if (feriadoEm(d)) camadas.push(coluna(i, dw, "var(--qg-feriado)")); else if (fimDeSemana(d)) camadas.push(coluna(i, dw, "var(--qg-fds)")); });
-    camadas.push(`repeating-linear-gradient(to right, transparent 0 ${dw - 1}px, var(--qg-linha-dia) ${dw - 1}px ${dw}px)`);
-  }
-  camadas.push(`repeating-linear-gradient(to right, var(--qg-linha-semana) 0 1px, transparent 1px ${7 * dw}px) ${primeiraSegunda * dw}px 0 / 100% 100% no-repeat`);
-  camadas.push(`repeating-linear-gradient(to right, var(--qg-banda) 0 ${7 * dw}px, transparent ${7 * dw}px ${14 * dw}px) ${primeiraSegunda * dw}px 0 / 100% 100% no-repeat`);
-  return { background: camadas.join(", "), backgroundColor: "var(--qg-calendario)" };
 }
 
 function Barra({ obra, mestre, geo, topo, mostrarNome, podeNT, focada, ntsFocados, onFocar, onFocarNT, onDetalhes, onPreview, onCommit, onCancel }: {

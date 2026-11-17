@@ -10,7 +10,7 @@ import "./testes.css";
  * Base dos testes de visual do CronoObra (/testes/mki, /testes/mkii, /testes/mkiii): a página da produção, com dados
  * fictícios em memória, um tema e, se o teste quiser, outra grade para "Obra iniciada". CSS na pasta de cada teste.
  */
-export function TesteCronogramaPage({ tema, nome, gradeIniciadas, tabelaFinalizadas, abas }: { tema: "mki" | "mkii"; nome: string; gradeIniciadas?: ComponentType<GanttGridProps>; tabelaFinalizadas?: ComponentType<ContractTextTableProps>; abas?: { prazos: ReactNode } }) {
+export function TesteCronogramaPage({ tema, nome, gradeIniciadas, gradeMestres, tabelaFinalizadas, abas }: { tema: "mki" | "mkii"; nome: string; gradeIniciadas?: ComponentType<GanttGridProps>; gradeMestres?: ComponentType<GanttGridProps>; tabelaFinalizadas?: ComponentType<ContractTextTableProps>; abas?: { prazos: ReactNode } }) {
   const fontes = useMemo(() => criarFontesFicticias(), []);
   // Drawers and menus render outside the page: the theme class goes on <body> while this page is open.
   useEffect(() => {
@@ -24,7 +24,7 @@ export function TesteCronogramaPage({ tema, nome, gradeIniciadas, tabelaFinaliza
         <strong>Teste de interface · {nome}</strong>
         <span>Dados fictícios em memória: nada é salvo, e recarregar a página volta ao início.</span>
       </div>
-      <CronogramaObrasView fontes={fontes} edicaoLiberada tema={tema} gradeIniciadas={gradeIniciadas} tabelaFinalizadas={tabelaFinalizadas} abas={abas} />
+      <CronogramaObrasView fontes={fontes} edicaoLiberada tema={tema} gradeIniciadas={gradeIniciadas} gradeMestres={gradeMestres} tabelaFinalizadas={tabelaFinalizadas} abas={abas} />
     </>
   );
 }
