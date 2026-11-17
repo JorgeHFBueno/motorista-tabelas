@@ -189,20 +189,15 @@ body.qg-laceando, body.qg-laceando * { cursor: crosshair !important; user-select
 /* com as abas, a página não estica as linhas quando o conteúdo é mais curto que a tela */
 .co-tema-mkii.co-page:has(> .co-abas) { align-content: start; }
 .qp-cab-coluna { cursor: default; }
-.qp-filtros { margin-bottom: 14px; }
-.qp-contagem { background: rgba(15, 23, 42, .08); border-radius: 999px; font-size: 11px; margin-left: 2px; padding: 0 6px; }
-.co-status-chip.is-active .qp-contagem { background: rgba(255, 255, 255, .25); }
 .qp-aviso { align-items: center; background: #fffbeb; border: 1px solid #fcd34d; border-radius: 10px; color: #78350f; display: flex; flex-wrap: wrap; font-size: 13px; gap: 6px; margin: 0 0 14px; padding: 10px 14px; }
 .qp-aviso.is-erro { background: #fef2f2; border-color: #fca5a5; color: #7f1d1d; }
 .qp-aviso a { color: inherit; font-weight: 700; }
-.qp-ref { color: var(--k-texto-2); font-size: 12px; }
 .qp .co-section-heading .qp-hoje { margin-left: auto; }
 .qp-grade .qg-rolagem { max-height: calc(100vh - 300px); }
 .qp-posicao { color: #94a3b8; flex: 0 0 22px; font-size: 12px; font-variant-numeric: tabular-nums; font-weight: 700; }
 .qp-link { align-items: center; color: #0f172a; display: inline-flex; gap: 4px; text-decoration: none; }
 .qp-link svg { color: #94a3b8; flex: 0 0 auto; font-size: 13px; }
 .qp-link:hover { color: #4f46e5; text-decoration: underline; }
-.qp-obs { color: #64748b; font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .qp-alerta { color: #d97706; flex: 0 0 auto; font-size: 18px !important; margin-left: auto; }
 .qp-negativo { color: var(--k-perigo); font-weight: 800; }
 .qp-etiqueta { border-radius: 999px; font-size: 11px; font-weight: 800; padding: 3px 10px; white-space: nowrap; }
@@ -214,4 +209,22 @@ body.qg-laceando, body.qg-laceando * { cursor: crosshair !important; user-select
 .qp-legenda span { align-items: center; display: inline-flex; gap: 3px; }
 .qp-legenda i { border-radius: 3px; display: inline-block; height: 10px; width: 14px; }
 .qp-legenda span > i + i { margin-right: 4px; }
-.qp-legenda-nota { color: var(--k-texto-3); flex-basis: 100%; }
+/* Prazos: contadores e barra de filtros como na tela original, no cartão do MKIII */
+.qp-filtros { background: var(--k-cartao); border-radius: 12px; box-shadow: 0 1px 3px rgba(15, 23, 42, .08); display: grid; gap: 12px; margin-bottom: 14px; padding: 14px; }
+.qp-contadores { align-items: center; display: flex; flex-wrap: wrap; gap: 8px; }
+.qp-contador { align-items: baseline; background: var(--pz-fundo); border: 2px solid transparent; border-radius: 10px; color: var(--pz-texto); cursor: pointer; display: inline-flex; font: inherit; gap: 7px; min-width: 120px; padding: 7px 14px; transition: opacity .15s, border-color .15s, box-shadow .15s; }
+.qp-contador strong { font-size: 22px; font-variant-numeric: tabular-nums; font-weight: 800; line-height: 1; }
+.qp-contador span { font-size: 13px; font-weight: 700; }
+.qp-contador:hover, .qp-contador:focus-visible { border-color: var(--pz-texto); outline: none; }
+.qp-contador.is-ativo { border-color: var(--pz-texto); box-shadow: 0 2px 6px rgba(15, 23, 42, .2); }
+.qp-contador.is-apagado { opacity: .45; }
+.qp-barra-filtros { align-items: center; border-top: 1px solid var(--k-borda-suave); display: flex; flex-wrap: wrap; gap: 14px; padding-top: 12px; }
+.qp-barra-filtros .co-view-switch button { min-width: 0; }
+.qp-checar { align-items: center; color: var(--k-texto); cursor: pointer; display: inline-flex; font-size: 13px; font-weight: 600; gap: 7px; }
+.qp-checar input { accent-color: var(--k-cab); height: 16px; width: 16px; }
+.qp-sep { background: var(--k-borda); height: 26px; width: 1px; }
+.qp-limite { align-items: center; color: var(--k-texto-2); display: inline-flex; font-size: 13px; font-weight: 600; gap: 7px; }
+.qp-limite input { background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 6px; color: var(--k-texto); font: inherit; font-weight: 700; height: 32px; padding: 0 8px; width: 72px; }
+.qp-limite input:focus { border-color: var(--k-destaque); box-shadow: 0 0 0 3px rgba(79, 70, 229, .15); outline: none; }
+.qp-grade .qg-esq--cab > span { line-height: 1.2; }
+.qp-obs { color: #475569; display: -webkit-box; font-size: 12px; line-height: 1.35; overflow: hidden; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }

@@ -11,24 +11,25 @@ import {
 import { CabecalhoCalendario, useCalendario, type Geometria } from "./calendario";
 
 /**
- * /testes/mkiii: aba Prazos Contratuais refeita na linguagem das outras abas (cartão de filtros com chips, seção com
- * título e Semanas/Meses, grade com colunas fixas e o mesmo calendário). As contas (situação, dias restantes, %
+ * /testes/mkiii: aba Prazos Contratuais refeita na linguagem das outras abas: cartão com os contadores por situação e a
+ * barra de filtros como na tela original, seção com título e Semanas/Meses, grade com colunas fixas e o mesmo
+ * calendário. As contas (situação, dias restantes, %
  * decorrido, ordem, o que conferir no Friday) são as da tela de produção (`montarPrazos`); muda só a apresentação.
  */
 const EMPRESAS = ["LEDUR", "ARTEBASE"];
-type Coluna = { id: "obra" | "empresa" | "inicio" | "fim" | "duracao" | "restam" | "pct" | "situacao"; rotulo: string; largura: number; complementar?: boolean };
+/** The columns of the original screen; "‹" hides the complementary ones, leaving Obra, Situação do prazo and Lotes. */
+type Coluna = { id: "obra" | "empresa" | "inicio" | "fim" | "duracao" | "restam" | "pct" | "situacao" | "obs"; rotulo: string; largura: number; complementar?: boolean };
 const COLUNAS: readonly Coluna[] = [
-  { id: "obra", rotulo: "Obra", largura: 280 },
-  { id: "empresa", rotulo: "Emp.", largura: 74, complementar: true },
+  { id: "obra", rotulo: "Obra", largura: 250 },
+  { id: "empresa", rotulo: "Empresa", largura: 90, complementar: true },
   { id: "inicio", rotulo: "Início", largura: 80, complementar: true },
-  { id: "fim", rotulo: "Fim", largura: 80 },
-  { id: "duracao", rotulo: "Duração", largura: 82, complementar: true },
-  { id: "restam", rotulo: "Restam", largura: 72 },
-  { id: "pct", rotulo: "Decorrido", largura: 86, complementar: true },
-  { id: "situacao", rotulo: "Situação", largura: 118 },
+  { id: "fim", rotulo: "Fim", largura: 80, complementar: true },
+  { id: "duracao", rotulo: "Duração (dias)", largura: 92, complementar: true },
+  { id: "restam", rotulo: "Dias restantes", largura: 92, complementar: true },
+  { id: "pct", rotulo: "% prazo decorrido", largura: 100, complementar: true },
+  { id: "situacao", rotulo: "Situação do prazo", largura: 122 },
+  { id: "obs", rotulo: "Lotes / observações", largura: 280 },
 ];
-/** "Sem data" is almost white in the specification; the chip dot needs to show. */
-const corDoChip = (s: SituacaoPrazo) => (s === "sem-data" ? "#94a3b8" : CORES_SITUACAO[s].forte);
 const ultimoDoMes = (d: string) => {
   const ano = Number(d.slice(0, 4));
   const mes = Number(d.slice(5, 7));
@@ -69,31 +70,28 @@ export function QuadroPrazos({ carregar }: { carregar: () => Promise<ObraPrazo[]
   const larguraEsq = colunas.reduce((total, coluna) => total + coluna.largura, 0);
   const estilo = { "--qg-esq": `${larguraEsq}px`, "--qg-esq-colunas": colunas.map((c) => `${c.largura}px`).join(" "), "--qg-total": `${larguraEsq + cal.largura}px` } as CSSProperties;
   const alternar = <T,>(lista: T[], item: T) => (lista.includes(item) ? lista.filter((x) => x !== item) : [...lista, item]);
-  const filtrando = empresas.length > 0 || situacoes.length > 0 || incluirPrivadas;
 
   return (
     <div className="qp">
-      <div className="co-filters qp-filtros" aria-label="Filtros de Prazos Contratuais">
-        <div className="co-status-filter" role="group" aria-label="Situação do prazo (marque uma ou mais; nenhuma marcada mostra todas)">
-          <span>Situação do prazo</span>
-          <div className="co-status-chips">
-            {SITUACOES_PRAZO.map((s) => (
-              <button key={s} type="button" className={`co-status-chip ${situacoes.includes(s) ? "is-active" : ""}`} aria-pressed={situacoes.includes(s)} style={{ "--co-status-color": corDoChip(s) } as CSSProperties} onClick={() => setSituacoes((atual) => alternar(atual, s))}>
-                <i aria-hidden="true" />{ROTULO_SITUACAO[s]}<b className="qp-contagem">{contagem[s]}</b>
-              </button>
-            ))}
-          </div>
+      <div className="qp-filtros" aria-label="Filtros de Prazos Contratuais">
+        <div className="qp-contadores" role="group" aria-label="Obras por situação do prazo (clique para filtrar)">
+          {SITUACOES_PRAZO.map((s) => (
+            <button key={s} type="button" aria-pressed={situacoes.includes(s)} className={`qp-contador${situacoes.includes(s) ? " is-ativo" : ""}${situacoes.length && !situacoes.includes(s) ? " is-apagado" : ""}`}
+              style={{ "--pz-fundo": CORES_SITUACAO[s].fundo, "--pz-texto": CORES_SITUACAO[s].texto } as CSSProperties} onClick={() => setSituacoes((atual) => alternar(atual, s))}>
+              <strong>{contagem[s]}</strong><span>{ROTULO_SITUACAO[s]}</span>
+            </button>
+          ))}
+          {situacoes.length > 0 && <button type="button" className="co-button co-button--ghost" onClick={() => setSituacoes([])}><CloseRounded fontSize="small" />Limpar filtro</button>}
         </div>
-        <div className="co-status-filter" role="group" aria-label="Empresa">
-          <span>Empresa</span>
-          <div className="co-status-chips">
-            {EMPRESAS.map((e) => <button key={e} type="button" className={`co-status-chip ${empresas.includes(e) ? "is-active" : ""}`} aria-pressed={empresas.includes(e)} style={{ "--co-status-color": "#1e293b" } as CSSProperties} onClick={() => setEmpresas((atual) => alternar(atual, e))}><i aria-hidden="true" />{e}</button>)}
-            <button type="button" className={`co-status-chip ${incluirPrivadas ? "is-active" : ""}`} aria-pressed={incluirPrivadas} style={{ "--co-status-color": "#475569" } as CSSProperties} onClick={() => setIncluirPrivadas((atual) => !atual)} title="Por padrão, só obras públicas"><i aria-hidden="true" />Obras privadas</button>
+        <div className="qp-barra-filtros">
+          <div className="co-view-switch" role="group" aria-label="Empresa">
+            {EMPRESAS.map((e) => <button key={e} type="button" className={empresas.includes(e) ? "is-active" : ""} aria-pressed={empresas.includes(e)} onClick={() => setEmpresas((atual) => alternar(atual, e))}>{e}</button>)}
           </div>
+          <label className="qp-checar"><input type="checkbox" checked={incluirPrivadas} onChange={(e) => setIncluirPrivadas(e.target.checked)} />Incluir obras privadas</label>
+          <span className="qp-sep" aria-hidden="true" />
+          <label className="qp-limite">Crítico até<input type="number" min={0} value={limites.critico} onChange={(e) => setLimites((l) => ({ ...l, critico: Math.max(0, Number(e.target.value) || 0) }))} />dias</label>
+          <label className="qp-limite">Atenção até<input type="number" min={0} value={limites.atencao} onChange={(e) => setLimites((l) => ({ ...l, atencao: Math.max(l.critico, Number(e.target.value) || 0) }))} />dias</label>
         </div>
-        <label><span>Crítico até (dias)</span><input type="number" min={0} value={limites.critico} onChange={(e) => setLimites((l) => ({ ...l, critico: Math.max(0, Number(e.target.value) || 0) }))} /></label>
-        <label><span>Atenção até (dias)</span><input type="number" min={0} value={limites.atencao} onChange={(e) => setLimites((l) => ({ ...l, atencao: Math.max(l.critico, Number(e.target.value) || 0) }))} /></label>
-        <div className="co-filter-actions"><button className="co-button co-button--ghost" type="button" disabled={!filtrando} onClick={() => { setEmpresas([]); setSituacoes([]); setIncluirPrivadas(false); }}><CloseRounded fontSize="small" />Limpar</button></div>
       </div>
 
       {conferir.length > 0 && (
@@ -108,7 +106,6 @@ export function QuadroPrazos({ carregar }: { carregar: () => Promise<ObraPrazo[]
         <section>
           <header className="co-section-heading">
             <h2>Prazos contratuais ({linhas.length})</h2>
-            <span className="qp-ref">Menor prazo até o vencimento primeiro · referência {formatDate(hoje, true)}</span>
             <button type="button" className="co-button co-button--secondary qp-hoje" onClick={() => setCentro((n) => n + 1)}>Hoje</button>
             <div className="co-view-switch co-zoom-switch" aria-label="Escala da linha do tempo">
               <button type="button" className={zoom === "week" ? "is-active" : ""} aria-pressed={zoom === "week"} onClick={() => setZoom("week")}>Semanas</button>
@@ -120,7 +117,7 @@ export function QuadroPrazos({ carregar }: { carregar: () => Promise<ObraPrazo[]
               <div className="qg-cab">
                 <div className="qg-esq qg-esq--cab">
                   {colunas.map((coluna) => <span key={coluna.id} className="qg-cab-coluna qp-cab-coluna">{coluna.rotulo}</span>)}
-                  <button type="button" className="qg-encolher" title={completo ? "Ocultar Emp., Início, Duração e Decorrido" : "Mostrar todas as colunas"} aria-label={completo ? "Ocultar colunas complementares" : "Mostrar colunas complementares"} onClick={() => setCompleto((atual) => !atual)}>
+                  <button type="button" className="qg-encolher" title={completo ? "Ocultar Empresa, Início, Fim, Duração, Dias restantes e % decorrido" : "Mostrar todas as colunas"} aria-label={completo ? "Ocultar colunas complementares" : "Mostrar colunas complementares"} onClick={() => setCompleto((atual) => !atual)}>
                     {completo ? <ChevronLeftRounded fontSize="inherit" /> : <ChevronRightRounded fontSize="inherit" />}
                   </button>
                 </div>
@@ -133,7 +130,6 @@ export function QuadroPrazos({ carregar }: { carregar: () => Promise<ObraPrazo[]
           </section>
           <footer className="qp-legenda">
             {(["vencido", "critico", "atencao", "folgado"] as const).map((s) => <span key={s}><i style={{ background: CORES_SITUACAO[s].forte }} /><i style={{ background: CORES_SITUACAO[s].clara }} />{ROTULO_SITUACAO[s]}{s === "critico" ? ` (até ${limites.critico} dias)` : s === "atencao" ? ` (até ${limites.atencao} dias)` : s === "folgado" ? ` (mais de ${limites.atencao})` : ""}</span>)}
-            <span className="qp-legenda-nota">Na barra, a parte forte é o prazo já decorrido; a clara, o que falta. Fonte: obras-v2 (GESTÃO DE OBRAS do Friday), obras sem Situação.</span>
           </footer>
         </section>
       </div>
@@ -152,7 +148,6 @@ function LinhaContrato({ linha, colunas, geo, hoje, fundo, largura }: { linha: L
           <span className="qp-posicao">{linha.posicao}</span>
           <div className="qg-obra-textos">
             <a className="qg-lote qp-link" href={obra.url} target="_blank" rel="noreferrer" title={`${obra.nome} · abrir no Friday`}>{obra.nome}<OpenInNewIcon /></a>
-            <span className="qp-obs" title={linha.observacao}>{linha.observacao || "—"}</span>
           </div>
           {linha.alertas.length > 0 && <WarningAmberRounded className="qp-alerta" titleAccess={linha.alertas.join(" ")} />}
         </div>
@@ -163,6 +158,7 @@ function LinhaContrato({ linha, colunas, geo, hoje, fundo, largura }: { linha: L
       case "duracao": return <span key="duracao" className="qg-numero">{linha.duracao === null ? "—" : `${linha.duracao} dias`}</span>;
       case "restam": return <span key="restam" className={`qg-numero ${restam !== null && restam < 0 ? "qp-negativo" : ""}`}>{restam ?? "—"}</span>;
       case "pct": return <span key="pct" className="qg-numero">{linha.pctDecorrido === null ? "—" : `${Math.round(linha.pctDecorrido)}%`}</span>;
+      case "obs": return <span key="obs" title={linha.observacao}><span className="qp-obs">{linha.observacao || "—"}</span></span>;
       case "situacao": return <span key="situacao" className="qg-status"><span className="qp-etiqueta" style={{ background: cor.fundo, color: cor.texto }}>{ROTULO_SITUACAO[linha.situacaoPrazo]}</span></span>;
     }
   };
