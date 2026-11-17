@@ -1046,3 +1046,18 @@ body.redimensionando .friday-root, body.redimensionando .friday-root * { cursor:
 .friday-root .tempo-rodape { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
 .friday-root .tempo-duracao { font-variant-numeric: tabular-nums; font-weight: 600; }
 .friday-root .tempo-erro { color: var(--perigo); font-size: 12px; }
+
+/* ---------------- tipos de subitem ---------------- */
+.friday-root .ts-bloco { background: var(--superficie); border: 1px solid var(--borda-suave); border-radius: 10px; padding: 16px 18px; margin-bottom: 14px; }
+.friday-root .ts-bloco h3 { margin: 0 0 10px; font-size: 15px; }
+.friday-root .ts-bloco > p.muted { margin: -4px 0 10px; }
+.friday-root .ts-linha { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 8px; }
+.friday-root .ts-linha select { max-width: 420px; }
+.friday-root .ts-tipo { display: inline-block; border-radius: 4px; padding: 3px 10px; font-size: 13px; font-weight: 600; }
+.friday-root .ts-rolagem { overflow-x: auto; }
+.friday-root .ts-tabela { border-collapse: collapse; min-width: 100%; }
+.friday-root .ts-tabela th, .friday-root .ts-tabela td { border-bottom: 1px solid var(--borda-suave); padding: 6px 10px; text-align: center; white-space: nowrap; }
+.friday-root .ts-tabela th:first-child, .friday-root .ts-tabela td:first-child { text-align: left; }
+.friday-root .ts-tabela th .btn-icone { margin-left: 4px; vertical-align: middle; }
+.friday-root .ts-coluna { display: flex; align-items: center; gap: 6px; }
+.friday-root .ts-coluna small { margin-left: 4px; }

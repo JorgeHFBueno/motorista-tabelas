@@ -4,6 +4,7 @@ import { useAvisoRapido } from '../ui/base.tsx';
 import { posEntre } from '../util.ts';
 import { colunaDoMenu, type Coluna, type Grupo, type Item, type Sub, type TipoMenu, type Visao } from './tipos.ts';
 import type { OpTempo } from './tempo.ts';
+import { colunaSoNoTipo, tiposDoSub, type TiposSub } from './tiposSubitem.ts';
 
 // sub: quadro de subitens (colunas próprias) com os subitens dos itens visíveis.
 export type Dados = { quadro: Row; grupos: Grupo[]; colunas: Coluna[]; itens: Item[]; visoes: Visao[]; sub: Sub | null };
@@ -110,6 +111,14 @@ export function useQuadro(quadroId: number) {
     return novo;
   };
 
+  // Grava config.tipos no quadro de subitens, mantendo o resto da config (ex.: a largura do nome).
+  const salvarTiposSub = async (t: TiposSub | null) => {
+    const s = await garantirSub();
+    const config = { ...(s.config ?? {}), tipos: t };
+    mudar(d => (d.sub ? { ...d, sub: { ...d.sub, config } } : d));
+    return gravar(atualizar('quadros', s.quadro_id, { config }));
+  };
+
   const acoes = {
     recarregar,
 
@@ -167,12 +176,17 @@ export function useQuadro(quadroId: number) {
       mudar(d => ({ ...d, colunas: [...d.colunas, c].sort(porPosicao) }));
       return c;
     },
-    criarColunaSub: async (tipoMenu: TipoMenu, titulo: string) => {
+    // soNoTipo: com tipos de subitem ligados, a coluna criada nos subitens de um item com tipo fica só nesse tipo.
+    criarColunaSub: async (tipoMenu: TipoMenu, titulo: string, soNoTipo?: string | null) => {
       const s = await garantirSub();
       const c = (await criar('colunas', { quadro_id: s.quadro_id, ...colunaDoMenu(tipoMenu), titulo })) as Coluna;
       mudar(d => (d.sub ? { ...d, sub: { ...d.sub, colunas: [...d.sub.colunas, c].sort(porPosicao) } } : d));
+      const t = tiposDoSub(s.config);
+      if (t && soNoTipo) await salvarTiposSub(colunaSoNoTipo(t, c.id, soNoTipo));
       return c;
     },
+    // Tipos de subitem (tiposSubitem.ts): config.tipos do quadro de subitens; null desliga.
+    tiposSub: (t: TiposSub | null) => salvarTiposSub(t),
     renomearItensSub: async (nome: string) => {
       const s = await garantirSub();
       mudar(d => (d.sub ? { ...d, sub: { ...d.sub, nome_item: nome } } : d));

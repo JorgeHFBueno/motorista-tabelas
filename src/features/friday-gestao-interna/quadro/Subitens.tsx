@@ -12,6 +12,7 @@ import { MudarTipoDialogo } from './MudarTipo.tsx';
 import { CampoOficialDialogo } from './TornarOficial.tsx';
 import { infoColuna, infoTipo, type Coluna, type Item, type Sub } from './tipos.ts';
 import { porPosicao, type Acoes } from './useQuadro.ts';
+import { colunaNoTipo, tipoDoItem, tiposDoSub } from './tiposSubitem.ts';
 
 // Arquivar e excluir com aviso de "Desfazer" (definido na página do quadro).
 export type OpsItens = { arquivar: (ids: number[]) => void; excluir: (ids: number[], nome?: string) => void };
@@ -27,7 +28,10 @@ export function TabelaSubitens({ pai, sub, acoes, ops, usuarios, modo, focarNovo
   const [novo, setNovo] = useState('');
   const itens = (sub?.itens ?? []).filter(s => s.item_pai_id === pai.id).sort(porPosicao);
   const todas = sub?.colunas ?? [];
-  const colunas = todas.filter(c => !c.oculta);
+  // Tipos de subitem: o tipo do item pai (ex.: PONTE ou PAVILHÃO) decide as colunas mostradas.
+  const tipos = tiposDoSub(sub?.config);
+  const tipo = tipoDoItem(tipos, pai);
+  const colunas = todas.filter(c => !c.oculta && colunaNoTipo(tipos, c.id, tipo));
   const nomeItem = String(sub?.nome_item || 'Subitem');
   const criar = () => { const n = novo.trim(); if (n) { setNovo(''); acoes.criarSubitem(pai.id, n); } };
 
@@ -83,7 +87,7 @@ export function TabelaSubitens({ pai, sub, acoes, ops, usuarios, modo, focarNovo
                 )}
               </th>
               {colunas.map(c => <CabecalhoSub key={c.id} coluna={c} acoes={acoes} confirmar={confirmar} />)}
-              <th className="tq-mais"><AdicionarColunaSub acoes={acoes} /></th>
+              <th className="tq-mais"><AdicionarColunaSub acoes={acoes} tipo={tipo} /></th>
             </tr>
           </thead>
           <tbody>
@@ -188,14 +192,15 @@ function CabecalhoSub({ coluna, acoes, confirmar }: { coluna: Coluna; acoes: Aco
   );
 }
 
-function AdicionarColunaSub({ acoes }: { acoes: Acoes }) {
+// Com tipos de subitem, a coluna criada aqui fica só no tipo deste item (ajustável em "Tipos de subitem").
+function AdicionarColunaSub({ acoes, tipo }: { acoes: Acoes; tipo: string | null }) {
   const pop = usePopover<HTMLButtonElement>();
   return (
     <>
       <button ref={pop.ref} className="btn-icone" aria-label="Adicionar coluna aos subitens" title="Adicionar coluna aos subitens" onClick={pop.alternar}><Plus size={15} /></button>
       {pop.aberto && (
         <Popover ancora={pop.ref.current} onClose={pop.fechar} alinhar="fim" largura={340}>
-          <MenuTipos onEscolher={t => { pop.fechar(); acoes.criarColunaSub(t, infoTipo(t).rotulo); }} />
+          <MenuTipos onEscolher={t => { pop.fechar(); acoes.criarColunaSub(t, infoTipo(t).rotulo, tipo); }} />
         </Popover>
       )}
     </>

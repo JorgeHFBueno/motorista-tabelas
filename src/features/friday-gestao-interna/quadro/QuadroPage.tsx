@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import {
   Activity, Archive, ArchiveRestore, ArrowDownUp, CalendarDays, ChevronDown, Columns3, Copy, Download, EyeOff, FileSpreadsheet, Filter, FolderInput, GanttChart, GripVertical, Group,
-  Eye, Kanban as IconeKanban, Lock, LockOpen, MoreHorizontal, Pencil, Plus, Search, Star, Table2, Trash2, Upload, UserRound, X, Zap,
+  Eye, Kanban as IconeKanban, Layers, Lock, LockOpen, MoreHorizontal, Pencil, Plus, Search, Star, Table2, Trash2, Upload, UserRound, X, Zap,
 } from 'lucide-react';
 import { duplicarQuadro, excluir, mudarEstado, type Pessoa, type Row } from '../api.ts';
 import { useAuth } from '../../../contexts/AuthContext';
@@ -623,6 +623,7 @@ function MenuQuadro({ quadro, acoes, confirmar, temOcultas, onMostrarOcultas, on
     { rotulo: 'Duplicar quadro (só estrutura)', icone: <Copy size={15} />, onClick: async () => { const n = await duplicarQuadro(quadro.id, {}); await nav.recarregar(); navigate(`/friday/quadros/${n.id}`); } },
     { rotulo: 'Duplicar quadro com itens', icone: <Copy size={15} />, onClick: async () => { const n = await duplicarQuadro(quadro.id, { com_itens: true }); await nav.recarregar(); navigate(`/friday/quadros/${n.id}`); } },
     { rotulo: `Nome dos itens: “${quadro.nome_item ?? 'Item'}”`, icone: <Pencil size={15} />, onClick: () => setNomeItem(true) },
+    { rotulo: 'Tipos de subitem', icone: <Layers size={15} />, onClick: () => navigate(`/friday/quadros/${quadro.id}/tipos`) },
     { rotulo: quadro.config?.agenda ? 'Google Agenda (ligada)' : 'Google Agenda', icone: <CalendarDays size={15} />, onClick: () => setAgenda(true) },
     ...(temOcultas ? [{ rotulo: 'Mostrar colunas ocultas', icone: <EyeOff size={15} />, onClick: onMostrarOcultas }] : []),
     { rotulo: 'Arquivo e lixeira deste quadro', icone: <ArchiveRestore size={15} />, onClick: () => navigate(`/friday/arquivo?quadro=${quadro.id}`) },
