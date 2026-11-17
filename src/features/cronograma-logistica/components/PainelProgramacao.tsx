@@ -76,7 +76,7 @@ export function PainelProgramacao({ programacao, aba, onAba, observacoes, eu, ca
                 <CampoEscolhaVarios rotulo="Veículos" maximo={MAX_VEICULOS} valores={opcoesVeiculos(programacao.veiculos, cadastros)} opcoes={cadastros.veiculos} onSalvar={(opcoes) => acoes.atualizar(programacao.id, { veiculos: refsCadastro(opcoes) })} />
               </label>
               <label className="lg-painel-campo"><span>Obra</span>
-                <CampoEscolha rotulo="Obra" valor={opcaoObra(programacao.obra, cadastros)} opcoes={cadastros.obras} onSalvar={(opcao) => acoes.atualizar(programacao.id, { obra: refCadastro(opcao) })} />
+                <CampoEscolha rotulo="Obra" valor={opcaoObra(programacao.obra, cadastros)} opcoes={cadastros.obras} onSalvar={(opcao) => acoes.escolherObra(programacao, refCadastro(opcao))} />
               </label>
               <div className="lg-painel-campo"><span>Local</span>
                 <CampoLocal local={programacao.local} onLer={(texto) => acoes.lerLocal(programacao, texto)} onRemover={() => acoes.atualizar(programacao.id, { local: null })} />

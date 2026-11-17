@@ -2,11 +2,13 @@ import type { AtividadeV2 } from '../../services/atividade-normalizer';
 import type { NormalizedCombustivel } from '../../services/combustivel-normalizer';
 import { calculatedEnd, isValidCivilDate } from '../cronograma-obras/domain/temporal';
 import { rotuloDias, type NaoTrabalhado } from '../cronograma-obras/domain/naoTrabalhados';
+import { lotesDaObra, type LoteV2 } from '../../utils/cadastrosV2';
 
 // Obra de obras-v2 (The Manuscript, 01_FIRESTORE/COLECOES/obras-v2.md): um contrato com os LOTEs em `lotes`.
 // O cadastro é do Friday; em /engenharia/obras a WEB só grava o `local`.
 
-export type LoteObra = { chave: string; nome: string; status: string };
+/** LOTE com a coordenada da coluna Coordenada dos subitens do Friday (null sem coordenada). */
+export type LoteObra = LoteV2;
 
 export type ObraDetalhe = {
   id: string;
@@ -40,12 +42,7 @@ export function obraDetalheFromV2(id: string, data: Record<string, unknown>): Ob
   const nomeObra = text(data.nomeObra);
   if (!nomeObra) return null;
   const entradas = Object.entries(map(data.lotes)).map(([chave, raw]) => ({ chave, raw: map(raw) }));
-  const ordem = (raw: Record<string, unknown>) =>
-    typeof raw.ordem === 'number' && Number.isFinite(raw.ordem) ? raw.ordem : Number.MAX_SAFE_INTEGER;
-  const lotes = entradas
-    .filter(({ raw }) => !text(raw.situacao))
-    .sort((a, b) => ordem(a.raw) - ordem(b.raw) || a.chave.localeCompare(b.chave))
-    .map(({ chave, raw }) => ({ chave, nome: text(raw.nome) || chave, status: text(raw.status) }));
+  const lotes = lotesDaObra(data.lotes);
   const ano = typeof data.ano === 'number' && Number.isFinite(data.ano) ? data.ano : null;
   return {
     id,
@@ -97,6 +94,17 @@ export const LIMITES_CAMPOS: Record<CampoEditavelObra, number> = { local: 200, s
 export function filtrarLocais(opcoes: readonly string[], texto: string): string[] {
   const termo = normalizar(texto.trim());
   return (termo ? opcoes.filter((opcao) => normalizar(opcao).includes(termo)) : opcoes).slice(0, 50);
+}
+
+/**
+ * Local "Cidade - UF" a partir da cidade e do estado lidos pela coordenada do LOTE: a grafia da lista de sugestões
+ * quando a cidade está nela (sem diferença de acento e caixa); null sem cidade.
+ */
+export function localDaCidade(cidade: string, uf: string, sugestoes: readonly string[]): string | null {
+  const nome = cidade.trim();
+  if (!nome) return null;
+  const local = uf.trim() ? `${nome} - ${uf.trim()}` : nome;
+  return sugestoes.find((opcao) => normalizar(opcao) === normalizar(local)) ?? local;
 }
 
 export function filtrarObras(obras: ObraDetalhe[], busca: string, filtro: FiltroObras): ObraDetalhe[] {

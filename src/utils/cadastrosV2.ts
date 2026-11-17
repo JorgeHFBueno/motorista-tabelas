@@ -73,6 +73,31 @@ export interface ObraV2 {
   nomeObra: string;
   local: string | null;
   status: string;
+  /** LOTEs ativos, com a coordenada (o Cronograma Logístico preenche o Local por ela). */
+  lotes: LoteV2[];
+}
+
+export interface Coordenada { lat: number; lng: number }
+
+/** `lotes.{id}.coordenada` (coluna Coordenada dos subitens do Friday, 2026-11-17): `{ lat, lng }` válido, ou null. */
+export function coordenadaDoLote(value: unknown): Coordenada | null {
+  const { lat, lng } = record(value);
+  return typeof lat === 'number' && typeof lng === 'number' && Number.isFinite(lat) && Number.isFinite(lng)
+    && Math.abs(lat) <= 90 && Math.abs(lng) <= 180 ? { lat, lng } : null;
+}
+
+/** LOTE de uma obra de `obras-v2` (`lotes.{chave}`). */
+export interface LoteV2 { chave: string; nome: string; status: string; coordenada: Coordenada | null }
+
+/** LOTEs ativos da obra, na ordem do campo `ordem` (empate pela chave); sem os arquivados ou na lixeira do Friday (`situacao`). */
+export function lotesDaObra(lotes: unknown): LoteV2[] {
+  const ordem = (raw: Record<string, unknown>) =>
+    typeof raw.ordem === 'number' && Number.isFinite(raw.ordem) ? raw.ordem : Number.MAX_SAFE_INTEGER;
+  return Object.entries(record(lotes))
+    .map(([chave, raw]) => ({ chave, raw: record(raw) }))
+    .filter(({ raw }) => !text(raw.situacao))
+    .sort((a, b) => ordem(a.raw) - ordem(b.raw) || a.chave.localeCompare(b.chave))
+    .map(({ chave, raw }) => ({ chave, nome: text(raw.nome) || chave, status: text(raw.status), coordenada: coordenadaDoLote(raw.coordenada) }));
 }
 
 export function obraFromV2(id: string, data: Record<string, unknown>): ObraV2 | null {
@@ -86,6 +111,7 @@ export function obraFromV2(id: string, data: Record<string, unknown>): ObraV2 | 
     nomeObra,
     local: typeof data.local === 'string' ? data.local : null,
     status: text(data.status),
+    lotes: lotesDaObra(data.lotes),
   };
 }
 

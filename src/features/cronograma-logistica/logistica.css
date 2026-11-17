@@ -277,6 +277,14 @@
 .lg-cal-zoom .lg-cal-zoom-conflito { margin-top: 6px; color: var(--lg-perigo, #d83a52); font-size: 13px; }
 .lg-adiamento { display: block; padding: 0 8px; font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .lg-adiamento-pergunta { margin: 0 0 12px; }
+/* Escolher o LOTE depois da Obra: a coordenada do LOTE preenche o Local. O diálogo fica fora de .lg-pagina: cores fixas. */
+.lg-lote-ajuda { margin: 0 0 12px; color: #676879; }
+.lg-lotes { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.lg-lote { width: 100%; display: flex; flex-direction: column; align-items: flex-start; gap: 2px; padding: 8px 12px; border: 1px solid #d0d4e4; border-radius: 6px; background: #ffffff; color: #323338; font: inherit; text-align: left; cursor: pointer; }
+.lg-lote:hover:not(:disabled) { border-color: #2f6fde; background: #dce8fb; }
+.lg-lote:disabled { cursor: default; opacity: .55; }
+.lg-lote-nome { font-weight: 600; }
+.lg-lote small { display: inline-flex; align-items: center; gap: 3px; color: #676879; font-size: 12px; }
 .lg-painel-adiamento { font-size: 13px; }
 
 @media (max-width: 700px) {

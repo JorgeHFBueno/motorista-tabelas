@@ -6,6 +6,7 @@ import {
   contratoTexto,
   filtrarLocais,
   filtrarObras,
+  localDaCidade,
   localPendente,
   obraDetalheFromV2,
   periodosDosMestres,
@@ -15,6 +16,7 @@ import {
 } from '../src/features/obras/obrasDomain';
 import { createObraRelatorioPdf, nomeArquivoRelatorioObra } from '../src/features/obras/obraRelatorioPdf';
 import { LOCAIS_SUGERIDOS } from '../src/features/obras/locaisSugeridos';
+import { coordenadaDoLote, lotesDaObra, obraFromV2 } from '../src/utils/cadastrosV2';
 
 const contrato = {
   nomeObra: 'LAGOA BONITA DO SUL 16/2026', siglaObra: '', codObra: 0, local: 'CORRIGIR', status: 'CONTRATADA',
@@ -140,4 +142,32 @@ test('relatório da obra: PDF com todas as seções; fonte que falhou aparece co
     assert.ok(conteudo.includes(trecho), trecho);
   }
   assert.equal(nomeArquivoRelatorioObra(obra, new Date('2026-10-30T15:00:00Z')), 'Relatorio-Obra-LAGOA-BONITA-DO-SUL-16-2026-2026-10-30.pdf');
+});
+
+test('LOTE: coordenada da coluna Coordenada do subitem ({ lat, lng }) ou null; o mesmo para o Cronograma Logístico', () => {
+  assert.deepEqual(coordenadaDoLote({ lat: -29.502239, lng: -53.12 }), { lat: -29.502239, lng: -53.12 });
+  for (const ruim of [null, undefined, {}, { lat: '-29', lng: -53 }, { lat: 95, lng: 10 }, { lat: 10, lng: 181 }, { lat: Number.NaN, lng: 1 }]) {
+    assert.equal(coordenadaDoLote(ruim), null);
+  }
+  const lotes = lotesDaObra({
+    b: { nome: 'LOTE 2', ordem: 1 },
+    a: { nome: 'LOTE 1', status: 'Em andamento', ordem: 0, coordenada: { lat: -29.5, lng: -53.1 } },
+    z: { nome: 'LOTE VELHO', ordem: 2, situacao: 'arquivado', coordenada: { lat: -1, lng: -1 } },
+  });
+  assert.deepEqual(lotes, [
+    { chave: 'a', nome: 'LOTE 1', status: 'Em andamento', coordenada: { lat: -29.5, lng: -53.1 } },
+    { chave: 'b', nome: 'LOTE 2', status: '', coordenada: null },
+  ]);
+  const detalhe = obraDetalheFromV2('c1', { ...contrato, lotes: { a: { nome: 'LOTE 1', ordem: 0, coordenada: { lat: -29.5, lng: -53.1 } } } })!;
+  assert.deepEqual(detalhe.lotes[0].coordenada, { lat: -29.5, lng: -53.1 });
+  const obra = obraFromV2('c1', { ...contrato, lotes: { a: { nome: 'LOTE 1', ordem: 0, coordenada: { lat: -29.5, lng: -53.1 } } } })!;
+  assert.deepEqual(obra.lotes.map((lote) => lote.coordenada), [{ lat: -29.5, lng: -53.1 }]);
+});
+
+test('Local pela coordenada do LOTE: a grafia da lista de sugestões, sem diferença de acento e caixa', () => {
+  assert.equal(localDaCidade('Arroio do Tigre', 'RS', LOCAIS_SUGERIDOS), 'Arroio do Tigre - RS');
+  assert.equal(localDaCidade('palmeira das missoes', 'rs', LOCAIS_SUGERIDOS), 'Palmeira das Missões - RS');
+  assert.equal(localDaCidade('Cidade Nova', 'SP', LOCAIS_SUGERIDOS), 'Cidade Nova - SP'); // fora da lista: como veio
+  assert.equal(localDaCidade('Roma', '', LOCAIS_SUGERIDOS), 'Roma');
+  assert.equal(localDaCidade('  ', 'RS', LOCAIS_SUGERIDOS), null);
 });

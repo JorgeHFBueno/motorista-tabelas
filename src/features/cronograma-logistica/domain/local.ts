@@ -1,5 +1,5 @@
 // Local de uma programação: o link do Google Maps colado, lido pela Function logisticaLocal (coordenada, cidade e
-// estado). Contrato: The Manuscript, 03_APLICACAO_WEB/15_LOGISTICA.md.
+// estado). Contrato: The Manuscript, 03_APLICACAO_WEB/15_LOGISTICA.md. Também usado no detalhe da obra (LOTEs).
 import type { LocalProgramacao } from './models';
 
 /** Coordenada simplificada: 4 casas (uns 10 m). */

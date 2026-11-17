@@ -5,6 +5,7 @@ import { veArea } from './credenciais.js';
 // Local de uma programação do Cronograma Logístico (WEB /logistica/cronograma): a pessoa cola um link do Google Maps e
 // a WEB grava a coordenada, a cidade e o estado. O link curto (maps.app.goo.gl), que o celular gera ao compartilhar, só
 // se abre daqui: o navegador não lê o redirecionamento do Google. Cidade e estado vêm do Nominatim (OpenStreetMap).
+// Também lê a cidade da coordenada do LOTE (link do Maps montado pela WEB) para o Local da obra em /engenharia/obras.
 // Contrato: The Manuscript, 02_APIS_FUNCTIONS/01_FUNCTIONS_VIGENTES.md e 03_APLICACAO_WEB/15_LOGISTICA.md.
 type AnyRecord = Record<string, any>;
 
@@ -130,7 +131,7 @@ const arredondar = (n: number) => Math.round(n * 1e7) / 1e7;
 export function createLogisticaLocalService(store: LogisticaLocalStore) {
   return async (uid: string | undefined, dados: unknown): Promise<LocalLido> => {
     if (!uid) throw new HttpsError('unauthenticated', 'Autenticação obrigatória.');
-    if (!veArea(await store.getEmployee(uid), 'logistica')) throw new HttpsError('permission-denied', 'Acesso não autorizado.');
+    if (!veArea(await store.getEmployee(uid), 'logistica', 'engenharia')) throw new HttpsError('permission-denied', 'Acesso não autorizado.');
     const url = linkDoTexto((dados as AnyRecord | null)?.link);
     if (!url) throw new HttpsError('invalid-argument', 'Cole um link do Google Maps.');
 

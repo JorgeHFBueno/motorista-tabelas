@@ -47,7 +47,7 @@ test('cidade e estado: sigla no Brasil, nome do estado fora; cidade, town ou vil
 });
 
 function servico({ redirecionamentos = {}, endereco = { city: 'Caxias do Sul', 'ISO3166-2-lvl4': 'BR-RS' }, achado = null } = {}) {
-  const funcionarios = { log: { ativo: true, perfis: {}, areas: { frota: 'editar', combustivel: 'editar', logistica: 'editar' } }, mec: { ativo: true, perfis: { mecanico: true }, areas: { frota: 'editar', combustivel: 'editar', logistica: 'editar', friday: 'editar' } }, adm: { ativo: true, perfis: { adm2: true } }, eng: { ativo: true, perfis: {}, areas: { engenharia: 'editar', portal: 'editar' } } };
+  const funcionarios = { log: { ativo: true, perfis: {}, areas: { frota: 'editar', combustivel: 'editar', logistica: 'editar' } }, mec: { ativo: true, perfis: { mecanico: true }, areas: { frota: 'editar', combustivel: 'editar', logistica: 'editar', friday: 'editar' } }, adm: { ativo: true, perfis: { adm2: true } }, eng: { ativo: true, perfis: {}, areas: { engenharia: 'ver', portal: 'editar' } }, por: { ativo: true, perfis: {}, areas: { portal: 'editar' } }, inativo: { ativo: false, perfis: {}, areas: { logistica: 'editar' } } };
   const chamadas = { redirecionamento: [], enderecoDa: [], buscar: [] };
   const service = createLogisticaLocalService({
     async getEmployee(uid) { return funcionarios[uid]; },
@@ -58,12 +58,14 @@ function servico({ redirecionamentos = {}, endereco = { city: 'Caxias do Sul', '
   return { service, chamadas };
 }
 
-test('só quem vê a área logistica, ou adm2; link obrigatório', async () => {
+test('só quem vê a área logistica ou engenharia (LOTE da obra), ou adm2; link obrigatório', async () => {
   const { service } = servico();
   await assert.rejects(service(undefined, { link: LUGAR }), (e) => e.code === 'unauthenticated');
-  for (const uid of ['eng', 'nao-existe']) await assert.rejects(service(uid, { link: LUGAR }), (e) => e.code === 'permission-denied');
+  for (const uid of ['por', 'inativo', 'nao-existe']) await assert.rejects(service(uid, { link: LUGAR }), (e) => e.code === 'permission-denied');
   for (const dados of [null, {}, { link: 'https://example.com' }]) await assert.rejects(service('log', dados), (e) => e.code === 'invalid-argument');
-  for (const uid of ['log', 'mec', 'adm']) assert.equal((await service(uid, { link: LUGAR })).lat, 41.9047931);
+  for (const uid of ['log', 'mec', 'adm', 'eng']) assert.equal((await service(uid, { link: LUGAR })).lat, 41.9047931);
+  // A WEB manda a coordenada do LOTE como link do Maps (api=1&query=lat,lng).
+  assert.equal((await service('eng', { link: 'https://www.google.com/maps/search/?api=1&query=-29.502239%2C-53.1234' })).lng, -53.1234);
 });
 
 test('link curto: segue o redirecionamento só para o Maps; cidade e estado da coordenada', async () => {

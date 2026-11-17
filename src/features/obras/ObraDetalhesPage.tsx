@@ -15,8 +15,10 @@ import {
   TableContainer,
   TableHead,
   TableRow,
+  Tooltip,
   Typography,
 } from '@mui/material';
+import PlaceOutlinedIcon from '@mui/icons-material/PlaceOutlined';
 import { useParams } from 'react-router-dom';
 import {
   carregarAlocacoesDaObra,
@@ -26,7 +28,9 @@ import {
   carregarNomesMestres,
   carregarObra,
   gravarCampoObra,
+  locaisDosLotes,
 } from './obrasData';
+import { coordenadaCurta, linkDoMapa } from '../cronograma-logistica/domain/local';
 import CampoEditavel from './CampoEditavelObra';
 import { useAuth } from '../../contexts/AuthContext';
 import { editaArea } from '../../services/credenciais';
@@ -233,6 +237,7 @@ export default function ObraDetalhesPage() {
             salvando={salvandoCampo}
             somenteLeitura={!podeEditar}
             onSalvar={(valor) => salvarCampo('local', valor)}
+            sugestoesDoLote={obra.lotes.some((lote) => lote.coordenada) ? () => locaisDosLotes(obra.lotes) : undefined}
           />
           <CampoEditavel
             campo="siglaObra"
@@ -261,7 +266,25 @@ export default function ObraDetalhesPage() {
         <Typography variant="body2" color="text.secondary" sx={{ mt: 2.5, mb: 1 }}>LOTEs</Typography>
         {obra.lotes.length ? (
           <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
-            {obra.lotes.map((lote) => <Chip key={lote.chave} label={lote.status ? `${lote.nome} · ${lote.status}` : lote.nome} variant="outlined" />)}
+            {obra.lotes.map((lote) => {
+              const rotulo = lote.status ? `${lote.nome} · ${lote.status}` : lote.nome;
+              // Com coordenada (coluna Coordenada do subitem no Friday): o chip abre o Google Maps com o pino.
+              return lote.coordenada ? (
+                <Tooltip key={lote.chave} title="Abrir no Google Maps">
+                  <Chip
+                    component="a"
+                    href={linkDoMapa(lote.coordenada)}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    clickable
+                    icon={<PlaceOutlinedIcon />}
+                    label={`${rotulo} · ${coordenadaCurta(lote.coordenada)}`}
+                    variant="outlined"
+                    color="primary"
+                  />
+                </Tooltip>
+              ) : <Chip key={lote.chave} label={rotulo} variant="outlined" />;
+            })}
           </Stack>
         ) : <Vazio>Sem LOTEs cadastrados.</Vazio>}
 

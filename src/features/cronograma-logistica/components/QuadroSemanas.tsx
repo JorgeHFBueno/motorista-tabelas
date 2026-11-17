@@ -164,7 +164,7 @@ function LinhaProgramacao({ programacao, cadastros, conflitos, todosConflitos, a
       case 'veiculos':
         return <CampoEscolhaVarios rotulo="Veículos" maximo={MAX_VEICULOS} valores={opcoesVeiculos(programacao.veiculos, cadastros)} opcoes={cadastros.veiculos} onSalvar={(opcoes) => atualizar({ veiculos: refsCadastro(opcoes) })} />;
       case 'obra':
-        return <CampoEscolha rotulo="Obra" valor={opcaoObra(programacao.obra, cadastros)} opcoes={cadastros.obras} onSalvar={(opcao) => atualizar({ obra: refCadastro(opcao) })} />;
+        return <CampoEscolha rotulo="Obra" valor={opcaoObra(programacao.obra, cadastros)} opcoes={cadastros.obras} onSalvar={(opcao) => acoes.escolherObra(programacao, refCadastro(opcao))} />;
       case 'local':
         return <CampoLocal local={programacao.local} onLer={(texto) => acoes.lerLocal(programacao, texto)} onRemover={() => atualizar({ local: null })} />;
       case 'status':

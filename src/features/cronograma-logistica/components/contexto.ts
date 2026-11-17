@@ -34,6 +34,8 @@ export interface AcoesLogistica {
   removerNota: (programacao: Programacao) => void;
   /** Lê o link do Google Maps colado e grava o local; true quando gravou. */
   lerLocal: (programacao: Programacao, texto: string) => Promise<boolean>;
+  /** Grava a Obra e, quando ela tem LOTE com coordenada, pergunta qual LOTE preenche o Local. */
+  escolherObra: (programacao: Programacao, obra: RefCadastro | null) => void;
   /** Ignora o conflito (some nas duas linhas) ou volta a avisar. */
   ignorarConflito: (programacao: Programacao, conflito: Conflito, ignorar: boolean) => void;
 }

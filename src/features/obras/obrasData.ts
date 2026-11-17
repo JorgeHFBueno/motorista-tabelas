@@ -7,7 +7,10 @@ import type { MedicoesObra } from './obraRelatorioPdf';
 import { CRONOGRAMA_COLLECTION } from '../cronograma-obras/data/cronogramaFirestore';
 import { MESTRES_COLLECTION } from '../cronograma-obras/data/mestresFirestore';
 import { lerNaoTrabalhados } from '../cronograma-obras/domain/naoTrabalhados';
-import { obraDetalheFromV2, type AlocacaoObra, type CampoEditavelObra, type ObraDetalhe } from './obrasDomain';
+import { localDaCidade, obraDetalheFromV2, type AlocacaoObra, type CampoEditavelObra, type LoteObra, type ObraDetalhe } from './obrasDomain';
+import { LOCAIS_SUGERIDOS } from './locaisSugeridos';
+import { localDoMaps } from '../cronograma-logistica/data/logisticaFirestore';
+import { linkDoMapa } from '../cronograma-logistica/domain/local';
 
 const OBRAS_V2 = 'obras-v2';
 
@@ -72,4 +75,26 @@ export async function carregarAtividadesDaObra(obraId: string): Promise<Atividad
 export async function carregarCombustivelDaObra(obraId: string): Promise<NormalizedCombustivel[]> {
   const snapshot = await getDocs(query(collection(db, '03-combustivel'), where('id_obra', '==', obraId)));
   return snapshot.docs.map((item) => normalizarMovimentoCombustivel(item.data(), item.id));
+}
+
+const cidadesLidas = new Map<string, Promise<string | null>>();
+
+/**
+ * Locais "Cidade - UF" dos LOTEs com coordenada, sem repetir: a cidade e o estado vêm da Function logisticaLocal (a
+ * mesma do Local do Cronograma Logístico), um LOTE de cada vez. LOTE que falha fica de fora.
+ */
+export async function locaisDosLotes(lotes: readonly LoteObra[]): Promise<string[]> {
+  const locais: string[] = [];
+  for (const { coordenada } of lotes) {
+    if (!coordenada) continue;
+    const chave = `${coordenada.lat},${coordenada.lng}`;
+    if (!cidadesLidas.has(chave)) {
+      cidadesLidas.set(chave, localDoMaps(linkDoMapa(coordenada))
+        .then(({ cidade, uf }) => localDaCidade(cidade, uf, LOCAIS_SUGERIDOS))
+        .catch((err) => { console.warn('Cidade do LOTE não lida', err); cidadesLidas.delete(chave); return null; }));
+    }
+    const local = await cidadesLidas.get(chave)!;
+    if (local && !locais.includes(local)) locais.push(local);
+  }
+  return locais;
 }

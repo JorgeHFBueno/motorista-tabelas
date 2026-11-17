@@ -12,6 +12,7 @@ import { itemFrotaLabel, obraLabel, temPerfil, type ItemFrotaV2, type ObraV2, ty
 import { BotaoAtribuir } from './components/Atribuir';
 import { CalendarioSemanas } from './components/CalendarioSemanas';
 import { BarraColunas } from './components/Colunas';
+import { EscolherLote } from './components/EscolherLote';
 import type { AbaPainel, AcoesLogistica, CadastrosLogistica } from './components/contexto';
 import { PainelProgramacao } from './components/PainelProgramacao';
 import { QuadroSemanas } from './components/QuadroSemanas';
@@ -24,6 +25,7 @@ import { statusPorAutomacao } from './domain/automacoes';
 import { semCodigoEmOrdem } from './domain/codigo';
 import { ETIQUETAS_PADRAO, statusAoSalvarEtiquetas, statusEncerrado, type EtiquetaStatus } from './domain/status';
 import { chaveConflito, conflitosAtivos, conflitosPorProgramacao } from './domain/conflitos';
+import { linkDoMapa } from './domain/local';
 import type { Observacao, Programacao, RefPessoa, Semana } from './domain/models';
 import { hojeCivil, organizarSemanas, proximaSemanaParaAbrir, rotuloSemana, semanaIdDe, vindasDeAntes } from './domain/semanas';
 import './logistica.css';
@@ -53,6 +55,8 @@ export default function LogisticaCronogramaPage() {
   const [abertaId, setAbertaId] = useState<string | null>(null);
   const [abaPainel, setAbaPainel] = useState<AbaPainel>('programacao');
   const [abrindo, setAbrindo] = useState(false);
+  // Obra escolhida com LOTE de coordenada: o diálogo pergunta qual LOTE preenche o Local.
+  const [perguntaLote, setPerguntaLote] = useState<{ programacaoId: string; obraId: string } | null>(null);
   const [prefsColunas, mudarPrefsColunas] = usePrefsColunas(uid);
   const tentouAbrirAtual = useRef<string | null>(null);
   const codigosPedidos = useRef(new Set<string>());
@@ -130,6 +134,7 @@ export default function LogisticaCronogramaPage() {
     };
   }, [cadastrosBrutos, pessoasFriday, etiquetas]);
 
+  const lotesPorObra = useMemo(() => new Map((cadastrosBrutos?.obras ?? []).map((obra) => [obra.id, obra.lotes])), [cadastrosBrutos]);
   const lista = useMemo(() => programacoes ?? [], [programacoes]);
   const todosConflitos = useMemo(
     () => conflitosPorProgramacao(lista, (tipo, id, retrato) => (tipo === 'pessoa' ? cadastros.nomePessoa(id, retrato) : cadastros.nomeVeiculo(id, retrato))),
@@ -170,6 +175,7 @@ export default function LogisticaCronogramaPage() {
     enviarNota: () => Promise.resolve(),
     removerNota: () => undefined,
     lerLocal: () => Promise.resolve(false),
+    escolherObra: () => undefined,
     excluir: () => undefined,
     abrir: (id, aba = 'programacao') => { setAbertaId(id); setAbaPainel(aba); },
     salvarEtiquetas: () => undefined,
@@ -198,6 +204,12 @@ export default function LogisticaCronogramaPage() {
     lerLocal: (programacao, texto) => localDoMaps(texto)
       .then((local) => { atualizarProgramacao(programacao.id, { local }, eu).catch(falhar('salvar o local')); return true; })
       .catch((error: unknown) => { falhar('ler o link do Maps')(error); return false; }),
+    escolherObra: (programacao, obra) => {
+      atualizarProgramacao(programacao.id, { obra }, eu).catch(falhar('salvar a alteração'));
+      if (obra && obra.id !== programacao.obra?.id && (lotesPorObra.get(obra.id) ?? []).some((lote) => lote.coordenada)) {
+        setPerguntaLote({ programacaoId: programacao.id, obraId: obra.id });
+      }
+    },
     excluir: (programacao) => {
       if (!window.confirm(`Excluir a programação "${programacao.item}"?`)) return;
       setAbertaId((aberta) => (aberta === programacao.id ? null : aberta));
@@ -218,7 +230,7 @@ export default function LogisticaCronogramaPage() {
         : ladoOutro ? ignorarConflito(outra!, chaveOutra, false, eu) : Promise.resolve();
       promessa.catch(falhar(ignorar ? 'ignorar o conflito' : 'voltar a avisar o conflito'));
     },
-  }), [podeEditar, eu, falhar, programacoes, etiquetas]);
+  }), [podeEditar, eu, falhar, programacoes, etiquetas, lotesPorObra]);
 
   const iniciarNovaSemana = () => {
     if (!proxima) return;
@@ -295,6 +307,17 @@ export default function LogisticaCronogramaPage() {
         acoes={acoes}
         onFechar={() => setAbertaId(null)}
       />
+      {perguntaLote && (() => {
+        const programacao = (programacoes ?? []).find((item) => item.id === perguntaLote.programacaoId);
+        return programacao ? (
+          <EscolherLote
+            obra={cadastros.nomeObra(perguntaLote.obraId, '')}
+            lotes={lotesPorObra.get(perguntaLote.obraId) ?? []}
+            onEscolher={(lote) => (lote.coordenada ? acoes.lerLocal(programacao, linkDoMapa(lote.coordenada)) : Promise.resolve(false))}
+            onFechar={() => setPerguntaLote(null)}
+          />
+        ) : null;
+      })()}
     </main>
   );
 }
