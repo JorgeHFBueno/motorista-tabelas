@@ -7,6 +7,29 @@ import type { KmInicialGravar } from '../utils/frotaVeiculosLista';
 // a WEB só edita o nome (o quadro FROTA espelha) e o KM inicial com data e origem (detalhe do veículo, adm2).
 export const VEICULOS_V2 = 'veiculos-v2';
 
+export type OrigemUltimaAtualizacao = { fonte: 'Viagem' | 'Abastecimento'; motorista: string | null; obra: string | null; data: Date | null };
+
+const textoOuNull = (value: unknown) => (typeof value === 'string' && value.trim() ? value.trim() : null);
+
+/** Registro que deu a "Última atualização" (operacional.origemUltimaAtualizacao: `atividades/<id>` ou `03-combustivel/<id>`). */
+export async function lerOrigemUltimaAtualizacao(origem: unknown): Promise<OrigemUltimaAtualizacao | null> {
+  const caminho = typeof origem === 'string' ? /^(atividades|03-combustivel)\/([\w-]{1,128})$/.exec(origem) : null;
+  if (!caminho) return null;
+  const snapshot = await getDoc(doc(db, caminho[1], caminho[2]));
+  if (!snapshot.exists()) return null;
+  const data = snapshot.data();
+  const viagem = caminho[1] === 'atividades';
+  const pessoa = (viagem ? data.motorista : data.motoristaOperador) as { nome?: unknown } | undefined;
+  const obra = (data.id_obra_snap ?? {}) as Record<string, unknown>;
+  const quando = data.data as { toDate?: () => Date } | undefined;
+  return {
+    fonte: viagem ? 'Viagem' : 'Abastecimento',
+    motorista: textoOuNull(pessoa?.nome),
+    obra: textoOuNull(obra.siglaObra) ?? textoOuNull(obra.nomeObra) ?? textoOuNull(obra.codObra),
+    data: typeof quando?.toDate === 'function' ? quando.toDate() : null,
+  };
+}
+
 export async function listItensFrota(): Promise<ItemFrotaV2[]> {
   const snapshot = await getDocs(collection(db, VEICULOS_V2));
   return sortItensFrota(snapshot.docs

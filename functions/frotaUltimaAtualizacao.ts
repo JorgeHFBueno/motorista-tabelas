@@ -1,6 +1,7 @@
 // "Última atualização" do veículo (veiculos-v2.operacional.dataUltimaAtualizacao) também por viagens e abastecimentos
 // (Manuscript 01_FIRESTORE/COLECOES/veiculos-v2.md). O app grava essa data só no checklist e na manutenção; aqui, cada
-// atividade ou saída de combustível nova com leitura do medidor leva a data do registro para o veículo, se for mais nova.
+// atividade ou saída de combustível nova com leitura do medidor leva a data do registro para o veículo, se for mais nova,
+// com a origem (`atividades/<id>` ou `03-combustivel/<id>`, como `origemQuilometragemInicial`) para a WEB mostrar quem e onde.
 // O KM continua com quem já grava (app e WEB); esta Function só mexe na data.
 import { onDocumentCreated } from 'firebase-functions/v2/firestore';
 import * as logger from 'firebase-functions/logger';
@@ -31,14 +32,14 @@ export function leituraDoRegistro(colecao: 'atividades' | '03-combustivel', regi
 }
 
 /** Leva a data para o veículo só se ela for mais nova que a gravada (transação: o app grava o mesmo documento). */
-export async function aplicarLeitura(veiculoId: string, data: Date) {
+export async function aplicarLeitura(veiculoId: string, data: Date, origem: string) {
   const ref = db.collection('veiculos-v2').doc(veiculoId);
   return db.runTransaction(async (tx) => {
     const veiculo = await tx.get(ref);
     if (!veiculo.exists) return 'sem-veiculo';
     const atual = dataDe(veiculo.get('operacional.dataUltimaAtualizacao'));
     if (atual && atual.getTime() >= data.getTime()) return 'mais-antiga';
-    tx.update(ref, { 'operacional.dataUltimaAtualizacao': Timestamp.fromDate(data) });
+    tx.update(ref, { 'operacional.dataUltimaAtualizacao': Timestamp.fromDate(data), 'operacional.origemUltimaAtualizacao': origem });
     return 'gravada';
   });
 }
@@ -46,7 +47,7 @@ export async function aplicarLeitura(veiculoId: string, data: Date) {
 async function aoCriar(colecao: 'atividades' | '03-combustivel', id: string, registro: Registro | undefined) {
   const leitura = registro ? leituraDoRegistro(colecao, registro) : null;
   if (!leitura) return;
-  const resultado = await aplicarLeitura(leitura.veiculoId, leitura.data);
+  const resultado = await aplicarLeitura(leitura.veiculoId, leitura.data, `${colecao}/${id}`);
   if (resultado === 'sem-veiculo') logger.warn('frota: veículo da leitura não existe', { colecao, id, veiculoId: leitura.veiculoId });
 }
 

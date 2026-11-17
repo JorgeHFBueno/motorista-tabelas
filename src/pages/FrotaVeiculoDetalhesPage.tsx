@@ -21,6 +21,7 @@ import {
     Typography,
 } from '@mui/material';
 import EditOutlinedIcon from '@mui/icons-material/EditOutlined';
+import SyncIcon from '@mui/icons-material/Sync';
 import {
     Timestamp,
     addDoc,
@@ -69,7 +70,7 @@ import { createVehicleReportPdf } from '../services/vehicle-report-pdf';
 import { custoPorAbastecimento, describeErpCallError, extractCnpj, fuelReportSupplier, normalizeCalendarDate, resolveVehicleReportPeriod, type VehicleReportPeriod } from '../services/vehicle-report-core';
 import { listFuncionariosAtivos } from '../services/funcionarios-selecao.service';
 import { atualizarErpVeiculos, lerErpVeiculo, proximaAtualizacaoAutomatica, type ErpGuardado } from '../services/erp-veiculos.service';
-import { atualizarKmInicial, getItemFrota, itemFridayDoVeiculo, renomearItemFrota } from '../services/veiculos.service';
+import { atualizarKmInicial, getItemFrota, itemFridayDoVeiculo, lerOrigemUltimaAtualizacao, renomearItemFrota, type OrigemUltimaAtualizacao } from '../services/veiculos.service';
 import type { ItemFrotaV2, PessoaV2 } from '../utils/cadastrosV2';
 import { atualizacaoInfo, camposQuadroFrota, lerKmInicial, medidorTexto, origemKmTexto, somarValores, type KmInicialEntrada } from '../utils/frotaVeiculosLista';
 
@@ -309,6 +310,7 @@ export default function FrotaVeiculoDetalhesPage() {
     const [erpGuardado, setErpGuardado] = useState<ErpGuardado | null>(null);
     const [atualizandoErp, setAtualizandoErp] = useState(false);
     const [erpVersao, setErpVersao] = useState(0); // muda depois do "Atualizar agora": a fonte ERP é lida de novo
+    const [origemUltima, setOrigemUltima] = useState<OrigemUltimaAtualizacao | null>(null);
 
     const [veiculo, setVeiculo] = useState<ItemFrotaV2 | null>(null);
     const [nomeEditado, setNomeEditado] = useState<string | null>(null); // null = fora da edição
@@ -860,6 +862,17 @@ export default function FrotaVeiculoDetalhesPage() {
         return () => { active = false; };
     }, [erpVeiculoId]);
 
+    // De onde veio a "Última atualização" (viagem ou abastecimento: motorista e obra); gravado pela Function.
+    const origemUltimaCaminho = (veiculo?.raw.operacional as { origemUltimaAtualizacao?: unknown } | undefined)?.origemUltimaAtualizacao;
+    useEffect(() => {
+        let active = true;
+        setOrigemUltima(null);
+        lerOrigemUltimaAtualizacao(origemUltimaCaminho)
+            .then((origem) => { if (active) setOrigemUltima(origem); })
+            .catch((err) => console.error('Erro ao ler a origem da última atualização', err));
+        return () => { active = false; };
+    }, [origemUltimaCaminho]);
+
     const fornecedoresById = useMemo(() => {
         return new Map(fornecedores.map((item) => [item.id, item.nome]));
     }, [fornecedores]);
@@ -1325,7 +1338,13 @@ export default function FrotaVeiculoDetalhesPage() {
                             <Box>
                                 <Typography variant="body2" color="text.secondary">Última atualização</Typography>
                                 <Typography sx={{ fontSize: { xs: 18, sm: 22 }, fontWeight: 600 }}>{ultima ? dateFormatter.format(ultima) : '—'}</Typography>
-                                <Typography variant="body2" color={corFrescor}>{atualizacao.texto}</Typography>
+                                <Typography variant="body2" color={corFrescor}>
+                                    {!ultima
+                                        ? atualizacao.texto
+                                        : origemUltima?.data && Math.abs(origemUltima.data.getTime() - ultima.getTime()) < 60_000
+                                            ? `${origemUltima.fonte} | ${origemUltima.motorista ?? '—'} | ${origemUltima.obra ?? '—'}`
+                                            : 'Checklist ou manutenção do app'}
+                                </Typography>
                             </Box>
                             <Box>
                                 <Typography variant="body2" color="text.secondary">{medidor} último</Typography>
@@ -1371,17 +1390,16 @@ export default function FrotaVeiculoDetalhesPage() {
                     onToggleFilter={handleToggleFilter}
                     dicas={tipoVeiculo === 'PLACA' ? { manutencoesErp: dicaErp } : undefined}
                     extra={tipoVeiculo === 'PLACA' && isAdmin && (
-                        <Tooltip title={dicaErp}>
-                            <span>
-                                <Button
-                                    variant="outlined"
-                                    sx={{ whiteSpace: 'nowrap', height: '100%' }}
+                        <Tooltip title={<><b>{atualizandoErp ? 'Atualizando o ERP…' : 'Atualizar ERP agora'}</b>{dicaErp}</>}>
+                            <span style={{ alignSelf: 'center' }}>
+                                <IconButton
+                                    aria-label="Atualizar ERP agora"
                                     disabled={atualizandoErp}
-                                    startIcon={atualizandoErp ? <CircularProgress size={14} color="inherit" /> : undefined}
                                     onClick={() => void atualizarErpAgora()}
+                                    sx={{ border: 1, borderColor: 'divider' }}
                                 >
-                                    {atualizandoErp ? 'Atualizando o ERP…' : 'Atualizar ERP agora'}
-                                </Button>
+                                    {atualizandoErp ? <CircularProgress size={20} color="inherit" /> : <SyncIcon />}
+                                </IconButton>
                             </span>
                         </Tooltip>
                     )}
