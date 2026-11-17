@@ -687,7 +687,7 @@ export const completo = emPortugues(async function completo(id: number) {
         return { ...base, n_atualizacoes: nAt.get(s.id) ?? 0, atualizacoes_novas: novas.has(s.id), n_anexos: nAn.get(s.id) ?? 0 } as Row;
       });
     for (const s of subItens) nSub.set(Number(s.item_pai_id), (nSub.get(Number(s.item_pai_id)) ?? 0) + 1);
-    subDados = { quadro_id: sub.id, grupo_id: subGrupo, nome_item: sub.nome_item ?? 'Subitem', colunas: ordenar('colunas', subColunas).map(c => marcar(c, camposAtivos(subOf))), itens: subItens };
+    subDados = { quadro_id: sub.id, grupo_id: subGrupo, nome_item: sub.nome_item ?? 'Subitem', config: sub.config ?? {}, colunas: ordenar('colunas', subColunas).map(c => marcar(c, camposAtivos(subOf))), itens: subItens };
   }
   const nAt = contar(atualizacoes), nAn = contar(anexos), novas = novidades(atualizacoes, leituras);
   return {

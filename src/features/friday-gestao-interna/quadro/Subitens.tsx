@@ -5,6 +5,7 @@ import type { Pessoa } from '../api.ts';
 import { Editavel, Menu, Popover, useConfirmar, usePopover } from '../ui/base.tsx';
 import { Celula } from './Celula.tsx';
 import { MenuTipos } from './MenuTipos.tsx';
+import { arrastarBorda, larguraDoConteudo } from '../util.ts';
 import { itensCampoOficial } from './Tabela.tsx';
 import { alvosPara } from './mudarTipo.ts';
 import { MudarTipoDialogo } from './MudarTipo.tsx';
@@ -31,7 +32,20 @@ export function TabelaSubitens({ pai, sub, acoes, ops, usuarios, modo, focarNovo
   const criar = () => { const n = novo.trim(); if (n) { setNovo(''); acoes.criarSubitem(pai.id, n); } };
 
   const largura = (c: Coluna) => Math.min(c.largura ?? 140, modo === 'painel' ? 170 : 220);
-  const larguraNome = modo === 'painel' ? 250 : 340;
+  // Na tabela, a coluna do subitem se ajusta arrastando a borda do cabeçalho (ou duplo clique para caber o conteúdo),
+  // como a coluna do item; vale para todos os subitens do quadro (config.largura_nome do quadro de subitens).
+  const [nomeArrastando, setNomeArrastando] = useState<number | null>(null);
+  const larguraNome = modo === 'painel' ? 250 : nomeArrastando ?? (Number(sub?.config?.largura_nome) || 340);
+  const iniciarResizeNome = (x0: number) =>
+    arrastarBorda(x0, larguraNome, 200, 900, setNomeArrastando, w => { void acoes.larguraNomeSub(w).finally(() => setNomeArrastando(null)); });
+  // Mede as tabelas de subitens abertas no quadro (todas usam a mesma largura).
+  const ajustarNome = (borda: HTMLElement) => {
+    const tabelas = [...(borda.closest('.tabela-quadro')?.querySelectorAll<HTMLTableElement>('table.tq-sub') ?? [])];
+    const propria = borda.closest<HTMLTableElement>('table.tq-sub');
+    if (propria && !tabelas.includes(propria)) tabelas.push(propria);
+    const w = larguraDoConteudo(tabelas, 1, colunas.length + 3, 200, 900);
+    if (w !== larguraNome) void acoes.larguraNomeSub(w);
+  };
   const larguraTotal = 40 + larguraNome + colunas.reduce((s, c) => s + largura(c), 0) + 44;
 
   const sel = selecionados ?? new Set<number>();
@@ -63,6 +77,10 @@ export function TabelaSubitens({ pai, sub, acoes, ops, usuarios, modo, focarNovo
               </th>
               <th className="tq-nome tq-nome-sub" title="Clique para mudar como os subitens são chamados (ex.: Escopo da obra)">
                 <Editavel valor={nomeItem} className="col-titulo" onSalvar={v => v && acoes.renomearItensSub(v)} />
+                {modo === 'tabela' && (
+                  <span className="redim" title="Arraste para ajustar; clique duas vezes para caber o conteúdo"
+                    onMouseDown={e => { e.preventDefault(); iniciarResizeNome(e.clientX); }} onDoubleClick={e => ajustarNome(e.currentTarget)} />
+                )}
               </th>
               {colunas.map(c => <CabecalhoSub key={c.id} coluna={c} acoes={acoes} confirmar={confirmar} />)}
               <th className="tq-mais"><AdicionarColunaSub acoes={acoes} /></th>

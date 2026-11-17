@@ -178,6 +178,13 @@ export function useQuadro(quadroId: number) {
       mudar(d => (d.sub ? { ...d, sub: { ...d.sub, nome_item: nome } } : d));
       return gravar(atualizar('quadros', s.quadro_id, { nome_item: nome }));
     },
+    // Largura da coluna do subitem na tabela: fica no quadro de subitens (config.largura_nome), para todos.
+    larguraNomeSub: async (largura: number) => {
+      const s = await garantirSub();
+      const config = { ...(s.config ?? {}), largura_nome: largura };
+      mudar(d => (d.sub ? { ...d, sub: { ...d.sub, config } } : d));
+      return gravar(atualizar('quadros', s.quadro_id, { config }));
+    },
     atualizarColuna: (id: number, campos: Partial<Coluna>) => {
       mudar(d => comColunas(d, l => l.map(c => (c.id === id ? { ...c, ...campos } : c)).sort(porPosicao)));
       return gravar(atualizar('colunas', id, campos));
