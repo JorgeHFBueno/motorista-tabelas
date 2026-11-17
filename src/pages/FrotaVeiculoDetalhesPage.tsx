@@ -68,7 +68,7 @@ import { buildVehicleReport, fetchVehicleErpRows } from '../services/vehicle-rep
 import { createVehicleReportPdf } from '../services/vehicle-report-pdf';
 import { custoPorAbastecimento, describeErpCallError, extractCnpj, fuelReportSupplier, normalizeCalendarDate, resolveVehicleReportPeriod, type VehicleReportPeriod } from '../services/vehicle-report-core';
 import { listFuncionariosAtivos } from '../services/funcionarios-selecao.service';
-import { lerErpVeiculo } from '../services/erp-veiculos.service';
+import { atualizarErpVeiculos, lerErpVeiculo, type ErpGuardado } from '../services/erp-veiculos.service';
 import { atualizarKmInicial, getItemFrota, itemFridayDoVeiculo, renomearItemFrota } from '../services/veiculos.service';
 import type { ItemFrotaV2, PessoaV2 } from '../utils/cadastrosV2';
 import { atualizacaoInfo, camposQuadroFrota, lerKmInicial, medidorTexto, origemKmTexto, somarValores, type KmInicialEntrada } from '../utils/frotaVeiculosLista';
@@ -305,6 +305,10 @@ export default function FrotaVeiculoDetalhesPage() {
     // (Combustível), então pede editar nas duas áreas, como as Rules.
     const podeNormalizarKm = editaArea(authorizationProfile, 'frota') && editaArea(authorizationProfile, 'combustivel');
     const [normalizacaoAberta, setNormalizacaoAberta] = useState(false);
+    // ERP guardado do veículo (erp-veiculos): data da última consulta e "Atualizar agora" (Function pede editar Frota).
+    const [erpGuardado, setErpGuardado] = useState<ErpGuardado | null>(null);
+    const [atualizandoErp, setAtualizandoErp] = useState(false);
+    const [erpVersao, setErpVersao] = useState(0); // muda depois do "Atualizar agora": a fonte ERP é lida de novo
 
     const [veiculo, setVeiculo] = useState<ItemFrotaV2 | null>(null);
     const [nomeEditado, setNomeEditado] = useState<string | null>(null); // null = fora da edição
@@ -844,7 +848,17 @@ export default function FrotaVeiculoDetalhesPage() {
         return () => {
             active = false;
         };
-    }, [showErp, veiculo]);
+    }, [showErp, veiculo, erpVersao]);
+
+    const erpVeiculoId = veiculo?.id;
+    useEffect(() => {
+        if (!erpVeiculoId) return;
+        let active = true;
+        lerErpVeiculo(erpVeiculoId)
+            .then((guardado) => { if (active) setErpGuardado(guardado); })
+            .catch((err) => console.error('Erro ao ler o ERP guardado', err));
+        return () => { active = false; };
+    }, [erpVeiculoId]);
 
     const fornecedoresById = useMemo(() => {
         return new Map(fornecedores.map((item) => [item.id, item.nome]));
@@ -1024,6 +1038,25 @@ export default function FrotaVeiculoDetalhesPage() {
         (showAbastecimento && Boolean(combustivelError)) ||
         (showManutencoes2026 && Boolean(manutencoes2026Error)) ||
         (showErp && Boolean(erpError));
+
+    async function atualizarErpAgora() {
+        if (!veiculo) return;
+        setAtualizandoErp(true);
+        try {
+            const resumo = await atualizarErpVeiculos([veiculo.id]);
+            setErpGuardado(await lerErpVeiculo(veiculo.id));
+            setErpVersao((versao) => versao + 1);
+            const falha = resumo.falhas[0];
+            if (!resumo.veiculos) setSnackbar({ open: true, severity: 'error', message: 'O identificador deste veículo não tem uma placa válida para o ERP.' });
+            else if (falha) setSnackbar({ open: true, severity: 'error', message: `O ERP falhou para ${falha.placa} (${falha.codigo}); ficaram as linhas da última consulta.` });
+            else setSnackbar({ open: true, severity: 'success', message: 'ERP atualizado.' });
+        } catch (err) {
+            console.error('Erro ao atualizar o ERP', err);
+            setSnackbar({ open: true, severity: 'error', message: `Não foi possível atualizar o ERP agora: ${(err as Error)?.message ?? err}` });
+        } finally {
+            setAtualizandoErp(false);
+        }
+    }
 
     const salvarNome = useCallback(async () => {
         if (!veiculo || nomeEditado === null) return;
@@ -1261,11 +1294,34 @@ export default function FrotaVeiculoDetalhesPage() {
                                     </Button>
                                 )}
                             </Box>
-                            <Box>
-                                <Typography variant="body2" color="text.secondary">Última atualização</Typography>
-                                <Typography sx={{ fontSize: { xs: 18, sm: 22 }, fontWeight: 600 }}>{ultima ? dateFormatter.format(ultima) : '—'}</Typography>
-                                <Typography variant="body2" color={corFrescor}>{atualizacao.texto}</Typography>
-                            </Box>
+                            <Stack direction="row" spacing={2} useFlexGap flexWrap="wrap" justifyContent="space-between" alignItems="flex-start">
+                                <Box>
+                                    <Typography variant="body2" color="text.secondary">Última atualização</Typography>
+                                    <Typography sx={{ fontSize: { xs: 18, sm: 22 }, fontWeight: 600 }}>{ultima ? dateFormatter.format(ultima) : '—'}</Typography>
+                                    <Typography variant="body2" color={corFrescor}>{atualizacao.texto}</Typography>
+                                </Box>
+                                {tipoVeiculo === 'PLACA' && (
+                                    <Box sx={{ textAlign: { md: 'right' } }}>
+                                        <Typography variant="body2" color="text.secondary">ERP</Typography>
+                                        {isAdmin && (
+                                            <Button
+                                                size="small"
+                                                variant="outlined"
+                                                sx={{ my: 0.5, whiteSpace: 'nowrap' }}
+                                                disabled={atualizandoErp}
+                                                startIcon={atualizandoErp ? <CircularProgress size={14} color="inherit" /> : undefined}
+                                                onClick={() => void atualizarErpAgora()}
+                                            >
+                                                {atualizandoErp ? 'Atualizando…' : 'Atualizar agora'}
+                                            </Button>
+                                        )}
+                                        <Typography variant="body2" color={erpGuardado?.status === 'erro' ? 'error.main' : 'text.secondary'}>
+                                            {erpGuardado?.atualizadoEm ? `de ${dateFormatter.format(erpGuardado.atualizadoEm)}` : 'sem ERP guardado'}
+                                            {erpGuardado?.status === 'erro' ? ' · a última consulta falhou' : ''}
+                                        </Typography>
+                                    </Box>
+                                )}
+                            </Stack>
                             <Box>
                                 <Stack direction="row" spacing={0.5} alignItems="center">
                                     <Typography variant="body2" color="text.secondary">{medidor} inicial</Typography>
