@@ -2,6 +2,7 @@ import ScienceRounded from "@mui/icons-material/ScienceRounded";
 import { useEffect, useMemo, type ComponentType } from "react";
 import { CronogramaObrasView } from "../cronograma-obras/CronogramaObrasPage";
 import type { GanttGridProps } from "../cronograma-obras/components/GanttGrid";
+import type { ContractTextTableProps } from "../cronograma-obras/components/ContractTextTable";
 import { criarFontesFicticias } from "./fontesFicticias";
 import "./testes.css";
 
@@ -9,7 +10,7 @@ import "./testes.css";
  * Base dos testes de visual do CronoObra (/testes/mki, /testes/mkii, /testes/mkiii): a página da produção, com dados
  * fictícios em memória, um tema e, se o teste quiser, outra grade para "Obra iniciada". CSS na pasta de cada teste.
  */
-export function TesteCronogramaPage({ tema, nome, gradeIniciadas }: { tema: "mki" | "mkii"; nome: string; gradeIniciadas?: ComponentType<GanttGridProps> }) {
+export function TesteCronogramaPage({ tema, nome, gradeIniciadas, tabelaFinalizadas }: { tema: "mki" | "mkii"; nome: string; gradeIniciadas?: ComponentType<GanttGridProps>; tabelaFinalizadas?: ComponentType<ContractTextTableProps> }) {
   const fontes = useMemo(() => criarFontesFicticias(), []);
   // Drawers and menus render outside the page: the theme class goes on <body> while this page is open.
   useEffect(() => {
@@ -23,7 +24,7 @@ export function TesteCronogramaPage({ tema, nome, gradeIniciadas }: { tema: "mki
         <strong>Teste de interface · {nome}</strong>
         <span>Dados fictícios em memória: nada é salvo, e recarregar a página volta ao início.</span>
       </div>
-      <CronogramaObrasView fontes={fontes} edicaoLiberada tema={tema} gradeIniciadas={gradeIniciadas} />
+      <CronogramaObrasView fontes={fontes} edicaoLiberada tema={tema} gradeIniciadas={gradeIniciadas} tabelaFinalizadas={tabelaFinalizadas} />
     </>
   );
 }

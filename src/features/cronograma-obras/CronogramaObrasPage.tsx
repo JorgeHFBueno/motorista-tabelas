@@ -8,8 +8,8 @@ import {
   type CalendarDisplayOptions,
 } from "./components/CalendarToggles";
 import { FiltersBar } from "./components/FiltersBar";
-import { GanttGrid, type GanttGridProps } from "./components/GanttGrid";
-import { ContractTextTable } from "./components/ContractTextTable";
+import { GanttGrid, type GanttGridProps, type SelecaoCalendario } from "./components/GanttGrid";
+import { ContractTextTable, type ContractTextTableProps } from "./components/ContractTextTable";
 import { ContractDetailsDrawer } from "./components/ContractDetailsDrawer";
 import { MasterPalette } from "./components/MasterPalette";
 import { ObraDrawer } from "./components/ObraDrawer";
@@ -30,6 +30,7 @@ import {
 import { getDirectMasterDropInterval } from "./domain/dropPlanning";
 import { planPrioridadeMove } from "./domain/prioridade";
 import {
+  desmarcarNaoTrabalhado,
   juntarPeriodos,
   marcarNaoTrabalhado,
   normalizarNaoTrabalhados,
@@ -314,8 +315,10 @@ type CronogramaObrasViewProps = {
   edicaoLiberada?: boolean;
   /** Identidade visual em teste (/testes/mki, /testes/mkii). */
   tema?: "mki" | "mkii";
-  /** Grade de "Obra iniciada" em teste (/testes/mkii); padrão: GanttGrid. */
+  /** Grade de "Obra iniciada" em teste (/testes/mkiii); padrão: GanttGrid. */
   gradeIniciadas?: ComponentType<GanttGridProps>;
+  /** Lista de "Obra finalizada" em teste (/testes/mkiii); padrão: ContractTextTable. */
+  tabelaFinalizadas?: ComponentType<ContractTextTableProps>;
 };
 
 export function CronogramaObrasView({
@@ -323,6 +326,7 @@ export function CronogramaObrasView({
   edicaoLiberada = false,
   tema,
   gradeIniciadas: GradeIniciadas = GanttGrid,
+  tabelaFinalizadas: TabelaFinalizadas = ContractTextTable,
 }: CronogramaObrasViewProps) {
   countCronogramaRender("CronogramaObrasPage");
   const {
@@ -1022,36 +1026,48 @@ export function CronogramaObrasView({
         );
       });
   };
-  /** Del on several selected periods (/testes grid): one action, undone at once by Ctrl+Z. */
-  const deleteAlocacoes = (ids: string[]) => {
-    const alvos = ids
-      .map((id) => alocacoesRef.current.find((item) => item.id === id))
-      .filter((item): item is AlocacaoFirestore => Boolean(item));
-    if (alvos.length <= 1) {
-      if (alvos[0]) deleteAlocacao(alvos[0].id);
-      return;
-    }
+  /**
+   * Del on a selection in the /testes grid: whole periods and/or NT stretches, as one action that one Ctrl+Z undoes.
+   * An NT of a period that is also being deleted is ignored.
+   */
+  const apagarSelecao = ({ periodos, nts }: SelecaoCalendario) => {
+    const achar = (id: string) => alocacoesRef.current.find((item) => item.id === id);
     const nomeDe = (alocacao: AlocacaoFirestore) =>
       mestres.find((mestre) => mestre.id === alocacao.mestreId)?.nome ?? "mestre";
+    const apagar = periodos.map(achar).filter((item): item is AlocacaoFirestore => Boolean(item));
+    const apagados = new Set(apagar.map((item) => item.id));
+    const ntPorAlocacao = new Map<string, NaoTrabalhado[]>();
+    nts.filter((nt) => !apagados.has(nt.localId)).forEach((nt) => ntPorAlocacao.set(nt.localId, [...(ntPorAlocacao.get(nt.localId) ?? []), nt.trecho]));
+    const atualizar = [...ntPorAlocacao].flatMap(([id, trechos]) => {
+      const alocacao = achar(id);
+      if (!alocacao) return [];
+      const depois = trechos.reduce<NaoTrabalhado[] | undefined>((lista, trecho) => desmarcarNaoTrabalhado({ ...alocacao, naoTrabalhados: lista }, trecho), alocacao.naoTrabalhados);
+      return mesmoNT(depois, alocacao.naoTrabalhados) ? [] : [{ alocacao, depois }];
+    });
+    const entries = [
+      ...atualizar.map(({ alocacao, depois }) => ({
+        kind: "update" as const,
+        mestreNome: nomeDe(alocacao),
+        id: alocacao.id,
+        mestreId: alocacao.mestreId,
+        before: { inicio: alocacao.inicio, tempoPlanejado: alocacao.tempoPlanejado, naoTrabalhados: alocacao.naoTrabalhados },
+        after: { inicio: alocacao.inicio, tempoPlanejado: alocacao.tempoPlanejado, naoTrabalhados: depois },
+      })),
+      ...apagar.map((alocacao) => ({ kind: "delete" as const, mestreNome: nomeDe(alocacao), alocacao: undoSnapshot(alocacao) })),
+    ];
+    if (!entries.length) return;
     setWriteError(null);
     setMasterPanel(null);
-    const entry = {
-      kind: "group" as const,
-      mestreNome: [...new Set(alvos.map(nomeDe))].join(", "),
-      entries: alvos.map((alocacao) => ({
-        kind: "delete" as const,
-        mestreNome: nomeDe(alocacao),
-        alocacao: undoSnapshot(alocacao),
-      })),
-    };
+    const entry: UndoEntry = entries.length === 1 ? entries[0] : { kind: "group", mestreNome: [...new Set(entries.map((item) => item.mestreNome))].join(", "), entries };
     undoStack.current = pushUndo(undoStack.current, entry);
     void (async () => {
       try {
-        for (const alocacao of alvos) await alocacoesSource.deleteAlocacao(alocacao.id);
+        for (const { alocacao, depois } of atualizar) await alocacoesSource.updateAlocacao(alocacao.id, { naoTrabalhados: depois });
+        for (const alocacao of apagar) await alocacoesSource.deleteAlocacao(alocacao.id);
       } catch (cause) {
         undoStack.current = undoStack.current.filter((item) => item !== entry);
         setWriteError(
-          `As alocações não foram removidas: ${cause instanceof Error ? cause.message : String(cause)}`,
+          `A seleção não foi apagada: ${cause instanceof Error ? cause.message : String(cause)}`,
         );
       }
     })();
@@ -1550,7 +1566,7 @@ export function CronogramaObrasView({
                 setMasterPanel({ obraId, key: mestreKey, localId });
               }}
               onOpenContract={setContractDetails}
-              onDeleteAlocacoes={podeEditar ? deleteAlocacoes : undefined}
+              onApagarSelecao={podeEditar ? apagarSelecao : undefined}
               onDropMaster={podeEditar ? dropMaster : () => undefined}
               onResizeMasterPreview={podeEditar ? resizeMasterPreview : () => undefined}
               onResizeMasterCommit={podeEditar ? resizeMaster : () => undefined}
@@ -1585,7 +1601,7 @@ export function CronogramaObrasView({
           <section>
           {/* /testes themes: the finished section gets a heading like the others (production keeps the title in the table). */}
           {tema && <header className="co-section-heading"><h2>Obra finalizada ({contratosPorSituacao.finalizada})</h2><button type="button" className="co-button co-button--secondary" aria-expanded={textSectionsExpanded.finished} onClick={() => setTextSectionsExpanded((current) => ({ ...current, finished: !current.finished }))}>{textSectionsExpanded.finished ? "Recolher" : "Expandir"}</button></header>}
-          <CronogramaProfiler id="ContractTextTable"><ContractTextTable
+          <CronogramaProfiler id="ContractTextTable"><TabelaFinalizadas
             viewMode={sectionViews.finished}
             sectionTitle="Obra finalizada"
               sectionCount={contratosPorSituacao.finalizada}

@@ -113,3 +113,17 @@
 
 /* período em foco (clique; Ctrl+clique para vários): Del apaga */
 .qg-barra.is-focada { box-shadow: 0 0 0 2px #fff, 0 0 0 4px #4f46e5, 0 4px 10px rgba(79, 70, 229, .35); filter: none; z-index: 5; }
+
+/* NT selecionado (só o NT, não o período) e laço de seleção */
+.qg-nt { cursor: pointer; }
+.qg-nt.is-focada { background: repeating-linear-gradient(135deg, rgba(199, 210, 254, .95) 0 4px, rgba(129, 140, 248, .75) 4px 8px); box-shadow: inset 0 0 0 2px #312e81; color: #1e1b4b; }
+.qg-laco { background: rgba(79, 70, 229, .12); border: 1px dashed #4f46e5; border-radius: 3px; pointer-events: none; position: fixed; z-index: 30; }
+body.qg-laceando, body.qg-laceando * { cursor: crosshair !important; user-select: none !important; }
+
+/* lista sem calendário (Obra finalizada) */
+.qg--lista { max-width: 100%; width: fit-content; }
+.qg--lista .qg-esq { border-right: 0; box-shadow: none; }
+.qg--lista .qg-esq--cab { box-shadow: none; }
+.qg--lista .qg-esq--cab > .qg-cab-coluna:last-of-type { padding-right: 10px; }
+.co-tema-mkii .co-contract-sections > section:has(.qg--lista) { justify-self: start; max-width: 100%; width: fit-content; }
+.qg-status .co-status-badge, .qg-status [class*="status-badge"] { white-space: nowrap; }
