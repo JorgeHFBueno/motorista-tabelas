@@ -1723,12 +1723,19 @@ test('[firestore] logistica: código da linha com o contador da semana; etiqueta
   await assertFails(setDoc(config('engenharia'), etiquetas(2, { atualizadoPorUid: 'uid-engenharia' })));
   await assertFails(deleteDoc(config('logistica')));
 
-  // Atribuídos do pedido de nota: só o documento "pedidoNota", até 3 UIDs, quem grava assina; ninguém fora da área.
+  // Papéis dos avisos: só o documento "pedidoNota", ADMINISTRATIVO (`atribuidos`) e ENGENHARIA (`engenharia`, opcional),
+  // até 50 UIDs cada, quem grava assina; ninguém fora da área.
   const pedido = (atribuidos, extra = {}) => ({ schemaVersion: 1, atribuidos, atualizadoPorUid: 'uid-logistica', atualizadoEm: serverTimestamp(), ...extra });
   await assertSucceeds(setDoc(config('logistica', 'pedidoNota'), pedido(['uid-logistica', 'uid-canonical-adm2', 'uid-mecanico'])));
   await assertSucceeds(setDoc(config('logistica', 'pedidoNota'), pedido([])));
   await assertSucceeds(getDoc(config('mecanico', 'pedidoNota')));
-  await assertFails(setDoc(config('logistica', 'pedidoNota'), pedido(['a', 'b', 'c', 'd'])));
+  await assertSucceeds(setDoc(config('logistica', 'pedidoNota'), pedido(['a', 'b', 'c', 'd'], { engenharia: ['uid-engenharia', 'e2'] })));
+  await assertSucceeds(setDoc(config('logistica', 'pedidoNota'), pedido([], { engenharia: [] })));
+  const muitos = Array.from({ length: 51 }, (_, i) => `u${i}`);
+  await assertFails(setDoc(config('logistica', 'pedidoNota'), pedido(muitos)));
+  await assertFails(setDoc(config('logistica', 'pedidoNota'), pedido([], { engenharia: muitos })));
+  await assertFails(setDoc(config('logistica', 'pedidoNota'), pedido([], { engenharia: 'uid-engenharia' })));
+  await assertFails(setDoc(config('logistica', 'pedidoNota'), pedido([], { administrativo: [] })));
   await assertFails(setDoc(config('logistica', 'pedidoNota'), pedido('uid-logistica')));
   await assertFails(setDoc(config('logistica', 'pedidoNota'), pedido([], { atualizadoPorUid: 'uid-canonical-adm2' })));
   await assertFails(setDoc(config('logistica', 'pedidoNota'), pedido([], { etiquetas: [] })));

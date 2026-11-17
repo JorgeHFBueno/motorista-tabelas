@@ -176,9 +176,14 @@ test('automações: Expedição recebe valor → Carregar; Nota recebe o PDF →
   assert.equal(automacaoDaColuna('obra'), null);
   assert.equal(automacaoDaColuna('expedicao'), 'Automação: quando a Expedição receber valor, o Status passa para Carregar.');
   // Botão Regras: as três, cada uma sem efeito quando a etiqueta de que depende saiu da lista.
-  assert.deepEqual(REGRAS.map((regra) => regra.coluna), ['expedicao', 'status', 'nota']);
-  assert.deepEqual(REGRAS.map((regra) => regraAtiva(regra, ETIQUETAS_PADRAO)), [true, true, true]);
-  assert.deepEqual(REGRAS.map((regra) => regraAtiva(regra, [{ id: '9', nome: ' ag. nf ', cor: '#fff' }])), [false, true, false]);
+  assert.deepEqual(REGRAS.map((regra) => [regra.coluna, regra.papel]), [
+    ['expedicao', null], ['status', 'administrativo'], ['status', 'engenharia'], ['nota', 'administrativo'],
+  ]);
+  assert.deepEqual(REGRAS.map((regra) => regraAtiva(regra, ETIQUETAS_PADRAO)), [true, true, true, true]);
+  assert.deepEqual(REGRAS.map((regra) => regraAtiva(regra, [{ id: '9', nome: ' ag. nf ', cor: '#fff' }])), [false, true, false, false]);
+  // A coluna Status tem duas regras: o raio mostra as duas, uma por linha.
+  assert.deepEqual(automacaoDaColuna('status')?.split('\n').length, 2);
+  assert.ok(automacaoDaColuna('status')?.includes('ENGENHARIA'));
 });
 
 test('semana atual: as não finalizadas nem canceladas de antes que terminam nela ou depois (ou sem fim)', () => {

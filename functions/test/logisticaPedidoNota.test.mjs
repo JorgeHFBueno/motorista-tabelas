@@ -28,7 +28,7 @@ test('só avisa ao entrar em Ag. NF: não na troca do nome para o id nem quando 
   assert.equal(d.entrouEmAgNf({ status: '2' }, undefined, ids), false);
 });
 
-test('destinatários: até 3, sem repetir, ativos com a área logistica ou adm2, menos quem mudou o status', () => {
+test('destinatários: sem limite (teto técnico de 50), sem repetir, ativos que veem a área do papel ou adm2, menos o autor', () => {
   const funcionarios = new Map([
     ['ana', funcionario({}, true, LOG)],
     ['bia', { ativo: true, perfis: {}, areas: { logistica: 'ver' } }],
@@ -41,7 +41,8 @@ test('destinatários: até 3, sem repetir, ativos com a área logistica ou adm2,
   ]);
   assert.deepEqual(d.destinatariosPedidoNota(['ana', 'chefe', 'ana', 'escritorio'], 'x', funcionarios), ['ana', 'chefe']);
   assert.deepEqual(d.destinatariosPedidoNota(['inativo', 'sumido', 'autor'], 'autor', funcionarios), []);
-  assert.deepEqual(d.destinatariosPedidoNota(['ana', 'chefe', 'autor', 'quarto'], 'autor', funcionarios), ['ana', 'chefe']);
+  assert.deepEqual(d.destinatariosPedidoNota(['ana', 'chefe', 'autor', 'quarto'], 'autor', funcionarios), ['ana', 'chefe', 'quarto']);
+  assert.equal(d.uidsDoPapel(Array.from({ length: 80 }, (_, i) => `u${i}`)).length, 50);
   assert.deepEqual(d.destinatariosPedidoNota(null, 'x', funcionarios), []);
   // Area logistica (ver is enough to be told); the old logistica credential no longer counts.
   assert.deepEqual(d.destinatariosPedidoNota(['bia', 'caio'], 'x', funcionarios), ['bia']);
@@ -84,4 +85,33 @@ test('aviso de nota anexada: título com a expedição, detalhe com quem anexou;
   });
   assert.match(d.idAvisoNotaAnexada('ev1', 'ana'), /^nta_[0-9a-f]{28}$/);
   assert.notEqual(d.idAvisoNotaAnexada('ev1', 'ana'), d.idAvisoPedidoNota('ev1', 'ana'));
+});
+
+test('ENGENHARIA: entra em "Ag. Lista de Materiais" (id da etiqueta, padrão 14 ou nome); só quem vê engenharia ou adm2', () => {
+  assert.deepEqual([...d.idsListaMateriais(undefined)], ['14']);
+  const ids = d.idsListaMateriais([{ id: '14', nome: 'Parado' }, { id: '30', nome: ' ag. lista de materiais ' }]);
+  assert.deepEqual([...ids], ['30']);
+  assert.equal(d.entrouEmListaMateriais({ status: '1' }, { status: '30' }, ids), true);
+  assert.equal(d.entrouEmListaMateriais({ status: 'Ag. Lista de Materiais' }, { status: '30' }, ids), false);
+  assert.equal(d.entrouEmListaMateriais({ status: '30' }, { status: '30', item: 'x' }, ids), false);
+  assert.equal(d.entrouEmAgNf({ status: '1' }, { status: '30' }, d.idsAgNf(undefined)), false);
+  const funcionarios = new Map([
+    ['eng', { ativo: true, perfis: {}, areas: { engenharia: 'ver' } }],
+    ['log', { ativo: true, perfis: {}, areas: { logistica: 'editar' } }],
+    ['adm', { ativo: true, perfis: { adm2: true } }],
+    ['autor', { ativo: true, perfis: {}, areas: { engenharia: 'editar' } }],
+  ]);
+  assert.deepEqual(d.destinatariosPedidoNota(['eng', 'log', 'adm', 'autor'], 'autor', funcionarios, 'engenharia'), ['eng', 'adm']);
+  assert.deepEqual(d.destinatariosPedidoNota(['eng', 'log', 'adm'], 'x', funcionarios), ['log', 'adm']);
+});
+
+test('aviso da ENGENHARIA: quem mudou, o status e a obra; sem rota; id próprio', () => {
+  assert.deepEqual(d.avisoListaMateriais('prog1', { obra: { id: 'o1', nome: 'COQ — Coqueiros' }, atualizadoPorNome: 'Mateus', item: 'Pilares' }), {
+    area: 'logistica', tipo: 'lista_materiais', titulo: 'Mateus notificou a Engenharia sobre Ag. Lista de Materiais para COQ — Coqueiros',
+    mensagem: '', rota: null, local: 'Cronograma Logístico',
+    origem: { colecao: 'logistica-programacoes', id: 'prog1' }, lida: false,
+  });
+  assert.equal(d.avisoListaMateriais('p', {}).titulo, 'Alguém notificou a Engenharia sobre Ag. Lista de Materiais para programação sem obra');
+  assert.match(d.idAvisoListaMateriais('ev1', 'eng'), /^alm_[0-9a-f]{28}$/);
+  assert.notEqual(d.idAvisoListaMateriais('ev1', 'eng'), d.idAvisoPedidoNota('ev1', 'eng'));
 });

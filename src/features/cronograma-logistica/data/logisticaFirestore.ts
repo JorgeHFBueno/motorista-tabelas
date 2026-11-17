@@ -177,21 +177,30 @@ export function observarEtiquetas(onData: (etiquetas: EtiquetaStatus[]) => void,
 }
 
 /**
- * Quem recebe os avisos "Novo Pedido de Nota" (programação em "Ag. NF") e "Nota anexada" (logistica-config/pedidoNota):
- * até 3 UIDs, com logistica ou adm2. O aviso é gravado pela Function logisticaPedidoNota.
+ * Quem recebe os avisos (logistica-config/pedidoNota), por papel, sem limite na tela (até 50 cada, pelas Rules):
+ * ADMINISTRATIVO em `atribuidos` ("Novo Pedido de Nota" em "Ag. NF" e "Nota anexada"; logistica ou adm2) e ENGENHARIA
+ * em `engenharia` ("Ag. Lista de Materiais"; engenharia ou adm2). Os avisos são gravados pela Function logisticaPedidoNota.
  */
-export const MAX_ATRIBUIDOS_NOTA = 3;
+export const MAX_POR_PAPEL = 50;
 
-export function observarAtribuidosNota(onData: (uids: string[]) => void, onError: (error: Error) => void) {
+export interface PapeisAvisos { administrativo: string[]; engenharia: string[] }
+
+const uids = (lista: unknown) => (Array.isArray(lista) ? lista.filter((uid): uid is string => typeof uid === 'string' && uid !== '') : []);
+
+export function observarAtribuidosNota(onData: (papeis: PapeisAvisos) => void, onError: (error: Error) => void) {
   return onSnapshot(doc(db, CONFIG, 'pedidoNota'), (snapshot) => {
-    const lista = snapshot.exists() && Array.isArray(snapshot.data().atribuidos) ? snapshot.data().atribuidos as unknown[] : [];
-    onData(lista.filter((uid): uid is string => typeof uid === 'string' && uid !== ''));
+    const dados = snapshot.exists() ? snapshot.data() : {};
+    onData({ administrativo: uids(dados.atribuidos), engenharia: uids(dados.engenharia) });
   }, onError);
 }
 
-export async function salvarAtribuidosNota(atribuidos: readonly string[], eu: RefPessoa): Promise<void> {
+export async function salvarAtribuidosNota(papeis: PapeisAvisos, eu: RefPessoa): Promise<void> {
   await setDoc(doc(db, CONFIG, 'pedidoNota'), {
-    schemaVersion: 1, atribuidos: [...new Set(atribuidos)].slice(0, MAX_ATRIBUIDOS_NOTA), atualizadoPorUid: eu.uid, atualizadoEm: serverTimestamp(),
+    schemaVersion: 1,
+    atribuidos: [...new Set(papeis.administrativo)].slice(0, MAX_POR_PAPEL),
+    engenharia: [...new Set(papeis.engenharia)].slice(0, MAX_POR_PAPEL),
+    atualizadoPorUid: eu.uid,
+    atualizadoEm: serverTimestamp(),
   });
 }
 

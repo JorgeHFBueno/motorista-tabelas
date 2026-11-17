@@ -20,7 +20,7 @@ import { QuadroSemanas } from './components/QuadroSemanas';
 import { usePrefsColunas } from './components/usePrefsColunas';
 import {
   abrirSemana, atualizarProgramacao, converterCodigo, criarProgramacao, darCodigo, enviarNota, ignorarConflito, localDoMaps, pessoasDoFriday, type PessoasFriday, excluirProgramacao, observarEtiquetas, observarObservacoes,
-  observarProgramacoes, observarSemanas, salvarEtiquetas, MAX_ATRIBUIDOS_NOTA, observarAtribuidosNota, removerNota, salvarAtribuidosNota,
+  type PapeisAvisos, observarProgramacoes, observarSemanas, salvarEtiquetas, observarAtribuidosNota, removerNota, salvarAtribuidosNota,
 } from './data/logisticaFirestore';
 import { statusPorAutomacao } from './domain/automacoes';
 import { semCodigoEmOrdem } from './domain/codigo';
@@ -49,7 +49,7 @@ export default function LogisticaCronogramaPage() {
   const [programacoes, setProgramacoes] = useState<Programacao[] | null>(null);
   const [observacoes, setObservacoes] = useState<Observacao[]>([]);
   const [etiquetas, setEtiquetas] = useState<EtiquetaStatus[]>([...ETIQUETAS_PADRAO]);
-  const [atribuidosNota, setAtribuidosNota] = useState<string[]>([]);
+  const [atribuidosNota, setAtribuidosNota] = useState<PapeisAvisos>({ administrativo: [], engenharia: [] });
   const [cadastrosBrutos, setCadastrosBrutos] = useState<{ pessoas: PessoaV2[]; veiculos: ItemFrotaV2[]; obras: ObraV2[] } | null>(null);
   const [pessoasFriday, setPessoasFriday] = useState<PessoasFriday | null>(null);
   const [erro, setErro] = useState<string | null>(null);
@@ -72,7 +72,7 @@ export default function LogisticaCronogramaPage() {
     const pararProgramacoes = observarProgramacoes(setProgramacoes, falha);
     const pararObservacoes = observarObservacoes(setObservacoes, (error) => setErro(`Não foi possível ler as observações: ${error.message}`));
     const pararEtiquetas = observarEtiquetas(setEtiquetas, (error) => setErro(`Não foi possível ler as etiquetas de status: ${error.message}`));
-    const pararAtribuidos = observarAtribuidosNota(setAtribuidosNota, (error) => setErro(`Não foi possível ler quem recebe o pedido de nota: ${error.message}`));
+    const pararAtribuidos = observarAtribuidosNota(setAtribuidosNota, (error) => setErro(`Não foi possível ler quem recebe os avisos: ${error.message}`));
     return () => { pararSemanas(); pararProgramacoes(); pararObservacoes(); pararEtiquetas(); pararAtribuidos(); };
   }, []);
 
@@ -137,6 +137,14 @@ export default function LogisticaCronogramaPage() {
 
   const lotesPorObra = useMemo(() => new Map((cadastrosBrutos?.obras ?? []).map((obra) => [obra.id, obra.lotes])), [cadastrosBrutos]);
   const lista = useMemo(() => programacoes ?? [], [programacoes]);
+  // Quem pode estar em cada papel do Atribuir: ADMINISTRATIVO, quem tem a área Logística; ENGENHARIA, a Engenharia (adm2 nos dois).
+  const pessoasDosPapeis = useMemo(() => {
+    const pessoas = cadastrosBrutos?.pessoas ?? [];
+    const com = (area: 'logistica' | 'engenharia') => pessoas
+      .filter((pessoa) => temPerfil(pessoa, 'adm2') || Boolean(pessoa.areas?.[area]))
+      .map(({ uid: id, nome }) => ({ uid: id, nome }));
+    return { administrativo: com('logistica'), engenharia: com('engenharia') };
+  }, [cadastrosBrutos]);
   const todosConflitos = useMemo(
     () => conflitosPorProgramacao(lista, (tipo, id, retrato) => (tipo === 'pessoa' ? cadastros.nomePessoa(id, retrato) : cadastros.nomeVeiculo(id, retrato))),
     [lista, cadastros],
@@ -269,13 +277,12 @@ export default function LogisticaCronogramaPage() {
             </button>}
             {(!cadastrosBrutos || !pessoasFriday) && <span className="lg-muted">Carregando motoristas, veículos e obras…</span>}
             <span className="lg-espaco" />
-            <BotaoRegras etiquetas={etiquetas} />
+            <BotaoRegras etiquetas={etiquetas} papeis={atribuidosNota} nome={(id) => cadastros.nomePessoa(id, 'Sem nome')} />
             {podeEditar && <BotaoAtribuir
-              atribuidos={atribuidosNota}
-              pessoas={(cadastrosBrutos?.pessoas ?? []).filter((pessoa) => temPerfil(pessoa, 'adm2') || Boolean(pessoa.areas?.logistica)).map(({ uid: id, nome }) => ({ uid: id, nome }))}
+              papeis={atribuidosNota}
+              pessoas={pessoasDosPapeis}
               nome={(id) => cadastros.nomePessoa(id, 'Sem nome')}
-              maximo={MAX_ATRIBUIDOS_NOTA}
-              onSalvar={(uids) => { salvarAtribuidosNota(uids, eu).catch(falhar('salvar quem recebe o pedido de nota')); }}
+              onSalvar={(papeis) => { salvarAtribuidosNota(papeis, eu).catch(falhar('salvar quem recebe os avisos')); }}
             />}
             <BarraColunas prefs={prefsColunas} mudar={mudarPrefsColunas} />
           </div>

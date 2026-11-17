@@ -20,9 +20,10 @@ type CampoAutomacao = (typeof AUTOMACOES)[number]['campo'];
  * depende: renomeada ou excluída, a regra não faz nada.
  */
 export const REGRAS = [
-  { coluna: 'expedicao', quando: 'a Expedição receber valor', entao: ['o Status passa para Carregar'], etiqueta: 'Carregar' },
-  { coluna: 'status', quando: 'o Status passar para Ag. NF', entao: ['os atribuídos recebem o aviso "Novo Pedido de Nota"'], etiqueta: 'Ag. NF' },
-  { coluna: 'nota', quando: 'a Nota receber o PDF', entao: ['os atribuídos recebem o aviso "Nota anexada"', 'o Status passa para Em viagem'], etiqueta: 'Em viagem' },
+  { coluna: 'expedicao', quando: 'a Expedição receber valor', entao: ['o Status passa para Carregar'], etiqueta: 'Carregar', papel: null },
+  { coluna: 'status', quando: 'o Status passar para Ag. NF', entao: ['o ADMINISTRATIVO recebe o aviso "Novo Pedido de Nota"'], etiqueta: 'Ag. NF', papel: 'administrativo' },
+  { coluna: 'status', quando: 'o Status passar para Ag. Lista de Materiais', entao: ['a ENGENHARIA recebe o aviso "… notificou a Engenharia sobre Ag. Lista de Materiais para OBRA"'], etiqueta: 'Ag. Lista de Materiais', papel: 'engenharia' },
+  { coluna: 'nota', quando: 'a Nota receber o PDF', entao: ['o ADMINISTRATIVO recebe o aviso "Nota anexada"', 'o Status passa para Em viagem'], etiqueta: 'Em viagem', papel: 'administrativo' },
 ] as const;
 
 export type Regra = (typeof REGRAS)[number];
@@ -30,10 +31,10 @@ export type Regra = (typeof REGRAS)[number];
 /** A regra funciona: a etiqueta de que ela depende está na lista (sem diferença de acento, caixa e espaços). */
 export const regraAtiva = (regra: Regra, etiquetas: readonly EtiquetaStatus[]) => etiquetas.some((etiqueta) => mesmoNome(etiqueta.nome, regra.etiqueta));
 
-/** Texto da automação da coluna (o raio no cabeçalho), ou null. */
+/** Texto das automações da coluna (o raio no cabeçalho), uma por linha, ou null. */
 export function automacaoDaColuna(chave: string): string | null {
-  const regra = REGRAS.find((item) => item.coluna === chave);
-  return regra ? `Automação: quando ${regra.quando}, ${regra.entao.join(' e ')}.` : null;
+  const regras = REGRAS.filter((item) => item.coluna === chave);
+  return regras.length ? regras.map((regra) => `Automação: quando ${regra.quando}, ${regra.entao.join(' e ')}.`).join('\n') : null;
 }
 
 const vazio = (valor: unknown) => valor == null || (typeof valor === 'string' && valor.trim() === '');
