@@ -88,6 +88,9 @@ import {
   measureCronogramaCompute,
 } from "../debug/cronogramaPerf";
 
+/** Periods (allocation ids) and NT stretches selected in a calendar. */
+export type SelecaoCalendario = { periodos: string[]; nts: Array<{ localId: string; trecho: NaoTrabalhado }> };
+
 /** Props of the calendar grid; a /testes page can draw "Obra iniciada" with another grid that takes the same props. */
 export type GanttGridProps = Props;
 
@@ -109,6 +112,8 @@ interface Props {
   onSelectMasters: (obra: ObraCronograma) => void;
   onSelectMaster: (selection: MasterSelection) => void;
   onOpenContract: (contrato: ContratoCronograma) => void;
+  /** Del on a calendar selection: whole periods and/or NT stretches (used by the /testes grid, not by GanttGrid). */
+  onApagarSelecao?: (selecao: SelecaoCalendario) => void;
   /** `localId`: the allocation under the pointer (the "NT" drop marks that one). */
   onDropMaster: (obra: ObraCronograma, nome: string, target: string, localId?: string) => void;
   onResizeMasterPreview: (mestre: MestrePlanejado) => void;

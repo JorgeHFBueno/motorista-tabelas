@@ -43,6 +43,9 @@ export function displayOptionalValue(value: unknown): string {
   return normalized === missing || invalidDisplayPlaceholders.has(normalized) ? "-" : normalized;
 }
 
+/** Props of the text tables; a /testes page can draw "Obra finalizada" with another list that takes the same props. */
+export type ContractTextTableProps = Props;
+
 type Props = {
   obras: readonly ObraCronograma[];
   contratos: ReadonlyMap<string, ContratoCronograma>;

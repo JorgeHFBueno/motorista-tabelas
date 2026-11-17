@@ -99,7 +99,7 @@ export const FERRAMENTAS: FerramentaMcp[] = [
     name: 'publicar_atualizacao', title: 'Publicar atualização', escrita: true, annotations: { readOnlyHint: false, destructiveHint: false, openWorldHint: false },
     inputSchema: objeto({
       item: inteiro('Id do item.'),
-      texto: { type: 'string', description: 'Texto da atualização (até 5000 caracteres). Menção: @{uid}.' },
+      texto: { type: 'string', description: 'Texto da atualização (até 5000 caracteres). Menção: @{uid}.' }, simular: SIMULAR,
     }, ['item', 'texto']),
     description: 'Publica uma atualização no item, em nome da pessoa da chave.',
   },

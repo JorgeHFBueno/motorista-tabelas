@@ -1,6 +1,6 @@
 import ArrowBackRounded from "@mui/icons-material/ArrowBackRounded";
 import ViewListRounded from "@mui/icons-material/ViewListRounded";
-import { Profiler, useEffect, useMemo, useRef, useState, type ComponentType } from "react";
+import { Profiler, useEffect, useMemo, useRef, useState, type ComponentType, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import {
   CalendarToggles,
@@ -8,8 +8,8 @@ import {
   type CalendarDisplayOptions,
 } from "./components/CalendarToggles";
 import { FiltersBar } from "./components/FiltersBar";
-import { GanttGrid, type GanttGridProps } from "./components/GanttGrid";
-import { ContractTextTable } from "./components/ContractTextTable";
+import { GanttGrid, type GanttGridProps, type SelecaoCalendario } from "./components/GanttGrid";
+import { ContractTextTable, type ContractTextTableProps } from "./components/ContractTextTable";
 import { ContractDetailsDrawer } from "./components/ContractDetailsDrawer";
 import { MasterPalette } from "./components/MasterPalette";
 import { ObraDrawer } from "./components/ObraDrawer";
@@ -30,6 +30,7 @@ import {
 import { getDirectMasterDropInterval } from "./domain/dropPlanning";
 import { planPrioridadeMove } from "./domain/prioridade";
 import {
+  desmarcarNaoTrabalhado,
   juntarPeriodos,
   marcarNaoTrabalhado,
   normalizarNaoTrabalhados,
@@ -314,8 +315,15 @@ type CronogramaObrasViewProps = {
   edicaoLiberada?: boolean;
   /** Identidade visual em teste (/testes/mki, /testes/mkii). */
   tema?: "mki" | "mkii";
-  /** Grade de "Obra iniciada" em teste (/testes/mkii); padrão: GanttGrid. */
+  /** Grade de "Obra iniciada" em teste (/testes/mkiii); padrão: GanttGrid. */
   gradeIniciadas?: ComponentType<GanttGridProps>;
+  /** Lista de "Obra finalizada" em teste (/testes/mkiii); padrão: ContractTextTable. */
+  tabelaFinalizadas?: ComponentType<ContractTextTableProps>;
+  /**
+   * Layout em abas em teste (/testes/mkiii): Cronograma | Mestres | Prazos Contratuais no topo, no lugar da barra de
+   * indicadores; Visualização ao lado de Dias/Semanas, com "Nome do mestre" dentro. `prazos` é o conteúdo da aba.
+   */
+  abas?: { prazos: ReactNode };
 };
 
 export function CronogramaObrasView({
@@ -323,6 +331,8 @@ export function CronogramaObrasView({
   edicaoLiberada = false,
   tema,
   gradeIniciadas: GradeIniciadas = GanttGrid,
+  tabelaFinalizadas: TabelaFinalizadas = ContractTextTable,
+  abas,
 }: CronogramaObrasViewProps) {
   countCronogramaRender("CronogramaObrasPage");
   const {
@@ -335,7 +345,7 @@ export function CronogramaObrasView({
   // Área Engenharia em "ver": o cronograma só mostra (sem arrastar, redimensionar, priorizar, criar mestre nem editar).
   const podeEditar =
     edicaoLiberada || editaArea(authorizationProfile, "engenharia");
-  const [view, setView] = useState<"obras" | "mestres">("obras");
+  const [view, setView] = useState<"obras" | "mestres" | "prazos">("obras");
   const [sectionViews, setSectionViews] = useState<WorkSectionViews>(
     DEFAULT_WORK_SECTION_VIEWS,
   );
@@ -685,8 +695,13 @@ export function CronogramaObrasView({
         persistTimelineZoom(currentUser.uid, next, window.localStorage);
     });
   };
-  const changeView = (next: "obras" | "mestres") => {
+  const changeView = (next: "obras" | "mestres" | "prazos") => {
     if (next === view) return;
+    // Prazos Contratuais (tab, /testes) has no loading transition of its own.
+    if (next === "prazos" || view === "prazos") {
+      setView(next);
+      return;
+    }
     runViewTransition(next, view, () => setView(next));
   };
   const changeSectionView = (
@@ -1022,6 +1037,52 @@ export function CronogramaObrasView({
         );
       });
   };
+  /**
+   * Del on a selection in the /testes grid: whole periods and/or NT stretches, as one action that one Ctrl+Z undoes.
+   * An NT of a period that is also being deleted is ignored.
+   */
+  const apagarSelecao = ({ periodos, nts }: SelecaoCalendario) => {
+    const achar = (id: string) => alocacoesRef.current.find((item) => item.id === id);
+    const nomeDe = (alocacao: AlocacaoFirestore) =>
+      mestres.find((mestre) => mestre.id === alocacao.mestreId)?.nome ?? "mestre";
+    const apagar = periodos.map(achar).filter((item): item is AlocacaoFirestore => Boolean(item));
+    const apagados = new Set(apagar.map((item) => item.id));
+    const ntPorAlocacao = new Map<string, NaoTrabalhado[]>();
+    nts.filter((nt) => !apagados.has(nt.localId)).forEach((nt) => ntPorAlocacao.set(nt.localId, [...(ntPorAlocacao.get(nt.localId) ?? []), nt.trecho]));
+    const atualizar = [...ntPorAlocacao].flatMap(([id, trechos]) => {
+      const alocacao = achar(id);
+      if (!alocacao) return [];
+      const depois = trechos.reduce<NaoTrabalhado[] | undefined>((lista, trecho) => desmarcarNaoTrabalhado({ ...alocacao, naoTrabalhados: lista }, trecho), alocacao.naoTrabalhados);
+      return mesmoNT(depois, alocacao.naoTrabalhados) ? [] : [{ alocacao, depois }];
+    });
+    const entries = [
+      ...atualizar.map(({ alocacao, depois }) => ({
+        kind: "update" as const,
+        mestreNome: nomeDe(alocacao),
+        id: alocacao.id,
+        mestreId: alocacao.mestreId,
+        before: { inicio: alocacao.inicio, tempoPlanejado: alocacao.tempoPlanejado, naoTrabalhados: alocacao.naoTrabalhados },
+        after: { inicio: alocacao.inicio, tempoPlanejado: alocacao.tempoPlanejado, naoTrabalhados: depois },
+      })),
+      ...apagar.map((alocacao) => ({ kind: "delete" as const, mestreNome: nomeDe(alocacao), alocacao: undoSnapshot(alocacao) })),
+    ];
+    if (!entries.length) return;
+    setWriteError(null);
+    setMasterPanel(null);
+    const entry: UndoEntry = entries.length === 1 ? entries[0] : { kind: "group", mestreNome: [...new Set(entries.map((item) => item.mestreNome))].join(", "), entries };
+    undoStack.current = pushUndo(undoStack.current, entry);
+    void (async () => {
+      try {
+        for (const { alocacao, depois } of atualizar) await alocacoesSource.updateAlocacao(alocacao.id, { naoTrabalhados: depois });
+        for (const alocacao of apagar) await alocacoesSource.deleteAlocacao(alocacao.id);
+      } catch (cause) {
+        undoStack.current = undoStack.current.filter((item) => item !== entry);
+        setWriteError(
+          `A seleção não foi apagada: ${cause instanceof Error ? cause.message : String(cause)}`,
+        );
+      }
+    })();
+  };
   const deleteAlocacao = (localId: string) => {
     const alocacao = alocacoesRef.current.find((item) => item.id === localId);
     if (!alocacao) return;
@@ -1293,7 +1354,7 @@ export function CronogramaObrasView({
       disabled={zoom === "year" || !podeEditar}
       somenteLeitura={!podeEditar}
       onViewMasters={() => changeView("mestres")}
-      showViewMasters={view === "obras"}
+      showViewMasters={!abas && view === "obras"}
       ntArrastavel={podeEditar && zoom === "day"}
       onDragStart={setDraggingMaster}
       onDragEnd={() => setDraggingMaster(null)}
@@ -1304,33 +1365,7 @@ export function CronogramaObrasView({
     />
   );
 
-  return (
-    <GravarStatusLoteContext.Provider value={fontes.gravarStatusLote}>
-    <main className={`co-page co-zoom--${zoom}${tema ? ` co-tema-${tema}` : ""}`}>
-      <section className="co-indicators-bar">
-        <div className="co-indicators-group">
-          <div>
-            <span>Em andamento</span>
-            <strong>{indicators.running}</strong>
-          </div>
-          <div>
-            <span>Aguardando recurso</span>
-            <strong>{indicators.waiting}</strong>
-          </div>
-          <div>
-            <span>Mestres alocados</span>
-            <strong>{indicators.allocated}</strong>
-          </div>
-          <div>
-            <span>Obras sem mestre planejado</span>
-            <strong>{indicators.unassigned}</strong>
-          </div>
-          <div className={indicators.conflicts ? "has-alert" : ""}>
-            <span>Conflitos de alocação</span>
-            <strong>{indicators.conflicts}</strong>
-          </div>
-          </div>
-          <div className="co-operational-controls">
+  const controleVisualizacao = (
           <div className="co-section-views-control">
             <button
               ref={visualizationTriggerRef}
@@ -1348,6 +1383,17 @@ export function CronogramaObrasView({
             {sectionViewsOpen && visualizationPopoverPosition && createPortal(
               <div ref={visualizationPopoverRef} data-crono-visualization-popover className="co-section-views-popover" role="dialog" aria-label="Visualização das tabelas" style={visualizationPopoverPosition}>
                 <strong>Visualização das tabelas</strong>
+                {abas && (
+                  <div className="co-section-views-row">
+                    <span>Nome do mestre</span>
+                    <ToggleRow
+                      label="Nome do mestre"
+                      hideLabel
+                      enabled={display.masterNames}
+                      onToggle={() => setDisplay((current) => ({ ...current, masterNames: !current.masterNames }))}
+                    />
+                  </div>
+                )}
                 <div className="co-section-views-row">
                   <span>Linha de Base</span>
                   <ToggleRow
@@ -1390,9 +1436,51 @@ export function CronogramaObrasView({
               document.body,
             )}
           </div>
+  );
+
+  return (
+    <GravarStatusLoteContext.Provider value={fontes.gravarStatusLote}>
+    <main className={`co-page co-zoom--${zoom}${tema ? ` co-tema-${tema}` : ""}`}>
+      {abas ? (
+        <nav className="co-abas" aria-label="Seções do cronograma">
+          {([
+            ["obras", "Cronograma"],
+            ["mestres", "Mestres"],
+            ["prazos", "Prazos Contratuais"],
+          ] as const).map(([valor, rotulo]) => (
+            <button key={valor} type="button" className={view === valor ? "is-active" : ""} aria-pressed={view === valor} disabled={isViewTransitioning} onClick={() => changeView(valor)}>{rotulo}</button>
+          ))}
+        </nav>
+      ) : (
+      <section className="co-indicators-bar">
+        <div className="co-indicators-group">
+          <div>
+            <span>Em andamento</span>
+            <strong>{indicators.running}</strong>
+          </div>
+          <div>
+            <span>Aguardando recurso</span>
+            <strong>{indicators.waiting}</strong>
+          </div>
+          <div>
+            <span>Mestres alocados</span>
+            <strong>{indicators.allocated}</strong>
+          </div>
+          <div>
+            <span>Obras sem mestre planejado</span>
+            <strong>{indicators.unassigned}</strong>
+          </div>
+          <div className={indicators.conflicts ? "has-alert" : ""}>
+            <span>Conflitos de alocação</span>
+            <strong>{indicators.conflicts}</strong>
+          </div>
+          </div>
+          <div className="co-operational-controls">
+          {controleVisualizacao}
           <CalendarToggles options={display} onChange={setDisplay} />
         </div>
       </section>
+      )}
       {false && <section className="co-indicators">
         <div>
           <span>Em andamento</span>
@@ -1420,13 +1508,13 @@ export function CronogramaObrasView({
         aria-busy={isViewTransitioning}
         ref={scheduleContentRef}
       >
-      <FiltersBar
+      {view !== "prazos" && <FiltersBar
         filters={filters}
         statuses={[...new Set(obras.map((obra) => obra.status))]}
         companies={[...new Set(obras.map((obra) => obra.empresa))]}
         masters={masters}
         onChange={setFilters}
-      />
+      />}
       {addingMaster && (
         <div
           className="co-master-modal"
@@ -1476,6 +1564,7 @@ export function CronogramaObrasView({
             <header className="co-section-heading">
               <h2>Obra iniciada ({contratosPorSituacao.iniciada})</h2>
               {masterPalette}
+              {abas && controleVisualizacao}
               <div className="co-view-switch co-zoom-switch" aria-label="Escala do cronograma">
                 {([ ["day", "Dias"], ["week", "Semanas"] ] as const).map(([value, label]) => (
                   <button type="button" key={value} disabled={isViewTransitioning} className={zoom === value ? "is-active" : ""} onClick={() => changeZoom(value)}>{label}</button>
@@ -1516,6 +1605,7 @@ export function CronogramaObrasView({
                 setMasterPanel({ obraId, key: mestreKey, localId });
               }}
               onOpenContract={setContractDetails}
+              onApagarSelecao={podeEditar ? apagarSelecao : undefined}
               onDropMaster={podeEditar ? dropMaster : () => undefined}
               onResizeMasterPreview={podeEditar ? resizeMasterPreview : () => undefined}
               onResizeMasterCommit={podeEditar ? resizeMaster : () => undefined}
@@ -1548,7 +1638,9 @@ export function CronogramaObrasView({
           /></CronogramaProfiler>
           </section>
           <section>
-          <CronogramaProfiler id="ContractTextTable"><ContractTextTable
+          {/* /testes themes: the finished section gets a heading like the others (production keeps the title in the table). */}
+          {tema && <header className="co-section-heading"><h2>Obra finalizada ({contratosPorSituacao.finalizada})</h2><button type="button" className="co-button co-button--secondary" aria-expanded={textSectionsExpanded.finished} onClick={() => setTextSectionsExpanded((current) => ({ ...current, finished: !current.finished }))}>{textSectionsExpanded.finished ? "Recolher" : "Expandir"}</button></header>}
+          <CronogramaProfiler id="ContractTextTable"><TabelaFinalizadas
             viewMode={sectionViews.finished}
             sectionTitle="Obra finalizada"
               sectionCount={contratosPorSituacao.finalizada}
@@ -1582,15 +1674,15 @@ export function CronogramaObrasView({
             </p>
           )}
         </div>
-      ) : (
+      ) : view === "mestres" ? (
         <>
           <header className="co-section-heading co-masters-section-heading">
             <h2>Mestres</h2>
             {masterPalette}
-            <button type="button" className="co-button co-button--secondary" disabled={isViewTransitioning} onClick={() => changeView("obras")}>
+            {!abas && <button type="button" className="co-button co-button--secondary" disabled={isViewTransitioning} onClick={() => changeView("obras")}>
               <ArrowBackRounded fontSize="small" />
               Voltar para Obras
-            </button>
+            </button>}
           </header>
           <CronogramaProfiler id="GanttGrid"><GanttGrid
           view={view}
@@ -1627,6 +1719,8 @@ export function CronogramaObrasView({
           onResizeMasterCancel={cancelResizeMaster}
           /></CronogramaProfiler>
         </>
+      ) : (
+        <div className="co-aba-prazos">{abas?.prazos}</div>
       )}
       {view === "mestres" && <WorkloadPanel workloads={workloads} />}
       {viewTransition && (

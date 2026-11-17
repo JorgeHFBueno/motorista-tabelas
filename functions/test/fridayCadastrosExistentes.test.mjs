@@ -214,6 +214,29 @@ test('obras-v2: campos dos LOTEs (Status do subitem → lotes.{id}.status como t
   assert.match(m.montarCamposSubitens(veiculos, cols, []).erros.join(), /não tem subitens/);
 });
 
+test('obras-v2: Coordenada do LOTE (link) → lotes.{id}.coordenada = { lat, lng }, e de volta para a célula', () => {
+  const cols = [{ id: 31, titulo: 'Coordenada', tipo: 'link' }, { id: 32, titulo: 'Obs', tipo: 'texto' }];
+  const r = m.montarCamposSubitens(obras, cols, [{ caminho: 'coordenada', coluna_id: 31 }]);
+  assert.deepEqual(r.erros, []);
+  const [c] = r.campos;
+  assert.equal(c.tipo_contrato, 'coordenada');
+  assert.match(m.montarCamposSubitens(obras, cols, [{ caminho: 'coordenada', coluna_id: 32 }]).erros.join(), /não combina/);
+  // Como o robô grava: o link do Google Maps com o texto "lat, lon".
+  assert.deepEqual(m.valorParaContrato(c, { url: 'https://www.google.com/maps/search/?api=1&query=-29.502239,-51.966187', texto: '-29.502239, -51.966187' }), { valor: { lat: -29.502239, lng: -51.966187 } });
+  // Sem par no texto: o pino do lugar vale antes do centro da tela (@).
+  assert.deepEqual(m.valorParaContrato(c, { url: 'https://www.google.com/maps/place/X/@-29.1,-51.1,15z/data=!3m1!4b1!4m6!3m5!3d-29.1678123!4d-51.1795456', texto: 'Obra' }), { valor: { lat: -29.1678123, lng: -51.1795456 } });
+  assert.deepEqual(m.valorParaContrato(c, '-29.12345678, -51.5'), { valor: { lat: -29.1234568, lng: -51.5 } });
+  assert.deepEqual(m.valorParaContrato(c, null), { vazio: true });
+  assert.deepEqual(m.valorParaContrato(c, { url: '', texto: '' }), { vazio: true });
+  assert.match(m.valorParaContrato(c, { url: 'https://maps.app.goo.gl/abc', texto: 'Obra' }).erro, /Coordenada inválida/);
+  assert.match(m.valorParaContrato(c, { url: 'https://x', texto: '95.1, -51.2' }).erro, /Coordenada inválida/);
+  assert.deepEqual(m.valorParaGravarExistente(c, null), { gravar: [['coordenada', null]] });
+  assert.deepEqual(valorDoOficial(c, { lat: -29.502239, lng: -51.966187 }), { url: 'https://www.google.com/maps?q=-29.502239,-51.966187', texto: '-29.502239, -51.966187' });
+  assert.equal(valorDoOficial(c, null), undefined);
+  // Ida e volta dá o mesmo valor.
+  assert.deepEqual(m.valorParaContrato(c, valorDoOficial(c, { lat: -29.502239, lng: -51.966187 })), { valor: { lat: -29.502239, lng: -51.966187 } });
+});
+
 test('obras-v2: resultado da fórmula → situacao e status', () => {
   assert.deepEqual(m.camposDaFormula(obras, 'Obra Finalizada'), [['situacao', 'Obra Finalizada'], ['status', 'FINALIZADA']]);
   assert.deepEqual(m.camposDaFormula(obras, 'Solicitar Aditivo de Prazo'), [['situacao', 'Solicitar Aditivo de Prazo'], ['status', 'CONTRATADA']]);

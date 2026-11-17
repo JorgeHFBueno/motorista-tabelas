@@ -432,13 +432,15 @@ async function enviarArquivo(e: Escrita, itemId: number, consulta: AnyRecord, da
   return { item: itemId, arquivo: anexoLegivel(anexo, () => coluna?.titulo ?? null), ...(gravado ? { gravado } : {}) };
 }
 
-/** POST /itens/{id}/atualizacoes { texto }: publica uma atualização no item (menções como @{uid}). */
+/** POST /itens/{id}/atualizacoes { texto, simular? }: publica uma atualização no item (menções como @{uid}). */
 async function publicarAtualizacao(e: Escrita, itemId: number, corpo: AnyRecord) {
   const item = await itemParaEscrever(e.pessoa, itemId);
   const texto = String(corpo.texto ?? '').trim().slice(0, 5000);
   if (!texto) throw new Recusa(400, 'Informe texto.');
-  const id = novoId();
   const mencoes = mencoesDoTexto(texto);
+  // Simulação: nada é gravado e ninguém é avisado.
+  if (corpo.simular === true) return { simulado: true, item: itemId, publicaria: texto, mencoes };
+  const id = novoId();
   await colecao('atualizacoes').doc(String(id)).set({
     id, item_id: itemId, quadro_id: Number(item.quadro_id), texto, mencoes, resposta_de: null, criado_em: dataLocal(), ...autorDaChave(e),
   });

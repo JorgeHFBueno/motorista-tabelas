@@ -155,9 +155,34 @@ export function indicePessoas(valoresLivres: AnyRecord | undefined, colunasPesso
   return [...uids];
 }
 
+// Coordenada de um cadastro existente (ex.: obras-v2 lotes.{id}.coordenada = { lat, lng }), ligada a uma coluna de link.
+const PAR_DE_GRAUS = /(-?\d{1,3}(?:\.\d+)?)\s*,\s*(-?\d{1,3}(?:\.\d+)?)/;
+const PINO = /!3d(-?\d{1,3}(?:\.\d+)?)!4d(-?\d{1,3}(?:\.\d+)?)/;
+const seteCasas = (n: number) => Math.round(n * 1e7) / 1e7;
+function parValido(m: RegExpExecArray | null): { lat: number; lng: number } | null {
+  if (!m) return null;
+  const lat = Number(m[1]), lng = Number(m[2]);
+  return Math.abs(lat) <= 90 && Math.abs(lng) <= 180 ? { lat: seteCasas(lat), lng: seteCasas(lng) } : null;
+}
+/** Célula de link (ou texto) → { lat, lng }: o texto "lat, lng" vale primeiro; depois o pino (!3d…!4d…) ou o par no endereço. */
+export function coordenadaDoLink(valor: unknown): { lat: number; lng: number } | null {
+  const v = (typeof valor === 'string' ? { texto: valor } : (valor ?? {})) as AnyRecord;
+  const texto = String(v.texto ?? '');
+  let url = String(v.url ?? '');
+  try { url = decodeURIComponent(url); } catch { /* fica como veio */ }
+  return parValido(PAR_DE_GRAUS.exec(texto)) ?? parValido(PINO.exec(url)) ?? parValido(PAR_DE_GRAUS.exec(url));
+}
+/** { lat, lng } → célula de link do Friday: o Google Maps com o pino, e o texto "lat, lng". */
+export function linkDaCoordenada(valor: unknown): { url: string; texto: string } | undefined {
+  const v = valor as AnyRecord | null;
+  if (typeof v?.lat !== 'number' || typeof v?.lng !== 'number') return undefined;
+  return { url: `https://www.google.com/maps?q=${v.lat},${v.lng}`, texto: `${v.lat}, ${v.lng}` };
+}
+
 /** Valor oficial → valor da célula no Friday (o inverso de valorOficial). Usado ao descontinuar um campo. */
 export function valorDoOficial(campo: CampoOficial, valor: unknown): unknown {
   if (valor == null) return undefined;
+  if ((campo as CampoOficial & { tipo_contrato?: string }).tipo_contrato === 'coordenada') return linkDaCoordenada(valor);
   // Cadastro existente: números com escala (×10) voltam para a unidade da tela.
   const escala = (campo as CampoOficial & { escala?: number }).escala;
   if (escala && typeof valor === 'number') { const r = valor / escala; return Math.abs(r - Math.round(r)) < 1e-6 ? Math.round(r) : r; }

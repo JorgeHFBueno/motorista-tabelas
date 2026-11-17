@@ -47,6 +47,13 @@ test('tools/list: chave só de consulta não vê as ferramentas de escrita', asy
   }
 });
 
+test('tools/list: toda ferramenta de escrita aceita simular (publicar_atualizacao também)', async () => {
+  const leitura = (await m.responderMcp(pedido(1, 'tools/list'), contexto(false))).result.tools.map(t => t.name);
+  const escrita = (await m.responderMcp(pedido(1, 'tools/list'), contexto(true))).result.tools.filter(t => !leitura.includes(t.name));
+  assert.ok(escrita.some(t => t.name === 'publicar_atualizacao'));
+  for (const t of escrita) assert.equal(t.inputSchema.properties.simular?.type, 'boolean', t.name);
+});
+
 test('tools/call: executa com os argumentos e devolve o resultado em texto JSON', async () => {
   chamadas.length = 0;
   const r = await m.responderMcp(pedido(5, 'tools/call', { name: 'buscar_itens', arguments: { texto: 'coqueiros', quadro: 12 } }), contexto(false));

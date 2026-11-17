@@ -3,7 +3,6 @@
  * página também carrega.
  */
 .co-tema-mkii {
-  --qg-esq: 560px;
   --qg-calendario: #eef1f6;
   --qg-banda: rgba(15, 23, 42, .035);
   --qg-linha-dia: rgba(15, 23, 42, .08);
@@ -18,7 +17,7 @@
 .qg-rolagem { max-height: calc(100vh - 230px); overflow: auto; scrollbar-width: thin; }
 .qg-cab, .qg-linha { display: flex; width: var(--qg-total); }
 .qg-cab { height: 58px; position: sticky; top: 0; z-index: 6; }
-.qg-esq { background: #fff; border-right: 1px solid #94a3b8; box-shadow: 8px 0 12px -8px rgba(15, 23, 42, .35); display: grid; flex: 0 0 var(--qg-esq); grid-template-columns: minmax(0, 1fr) 118px 128px 76px; left: 0; position: sticky; width: var(--qg-esq); z-index: 4; }
+.qg-esq { background: #fff; border-right: 1px solid #94a3b8; box-shadow: 8px 0 12px -8px rgba(15, 23, 42, .35); display: grid; flex: 0 0 var(--qg-esq); grid-template-columns: var(--qg-esq-colunas); left: 0; position: sticky; width: var(--qg-esq); z-index: 4; }
 .qg-esq > * { align-items: center; border-right: 1px solid var(--k-borda-suave); display: flex; min-width: 0; padding: 6px 10px; }
 .qg-esq > :last-child { border-right: 0; }
 .qg-esq--cab { background: var(--k-cab); box-shadow: 8px 0 12px -8px rgba(0, 0, 0, .55); color: var(--k-cab-texto); font-size: 11px; font-weight: 800; letter-spacing: .07em; text-transform: uppercase; z-index: 7; }
@@ -53,9 +52,9 @@
 .qg-alca { color: #94a3b8; cursor: grab; font-weight: 800; letter-spacing: -2px; user-select: none; }
 .qg-alca:hover { color: #4f46e5; }
 .qg-obra-textos { display: flex; flex-direction: column; min-width: 0; }
-.qg-contrato { background: none; border: 0; color: #0f172a; cursor: pointer; font: inherit; font-size: 13px; font-weight: 700; overflow: hidden; padding: 0; text-align: left; text-overflow: ellipsis; white-space: nowrap; }
+.qg-contrato { background: none; border: 0; color: #64748b; cursor: pointer; font: inherit; font-size: 12px; font-weight: 500; overflow: hidden; padding: 0; text-align: left; text-overflow: ellipsis; white-space: nowrap; }
 .qg-contrato:hover { color: #4f46e5; text-decoration: underline; }
-.qg-lote { color: #64748b; font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.qg-lote { color: #0f172a; font-size: 13px; font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .qg-status .co-monday-status-control { min-width: 0; }
 .qg-status .co-monday-status-trigger { border-radius: 999px; font-size: 11px; font-weight: 700; height: 22px; max-width: 100%; overflow: hidden; padding: 0 9px; text-overflow: ellipsis; white-space: nowrap; width: auto; }
 .qg-mestres { background: none; border: 0; cursor: pointer; flex-wrap: wrap; font: inherit; gap: 3px; text-align: left; }
@@ -80,6 +79,64 @@
 .qg-vazio { color: #64748b; padding: 24px; }
 
 .qg-status .co-monday-status-trigger, .co-tema-mkii .co-text-row .co-monday-status-trigger { min-width: 0; }
-.qg-esq { grid-template-columns: minmax(0, 1fr) 142px 108px 74px; }
 .qg-esq > .qg-status { padding: 6px; }
 .qg-status .co-monday-status-trigger { padding: 0 8px; }
+
+/* colunas: ordenar no clique, ajustar a largura pela borda, "›" para encolher */
+.qg-esq--cab { position: sticky; }
+.qg-cab-coluna { cursor: pointer; gap: 4px; position: relative; user-select: none; }
+.qg-cab-coluna:hover, .qg-cab-coluna:focus-visible { background: rgba(255, 255, 255, .07); color: #fff; outline: 0; }
+.qg-cab-coluna.is-ordenada { color: #fff; }
+.qg-cab-coluna b { color: #a5b4fc; font-size: 9px; }
+.qg-redimensionar { bottom: 0; cursor: col-resize; position: absolute; right: -4px; top: 0; width: 8px; z-index: 2; }
+.qg-redimensionar:hover { background: rgba(165, 180, 252, .55); }
+.qg-encolher { align-items: center; background: rgba(255, 255, 255, .12); border: 1px solid rgba(255, 255, 255, .25); border-radius: 999px; color: #fff; cursor: pointer; display: flex; font-size: 16px; height: 22px; justify-content: center; padding: 0; position: absolute; right: 6px; top: 50%; transform: translateY(-50%); width: 22px; z-index: 3; }
+.qg-encolher:hover { background: #4f46e5; border-color: #4f46e5; }
+.qg-esq--cab > .qg-cab-coluna:last-of-type { padding-right: 34px; }
+.qg-texto { color: #334155; font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.qg-numero { color: #0f172a; font-size: 13px; font-variant-numeric: tabular-nums; }
+
+/* visão Contratos */
+.qg-linha--contrato .qg-esq { background: #f8fafc; }
+.qg-linha--contrato:hover .qg-esq { background: #f1f5f9; }
+.qg-seta { color: #64748b; flex: 0 0 auto; transition: transform .15s ease; }
+.qg-seta.is-fechada { transform: rotate(-90deg); }
+.qg-contrato--titulo { color: #0f172a; font-size: 13px; font-weight: 800; }
+.qg-linha--contrato .qg-lote { color: #64748b; font-size: 12px; font-weight: 500; }
+.qg-situacao { font-size: 12px; }
+.qg-linha--filho .qg-obra { padding-left: 34px; }
+.qg-periodo-contrato { background: #64748b; border-radius: 2px; height: 4px; opacity: .55; position: absolute; top: 3px; }
+.qg-barra--resumo { cursor: default; height: 18px; opacity: .8; }
+
+/* Linha de Base: faixa no alto da linha, com as cores de Prazos contratuais */
+.qg-base { height: 8px; left: 0; pointer-events: none; position: absolute; right: 0; top: 4px; }
+
+/* período em foco (clique; Ctrl+clique para vários): Del apaga */
+.qg-barra.is-focada { box-shadow: 0 0 0 2px #fff, 0 0 0 4px #4f46e5, 0 4px 10px rgba(79, 70, 229, .35); filter: none; z-index: 5; }
+
+/* NT selecionado (só o NT, não o período) e laço de seleção */
+.qg-nt { cursor: pointer; }
+.qg-nt.is-focada { background: repeating-linear-gradient(135deg, rgba(199, 210, 254, .95) 0 4px, rgba(129, 140, 248, .75) 4px 8px); box-shadow: inset 0 0 0 2px #312e81; color: #1e1b4b; }
+.qg-laco { background: rgba(79, 70, 229, .12); border: 1px dashed #4f46e5; border-radius: 3px; pointer-events: none; position: fixed; z-index: 30; }
+body.qg-laceando, body.qg-laceando * { cursor: crosshair !important; user-select: none !important; }
+
+/* lista sem calendário (Obra finalizada) */
+.qg--lista { max-width: 100%; width: fit-content; }
+.qg--lista .qg-esq { border-right: 0; box-shadow: none; }
+.qg--lista .qg-esq--cab { box-shadow: none; }
+.qg--lista .qg-esq--cab > .qg-cab-coluna:last-of-type { padding-right: 10px; }
+.co-tema-mkii .co-contract-sections > section:has(.qg--lista) { justify-self: start; max-width: 100%; width: fit-content; }
+.qg-status .co-status-badge, .qg-status [class*="status-badge"] { white-space: nowrap; }
+
+/* abas Cronograma | Mestres | Prazos Contratuais (no lugar da barra de indicadores) */
+.co-tema-mkii .co-abas { align-items: center; align-self: start; background: var(--k-cartao); border-radius: 12px; box-shadow: 0 1px 3px rgba(15, 23, 42, .08); display: flex; gap: 4px; margin: 0 0 18px; max-width: 1880px; padding: 6px; }
+.co-tema-mkii .co-abas button { background: none; border: 0; border-radius: 8px; color: var(--k-texto-2); cursor: pointer; font: inherit; font-size: 14px; font-weight: 700; padding: 9px 18px; }
+.co-tema-mkii .co-abas button:hover { background: #f1f5f9; color: var(--k-texto); }
+.co-tema-mkii .co-abas button.is-active { background: var(--k-destaque); color: #fff; }
+.co-tema-mkii .co-abas button:disabled { cursor: wait; }
+/* Visualização ao lado de Dias/Semanas */
+.co-tema-mkii .co-section-heading .co-section-views-control { margin-left: auto; }
+.co-tema-mkii .co-section-heading .co-section-views-trigger { background: #fff; border: 1px solid #cbd5e1; border-radius: 8px; height: 34px; width: 38px; }
+/* aba Prazos Contratuais dentro do cartão */
+.co-tema-mkii .co-aba-prazos { background: var(--k-cartao); border-radius: 14px; box-shadow: 0 1px 3px rgba(15, 23, 42, .08), 0 8px 24px rgba(15, 23, 42, .06); overflow: hidden; }
+.co-tema-mkii .co-aba-prazos .pz-page { background: transparent; min-height: 0; }
