@@ -2,10 +2,11 @@ import { getMestreColor, normalizeMestreKey } from "../../cronograma-obras/domai
 
 /**
  * /testes/mkiii: ao arrastar um mestre da paleta, um bonequinho na cor do mestre acompanha o ponteiro, como o do Google
- * Maps: balança para o lado conforme a velocidade do arraste (até 50°) e volta ao prumo quando o ponteiro para;
- * pendurado, levanta os braços e as pernas balançam; sobre uma linha do calendário, abre os braços para pousar. Os pés
- * ficam no ponteiro, que marca o dia em que ele cai. A paleta é a da produção: o ouvinte roda no document, depois
- * dela, e troca só a imagem do arraste (por uma transparente). NT e "+" ficam como estão.
+ * Maps. Ele vai segurado pela cabeça: o ponteiro fica entre o nome e a cabeça, e é ele que marca o dia em que o mestre
+ * cai. Balança para o lado conforme a velocidade do arraste (até 50°) e volta ao prumo quando o ponteiro para;
+ * pendurado, levanta os braços e as pernas balançam; sobre uma linha do calendário, abre os braços para pousar.
+ * A paleta é a da produção: o ouvinte roda no document, depois dela, e troca só a imagem do arraste (por uma
+ * transparente). NT e "+" ficam como estão.
  */
 const INCLINACAO_MAXIMA = 50;
 const GANHO = 2.4;

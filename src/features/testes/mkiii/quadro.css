@@ -153,10 +153,10 @@ body.qg-laceando, body.qg-laceando * { cursor: crosshair !important; user-select
 .qm-conflito { background: repeating-linear-gradient(135deg, rgba(220, 38, 38, .22) 0 5px, rgba(220, 38, 38, .1) 5px 10px); border-bottom: 3px solid #dc2626; cursor: help; bottom: 0; pointer-events: auto; position: absolute; top: 0; }
 .qm-barra { z-index: 1; }
 
-/* bonequinho do arraste (como o do Google Maps): segue o ponteiro, com os pés nele; balança com a velocidade */
+/* bonequinho do arraste (como o do Google Maps): segurado pela cabeça, o ponteiro fica entre o nome e a cabeça; balança com a velocidade */
 .qg-pegman { display: none; left: 0; pointer-events: none; position: fixed; top: 0; z-index: 2000; }
 .qg-pegman.is-ativo { display: block; }
-.qg-pegman-corpo { height: 70px; left: -22px; position: absolute; rotate: var(--r, 0deg); top: -64px; transform-origin: 50% 0; transition: rotate .14s ease-out; width: 44px; }
+.qg-pegman-corpo { height: 70px; left: -22px; position: absolute; rotate: var(--r, 0deg); top: 5px; transform-origin: 50% 0; transition: rotate .14s ease-out; width: 44px; }
 .qg-pegman svg { display: block; filter: drop-shadow(0 3px 3px rgba(15, 23, 42, .35)); overflow: visible; }
 .qg-pegman svg rect, .qg-pegman .qg-pm-cabeca { fill: var(--qg-boneco); stroke: rgba(15, 23, 42, .5); stroke-width: 1.4; }
 .qg-pm-braco, .qg-pm-perna { transform-box: fill-box; transition: transform .18s ease-out; }
@@ -173,12 +173,12 @@ body.qg-laceando, body.qg-laceando * { cursor: crosshair !important; user-select
 .qg-pegman.is-pousando .qg-pm-braco.is-dir { transform: rotate(-75deg); }
 .qg-pegman.is-pousando .qg-pm-perna.is-esq { transform: rotate(6deg); }
 .qg-pegman.is-pousando .qg-pm-perna.is-dir { transform: rotate(-6deg); }
-.qg-pegman-alvo { border: 2px solid var(--qg-boneco); border-radius: 50%; height: 10px; left: -14px; opacity: 0; position: absolute; top: -5px; transition: opacity .15s; width: 28px; }
+.qg-pegman-alvo { border: 2px solid var(--qg-boneco); border-radius: 50%; height: 8px; left: -10px; opacity: 0; position: absolute; top: -4px; transition: opacity .15s; width: 20px; }
 .qg-pegman.is-pousando .qg-pegman-alvo { animation: qg-pm-alvo .9s ease-out infinite; opacity: 1; }
 @keyframes qg-pm-alvo { from { box-shadow: 0 0 0 0 rgba(79, 70, 229, .45); } to { box-shadow: 0 0 0 10px rgba(79, 70, 229, 0); } }
 .qg-pegman.is-pousou .qg-pegman-corpo { animation: qg-pm-pouso .3s ease-out; transform-origin: 50% 100%; }
 @keyframes qg-pm-pouso { 0% { scale: 1 1; } 40% { scale: 1.15 .8; } 100% { scale: 1 1; opacity: 0; } }
-.qg-pegman-nome { border: 2px solid #fff; border-radius: 999px; box-shadow: 0 2px 6px rgba(15, 23, 42, .3); font: 800 11px/1.2 Inter, system-ui, sans-serif; left: 0; letter-spacing: .03em; padding: 3px 9px; position: absolute; top: -104px; transform: translateX(-50%); white-space: nowrap; }
+.qg-pegman-nome { border: 2px solid #fff; border-radius: 999px; box-shadow: 0 2px 6px rgba(15, 23, 42, .3); font: 800 11px/1.2 Inter, system-ui, sans-serif; left: 0; letter-spacing: .03em; padding: 3px 9px; position: absolute; top: -29px; transform: translateX(-50%); white-space: nowrap; }
 
 /* "Colunas" no cartão de filtros do Cronograma */
 .co-tema-mkii .qg-colunas .co-status-chip { --co-status-color: #1e293b; }
