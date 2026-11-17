@@ -6,7 +6,7 @@ import {
 import { useAuth } from '../../../contexts/AuthContext';
 import type { Pessoa } from '../api.ts';
 import { Menu, Popover, useConfirmar, usePopover, Editavel, type ItemMenu } from '../ui/base.tsx';
-import { CORES, fmtData, fmtNumeroColuna, NOME_TRAVADO, posEntre } from '../util.ts';
+import { arrastarBorda, CORES, fmtData, fmtNumeroColuna, larguraDoConteudo, NOME_TRAVADO, posEntre } from '../util.ts';
 import { Celula } from './Celula.tsx';
 import { EditorFormula } from './EditorFormula.tsx';
 import { AGRUPAVEIS, type GrupoVirtual } from './filtros.ts';
@@ -112,46 +112,18 @@ export function Tabela({ grupos: gruposReais, colunas: colunasVisiveis, todasCol
     if (destino) return acoes.criarItem(destino.id, nome, false, g.valoresNovo);
   };
 
-  // Redimensionar coluna arrastando a borda do cabeçalho.
-  const arrastarBorda = (x0: number, w0: number, min: number, max: number, aoMover: (w: number) => void, aoSoltar: (w: number) => void) => {
-    let w = w0;
-    const mover = (e: MouseEvent) => { w = Math.max(min, Math.min(max, w0 + e.clientX - x0)); aoMover(w); };
-    const soltar = () => {
-      document.removeEventListener('mousemove', mover);
-      document.removeEventListener('mouseup', soltar);
-      document.body.classList.remove('redimensionando');
-      if (w !== w0) aoSoltar(Math.round(w));
-    };
-    document.body.classList.add('redimensionando');
-    document.addEventListener('mousemove', mover);
-    document.addEventListener('mouseup', soltar);
-  };
   const iniciarResize = (c: Coluna, x0: number) =>
     arrastarBorda(x0, largura(c), 70, 600, w => setLarguras(l => ({ ...l, [c.id]: w })), w => acoes.atualizarColuna(c.id, { largura: w }));
   // A coluna do item vale para o quadro todo (todos os grupos), como as outras colunas.
   const iniciarResizeNome = (x0: number) =>
     arrastarBorda(x0, larguraItem, 200, 900, setNomeArrastando, w => { onLarguraNome(w); setNomeArrastando(null); });
-  // Duplo clique na borda: a coluna à esquerda dela fica do tamanho do conteúdo (como no monday). Mede as linhas
-  // visíveis de todos os grupos com a coluna estreita: o que transborda (texto cortado com "…") soma à largura.
+  // Duplo clique na borda: mede as linhas visíveis de todos os grupos.
   const raiz = useRef<HTMLDivElement>(null);
-  const larguraDoConteudo = (indice: number, min: number, max: number) => {
-    const tabelas = [...(raiz.current?.querySelectorAll<HTMLTableElement>(':scope > section > table.tq') ?? [])];
-    const cols = tabelas.map(t => t.querySelector<HTMLElement>(`:scope > colgroup > col:nth-child(${indice + 1})`));
-    const antes = cols.map(c => c?.style.width ?? '');
-    cols.forEach(c => { if (c) c.style.width = `${min}px`; });
-    let w = min;
-    for (const t of tabelas) for (const tr of t.rows) {
-      if (tr.cells.length !== colunas.length + 3) continue; // linhas com células mescladas (subitens, novo item)
-      const td = tr.cells[indice];
-      const cortado = Math.max(0, ...[...td.querySelectorAll<HTMLElement>('*')].map(el => el.scrollWidth - el.clientWidth));
-      w = Math.max(w, td.scrollWidth + cortado);
-    }
-    cols.forEach((c, k) => { if (c) c.style.width = antes[k]; });
-    return Math.min(max, Math.ceil(w) + 4);
-  };
-  const ajustarNome = () => onLarguraNome(larguraDoConteudo(1, 200, 900));
+  const medir = (indice: number, min: number, max: number) =>
+    larguraDoConteudo([...(raiz.current?.querySelectorAll<HTMLTableElement>(':scope > section > table.tq') ?? [])], indice, colunas.length + 3, min, max);
+  const ajustarNome = () => onLarguraNome(medir(1, 200, 900));
   const ajustarColuna = (c: Coluna, indice: number) => {
-    const w = larguraDoConteudo(indice, 70, 600);
+    const w = medir(indice, 70, 600);
     setLarguras(l => ({ ...l, [c.id]: w }));
     if (w !== c.largura) acoes.atualizarColuna(c.id, { largura: w });
   };

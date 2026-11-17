@@ -104,3 +104,36 @@ export const CORES = [
   '#cab641', '#ffcb00', '#0086c0', '#66ccff', '#bb3354', '#ff158a', '#ff5ac4', '#784bd1',
   '#7f5347', '#c4c4c4', '#808080', '#333333',
 ];
+
+// Redimensionar coluna arrastando a borda do cabeçalho (tabela do quadro e tabela de subitens).
+export function arrastarBorda(x0: number, w0: number, min: number, max: number, aoMover: (w: number) => void, aoSoltar: (w: number) => void) {
+  let w = w0;
+  const mover = (e: MouseEvent) => { w = Math.max(min, Math.min(max, w0 + e.clientX - x0)); aoMover(w); };
+  const soltar = () => {
+    document.removeEventListener('mousemove', mover);
+    document.removeEventListener('mouseup', soltar);
+    document.body.classList.remove('redimensionando');
+    if (w !== w0) aoSoltar(Math.round(w));
+  };
+  document.body.classList.add('redimensionando');
+  document.addEventListener('mousemove', mover);
+  document.addEventListener('mouseup', soltar);
+}
+
+// Duplo clique na borda: a coluna à esquerda dela fica do tamanho do conteúdo (como no monday). Mede as linhas
+// visíveis das tabelas com a coluna estreita: o que transborda (texto cortado com "…") soma à largura. Só conta as
+// linhas com nCelulas células (as com células mescladas, como subitens e novo item, ficam de fora).
+export function larguraDoConteudo(tabelas: HTMLTableElement[], indice: number, nCelulas: number, min: number, max: number) {
+  const cols = tabelas.map(t => t.querySelector<HTMLElement>(`:scope > colgroup > col:nth-child(${indice + 1})`));
+  const antes = cols.map(c => c?.style.width ?? '');
+  cols.forEach(c => { if (c) c.style.width = `${min}px`; });
+  let w = min;
+  for (const t of tabelas) for (const tr of t.rows) {
+    if (tr.cells.length !== nCelulas) continue;
+    const td = tr.cells[indice];
+    const cortado = Math.max(0, ...[...td.querySelectorAll<HTMLElement>('*')].map(el => el.scrollWidth - el.clientWidth));
+    w = Math.max(w, td.scrollWidth + cortado);
+  }
+  cols.forEach((c, k) => { if (c) c.style.width = antes[k]; });
+  return Math.min(max, Math.ceil(w) + 4);
+}

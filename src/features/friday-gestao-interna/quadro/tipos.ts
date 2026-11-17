@@ -20,7 +20,8 @@ export type Agrupar = { coluna_id: number; ordem: 1 | -1; vazios: boolean };
 export type EstadoVisao = { filtros: Record<string, string[]>; pessoa: string | null; ordenacao: Ordenacao; agrupar: Agrupar | null; ocultas: number[] };
 export type Visao = Row & { quadro_id: number; nome: string; tipo: 'tabela' | 'kanban' | 'calendario' | 'cronograma'; config: { coluna_id?: number; colunas_extra?: number[]; subitens?: boolean; modo?: 'mes' | 'semana' } & Partial<EstadoVisao> };
 // nome_item: como chamar os subitens (ex.: "Escopo da obra"); editável no cabeçalho da tabela de subitens.
-export type Sub = { quadro_id: number; grupo_id: number | null; nome_item?: string; colunas: Coluna[]; itens: Item[] };
+// config: do quadro de subitens (config.largura_nome = largura da coluna do subitem na tabela).
+export type Sub = { quadro_id: number; grupo_id: number | null; nome_item?: string; config?: Record<string, unknown>; colunas: Coluna[]; itens: Item[] };
 
 export type TipoColuna = 'status' | 'texto' | 'texto_longo' | 'numero' | 'pessoa' | 'data' | 'periodo' | 'lista' | 'telefone' | 'email' | 'link' | 'caixa' | 'avaliacao' | 'ligacao' | 'formula' | 'arquivos' | 'tempo';
 
