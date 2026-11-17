@@ -88,6 +88,9 @@ import {
   measureCronogramaCompute,
 } from "../debug/cronogramaPerf";
 
+/** Props of the calendar grid; a /testes page can draw "Obra iniciada" with another grid that takes the same props. */
+export type GanttGridProps = Props;
+
 interface Props {
   view: "obras" | "mestres";
   viewMode?: "contracts" | "flat";

@@ -1,6 +1,6 @@
 import ArrowBackRounded from "@mui/icons-material/ArrowBackRounded";
 import ViewListRounded from "@mui/icons-material/ViewListRounded";
-import { Profiler, useEffect, useMemo, useRef, useState } from "react";
+import { Profiler, useEffect, useMemo, useRef, useState, type ComponentType } from "react";
 import { createPortal } from "react-dom";
 import {
   CalendarToggles,
@@ -8,7 +8,7 @@ import {
   type CalendarDisplayOptions,
 } from "./components/CalendarToggles";
 import { FiltersBar } from "./components/FiltersBar";
-import { GanttGrid } from "./components/GanttGrid";
+import { GanttGrid, type GanttGridProps } from "./components/GanttGrid";
 import { ContractTextTable } from "./components/ContractTextTable";
 import { ContractDetailsDrawer } from "./components/ContractDetailsDrawer";
 import { MasterPalette } from "./components/MasterPalette";
@@ -314,12 +314,15 @@ type CronogramaObrasViewProps = {
   edicaoLiberada?: boolean;
   /** Identidade visual em teste (/testes/mki, /testes/mkii). */
   tema?: "mki" | "mkii";
+  /** Grade de "Obra iniciada" em teste (/testes/mkii); padrão: GanttGrid. */
+  gradeIniciadas?: ComponentType<GanttGridProps>;
 };
 
 export function CronogramaObrasView({
   fontes = FONTES_FIRESTORE,
   edicaoLiberada = false,
   tema,
+  gradeIniciadas: GradeIniciadas = GanttGrid,
 }: CronogramaObrasViewProps) {
   countCronogramaRender("CronogramaObrasPage");
   const {
@@ -1479,7 +1482,7 @@ export function CronogramaObrasView({
                 ))}
               </div>
             </header>
-          <CronogramaProfiler id="GanttGrid"><GanttGrid
+          <CronogramaProfiler id="GanttGrid"><GradeIniciadas
             view="obras"
             viewMode={sectionViews.started}
               zoom={zoom}
