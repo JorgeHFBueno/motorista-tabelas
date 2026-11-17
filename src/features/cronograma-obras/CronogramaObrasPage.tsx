@@ -312,8 +312,8 @@ type CronogramaObrasViewProps = {
   fontes?: FontesCronograma;
   /** Dados fictícios (/testes): qualquer um que entra pode editar, porque nada é salvo. */
   edicaoLiberada?: boolean;
-  /** Identidade visual em teste (/testes/mki). */
-  tema?: "mki";
+  /** Identidade visual em teste (/testes/mki, /testes/mkii). */
+  tema?: "mki" | "mkii";
 };
 
 export function CronogramaObrasView({

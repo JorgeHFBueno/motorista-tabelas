@@ -2,13 +2,13 @@
  * /testes/mki: dados fictícios em memória para o CronoObra. Nada vai para o Firestore; recarregar a página volta
  * ao início. Nomes, contratos e mestres são inventados; as datas acompanham o dia de hoje.
  */
-import type { AlocacaoFirestore, CreateAlocacao, UpdateAlocacao } from "../../cronograma-obras/data/cronogramaFirestore";
-import type { FontesCronograma } from "../../cronograma-obras/data/fontesCronograma";
-import { adaptMestresFirestore, type MestreFirestore } from "../../cronograma-obras/data/mestresFirestore";
-import { adaptObraV2Contract } from "../../cronograma-obras/data/source/obrasV2CronogramaAdapter";
-import type { ContratosChange } from "../../cronograma-obras/data/source/contratosRealtime";
-import { addDays, todayCivil, weekStart } from "../../cronograma-obras/domain/temporal";
-import { loteStatusFromCode } from "../../../services/loteStatusService";
+import type { AlocacaoFirestore, CreateAlocacao, UpdateAlocacao } from "../cronograma-obras/data/cronogramaFirestore";
+import type { FontesCronograma } from "../cronograma-obras/data/fontesCronograma";
+import { adaptMestresFirestore, type MestreFirestore } from "../cronograma-obras/data/mestresFirestore";
+import { adaptObraV2Contract } from "../cronograma-obras/data/source/obrasV2CronogramaAdapter";
+import type { ContratosChange } from "../cronograma-obras/data/source/contratosRealtime";
+import { addDays, todayCivil, weekStart } from "../cronograma-obras/domain/temporal";
+import { loteStatusFromCode } from "../../services/loteStatusService";
 
 type Lote = { ordem: number; nome: string; status: string; prioridade?: number };
 type Contrato = Record<string, unknown> & { lotes: Record<string, Lote> };

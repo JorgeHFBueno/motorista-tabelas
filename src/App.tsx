@@ -43,6 +43,7 @@ const MeuPerfilPage = lazy(() => import('./pages/MeuPerfilPage'));
 const FridayApp = lazy(() => import('./features/friday-gestao-interna/App'));
 const DevToysPage = lazy(() => import('./features/dev-toys/DevToysPage'));
 const TesteMkiPage = lazy(() => import('./features/testes/mki/TesteMkiPage'));
+const TesteMkiiPage = lazy(() => import('./features/testes/mkii/TesteMkiiPage'));
 
 console.log('[build]', import.meta.env.MODE, '__BUILD__', '1122');
 
@@ -78,9 +79,10 @@ export default function App() {
             {/* Checklist do mecânico para celular (src/features/checklist-mecanico): pausado desde 2026-11-10, sem rota nem
                 item de menu, porque quem ia usar saiu. The Manuscript, 06_REGISTROS_E_CHECKLISTS.md. */}
             {/* /testes: provas de conceito e de interface com dados fictícios (nada grava no Firestore). MKI: o CronoObra
-                com o visual do Cronograma Logístico, aberto a quem vê a Engenharia. */}
+                com o visual do Cronograma Logístico; MKII: visual novo. Abertos a quem vê a Engenharia. */}
             <Route element={<PrivateRoute permite={(p) => veArea(p, 'engenharia')} />}>
               <Route path="testes/mki" element={<TesteMkiPage />} />
+              <Route path="testes/mkii" element={<TesteMkiiPage />} />
             </Route>
             {/* Área DEV: só a credencial retr0, nem o adm2 entra sem ela. */}
             <Route element={<PrivateRoute permite={(p) => temCredencial(p, 'retr0')} />}>

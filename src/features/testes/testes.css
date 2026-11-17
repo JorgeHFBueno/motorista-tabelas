@@ -1,0 +1,4 @@
+/* /testes: faixa que avisa que a página é um teste com dados fictícios (cada tema pode recolorir). */
+.teste-aviso { align-items: center; background: #1e293b; color: #e2e8f0; display: flex; flex-wrap: wrap; font-size: 13px; gap: 6px 10px; padding: 8px 28px; }
+.teste-aviso strong { color: #fff; font-weight: 700; }
+.teste-aviso svg { color: #a5b4fc; }

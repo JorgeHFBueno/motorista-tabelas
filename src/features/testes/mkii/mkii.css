@@ -1,0 +1,148 @@
+/*
+ * /testes/mkii: identidade visual nova do CronoObra ("quadro de planejamento"), feita do zero.
+ * Página em cinza-azulado; cada seção num cartão branco; tabela com cabeçalho escuro de alto contraste; lista branca
+ * e calendário em outro tom, separados por sombra; status em pílula; barras encorpadas; destaque índigo.
+ * Tudo sob .co-tema-mkii (na página e no <body>, para os painéis).
+ */
+
+.teste-aviso--mkii { background: #0f172a; }
+.teste-aviso--mkii svg { color: #818cf8; }
+
+.co-tema-mkii {
+  --k-fundo: #e6eaf0;
+  --k-cartao: #ffffff;
+  --k-lista: #ffffff;
+  --k-calendario: #f3f5f9;
+  --k-cab: #1e293b;
+  --k-cab-2: #273449;
+  --k-cab-texto: #e2e8f0;
+  --k-cab-texto-2: #94a3b8;
+  --k-texto: #0f172a;
+  --k-texto-2: #475569;
+  --k-texto-3: #94a3b8;
+  --k-borda: #d3d9e2;
+  --k-borda-suave: #e8ecf1;
+  --k-destaque: #4f46e5;
+  --k-destaque-hover: #4338ca;
+  --k-destaque-claro: #eef2ff;
+  --k-perigo: #dc2626;
+  --co-weekend-shade: rgba(15, 23, 42, .055);
+  --co-holiday-shade: rgba(239, 68, 68, .14);
+  --co-today-shade: rgba(79, 70, 229, .14);
+}
+.co-page.co-tema-mkii { --co-ink: var(--k-texto); --co-muted: var(--k-texto-2); --co-line: var(--k-borda); --co-line-soft: var(--k-borda-suave); --co-accent: var(--k-destaque); background: var(--k-fundo); color: var(--k-texto); padding-top: 18px; }
+
+/* controles */
+.co-tema-mkii .co-button { background: var(--k-cartao); border: 1px solid #cbd5e1; border-radius: 6px; color: var(--k-texto); font-size: 13px; font-weight: 600; height: 32px; }
+.co-tema-mkii .co-button:hover { background: #f8fafc; border-color: #94a3b8; }
+.co-tema-mkii .co-button--primary { background: var(--k-destaque); border-color: var(--k-destaque); color: #fff; }
+.co-tema-mkii .co-button--primary:hover { background: var(--k-destaque-hover); }
+.co-tema-mkii .co-button--ghost { background: none; border-color: transparent; color: var(--k-texto-2); }
+.co-tema-mkii .co-view-switch { background: #e2e8f0; border: 0; border-radius: 8px; padding: 3px; }
+.co-tema-mkii .co-view-switch button { border-radius: 6px; color: var(--k-texto-2); font-size: 13px; font-weight: 600; min-width: 84px; padding: 6px 12px; }
+.co-tema-mkii .co-view-switch button.is-active { background: var(--k-cartao); box-shadow: 0 1px 3px rgba(15, 23, 42, .18); color: var(--k-texto); }
+
+/* indicadores: cartões com número grande */
+.co-tema-mkii .co-indicators-bar { background: var(--k-cartao); border: 0; border-radius: 12px; box-shadow: 0 1px 3px rgba(15, 23, 42, .08); }
+.co-tema-mkii .co-indicators-group > div { border-right: 1px solid var(--k-borda-suave); flex-direction: column; align-items: flex-start; gap: 2px; justify-content: center; }
+.co-tema-mkii .co-indicators-group span { color: var(--k-texto-2); font-size: 12px; font-weight: 600; order: 2; }
+.co-tema-mkii .co-indicators-group strong { color: var(--k-texto); font-size: 24px; font-weight: 800; line-height: 1.1; order: 1; }
+.co-tema-mkii .co-indicators-group .has-alert strong { color: var(--k-perigo); }
+
+/* filtros */
+.co-tema-mkii .co-filters { background: var(--k-cartao); border: 0; border-radius: 12px; box-shadow: 0 1px 3px rgba(15, 23, 42, .08); padding: 12px 14px; }
+.co-tema-mkii .co-filters label, .co-tema-mkii .co-status-filter > span { color: var(--k-texto-2); font-size: 11px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; }
+.co-tema-mkii .co-filters select, .co-tema-mkii .co-filters input, .co-tema-mkii .co-search { background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 6px; color: var(--k-texto); font-size: 13px; height: 34px; }
+.co-tema-mkii .co-search input { background: none; border: 0; height: auto; }
+.co-tema-mkii .co-filters select:focus, .co-tema-mkii .co-filters input:focus, .co-tema-mkii .co-search:focus-within { border-color: var(--k-destaque); box-shadow: 0 0 0 3px rgba(79, 70, 229, .15); }
+.co-tema-mkii .co-status-chip { border-color: #cbd5e1; border-radius: 999px; font-size: 12px; font-weight: 600; }
+
+/* seções: cartões brancos, título com marcador colorido */
+.co-tema-mkii .co-contract-sections { gap: 22px; }
+.co-tema-mkii .co-contract-sections > section { --k-grupo: var(--k-destaque); background: var(--k-cartao); border: 0; border-radius: 14px; box-shadow: 0 1px 3px rgba(15, 23, 42, .08), 0 8px 24px rgba(15, 23, 42, .06); padding: 14px 16px 16px; }
+.co-tema-mkii .co-contract-sections > section:nth-of-type(2) { --k-grupo: #d97706; }
+.co-tema-mkii .co-contract-sections > section:nth-of-type(3) { --k-grupo: #059669; }
+.co-tema-mkii .co-section-heading { align-items: center; gap: 14px; margin-bottom: 12px; }
+.co-tema-mkii .co-section-heading h2 { align-items: center; color: var(--k-texto); display: inline-flex; font-size: 17px; font-weight: 800; gap: 9px; margin: 0; white-space: nowrap; }
+.co-tema-mkii .co-section-heading h2::before { background: var(--k-grupo, var(--k-destaque)); border-radius: 3px; content: ''; height: 18px; width: 6px; }
+
+/* tabela: cabeçalho escuro; lista branca; calendário em outro tom, separado por sombra */
+.co-tema-mkii .co-gantt, .co-tema-mkii .co-text-table { border: 1px solid var(--k-borda); border-radius: 10px; box-shadow: none; }
+.co-tema-mkii .co-left-header, .co-tema-mkii .co-text-head { background: var(--k-cab); border-bottom: 0; }
+.co-tema-mkii .co-timeline-header { background: var(--k-cab-2); border-bottom: 0; }
+.co-tema-mkii .co-left-header > span, .co-tema-mkii .co-text-head > span { align-items: center; border-right-color: rgba(255, 255, 255, .08); color: var(--k-cab-texto); font-size: 11px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; }
+.co-tema-mkii .co-left-header .co-header-label { align-items: center; padding-bottom: 0; }
+.co-tema-mkii .co-left-header > span:not(.co-sort-header):hover, .co-tema-mkii .co-sort-header:hover { background: rgba(255, 255, 255, .06); color: #fff; }
+.co-tema-mkii .co-timeline-year { color: var(--k-cab-texto-2); font-weight: 700; }
+.co-tema-mkii .co-months > div { border-right: 1px solid rgba(255, 255, 255, .14); color: #fff; font-size: 12px; font-weight: 800; letter-spacing: .08em; }
+.co-tema-mkii .co-weeks > div, .co-tema-mkii .co-days > div { border-color: rgba(255, 255, 255, .08); color: var(--k-cab-texto-2); font-weight: 600; }
+.co-tema-mkii .co-days > div { flex-direction: column; font-size: 11px; line-height: 1.05; }
+.co-tema-mkii .co-days > div::after { color: #64748b; content: attr(data-dow); font-size: 9px; }
+.co-tema-mkii .co-days > .is-week-start { border-left: 1px solid rgba(255, 255, 255, .22); }
+.co-tema-mkii .co-days > .is-weekend { background: rgba(255, 255, 255, .05); }
+.co-tema-mkii .co-days > .is-holiday { background: rgba(248, 113, 113, .28); color: #fecaca; cursor: help; }
+.co-tema-mkii .co-days > .is-today { background: #818cf8; border-radius: 6px; color: #0f172a; font-weight: 800; }
+.co-tema-mkii .co-days > .is-today::after { color: #1e1b4b; }
+.co-tema-mkii .co-header-timeline { border-left: 0; }
+
+.co-tema-mkii .co-grid-row, .co-tema-mkii .co-text-row { border-bottom: 1px solid var(--k-borda-suave); }
+.co-tema-mkii .co-left-row { background: var(--k-lista); border-right: 1px solid #94a3b8; box-shadow: 8px 0 12px -8px rgba(15, 23, 42, .35); }
+.co-tema-mkii .co-left-header { box-shadow: 8px 0 12px -8px rgba(0, 0, 0, .5); }
+.co-tema-mkii .co-row-timeline, .co-tema-mkii .co-work-type-divider__timeline { background-color: var(--k-calendario); }
+.co-tema-mkii .co-day-timeline { background: var(--co-day-grid), var(--co-day-shade); }
+.co-tema-mkii .co-grid-row:hover .co-left-row { background: #f8fafc; }
+.co-tema-mkii .co-grid-row:hover .co-row-timeline { background-color: #eceff6; }
+.co-tema-mkii .co-grid-row.is-selected .co-left-row { background: var(--k-destaque-claro); box-shadow: inset 3px 0 0 var(--k-destaque), 8px 0 12px -8px rgba(15, 23, 42, .35); }
+.co-tema-mkii .co-left-row > span, .co-tema-mkii .co-text-row > span { border-right-color: var(--k-borda-suave); color: var(--k-texto); font-size: 13px; }
+.co-tema-mkii .co-left-row > span:first-child { font-size: 13px; font-weight: 700; }
+.co-tema-mkii .co-work-name { color: var(--k-texto-2); }
+.co-tema-mkii .co-start-date { color: var(--k-texto); font-variant-numeric: tabular-nums; text-decoration: none; }
+.co-tema-mkii .co-start-date:hover { color: var(--k-destaque); text-decoration: underline; }
+
+/* subgrupos */
+.co-tema-mkii .co-work-type-divider { background: #f8fafc; border-color: var(--k-borda-suave); color: var(--k-texto-2); font-size: 11px; font-weight: 800; letter-spacing: .08em; }
+.co-tema-mkii .co-work-type-divider--publica, .co-tema-mkii .co-work-type-divider--privada, .co-tema-mkii .co-work-type-divider--sem-classificacao { background: #f8fafc; color: var(--k-texto-2); }
+.co-tema-mkii .co-work-type-divider__fixed { background: #f8fafc; border-right: 1px solid #94a3b8; box-shadow: 8px 0 12px -8px rgba(15, 23, 42, .35); }
+.co-tema-mkii .co-work-type-divider__fixed > span::after { opacity: .18; }
+.co-tema-mkii .co-work-stage-divider { border-top: 2px solid var(--k-destaque); }
+.co-tema-mkii .co-work-stage-divider--proxima-a-iniciar, .co-tema-mkii .co-work-stage-divider--proxima-a-iniciar .co-work-type-divider__fixed { background: var(--k-destaque-claro); color: var(--k-destaque); }
+
+/* status em pílula */
+.co-tema-mkii .co-monday-status-trigger { border-radius: 999px; font-size: 12px; font-weight: 700; height: 24px; padding: 0 10px; }
+.co-tema-mkii .co-start-button { border-radius: 999px; height: 26px; }
+.co-tema-mkii .co-text-row--contract { background: #f8fafc; color: var(--k-texto); font-weight: 700; }
+.co-tema-mkii .co-text-row--contract:hover { background: #f1f5f9; }
+.co-tema-mkii .co-text-row--child { background: var(--k-cartao); }
+
+/* barras de mestre encorpadas */
+.co-tema-mkii .co-master-strip { border-radius: 6px; box-shadow: inset 4px 0 0 rgba(0, 0, 0, .22), 0 1px 2px rgba(15, 23, 42, .25); }
+.co-tema-mkii .co-master-strips--alert-off .co-master-strip { inset-block: 6px; }
+.co-tema-mkii .co-master-strip-label { font-size: 12px; font-weight: 800; letter-spacing: .02em; }
+.co-tema-mkii .co-master-nt { border-radius: 0; }
+
+/* paleta de mestres e etiquetas */
+.co-tema-mkii .co-master-palette { background: none; }
+.co-tema-mkii .co-master-chip { border-radius: 999px; box-shadow: 0 1px 2px rgba(15, 23, 42, .2); font-size: 12px; font-weight: 800; letter-spacing: .02em; padding: 6px 12px; }
+.co-tema-mkii .co-master-view { border: 1px solid #cbd5e1; border-radius: 999px; color: var(--k-texto); font-weight: 700; }
+.co-tema-mkii .co-master-name-chip { border-radius: 999px; font-weight: 800; }
+
+/* painéis */
+.co-tema-mkii .co-drawer { color: var(--k-texto); font-size: 14px; }
+.co-tema-mkii .co-drawer-header { background: var(--k-cab); border-bottom: 0; color: var(--k-cab-texto); }
+.co-tema-mkii .co-drawer-header button, .co-tema-mkii .co-drawer-header svg { color: var(--k-cab-texto); }
+.co-tema-mkii .co-eyebrow { color: #a5b4fc; font-size: 11px; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; }
+.co-tema-mkii .co-drawer-header h2 { color: #fff; font-size: 22px; font-weight: 800; }
+.co-tema-mkii .co-drawer-body h3 { color: var(--k-texto); font-size: 14px; font-weight: 800; }
+.co-tema-mkii .co-drawer-body h4 { color: var(--k-texto-2); font-size: 11px; font-weight: 800; letter-spacing: .08em; }
+.co-tema-mkii .co-period-details li, .co-tema-mkii .co-other-works article { background: #f8fafc; border: 1px solid var(--k-borda-suave); border-radius: 10px; color: var(--k-texto); font-size: 13px; }
+.co-tema-mkii .co-period-details li.is-selected { background: var(--k-destaque-claro); border-color: var(--k-destaque); box-shadow: none; }
+.co-tema-mkii .co-inline-action { color: var(--k-destaque); font-size: 13px; font-weight: 700; }
+
+/* ajustes de leitura */
+.co-tema-mkii { --k-calendario: #edf0f6; }
+.co-tema-mkii .co-left-row > span:has(> .co-monday-status-control) { padding: 0 6px; }
+.co-tema-mkii .co-monday-status-control { max-width: 100%; min-width: 0; }
+.co-tema-mkii .co-monday-status-trigger { font-size: 11px; max-width: 100%; overflow: hidden; padding: 0 8px; text-overflow: ellipsis; white-space: nowrap; }
+.co-tema-mkii .co-weeks > div, .co-tema-mkii .co-days > div { color: #cbd5e1; font-size: 11px; }
+.co-tema-mkii .co-days > div::after { color: #94a3b8; }
+.co-tema-mkii .co-grid-row:hover .co-row-timeline { background-color: #e4e8f0; }
