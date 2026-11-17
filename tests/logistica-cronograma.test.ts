@@ -15,7 +15,7 @@ import {
 } from '../src/features/cronograma-logistica/domain/conflitos';
 import { barrasDaLinha, dicaDaBarra, linhasDoCalendario } from '../src/features/cronograma-logistica/domain/calendario';
 import { perguntarAdiamento, textoAdiamento } from '../src/features/cronograma-logistica/domain/adiamento';
-import { automacaoDaColuna, statusPorAutomacao } from '../src/features/cronograma-logistica/domain/automacoes';
+import { REGRAS, automacaoDaColuna, regraAtiva, statusPorAutomacao } from '../src/features/cronograma-logistica/domain/automacoes';
 import { coordenadaCurta, linkDoMapa, textoLocal } from '../src/features/cronograma-logistica/domain/local';
 import { feriadoEm, feriadosDoAno, fimDeSemana, pascoa } from '../src/features/cronograma-logistica/domain/feriados';
 
@@ -174,6 +174,11 @@ test('automações: Expedição recebe valor → Carregar; Nota recebe o PDF →
   assert.ok(automacaoDaColuna('nota')?.includes('Nota anexada'));
   assert.ok(automacaoDaColuna('status')?.includes('Ag. NF'));
   assert.equal(automacaoDaColuna('obra'), null);
+  assert.equal(automacaoDaColuna('expedicao'), 'Automação: quando a Expedição receber valor, o Status passa para Carregar.');
+  // Botão Regras: as três, cada uma sem efeito quando a etiqueta de que depende saiu da lista.
+  assert.deepEqual(REGRAS.map((regra) => regra.coluna), ['expedicao', 'status', 'nota']);
+  assert.deepEqual(REGRAS.map((regra) => regraAtiva(regra, ETIQUETAS_PADRAO)), [true, true, true]);
+  assert.deepEqual(REGRAS.map((regra) => regraAtiva(regra, [{ id: '9', nome: ' ag. nf ', cor: '#fff' }])), [false, true, false]);
 });
 
 test('semana atual: as não finalizadas nem canceladas de antes que terminam nela ou depois (ou sem fim)', () => {

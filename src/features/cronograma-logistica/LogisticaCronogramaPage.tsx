@@ -15,6 +15,7 @@ import { BarraColunas } from './components/Colunas';
 import { EscolherLote } from './components/EscolherLote';
 import type { AbaPainel, AcoesLogistica, CadastrosLogistica } from './components/contexto';
 import { PainelProgramacao } from './components/PainelProgramacao';
+import { BotaoRegras } from './components/Regras';
 import { QuadroSemanas } from './components/QuadroSemanas';
 import { usePrefsColunas } from './components/usePrefsColunas';
 import {
@@ -268,6 +269,7 @@ export default function LogisticaCronogramaPage() {
             </button>}
             {(!cadastrosBrutos || !pessoasFriday) && <span className="lg-muted">Carregando motoristas, veículos e obras…</span>}
             <span className="lg-espaco" />
+            <BotaoRegras etiquetas={etiquetas} />
             {podeEditar && <BotaoAtribuir
               atribuidos={atribuidosNota}
               pessoas={(cadastrosBrutos?.pessoas ?? []).filter((pessoa) => temPerfil(pessoa, 'adm2') || Boolean(pessoa.areas?.logistica)).map(({ uid: id, nome }) => ({ uid: id, nome }))}
