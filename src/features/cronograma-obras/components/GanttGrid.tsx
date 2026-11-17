@@ -109,6 +109,8 @@ interface Props {
   onSelectMasters: (obra: ObraCronograma) => void;
   onSelectMaster: (selection: MasterSelection) => void;
   onOpenContract: (contrato: ContratoCronograma) => void;
+  /** Deletes several allocations at once (Del on a multiple selection; used by the /testes grid, not by GanttGrid). */
+  onDeleteAlocacoes?: (ids: string[]) => void;
   /** `localId`: the allocation under the pointer (the "NT" drop marks that one). */
   onDropMaster: (obra: ObraCronograma, nome: string, target: string, localId?: string) => void;
   onResizeMasterPreview: (mestre: MestrePlanejado) => void;

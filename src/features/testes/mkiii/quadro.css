@@ -110,3 +110,6 @@
 
 /* Linha de Base: faixa no alto da linha, com as cores de Prazos contratuais */
 .qg-base { height: 8px; left: 0; pointer-events: none; position: absolute; right: 0; top: 4px; }
+
+/* período em foco (clique; Ctrl+clique para vários): Del apaga */
+.qg-barra.is-focada { box-shadow: 0 0 0 2px #fff, 0 0 0 4px #4f46e5, 0 4px 10px rgba(79, 70, 229, .35); filter: none; z-index: 5; }

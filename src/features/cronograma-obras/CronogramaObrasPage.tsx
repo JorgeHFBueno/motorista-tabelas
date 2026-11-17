@@ -1022,6 +1022,40 @@ export function CronogramaObrasView({
         );
       });
   };
+  /** Del on several selected periods (/testes grid): one action, undone at once by Ctrl+Z. */
+  const deleteAlocacoes = (ids: string[]) => {
+    const alvos = ids
+      .map((id) => alocacoesRef.current.find((item) => item.id === id))
+      .filter((item): item is AlocacaoFirestore => Boolean(item));
+    if (alvos.length <= 1) {
+      if (alvos[0]) deleteAlocacao(alvos[0].id);
+      return;
+    }
+    const nomeDe = (alocacao: AlocacaoFirestore) =>
+      mestres.find((mestre) => mestre.id === alocacao.mestreId)?.nome ?? "mestre";
+    setWriteError(null);
+    setMasterPanel(null);
+    const entry = {
+      kind: "group" as const,
+      mestreNome: [...new Set(alvos.map(nomeDe))].join(", "),
+      entries: alvos.map((alocacao) => ({
+        kind: "delete" as const,
+        mestreNome: nomeDe(alocacao),
+        alocacao: undoSnapshot(alocacao),
+      })),
+    };
+    undoStack.current = pushUndo(undoStack.current, entry);
+    void (async () => {
+      try {
+        for (const alocacao of alvos) await alocacoesSource.deleteAlocacao(alocacao.id);
+      } catch (cause) {
+        undoStack.current = undoStack.current.filter((item) => item !== entry);
+        setWriteError(
+          `As alocações não foram removidas: ${cause instanceof Error ? cause.message : String(cause)}`,
+        );
+      }
+    })();
+  };
   const deleteAlocacao = (localId: string) => {
     const alocacao = alocacoesRef.current.find((item) => item.id === localId);
     if (!alocacao) return;
@@ -1516,6 +1550,7 @@ export function CronogramaObrasView({
                 setMasterPanel({ obraId, key: mestreKey, localId });
               }}
               onOpenContract={setContractDetails}
+              onDeleteAlocacoes={podeEditar ? deleteAlocacoes : undefined}
               onDropMaster={podeEditar ? dropMaster : () => undefined}
               onResizeMasterPreview={podeEditar ? resizeMasterPreview : () => undefined}
               onResizeMasterCommit={podeEditar ? resizeMaster : () => undefined}
@@ -1548,6 +1583,8 @@ export function CronogramaObrasView({
           /></CronogramaProfiler>
           </section>
           <section>
+          {/* /testes themes: the finished section gets a heading like the others (production keeps the title in the table). */}
+          {tema && <header className="co-section-heading"><h2>Obra finalizada ({contratosPorSituacao.finalizada})</h2><button type="button" className="co-button co-button--secondary" aria-expanded={textSectionsExpanded.finished} onClick={() => setTextSectionsExpanded((current) => ({ ...current, finished: !current.finished }))}>{textSectionsExpanded.finished ? "Recolher" : "Expandir"}</button></header>}
           <CronogramaProfiler id="ContractTextTable"><ContractTextTable
             viewMode={sectionViews.finished}
             sectionTitle="Obra finalizada"

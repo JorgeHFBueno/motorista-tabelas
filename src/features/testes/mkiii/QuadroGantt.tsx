@@ -5,7 +5,8 @@ import { useEffect, useMemo, useRef, useState, type CSSProperties, type DragEven
 import type { GanttGridProps } from "../../cronograma-obras/components/GanttGrid";
 import { LoteStatusControl } from "../../cronograma-obras/components/LoteStatusControl";
 import { buildStartedFlatWorkStages, groupContractGroupsByWorkType, groupObrasByContract, type ContractGroup } from "../../cronograma-obras/domain/contractGroups";
-import { masterSelectionForPeriod } from "../../cronograma-obras/domain/masterPlanningDetails";
+import { masterSelectionForPeriod, recentStartedMaster } from "../../cronograma-obras/domain/masterPlanningDetails";
+import { isEditableTarget } from "../../cronograma-obras/domain/undoStack";
 import { resizeMasterPlanning, type MasterResizeEdge } from "../../cronograma-obras/domain/masterResize";
 import { getMestreColor, normalizeMestreKey } from "../../cronograma-obras/domain/mestres";
 import { MONTHS, type ContratoCronograma, type MestrePlanejado, type ObraCronograma } from "../../cronograma-obras/domain/models";
@@ -47,7 +48,7 @@ const COLUNAS: readonly Coluna[] = [
 const GRUPO_NOME: Record<string, string> = { "OBRAS PÚBLICAS": "Obras públicas", "OBRAS PRIVADAS": "Obras privadas", "PRÓXIMA A INICIAR": "Próxima a iniciar" };
 
 export function QuadroGantt(props: GanttGridProps) {
-  const { obras, contratos, zoom, viewMode = "flat", draggingMaster, selectedId, centerRequest, display, onSelect, onSelectMasters, onSelectMaster, onOpenContract, onDropMaster, onResizeMasterPreview, onResizeMasterCommit, onResizeMasterCancel, onStatusConfirmed, onMovePrioridade } = props;
+  const { obras, contratos, zoom, viewMode = "flat", draggingMaster, selectedId, centerRequest, display, onSelect, onSelectMasters, onSelectMaster, onOpenContract, onDropMaster, onResizeMasterPreview, onResizeMasterCommit, onResizeMasterCancel, onStatusConfirmed, onMovePrioridade, onDeleteAlocacoes } = props;
   const hoje = todayCivil();
   const ano = Number(hoje.slice(0, 4));
   const dias = useMemo(() => yearDays(ano), [ano]);
@@ -58,6 +59,34 @@ export function QuadroGantt(props: GanttGridProps) {
   const [completo, setCompleto] = useState(true);
   const [larguras, setLarguras] = useState<Partial<Record<Coluna["id"], number>>>({});
   const [abertos, setAbertos] = useState<Set<string>>(() => new Set());
+  /** Periods in focus (left click; Ctrl/⌘ + click adds or removes). Del deletes them; Esc clears. */
+  const [focadas, setFocadas] = useState<Set<string>>(() => new Set());
+  const focar = (id: string, varios: boolean) => setFocadas((atual) => {
+    if (!varios) return atual.size === 1 && atual.has(id) ? new Set() : new Set([id]);
+    const proximo = new Set(atual);
+    if (proximo.has(id)) proximo.delete(id); else proximo.add(id);
+    return proximo;
+  });
+  const existentes = useMemo(() => new Set(obras.flatMap((obra) => obra.mestresPlanejados.map((mestre) => mestre.localId))), [obras]);
+  const atalho = useRef<(event: KeyboardEvent) => void>(() => {});
+  useEffect(() => {
+    atalho.current = (event) => {
+      if (isEditableTarget(event.target)) return;
+      if (event.key === "Escape") { setFocadas(new Set()); return; }
+      // With a panel open, Del belongs to the page (the period shown in the panel).
+      if (event.key !== "Delete" || !onDeleteAlocacoes || document.querySelector(".co-drawer")) return;
+      const ids = [...focadas].filter((id) => existentes.has(id));
+      if (!ids.length) return;
+      event.preventDefault();
+      onDeleteAlocacoes(ids);
+      setFocadas(new Set());
+    };
+  });
+  useEffect(() => {
+    const ouvir = (event: KeyboardEvent) => atalho.current(event);
+    window.addEventListener("keydown", ouvir);
+    return () => window.removeEventListener("keydown", ouvir);
+  }, []);
   const colunas = COLUNAS.filter((coluna) => completo || !coluna.complementar).map((coluna) => ({ ...coluna, largura: larguras[coluna.id] ?? coluna.largura }));
   const larguraEsq = colunas.reduce((total, coluna) => total + coluna.largura, 0);
   const gradeEsq = colunas.map((coluna) => `${coluna.largura}px`).join(" ");
@@ -98,6 +127,7 @@ export function QuadroGantt(props: GanttGridProps) {
     <div
       className={`qg-trilho ${recebe && draggingMaster ? "is-recebendo" : ""}`}
       style={{ width: larguraCalendario, ...fundo, minHeight: alturaBarras }}
+      onClick={(event) => { if (!(event.target as HTMLElement).closest(".qg-barra")) setFocadas(new Set()); }}
       {...(recebe ? {
         onDragOver: (event: DragEvent<HTMLDivElement>) => {
           if (!draggingMaster) return;
@@ -141,7 +171,12 @@ export function QuadroGantt(props: GanttGridProps) {
       );
       case "empresa": return <span key="empresa" className="qg-texto">{obra.empresa || contrato?.empresa || "—"}</span>;
       case "status": return <div key="status" className="qg-status" onClick={(e) => e.stopPropagation()}><LoteStatusControl obra={obra} canStart={false} canFinish onStatusConfirmed={onStatusConfirmed} /></div>;
-      case "mestres": return <button key="mestres" type="button" className="qg-mestres" title="Mestres desta obra" onClick={(e) => { e.stopPropagation(); onSelectMasters(obra); }}>{chipsMestres(obra.mestresPlanejados)}</button>;
+      case "mestres": {
+        // As in production: with the columns collapsed (list view), only the mestre who started most recently.
+        const recente = viewMode === "flat" && !completo ? recentStartedMaster(obra, hoje) : null;
+        const lista = viewMode === "flat" && !completo ? (recente ? recente.periods.slice(0, 1) : []) : obra.mestresPlanejados;
+        return <button key="mestres" type="button" className="qg-mestres" title="Mestres desta obra" onClick={(e) => { e.stopPropagation(); onSelectMasters(obra); }}>{chipsMestres(lista)}</button>;
+      }
       case "inicio": return <span key="inicio" className="qg-numero">{formatDateShort(obra.inicioPlanejado ?? contrato?.inicio)}</span>;
       case "dias": return <span key="dias" className="qg-numero">{obra.tempoPlanejado ?? inclusiveCivilDays(contrato?.inicio, contrato?.fim) ?? "—"}</span>;
     }
@@ -186,7 +221,8 @@ export function QuadroGantt(props: GanttGridProps) {
           {comBase && <span className="qg-base" aria-label="Linha de Base">{base.map((s) => <i key={`${s.type}-${s.offset}`} className={`co-temporal-segment is-${s.type}`} style={{ left: s.offset * dw, width: s.days * dw }} />)}</span>}
           {obra.mestresPlanejados.map((mestre) => (
             <Barra key={mestre.localId} obra={obra} mestre={mestre} geo={geo} topo={topo + (lanes.get(mestre)?.index ?? 0) * ALTURA_FAIXA} mostrarNome={display.masterNames} podeNT={zoom === "day"}
-              onSelecionar={() => onSelectMaster(masterSelectionForPeriod(obra, mestre))}
+              focada={focadas.has(mestre.localId)} onFocar={(varios) => focar(mestre.localId, varios)}
+              onDetalhes={() => { setFocadas(new Set()); onSelectMaster(masterSelectionForPeriod(obra, mestre)); }}
               onPreview={onResizeMasterPreview} onCommit={(draft) => onResizeMasterCommit(obra.id, draft)} onCancel={() => onResizeMasterCancel(mestre.localId)} />
           ))}
         </>, altura)}
@@ -313,9 +349,9 @@ function fundoDoCalendario(dias: string[], dw: number, porDia: boolean, hoje: st
   return { background: camadas.join(", "), backgroundColor: "var(--qg-calendario)" };
 }
 
-function Barra({ obra, mestre, geo, topo, mostrarNome, podeNT, onSelecionar, onPreview, onCommit, onCancel }: {
+function Barra({ obra, mestre, geo, topo, mostrarNome, podeNT, focada, onFocar, onDetalhes, onPreview, onCommit, onCancel }: {
   obra: ObraCronograma; mestre: MestrePlanejado; geo: Geometria; topo: number; mostrarNome: boolean; podeNT: boolean;
-  onSelecionar: () => void; onPreview: (m: MestrePlanejado) => void; onCommit: (m: MestrePlanejado) => void; onCancel: () => void;
+  focada: boolean; onFocar: (varios: boolean) => void; onDetalhes: () => void; onPreview: (m: MestrePlanejado) => void; onCommit: (m: MestrePlanejado) => void; onCancel: () => void;
 }) {
   const ini = geo.indice(mestre.inicio);
   const esq = Math.max(0, ini);
@@ -353,13 +389,15 @@ function Barra({ obra, mestre, geo, topo, mostrarNome, podeNT, onSelecionar, onP
 
   return (
     <div
-      className="qg-barra"
+      className={`qg-barra ${focada ? "is-focada" : ""}`}
       role="button"
+      aria-pressed={focada}
       tabIndex={0}
       data-alocacao-id={mestre.localId}
-      title={`${mestre.nome}\n${formatDateShort(mestre.inicio)} → ${formatDateShort(addDays(mestre.inicio, mestre.tempoPlanejado - 1))}\n${rotuloDias(mestre)}`}
+      title={`${mestre.nome}\n${formatDateShort(mestre.inicio)} → ${formatDateShort(addDays(mestre.inicio, mestre.tempoPlanejado - 1))}\n${rotuloDias(mestre)}\nClique: selecionar · Ctrl+clique: vários · Botão direito: detalhes · Del: apagar`}
       style={{ left: esq * geo.dw, width: largura, top: topo, background: cor.background, color: cor.text } as CSSProperties}
-      onClick={(e) => { e.stopPropagation(); onSelecionar(); }}
+      onClick={(e) => { e.stopPropagation(); onFocar(e.ctrlKey || e.metaKey); }}
+      onContextMenu={(e) => { e.preventDefault(); e.stopPropagation(); onDetalhes(); }}
     >
       <button type="button" className="qg-borda is-ini" aria-label={`Ajustar início de ${mestre.nome}`} onPointerDown={arrastar("start")} onClick={(e) => e.stopPropagation()} />
       {nts.map((nt) => {

@@ -168,3 +168,11 @@
 .co-tema-mkii .co-weeks > div:nth-child(even) { background: rgba(255, 255, 255, .06); }
 .co-tema-mkii .co-days > .is-week-start { border-left: 1px solid rgba(255, 255, 255, .4); }
 .co-tema-mkii .co-months > div { border-right: 2px solid rgba(255, 255, 255, .4); }
+
+/* Obra finalizada: título como as outras seções (a página põe o cabeçalho), sem coluna vazia, cartão do tamanho da tabela */
+.co-tema-mkii .co-contract-sections > section:has(.co-text-table--finished) { justify-self: start; max-width: 100%; width: fit-content; }
+.co-tema-mkii .co-text-table--finished:not(.co-text-table--flat) { --co-left-columns: 240px 210px 96px 140px 140px 80px 88px 64px !important; --co-left-width: 1058px !important; }
+.co-tema-mkii .co-text-table--finished .co-text-toggle-spacer { display: none; }
+.co-tema-mkii .co-text-table--finished .co-text-section-toggle { cursor: default; pointer-events: none; }
+.co-tema-mkii .co-text-table--finished .co-text-section-toggle small, .co-tema-mkii .co-text-table--finished .co-text-section-toggle svg { display: none; }
+.co-tema-mkii .co-text-table--finished .co-text-section-toggle { background: none; color: inherit; font: inherit; letter-spacing: inherit; padding: 0; text-transform: inherit; }
