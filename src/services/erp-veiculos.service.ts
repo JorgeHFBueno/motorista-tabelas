@@ -30,6 +30,13 @@ export function erpGuardadoDe(veiculoId: string, raw: Record<string, unknown>): 
   };
 }
 
+/** Próxima rodada da atualização automática (erpVeiculosDiario, todo dia às 03:00 de Brasília = 06:00 UTC). */
+export function proximaAtualizacaoAutomatica(agora = new Date()): Date {
+  const proxima = new Date(Date.UTC(agora.getUTCFullYear(), agora.getUTCMonth(), agora.getUTCDate(), 6, 0, 0));
+  if (proxima.getTime() <= agora.getTime()) proxima.setUTCDate(proxima.getUTCDate() + 1);
+  return proxima;
+}
+
 export async function lerErpVeiculos(): Promise<Map<string, ErpGuardado>> {
   const snapshot = await getDocs(collection(db, ERP_VEICULOS));
   return new Map(snapshot.docs.map((d) => [d.id, erpGuardadoDe(d.id, d.data())]));

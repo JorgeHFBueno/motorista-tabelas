@@ -8,6 +8,7 @@ export { kioskSessionEvent } from './kiosk/kioskSession.js';
 export { provisionKioskAdminPin } from './kiosk/kioskAdminPin.js';
 export { getVehicleErpCosts } from './vehicleReport.js';
 export { atualizarErpVeiculos, erpVeiculosDiario } from './erpVeiculos.js';
+export { frotaUltimaAtualizacaoAtividade, frotaUltimaAtualizacaoCombustivel } from './frotaUltimaAtualizacao.js';
 export { syncMondaySerpMeasurements } from './mondaySerpMeasurements.js';
 export { fridayMondayInventario, fridayMondayImportarQuadro } from './fridayMondayImport.js';
 export { fridayMondayPessoas } from './fridayMondayPessoas.js';

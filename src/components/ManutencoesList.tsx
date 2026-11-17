@@ -6,9 +6,10 @@ import {
   ListItemButton,
   Skeleton,
   Stack,  
+  Tooltip,
   Typography,
 } from '@mui/material';
-import { Timestamp } from 'firebase/firestore';
+import type { ReactNode } from 'react';
 
 // 'erp' não é coleção: são as linhas da Query 47 do ERP (getVehicleErpCosts), só leitura.
 export type FonteEvento = 'atividades' | '03-combustivel' | 'manutencoes' | 'erp';
@@ -53,20 +54,27 @@ const FILTROS: Array<{ key: keyof MasterDetailFilters; label: string }> = [
   { key: 'manutencoesErp', label: 'Manutenções ERP' },
 ];
 
-// Fontes do detalhe do veículo, em linha, acima da lista.
-export function RegistrosFiltros({ filters, counts, onToggleFilter }: Pick<ManutencoesListProps, 'filters' | 'counts' | 'onToggleFilter'>) {
+// Fontes do detalhe do veículo, em linha, acima da lista. `dicas`: balão de uma fonte; `extra`: depois dos botões.
+export function RegistrosFiltros({ filters, counts, onToggleFilter, dicas, extra }: Pick<ManutencoesListProps, 'filters' | 'counts' | 'onToggleFilter'> & {
+  dicas?: Partial<Record<keyof MasterDetailFilters, ReactNode>>;
+  extra?: ReactNode;
+}) {
   return (
     <Stack direction="row" flexWrap="wrap" useFlexGap spacing={2} role="group" aria-label="Fontes dos registros">
-      {FILTROS.map(({ key, label }) => (
-        <Button
-          key={key}
-          variant={filters[key] ? 'contained' : 'outlined'}
-          aria-pressed={filters[key]}
-          onClick={() => onToggleFilter(key, !filters[key])}
-        >
-          {`${label} (${counts[key]})`}
-        </Button>
-      ))}
+      {FILTROS.map(({ key, label }) => {
+        const botao = (
+          <Button
+            key={key}
+            variant={filters[key] ? 'contained' : 'outlined'}
+            aria-pressed={filters[key]}
+            onClick={() => onToggleFilter(key, !filters[key])}
+          >
+            {`${label} (${counts[key]})`}
+          </Button>
+        );
+        return dicas?.[key] ? <Tooltip key={key} title={dicas[key]}>{botao}</Tooltip> : botao;
+      })}
+      {extra}
     </Stack>
   );
 }

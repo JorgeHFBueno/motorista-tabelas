@@ -68,7 +68,7 @@ import { buildVehicleReport, fetchVehicleErpRows } from '../services/vehicle-rep
 import { createVehicleReportPdf } from '../services/vehicle-report-pdf';
 import { custoPorAbastecimento, describeErpCallError, extractCnpj, fuelReportSupplier, normalizeCalendarDate, resolveVehicleReportPeriod, type VehicleReportPeriod } from '../services/vehicle-report-core';
 import { listFuncionariosAtivos } from '../services/funcionarios-selecao.service';
-import { atualizarErpVeiculos, lerErpVeiculo, type ErpGuardado } from '../services/erp-veiculos.service';
+import { atualizarErpVeiculos, lerErpVeiculo, proximaAtualizacaoAutomatica, type ErpGuardado } from '../services/erp-veiculos.service';
 import { atualizarKmInicial, getItemFrota, itemFridayDoVeiculo, renomearItemFrota } from '../services/veiculos.service';
 import type { ItemFrotaV2, PessoaV2 } from '../utils/cadastrosV2';
 import { atualizacaoInfo, camposQuadroFrota, lerKmInicial, medidorTexto, origemKmTexto, somarValores, type KmInicialEntrada } from '../utils/frotaVeiculosLista';
@@ -1039,6 +1039,16 @@ export default function FrotaVeiculoDetalhesPage() {
         (showManutencoes2026 && Boolean(manutencoes2026Error)) ||
         (showErp && Boolean(erpError));
 
+    const dicaErp = (
+        <Box sx={{ fontSize: '0.8rem', lineHeight: 1.5 }}>
+            <div>
+                {erpGuardado?.atualizadoEm ? `ERP atualizado em ${dateFormatter.format(erpGuardado.atualizadoEm)}` : 'Sem ERP guardado para este veículo'}
+                {erpGuardado?.status === 'erro' && erpGuardado.erroEm ? `; a consulta de ${dateFormatter.format(erpGuardado.erroEm)} falhou` : ''}
+            </div>
+            <div>Próxima atualização automática: {dateFormatter.format(proximaAtualizacaoAutomatica())}</div>
+        </Box>
+    );
+
     async function atualizarErpAgora() {
         if (!veiculo) return;
         setAtualizandoErp(true);
@@ -1286,43 +1296,6 @@ export default function FrotaVeiculoDetalhesPage() {
                         )}
                         <Box sx={{ mt: 2.5, display: 'grid', gap: 2, gridTemplateColumns: { xs: '1fr 1fr', md: 'repeat(3, minmax(0, 1fr))' } }}>
                             <Box>
-                                <Typography variant="body2" color="text.secondary">{medidor} último</Typography>
-                                <Typography sx={{ fontSize: { xs: 22, sm: 28 }, fontWeight: 700 }}>{medidorTexto(veiculo)}</Typography>
-                                {isAdmin && (
-                                    <Button size="small" sx={{ ml: -0.5, px: 0.5 }} onClick={() => setNormalizacaoAberta(true)}>
-                                        Normalizar {medidor === 'KM' ? 'KM' : 'horímetro'}
-                                    </Button>
-                                )}
-                            </Box>
-                            <Stack direction="row" spacing={2} useFlexGap flexWrap="wrap" justifyContent="space-between" alignItems="flex-start">
-                                <Box>
-                                    <Typography variant="body2" color="text.secondary">Última atualização</Typography>
-                                    <Typography sx={{ fontSize: { xs: 18, sm: 22 }, fontWeight: 600 }}>{ultima ? dateFormatter.format(ultima) : '—'}</Typography>
-                                    <Typography variant="body2" color={corFrescor}>{atualizacao.texto}</Typography>
-                                </Box>
-                                {tipoVeiculo === 'PLACA' && (
-                                    <Box sx={{ textAlign: { md: 'right' } }}>
-                                        <Typography variant="body2" color="text.secondary">ERP</Typography>
-                                        {isAdmin && (
-                                            <Button
-                                                size="small"
-                                                variant="outlined"
-                                                sx={{ my: 0.5, whiteSpace: 'nowrap' }}
-                                                disabled={atualizandoErp}
-                                                startIcon={atualizandoErp ? <CircularProgress size={14} color="inherit" /> : undefined}
-                                                onClick={() => void atualizarErpAgora()}
-                                            >
-                                                {atualizandoErp ? 'Atualizando…' : 'Atualizar agora'}
-                                            </Button>
-                                        )}
-                                        <Typography variant="body2" color={erpGuardado?.status === 'erro' ? 'error.main' : 'text.secondary'}>
-                                            {erpGuardado?.atualizadoEm ? `de ${dateFormatter.format(erpGuardado.atualizadoEm)}` : 'sem ERP guardado'}
-                                            {erpGuardado?.status === 'erro' ? ' · a última consulta falhou' : ''}
-                                        </Typography>
-                                    </Box>
-                                )}
-                            </Stack>
-                            <Box>
                                 <Stack direction="row" spacing={0.5} alignItems="center">
                                     <Typography variant="body2" color="text.secondary">{medidor} inicial</Typography>
                                     {isAdmin && (
@@ -1348,6 +1321,20 @@ export default function FrotaVeiculoDetalhesPage() {
                                         </Tooltip>
                                     );
                                 })()}
+                            </Box>
+                            <Box>
+                                <Typography variant="body2" color="text.secondary">Última atualização</Typography>
+                                <Typography sx={{ fontSize: { xs: 18, sm: 22 }, fontWeight: 600 }}>{ultima ? dateFormatter.format(ultima) : '—'}</Typography>
+                                <Typography variant="body2" color={corFrescor}>{atualizacao.texto}</Typography>
+                            </Box>
+                            <Box>
+                                <Typography variant="body2" color="text.secondary">{medidor} último</Typography>
+                                <Typography sx={{ fontSize: { xs: 22, sm: 28 }, fontWeight: 700 }}>{medidorTexto(veiculo)}</Typography>
+                                {isAdmin && (
+                                    <Button size="small" sx={{ ml: -0.5, px: 0.5 }} onClick={() => setNormalizacaoAberta(true)}>
+                                        Normalizar {medidor === 'KM' ? 'KM' : 'horímetro'}
+                                    </Button>
+                                )}
                             </Box>
                         </Box>
                         <Box sx={{ mt: 3, pt: 2, borderTop: 1, borderColor: 'divider' }}>
@@ -1378,7 +1365,27 @@ export default function FrotaVeiculoDetalhesPage() {
             })()}
 
             <Stack mt={3} direction={{ xs: 'column', lg: 'row' }} spacing={2} alignItems={{ lg: 'center' }} justifyContent="space-between">
-                <RegistrosFiltros filters={masterDetailFilters} counts={masterDetailCounts} onToggleFilter={handleToggleFilter} />
+                <RegistrosFiltros
+                    filters={masterDetailFilters}
+                    counts={masterDetailCounts}
+                    onToggleFilter={handleToggleFilter}
+                    dicas={tipoVeiculo === 'PLACA' ? { manutencoesErp: dicaErp } : undefined}
+                    extra={tipoVeiculo === 'PLACA' && isAdmin && (
+                        <Tooltip title={dicaErp}>
+                            <span>
+                                <Button
+                                    variant="outlined"
+                                    sx={{ whiteSpace: 'nowrap', height: '100%' }}
+                                    disabled={atualizandoErp}
+                                    startIcon={atualizandoErp ? <CircularProgress size={14} color="inherit" /> : undefined}
+                                    onClick={() => void atualizarErpAgora()}
+                                >
+                                    {atualizandoErp ? 'Atualizando o ERP…' : 'Atualizar ERP agora'}
+                                </Button>
+                            </span>
+                        </Tooltip>
+                    )}
+                />
                 <Paper variant="outlined" sx={{ px: 2.5, py: 1, flexShrink: 0 }} aria-live="polite">
                     <Typography component="span" sx={{ fontSize: 18 }}>Custo total: </Typography>
                     <Typography component="span" sx={{ fontSize: 18, fontWeight: 700 }}>
