@@ -60,7 +60,8 @@ function DicaBarra({ linha }: { linha: LinhaPrazo }) {
   );
 }
 
-export default function PrazosContratuaisPage() {
+/** `carregar`: de onde vêm as obras (padrão: obras-v2 e o Friday); /testes passa dados fictícios. */
+export default function PrazosContratuaisPage({ carregar: carregarObras = carregarPrazos }: { carregar?: () => Promise<ObraPrazo[]> } = {}) {
   const [obras, setObras] = useState<ObraPrazo[]>([]);
   const [carregando, setCarregando] = useState(true);
   const [erro, setErro] = useState<string | null>(null);
@@ -78,10 +79,10 @@ export default function PrazosContratuaisPage() {
 
   const carregar = useCallback(async () => {
     setCarregando(true); setErro(null);
-    try { setObras(await carregarPrazos()); setHoje(hojeBrasilia()); }
+    try { setObras(await carregarObras()); setHoje(hojeBrasilia()); }
     catch (cause) { setErro(cause instanceof Error ? cause.message : String(cause)); }
     finally { setCarregando(false); }
-  }, []);
+  }, [carregarObras]);
   useEffect(() => { void carregar(); }, [carregar]);
 
   const { linhas, contagem, conferir } = useMemo(

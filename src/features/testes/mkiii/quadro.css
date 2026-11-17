@@ -127,3 +127,16 @@ body.qg-laceando, body.qg-laceando * { cursor: crosshair !important; user-select
 .qg--lista .qg-esq--cab > .qg-cab-coluna:last-of-type { padding-right: 10px; }
 .co-tema-mkii .co-contract-sections > section:has(.qg--lista) { justify-self: start; max-width: 100%; width: fit-content; }
 .qg-status .co-status-badge, .qg-status [class*="status-badge"] { white-space: nowrap; }
+
+/* abas Cronograma | Mestres | Prazos Contratuais (no lugar da barra de indicadores) */
+.co-tema-mkii .co-abas { align-items: center; align-self: start; background: var(--k-cartao); border-radius: 12px; box-shadow: 0 1px 3px rgba(15, 23, 42, .08); display: flex; gap: 4px; margin: 0 0 18px; max-width: 1880px; padding: 6px; }
+.co-tema-mkii .co-abas button { background: none; border: 0; border-radius: 8px; color: var(--k-texto-2); cursor: pointer; font: inherit; font-size: 14px; font-weight: 700; padding: 9px 18px; }
+.co-tema-mkii .co-abas button:hover { background: #f1f5f9; color: var(--k-texto); }
+.co-tema-mkii .co-abas button.is-active { background: var(--k-destaque); color: #fff; }
+.co-tema-mkii .co-abas button:disabled { cursor: wait; }
+/* Visualização ao lado de Dias/Semanas */
+.co-tema-mkii .co-section-heading .co-section-views-control { margin-left: auto; }
+.co-tema-mkii .co-section-heading .co-section-views-trigger { background: #fff; border: 1px solid #cbd5e1; border-radius: 8px; height: 34px; width: 38px; }
+/* aba Prazos Contratuais dentro do cartão */
+.co-tema-mkii .co-aba-prazos { background: var(--k-cartao); border-radius: 14px; box-shadow: 0 1px 3px rgba(15, 23, 42, .08), 0 8px 24px rgba(15, 23, 42, .06); overflow: hidden; }
+.co-tema-mkii .co-aba-prazos .pz-page { background: transparent; min-height: 0; }

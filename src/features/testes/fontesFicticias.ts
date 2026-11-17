@@ -9,6 +9,7 @@ import { adaptObraV2Contract } from "../cronograma-obras/data/source/obrasV2Cron
 import type { ContratosChange } from "../cronograma-obras/data/source/contratosRealtime";
 import { addDays, todayCivil, weekStart } from "../cronograma-obras/domain/temporal";
 import { loteStatusFromCode } from "../../services/loteStatusService";
+import type { ObraPrazo } from "../prazos-contratuais/domain/prazos";
 
 type Lote = { ordem: number; nome: string; status: string; prioridade?: number };
 type Contrato = Record<string, unknown> & { lotes: Record<string, Lote> };
@@ -37,11 +38,11 @@ function contratos(base: string): Record<string, Contrato> {
       ["f02-l2", "LOTE 2 - PONTE DA ESTRADA VELHA - (4,00X12,00M)", "Próxima a Iniciar", 2],
       ["f02-l3", "LOTE 3 - CABECEIRAS DA PONTE SUL", "Não iniciada"],
     )),
-    "f-03": contrato("204/2026", "CONDOMÍNIO JARDIM DO SOL", "Privada", "ARTEBASE", -10, 60, lotes(
+    "f-03": contrato("204/2026", "CONDOMÍNIO JARDIM DO SOL", "Privada", "ARTEBASE", -10, 30, lotes(
       ["f03-l1", "LOTE 1 - MUROS DE CONTENÇÃO", "Em andamento"],
       ["f03-l2", "LOTE 2 - RESERVATÓRIO", "Próxima a Iniciar"],
     )),
-    "f-04": contrato("131/2026", "PORTO NOVO 131/2026", "Pública", "LEDUR", 15, 140, lotes(
+    "f-04": contrato("131/2026", "PORTO NOVO 131/2026", "Pública", "LEDUR", 15, 200, lotes(
       ["f04-l1", "LOTE 1 - PONTE DO ARROIO FUNDO - (5,00X15,00M)", "Não iniciada"],
       ["f04-l2", "LOTE 2 - PASSARELA DO CENTRO", "Revisar escopo"],
     )),
@@ -147,4 +148,22 @@ export function criarFontesFicticias(hoje = todayCivil()): FontesCronograma {
       return gravado;
     },
   };
+}
+
+/** Os mesmos contratos fictícios para a aba Prazos Contratuais (/testes/mkiii): sem Situação no Friday = entram. */
+export function prazosFicticios(hoje = todayCivil()): ObraPrazo[] {
+  const docs = contratos(weekStart(hoje));
+  return Object.entries(docs).map(([id, doc]) => ({
+    id,
+    nome: String(doc.nomeObra),
+    empresa: String(doc.empresa),
+    inicio: String(doc.dataInicial),
+    fim: String(doc.dataFinal),
+    situacao: null,
+    tipoObra: String(doc.tipoObra),
+    statusFluxo: String(doc.situacao),
+    ordemInicio: null,
+    url: "#",
+    lotes: Object.entries(doc.lotes).map(([loteId, lote]) => ({ id: loteId, nome: lote.nome, status: lote.status })),
+  }));
 }

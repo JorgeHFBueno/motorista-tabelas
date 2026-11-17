@@ -1,6 +1,6 @@
 import ArrowBackRounded from "@mui/icons-material/ArrowBackRounded";
 import ViewListRounded from "@mui/icons-material/ViewListRounded";
-import { Profiler, useEffect, useMemo, useRef, useState, type ComponentType } from "react";
+import { Profiler, useEffect, useMemo, useRef, useState, type ComponentType, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import {
   CalendarToggles,
@@ -319,6 +319,11 @@ type CronogramaObrasViewProps = {
   gradeIniciadas?: ComponentType<GanttGridProps>;
   /** Lista de "Obra finalizada" em teste (/testes/mkiii); padrão: ContractTextTable. */
   tabelaFinalizadas?: ComponentType<ContractTextTableProps>;
+  /**
+   * Layout em abas em teste (/testes/mkiii): Cronograma | Mestres | Prazos Contratuais no topo, no lugar da barra de
+   * indicadores; Visualização ao lado de Dias/Semanas, com "Nome do mestre" dentro. `prazos` é o conteúdo da aba.
+   */
+  abas?: { prazos: ReactNode };
 };
 
 export function CronogramaObrasView({
@@ -327,6 +332,7 @@ export function CronogramaObrasView({
   tema,
   gradeIniciadas: GradeIniciadas = GanttGrid,
   tabelaFinalizadas: TabelaFinalizadas = ContractTextTable,
+  abas,
 }: CronogramaObrasViewProps) {
   countCronogramaRender("CronogramaObrasPage");
   const {
@@ -339,7 +345,7 @@ export function CronogramaObrasView({
   // Área Engenharia em "ver": o cronograma só mostra (sem arrastar, redimensionar, priorizar, criar mestre nem editar).
   const podeEditar =
     edicaoLiberada || editaArea(authorizationProfile, "engenharia");
-  const [view, setView] = useState<"obras" | "mestres">("obras");
+  const [view, setView] = useState<"obras" | "mestres" | "prazos">("obras");
   const [sectionViews, setSectionViews] = useState<WorkSectionViews>(
     DEFAULT_WORK_SECTION_VIEWS,
   );
@@ -689,8 +695,13 @@ export function CronogramaObrasView({
         persistTimelineZoom(currentUser.uid, next, window.localStorage);
     });
   };
-  const changeView = (next: "obras" | "mestres") => {
+  const changeView = (next: "obras" | "mestres" | "prazos") => {
     if (next === view) return;
+    // Prazos Contratuais (tab, /testes) has no loading transition of its own.
+    if (next === "prazos" || view === "prazos") {
+      setView(next);
+      return;
+    }
     runViewTransition(next, view, () => setView(next));
   };
   const changeSectionView = (
@@ -1343,7 +1354,7 @@ export function CronogramaObrasView({
       disabled={zoom === "year" || !podeEditar}
       somenteLeitura={!podeEditar}
       onViewMasters={() => changeView("mestres")}
-      showViewMasters={view === "obras"}
+      showViewMasters={!abas && view === "obras"}
       ntArrastavel={podeEditar && zoom === "day"}
       onDragStart={setDraggingMaster}
       onDragEnd={() => setDraggingMaster(null)}
@@ -1354,33 +1365,7 @@ export function CronogramaObrasView({
     />
   );
 
-  return (
-    <GravarStatusLoteContext.Provider value={fontes.gravarStatusLote}>
-    <main className={`co-page co-zoom--${zoom}${tema ? ` co-tema-${tema}` : ""}`}>
-      <section className="co-indicators-bar">
-        <div className="co-indicators-group">
-          <div>
-            <span>Em andamento</span>
-            <strong>{indicators.running}</strong>
-          </div>
-          <div>
-            <span>Aguardando recurso</span>
-            <strong>{indicators.waiting}</strong>
-          </div>
-          <div>
-            <span>Mestres alocados</span>
-            <strong>{indicators.allocated}</strong>
-          </div>
-          <div>
-            <span>Obras sem mestre planejado</span>
-            <strong>{indicators.unassigned}</strong>
-          </div>
-          <div className={indicators.conflicts ? "has-alert" : ""}>
-            <span>Conflitos de alocação</span>
-            <strong>{indicators.conflicts}</strong>
-          </div>
-          </div>
-          <div className="co-operational-controls">
+  const controleVisualizacao = (
           <div className="co-section-views-control">
             <button
               ref={visualizationTriggerRef}
@@ -1398,6 +1383,17 @@ export function CronogramaObrasView({
             {sectionViewsOpen && visualizationPopoverPosition && createPortal(
               <div ref={visualizationPopoverRef} data-crono-visualization-popover className="co-section-views-popover" role="dialog" aria-label="Visualização das tabelas" style={visualizationPopoverPosition}>
                 <strong>Visualização das tabelas</strong>
+                {abas && (
+                  <div className="co-section-views-row">
+                    <span>Nome do mestre</span>
+                    <ToggleRow
+                      label="Nome do mestre"
+                      hideLabel
+                      enabled={display.masterNames}
+                      onToggle={() => setDisplay((current) => ({ ...current, masterNames: !current.masterNames }))}
+                    />
+                  </div>
+                )}
                 <div className="co-section-views-row">
                   <span>Linha de Base</span>
                   <ToggleRow
@@ -1440,9 +1436,51 @@ export function CronogramaObrasView({
               document.body,
             )}
           </div>
+  );
+
+  return (
+    <GravarStatusLoteContext.Provider value={fontes.gravarStatusLote}>
+    <main className={`co-page co-zoom--${zoom}${tema ? ` co-tema-${tema}` : ""}`}>
+      {abas ? (
+        <nav className="co-abas" aria-label="Seções do cronograma">
+          {([
+            ["obras", "Cronograma"],
+            ["mestres", "Mestres"],
+            ["prazos", "Prazos Contratuais"],
+          ] as const).map(([valor, rotulo]) => (
+            <button key={valor} type="button" className={view === valor ? "is-active" : ""} aria-pressed={view === valor} disabled={isViewTransitioning} onClick={() => changeView(valor)}>{rotulo}</button>
+          ))}
+        </nav>
+      ) : (
+      <section className="co-indicators-bar">
+        <div className="co-indicators-group">
+          <div>
+            <span>Em andamento</span>
+            <strong>{indicators.running}</strong>
+          </div>
+          <div>
+            <span>Aguardando recurso</span>
+            <strong>{indicators.waiting}</strong>
+          </div>
+          <div>
+            <span>Mestres alocados</span>
+            <strong>{indicators.allocated}</strong>
+          </div>
+          <div>
+            <span>Obras sem mestre planejado</span>
+            <strong>{indicators.unassigned}</strong>
+          </div>
+          <div className={indicators.conflicts ? "has-alert" : ""}>
+            <span>Conflitos de alocação</span>
+            <strong>{indicators.conflicts}</strong>
+          </div>
+          </div>
+          <div className="co-operational-controls">
+          {controleVisualizacao}
           <CalendarToggles options={display} onChange={setDisplay} />
         </div>
       </section>
+      )}
       {false && <section className="co-indicators">
         <div>
           <span>Em andamento</span>
@@ -1470,13 +1508,13 @@ export function CronogramaObrasView({
         aria-busy={isViewTransitioning}
         ref={scheduleContentRef}
       >
-      <FiltersBar
+      {view !== "prazos" && <FiltersBar
         filters={filters}
         statuses={[...new Set(obras.map((obra) => obra.status))]}
         companies={[...new Set(obras.map((obra) => obra.empresa))]}
         masters={masters}
         onChange={setFilters}
-      />
+      />}
       {addingMaster && (
         <div
           className="co-master-modal"
@@ -1526,6 +1564,7 @@ export function CronogramaObrasView({
             <header className="co-section-heading">
               <h2>Obra iniciada ({contratosPorSituacao.iniciada})</h2>
               {masterPalette}
+              {abas && controleVisualizacao}
               <div className="co-view-switch co-zoom-switch" aria-label="Escala do cronograma">
                 {([ ["day", "Dias"], ["week", "Semanas"] ] as const).map(([value, label]) => (
                   <button type="button" key={value} disabled={isViewTransitioning} className={zoom === value ? "is-active" : ""} onClick={() => changeZoom(value)}>{label}</button>
@@ -1635,15 +1674,15 @@ export function CronogramaObrasView({
             </p>
           )}
         </div>
-      ) : (
+      ) : view === "mestres" ? (
         <>
           <header className="co-section-heading co-masters-section-heading">
             <h2>Mestres</h2>
             {masterPalette}
-            <button type="button" className="co-button co-button--secondary" disabled={isViewTransitioning} onClick={() => changeView("obras")}>
+            {!abas && <button type="button" className="co-button co-button--secondary" disabled={isViewTransitioning} onClick={() => changeView("obras")}>
               <ArrowBackRounded fontSize="small" />
               Voltar para Obras
-            </button>
+            </button>}
           </header>
           <CronogramaProfiler id="GanttGrid"><GanttGrid
           view={view}
@@ -1680,6 +1719,8 @@ export function CronogramaObrasView({
           onResizeMasterCancel={cancelResizeMaster}
           /></CronogramaProfiler>
         </>
+      ) : (
+        <div className="co-aba-prazos">{abas?.prazos}</div>
       )}
       {view === "mestres" && <WorkloadPanel workloads={workloads} />}
       {viewTransition && (
