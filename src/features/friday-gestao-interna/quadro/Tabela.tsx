@@ -17,6 +17,7 @@ import { MudarTipoDialogo } from './MudarTipo.tsx';
 import { CampoOficialDialogo, TIPOS_OFICIAIS } from './TornarOficial.tsx';
 import { ehPrazo, infoColuna, infoTipo, type Coluna, type Grupo, type Item, type Ordenacao, type Rotulo, type Sub } from './tipos.ts';
 import { fmtDuracao, totalSegundos } from './tempo.ts';
+import { colunaNoTipo, tipoDoItem, type TiposItem } from './tiposSubitem.ts';
 import type { Acoes } from './useQuadro.ts';
 
 export type { Ordenacao };
@@ -26,13 +27,15 @@ const ehFixa = (c: Coluna) => !!c.config?.fixa; // coluna fixada (config.fixa), 
 const LARGURA_NOME = 360; // coluna do item, quando o quadro ainda não tem largura salva (config.largura_nome)
 const LIMITE_INICIAL = 60;
 
-export function Tabela({ grupos: gruposReais, colunas: colunasVisiveis, todasColunas, itens, sub, acoes, ops, usuarios, nomeItem, selecionados, setSelecionados, abrirItem,
+export function Tabela({ grupos: gruposReais, colunas: colunasVisiveis, todasColunas, itens, sub, tiposItem, acoes, ops, usuarios, nomeItem, selecionados, setSelecionados, abrirItem,
   ordenacao, setOrdenacao, ordenacaoAlterada, onSalvarOrdenacao, onOcultar, onAgrupar, onExportarGrupo, agrupamento, larguraNome, onLarguraNome }: {
   grupos: Grupo[];
   colunas: Coluna[];
   todasColunas: Coluna[];
   itens: Item[];
   sub: Sub | null;
+  // Tipos de item (tiposSubitem.ts): célula de coluna que o tipo do item não usa fica cinza e travada.
+  tiposItem?: TiposItem | null;
   acoes: Acoes;
   ops: OpsItens;
   usuarios: Pessoa[];
@@ -241,12 +244,14 @@ export function Tabela({ grupos: gruposReais, colunas: colunasVisiveis, todasCol
                           </span>
                         </div>
                       </td>
-                      {colunas.map(c => (
+                      {colunas.map(c => (tiposItem && !colunaNoTipo(tiposItem, c.id, tipoDoItem(tiposItem, i))
+                        ? <td key={c.id} className={`tq-cel fora-do-tipo${classeFixa(c)}`} style={estiloFixa(c)} title="Esta coluna não vale para o tipo deste item" />
+                        : (
                         <td key={c.id} className={`tq-cel tipo-${c.tipo}${classeFixa(c)}`} style={estiloFixa(c)}>
                           <Celula coluna={c} valor={i.valores[c.id]} usuarios={usuarios} item={i} colunas={todasColunas}
                             onMudar={v => acoes.definirNaCelula(selecionados, i.id, c, v)} onTempo={op => acoes.tempo(i.id, c.id, op)} onConfig={config => acoes.atualizarColuna(c.id, { config })} />
                         </td>
-                      ))}
+                      )))}
                       <td />
                     </tr>,
                     abertos.has(i.id) && (

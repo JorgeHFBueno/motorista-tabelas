@@ -12,7 +12,7 @@ import { MudarTipoDialogo } from './MudarTipo.tsx';
 import { CampoOficialDialogo } from './TornarOficial.tsx';
 import { infoColuna, infoTipo, type Coluna, type Item, type Sub } from './tipos.ts';
 import { porPosicao, type Acoes } from './useQuadro.ts';
-import { colunaNoTipo, tipoDoItem, tiposDoSub } from './tiposSubitem.ts';
+import { chaveDoSubitem, colunaNoTipo, tiposDoSub } from './tiposSubitem.ts';
 
 // Arquivar e excluir com aviso de "Desfazer" (definido na página do quadro).
 export type OpsItens = { arquivar: (ids: number[]) => void; excluir: (ids: number[], nome?: string) => void };
@@ -28,9 +28,9 @@ export function TabelaSubitens({ pai, sub, acoes, ops, usuarios, modo, focarNovo
   const [novo, setNovo] = useState('');
   const itens = (sub?.itens ?? []).filter(s => s.item_pai_id === pai.id).sort(porPosicao);
   const todas = sub?.colunas ?? [];
-  // Tipos de subitem: o tipo do item pai (ex.: PONTE ou PAVILHÃO) decide as colunas mostradas.
+  // Tipos de subitem: a combinação dos tipos do item pai (ex.: PÚBLICA + PONTE) decide as colunas mostradas.
   const tipos = tiposDoSub(sub?.config);
-  const tipo = tipoDoItem(tipos, pai);
+  const tipo = chaveDoSubitem(tipos, pai);
   const colunas = todas.filter(c => !c.oculta && colunaNoTipo(tipos, c.id, tipo));
   const nomeItem = String(sub?.nome_item || 'Subitem');
   const criar = () => { const n = novo.trim(); if (n) { setNovo(''); acoes.criarSubitem(pai.id, n); } };

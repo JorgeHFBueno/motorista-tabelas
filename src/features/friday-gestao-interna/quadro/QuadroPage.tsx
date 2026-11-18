@@ -22,6 +22,7 @@ import type { OpsItens } from './Subitens.tsx';
 import { Tabela } from './Tabela.tsx';
 import { infoColuna, infoTipo, pessoasDoQuadro, textoCelula, type Agrupar, type Coluna, type EstadoVisao, type Grupo, type Item, type Ordenacao, type Visao } from './tipos.ts';
 import { porPosicao, useQuadro } from './useQuadro.ts';
+import { chaveDoSubitem, colunaNoTipo, colunasUsadas, tipoDoItem, tiposDoSub, tiposItemDo } from './tiposSubitem.ts';
 import { Calendario, Cronograma, Kanban } from './Visoes.tsx';
 import LoadingFallback from '../../../components/LoadingFallback';
 
@@ -117,6 +118,14 @@ export default function QuadroPage() {
   // O item aberto pode ser um subitem: o painel usa as colunas dos subitens e mostra o item pai.
   const itemSel = itemAberto ? dados.itens.find(i => i.id === itemAberto) ?? dados.sub?.itens.find(i => i.id === itemAberto) : undefined;
   const paiSel = itemSel?.item_pai_id ? dados.itens.find(i => i.id === itemSel.item_pai_id) : undefined;
+  // Tipos de item e de subitem (tiposSubitem.ts): a tabela mostra as colunas que algum item mostrado usa (célula cinza
+  // na linha cujo tipo não usa); o painel do item mostra só as do tipo dele, e o do subitem, as da combinação do pai.
+  const tiposItem = tiposItemDo(quadro.config);
+  const tiposSub = tiposDoSub(dados.sub?.config);
+  const colunasDaTabela = colunasUsadas(tiposItem, colunasVisiveis, itensFiltrados);
+  const colunasDoPainel = !itemSel ? [] : paiSel
+    ? (dados.sub?.colunas ?? []).filter(c => colunaNoTipo(tiposSub, c.id, chaveDoSubitem(tiposSub, paiSel)))
+    : colunas.filter(c => colunaNoTipo(tiposItem, c.id, tipoDoItem(tiposItem, itemSel)));
   const idsSub = new Set((dados.sub?.itens ?? []).map(i => i.id));
   const temSubSelecionado = [...selecionados].some(id => idsSub.has(id));
   const base = { itens: itensFiltrados, colunas: colunasVisiveis, todasColunas: colunas, grupos, acoes: q, usuarios: nav.usuarios, abrirItem };
@@ -237,7 +246,7 @@ export default function QuadroPage() {
       {/* ---------------- visão */}
       <div className="quadro-conteudo">
         {visao.tipo === 'tabela' && (
-          <Tabela grupos={grupos} colunas={colunasVisiveis} todasColunas={colunas} itens={itensFiltrados} sub={dados.sub} acoes={q} ops={ops} usuarios={nav.usuarios} nomeItem={nomeItem}
+          <Tabela grupos={grupos} colunas={colunasDaTabela} todasColunas={colunas} itens={itensFiltrados} sub={dados.sub} tiposItem={tiposItem} acoes={q} ops={ops} usuarios={nav.usuarios} nomeItem={nomeItem}
             selecionados={selecionados} setSelecionados={setSelecionados} abrirItem={abrirItem}
             ordenacao={estado.ordenacao} setOrdenacao={ordenacao => mudarEstado({ ordenacao })} ordenacaoAlterada={ordenacaoAlterada} onSalvarOrdenacao={salvarOrdenacao}
             onOcultar={id => mudarEstado({ ocultas: [...estado.ocultas, id] })}
@@ -271,7 +280,7 @@ export default function QuadroPage() {
       )}
 
       {itemSel && (
-        <PainelItem key={itemSel.id} item={itemSel} grupo={paiSel ? undefined : grupos.find(g => g.id === itemSel.grupo_id)} colunas={paiSel ? dados.sub?.colunas ?? [] : colunas}
+        <PainelItem key={itemSel.id} item={itemSel} grupo={paiSel ? undefined : grupos.find(g => g.id === itemSel.grupo_id)} colunas={colunasDoPainel}
           pai={paiSel} onAbrirPai={paiSel ? () => abrirItem(paiSel.id, 'subitens') : undefined}
           acoes={q} ops={ops} sub={dados.sub} abaInicial={params.get('aba') ?? undefined} onFechar={() => abrirItem(null)} />
       )}
