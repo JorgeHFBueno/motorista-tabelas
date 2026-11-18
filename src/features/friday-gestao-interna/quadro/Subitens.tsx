@@ -35,20 +35,35 @@ export function TabelaSubitens({ pai, sub, acoes, ops, usuarios, modo, focarNovo
   const nomeItem = String(sub?.nome_item || 'Subitem');
   const criar = () => { const n = novo.trim(); if (n) { setNovo(''); acoes.criarSubitem(pai.id, n); } };
 
-  const largura = (c: Coluna) => Math.min(c.largura ?? 140, modo === 'painel' ? 170 : 220);
-  // Na tabela, a coluna do subitem se ajusta arrastando a borda do cabeçalho (ou duplo clique para caber o conteúdo),
-  // como a coluna do item; vale para todos os subitens do quadro (config.largura_nome do quadro de subitens).
+  // Na tabela, as colunas se ajustam como na tabela principal: arrastar a borda do cabeçalho ou clicar duas vezes nela
+  // para caber o conteúdo. Vale para todos os subitens do quadro: a coluna do subitem em config.largura_nome do quadro
+  // de subitens, as outras na largura da coluna. No painel do item, as colunas ficam estreitas e fixas.
+  const [colArrastando, setColArrastando] = useState<{ id: number; w: number } | null>(null);
+  const largura = (c: Coluna) => (modo === 'painel' ? Math.min(c.largura ?? 140, 170) : colArrastando?.id === c.id ? colArrastando.w : c.largura ?? 140);
   const [nomeArrastando, setNomeArrastando] = useState<number | null>(null);
   const larguraNome = modo === 'painel' ? 250 : nomeArrastando ?? (Number(sub?.config?.largura_nome) || 340);
   const iniciarResizeNome = (x0: number) =>
     arrastarBorda(x0, larguraNome, 200, 900, setNomeArrastando, w => { void acoes.larguraNomeSub(w).finally(() => setNomeArrastando(null)); });
-  // Mede as tabelas de subitens abertas no quadro (todas usam a mesma largura).
-  const ajustarNome = (borda: HTMLElement) => {
+  const iniciarResize = (c: Coluna, x0: number) =>
+    arrastarBorda(x0, largura(c), 70, 600, w => setColArrastando({ id: c.id, w }), w => { acoes.atualizarColuna(c.id, { largura: w }); setColArrastando(null); });
+  // Duplo clique: mede a coluna em todas as tabelas de subitens abertas no quadro (todas usam a mesma largura). Com tipos
+  // de subitem, cada tabela pode ter outras colunas: a posição da coluna vem do cabeçalho (data-coluna) de cada uma.
+  const medir = (borda: HTMLElement, chave: string, min: number, max: number) => {
     const tabelas = [...(borda.closest('.tabela-quadro')?.querySelectorAll<HTMLTableElement>('table.tq-sub') ?? [])];
     const propria = borda.closest<HTMLTableElement>('table.tq-sub');
     if (propria && !tabelas.includes(propria)) tabelas.push(propria);
-    const w = larguraDoConteudo(tabelas, 1, colunas.length + 3, 200, 900);
+    return Math.max(min, ...tabelas.map(t => {
+      const th = t.tHead?.querySelector<HTMLTableCellElement>(`th[data-coluna="${chave}"]`);
+      return th ? larguraDoConteudo([t], th.cellIndex, t.tHead!.rows[0].cells.length, min, max) : min;
+    }));
+  };
+  const ajustarNome = (borda: HTMLElement) => {
+    const w = medir(borda, 'nome', 200, 900);
     if (w !== larguraNome) void acoes.larguraNomeSub(w);
+  };
+  const ajustarColuna = (c: Coluna, borda: HTMLElement) => {
+    const w = medir(borda, String(c.id), 70, 600);
+    if (w !== c.largura) acoes.atualizarColuna(c.id, { largura: w });
   };
   const larguraTotal = 40 + larguraNome + colunas.reduce((s, c) => s + largura(c), 0) + 44;
 
@@ -79,14 +94,15 @@ export function TabelaSubitens({ pai, sub, acoes, ops, usuarios, modo, focarNovo
               <th className="tq-sel">
                 {setSelecionados && <input type="checkbox" className="caixa" checked={todosSel} disabled={!itens.length} aria-label={`Selecionar todos os subitens de ${pai.nome}`} onChange={() => marcar(itens.map(i => i.id), !todosSel)} />}
               </th>
-              <th className="tq-nome tq-nome-sub" title="Clique para mudar como os subitens são chamados (ex.: Escopo da obra)">
+              <th className="tq-nome tq-nome-sub" data-coluna="nome" title="Clique para mudar como os subitens são chamados (ex.: Escopo da obra)">
                 <Editavel valor={nomeItem} className="col-titulo" onSalvar={v => v && acoes.renomearItensSub(v)} />
                 {modo === 'tabela' && (
                   <span className="redim" title="Arraste para ajustar; clique duas vezes para caber o conteúdo"
                     onMouseDown={e => { e.preventDefault(); iniciarResizeNome(e.clientX); }} onDoubleClick={e => ajustarNome(e.currentTarget)} />
                 )}
               </th>
-              {colunas.map(c => <CabecalhoSub key={c.id} coluna={c} acoes={acoes} confirmar={confirmar} />)}
+              {colunas.map(c => <CabecalhoSub key={c.id} coluna={c} acoes={acoes} confirmar={confirmar}
+                {...(modo === 'tabela' ? { onResize: (x: number) => iniciarResize(c, x), onAjustar: (borda: HTMLElement) => ajustarColuna(c, borda) } : {})} />)}
               <th className="tq-mais"><AdicionarColunaSub acoes={acoes} tipo={tipo} /></th>
             </tr>
           </thead>
@@ -157,7 +173,10 @@ function MenuSubitem({ item, ops, onAbrir, onDuplicar }: { item: Item; ops: OpsI
   );
 }
 
-function CabecalhoSub({ coluna, acoes, confirmar }: { coluna: Coluna; acoes: Acoes; confirmar: ReturnType<typeof useConfirmar> }) {
+// onResize/onAjustar: só na tabela (borda de ajuste da largura, como na tabela principal).
+function CabecalhoSub({ coluna, acoes, confirmar, onResize, onAjustar }: {
+  coluna: Coluna; acoes: Acoes; confirmar: ReturnType<typeof useConfirmar>; onResize?: (x: number) => void; onAjustar?: (borda: HTMLElement) => void;
+}) {
   const pop = usePopover<HTMLButtonElement>();
   const [renomear, setRenomear] = useState(false);
   const [campoOficial, setCampoOficial] = useState<'adicionar' | 'descontinuar' | null>(null);
@@ -165,13 +184,17 @@ function CabecalhoSub({ coluna, acoes, confirmar }: { coluna: Coluna; acoes: Aco
   const adm2 = useAuth().authorizationProfile?.adm2 === true;
   const Ic = infoColuna(coluna).icone;
   return (
-    <th className="tq-col">
+    <th className="tq-col" data-coluna={coluna.id}>
       <div className="col-cab">
         <Editavel key={renomear ? 'r' : 'n'} iniciarEditando={renomear} valor={coluna.titulo} className="col-titulo"
           onSalvar={v => { setRenomear(false); if (v) acoes.atualizarColuna(coluna.id, { titulo: v }); }} />
         {coluna.oficial && <span className="col-oficial" title={`Campo oficial dos subitens do cadastro “${coluna.oficial.nome}” (${coluna.oficial.chave}). Pode renomear; não pode excluir.`}><Lock size={12} /></span>}
         <button ref={pop.ref} className="btn-icone col-menu" aria-label={`Menu da coluna ${coluna.titulo}`} onClick={pop.alternar}><MoreHorizontal size={14} /></button>
       </div>
+      {onResize && (
+        <span className="redim" title="Arraste para ajustar; clique duas vezes para caber o conteúdo"
+          onMouseDown={e => { e.preventDefault(); onResize(e.clientX); }} onDoubleClick={e => onAjustar?.(e.currentTarget)} />
+      )}
       {pop.aberto && (
         <Popover ancora={pop.ref.current} onClose={pop.fechar} largura={220}>
           <div className="menu-titulo"><Ic size={14} /> {infoColuna(coluna).rotulo} (subitens)</div>
