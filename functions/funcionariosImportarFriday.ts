@@ -26,24 +26,36 @@ const semAcento = (t: string) => t.normalize('NFD').replace(/\p{M}/gu, '').trim(
 const digitos = (v: unknown) => (typeof v === 'string' || typeof v === 'number' ? String(v).replace(/\D/g, '') : '');
 
 export type Coluna = { id: number; titulo?: unknown; tipo?: unknown };
-export type ColunasPessoa = { telefone: Coluna | null; cpf: Coluna | null; uid: Coluna | null };
+export type ColunasPessoa = { telefones: Coluna[]; cpfs: Coluna[]; uid: Coluna | null };
 
 /**
- * Telefone: coluna "Telefone" ou "Celular" (sem acento e maiúsculas), senão a primeira do tipo telefone. CPF: coluna "CPF".
- * UID: coluna "UID".
+ * Telefone: as colunas "Telefone" ou "Celular" (sem acento e maiúsculas), senão as do tipo telefone. CPF: as colunas "CPF".
+ * UID: a primeira coluna "UID". Pode haver mais de uma com o mesmo título (ex.: uma criada pelo Importar e outra à mão):
+ * o valor do item é o primeiro válido entre elas, na ordem do quadro.
  */
 export function colunasDaPessoa(colunas: Coluna[]): ColunasPessoa {
   const titulo = (c: Coluna) => (typeof c.titulo === 'string' ? semAcento(c.titulo) : '');
-  const telefone = colunas.find(c => ['telefone', 'celular'].includes(titulo(c))) ?? colunas.find(c => c.tipo === 'telefone') ?? null;
-  return { telefone, cpf: colunas.find(c => titulo(c) === 'cpf') ?? null, uid: colunas.find(c => titulo(c) === 'uid') ?? null };
+  const ordem = [...colunas].sort((a, b) => (Number((a as AnyRecord).posicao) || 0) - (Number((b as AnyRecord).posicao) || 0));
+  const porTitulo = ordem.filter(c => ['telefone', 'celular'].includes(titulo(c)));
+  return {
+    telefones: porTitulo.length ? porTitulo : ordem.filter(c => c.tipo === 'telefone'),
+    cpfs: ordem.filter(c => titulo(c) === 'cpf'),
+    uid: ordem.find(c => titulo(c) === 'uid') ?? null,
+  };
+}
+
+/** Primeiro valor válido do item entre as colunas; `preenchido` diz se alguma tinha dígitos (para o motivo). */
+export function lerDasColunas(item: AnyRecord, colunas: Coluna[], ler: (v: unknown) => string | null): { valor: string | null; preenchido: boolean } {
+  const valores = colunas.map(c => (item.valores ?? {})[String(c.id)]);
+  return { valor: valores.map(ler).find((v): v is string => !!v) ?? null, preenchido: valores.some(v => digitos(v) !== '') };
 }
 
 export type ColunaNova = { titulo: string; tipo: string };
 /** Colunas que faltam no quadro, criadas pela Function: Telefone (telefone), CPF (texto) e UID (texto). */
 export function colunasQueFaltam(c: ColunasPessoa): ColunaNova[] {
   return [
-    !c.telefone && { titulo: 'Telefone', tipo: 'telefone' },
-    !c.cpf && { titulo: 'CPF', tipo: 'texto' },
+    !c.telefones.length && { titulo: 'Telefone', tipo: 'telefone' },
+    !c.cpfs.length && { titulo: 'CPF', tipo: 'texto' },
     !c.uid && { titulo: 'UID', tipo: 'texto' },
   ].filter((x): x is ColunaNova => !!x);
 }
@@ -116,32 +128,31 @@ export function classificarItens(
     const achados = livres.filter(f => nomesBatem(nome, f.nome) && (!celular || f.email !== loginDoCelular(celular)));
     return achados.length === 1 ? { uid: achados[0].uid, nome: achados[0].nome ?? '' } : null;
   };
-  const celulas = (item: AnyRecord) => (item.valores ?? {}) as AnyRecord;
   const ativos = itens.filter(ativo);
-  const celularDoItem = (item: AnyRecord) => (colunas.telefone ? celularDe(celulas(item)[String(colunas.telefone.id)]) : null);
+  const celularDoItem = (item: AnyRecord) => lerDasColunas(item, colunas.telefones, celularDe).valor;
   const repetidos = new Map<string, number>();
   for (const item of ativos) { const c = celularDoItem(item); if (c) repetidos.set(c, (repetidos.get(c) ?? 0) + 1); }
 
   return ativos.map(item => {
     const id = String(item.id);
     const nome = String(item.nome).trim().replace(/\s+/g, ' ');
-    const brutoCelular = colunas.telefone ? celulas(item)[String(colunas.telefone.id)] : null;
-    const brutoCpf = colunas.cpf ? celulas(item)[String(colunas.cpf.id)] : null;
-    const celular = celularDoItem(item);
-    const cpf = cpfDe(brutoCpf);
+    const lidoCelular = lerDasColunas(item, colunas.telefones, celularDe);
+    const lidoCpf = lerDasColunas(item, colunas.cpfs, cpfDe);
+    const celular = lidoCelular.valor;
+    const cpf = lidoCpf.valor;
     const base: Interno = { id, nome, celular, situacao: 'novo', uid: null, funcionario: null, motivo: null, sugestao: null, cpf };
     const ligado = porItem.get(id);
     if (ligado) return { ...base, situacao: 'vinculado', uid: ligado.uid, funcionario: ligado.nome };
     const fora = (motivo: string, extra: Partial<Interno> = {}): Interno => ({ ...base, situacao: 'fora', motivo, ...extra });
     const incompleto = (motivo: string): Interno => ({ ...base, situacao: 'incompleto', motivo, sugestao: sugerir(nome, celular) });
-    if (!celular) return incompleto(digitos(brutoCelular) ? 'telefone sem DDD ou com dígitos a mais' : 'sem telefone');
+    if (!celular) return incompleto(lidoCelular.preenchido ? 'telefone sem DDD ou com dígitos a mais' : 'sem telefone');
     if ((repetidos.get(celular) ?? 0) > 1) return fora('o mesmo telefone está em outro item do quadro');
     const uid = contas.get(loginDoCelular(celular)) ?? null;
     if (uid && clientes.has(uid)) return fora('o telefone é login de um cliente do portal');
     const f = uid ? porUid.get(uid) : undefined;
     if (f?.fridayItemId && f.fridayItemId !== id) return fora('o funcionário deste telefone já está ligado a outro item', { uid: f.uid, funcionario: f.nome });
     if (f) return { ...base, situacao: 'funcionario', uid: f.uid, funcionario: f.nome };
-    if (!cpf) return incompleto(digitos(brutoCpf) ? 'CPF inválido' : 'sem CPF');
+    if (!cpf) return incompleto(lidoCpf.preenchido ? 'CPF inválido' : 'sem CPF');
     return { ...base, uid, sugestao: sugerir(nome, celular) };
   });
 }
@@ -212,11 +223,12 @@ export function createImportarFridayService(store: ImportarFridayStore) {
     let colunas = colunasDaPessoa(colunasQuadro);
     const faltam = colunasQueFaltam(colunas);
     if (faltam.length) colunas = colunasDaPessoa(await store.criarColunas(faltam));
-    if (!colunas.telefone || !colunas.cpf || !colunas.uid) throw new HttpsError('internal', 'Não foi possível criar as colunas do quadro FUNCIONARIOS.');
+    if (!colunas.telefones.length || !colunas.cpfs.length || !colunas.uid) throw new HttpsError('internal', 'Não foi possível criar as colunas do quadro FUNCIONARIOS.');
     const colunaUid = colunas.uid;
     const espelho = espelhoDoUid(itens, colunaUid, funcionarios);
     if (espelho.length) await store.gravarUids(colunaUid.id, espelho);
-    const logins = [...new Set(itens.filter(ativo).map(i => celularDe((i.valores ?? {})[String(colunas.telefone!.id)])).filter((c): c is string => !!c).map(loginDoCelular))];
+    const telefones = colunas.telefones;
+    const logins = [...new Set(itens.filter(ativo).map(i => lerDasColunas(i, telefones, celularDe).valor).filter((c): c is string => !!c).map(loginDoCelular))];
     const contas = await store.contas(logins);
     const clientes = await store.clientes([...new Set(contas.values())]);
     const porNome = (a: string, b: string) => a.localeCompare(b, 'pt-BR', { sensitivity: 'base' });

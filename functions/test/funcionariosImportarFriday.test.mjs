@@ -8,23 +8,34 @@ import {
 // CPFs válidos de teste (dígitos verificadores certos), nenhum de pessoa real conhecida.
 const CPF_A = '52998224725';
 const CPF_B = '11144477735';
-const COLUNAS = { telefone: { id: 1, tipo: 'telefone' }, cpf: { id: 2, tipo: 'texto' } };
+const COLUNAS = { telefones: [{ id: 1, tipo: 'telefone' }], cpfs: [{ id: 2, tipo: 'texto' }], uid: null };
 const item = (id, nome, tel, cpf, extra = {}) => ({ id, nome, item_pai_id: null, arquivado_em: null, excluido_em: null, valores: { 1: tel, 2: cpf }, ...extra });
 const func = (uid, nome, extra = {}) => ({ uid, nome, ativo: true, email: null, fridayItemId: null, ...extra });
 
 test('colunas: Telefone/Celular pelo título (ou a primeira de telefone), CPF e UID pelo título', () => {
   assert.deepEqual(colunasDaPessoa([{ id: 1, titulo: 'Telefone', tipo: 'texto' }, { id: 2, titulo: ' cpf ', tipo: 'numero' }, { id: 6, titulo: 'Uid', tipo: 'texto' }]),
-    { telefone: { id: 1, titulo: 'Telefone', tipo: 'texto' }, cpf: { id: 2, titulo: ' cpf ', tipo: 'numero' }, uid: { id: 6, titulo: 'Uid', tipo: 'texto' } });
-  assert.equal(colunasDaPessoa([{ id: 3, titulo: 'Contato', tipo: 'telefone' }]).telefone?.id, 3);
-  assert.equal(colunasDaPessoa([{ id: 4, titulo: 'CELULAR', tipo: 'texto' }, { id: 3, titulo: 'Fixo', tipo: 'telefone' }]).telefone?.id, 4);
-  assert.deepEqual(colunasDaPessoa([{ id: 5, titulo: 'Nome', tipo: 'texto' }]), { telefone: null, cpf: null, uid: null });
+    { telefones: [{ id: 1, titulo: 'Telefone', tipo: 'texto' }], cpfs: [{ id: 2, titulo: ' cpf ', tipo: 'numero' }], uid: { id: 6, titulo: 'Uid', tipo: 'texto' } });
+  assert.deepEqual(colunasDaPessoa([{ id: 3, titulo: 'Contato', tipo: 'telefone' }]).telefones.map(c => c.id), [3]);
+  assert.deepEqual(colunasDaPessoa([{ id: 4, titulo: 'CELULAR', tipo: 'texto' }, { id: 3, titulo: 'Fixo', tipo: 'telefone' }]).telefones.map(c => c.id), [4]);
+  assert.deepEqual(colunasDaPessoa([{ id: 5, titulo: 'Nome', tipo: 'texto' }]), { telefones: [], cpfs: [], uid: null });
+  // Duas colunas "Telefone" (uma criada pelo Importar no fim, outra à mão): as duas, na ordem do quadro.
+  assert.deepEqual(colunasDaPessoa([{ id: 9, titulo: 'Telefone', tipo: 'telefone', posicao: 20 }, { id: 7, titulo: 'Telefone', tipo: 'telefone', posicao: 3 }]).telefones.map(c => c.id), [7, 9]);
 });
 
 test('colunas que faltam: Telefone (telefone), CPF e UID (texto)', () => {
-  assert.deepEqual(colunasQueFaltam({ telefone: null, cpf: null, uid: null }),
+  assert.deepEqual(colunasQueFaltam({ telefones: [], cpfs: [], uid: null }),
     [{ titulo: 'Telefone', tipo: 'telefone' }, { titulo: 'CPF', tipo: 'texto' }, { titulo: 'UID', tipo: 'texto' }]);
-  assert.deepEqual(colunasQueFaltam({ telefone: { id: 1 }, cpf: { id: 2 }, uid: null }), [{ titulo: 'UID', tipo: 'texto' }]);
-  assert.deepEqual(colunasQueFaltam({ telefone: { id: 1 }, cpf: { id: 2 }, uid: { id: 3 } }), []);
+  assert.deepEqual(colunasQueFaltam({ telefones: [{ id: 1 }], cpfs: [{ id: 2 }], uid: null }), [{ titulo: 'UID', tipo: 'texto' }]);
+  assert.deepEqual(colunasQueFaltam({ telefones: [{ id: 1 }], cpfs: [{ id: 2 }], uid: { id: 3 } }), []);
+});
+
+test('duas colunas Telefone: vale a preenchida, seja qual for a ordem', () => {
+  const colunas = { telefones: [{ id: 1 }, { id: 5 }], cpfs: [{ id: 2 }, { id: 6 }], uid: null };
+  const gilson = { id: 50, nome: 'Gilson Da Silva Dos Santos', item_pai_id: null, arquivado_em: null, excluido_em: null, valores: { 5: '(55)9-9913-8909', 6: CPF_A } };
+  const vazio = { ...gilson, id: 51, nome: 'Outro', valores: {} };
+  const r = classificarItens([gilson, vazio], colunas, [], new Map(), new Set());
+  assert.equal(r[0].situacao, 'novo'); assert.equal(r[0].celular, '55999138909'); assert.equal(r[0].cpf, CPF_A);
+  assert.equal(r[1].motivo, 'sem telefone');
 });
 
 test('espelho do UID: preenche o ligado, apaga e corrige o que foi mexido à mão, ignora itens fora da lista', () => {
