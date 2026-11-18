@@ -6,7 +6,7 @@ import {
   COR_SEM_STATUS, ETIQUETAS_PADRAO, etiquetasLimpas, novoIdEtiqueta, statusAoSalvarEtiquetas, statusEncerrado, statusExibido, textoEscuro,
 } from '../src/features/cronograma-logistica/domain/status';
 import { codigoConvertido, codigoDaProgramacao, semCodigoEmOrdem, textoCodigo } from '../src/features/cronograma-logistica/domain/codigo';
-import { colunasVisiveis, ordenarPor, prefsLimpas, rotuloOrdem } from '../src/features/cronograma-logistica/domain/colunas';
+import { COLUNAS, colunasVisiveis, ordenarPor, prefsLimpas, rotuloOrdem } from '../src/features/cronograma-logistica/domain/colunas';
 import {
   diasDoCalendario, inicioDaSemanaId, organizarSemanas, proximaSemanaParaAbrir, rotuloSemana, semanaIdDe, semanaIdValido, vindasDeAntes,
 } from '../src/features/cronograma-logistica/domain/semanas';
@@ -15,7 +15,8 @@ import {
 } from '../src/features/cronograma-logistica/domain/conflitos';
 import { barrasDaLinha, dicaDaBarra, linhasDoCalendario } from '../src/features/cronograma-logistica/domain/calendario';
 import { perguntarAdiamento, textoAdiamento } from '../src/features/cronograma-logistica/domain/adiamento';
-import { REGRAS, automacaoDaColuna, regraAtiva, statusPorAutomacao } from '../src/features/cronograma-logistica/domain/automacoes';
+import { REGRAS, automacaoDaColuna, regraAtiva, statusPorAutomacao, textoDosTrechos } from '../src/features/cronograma-logistica/domain/automacoes';
+import { linkDoQuadro, ORIGENS } from '../src/features/cronograma-logistica/domain/origens';
 import { coordenadaCurta, linkDoMapa, textoLocal } from '../src/features/cronograma-logistica/domain/local';
 import { feriadoEm, feriadosDoAno, fimDeSemana, pascoa } from '../src/features/cronograma-logistica/domain/feriados';
 
@@ -392,4 +393,18 @@ test('feriado no período vira conflito da programação, um por dia, e pode ser
   assert.equal(conflitosIgnorados(todos).get('dois')?.length, 1);
   assert.equal(todos.has('fora'), false);
   assert.equal(todos.has('sem-data'), false);
+});
+
+test('aba Colunas do botão Regras: cada coluna que puxa dados aponta a origem; quadros do Friday com link', () => {
+  const porTitulo = Object.fromEntries(ORIGENS.map((item) => [item.titulo, item.origem]));
+  assert.deepEqual(porTitulo['Veículos'], { tipo: 'colecao', nome: 'veiculos-v2', detalhe: 'Os ativos (cadastro da Frota).' });
+  assert.equal(porTitulo['Obra'].tipo === 'colecao' && porTitulo['Obra'].nome, 'obras-v2');
+  const motorista = porTitulo['Motorista'];
+  assert.equal(motorista.tipo, 'quadro');
+  assert.equal(motorista.tipo === 'quadro' && linkDoQuadro(motorista.id), '/friday/quadros/1793804494102624');
+  assert.equal(porTitulo['Auxiliar'].tipo === 'quadro' && porTitulo['Auxiliar'].id, '1793804423534753');
+  // Toda origem é de uma coluna que existe (ou do par Criado por / Modificado por).
+  for (const { chave } of ORIGENS) assert.ok(chave === 'criadoModificado' || COLUNAS.some((coluna) => coluna.chave === chave), chave);
+  // Os trechos das regras viram o texto do raio do cabeçalho.
+  assert.equal(textoDosTrechos(['o ', { coluna: 'Status' }, ' recebe ', { aviso: 'X' }, ' em ', { status: 'Ag. NF' }]), 'o Status recebe "X" em Ag. NF');
 });

@@ -286,8 +286,20 @@
 .lg-lote-nome { font-weight: 600; }
 .lg-lote small { display: inline-flex; align-items: center; gap: 3px; color: #676879; font-size: 12px; }
 /* Botão Regras: as regras em vigor (fora de .lg-pagina: cores fixas). */
-.lg-regras { width: 380px; max-width: calc(100vw - 32px); padding: 12px 16px; color: #323338; font-size: 14px; }
-.lg-regras-titulo { margin: 0 0 8px; font-weight: 600; }
+.lg-regras { width: 420px; max-width: calc(100vw - 32px); max-height: 75vh; padding: 0 16px 12px; color: #323338; font-size: 14px; }
+.lg-regras-abas { position: sticky; top: 0; z-index: 1; display: flex; gap: 4px; margin: 0 -16px 10px; padding: 8px 16px 0; background: #ffffff; border-bottom: 1px solid #e6e9ef; }
+.lg-regras-abas button { padding: 6px 10px; border: 0; border-bottom: 2px solid transparent; background: none; color: #676879; font: inherit; font-weight: 600; cursor: pointer; }
+.lg-regras-abas button.on { color: #323338; border-bottom-color: #2f6fde; }
+/* Destaques das regras: coluna sublinhada, status com a cor da etiqueta, aviso em itálico. */
+.lg-regra-coluna { text-decoration: underline; text-underline-offset: 2px; }
+.lg-regra-status { display: inline-block; padding: 0 6px; border-radius: 4px; color: #ffffff; font-weight: 600; line-height: 1.5; }
+.lg-regra-status.is-texto-escuro { color: #323338; }
+.lg-regra-aviso { font-style: italic; }
+.lg-origens li { display: grid !important; grid-template-columns: 110px 1fr; gap: 8px !important; }
+.lg-origens li > span:first-child { font-weight: 600; }
+.lg-regras .lg-origens li small { color: #676879; }
+.lg-origens code { font-size: 12px; background: #f6f7fb; padding: 0 4px; border-radius: 3px; }
+.lg-origem-quadro { color: #2f6fde; display: inline-flex; align-items: center; gap: 3px; }
 .lg-regras ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
 .lg-regras li { display: flex; gap: 6px; align-items: flex-start; line-height: 1.4; }
 .lg-regras li > svg { flex: none; margin-top: 3px; color: #fdab3d; }

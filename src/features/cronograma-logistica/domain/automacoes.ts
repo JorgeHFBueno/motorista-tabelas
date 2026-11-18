@@ -15,18 +15,59 @@ export const AUTOMACOES = [
 type CampoAutomacao = (typeof AUTOMACOES)[number]['campo'];
 
 /**
+ * Trecho de uma regra: texto corrido, nome de coluna (sublinhado no botão Regras), valor de status (com a cor da
+ * etiqueta) ou aviso do sino (em itálico).
+ */
+export type Trecho = string | { coluna: string } | { status: string } | { aviso: string };
+
+/**
  * Todas as regras em vigor, de mudança de status (acima) e de aviso no sino (Function logisticaPedidoNota): o botão
  * Regras lista e o raio no cabeçalho da coluna mostra a dela. `etiqueta` é a etiqueta de status de que a regra
  * depende: renomeada ou excluída, a regra não faz nada.
  */
-export const REGRAS = [
-  { coluna: 'expedicao', quando: 'a Expedição receber valor', entao: ['o Status passa para Carregar'], etiqueta: 'Carregar', papel: null },
-  { coluna: 'status', quando: 'o Status passar para Ag. NF', entao: ['o ADMINISTRATIVO recebe o aviso "Novo Pedido de Nota"'], etiqueta: 'Ag. NF', papel: 'administrativo' },
-  { coluna: 'status', quando: 'o Status passar para Ag. Lista de Materiais', entao: ['a ENGENHARIA recebe o aviso "… notificou a Engenharia sobre Ag. Lista de Materiais para OBRA"'], etiqueta: 'Ag. Lista de Materiais', papel: 'engenharia' },
-  { coluna: 'nota', quando: 'a Nota receber o PDF', entao: ['o ADMINISTRATIVO recebe o aviso "Nota anexada"', 'o Status passa para Em viagem'], etiqueta: 'Em viagem', papel: 'administrativo' },
-] as const;
+export const REGRAS: readonly {
+  coluna: string;
+  quando: readonly Trecho[];
+  entao: readonly (readonly Trecho[])[];
+  etiqueta: string;
+  papel: 'administrativo' | 'engenharia' | null;
+}[] = [
+  {
+    coluna: 'expedicao',
+    quando: ['a ', { coluna: 'Expedição' }, ' receber valor'],
+    entao: [['o ', { coluna: 'Status' }, ' passa para ', { status: 'Carregar' }]],
+    etiqueta: 'Carregar',
+    papel: null,
+  },
+  {
+    coluna: 'status',
+    quando: ['o ', { coluna: 'Status' }, ' passar para ', { status: 'Ag. NF' }],
+    entao: [['o ADMINISTRATIVO recebe o aviso ', { aviso: 'Novo Pedido de Nota' }]],
+    etiqueta: 'Ag. NF',
+    papel: 'administrativo',
+  },
+  {
+    coluna: 'status',
+    quando: ['o ', { coluna: 'Status' }, ' passar para ', { status: 'Ag. Lista de Materiais' }],
+    entao: [['a ENGENHARIA recebe o aviso ', { aviso: '… notificou a Engenharia sobre Ag. Lista de Materiais para OBRA' }]],
+    etiqueta: 'Ag. Lista de Materiais',
+    papel: 'engenharia',
+  },
+  {
+    coluna: 'nota',
+    quando: ['a ', { coluna: 'Nota' }, ' receber o PDF'],
+    entao: [['o ADMINISTRATIVO recebe o aviso ', { aviso: 'Nota anexada' }], ['o ', { coluna: 'Status' }, ' passa para ', { status: 'Em viagem' }]],
+    etiqueta: 'Em viagem',
+    papel: 'administrativo',
+  },
+];
 
 export type Regra = (typeof REGRAS)[number];
+
+/** Os trechos como texto simples (o aviso entre aspas). */
+export function textoDosTrechos(trechos: readonly Trecho[]): string {
+  return trechos.map((t) => (typeof t === 'string' ? t : 'coluna' in t ? t.coluna : 'status' in t ? t.status : `"${t.aviso}"`)).join('');
+}
 
 /** A regra funciona: a etiqueta de que ela depende está na lista (sem diferença de acento, caixa e espaços). */
 export const regraAtiva = (regra: Regra, etiquetas: readonly EtiquetaStatus[]) => etiquetas.some((etiqueta) => mesmoNome(etiqueta.nome, regra.etiqueta));
@@ -34,7 +75,9 @@ export const regraAtiva = (regra: Regra, etiquetas: readonly EtiquetaStatus[]) =
 /** Texto das automações da coluna (o raio no cabeçalho), uma por linha, ou null. */
 export function automacaoDaColuna(chave: string): string | null {
   const regras = REGRAS.filter((item) => item.coluna === chave);
-  return regras.length ? regras.map((regra) => `Automação: quando ${regra.quando}, ${regra.entao.join(' e ')}.`).join('\n') : null;
+  return regras.length
+    ? regras.map((regra) => `Automação: quando ${textoDosTrechos(regra.quando)}, ${regra.entao.map(textoDosTrechos).join(' e ')}.`).join('\n')
+    : null;
 }
 
 const vazio = (valor: unknown) => valor == null || (typeof valor === 'string' && valor.trim() === '');
