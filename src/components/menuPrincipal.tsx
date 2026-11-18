@@ -23,6 +23,7 @@ import LogoutRoundedIcon from '@mui/icons-material/LogoutRounded';
 import LoginRoundedIcon from '@mui/icons-material/LoginRounded';
 import HistoryRoundedIcon from '@mui/icons-material/HistoryRounded';
 import AirportShuttleOutlinedIcon from '@mui/icons-material/AirportShuttleOutlined';
+import HelpOutlineRoundedIcon from '@mui/icons-material/HelpOutlineRounded';
 import IconeDev from '../features/dev-toys/IconeDev';
 import IconeFriday from '../features/friday-gestao-interna/IconeFriday';
 import type { AuthorizationProfile } from '../services/authorizationProfile';
@@ -60,6 +61,7 @@ export const menuPrincipal: MenuPrincipalItem[] = [
       { label: 'Saída', to: '/motorista/saida', icon: <LogoutRoundedIcon />, descricao: 'Registrar a saída de um veículo' },
       { label: 'Chegada', to: '/motorista/chegada', icon: <LoginRoundedIcon />, descricao: 'Registrar a chegada na Fábrica' },
       { label: 'Meu histórico', to: '/motorista/historico', icon: <HistoryRoundedIcon />, descricao: 'Suas saídas e chegadas e o que falta enviar' },
+      { label: 'Como usar', to: '/motorista/como-usar', icon: <HelpOutlineRoundedIcon />, descricao: 'O que fazer em cada tela e como instalar no celular' },
     ],
   },
   {

@@ -8,6 +8,7 @@ import {
 } from './domain/atividade';
 import { lerFabrica, listarMotoristas, listarObrasAtividade, listarVeiculosAtividade } from './data/atividadesFirestore';
 import { enviador, useFilaEnvio } from './data/filaEnvio';
+import AjudaKm from './components/AjudaKm';
 
 type Dados = { veiculos: ItemFrotaV2[]; obras: ObraV2[]; fabrica: ObraV2 | null; motoristas: Pessoa[] };
 type Carga = { estado: 'carregando' } | { estado: 'erro' } | { estado: 'pronto'; dados: Dados };
@@ -36,7 +37,6 @@ export default function SaidaChegadaPage({ tipo }: { tipo: TipoAtividade }) {
   const [veiculo, setVeiculo] = useState<ItemFrotaV2 | null>(null);
   const [km, setKm] = useState('');
   const [obra, setObra] = useState<ObraV2 | null>(null);
-  const [local, setLocal] = useState('');
   const [motivo, setMotivo] = useState('');
   const [tentou, setTentou] = useState(false);
   const [salvando, setSalvando] = useState(false);
@@ -73,21 +73,21 @@ export default function SaidaChegadaPage({ tipo }: { tipo: TipoAtividade }) {
   const ultimo = veiculo?.quilometragemUltima ?? null;
   const erroKm = veiculo ? validarKm(km, ultimo, tipo) : null;
   const erroMotivo = chegada ? null : validarMotivo(motivo);
-  const erroLocal = !chegada && !local.trim() ? 'Informe o local.' : null;
 
   const salvar = async () => {
     setTentou(true);
     setErro(null);
     const valorKm = lerKm(km);
     const obraDoLancamento = chegada ? fabrica : obra;
-    if (!eu || !motorista || !veiculo || !obraDoLancamento || valorKm == null || erroKm || erroMotivo || erroLocal) {
+    if (!eu || !motorista || !veiculo || !obraDoLancamento || valorKm == null || erroKm || erroMotivo) {
       setErro('Confira os campos obrigatórios.');
       return;
     }
     setSalvando(true);
     try {
       const pendente = novaAtividade({
-        tipo, veiculo, km: valorKm, obra: obraDoLancamento, local: chegada ? fabrica?.local ?? '' : local, motivo,
+        // O Local não aparece na Saída (decisão de 2026-11-18): vai o da obra escolhida; na Chegada, o da Fábrica.
+        tipo, veiculo, km: valorKm, obra: obraDoLancamento, local: obraDoLancamento.local ?? '', motivo,
         motorista, criadoPor: eu, agora: new Date(),
       });
       await enviador.lancar(pendente);
@@ -162,10 +162,11 @@ export default function SaidaChegadaPage({ tipo }: { tipo: TipoAtividade }) {
             onChange={(e) => setKm(e.target.value.replace(/\D/g, ''))}
             error={tentou && Boolean(erroKm)}
             helperText={(tentou && erroKm) || (veiculo
-              ? `${ultimo == null ? 'Sem KM anterior no cadastro.' : `Último KM: ${numero(ultimo)}.`} Só números, sem pontos (ex.: 125430).`
+              ? (ultimo == null ? 'Sem KM anterior no cadastro.' : `Último KM: ${numero(ultimo)}`)
               : 'Escolha o veículo primeiro.')}
             slotProps={{ htmlInput: { inputMode: 'numeric', pattern: '[0-9]*', autoComplete: 'off' } }}
           />
+          <AjudaKm />
           {chegada ? (
             <>
               <TextField label="Obra" value={fabrica?.nomeObra || '-'} slotProps={{ input: { readOnly: true } }} variant="filled" />
@@ -178,11 +179,7 @@ export default function SaidaChegadaPage({ tipo }: { tipo: TipoAtividade }) {
                 options={dados.obras}
                 value={obra}
                 disabled={salvando}
-                onChange={(_, o) => {
-                  setObra(o);
-                  // O Local vem da obra e pode ser editado.
-                  if (o) setLocal(o.local ?? '');
-                }}
+                onChange={(_, o) => setObra(o)}
                 filterOptions={(opcoes, { inputValue }) => filtrarObras(opcoes, inputValue)}
                 getOptionLabel={obraLabel}
                 isOptionEqualToValue={(a, b) => a.id === b.id}
@@ -198,14 +195,6 @@ export default function SaidaChegadaPage({ tipo }: { tipo: TipoAtividade }) {
                 renderInput={(params) => (
                   <TextField {...params} label="Obra" error={tentou && !obra} helperText={tentou && !obra ? 'Escolha a obra.' : 'Busque pelo nome, sinônimo ou local.'} />
                 )}
-              />
-              <TextField
-                label="Local"
-                value={local}
-                disabled={salvando}
-                onChange={(e) => setLocal(e.target.value)}
-                error={tentou && Boolean(erroLocal)}
-                helperText={(tentou && erroLocal) || ' '}
               />
               <Autocomplete
                 freeSolo

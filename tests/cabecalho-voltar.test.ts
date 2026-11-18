@@ -75,9 +75,9 @@ test('Meu perfil fica dentro de Cadastros e continua aberto a qualquer credencia
   assert.deepEqual(filtrarMenuPrincipal(perfil({})), []);
 });
 
-test('Saída e Chegada no WEB (2026-11-18): grupo Motorista só para a credencial motorista e o adm2', () => {
-  assert.deepEqual(grupo(perfil({ motorista: true }), 'Motorista'), ['Saída', 'Chegada', 'Meu histórico']);
-  assert.deepEqual(grupo(perfil({ adm2: true }), 'Motorista'), ['Saída', 'Chegada', 'Meu histórico']);
+test('Saída e Chegada no WEB (2026-11-18): grupo Motorista só para a credencial motorista e o adm2, com Como usar', () => {
+  assert.deepEqual(grupo(perfil({ motorista: true }), 'Motorista'), ['Saída', 'Chegada', 'Meu histórico', 'Como usar']);
+  assert.deepEqual(grupo(perfil({ adm2: true }), 'Motorista'), ['Saída', 'Chegada', 'Meu histórico', 'Como usar']);
   for (const outro of [{ mecanico: true }, { frentista: true }, { areas: { frota: 'editar' as const } }]) {
     assert.equal(grupo(perfil(outro), 'Motorista'), undefined, JSON.stringify(outro));
   }

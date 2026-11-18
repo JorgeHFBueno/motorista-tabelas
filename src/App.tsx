@@ -43,6 +43,7 @@ const DevToysPage = lazy(() => import('./features/dev-toys/DevToysPage'));
 const TesteMkiPage = lazy(() => import('./features/testes/mki/TesteMkiPage'));
 const SaidaChegadaPage = lazy(() => import('./features/saida-chegada/SaidaChegadaPage'));
 const HistoricoMotoristaPage = lazy(() => import('./features/saida-chegada/HistoricoMotoristaPage'));
+const ComoUsarPage = lazy(() => import('./features/saida-chegada/ComoUsarPage'));
 
 console.log('[build]', import.meta.env.MODE, '__BUILD__', '1122');
 
@@ -71,6 +72,7 @@ export default function App() {
               <Route path="motorista/saida" element={<SaidaChegadaPage key="saida" tipo="saida" />} />
               <Route path="motorista/chegada" element={<SaidaChegadaPage key="chegada" tipo="chegada" />} />
               <Route path="motorista/historico" element={<HistoricoMotoristaPage />} />
+              <Route path="motorista/como-usar" element={<ComoUsarPage />} />
             </Route>
             <Route element={<PrivateRoute permite={entraNoFriday} />}>
               <Route path="friday/*" element={<FridayApp />} />
