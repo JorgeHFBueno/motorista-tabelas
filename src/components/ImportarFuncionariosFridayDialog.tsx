@@ -100,6 +100,8 @@ export default function ImportarFuncionariosFridayDialog({ open, onClose, onImpo
             Sugere contas a partir dos itens do quadro FUNCIONARIOS do Friday, que continua livre. Quem é <b>novo</b> ganha login pelo
             <b> telefone</b>, senha com os <b>6 primeiros dígitos do CPF</b> e só a credencial <b>Motorista</b>. Quem <b>já é funcionário</b>{' '}
             (mesmo telefone) só é ligado ao item. Quem já está no sistema com <b>outro login</b> aparece como novo: use <b>Ligar</b> para não duplicar.
+            A coluna <b>UID</b> do quadro mostra quem já está ligado; ela é conferida e corrigida a cada vez que este popup abre. As colunas
+            Telefone, CPF e UID são criadas no quadro se faltarem.
           </Typography>
 
           {resultados && (

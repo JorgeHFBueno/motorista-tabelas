@@ -1,12 +1,15 @@
 import { HttpsError, onCall } from 'firebase-functions/v2/https';
 import * as logger from 'firebase-functions/logger';
-import { FieldValue } from 'firebase-admin/firestore';
+import { FieldPath, FieldValue } from 'firebase-admin/firestore';
 import { adminAuth, db } from './firebaseAdmin.js';
 import { credenciaisDe, editaArea } from './credenciais.js';
+import { novoId } from './fridayMondayConverter.js';
 import { nomesBatem } from './fridayMondayPessoas.js';
 import { QUADRO_FUNCIONARIOS } from './logisticaPessoas.js';
 
-// Importar do quadro FUNCIONARIOS do Friday para Cadastros → Usuários (escritorio ou adm2). O quadro só é lido.
+// Importar do quadro FUNCIONARIOS do Friday para Cadastros → Usuários (quem edita Cadastros). Do quadro, só são
+// gravadas as colunas Telefone, CPF e UID quando faltam, e a coluna UID: espelho do vínculo real (funcionarios.fridayItemId),
+// regravada a cada leitura (preenchida, apagada ou corrigida se alguém mexeu à mão).
 // - "listar": cada item ativo do quadro com a situação dele aqui (novo, já funcionário, ligado, incompleto ou fora).
 // - "criar": quem é novo ganha conta (login = celular, senha = 6 primeiros dígitos do CPF) e funcionarios/{uid} só
 //   com a credencial Motorista; quem já é funcionário (mesmo celular) só é ligado. O CPF não é guardado.
@@ -23,13 +26,42 @@ const semAcento = (t: string) => t.normalize('NFD').replace(/\p{M}/gu, '').trim(
 const digitos = (v: unknown) => (typeof v === 'string' || typeof v === 'number' ? String(v).replace(/\D/g, '') : '');
 
 export type Coluna = { id: number; titulo?: unknown; tipo?: unknown };
-export type ColunasPessoa = { telefone: Coluna | null; cpf: Coluna | null };
+export type ColunasPessoa = { telefone: Coluna | null; cpf: Coluna | null; uid: Coluna | null };
 
-/** Telefone: coluna "Telefone" ou "Celular" (sem acento e maiúsculas), senão a primeira do tipo telefone. CPF: coluna "CPF". */
+/**
+ * Telefone: coluna "Telefone" ou "Celular" (sem acento e maiúsculas), senão a primeira do tipo telefone. CPF: coluna "CPF".
+ * UID: coluna "UID".
+ */
 export function colunasDaPessoa(colunas: Coluna[]): ColunasPessoa {
   const titulo = (c: Coluna) => (typeof c.titulo === 'string' ? semAcento(c.titulo) : '');
   const telefone = colunas.find(c => ['telefone', 'celular'].includes(titulo(c))) ?? colunas.find(c => c.tipo === 'telefone') ?? null;
-  return { telefone, cpf: colunas.find(c => titulo(c) === 'cpf') ?? null };
+  return { telefone, cpf: colunas.find(c => titulo(c) === 'cpf') ?? null, uid: colunas.find(c => titulo(c) === 'uid') ?? null };
+}
+
+export type ColunaNova = { titulo: string; tipo: string };
+/** Colunas que faltam no quadro, criadas pela Function: Telefone (telefone), CPF (texto) e UID (texto). */
+export function colunasQueFaltam(c: ColunasPessoa): ColunaNova[] {
+  return [
+    !c.telefone && { titulo: 'Telefone', tipo: 'telefone' },
+    !c.cpf && { titulo: 'CPF', tipo: 'texto' },
+    !c.uid && { titulo: 'UID', tipo: 'texto' },
+  ].filter((x): x is ColunaNova => !!x);
+}
+
+/**
+ * Células da coluna UID que precisam mudar para espelhar o vínculo real: o UID do funcionário ligado ao item, ou vazio.
+ * Só itens ativos de primeiro nível (os outros não aparecem no Importar).
+ */
+export function espelhoDoUid(itens: AnyRecord[], colunaUid: Coluna, funcionarios: FuncionarioResumo[]): { itemId: number; valor: string | null }[] {
+  const porItem = new Map(funcionarios.filter(f => f.fridayItemId).map(f => [f.fridayItemId!, f.uid]));
+  const mudancas: { itemId: number; valor: string | null }[] = [];
+  for (const item of itens.filter(ativo)) {
+    const esperado = porItem.get(String(item.id)) ?? null;
+    const atual = (item.valores ?? {})[String(colunaUid.id)];
+    const texto = typeof atual === 'string' && atual.trim() ? atual.trim() : null;
+    if (texto !== esperado || (esperado == null && atual != null)) mudancas.push({ itemId: Number(item.id), valor: esperado });
+  }
+  return mudancas;
 }
 
 /** Celular com DDD (10 ou 11 dígitos; o 55 do país sai); null quando não serve de login. */
@@ -155,6 +187,10 @@ export interface ImportarFridayStore {
   criarFuncionario(uid: string, dados: AnyRecord): Promise<void>;
   /** Grava fridayItemId no funcionário, se ele existe e ainda não está ligado a um item. */
   ligar(uid: string, itemId: string): Promise<void>;
+  /** Cria no quadro as colunas que ainda faltam (pelo título) e devolve todas as colunas do quadro. */
+  criarColunas(novas: ColunaNova[]): Promise<Coluna[]>;
+  /** Grava (ou apaga, com null) a célula da coluna UID de cada item. */
+  gravarUids(colunaId: number, mudancas: { itemId: number; valor: string | null }[]): Promise<void>;
 }
 
 /** Documento do funcionário criado pelo quadro: só Motorista; `motorista.ordem` como nos outros pontos de criação. */
@@ -171,11 +207,15 @@ export function createImportarFridayService(store: ImportarFridayStore) {
     if (!editaArea(await store.getEmployee(uid), 'cadastros')) throw new HttpsError('permission-denied', 'Acesso não autorizado.');
   }
 
-  async function situacaoAtual(): Promise<{ pessoas: Interno[]; livres: { uid: string; nome: string; ativo: boolean }[] }> {
+  async function situacaoAtual(): Promise<{ pessoas: Interno[]; livres: { uid: string; nome: string; ativo: boolean }[]; colunaUid: Coluna }> {
     const [itens, colunasQuadro, funcionarios] = await Promise.all([store.itensDoQuadro(), store.colunasDoQuadro(), store.funcionarios()]);
-    const colunas = colunasDaPessoa(colunasQuadro);
-    const faltam = [!colunas.telefone && 'Telefone', !colunas.cpf && 'CPF'].filter(Boolean);
-    if (faltam.length) throw new HttpsError('failed-precondition', `O quadro FUNCIONARIOS não tem a coluna ${faltam.join(' nem a coluna ')}.`);
+    let colunas = colunasDaPessoa(colunasQuadro);
+    const faltam = colunasQueFaltam(colunas);
+    if (faltam.length) colunas = colunasDaPessoa(await store.criarColunas(faltam));
+    if (!colunas.telefone || !colunas.cpf || !colunas.uid) throw new HttpsError('internal', 'Não foi possível criar as colunas do quadro FUNCIONARIOS.');
+    const colunaUid = colunas.uid;
+    const espelho = espelhoDoUid(itens, colunaUid, funcionarios);
+    if (espelho.length) await store.gravarUids(colunaUid.id, espelho);
     const logins = [...new Set(itens.filter(ativo).map(i => celularDe((i.valores ?? {})[String(colunas.telefone!.id)])).filter((c): c is string => !!c).map(loginDoCelular))];
     const contas = await store.contas(logins);
     const clientes = await store.clientes([...new Set(contas.values())]);
@@ -183,16 +223,28 @@ export function createImportarFridayService(store: ImportarFridayStore) {
     return {
       pessoas: classificarItens(itens, colunas, funcionarios, contas, clientes).sort((a, b) => porNome(a.nome, b.nome)),
       livres: funcionarios.filter(f => !f.fridayItemId).map(f => ({ uid: f.uid, nome: f.nome ?? f.uid, ativo: f.ativo })).sort((a, b) => porNome(a.nome, b.nome)),
+      colunaUid,
     };
   }
 
-  async function criarUma(p: Interno): Promise<ResultadoPessoa> {
+  /** Liga o funcionário ao item e já mostra o UID na coluna (a próxima leitura também confere). */
+  async function ligarEMostrar(uid: string, itemId: string, colunaUid: Coluna) {
+    await store.ligar(uid, itemId);
+    await mostrarUid(uid, itemId, colunaUid);
+  }
+  // A coluna é só espelho: se falhar, a ligação já valeu e a próxima leitura do Importar corrige a célula.
+  async function mostrarUid(uid: string, itemId: string, colunaUid: Coluna) {
+    await store.gravarUids(colunaUid.id, [{ itemId: Number(itemId), valor: uid }])
+      .catch(e => logger.warn('funcionarios-importar-friday:uid', { itemId, mensagem: String(e) }));
+  }
+
+  async function criarUma(p: Interno, colunaUid: Coluna): Promise<ResultadoPessoa> {
     const r = (resultado: ResultadoPessoa['resultado'], mensagem?: string): ResultadoPessoa => ({ id: p.id, nome: p.nome, resultado, ...(mensagem ? { mensagem } : {}) });
     if (p.situacao === 'vinculado') return r('vinculado', 'já estava ligado');
     if (p.situacao === 'fora' || p.situacao === 'incompleto') return r('erro', p.motivo ?? 'fora da importação');
     if (p.situacao === 'funcionario') {
       // Já é funcionário (mesmo celular): só liga ao item; login, senha, credenciais e situação não mudam.
-      await store.ligar(p.uid!, p.id);
+      await ligarEMostrar(p.uid!, p.id, colunaUid);
       return r('vinculado');
     }
     const senha = senhaDoCpf(p.cpf!);
@@ -206,6 +258,7 @@ export function createImportarFridayService(store: ImportarFridayStore) {
       if (criada) await store.apagarConta(criada).catch(() => undefined);
       throw e;
     }
+    await mostrarUid(uid, p.id, colunaUid);
     return r('criado');
   }
 
@@ -220,13 +273,13 @@ export function createImportarFridayService(store: ImportarFridayStore) {
       await exigirAcesso(uid);
       const pedido = lerPedido(dados);
       if ('erro' in pedido) throw new HttpsError('invalid-argument', pedido.erro);
-      const atuais = (await situacaoAtual()).pessoas;
+      const { pessoas: atuais, colunaUid } = await situacaoAtual();
       const escolhidas = pedido.ids.map(id => atuais.find(p => p.id === id)).filter((p): p is Interno => !!p);
       if (escolhidas.length !== pedido.ids.length) throw new HttpsError('not-found', 'Alguma pessoa escolhida não está mais no quadro.');
       const resultados: ResultadoPessoa[] = [];
       for (const p of escolhidas) {
         try {
-          resultados.push(await criarUma(p));
+          resultados.push(await criarUma(p, colunaUid));
         } catch (e) {
           logger.error('funcionarios-importar-friday:criar', { itemId: p.id, mensagem: String(e) });
           const codigo = (e as { code?: string })?.code;
@@ -241,10 +294,11 @@ export function createImportarFridayService(store: ImportarFridayStore) {
       await exigirAcesso(uid);
       const ligacao = lerLigacao(dados);
       if ('erro' in ligacao) throw new HttpsError('invalid-argument', ligacao.erro);
-      const p = (await situacaoAtual()).pessoas.find(x => x.id === ligacao.itemId);
+      const { pessoas, colunaUid } = await situacaoAtual();
+      const p = pessoas.find(x => x.id === ligacao.itemId);
       if (!p) throw new HttpsError('not-found', 'A pessoa escolhida não está mais no quadro.');
       if (p.situacao !== 'novo' && p.situacao !== 'incompleto') throw new HttpsError('failed-precondition', `${p.nome} não aparece mais como nova. Atualize a lista.`);
-      await store.ligar(ligacao.uid, p.id);
+      await ligarEMostrar(ligacao.uid, p.id, colunaUid);
       return { resultado: { id: p.id, nome: p.nome, resultado: 'vinculado' } satisfies ResultadoPessoa };
     },
   };
@@ -308,6 +362,34 @@ const service = createImportarFridayService({
       if (!outros.empty) throw new HttpsError('failed-precondition', 'Este item já está ligado a outro funcionário.');
       tx.update(ref, { fridayItemId: itemId, updatedAt: FieldValue.serverTimestamp() });
     });
+  },
+  async criarColunas(novas) {
+    const colunasRef = db.collection('friday-colunas');
+    const doQuadro = colunasRef.where('quadro_id', '==', QUADRO_FUNCIONARIOS);
+    // Na transação, confere de novo pelo título: duas pessoas abrindo o Importar juntas não duplicam a coluna.
+    await db.runTransaction(async tx => {
+      const atuais = (await tx.get(doQuadro)).docs.map(d => d.data() as Coluna & { posicao?: number });
+      const faltam = colunasQueFaltam(colunasDaPessoa(atuais)).filter(c => novas.some(n => n.titulo === c.titulo));
+      let posicao = Math.max(0, ...atuais.map(c => Number(c.posicao) || 0));
+      for (const c of faltam) {
+        const id = novoId();
+        posicao += 1;
+        // Mesmos campos e padrões da coluna criada pela tela do Friday.
+        tx.set(colunasRef.doc(String(id)), { id, quadro_id: QUADRO_FUNCIONARIOS, titulo: c.titulo, tipo: c.tipo, config: {}, largura: 140, posicao, oculta: 0, origem_id: null });
+      }
+    });
+    logger.info('funcionarios-importar-friday:colunas', { criadas: novas.map(c => c.titulo) });
+    return (await doQuadro.get()).docs.map(d => d.data() as Coluna);
+  },
+  async gravarUids(colunaId, mudancas) {
+    // Só a célula: atualizado_em do item não muda (é espelho do vínculo, não edição de alguém).
+    for (let k = 0; k < mudancas.length; k += 400) {
+      const lote = db.batch();
+      for (const m of mudancas.slice(k, k + 400)) {
+        lote.update(db.collection('friday-itens').doc(String(m.itemId)), new FieldPath('valores', String(colunaId)), m.valor ?? FieldValue.delete());
+      }
+      await lote.commit();
+    }
   },
 });
 

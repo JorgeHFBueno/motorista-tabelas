@@ -1,7 +1,8 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import {
-  celularDe, classificarItens, colunasDaPessoa, cpfDe, createImportarFridayService, lerLigacao, lerPedido, novoFuncionario, senhaDoCpf,
+  celularDe, classificarItens, colunasDaPessoa, colunasQueFaltam, cpfDe, createImportarFridayService, espelhoDoUid, lerLigacao, lerPedido,
+  novoFuncionario, senhaDoCpf,
 } from '../lib/funcionariosImportarFriday.js';
 
 // CPFs válidos de teste (dígitos verificadores certos), nenhum de pessoa real conhecida.
@@ -11,12 +12,34 @@ const COLUNAS = { telefone: { id: 1, tipo: 'telefone' }, cpf: { id: 2, tipo: 'te
 const item = (id, nome, tel, cpf, extra = {}) => ({ id, nome, item_pai_id: null, arquivado_em: null, excluido_em: null, valores: { 1: tel, 2: cpf }, ...extra });
 const func = (uid, nome, extra = {}) => ({ uid, nome, ativo: true, email: null, fridayItemId: null, ...extra });
 
-test('colunas: Telefone/Celular pelo título (ou a primeira de telefone) e CPF pelo título', () => {
-  assert.deepEqual(colunasDaPessoa([{ id: 1, titulo: 'Telefone', tipo: 'texto' }, { id: 2, titulo: ' cpf ', tipo: 'numero' }]),
-    { telefone: { id: 1, titulo: 'Telefone', tipo: 'texto' }, cpf: { id: 2, titulo: ' cpf ', tipo: 'numero' } });
+test('colunas: Telefone/Celular pelo título (ou a primeira de telefone), CPF e UID pelo título', () => {
+  assert.deepEqual(colunasDaPessoa([{ id: 1, titulo: 'Telefone', tipo: 'texto' }, { id: 2, titulo: ' cpf ', tipo: 'numero' }, { id: 6, titulo: 'Uid', tipo: 'texto' }]),
+    { telefone: { id: 1, titulo: 'Telefone', tipo: 'texto' }, cpf: { id: 2, titulo: ' cpf ', tipo: 'numero' }, uid: { id: 6, titulo: 'Uid', tipo: 'texto' } });
   assert.equal(colunasDaPessoa([{ id: 3, titulo: 'Contato', tipo: 'telefone' }]).telefone?.id, 3);
   assert.equal(colunasDaPessoa([{ id: 4, titulo: 'CELULAR', tipo: 'texto' }, { id: 3, titulo: 'Fixo', tipo: 'telefone' }]).telefone?.id, 4);
-  assert.deepEqual(colunasDaPessoa([{ id: 5, titulo: 'Nome', tipo: 'texto' }]), { telefone: null, cpf: null });
+  assert.deepEqual(colunasDaPessoa([{ id: 5, titulo: 'Nome', tipo: 'texto' }]), { telefone: null, cpf: null, uid: null });
+});
+
+test('colunas que faltam: Telefone (telefone), CPF e UID (texto)', () => {
+  assert.deepEqual(colunasQueFaltam({ telefone: null, cpf: null, uid: null }),
+    [{ titulo: 'Telefone', tipo: 'telefone' }, { titulo: 'CPF', tipo: 'texto' }, { titulo: 'UID', tipo: 'texto' }]);
+  assert.deepEqual(colunasQueFaltam({ telefone: { id: 1 }, cpf: { id: 2 }, uid: null }), [{ titulo: 'UID', tipo: 'texto' }]);
+  assert.deepEqual(colunasQueFaltam({ telefone: { id: 1 }, cpf: { id: 2 }, uid: { id: 3 } }), []);
+});
+
+test('espelho do UID: preenche o ligado, apaga e corrige o que foi mexido à mão, ignora itens fora da lista', () => {
+  const uid = { id: 3 };
+  const itens = [
+    item(1, 'Ligado sem célula', '', ''),
+    { ...item(2, 'Ligado certo', '', ''), valores: { 3: 'u2' } },
+    { ...item(3, 'Ligado trocado', '', ''), valores: { 3: 'outro' } },
+    { ...item(4, 'Sem vínculo com célula', '', ''), valores: { 3: 'lixo' } },
+    item(5, 'Sem vínculo e vazio', '', ''),
+    { ...item(6, 'Arquivado', '', ''), arquivado_em: '2026-11-01 10:00:00', valores: { 3: 'lixo' } },
+    { ...item(7, 'Com espaços', '', ''), valores: { 3: ' u7 ' } },
+  ];
+  const funcionarios = [func('u1', 'A', { fridayItemId: '1' }), func('u2', 'B', { fridayItemId: '2' }), func('u3', 'C', { fridayItemId: '3' }), func('u7', 'D', { fridayItemId: '7' })];
+  assert.deepEqual(espelhoDoUid(itens, uid, funcionarios), [{ itemId: 1, valor: 'u1' }, { itemId: 3, valor: 'u3' }, { itemId: 4, valor: null }]);
 });
 
 test('celular: só dígitos, com DDD; o 55 do país sai', () => {
@@ -104,7 +127,9 @@ function loja(extra = {}) {
     store: {
       async getEmployee(uid) { return { esc: { ativo: true, perfis: {}, areas: { cadastros: 'editar' } }, ver: { ativo: true, perfis: {}, areas: { cadastros: 'ver' } }, mot: { ativo: true, perfis: { motorista: true } } }[uid]; },
       async itensDoQuadro() { return [item(1, 'Ana Souza', '51999990001', CPF_A), item(2, 'Bruno Lima', '51999990002', ''), item(3, 'Caio', '51999990003', CPF_B), item(4, 'Sem tel', '', CPF_A)]; },
-      async colunasDoQuadro() { return [{ id: 1, titulo: 'Telefone', tipo: 'telefone' }, { id: 2, titulo: 'CPF', tipo: 'texto' }]; },
+      async colunasDoQuadro() { return [{ id: 1, titulo: 'Telefone', tipo: 'telefone' }, { id: 2, titulo: 'CPF', tipo: 'texto' }, { id: 3, titulo: 'UID', tipo: 'texto' }]; },
+      async criarColunas(novas) { log.push(['colunas', novas.map(c => c.titulo)]); return [{ id: 1, titulo: 'Telefone', tipo: 'telefone' }, { id: 2, titulo: 'CPF', tipo: 'texto' }, { id: 3, titulo: 'UID', tipo: 'texto' }]; },
+      async gravarUids(colunaId, mudancas) { log.push(['uid', colunaId, mudancas]); },
       async funcionarios() { return funcionarios; },
       async contas() { return new Map([['51999990002@example.com', 'u2'], ['51999990003@example.com', 'solta']]); },
       async clientes() { return new Set(); },
@@ -136,9 +161,9 @@ test('serviço: criar com senha = 6 primeiros dígitos do CPF; liga quem já é 
   assert.deepEqual(resultados.map(r => r.resultado), ['criado', 'vinculado', 'criado', 'erro']);
   assert.equal(resultados[3].mensagem, 'sem telefone');
   assert.deepEqual(log, [
-    ['criarConta', '51999990001@example.com', '529982', 'Ana Souza'], ['funcionario', 'novo-uid', '1'],
-    ['ligar', 'u2', '2'],
-    ['reaproveitar', 'solta', '111444', 'Caio'], ['funcionario', 'solta', '3'],
+    ['criarConta', '51999990001@example.com', '529982', 'Ana Souza'], ['funcionario', 'novo-uid', '1'], ['uid', 3, [{ itemId: 1, valor: 'novo-uid' }]],
+    ['ligar', 'u2', '2'], ['uid', 3, [{ itemId: 2, valor: 'u2' }]],
+    ['reaproveitar', 'solta', '111444', 'Caio'], ['funcionario', 'solta', '3'], ['uid', 3, [{ itemId: 3, valor: 'solta' }]],
   ]);
   await assert.rejects(createImportarFridayService(store).criar('esc', { ids: ['999'] }), { code: 'not-found' });
 });
@@ -150,15 +175,27 @@ test('serviço: falha ao gravar o funcionário apaga a conta criada agora', asyn
   assert.deepEqual(log.filter(l => l[0] === 'apagar'), [['apagar', 'novo-uid']]); // a conta solta reaproveitada não é apagada
 });
 
-test('serviço: falta coluna no quadro', async () => {
-  const { store } = loja({ async colunasDoQuadro() { return [{ id: 1, titulo: 'Telefone', tipo: 'telefone' }]; } });
-  await assert.rejects(createImportarFridayService(store).listar('esc'), { code: 'failed-precondition', message: /CPF/ });
+test('serviço: cria as colunas que faltam e confere o espelho do UID ao listar', async () => {
+  const { store, log } = loja({
+    async colunasDoQuadro() { return [{ id: 1, titulo: 'Telefone', tipo: 'telefone' }]; },
+    async funcionarios() { return [func('u2', 'Bruno Lima', { email: '51999990002@example.com', fridayItemId: '2' })]; },
+  });
+  const { pessoas } = await createImportarFridayService(store).listar('esc');
+  assert.deepEqual(log, [['colunas', ['CPF', 'UID']], ['uid', 3, [{ itemId: 2, valor: 'u2' }]]]);
+  assert.equal(pessoas.find(p => p.id === '2').situacao, 'vinculado');
+});
+
+test('serviço: falha ao mostrar o UID não desfaz a criação', async () => {
+  const { store, log } = loja({ async gravarUids() { throw new Error('sem permissão'); } });
+  const { resultados } = await createImportarFridayService(store).criar('esc', { ids: ['1'] });
+  assert.deepEqual(resultados.map(r => r.resultado), ['criado']);
+  assert.ok(!log.some(l => l[0] === 'apagar'));
 });
 
 test('serviço: ligar só item novo ou incompleto', async () => {
   const { store, log } = loja();
   const s = createImportarFridayService(store);
   assert.equal((await s.ligar('esc', { itemId: '4', uid: 'livre' })).resultado.resultado, 'vinculado');
-  assert.deepEqual(log, [['ligar', 'livre', '4']]);
+  assert.deepEqual(log, [['ligar', 'livre', '4'], ['uid', 3, [{ itemId: 4, valor: 'livre' }]]]);
   await assert.rejects(s.ligar('esc', { itemId: '2', uid: 'livre' }), { code: 'failed-precondition' });
 });
