@@ -251,6 +251,15 @@ body.redimensionando .friday-root, body.redimensionando .friday-root * { cursor:
 .friday-root .tq-col.com-ordem-rapida .col-cab { padding-top: 10px; }
 .friday-root .redim { position: absolute; top: 0; right: -3px; width: 6px; height: 100%; cursor: col-resize; z-index: 3; }
 .friday-root .redim:hover { background: var(--primaria-clara); }
+/* arrastar o cabeçalho muda a coluna de lugar: a cópia segue o mouse, a original fica apagada e a linha azul marca o destino */
+.friday-root .arrastavel { cursor: grab; }
+.friday-root .somente-leitura .arrastavel { cursor: auto; }
+.friday-root .tq thead th.col-arrastada { background: var(--hover); }
+.friday-root .tq thead th.col-arrastada .col-cab { opacity: 0.4; }
+.friday-root .tq thead th.alvo-esq { box-shadow: inset 3px 0 0 var(--primaria); }
+.friday-root .tq thead th.alvo-dir { box-shadow: inset -3px 0 0 var(--primaria); }
+.friday-root .coluna-fantasma { position: fixed; z-index: 1000; display: flex; align-items: center; justify-content: center; padding: 0 10px; background: var(--superficie); border: 1px solid var(--primaria); border-radius: 4px; box-shadow: var(--sombra); color: var(--texto); font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; pointer-events: none; }
+body.arrastando-coluna .friday-root, body.arrastando-coluna .friday-root * { cursor: grabbing !important; user-select: none; }
 .friday-root .tq-mais { text-align: center; }
 .friday-root .nome-item { display: flex; align-items: center; gap: 4px; height: 36px; padding-right: 6px; }
 .friday-root .nome-item .nome-texto { flex: 1; min-width: 0; }

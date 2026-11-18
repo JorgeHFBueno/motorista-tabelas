@@ -120,6 +120,65 @@ export function arrastarBorda(x0: number, w0: number, min: number, max: number, 
   document.addEventListener('mouseup', soltar);
 }
 
+// Arrastar o cabeçalho de uma coluna para outro lugar (como no monday). Só começa depois de 5 px, então um clique
+// continua sendo clique (renomear, menu). Uma cópia do cabeçalho segue o mouse; com `esquerda` (onde termina a parte
+// parada da tabela), chegar perto da borda rola a tabela para o lado. aoMover recebe o x do mouse; aoFim(true) ao
+// soltar, aoFim(false) com Esc. O clique que o navegador dispara ao soltar é descartado.
+export function arrastarCabecalho(e: MouseEvent, th: HTMLElement, rotulo: string, esquerda: number | null, aoMover: (x: number) => void, aoFim: (soltou: boolean) => void) {
+  const x0 = e.clientX, y0 = e.clientY;
+  let rolagem: HTMLElement | null = null;
+  for (let el = th.parentElement; el && !rolagem; el = el.parentElement) if (/(auto|scroll)/.test(getComputedStyle(el).overflowX)) rolagem = el;
+  let copia: HTMLElement | null = null;
+  let x = x0;
+  let quadro = 0;
+  const rolar = () => {
+    const caixa = rolagem!.getBoundingClientRect();
+    const passo = x < esquerda! + 40 ? -14 : x > caixa.right - 40 ? 14 : 0;
+    if (passo) { rolagem!.scrollLeft += passo; aoMover(x); }
+    quadro = requestAnimationFrame(rolar);
+  };
+  const mover = (ev: MouseEvent) => {
+    x = ev.clientX;
+    if (!copia) {
+      if (Math.abs(x - x0) < 5 && Math.abs(ev.clientY - y0) < 5) return;
+      const r = th.getBoundingClientRect();
+      copia = document.createElement('div');
+      copia.className = 'coluna-fantasma';
+      copia.textContent = rotulo;
+      Object.assign(copia.style, { top: `${r.top}px`, width: `${r.width}px`, height: `${r.height}px` });
+      copia.dataset.dx = String(x0 - r.left);
+      (th.closest('.friday-root') ?? document.body).appendChild(copia);
+      document.body.classList.add('arrastando-coluna');
+      window.getSelection()?.removeAllRanges();
+      if (rolagem && esquerda != null) quadro = requestAnimationFrame(rolar);
+    }
+    copia.style.left = `${x - Number(copia.dataset.dx)}px`;
+    aoMover(x);
+  };
+  const fim = (soltou: boolean) => {
+    document.removeEventListener('mousemove', mover);
+    document.removeEventListener('mouseup', soltar);
+    document.removeEventListener('keydown', tecla, true);
+    if (!copia) return;
+    cancelAnimationFrame(quadro);
+    copia.remove();
+    document.body.classList.remove('arrastando-coluna');
+    // Com Esc o botão ainda está apertado: o clique vem só quando ele for solto.
+    if (soltou) descartarClique(); else document.addEventListener('mouseup', descartarClique, { once: true });
+    aoFim(soltou);
+  };
+  const descartarClique = () => {
+    const descartar = (ev: Event) => { ev.stopPropagation(); ev.preventDefault(); };
+    window.addEventListener('click', descartar, { capture: true, once: true });
+    setTimeout(() => window.removeEventListener('click', descartar, true));
+  };
+  const soltar = () => fim(true);
+  const tecla = (ev: KeyboardEvent) => { if (ev.key === 'Escape' && copia) { ev.stopPropagation(); fim(false); } };
+  document.addEventListener('mousemove', mover);
+  document.addEventListener('mouseup', soltar);
+  document.addEventListener('keydown', tecla, true);
+}
+
 // Duplo clique na borda: a coluna à esquerda dela fica do tamanho do conteúdo (como no monday). Mede as linhas
 // visíveis das tabelas com a coluna estreita: o que transborda (texto cortado com "…") soma à largura. Só conta as
 // linhas com nCelulas células (as com células mescladas, como subitens e novo item, ficam de fora).
