@@ -1,4 +1,5 @@
 import { Navigate, Outlet } from 'react-router-dom';
+import AcessoNegado from './AcessoNegado';
 import LoadingFallback from './LoadingFallback';
 import { useAuth } from '../contexts/AuthContext';
 import { useAuthorizationProfile } from '../hooks/useAuthorizationProfile';
@@ -15,11 +16,12 @@ export default function PrivateRoute({ permite = (p) => temCredencial(p) }: { pe
   if (authLoading) return <LoadingFallback label="Validando acesso..." />;
   if (!currentUser) return <Navigate to="/login" replace />;
   if (authorizationLoading) return <LoadingFallback label="Validando acesso..." />;
-  if (error) return <Navigate to="/acesso-negado" replace state={{ reason: 'firestore-error' }} />;
-  if (profile === null || !profile.exists) return <Navigate to="/acesso-negado" replace state={{ reason: 'missing-funcionario' }} />;
-  if (profile.ativo !== true) return <Navigate to="/acesso-negado" replace state={{ reason: 'inactive' }} />;
-  if (!temAlgumaCredencial(profile)) return <Navigate to="/acesso-negado" replace state={{ reason: 'sem-credencial' }} />;
-  if (!permite(profile)) return <Navigate to="/acesso-negado" replace state={{ reason: 'sem-acesso-area' }} />;
+  // The denial is shown at the address itself (no redirect), so a reload checks the access again.
+  if (error) return <AcessoNegado motivo="firestore-error" />;
+  if (profile === null || !profile.exists) return <AcessoNegado motivo="missing-funcionario" />;
+  if (profile.ativo !== true) return <AcessoNegado motivo="inactive" />;
+  if (!temAlgumaCredencial(profile)) return <AcessoNegado motivo="sem-credencial" />;
+  if (!permite(profile)) return <AcessoNegado motivo="sem-acesso-area" />;
 
   return <Outlet />;
 }

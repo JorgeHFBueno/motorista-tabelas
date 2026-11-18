@@ -37,7 +37,7 @@ test('menu lateral abre pelo cabeçalho fora da Home e preserva acessibilidade',
   const header = source('src/components/Header.tsx');
   const lateral = source('src/components/MenuLateral.tsx');
 
-  assert.match(header, /const SEM_MENU_LATERAL = \['\/', '\/login', '\/acesso-negado'\]/);
+  assert.match(header, /const SEM_MENU_LATERAL = \['\/', '\/login', '\/privacidade'\]/);
   assert.match(header, /aria-label="Abrir menu"/);
   assert.match(lateral, /<Drawer anchor="left" open=\{open\}/);
   assert.match(lateral, /aria-label="Menu principal"/);

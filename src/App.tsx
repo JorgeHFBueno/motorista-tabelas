@@ -25,7 +25,6 @@ const FrotaVeiculoDetalhesPage = lazy(() => import('./pages/FrotaVeiculoDetalhes
 const FrotaAnalyticsPage = lazy(() => import('./pages/FrotaAnalyticsPage'));
 const HomeDashboard = lazy(() => import('./pages/HomeDashboard'));
 const BombasPage = lazy(() => import('./pages/BombasPage'));
-const AccessDeniedPage = lazy(() => import('./pages/AccessDeniedPage'));
 const PrivacidadePage = lazy(() => import('./pages/PrivacidadePage'));
 const CronogramaObrasPage = lazy(() => import('./features/cronograma-obras/CronogramaObrasPage'));
 const LogisticaCronogramaPage = lazy(() => import('./features/cronograma-logistica/LogisticaCronogramaPage'));
@@ -56,7 +55,6 @@ export default function App() {
         <Suspense fallback={<LoadingFallback />}>
           <Routes>
             <Route path="login" element={<LoginPage />} />
-            <Route path="acesso-negado" element={<AccessDeniedPage />} />
             <Route path="privacidade" element={<PrivacidadePage />} />
             {/* Acesso (The Manuscript, funcionarios.md): qualquer credencial ou área entra na Home e no Meu perfil; cada
                 área da WEB pede ao menos "ver" (o "editar" é conferido nas telas, nas Rules e nas Functions); o adm2 entra

@@ -13,7 +13,7 @@ const FRIDAY = { titulo: 'Friday', logo: '/logo-friday.png' };
 const ABASTECEDORA = { logo: '/logo-abastecedora-ledur.svg' };
 
 const TITULOS: Array<{ padrao: string } & TituloPagina> = [
-  // /login and /acesso-negado have no title: the header shows the logo there.
+  // /login has no title: the header shows the logo there.
   { padrao: '/', titulo: 'Bem-vindo ao painel', subtitulo: 'Escolha uma área para começar a trabalhar.' },
   { padrao: '/perfil', titulo: 'Meu perfil' },
   { padrao: '/friday', ...FRIDAY },
