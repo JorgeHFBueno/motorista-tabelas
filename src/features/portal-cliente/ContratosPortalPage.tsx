@@ -30,7 +30,7 @@ import { editaArea } from '../../services/credenciais';
 // The Manuscript: 03_APLICACAO_WEB/16_PORTAL_DO_CLIENTE.md, "Telas do adm2 na WEB".
 
 // onPublicar ausente: área portal só em "ver" (sem o botão Publicar).
-function LinhaContratoPortal({ linha, onOpen, onPublicar }: { linha: LinhaContrato; onOpen: () => void; onPublicar?: () => void }) {
+function LinhaContratoPortal({ linha, href, onPublicar }: { linha: LinhaContrato; href: string; onPublicar?: () => void }) {
   const { obra, portal } = linha;
   const detalhes = [obra.numeroContrato && `Contrato ${obra.numeroContrato}`, !localPendente(obra.local) && obra.local].filter(Boolean).join(' · ');
   return (
@@ -45,7 +45,7 @@ function LinhaContratoPortal({ linha, onOpen, onPublicar }: { linha: LinhaContra
         py: 1.5,
       }}
     >
-      <ButtonBase onClick={onOpen} sx={{ display: 'block', textAlign: 'left', minWidth: 0, borderRadius: 1 }}>
+      <ButtonBase href={href} sx={{ display: 'block', textAlign: 'left', minWidth: 0, borderRadius: 1 }}>
         <Stack direction="row" spacing={1} alignItems="center" minWidth={0}>
           <Typography sx={{ fontSize: 18, fontWeight: 700 }} noWrap>{obra.nomeObra}</Typography>
           {obraFinalizada(obra) && <Chip label="Finalizada" size="small" />}
@@ -54,7 +54,7 @@ function LinhaContratoPortal({ linha, onOpen, onPublicar }: { linha: LinhaContra
       </ButtonBase>
       <Box sx={{ textAlign: { xs: 'left', sm: 'right' }, minWidth: 0 }}>
         {portal ? (
-          <ButtonBase onClick={onOpen} sx={{ display: 'block', textAlign: 'inherit', width: '100%', borderRadius: 1 }}>
+          <ButtonBase href={href} sx={{ display: 'block', textAlign: 'inherit', width: '100%', borderRadius: 1 }}>
             <Chip label="Publicado" color="success" size="small" />
             <Typography sx={{ fontSize: 14, mt: 0.5 }} color="text.secondary" noWrap>
               Cliente {formatarDocumento(portal.clienteDocumento)}
@@ -141,7 +141,7 @@ export default function ContratosPortalPage() {
               <LinhaContratoPortal
                 key={linha.obra.id}
                 linha={linha}
-                onOpen={() => abrir(linha.obra.id)}
+                href={`/portal-cliente/contratos/${encodeURIComponent(linha.obra.id)}`}
                 onPublicar={podeEditar ? () => setPublicando(linha.obra) : undefined}
               />
             ))}

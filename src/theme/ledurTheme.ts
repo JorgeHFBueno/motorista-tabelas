@@ -1,4 +1,5 @@
 import { createTheme, type Shadows } from '@mui/material/styles';
+import LinkRoteador from './LinkRoteador';
 
 const primary = '#12293B';
 const secondary = '#2F6B98';
@@ -67,6 +68,12 @@ export const ledurTheme = createTheme({
     ...Array(20).fill('0 12px 32px -10px rgb(0 0 0 / 0.14)'),
   ] as Shadows,
   components: {
+    // `href` on any MUI button-like component becomes a real app link (new tab with the middle button).
+    MuiButtonBase: {
+      defaultProps: {
+        LinkComponent: LinkRoteador,
+      },
+    },
     MuiCssBaseline: {
       styleOverrides: {
         body: {

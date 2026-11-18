@@ -10,6 +10,7 @@ import { useNav } from '../nav.tsx';
 import { useAuth } from '../../../contexts/AuthContext';
 import { Menu, Modal, Popover, useConfirmar, usePopover } from '../ui/base.tsx';
 import { CORES, corTexto, MONDAY_NA_TELA } from '../util.ts';
+import { abreEmNovaGuia } from '../../../utils/novaGuia';
 
 // Largura da lateral: arrastável pela borda (200–480 px), lembrada neste navegador; duplo clique volta ao padrão.
 const LARGURA_PADRAO = 255;
@@ -138,7 +139,7 @@ export function Lateral({ onRecolher }: { onRecolher: () => void }) {
   const renderQuadro = (q: Row, nivel: number) => (
     <div key={`q${q.id}`} className={`arvore-linha quadro${q.id === quadroAtual ? ' ativo' : ''}${arrastando === q.id ? ' arrastando' : ''}`}
       style={nivelCss(nivel)} title={q.nome} draggable onDragStart={() => setArrastando(q.id)} onDragEnd={() => { setArrastando(null); setSoltarEm(null); }}
-      onClick={() => navigate(`/friday/quadros/${q.id}`)}>
+      {...abreEmNovaGuia(`/friday/quadros/${q.id}`, navigate)}>
       <span className="seta-vazia" />
       <IconeQuadro q={q} />
       <span className="arvore-nome">{q.nome}</span>
@@ -170,7 +171,7 @@ export function Lateral({ onRecolher }: { onRecolher: () => void }) {
           {favAberto ? <ChevronDown size={14} /> : <ChevronRight size={14} />}<Star size={15} /> Favoritos
         </button>
         {favAberto && (favoritos.length ? favoritos.map(q => (
-          <div key={q.id} className={`arvore-linha quadro${q.id === quadroAtual ? ' ativo' : ''}`} style={nivelCss(1)} title={q.nome} onClick={() => navigate(`/friday/quadros/${q.id}`)}>
+          <div key={q.id} className={`arvore-linha quadro${q.id === quadroAtual ? ' ativo' : ''}`} style={nivelCss(1)} title={q.nome} {...abreEmNovaGuia(`/friday/quadros/${q.id}`, navigate)}>
             <IconeQuadro q={q} /><span className="arvore-nome">{q.nome}</span>
           </div>
         )) : <div className="arvore-vazia" style={{ paddingLeft: 26 }}>Marque quadros com a estrela</div>)}

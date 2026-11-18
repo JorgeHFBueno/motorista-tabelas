@@ -4,6 +4,9 @@ import { DataGrid, type GridColDef } from '@mui/x-data-grid';
 import { ptBR } from '@mui/x-data-grid/locales';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { listarChecklists, type Checklist } from '../services/checklists.service';
+import { abreEmNovaGuia } from '../utils/novaGuia';
+
+const urlChecklist = (id: string) => `/frota/checklists/${encodeURIComponent(id)}`;
 
 const dateFmt = new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit' });
 
@@ -65,7 +68,14 @@ export default function ChecklistsPage() {
           loading={loading}
           density="compact"
           disableRowSelectionOnClick
-          onRowClick={(p) => navigate(`/frota/checklists/${encodeURIComponent(String(p.id))}`)}
+          onRowClick={(p, e) => abreEmNovaGuia(urlChecklist(String(p.id)), navigate).onClick(e)}
+          // The row is not a link: the middle button opens the checklist in a new tab through the row's data-id.
+          slotProps={{
+            row: {
+              onAuxClick: (e) => abreEmNovaGuia(urlChecklist(e.currentTarget.dataset.id ?? ''), navigate).onAuxClick(e),
+              onMouseDown: (e) => abreEmNovaGuia(urlChecklist(e.currentTarget.dataset.id ?? ''), navigate).onMouseDown(e),
+            },
+          }}
           initialState={{ sorting: { sortModel: [{ field: 'concluidoEm', sort: 'desc' }] } }}
           localeText={{ ...ptBR.components.MuiDataGrid.defaultProps.localeText, noRowsLabel: 'Nenhum checklist encontrado.' }}
           sx={{ '& .MuiDataGrid-row': { cursor: 'pointer' } }}

@@ -25,6 +25,7 @@ import { porPosicao, useQuadro } from './useQuadro.ts';
 import { chaveDoSubitem, colunaNoTipo, colunasUsadas, tipoDoItem, tiposDoSub, tiposItemDo } from './tiposSubitem.ts';
 import { Calendario, Cronograma, Kanban } from './Visoes.tsx';
 import LoadingFallback from '../../../components/LoadingFallback';
+import { abreEmNovaGuia } from '../../../utils/novaGuia';
 
 const ICONE_VISAO = { tabela: Table2, kanban: IconeKanban, calendario: CalendarDays, cronograma: GanttChart };
 const NOME_VISAO = { tabela: 'Tabela', kanban: 'Kanban', calendario: 'Calendário', cronograma: 'Cronograma' };
@@ -192,7 +193,7 @@ export default function QuadroPage() {
           </button>
           <span className="espaco" />
           <PessoasDoQuadro quadro={quadro} pessoas={colaboradores} onPermissoes={() => q.recarregar()} />
-          <button className="fr-btn" onClick={() => navigate(`/friday/quadros/${quadroId}/automacoes`)} title="Regras automáticas do quadro">
+          <button className="fr-btn" {...abreEmNovaGuia(`/friday/quadros/${quadroId}/automacoes`, navigate)} title="Regras automáticas do quadro">
             <Zap size={15} className="ic-auto" /> Automações{quadro.n_automacoes ? ` / ${quadro.n_automacoes}` : ''}
           </button>
           <button className="fr-btn" onClick={() => setAtividade(true)}><Activity size={15} /> Atividade</button>

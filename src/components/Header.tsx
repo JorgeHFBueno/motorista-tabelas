@@ -4,7 +4,7 @@ import PersonOutlineRoundedIcon from '@mui/icons-material/PersonOutlineRounded';
 import LogoutRoundedIcon from '@mui/icons-material/LogoutRounded';
 import ExpandMoreRoundedIcon from '@mui/icons-material/ExpandMoreRounded';
 import ArrowBackRoundedIcon from '@mui/icons-material/ArrowBackRounded';
-import { Link, useLocation, useNavigate } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
 import { useState } from 'react';
 import MenuLateral from './MenuLateral';
 import BotaoAvisos from './BotaoAvisos';
@@ -26,7 +26,6 @@ const botaoClaroSx = {
 export default function Header() {
   const { currentUser, authorizationProfile, signOut } = useAuth();
   const location = useLocation();
-  const navigate = useNavigate();
   const pagina = useCabecalhoPagina();
   const [menuLateralOpen, setMenuLateralOpen] = useState(false);
   const [menuUsuario, setMenuUsuario] = useState<HTMLElement | null>(null);
@@ -101,7 +100,7 @@ export default function Header() {
                   {currentUser.email && currentUser.email !== nome && <Typography variant="body2" color="text.secondary" noWrap>{currentUser.email}</Typography>}
                 </Box>
                 <Divider />
-                <MenuItem onClick={() => { setMenuUsuario(null); navigate('/perfil'); }}>
+                <MenuItem component={Link} to="/perfil" onClick={() => setMenuUsuario(null)}>
                   <ListItemIcon><PersonOutlineRoundedIcon fontSize="small" /></ListItemIcon>
                   Meu perfil
                 </MenuItem>

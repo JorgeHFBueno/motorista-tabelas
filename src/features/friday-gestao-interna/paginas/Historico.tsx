@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import { historico, type Row } from '../api.ts';
 import { useNav } from '../nav.tsx';
 import { DescricaoAtividade } from '../quadro/PainelItem.tsx';
+import { abreEmNovaGuia } from '../../../utils/novaGuia';
 
 // Histórico: as últimas 5 alterações feitas pela pessoa, em todos os quadros (registro de atividade). Cada um vê as
 // próprias; adm2 escolhe a pessoa. Automações não entram (não têm autor).
@@ -46,9 +47,9 @@ export default function Historico() {
         : (
           <ul className="historico">
             {lista.map(a => {
-              const abrir = a.abrir_quadro_id ? () => navigate(`/friday/quadros/${a.abrir_quadro_id}${a.abrir_item_id ? `?item=${a.abrir_item_id}` : ''}`) : undefined;
+              const abrir = a.abrir_quadro_id ? abreEmNovaGuia(`/friday/quadros/${a.abrir_quadro_id}${a.abrir_item_id ? `?item=${a.abrir_item_id}` : ''}`, navigate) : undefined;
               return (
-                <li key={a.id} className={abrir ? 'abre' : ''} onClick={abrir} title={abrir ? 'Abrir' : 'Quadro excluído ou sem acesso'}>
+                <li key={a.id} className={abrir ? 'abre' : ''} {...abrir} title={abrir ? 'Abrir' : 'Quadro excluído ou sem acesso'}>
                   <small className="muted">{dataBr(String(a.criado_em))}</small>
                   <span className="hist-onde">
                     <b>{a.item_nome ?? 'Quadro'}</b>

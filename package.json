@@ -40,6 +40,7 @@
     "test:portal-cliente-parcelas": "esbuild tests/portal-cliente-parcelas.test.ts --bundle --platform=node --format=esm --outfile=.tmp-portal-cliente-parcelas.test.mjs && node --test .tmp-portal-cliente-parcelas.test.mjs",
     "test:cabecalho": "esbuild tests/cabecalho-voltar.test.ts --bundle --jsx=automatic --platform=node --format=esm --outfile=.tmp-cabecalho-voltar.test.mjs && node --test .tmp-cabecalho-voltar.test.mjs",
     "test:dev-toys": "esbuild tests/dev-toys.test.ts --bundle --platform=node --format=esm --outfile=.tmp-dev-toys.test.mjs && node --test .tmp-dev-toys.test.mjs",
+    "test:nova-guia": "esbuild tests/nova-guia.test.ts --bundle --platform=node --format=esm --outfile=.tmp-nova-guia.test.mjs && node --test .tmp-nova-guia.test.mjs",
     "manuscript:check": "esbuild tools/manuscript-check.ts --bundle --platform=node --format=esm --outfile=.tmp-manuscript-check.mjs && node .tmp-manuscript-check.mjs",
     "test:rules": "firebase emulators:exec --only firestore,storage --project demo-firebase-rules \"node --test tests/rules/*.test.mjs\"",
     "test:rules:firestore": "firebase emulators:exec --only firestore --project demo-firebase-rules \"node --test --test-name-pattern=^\\[firestore\\] tests/rules/*.test.mjs\"",

@@ -12,6 +12,7 @@ import { lerAutomacoesMonday, type Importada } from './importarAutomacoes.ts';
 import { ehPrazo, infoColuna, statusPrincipal, type Coluna, type Grupo, type Rotulo } from './tipos.ts';
 import { useQuadro } from './useQuadro.ts';
 import LoadingFallback from '../../../components/LoadingFallback';
+import { abreEmNovaGuia } from '../../../utils/novaGuia';
 
 // ---------------------------------------------------------------- modelo (o executor é a Function functions/fridayAutomacoes.ts)
 type Gatilho = { tipo: 'item_criado' | 'coluna_muda' | 'item_movido' | 'data_chega'; coluna_id?: number; grupo_id?: number | null; para?: string[]; de?: string[]; dias?: number; ponta?: 'inicio' | 'fim' };
@@ -208,7 +209,7 @@ export default function AutomacoesPage() {
 
   return (
     <div className="pagina pagina-automacoes">
-      <button className="fr-btn-link voltar" onClick={() => navigate(`/friday/quadros/${quadroId}`)}><ArrowLeft size={15} /> {quadro.nome}</button>
+      <button className="fr-btn-link voltar" {...abreEmNovaGuia(`/friday/quadros/${quadroId}`, navigate)}><ArrowLeft size={15} /> {quadro.nome}</button>
       <header className="pagina-cab">
         <div>
           <h1><Zap size={22} className="ic-auto" /> Automações</h1>
@@ -249,7 +250,7 @@ export default function AutomacoesPage() {
                 <span className={`arquivo-ic${h.ok ? ' ok' : ' erro'}`}>{h.ok ? <CheckCircle2 size={16} /> : <AlertTriangle size={16} />}</span>
                 <div className="arquivo-nome">
                   <strong>{nomeAuto(h.automacao_id)}</strong>
-                  <small className="muted">Item <button className="fr-btn-link" onClick={() => navigate(`/friday/quadros/${quadroId}?item=${h.item_id}`)}>{h.item_nome}</button> · {h.detalhe}</small>
+                  <small className="muted">Item <button className="fr-btn-link" {...abreEmNovaGuia(`/friday/quadros/${quadroId}?item=${h.item_id}`, navigate)}>{h.item_nome}</button> · {h.detalhe}</small>
                 </div>
                 <small className="muted arquivo-quando">{tempoRelativo(h.criado_em)}</small>
               </div>

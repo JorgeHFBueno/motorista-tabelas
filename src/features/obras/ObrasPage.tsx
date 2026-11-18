@@ -15,19 +15,18 @@ import {
   Typography,
 } from '@mui/material';
 import SearchIcon from '@mui/icons-material/Search';
-import { useNavigate } from 'react-router-dom';
 import { listarObras } from './obrasData';
 import { contratoTexto, filtrarObras, localPendente, obraFinalizada, type FiltroObras, type ObraDetalhe } from './obrasDomain';
 
 // Obras de obras-v2 (The Manuscript, 03_APLICACAO_WEB/07_ENGENHARIA_E_CRONOOBRA.md). O cadastro é do Friday;
 // aqui só o local é editável, no detalhe da obra.
 
-function ObraLinha({ obra, onOpen }: { obra: ObraDetalhe; onOpen: () => void }) {
+function ObraLinha({ obra, href }: { obra: ObraDetalhe; href: string }) {
   const semLocal = localPendente(obra.local);
   const detalhes = [obra.siglaObra && `Sinônimo: ${obra.siglaObra}`, obra.empresa, obra.tipoObra, contratoTexto(obra) && `Contrato ${contratoTexto(obra)}`].filter(Boolean).join(' · ');
   return (
     <ButtonBase
-      onClick={onOpen}
+      href={href}
       sx={{
         width: '100%',
         display: 'grid',
@@ -59,7 +58,6 @@ function ObraLinha({ obra, onOpen }: { obra: ObraDetalhe; onOpen: () => void }) 
 }
 
 export default function ObrasPage() {
-  const navigate = useNavigate();
   const [filtro, setFiltro] = useState<FiltroObras>('ATIVAS');
   const [busca, setBusca] = useState('');
   const [obras, setObras] = useState<ObraDetalhe[]>([]);
@@ -123,7 +121,7 @@ export default function ObrasPage() {
         ) : rows.length > 0 ? (
           <Paper variant="outlined" sx={{ overflow: 'hidden', '& > *:not(:last-child)': { borderBottom: 1, borderColor: 'divider' } }}>
             {rows.map((obra) => (
-              <ObraLinha key={obra.id} obra={obra} onOpen={() => navigate(`/engenharia/obras/${encodeURIComponent(obra.id)}`)} />
+              <ObraLinha key={obra.id} obra={obra} href={`/engenharia/obras/${encodeURIComponent(obra.id)}`} />
             ))}
           </Paper>
         ) : !error && (

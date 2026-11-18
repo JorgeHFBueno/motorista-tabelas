@@ -37,7 +37,7 @@ import {
     updateDoc,
     where,
 } from 'firebase/firestore';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useParams } from 'react-router-dom';
 import type { ChartPoint } from '../components/FrotaCharts';
 import ManutencaoDialog from '../components/ManutencaoDialog';
 import ManutencaoDetailPanel from '../components/ManutencaoDetailPanel';
@@ -299,7 +299,6 @@ async function fetchManutencoes(item: ItemFrotaV2): Promise<LinhaEvento[]> {
 
 export default function FrotaVeiculoDetalhesPage() {
     const { id } = useParams();
-    const navigate = useNavigate();
     const { authorizationProfile } = useAuth();
     const isAdmin = editaArea(authorizationProfile, 'frota');
     // Correções de KM/horímetro: a transação grava atividades e veículos (Frota) e saídas de 03-combustivel
@@ -1244,7 +1243,7 @@ export default function FrotaVeiculoDetalhesPage() {
                 <Stack direction="row" spacing={2}>
                     {veiculo && (
                         <>
-                            <Button variant="outlined" onClick={() => navigate(`/frota/analytics?veiculo=${encodeURIComponent(veiculo.id)}`)}>Ver no Analytics</Button>
+                            <Button variant="outlined" href={`/frota/analytics?veiculo=${encodeURIComponent(veiculo.id)}`}>Ver no Analytics</Button>
                             <Button variant="contained" onClick={(event) => setReportMenuAnchor(event.currentTarget)} disabled={generatingReport}>{generatingReport ? 'Gerando Relatório...' : 'Gerar Relatório'}</Button>
                             <Menu anchorEl={reportMenuAnchor} open={Boolean(reportMenuAnchor)} onClose={() => setReportMenuAnchor(null)}>
                                 <MenuItem disabled>Gerar relatório</MenuItem>
@@ -1360,7 +1359,7 @@ export default function FrotaVeiculoDetalhesPage() {
                             <Stack direction="row" spacing={1} alignItems="center" justifyContent="space-between" sx={{ mb: 1.5 }}>
                                 <Typography variant="subtitle2" color="text.secondary">Quadro FROTA (Friday)</Typography>
                                 {itemFriday && (
-                                    <Button size="small" variant="outlined" onClick={() => navigate(`/friday/quadros/${itemFriday.quadroId}?item=${itemFriday.itemId}`)}>
+                                    <Button size="small" variant="outlined" href={`/friday/quadros/${itemFriday.quadroId}?item=${itemFriday.itemId}`}>
                                         Abrir no Friday
                                     </Button>
                                 )}

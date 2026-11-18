@@ -3,7 +3,7 @@ import MenuBookRoundedIcon from '@mui/icons-material/MenuBookRounded';
 import CloseRoundedIcon from '@mui/icons-material/CloseRounded';
 import WarningAmberRoundedIcon from '@mui/icons-material/WarningAmberRounded';
 import { type CSSProperties, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useSearchParams } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { editaArea, temCredencial } from '../services/credenciais';
 import { manuscriptGetSystemGraph, type ManuscriptChatProgress, type ManuscriptSystemGraphResponse, type ManuscriptSystemNode } from '../services/manuscript';
@@ -30,7 +30,6 @@ function aplicarProgresso(old: GraphSearchHighlight | null, evento: ManuscriptCh
 }
 
 function Details({ graph, node, onSelect, onClose }: { graph: ManuscriptSystemGraphResponse; node: ManuscriptSystemNode; onSelect: (id: string) => void; onClose: () => void }) {
-  const navigate = useNavigate();
   const byId = useMemo(() => new Map(graph.nodes.map((item) => [item.id, item])), [graph]);
   const rows = useMemo(() => [
     ...graph.edges.filter((edge) => edge.source === node.id).map((edge) => ({ label: RELACAO_LABEL[edge.relacao][0], id: edge.target })),
@@ -50,7 +49,7 @@ function Details({ graph, node, onSelect, onClose }: { graph: ManuscriptSystemGr
     {(node.status || node.dominios.length > 0) && <Stack direction="row" spacing={.5} useFlexGap flexWrap="wrap">{node.status && <Chip size="small" label={node.status} className={`manuscript-metadata-status ${node.status}`} />}{node.dominios.map((dominio) => <Chip key={dominio} size="small" variant="outlined" label={dominio} />)}</Stack>}
     {node.resumo && <Typography variant="body2">{node.resumo}</Typography>}
     {node.kind === 'ENTIDADE' && !node.definidoEm && <Typography variant="body2" color="warning.main">Nenhum documento define esta entidade.</Typography>}
-    {documentPath && <Button size="small" variant="outlined" startIcon={<MenuBookRoundedIcon />} onClick={() => navigate(`/the-manuscript/${encodeURI(documentPath)}`)}>{node.kind === 'DOCUMENTO' ? 'Abrir documento' : 'Abrir documento que define'}</Button>}
+    {documentPath && <Button size="small" variant="outlined" startIcon={<MenuBookRoundedIcon />} href={`/the-manuscript/${encodeURI(documentPath)}`}>{node.kind === 'DOCUMENTO' ? 'Abrir documento' : 'Abrir documento que define'}</Button>}
     <Box className="manuscript-map-relations">
       {Object.entries(groups).map(([label, ids]) => <div key={label}><Typography variant="caption">{label} ({ids.length})</Typography>{[...new Set(ids)].map((id) => <button type="button" key={id} onClick={() => onSelect(id)} title={id}><span style={{ background: byId.get(id) ? nodeColor(byId.get(id)!) : '#999' }} />{byId.get(id)?.label ?? id}</button>)}</div>)}
     </Box>
@@ -58,7 +57,6 @@ function Details({ graph, node, onSelect, onClose }: { graph: ManuscriptSystemGr
 }
 
 export default function ManuscriptMapaPage() {
-  const navigate = useNavigate();
   const { authorizationProfile } = useAuth();
   const chatEnabled = temCredencial(authorizationProfile, 'retr0') || editaArea(authorizationProfile, 'manuscript');
   const [params, setParams] = useSearchParams();
@@ -109,7 +107,7 @@ export default function ManuscriptMapaPage() {
 
   return <Box ref={raiz} className="manuscript-page manuscript-map-page" style={{ '--mapa-topo': `${topo}px` } as CSSProperties}>
     <header className="manuscript-topbar">
-      <Stack direction="row" alignItems="center" spacing={1.5}><MenuBookRoundedIcon className="manuscript-brand-icon" /><Typography variant="h6">The Manuscript · Mapa</Typography><Button size="small" variant="contained" disableElevation className="manuscript-map-docs" startIcon={<MenuBookRoundedIcon />} onClick={() => navigate('/the-manuscript')}>Documentos</Button></Stack>
+      <Stack direction="row" alignItems="center" spacing={1.5}><MenuBookRoundedIcon className="manuscript-brand-icon" /><Typography variant="h6">The Manuscript · Mapa</Typography><Button size="small" variant="contained" disableElevation className="manuscript-map-docs" startIcon={<MenuBookRoundedIcon />} href="/the-manuscript">Documentos</Button></Stack>
     </header>
     <Box className={`manuscript-map-body ${chatEnabled ? 'with-chat' : ''} ${chatEnabled && compacto ? 'compacto' : ''}`}>
       <Box className="manuscript-map-main">

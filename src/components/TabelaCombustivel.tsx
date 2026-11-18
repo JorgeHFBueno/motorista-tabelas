@@ -5,7 +5,6 @@ import { gridFilteredSortedRowIdsSelector } from '@mui/x-data-grid/hooks/feature
 import dayjs from 'dayjs';
 import { Button, Stack, IconButton, Snackbar, Alert, Dialog, DialogTitle, DialogContent, DialogActions, TextField, MenuItem } from '@mui/material';
 import DeleteIcon from '@mui/icons-material/Delete';
-import { useNavigate } from 'react-router-dom';
 import type { Registro } from '../types';
 import useCombustivel from '../hooks/useCombustivel';
 import { useAuth } from '../contexts/AuthContext';
@@ -72,7 +71,6 @@ function parseKmNumber(value: unknown): number | null {
 export default function TabelaCombustivel() {
   const { data: rows, loading, remove } = useCombustivel();
   const principalGridApiRef = useGridApiRef();
-  const navigate = useNavigate();
   const isAdmin = editaArea(useAuth().authorizationProfile, 'combustivel');
   const { isOnline } = useOnlineStatus();
 
@@ -553,7 +551,7 @@ export default function TabelaCombustivel() {
       )}
       <Stack direction="row" spacing={2} mt={2}>
         {isAdmin && (
-          <Button variant="contained" onClick={() => navigate('/combustivel/registros/novo')} sx={{ mb: 1 }}>
+          <Button variant="contained" href="/combustivel/registros/novo" sx={{ mb: 1 }}>
             Novo
           </Button>
         )}

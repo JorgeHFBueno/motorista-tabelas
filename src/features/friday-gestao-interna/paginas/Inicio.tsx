@@ -5,6 +5,7 @@ import { useNav } from '../nav.tsx';
 import { fmtData, hojeISO } from '../util.ts';
 import { IconeQuadro, NovoQuadroModal } from '../layout/Lateral.tsx';
 import { agrupar, concluido, useMeuTrabalho } from './MeuTrabalho.tsx';
+import { abreEmNovaGuia } from '../../../utils/novaGuia';
 
 export default function Inicio() {
   const nav = useNav();
@@ -20,7 +21,7 @@ export default function Inicio() {
   const hora = new Date().getHours();
 
   const Cartao = ({ q }: { q: (typeof nav.quadros)[number] }) => (
-    <button className="cartao-quadro" onClick={() => navigate(`/friday/quadros/${q.id}`)}>
+    <button className="cartao-quadro" {...abreEmNovaGuia(`/friday/quadros/${q.id}`, navigate)}>
       <span className="cq-capa"><IconeQuadro q={q} size={22} /></span>
       <span className="cq-nome">{q.nome}{q.favorito ? <Star size={13} className="cq-fav" /> : null}</span>
       <small className="muted">{nav.areas.find(a => a.id === q.area_id)?.nome}{q.pasta_id ? ` · ${nav.pastas.find(p => p.id === q.pasta_id)?.nome ?? ''}` : ''}</small>

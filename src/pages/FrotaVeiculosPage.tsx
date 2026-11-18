@@ -18,7 +18,6 @@ import {
 import PhotoCameraOutlinedIcon from '@mui/icons-material/PhotoCameraOutlined';
 import SearchIcon from '@mui/icons-material/Search';
 import { Timestamp, addDoc, collection, getDocs, orderBy, query } from 'firebase/firestore';
-import { useNavigate } from 'react-router-dom';
 import BotaoManutencaoNoErp from '../components/ManutencaoNoErp';
 import ManutencaoDialog from '../components/ManutencaoDialog';
 import {
@@ -46,11 +45,11 @@ const COR_FRESCOR: Record<Frescor, string> = {
     'sem-dado': 'text.disabled',
 };
 
-function VeiculoLinha({ item, onOpen }: { item: ItemFrotaV2; onOpen: () => void }) {
+function VeiculoLinha({ item, href }: { item: ItemFrotaV2; href: string }) {
     const atualizacao = atualizacaoInfo(item.dataUltimaAtualizacao);
     return (
         <ButtonBase
-            onClick={onOpen}
+            href={href}
             sx={{
                 width: '100%',
                 display: 'grid',
@@ -104,7 +103,6 @@ function VeiculoLinha({ item, onOpen }: { item: ItemFrotaV2; onOpen: () => void 
 }
 
 export default function FrotaVeiculosPage() {
-    const navigate = useNavigate();
     const [categoria, setCategoria] = useState<FiltroCategoria>('TODOS');
     const [busca, setBusca] = useState('');
     const [veiculos, setVeiculos] = useState<ItemFrotaV2[]>([]);
@@ -319,7 +317,7 @@ export default function FrotaVeiculosPage() {
                             <VeiculoLinha
                                 key={item.id}
                                 item={item}
-                                onOpen={() => navigate(`/frota/veiculos/${encodeURIComponent(item.id)}`)}
+                                href={`/frota/veiculos/${encodeURIComponent(item.id)}`}
                             />
                         ))}
                     </Paper>

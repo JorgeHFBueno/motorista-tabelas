@@ -106,7 +106,7 @@ export default function SaidaChegadaPage({ tipo }: { tipo: TipoAtividade }) {
         <Alert
           severity="warning"
           sx={{ mb: 2 }}
-          action={<Button color="inherit" size="small" onClick={() => navigate('/motorista/historico')}>Ver</Button>}
+          action={<Button color="inherit" size="small" href="/motorista/historico">Ver</Button>}
         >
           {fila.pendentes.length === 1 ? '1 lançamento aguardando envio.' : `${fila.pendentes.length} lançamentos aguardando envio.`}
         </Alert>

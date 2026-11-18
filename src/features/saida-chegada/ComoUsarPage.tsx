@@ -8,7 +8,6 @@ import LoginRoundedIcon from '@mui/icons-material/LoginRounded';
 import LogoutRoundedIcon from '@mui/icons-material/LogoutRounded';
 import MoreVertIcon from '@mui/icons-material/MoreVert';
 import type { ReactNode } from 'react';
-import { useNavigate } from 'react-router-dom';
 
 /** iPhone/iPad (o iPad novo se apresenta como Mac com toque). */
 const ehIphone = () => /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
@@ -69,7 +68,6 @@ function InstalarIphone() {
 
 /** /motorista/como-usar: o que fazer em cada tela e como instalar no celular (Android e iPhone). */
 export default function ComoUsarPage() {
-  const navigate = useNavigate();
   const iphone = ehIphone();
   return (
     // width 100%: na coluna flex da página, com mx auto, a caixa encolheria ou cresceria conforme o conteúdo.
@@ -87,7 +85,7 @@ export default function ComoUsarPage() {
             <>Escolha a <strong>Obra</strong>: busque pelo nome, pelo sinônimo ou pela cidade.</>,
             <>Escolha ou escreva o <strong>Motivo</strong> e toque em <strong>Salvar Saída</strong>.</>,
           ]} />
-          <Button sx={{ mt: 1 }} variant="contained" onClick={() => navigate('/motorista/saida')}>Abrir Saída</Button>
+          <Button sx={{ mt: 1 }} variant="contained" href="/motorista/saida">Abrir Saída</Button>
         </Secao>
 
         <Secao icone={<LoginRoundedIcon color="primary" />} titulo="Chegada">
@@ -97,7 +95,7 @@ export default function ComoUsarPage() {
             <>Digite o <strong>KM</strong> do painel (tem que ser maior que o último).</>,
             <>A obra é sempre a <strong>Fábrica</strong>: é só tocar em <strong>Salvar Chegada</strong>.</>,
           ]} />
-          <Button sx={{ mt: 1 }} variant="contained" onClick={() => navigate('/motorista/chegada')}>Abrir Chegada</Button>
+          <Button sx={{ mt: 1 }} variant="contained" href="/motorista/chegada">Abrir Chegada</Button>
         </Secao>
 
         <Secao icone={<HistoryRoundedIcon color="primary" />} titulo="Meu histórico">
@@ -106,7 +104,7 @@ export default function ComoUsarPage() {
             <Stack direction="row" spacing={1} alignItems="center"><Chip size="small" color="success" variant="outlined" label="Enviado" /><Typography variant="body2">já está no sistema.</Typography></Stack>
             <Stack direction="row" spacing={1} alignItems="center"><Chip size="small" color="warning" label="Aguardando envio" /><Typography variant="body2">está guardado no celular, esperando internet.</Typography></Stack>
           </Stack>
-          <Button variant="outlined" onClick={() => navigate('/motorista/historico')}>Abrir Meu histórico</Button>
+          <Button variant="outlined" href="/motorista/historico">Abrir Meu histórico</Button>
         </Secao>
 
         <Secao icone={<CloudOffOutlinedIcon color="primary" />} titulo="Sem internet">

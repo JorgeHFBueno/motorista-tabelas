@@ -3,7 +3,6 @@ import { Accordion, AccordionDetails, AccordionSummary, Box, Button, Chip, Stack
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import type { Data } from 'plotly.js';
 import Plot from 'react-plotly.js';
-import { useNavigate } from 'react-router-dom';
 import {
   consumo, custoPorCategoria, dadosACorrigir, duplicidadesFrotaErp,
   type AnalyticsPeriod, type VehicleAnalyticsIdentity, type VehicleData,
@@ -35,7 +34,6 @@ function Teste({ titulo, resumo, descricao, children }: { titulo: string; resumo
 }
 
 export default function FrotaKpiTestes({ alvos, period, individual }: Props) {
-  const navigate = useNavigate();
 
   const duplicidades = useMemo(() => alvos.map(({ vehicle, data }) => ({ vehicle, lista: duplicidadesFrotaErp(data, period) })), [alvos, period]);
   // Só veículos com placa têm ERP (máquina EXTRA não conta).
@@ -133,7 +131,7 @@ export default function FrotaKpiTestes({ alvos, period, individual }: Props) {
               <TableCell sx={{ whiteSpace: 'nowrap' }}>{p.tipo === 'leitura-solta' ? 'Leitura solta' : p.tipo === 'km-inicial' ? 'KM inicial' : 'Sem atualização'}</TableCell>
               <TableCell>{p.detalhe}</TableCell>
               <TableCell sx={{ color: 'text.secondary', fontSize: 12 }}>{p.origem ?? '—'}</TableCell>
-              <TableCell><Button size="small" onClick={() => navigate(`/frota/veiculos/${encodeURIComponent(p.vehicle.id)}`)}>Abrir</Button></TableCell>
+              <TableCell><Button size="small" href={`/frota/veiculos/${encodeURIComponent(p.vehicle.id)}`}>Abrir</Button></TableCell>
             </TableRow>)}</TableBody>
           </Table></Box>}
       </Teste>

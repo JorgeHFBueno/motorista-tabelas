@@ -2,12 +2,10 @@ import { Box, Card, CardActionArea, CardContent, Collapse, Stack, Typography, us
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import ChevronRightRoundedIcon from '@mui/icons-material/ChevronRightRounded';
 import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
 import { useAuthorizationProfile } from '../hooks/useAuthorizationProfile';
 import { filtrarMenuPrincipal } from '../components/menuPrincipal';
 
 export default function HomeDashboard() {
-  const navigate = useNavigate();
   const { loading: authorizationLoading, profile } = useAuthorizationProfile();
   const [expandedGroup, setExpandedGroup] = useState<string | null>(null);
   const duasColunas = useMediaQuery(useTheme().breakpoints.up('sm'));
@@ -51,7 +49,8 @@ export default function HomeDashboard() {
                   <CardActionArea
                     onClick={action.children
                       ? () => setExpandedGroup((current) => current === action.label ? null : action.label)
-                      : () => navigate(action.to!)}
+                      : undefined}
+                    {...(action.children ? {} : { href: action.to! })}
                     aria-expanded={action.children ? expandedGroup === action.label : undefined}
                     aria-label={action.crt ? action.label : undefined}
                     className={action.crt ? 'dev-crt-card' : undefined}
@@ -93,7 +92,7 @@ export default function HomeDashboard() {
                         {action.children.map((child) => (
                           <Card key={child.label} variant="outlined" sx={{ borderColor: `${action.accent}59`, borderRadius: 2, bgcolor: action.color }}>
                             <CardActionArea
-                              onClick={() => navigate(child.to)}
+                              href={child.to}
                               aria-label={`Abrir ${child.label}`}
                               sx={{ minHeight: 120, p: 2, transition: 'transform 0.2s ease, background-color 0.2s ease', '&:hover': { bgcolor: `${action.accent}1A`, transform: 'translateY(-2px)' }, '&:focus-visible': { outline: `3px solid ${action.accent}`, outlineOffset: -3 } }}
                             >

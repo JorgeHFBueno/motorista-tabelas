@@ -79,8 +79,8 @@ export default function HistoricoMotoristaPage() {
     // width 100%: na coluna flex da página, com mx auto, a caixa cresceria até o texto de uma linha só (noWrap).
     <Box sx={{ width: '100%', maxWidth: 640, mx: 'auto', px: 2, py: 2, pb: 6 }}>
       <Stack direction="row" spacing={1} sx={{ mb: 2 }}>
-        <Button fullWidth variant="contained" onClick={() => navigate('/motorista/saida')}>Nova Saída</Button>
-        <Button fullWidth variant="contained" onClick={() => navigate('/motorista/chegada')}>Nova Chegada</Button>
+        <Button fullWidth variant="contained" href="/motorista/saida">Nova Saída</Button>
+        <Button fullWidth variant="contained" href="/motorista/chegada">Nova Chegada</Button>
       </Stack>
       <Stack spacing={1.5}>
         {pendentes.length > 0 && (
