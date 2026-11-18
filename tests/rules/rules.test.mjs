@@ -53,6 +53,7 @@ const identities = {
   canonicalInactivePrecedence: { uid: 'uid-canonical-inactive-precedence', email: 'canonical-inactive-precedence@example.com' },
   legacyOnly: { uid: 'uid-legacy-only', email: 'legacy-only@example.com' },
   mecanico: { uid: 'uid-mecanico', email: 'mecanico@example.com' },
+  mecanico2: { uid: 'uid-mecanico2', email: 'mecanico2@example.com' },
   escritorio: { uid: 'uid-escritorio', email: 'escritorio@example.com' },
   escritorioFora: { uid: 'uid-escritorio-fora', email: 'escritorio-fora@example.com' },
   engenharia: { uid: 'uid-engenharia', email: 'engenharia@example.com' },
@@ -125,6 +126,8 @@ async function seed() {
     await employeeLike('uid-admin', 'Admin claim', 'admin@example.com', true, {});
     await employeeLike('uid-inactive', 'Inactive', 'inactive@example.com', false, { adm2: true });
     await employeeLike('uid-mecanico', 'Mecanico', 'mecanico@example.com', true, { mecanico: true }, editar('frota', 'combustivel', 'logistica', 'friday'));
+    // Second mechanic without WEB areas: the app credential alone (manutencoes-v2).
+    await employeeLike('uid-mecanico2', 'Mecanico 2', 'mecanico2@example.com', true, { mecanico: true });
     await employeeLike('uid-escritorio', 'Escritorio', 'escritorio@example.com', true, {}, editar('friday', 'cadastros', 'portal'));
     await employeeLike('uid-escritorio-fora', 'Escritorio fora', 'escritorio-fora@example.com', true, {}, editar('friday', 'cadastros', 'portal'));
     await employeeLike('uid-engenharia', 'Engenharia', 'engenharia@example.com', true, {}, editar('engenharia', 'portal'));
@@ -1430,6 +1433,168 @@ test('[storage] checklists-v2: read by mechanic and adm2; never overwritten or d
   await seedStorageObject(path);
   await assertSucceeds(getBytes(ref(storageAs('mecanico'), path)));
   await assertSucceeds(getBytes(ref(storageAs('canonicalAdm2'), path)));
+  await assertFails(getBytes(ref(storageAs('canonicalUser'), path)));
+  await assertFails(uploadBytes(ref(storageAs('mecanico'), path), image, { contentType: 'image/jpeg' }));
+  await assertFails(deleteObject(ref(storageAs('canonicalAdm2'), path)));
+});
+
+// ------------------------------------------------------------------ manutenção do mecânico (app, 2026-11-03)
+// Manuscript manutencoes-v2.md: one document per visit, rewritten on each Save (higher revisao) while open; any
+// mechanic or adm2 continues an open record (decision of 2026-11-04); immutable once closed.
+function manutencaoV2(overrides = {}) {
+  return {
+    schemaVersion: 1, status: 'aberta', revisao: 1,
+    item_frota_id: 'vv1', item_frota_snapshot: { categoria: 'PLACA', identificador: 'ABC1D23', nome: 'Caminhão 1' },
+    medidor: { tipo: 'km', valor: 126000, anterior: 125000, corrigido: false },
+    tipo: 'corretiva', motivo: 'Freio puxando', numeroNota: null,
+    datas: { parada: null, entrada: '2026-11-03', retorno: null },
+    itens: [{
+      itemId: 'AbCdEfGhIjKlMnOpQrSt', categoria: 'freios', acao: 'trocado', peca: 'lona de freio', motivo: null,
+      posicao: { eixo: 'dianteiro', lado: 'ld' }, quantidade: { valor: 2, unidade: 'un' }, especificacao: null, numeroNota: null,
+      fotos: [{
+        path: 'manutencoes-v2/m1/AbCdEfGhIjKlMnOpQrSt_1762170000000.jpg',
+        miniatura: 'manutencoes-v2/m1/miniaturas/AbCdEfGhIjKlMnOpQrSt_1762170000000.jpg',
+        origem: 'camera', capturadaEm: Timestamp.fromMillis(2), bytes: 500000, largura: 1600, altura: 1200,
+      }],
+    }],
+    criadoPor: { uid: 'uid-mecanico', nome: 'Mecanico' }, criadoPorUid: 'uid-mecanico', fechadoPor: null,
+    abertaEm: Timestamp.fromMillis(1), atualizadaEm: Timestamp.fromMillis(2), fechadaEm: null,
+    registradoEm: serverTimestamp(), atualizadoServidorEm: serverTimestamp(),
+    ...overrides,
+  };
+}
+
+// What the app sends on update: the document without the creation fields (they stay the server's).
+function manutencaoV2Revisao(overrides = {}) {
+  const { criadoPor, criadoPorUid, abertaEm, registradoEm, ...resto } = manutencaoV2(overrides);
+  return resto;
+}
+
+test('[firestore] manutencoes-v2: mechanic creates in the saving transaction (read before create, meter update)', async () => {
+  const db = dbAs('mecanico');
+  const registro = doc(db, 'manutencoes-v2', 'ManutencaoNova000001');
+  const veiculo = doc(db, 'veiculos-v2', 'vm1');
+  await assertSucceeds(runTransaction(db, async (tx) => {
+    if ((await tx.get(registro)).exists()) return;
+    await tx.get(veiculo);
+    tx.set(registro, manutencaoV2({
+      item_frota_id: 'vm1', item_frota_snapshot: { categoria: 'EXTRA', identificador: 'CARREGADEIRA', nome: 'Carregadeira Case' },
+      medidor: { tipo: 'horimetro', valor: 8800, anterior: 8700, corrigido: false },
+    }));
+    tx.update(veiculo, { 'operacional.quilometragemUltima': 8800, 'operacional.dataUltimaAtualizacao': serverTimestamp() });
+  }));
+});
+test('[firestore] manutencoes-v2: the app mechanic and the WEB Frota area read all; others cannot', async () => {
+  await env.withSecurityRulesDisabled(async (context) => {
+    await setDoc(doc(context.firestore(), 'manutencoes-v2', 'leitura'), manutencaoV2());
+  });
+  await assertSucceeds(getDocs(query(collection(dbAs('mecanico'), 'manutencoes-v2'), where('item_frota_id', '==', 'vv1'))));
+  await assertSucceeds(getDocs(query(collection(dbAs('mecanico2'), 'manutencoes-v2'), where('status', '==', 'aberta'))));
+  await assertSucceeds(getDocs(query(collection(dbAs('mecanico2'), 'manutencoes-v2'), orderBy('abertaEm', 'desc'), limit(100))));
+  await assertSucceeds(getDoc(doc(dbAs('mecanico2'), 'manutencoes-v2', 'ainda-nao-existe')));
+  await assertSucceeds(getDocs(collection(dbAs('canonicalAdm2'), 'manutencoes-v2')));
+  await assertSucceeds(getDocs(collection(dbAs('frotaEditar'), 'manutencoes-v2')));
+  await assertFails(getDocs(collection(dbAs('canonicalUser'), 'manutencoes-v2')));
+  await assertFails(getDocs(collection(dbAs('canonicalFrentista'), 'manutencoes-v2')));
+  await assertFails(getDocs(collection(dbAs('escritorio'), 'manutencoes-v2')));
+  await assertFails(getDocs(collection(dbAs('legacyOnly'), 'manutencoes-v2')));
+});
+test('[firestore] manutencoes-v2: mechanic and adm2 create; the WEB Frota area and plain employees cannot', async () => {
+  await assertSucceeds(setDoc(doc(dbAs('mecanico2'), 'manutencoes-v2', 'criada-mecanico2'), manutencaoV2({ criadoPor: { uid: 'uid-mecanico2', nome: 'Mecanico 2' }, criadoPorUid: 'uid-mecanico2' })));
+  await assertSucceeds(setDoc(doc(dbAs('canonicalAdm2'), 'manutencoes-v2', 'criada-adm2'), manutencaoV2({ criadoPor: { uid: 'uid-canonical-adm2', nome: 'Adm2' }, criadoPorUid: 'uid-canonical-adm2' })));
+  await assertFails(setDoc(doc(dbAs('frotaEditar'), 'manutencoes-v2', 'criada-frota'), manutencaoV2({ criadoPor: { uid: 'uid-frota-editar', nome: 'x' }, criadoPorUid: 'uid-frota-editar' })));
+  await assertFails(setDoc(doc(dbAs('canonicalUser'), 'manutencoes-v2', 'criada-user'), manutencaoV2({ criadoPor: { uid: 'uid-canonical-user', nome: 'x' }, criadoPorUid: 'uid-canonical-user' })));
+});
+test('[firestore] manutencoes-v2: create rejects forged author, missing vehicle, non-integer meter or revisao and bad status', async () => {
+  const db = dbAs('mecanico');
+  const bad = {
+    'forged-uid': { criadoPorUid: 'uid-other' },
+    'forged-snapshot': { criadoPor: { uid: 'uid-other', nome: 'Mecanico' } },
+    'no-vehicle': { item_frota_id: 'nao-existe' },
+    'fractional-meter': { medidor: { tipo: 'km', valor: 10.5, anterior: null, corrigido: false } },
+    'no-meter': { medidor: null },
+    'revisao-zero': { revisao: 0 },
+    'revisao-fractional': { revisao: 1.5 },
+    'status-other': { status: 'cancelada' },
+    'itens-map': { itens: { a: 1 } },
+    'closed-without-closer': { status: 'fechada', datas: { parada: null, entrada: '2026-11-03', retorno: '2026-11-04' } },
+    'closed-by-other': { status: 'fechada', fechadoPor: { uid: 'uid-other', nome: 'x' } },
+  };
+  for (const [id, change] of Object.entries(bad)) {
+    await assertFails(setDoc(doc(db, 'manutencoes-v2', `bad-${id}`), manutencaoV2(change)));
+  }
+  // Opened and closed before the first successful upload; the format beyond that is the app's.
+  await assertSucceeds(setDoc(doc(db, 'manutencoes-v2', 'ok-ja-fechada'), manutencaoV2({
+    status: 'fechada', datas: { parada: null, entrada: '2026-11-03', retorno: '2026-11-04' },
+    fechadoPor: { uid: 'uid-mecanico', nome: 'Mecanico' }, fechadaEm: Timestamp.fromMillis(3),
+  })));
+  await assertSucceeds(setDoc(doc(db, 'manutencoes-v2', 'ok-formato'), manutencaoV2({ schemaVersion: 2, tipo: 'outro', campoNovo: true })));
+});
+test('[firestore] manutencoes-v2: any mechanic or adm2 continues an open record with a higher revisao', async () => {
+  await assertSucceeds(setDoc(doc(dbAs('mecanico'), 'manutencoes-v2', 'continuar'), manutencaoV2()));
+  // Another mechanic (not the creator), in the app's saving transaction.
+  const db = dbAs('mecanico2');
+  const registro = doc(db, 'manutencoes-v2', 'continuar');
+  await assertSucceeds(runTransaction(db, async (tx) => {
+    const atual = await tx.get(registro);
+    if (atual.data().revisao >= 2) return;
+    tx.update(registro, manutencaoV2Revisao({ revisao: 2, motivo: 'Freio puxando e barulho' }));
+  }));
+  await assertSucceeds(updateDoc(doc(dbAs('canonicalAdm2'), 'manutencoes-v2', 'continuar'), manutencaoV2Revisao({ revisao: 3 })));
+  // Same or lower revisao, creation fields, forged closer, other people.
+  await assertFails(updateDoc(doc(dbAs('mecanico'), 'manutencoes-v2', 'continuar'), manutencaoV2Revisao({ revisao: 3 })));
+  await assertFails(updateDoc(doc(dbAs('mecanico'), 'manutencoes-v2', 'continuar'), manutencaoV2Revisao({ revisao: 2 })));
+  await assertFails(updateDoc(doc(dbAs('mecanico'), 'manutencoes-v2', 'continuar'), manutencaoV2Revisao({ revisao: 4.5 })));
+  await assertFails(updateDoc(doc(dbAs('mecanico2'), 'manutencoes-v2', 'continuar'), { ...manutencaoV2Revisao({ revisao: 4 }), criadoPorUid: 'uid-mecanico2' }));
+  await assertFails(updateDoc(doc(dbAs('mecanico2'), 'manutencoes-v2', 'continuar'), { ...manutencaoV2Revisao({ revisao: 4 }), criadoPor: { uid: 'uid-mecanico2', nome: 'Mecanico 2' } }));
+  await assertFails(updateDoc(doc(dbAs('mecanico2'), 'manutencoes-v2', 'continuar'), { ...manutencaoV2Revisao({ revisao: 4 }), abertaEm: Timestamp.fromMillis(9) }));
+  await assertFails(updateDoc(doc(dbAs('mecanico2'), 'manutencoes-v2', 'continuar'), manutencaoV2Revisao({ revisao: 4, item_frota_id: 'nao-existe' })));
+  await assertFails(updateDoc(doc(dbAs('frotaEditar'), 'manutencoes-v2', 'continuar'), manutencaoV2Revisao({ revisao: 4 })));
+  await assertFails(updateDoc(doc(dbAs('canonicalUser'), 'manutencoes-v2', 'continuar'), manutencaoV2Revisao({ revisao: 4 })));
+});
+test('[firestore] manutencoes-v2: whoever closes is the signed-in user; closed is immutable and nothing is deleted', async () => {
+  await assertSucceeds(setDoc(doc(dbAs('mecanico'), 'manutencoes-v2', 'fechar'), manutencaoV2()));
+  const fechada = (uid, nome) => manutencaoV2Revisao({
+    revisao: 2, status: 'fechada', datas: { parada: null, entrada: '2026-11-03', retorno: '2026-11-05' },
+    fechadoPor: { uid, nome }, fechadaEm: Timestamp.fromMillis(5),
+  });
+  await assertFails(updateDoc(doc(dbAs('mecanico2'), 'manutencoes-v2', 'fechar'), fechada('uid-mecanico', 'Mecanico')));
+  await assertSucceeds(updateDoc(doc(dbAs('mecanico2'), 'manutencoes-v2', 'fechar'), fechada('uid-mecanico2', 'Mecanico 2')));
+  await assertFails(updateDoc(doc(dbAs('mecanico'), 'manutencoes-v2', 'fechar'), manutencaoV2Revisao({ revisao: 3 })));
+  await assertFails(updateDoc(doc(dbAs('canonicalAdm2'), 'manutencoes-v2', 'fechar'), { ...fechada('uid-canonical-adm2', 'Adm2'), revisao: 3 }));
+  await assertFails(deleteDoc(doc(dbAs('canonicalAdm2'), 'manutencoes-v2', 'fechar')));
+  await assertFails(deleteDoc(doc(dbAs('mecanico'), 'manutencoes-v2', 'continuar')));
+});
+
+test('[storage] manutencoes-v2: mechanic and adm2 upload photos and thumbnails; others cannot', async () => {
+  const nome = 'AbCdEfGhIjKlMnOpQrSt_1762170000000.jpg';
+  await assertSucceeds(uploadBytes(ref(storageAs('mecanico'), `manutencoes-v2/m1/${nome}`), image, { contentType: 'image/jpeg' }));
+  await assertSucceeds(uploadBytes(ref(storageAs('mecanico'), `manutencoes-v2/m1/miniaturas/${nome}`), image, { contentType: 'image/jpeg' }));
+  await assertSucceeds(uploadBytes(ref(storageAs('mecanico2'), `manutencoes-v2/m2/${nome}`), image, { contentType: 'image/jpeg' }));
+  await assertSucceeds(uploadBytes(ref(storageAs('canonicalAdm2'), `manutencoes-v2/m3/${nome}`), image, { contentType: 'image/jpeg' }));
+  await assertFails(uploadBytes(ref(storageAs('frotaEditar'), `manutencoes-v2/m4/${nome}`), image, { contentType: 'image/jpeg' }));
+  await assertFails(uploadBytes(ref(storageAs('canonicalUser'), `manutencoes-v2/m4/${nome}`), image, { contentType: 'image/jpeg' }));
+  await assertFails(uploadBytes(ref(storageAs('canonicalFrentista'), `manutencoes-v2/m4/${nome}`), image, { contentType: 'image/jpeg' }));
+  await assertFails(uploadBytes(ref(storageAs('legacyOnly'), `manutencoes-v2/m4/${nome}`), image, { contentType: 'image/jpeg' }));
+});
+test('[storage] manutencoes-v2: JPEG only, size limits and file name', async () => {
+  const st = storageAs('mecanico');
+  await assertFails(uploadBytes(ref(st, 'manutencoes-v2/m5/AbCdEfGhIjKlMnOpQrSt_1.png'), image, { contentType: 'image/png' }));
+  await assertFails(uploadBytes(ref(st, 'manutencoes-v2/m5/AbCdEfGhIjKlMnOpQrSt_1.jpg'), image, { contentType: 'image/png' }));
+  await assertFails(uploadBytes(ref(st, 'manutencoes-v2/m5/foto.jpg'), image, { contentType: 'image/jpeg' }));
+  await assertFails(uploadBytes(ref(st, 'manutencoes-v2/m5/Ab-Cd_1.jpg'), image, { contentType: 'image/jpeg' }));
+  await assertFails(uploadBytes(ref(st, 'manutencoes-v2/m5/outra/AbCdEfGhIjKlMnOpQrSt_1.jpg'), image, { contentType: 'image/jpeg' }));
+  await assertSucceeds(uploadBytes(ref(st, 'manutencoes-v2/m5/AbCdEfGhIjKlMnOpQrSt_2.jpg'), new Uint8Array(2 * 1024 * 1024), { contentType: 'image/jpeg' }));
+  await assertFails(uploadBytes(ref(st, 'manutencoes-v2/m5/AbCdEfGhIjKlMnOpQrSt_3.jpg'), new Uint8Array(2 * 1024 * 1024 + 1), { contentType: 'image/jpeg' }));
+  await assertSucceeds(uploadBytes(ref(st, 'manutencoes-v2/m5/miniaturas/AbCdEfGhIjKlMnOpQrSt_2.jpg'), new Uint8Array(200 * 1024), { contentType: 'image/jpeg' }));
+  await assertFails(uploadBytes(ref(st, 'manutencoes-v2/m5/miniaturas/AbCdEfGhIjKlMnOpQrSt_3.jpg'), new Uint8Array(200 * 1024 + 1), { contentType: 'image/jpeg' }));
+});
+test('[storage] manutencoes-v2: read by mechanic, adm2 and the WEB Frota area; never overwritten or deleted', async () => {
+  const path = 'manutencoes-v2/m6/AbCdEfGhIjKlMnOpQrSt_1.jpg';
+  await seedStorageObject(path);
+  await assertSucceeds(getBytes(ref(storageAs('mecanico2'), path)));
+  await assertSucceeds(getBytes(ref(storageAs('canonicalAdm2'), path)));
+  await assertSucceeds(getBytes(ref(storageAs('frotaEditar'), path)));
   await assertFails(getBytes(ref(storageAs('canonicalUser'), path)));
   await assertFails(uploadBytes(ref(storageAs('mecanico'), path), image, { contentType: 'image/jpeg' }));
   await assertFails(deleteObject(ref(storageAs('canonicalAdm2'), path)));

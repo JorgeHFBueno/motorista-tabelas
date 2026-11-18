@@ -109,6 +109,28 @@ service firebase.storage {
       allow update, delete: if false;
     }
 
+    // Mechanic maintenance photos <itemId>_<n>.jpg and thumbnails (app, Manuscript manutencoes-v2.md): itemId is the
+    // app's 20-character id (upper and lower case) and n is unique per photo, not its order. Same users as the
+    // checklist; never overwritten nor deleted.
+    function isManutencaoV2Jpeg(maxBytes, arquivo) {
+      return isNewObject()
+        && request.resource.contentType == 'image/jpeg'
+        && request.resource.size <= maxBytes
+        && arquivo.matches('^[A-Za-z0-9]+_[0-9]+\\.jpg$');
+    }
+
+    match /manutencoes-v2/{manutencaoId}/{arquivo} {
+      allow read: if isChecklistV2Reader();
+      allow create: if isChecklistV2User() && isManutencaoV2Jpeg(2 * 1024 * 1024, arquivo);
+      allow update, delete: if false;
+    }
+
+    match /manutencoes-v2/{manutencaoId}/miniaturas/{arquivo} {
+      allow read: if isChecklistV2Reader();
+      allow create: if isChecklistV2User() && isManutencaoV2Jpeg(200 * 1024, arquivo);
+      allow update, delete: if false;
+    }
+
     // Friday attachments: friday/{quadroId}/{itemId}/{anexoId}-{nome}. Same access as the board in Firestore
     // (friday area or adm2; a restricted board only for its "acesso" list, adm2 always), up to 25 MB, never
     // overwritten; deleted together with the attachment record.

@@ -992,6 +992,56 @@ service cloud.firestore {
       allow update, delete: if false;
     }
 
+    // Mechanic maintenance record (app, Manuscript manutencoes-v2.md): one document per visit, rewritten on each Save
+    // with a higher revisao while status == 'aberta', immutable once 'fechada'. Any mechanic or adm2 continues an open
+    // record, not only its creator (decision of 2026-11-04). Readers: the app mechanic and the WEB Frota area (adm2
+    // included); the saving transaction reads the document before it exists. May already be created 'fechada'
+    // (opened and closed before the first successful upload).
+    function isManutencaoV2User() {
+      return hasEitherPerfil('mecanico', 'adm2');
+    }
+
+    // Create and update: status, integer revisao, vehicle by ID, integer meter, items list; whoever closes is the
+    // signed-in user.
+    function validManutencaoV2Dados() {
+      let data = request.resource.data;
+      let medidor = data.get('medidor', {});
+      let status = data.get('status', '');
+      let fechadoPor = data.get('fechadoPor', null);
+      return status in ['aberta', 'fechada']
+        && data.get('revisao', null) is int
+        && data.get('revisao', 0) >= 1
+        && fleetItemExists(data.get('item_frota_id', ''))
+        && medidor is map
+        && medidor.get('valor', null) is int
+        && data.get('itens', null) is list
+        && (status == 'aberta' || (fechadoPor is map && fechadoPor.get('uid', '') == request.auth.uid));
+    }
+
+    function validManutencaoV2Create() {
+      let data = request.resource.data;
+      return data.get('criadoPorUid', '') == request.auth.uid
+        && data.get('criadoPor', null) is map
+        && data.get('criadoPor', {}).get('uid', '') == request.auth.uid
+        && validManutencaoV2Dados();
+    }
+
+    // Only while the stored record is open, keeping the creation fields, with a higher revisao.
+    function validManutencaoV2Update() {
+      return resource.data.get('status', '') == 'aberta'
+        && didNotChange(['criadoPor', 'criadoPorUid', 'abertaEm', 'registradoEm'])
+        && request.resource.data.get('revisao', 0) is int
+        && request.resource.data.get('revisao', 0) > resource.data.get('revisao', 0)
+        && validManutencaoV2Dados();
+    }
+
+    match /manutencoes-v2/{manutencaoId} {
+      allow read: if isMecanico() || veArea('frota');
+      allow create: if isManutencaoV2User() && validManutencaoV2Create();
+      allow update: if isManutencaoV2User() && validManutencaoV2Update();
+      allow delete: if false;
+    }
+
 
     // ================================================================ fuel
 
