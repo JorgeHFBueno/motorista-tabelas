@@ -41,6 +41,8 @@ const MeuPerfilPage = lazy(() => import('./pages/MeuPerfilPage'));
 const FridayApp = lazy(() => import('./features/friday-gestao-interna/App'));
 const DevToysPage = lazy(() => import('./features/dev-toys/DevToysPage'));
 const TesteMkiPage = lazy(() => import('./features/testes/mki/TesteMkiPage'));
+const SaidaChegadaPage = lazy(() => import('./features/saida-chegada/SaidaChegadaPage'));
+const HistoricoMotoristaPage = lazy(() => import('./features/saida-chegada/HistoricoMotoristaPage'));
 
 console.log('[build]', import.meta.env.MODE, '__BUILD__', '1122');
 
@@ -62,6 +64,13 @@ export default function App() {
             <Route element={<PrivateRoute permite={() => true} />}>
               <Route index element={<HomeDashboard />} />
               <Route path="perfil" element={<MeuPerfilPage />} />
+            </Route>
+            {/* Saída e Chegada do app no WEB (src/features/saida-chegada, 2026-11-18): credencial motorista ou adm2, com fila
+                offline no aparelho. The Manuscript, 03_APLICACAO_WEB/06_REGISTROS_E_CHECKLISTS.md. */}
+            <Route element={<PrivateRoute permite={(p) => temCredencial(p, 'motorista')} />}>
+              <Route path="motorista/saida" element={<SaidaChegadaPage key="saida" tipo="saida" />} />
+              <Route path="motorista/chegada" element={<SaidaChegadaPage key="chegada" tipo="chegada" />} />
+              <Route path="motorista/historico" element={<HistoricoMotoristaPage />} />
             </Route>
             <Route element={<PrivateRoute permite={entraNoFriday} />}>
               <Route path="friday/*" element={<FridayApp />} />

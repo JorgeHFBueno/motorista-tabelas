@@ -6,9 +6,9 @@ import type { Area } from './areasWeb';
 // A mesma lista e as mesmas regras estão nas Functions (functions/credenciais.ts) e nas Rules.
 export const CREDENCIAIS = [
   { chave: 'adm2', rotulo: 'Adm2', descricao: 'Administração: entra em tudo, no app e na WEB' },
-  { chave: 'motorista', rotulo: 'Motorista', descricao: 'Saída e Chegada no app; aparece na lista de motoristas' },
+  { chave: 'motorista', rotulo: 'Motorista', descricao: 'Saída e Chegada no app e na WEB; aparece na lista de motoristas' },
   { chave: 'frentista', rotulo: 'Frentista', descricao: 'Combustível no app e no Kiosk' },
-  { chave: 'mecanico', rotulo: 'Mecânico', descricao: 'Checklist no app; registra Saída e Chegada por outra pessoa' },
+  { chave: 'mecanico', rotulo: 'Mecânico', descricao: 'Checklist no app; no app, registra Saída e Chegada por outra pessoa' },
   { chave: 'retr0', rotulo: 'Retr0', descricao: 'Área DEV (/dev), na WEB; nem o adm2 entra sem ela' },
 ] as const;
 

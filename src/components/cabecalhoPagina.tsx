@@ -47,6 +47,9 @@ const TITULOS: Array<{ padrao: string } & TituloPagina> = [
   { padrao: '/portal-cliente/contratos/:id', titulo: 'Contrato no portal' },
   { padrao: '/portal-cliente/atendimento', titulo: 'Atendimento do portal' },
   { padrao: '/portal-cliente/noticias', titulo: 'Notícias do portal' },
+  { padrao: '/motorista/saida', titulo: 'Saída' },
+  { padrao: '/motorista/chegada', titulo: 'Chegada' },
+  { padrao: '/motorista/historico', titulo: 'Meu histórico' },
 ];
 
 const tituloDaRota = (caminho: string): TituloPagina | null => {

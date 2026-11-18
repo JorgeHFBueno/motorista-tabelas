@@ -19,15 +19,19 @@ import PersonAddAltOutlinedIcon from '@mui/icons-material/PersonAddAltOutlined';
 import DescriptionOutlinedIcon from '@mui/icons-material/DescriptionOutlined';
 import SupportAgentOutlinedIcon from '@mui/icons-material/SupportAgentOutlined';
 import NewspaperOutlinedIcon from '@mui/icons-material/NewspaperOutlined';
+import LogoutRoundedIcon from '@mui/icons-material/LogoutRounded';
+import LoginRoundedIcon from '@mui/icons-material/LoginRounded';
+import HistoryRoundedIcon from '@mui/icons-material/HistoryRounded';
+import AirportShuttleOutlinedIcon from '@mui/icons-material/AirportShuttleOutlined';
 import IconeDev from '../features/dev-toys/IconeDev';
 import IconeFriday from '../features/friday-gestao-interna/IconeFriday';
 import type { AuthorizationProfile } from '../services/authorizationProfile';
-import { editaArea, temAlgumaCredencial, temCredencial, veArea } from '../services/credenciais';
+import { editaArea, temAlgumaCredencial, temCredencial, veArea, type Credencial } from '../services/credenciais';
 import type { Area } from '../services/areasWeb';
 
 // 'qualquer': qualquer credencial ou área; 'retr0': só a credencial retr0 (DEV); { editar }: editar uma das áreas;
-// senão, ver uma das áreas.
-type Acesso = 'qualquer' | 'retr0' | Area[] | { editar: Area[] };
+// { credencial }: uma das credenciais do app (o adm2 entra); senão, ver uma das áreas.
+type Acesso = 'qualquer' | 'retr0' | Area[] | { editar: Area[] } | { credencial: Credencial[] };
 
 // Áreas do sistema: cards da Home e menu lateral aberto pelo cabeçalho nas demais páginas.
 export type MenuPrincipalItem = {
@@ -45,6 +49,19 @@ export type MenuPrincipalItem = {
 };
 
 export const menuPrincipal: MenuPrincipalItem[] = [
+  {
+    // Saída e Chegada do app no WEB (2026-11-18): a credencial motorista e o adm2, não uma área.
+    label: 'Motorista',
+    icon: <AirportShuttleOutlinedIcon fontSize="large" />,
+    color: '#EEF5F1',
+    accent: '#2E7D5B',
+    acesso: { credencial: ['motorista'] },
+    children: [
+      { label: 'Saída', to: '/motorista/saida', icon: <LogoutRoundedIcon />, descricao: 'Registrar a saída de um veículo' },
+      { label: 'Chegada', to: '/motorista/chegada', icon: <LoginRoundedIcon />, descricao: 'Registrar a chegada na Fábrica' },
+      { label: 'Meu histórico', to: '/motorista/historico', icon: <HistoryRoundedIcon />, descricao: 'Suas saídas e chegadas e o que falta enviar' },
+    ],
+  },
   {
     label: 'The Manuscript',
     icon: <MenuBookRoundedIcon fontSize="large" />,
@@ -147,10 +164,11 @@ export const menuPrincipal: MenuPrincipalItem[] = [
 const temAcesso = (profile: AuthorizationProfile | null, acesso: Acesso) =>
   acesso === 'qualquer' ? temAlgumaCredencial(profile)
     : acesso === 'retr0' ? temCredencial(profile, 'retr0')
-      : Array.isArray(acesso) ? veArea(profile, ...acesso) : editaArea(profile, ...acesso.editar);
+      : Array.isArray(acesso) ? veArea(profile, ...acesso)
+        : 'credencial' in acesso ? temCredencial(profile, ...acesso.credencial) : editaArea(profile, ...acesso.editar);
 
 // Cada área aparece para quem a vê (areas); o adm2 vê tudo, salvo a DEV (retr0). Um grupo mostra só os subitens
-// que a pessoa pode abrir e some sem nenhum. Quem só tem credenciais do app (motorista, frentista) vê Cadastros com o Meu perfil.
+// que a pessoa pode abrir e some sem nenhum. Quem só tem credenciais do app vê Cadastros com o Meu perfil; o motorista, também o grupo Motorista.
 export function filtrarMenuPrincipal(profile: AuthorizationProfile | null): MenuPrincipalItem[] {
   return menuPrincipal.flatMap((item) => {
     if (!item.children) return temAcesso(profile, item.acesso) ? [item] : [];

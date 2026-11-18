@@ -70,9 +70,18 @@ test('Meu perfil fica dentro de Cadastros e continua aberto a qualquer credencia
   assert.deepEqual(grupo(perfil({ areas: { cadastros: 'editar' } }), 'Cadastros'), ['Usuários', 'Novo usuário', 'Meu perfil']);
   assert.deepEqual(grupo(perfil({ areas: { cadastros: 'ver' } }), 'Cadastros'), ['Usuários', 'Meu perfil']);
   assert.deepEqual(grupo(perfil({ motorista: true }), 'Cadastros'), ['Meu perfil']);
-  assert.deepEqual(filtrarMenuPrincipal(perfil({ motorista: true })).map((i) => i.label), ['Cadastros']);
+  assert.deepEqual(filtrarMenuPrincipal(perfil({ motorista: true })).map((i) => i.label), ['Motorista', 'Cadastros']);
   assert.equal(filtrarMenuPrincipal(perfil({ adm2: true })).some((i) => i.label === 'Meu perfil'), false);
   assert.deepEqual(filtrarMenuPrincipal(perfil({})), []);
+});
+
+test('Saída e Chegada no WEB (2026-11-18): grupo Motorista só para a credencial motorista e o adm2', () => {
+  assert.deepEqual(grupo(perfil({ motorista: true }), 'Motorista'), ['Saída', 'Chegada', 'Meu histórico']);
+  assert.deepEqual(grupo(perfil({ adm2: true }), 'Motorista'), ['Saída', 'Chegada', 'Meu histórico']);
+  for (const outro of [{ mecanico: true }, { frentista: true }, { areas: { frota: 'editar' as const } }]) {
+    assert.equal(grupo(perfil(outro), 'Motorista'), undefined, JSON.stringify(outro));
+  }
+  assert.equal(grupo(perfil({ motorista: true, ativo: false }), 'Motorista'), undefined);
 });
 
 test('subitens da Home mostram uma descrição, não o caminho', () => {
