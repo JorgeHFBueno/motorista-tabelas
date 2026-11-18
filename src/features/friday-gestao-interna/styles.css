@@ -1061,3 +1061,6 @@ body.redimensionando .friday-root, body.redimensionando .friday-root * { cursor:
 .friday-root .ts-tabela th .btn-icone { margin-left: 4px; vertical-align: middle; }
 .friday-root .ts-coluna { display: flex; align-items: center; gap: 6px; }
 .friday-root .ts-coluna small { margin-left: 4px; }
+.friday-root .ts-rodape { position: sticky; bottom: 0; display: flex; align-items: center; justify-content: flex-end; gap: 10px; background: var(--fundo, var(--superficie)); border-top: 1px solid var(--borda-suave); padding: 12px 0; margin-top: 4px; }
+.friday-root .ts-rodape .muted { margin-right: auto; }
+.friday-root .ts-nova { background: var(--primaria-clara); color: var(--primaria); border-radius: 4px; padding: 0 6px; font-weight: 600; }
