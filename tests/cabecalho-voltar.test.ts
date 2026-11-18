@@ -75,13 +75,21 @@ test('Meu perfil fica dentro de Cadastros e continua aberto a qualquer credencia
   assert.deepEqual(filtrarMenuPrincipal(perfil({})), []);
 });
 
-test('Saída e Chegada no WEB (2026-11-18): grupo Motorista só para a credencial motorista e o adm2, com Como usar', () => {
-  assert.deepEqual(grupo(perfil({ motorista: true }), 'Motorista'), ['Saída', 'Chegada', 'Meu histórico', 'Como usar']);
-  assert.deepEqual(grupo(perfil({ adm2: true }), 'Motorista'), ['Saída', 'Chegada', 'Meu histórico', 'Como usar']);
-  for (const outro of [{ mecanico: true }, { frentista: true }, { areas: { frota: 'editar' as const } }]) {
-    assert.equal(grupo(perfil(outro), 'Motorista'), undefined, JSON.stringify(outro));
+test('Saída e Chegada no WEB (2026-11-18): cartão Motorista só para a credencial motorista e o adm2, levando a /motorista', () => {
+  // Desde 2026-11-18 o cartão é um link direto para /motorista, onde ficam os quatro botões.
+  const motorista = (p: AuthorizationProfile) => filtrarMenuPrincipal(p).find((item) => item.label === 'Motorista');
+  for (const quem of [perfil({ motorista: true }), perfil({ adm2: true })]) {
+    assert.equal(motorista(quem)?.to, '/motorista');
+    assert.equal(motorista(quem)?.children, undefined);
   }
-  assert.equal(grupo(perfil({ motorista: true, ativo: false }), 'Motorista'), undefined);
+  for (const outro of [{ mecanico: true }, { frentista: true }, { areas: { frota: 'editar' as const } }]) {
+    assert.equal(motorista(perfil(outro)), undefined, JSON.stringify(outro));
+  }
+  assert.equal(motorista(perfil({ motorista: true, ativo: false })), undefined);
+  // As telas do motorista voltam para /motorista, não para a Home.
+  assert.equal(rotaAnterior('/motorista/saida'), '/motorista');
+  assert.equal(rotaAnterior('/motorista/como-usar'), '/motorista');
+  assert.equal(rotaAnterior('/motorista'), '/');
 });
 
 test('subitens da Home mostram uma descrição, não o caminho', () => {

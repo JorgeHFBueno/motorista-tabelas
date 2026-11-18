@@ -9,6 +9,7 @@ import { entraNoFriday } from './features/friday-gestao-interna/acesso';
 import NetworkStatusBanner from './components/NetworkStatusBanner';
 import PwaUpdateBanner from './components/PwaUpdateBanner';
 import PwaUpdateOverlay from './components/PwaUpdateOverlay';
+import ManifestoDaRota from './features/saida-chegada/ManifestoDaRota';
 
 import LoadingFallback from './components/LoadingFallback';
 
@@ -44,12 +45,14 @@ const TesteMkiPage = lazy(() => import('./features/testes/mki/TesteMkiPage'));
 const SaidaChegadaPage = lazy(() => import('./features/saida-chegada/SaidaChegadaPage'));
 const HistoricoMotoristaPage = lazy(() => import('./features/saida-chegada/HistoricoMotoristaPage'));
 const ComoUsarPage = lazy(() => import('./features/saida-chegada/ComoUsarPage'));
+const MotoristaPage = lazy(() => import('./features/saida-chegada/MotoristaPage'));
 
 console.log('[build]', import.meta.env.MODE, '__BUILD__', '1122');
 
 export default function App() {
   return (
     <BrowserRouter>
+      <ManifestoDaRota />
       <NetworkStatusBanner />
       <PwaUpdateOverlay />
       <PwaUpdateBanner />
@@ -68,7 +71,9 @@ export default function App() {
             </Route>
             {/* Saída e Chegada do app no WEB (src/features/saida-chegada, 2026-11-18): credencial motorista ou adm2, com fila
                 offline no aparelho. The Manuscript, 03_APLICACAO_WEB/06_REGISTROS_E_CHECKLISTS.md. */}
-            <Route element={<PrivateRoute permite={(p) => temCredencial(p, 'motorista')} />}>
+            {/* Sem login, o próprio /motorista mostra o formulário (o app Motorista instalado não sai de /motorista). */}
+            <Route element={<PrivateRoute permite={(p) => temCredencial(p, 'motorista')} semSessao={<LoginPage destino="/motorista" />} />}>
+              <Route path="motorista" element={<MotoristaPage />} />
               <Route path="motorista/saida" element={<SaidaChegadaPage key="saida" tipo="saida" />} />
               <Route path="motorista/chegada" element={<SaidaChegadaPage key="chegada" tipo="chegada" />} />
               <Route path="motorista/historico" element={<HistoricoMotoristaPage />} />

@@ -15,7 +15,8 @@ import {
 } from '@mui/material';
 import { isValidEmailIdentifier, prepareLoginIdentifier } from '../services/loginIdentifier';
 
-export default function LoginPage() {
+// `destino`: para onde ir depois de entrar (o app Motorista mostra o login dentro de /motorista e volta para lá).
+export default function LoginPage({ destino = '/' }: { destino?: string }) {
   const { signIn } = useAuth();
   const navigate = useNavigate();
   const [identifier, setIdentifier] = useState('');
@@ -73,7 +74,7 @@ export default function LoginPage() {
     setIsSubmitting(true);
     try {
       await signIn(preparedIdentifier, password);
-      navigate('/');
+      navigate(destino);
     } catch {
       setError('Falha ao entrar');
     } finally {

@@ -1,6 +1,7 @@
 import { Box, Button, Paper, Stack, Typography } from '@mui/material';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
+import { ehAppMotorista } from '../features/saida-chegada/appMotorista';
 
 export type MotivoAcessoNegado = 'firestore-error' | 'missing-funcionario' | 'inactive' | 'sem-credencial' | 'sem-acesso-area';
 
@@ -27,10 +28,12 @@ export default function AcessoNegado({ motivo }: { motivo: MotivoAcessoNegado })
   const navigate = useNavigate();
   const { signOut } = useAuth();
   const { titulo, texto } = mensagens[motivo];
+  // No app Motorista instalado, sair volta ao login dentro de /motorista, e não há "início" para onde ir.
+  const appMotorista = ehAppMotorista();
 
   const sair = async () => {
     await signOut();
-    navigate('/login', { replace: true });
+    navigate(appMotorista ? '/motorista' : '/login', { replace: true });
   };
 
   return (
@@ -42,7 +45,7 @@ export default function AcessoNegado({ motivo }: { motivo: MotivoAcessoNegado })
           <Stack direction="row" spacing={1} justifyContent="flex-end">
             {motivo === 'firestore-error' ? (
               <Button variant="contained" onClick={() => window.location.reload()}>Tentar novamente</Button>
-            ) : motivo === 'sem-acesso-area' ? (
+            ) : motivo === 'sem-acesso-area' && !appMotorista ? (
               <Button variant="contained" onClick={() => navigate('/')}>Ir para o início</Button>
             ) : (
               <Button variant="outlined" onClick={() => void sair()}>Sair</Button>

@@ -10,6 +10,7 @@ import MenuLateral from './MenuLateral';
 import BotaoAvisos from './BotaoAvisos';
 import { useAuth } from '../contexts/AuthContext';
 import { rotaAnterior, useCabecalhoPagina } from './cabecalhoPagina';
+import { ehAppMotorista, ehRotaMotorista } from '../features/saida-chegada/appMotorista';
 
 // Header in the client portal's model: menu button, back button, page title and subtitle, notices and the signed-in user.
 // Back goes up the URL to the nearest page, until the Home (rotaAnterior); the pages have no back buttons of their own.
@@ -29,10 +30,13 @@ export default function Header() {
   const pagina = useCabecalhoPagina();
   const [menuLateralOpen, setMenuLateralOpen] = useState(false);
   const [menuUsuario, setMenuUsuario] = useState<HTMLElement | null>(null);
-  const comMenuLateral = Boolean(currentUser) && !SEM_MENU_LATERAL.includes(location.pathname);
+  // App Motorista instalado: nada leva para fora de /motorista (sem menu lateral, sem voltar à Home, sem Meu perfil).
+  const appMotorista = ehAppMotorista();
+  const comMenuLateral = Boolean(currentUser) && !appMotorista && !SEM_MENU_LATERAL.includes(location.pathname);
   const anterior = rotaAnterior(location.pathname);
   // Not before signing in.
-  const comVoltar = Boolean(currentUser) && anterior !== null && location.pathname !== '/login';
+  const comVoltar = Boolean(currentUser) && anterior !== null && location.pathname !== '/login'
+    && (!appMotorista || ehRotaMotorista(anterior));
   const nome = authorizationProfile?.nome || currentUser?.displayName || currentUser?.email || '';
 
   return (
@@ -100,17 +104,19 @@ export default function Header() {
                   {currentUser.email && currentUser.email !== nome && <Typography variant="body2" color="text.secondary" noWrap>{currentUser.email}</Typography>}
                 </Box>
                 <Divider />
-                <MenuItem component={Link} to="/perfil" onClick={() => setMenuUsuario(null)}>
-                  <ListItemIcon><PersonOutlineRoundedIcon fontSize="small" /></ListItemIcon>
-                  Meu perfil
-                </MenuItem>
+                {!appMotorista && (
+                  <MenuItem component={Link} to="/perfil" onClick={() => setMenuUsuario(null)}>
+                    <ListItemIcon><PersonOutlineRoundedIcon fontSize="small" /></ListItemIcon>
+                    Meu perfil
+                  </MenuItem>
+                )}
                 <MenuItem onClick={() => { setMenuUsuario(null); signOut(); }}>
                   <ListItemIcon><LogoutRoundedIcon fontSize="small" /></ListItemIcon>
                   Sair
                 </MenuItem>
               </Menu>
             </Box>
-          ) : location.pathname !== '/login' && (
+          ) : location.pathname !== '/login' && !ehRotaMotorista(location.pathname) && (
             <Button component={Link} to="/login" sx={{ ...botaoClaroSx, minHeight: 40, px: 2 }}>
               Entrar
             </Button>

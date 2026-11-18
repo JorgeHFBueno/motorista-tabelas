@@ -12,6 +12,9 @@ import type { ReactNode } from 'react';
 /** iPhone/iPad (o iPad novo se apresenta como Mac com toque). */
 const ehIphone = () => /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
 /** Aberto pelo ícone da tela inicial, não pelo navegador. */
+// Instalar a partir de /motorista: o app Motorista abre só nestas telas (manifest-motorista.webmanifest).
+const ENDERECO = `${window.location.host}/motorista`;
+
 const instalado = () =>
   window.matchMedia('(display-mode: standalone)').matches || (navigator as { standalone?: boolean }).standalone === true;
 
@@ -41,10 +44,10 @@ function InstalarAndroid() {
   return (
     <Secao icone={<AndroidIcon sx={{ color: '#3DDC84' }} />} titulo="Instalar no Android">
       <Passos itens={[
-        <>Abra <strong>{window.location.host}</strong> no <strong>Chrome</strong> e entre com seu celular e senha.</>,
+        <>Abra <strong>{ENDERECO}</strong> no <strong>Chrome</strong> e entre com seu celular e senha.</>,
         <>Toque no menu <MoreVertIcon fontSize="small" sx={{ verticalAlign: 'middle' }} /> (os três pontinhos, no canto de cima).</>,
         <>Toque em <strong>Instalar app</strong> (ou <strong>Adicionar à tela inicial</strong>) e confirme em <strong>Instalar</strong>.</>,
-        <>Pronto: o ícone <strong>Ledur</strong> aparece junto dos outros apps. Abra sempre por ele.</>,
+        <>Pronto: o ícone <strong>Motorista</strong> aparece junto dos outros apps. Abra sempre por ele.</>,
       ]} />
     </Secao>
   );
@@ -54,10 +57,10 @@ function InstalarIphone() {
   return (
     <Secao icone={<AppleIcon />} titulo="Instalar no iPhone">
       <Passos itens={[
-        <>Abra <strong>{window.location.host}</strong> no <strong>Safari</strong> (no iPhone, precisa ser o Safari) e entre com seu celular e senha.</>,
+        <>Abra <strong>{ENDERECO}</strong> no <strong>Safari</strong> (no iPhone, precisa ser o Safari) e entre com seu celular e senha.</>,
         <>Toque em <strong>Compartilhar</strong> <IosShareRoundedIcon fontSize="small" sx={{ verticalAlign: 'middle' }} /> (o quadrado com a seta, na barra do Safari).</>,
         <>Role a lista e toque em <strong>Adicionar à Tela de Início</strong>, depois em <strong>Adicionar</strong>.</>,
-        <>Pronto: abra sempre pelo ícone <strong>Ledur</strong> da Tela de Início.</>,
+        <>Pronto: abra sempre pelo ícone <strong>Motorista</strong> da Tela de Início.</>,
       ]} />
       <Alert severity="warning" sx={{ mt: 1.5 }}>
         Sem instalar, o iPhone pode apagar o que ficou guardado no aparelho depois de alguns dias sem uso, inclusive lançamentos ainda não enviados.

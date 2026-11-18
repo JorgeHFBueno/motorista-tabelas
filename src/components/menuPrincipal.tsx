@@ -19,11 +19,7 @@ import PersonAddAltOutlinedIcon from '@mui/icons-material/PersonAddAltOutlined';
 import DescriptionOutlinedIcon from '@mui/icons-material/DescriptionOutlined';
 import SupportAgentOutlinedIcon from '@mui/icons-material/SupportAgentOutlined';
 import NewspaperOutlinedIcon from '@mui/icons-material/NewspaperOutlined';
-import LogoutRoundedIcon from '@mui/icons-material/LogoutRounded';
-import LoginRoundedIcon from '@mui/icons-material/LoginRounded';
-import HistoryRoundedIcon from '@mui/icons-material/HistoryRounded';
 import AirportShuttleOutlinedIcon from '@mui/icons-material/AirportShuttleOutlined';
-import HelpOutlineRoundedIcon from '@mui/icons-material/HelpOutlineRounded';
 import IconeDev from '../features/dev-toys/IconeDev';
 import IconeFriday from '../features/friday-gestao-interna/IconeFriday';
 import type { AuthorizationProfile } from '../services/authorizationProfile';
@@ -51,18 +47,14 @@ export type MenuPrincipalItem = {
 
 export const menuPrincipal: MenuPrincipalItem[] = [
   {
-    // Saída e Chegada do app no WEB (2026-11-18): a credencial motorista e o adm2, não uma área.
+    // Saída e Chegada do app no WEB (2026-11-18): a credencial motorista e o adm2, não uma área. Os botões (Saída,
+    // Chegada, Meu histórico, Como usar) ficam na página /motorista, que é também o início do app Motorista instalado.
     label: 'Motorista',
     icon: <AirportShuttleOutlinedIcon fontSize="large" />,
     color: '#EEF5F1',
     accent: '#2E7D5B',
+    to: '/motorista',
     acesso: { credencial: ['motorista'] },
-    children: [
-      { label: 'Saída', to: '/motorista/saida', icon: <LogoutRoundedIcon />, descricao: 'Registrar a saída de um veículo' },
-      { label: 'Chegada', to: '/motorista/chegada', icon: <LoginRoundedIcon />, descricao: 'Registrar a chegada na Fábrica' },
-      { label: 'Meu histórico', to: '/motorista/historico', icon: <HistoryRoundedIcon />, descricao: 'Suas saídas e chegadas e o que falta enviar' },
-      { label: 'Como usar', to: '/motorista/como-usar', icon: <HelpOutlineRoundedIcon />, descricao: 'O que fazer em cada tela e como instalar no celular' },
-    ],
   },
   {
     label: 'The Manuscript',
