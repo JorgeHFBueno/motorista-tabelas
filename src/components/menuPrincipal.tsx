@@ -51,8 +51,9 @@ export const menuPrincipal: MenuPrincipalItem[] = [
     // Chegada, Meu histórico, Como usar) ficam na página /motorista, que é também o início do app Motorista instalado.
     label: 'Motorista',
     icon: <AirportShuttleOutlinedIcon fontSize="large" />,
-    color: '#EEF5F1',
-    accent: '#2E7D5B',
+    // Azul-marinho da Ledur, como o app Flutter.
+    color: '#EEF2F6',
+    accent: '#12293B',
     to: '/motorista',
     acesso: { credencial: ['motorista'] },
   },

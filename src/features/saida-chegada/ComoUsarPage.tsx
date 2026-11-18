@@ -8,6 +8,7 @@ import LoginRoundedIcon from '@mui/icons-material/LoginRounded';
 import LogoutRoundedIcon from '@mui/icons-material/LogoutRounded';
 import MoreVertIcon from '@mui/icons-material/MoreVert';
 import type { ReactNode } from 'react';
+import PaginaMotorista from './components/PaginaMotorista';
 
 /** iPhone/iPad (o iPad novo se apresenta como Mac com toque). */
 const ehIphone = () => /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
@@ -73,8 +74,7 @@ function InstalarIphone() {
 export default function ComoUsarPage() {
   const iphone = ehIphone();
   return (
-    // width 100%: na coluna flex da página, com mx auto, a caixa encolheria ou cresceria conforme o conteúdo.
-    <Box sx={{ width: '100%', maxWidth: 640, mx: 'auto', px: 2, py: 2, pb: 6 }}>
+    <PaginaMotorista>
       <Stack spacing={2}>
         {instalado()
           ? <Alert severity="success">Você está usando o app instalado. As atualizações chegam sozinhas.</Alert>
@@ -125,6 +125,6 @@ export default function ComoUsarPage() {
           <strong>Atualizações:</strong> não precisa reinstalar. Quando houver versão nova, aparece o aviso <strong>Atualizar agora</strong> ao abrir o app; é só tocar nele.
         </Alert>
       </Stack>
-    </Box>
+    </PaginaMotorista>
   );
 }

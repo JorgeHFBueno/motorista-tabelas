@@ -7,6 +7,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import type { AtividadePendente } from './domain/atividade';
 import { listarHistoricoDoMotorista, type AtividadeHistorico } from './data/atividadesFirestore';
 import { enviador, useFilaEnvio } from './data/filaEnvio';
+import PaginaMotorista from './components/PaginaMotorista';
 
 const dataHora = new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
 const hora = new Intl.DateTimeFormat('pt-BR', { hour: '2-digit', minute: '2-digit' });
@@ -76,8 +77,7 @@ export default function HistoricoMotoristaPage() {
   const exibidos = lista == null ? null
     : [...enviadosAgora, ...lista].sort((a, b) => (b.data?.getTime() ?? 0) - (a.data?.getTime() ?? 0));
   return (
-    // width 100%: na coluna flex da página, com mx auto, a caixa cresceria até o texto de uma linha só (noWrap).
-    <Box sx={{ width: '100%', maxWidth: 640, mx: 'auto', px: 2, py: 2, pb: 6 }}>
+    <PaginaMotorista>
       <Stack direction="row" spacing={1} sx={{ mb: 2 }}>
         <Button fullWidth variant="contained" href="/motorista/saida">Nova Saída</Button>
         <Button fullWidth variant="contained" href="/motorista/chegada">Nova Chegada</Button>
@@ -128,7 +128,7 @@ export default function HistoricoMotoristaPage() {
         ))}
       </Stack>
       <Snackbar open={aviso != null} autoHideDuration={4000} onClose={() => setAviso(null)} message={aviso} anchorOrigin={{ vertical: 'top', horizontal: 'center' }} />
-    </Box>
+    </PaginaMotorista>
   );
 }
 

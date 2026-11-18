@@ -1,6 +1,9 @@
 // App Motorista instalado (2026-11-18): o WEB instalado a partir de /motorista abre só /motorista
 // (public/manifest-motorista.webmanifest, start_url e scope /motorista). The Manuscript, 06_REGISTROS_E_CHECKLISTS.md.
 
+/** Cores da Ledur, as mesmas do app Flutter (lib/core/theme/ledur_tema.dart, CoresLedur) e do tema da WEB. */
+export const CORES_LEDUR = { azulMarinho: '#12293B', fundo: '#F7F9FB', borda: '#DDE3E8' } as const;
+
 export const MANIFESTO_GERAL = '/manifest.webmanifest';
 export const MANIFESTO_MOTORISTA = '/manifest-motorista.webmanifest';
 
@@ -42,4 +45,10 @@ export function aplicarManifestoDaRota(caminho: string) {
   if (link && link.getAttribute('href') !== alvo) link.setAttribute('href', alvo);
   // Nome do ícone no iPhone ("Adicionar à Tela de Início").
   document.querySelector('meta[name="apple-mobile-web-app-title"]')?.setAttribute('content', motorista ? 'Motorista' : 'Ledur');
+  // Cor da barra do celular (status e navegação, no app instalado): o azul-marinho do cabeçalho; nas demais, a do index.html.
+  const tema = document.querySelector('meta[name="theme-color"]');
+  if (tema) {
+    tema.setAttribute('data-geral', tema.getAttribute('data-geral') ?? tema.getAttribute('content') ?? '');
+    tema.setAttribute('content', motorista ? CORES_LEDUR.azulMarinho : tema.getAttribute('data-geral') ?? '');
+  }
 }

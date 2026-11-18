@@ -5,24 +5,25 @@ import LoginRoundedIcon from '@mui/icons-material/LoginRounded';
 import LogoutRoundedIcon from '@mui/icons-material/LogoutRounded';
 import type { ReactNode } from 'react';
 import { useFilaEnvio } from './data/filaEnvio';
+import PaginaMotorista from './components/PaginaMotorista';
+import { CORES_LEDUR } from './appMotorista';
 
-const COR = '#EEF5F1';
-const DESTAQUE = '#2E7D5B';
-
-const BOTOES: Array<{ label: string; to: string; icon: ReactNode; descricao: string }> = [
-  { label: 'Saída', to: '/motorista/saida', icon: <LogoutRoundedIcon />, descricao: 'Registrar a saída de um veículo' },
-  { label: 'Chegada', to: '/motorista/chegada', icon: <LoginRoundedIcon />, descricao: 'Registrar a chegada na Fábrica' },
-  { label: 'Meu histórico', to: '/motorista/historico', icon: <HistoryRoundedIcon />, descricao: 'Suas saídas e chegadas e o que falta enviar' },
-  { label: 'Como usar', to: '/motorista/como-usar', icon: <HelpOutlineRoundedIcon />, descricao: 'O que fazer em cada tela e como instalar no celular' },
+const BOTOES: Array<{ label: string; to: string; icon: ReactNode }> = [
+  { label: 'Saída', to: '/motorista/saida', icon: <LogoutRoundedIcon /> },
+  { label: 'Chegada', to: '/motorista/chegada', icon: <LoginRoundedIcon /> },
+  { label: 'Meu histórico', to: '/motorista/historico', icon: <HistoryRoundedIcon /> },
+  { label: 'Como usar', to: '/motorista/como-usar', icon: <HelpOutlineRoundedIcon /> },
 ];
 
-/** /motorista: o início do motorista (e do app Motorista instalado), com os quatro botões. */
+/**
+ * /motorista: o início do motorista (e do app Motorista instalado), com os quatro botões no estilo do menu principal
+ * do app Flutter (lib/features/home/main_menu_page.dart): cartão claro com sombra leve, ícone azul-marinho e o nome.
+ */
 export default function MotoristaPage() {
   const fila = useFilaEnvio();
   const pendentes = fila.pendentes.length;
   return (
-    // width 100%: na coluna flex da página, com mx auto, a caixa encolheria ou cresceria conforme o conteúdo.
-    <Box sx={{ width: '100%', maxWidth: 640, mx: 'auto', px: 2, py: 2, pb: 6 }}>
+    <PaginaMotorista>
       <Stack spacing={2}>
         {pendentes > 0 && (
           <Alert severity="warning" action={<Button color="inherit" size="small" href="/motorista/historico">Ver</Button>}>
@@ -31,22 +32,25 @@ export default function MotoristaPage() {
         )}
         <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 1.5 }}>
           {BOTOES.map((b) => (
-            <Card key={b.to} variant="outlined" sx={{ borderColor: `${DESTAQUE}59`, borderRadius: 2, bgcolor: COR }}>
+            <Card
+              key={b.to}
+              elevation={0}
+              sx={{ borderRadius: 3, bgcolor: '#FFFFFF', border: `1px solid ${CORES_LEDUR.borda}`, boxShadow: '0 1px 3px rgb(18 41 59 / 0.08)' }}
+            >
               <CardActionArea
                 href={b.to}
                 aria-label={`Abrir ${b.label}`}
-                sx={{ height: '100%', minHeight: 140, p: 1.5, '&:hover': { bgcolor: `${DESTAQUE}1A` }, '&:focus-visible': { outline: `3px solid ${DESTAQUE}`, outlineOffset: -3 } }}
+                sx={{ height: '100%', minHeight: 116, p: 1.5, '&:focus-visible': { outline: `3px solid ${CORES_LEDUR.azulMarinho}`, outlineOffset: -3 } }}
               >
-                <Stack alignItems="center" justifyContent="center" spacing={0.75} sx={{ height: '100%', color: '#12293B' }}>
-                  <Box sx={{ color: DESTAQUE, display: 'flex', '& svg': { fontSize: 30 } }}>{b.icon}</Box>
-                  <Typography sx={{ fontSize: 18, fontWeight: 700 }}>{b.label}</Typography>
-                  <Typography variant="body2" color="text.secondary" textAlign="center">{b.descricao}</Typography>
+                <Stack alignItems="center" justifyContent="center" spacing={1.25} sx={{ height: '100%', color: CORES_LEDUR.azulMarinho }}>
+                  <Box sx={{ display: 'flex', '& svg': { fontSize: 34 } }}>{b.icon}</Box>
+                  <Typography sx={{ fontSize: 15, fontWeight: 600, textAlign: 'center' }}>{b.label}</Typography>
                 </Stack>
               </CardActionArea>
             </Card>
           ))}
         </Box>
       </Stack>
-    </Box>
+    </PaginaMotorista>
   );
 }

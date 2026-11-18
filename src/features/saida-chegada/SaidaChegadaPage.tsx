@@ -9,6 +9,7 @@ import {
 import { lerFabrica, listarMotoristas, listarObrasAtividade, listarVeiculosAtividade } from './data/atividadesFirestore';
 import { enviador, useFilaEnvio } from './data/filaEnvio';
 import AjudaKm from './components/AjudaKm';
+import PaginaMotorista from './components/PaginaMotorista';
 
 type Dados = { veiculos: ItemFrotaV2[]; obras: ObraV2[]; fabrica: ObraV2 | null; motoristas: Pessoa[] };
 type Carga = { estado: 'carregando' } | { estado: 'erro' } | { estado: 'pronto'; dados: Dados };
@@ -100,8 +101,7 @@ export default function SaidaChegadaPage({ tipo }: { tipo: TipoAtividade }) {
   };
 
   return (
-    // width 100%: na coluna flex da página, com mx auto, a caixa encolheria ou cresceria conforme o conteúdo.
-    <Box sx={{ width: '100%', maxWidth: 640, mx: 'auto', px: 2, py: 2, pb: 6 }}>
+    <PaginaMotorista>
       {fila.pendentes.length > 0 && (
         <Alert
           severity="warning"
@@ -214,6 +214,6 @@ export default function SaidaChegadaPage({ tipo }: { tipo: TipoAtividade }) {
           </Button>
         </Stack>
       )}
-    </Box>
+    </PaginaMotorista>
   );
 }
