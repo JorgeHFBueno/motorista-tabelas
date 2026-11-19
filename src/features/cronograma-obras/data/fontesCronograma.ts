@@ -5,8 +5,7 @@ import type { MestreFirestore, MestresLoadResult } from "./mestresFirestore";
 import type { ContratosChange } from "./source/contratosRealtime";
 
 /**
- * De onde o CronoObra lê e para onde grava. Em `/engenharia/cronograma` é o Firestore (`fontesFirestore.ts`);
- * em `/testes/mki`, dados fictícios em memória (nada é salvo).
+ * De onde o CronoObra lê e para onde grava. Em `/engenharia/cronograma` é o Firestore (`fontesFirestore.ts`).
  */
 export interface FontesCronograma {
   contratos: { subscribe(onChanges: (changes: ContratosChange[]) => void, onError: (cause: Error) => void): () => void };

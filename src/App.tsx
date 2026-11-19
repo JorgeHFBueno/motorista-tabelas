@@ -91,8 +91,8 @@ export default function App() {
             {/* Checklist do mecânico para celular (src/features/checklist-mecanico): pausado desde 2026-11-10, sem rota nem
                 item de menu, porque quem ia usar saiu. The Manuscript, 06_REGISTROS_E_CHECKLISTS.md. */}
             {/* /testes: provas de conceito e de interface com dados fictícios (nada grava no Firestore). O MKIII foi para a
-                produção (/engenharia/cronograma) em 2026-11-17; o MKI fica reservado para os próximos testes. Aberto a quem
-                vê a Engenharia. */}
+                produção (/engenharia/cronograma) em 2026-11-17. O MKI é o mock do detalhe da obra com os LOTEs em lista
+                (2026-11-19). Aberto a quem vê a Engenharia. */}
             <Route element={<PrivateRoute permite={(p) => veArea(p, 'engenharia')} />}>
               <Route path="testes/mki" element={<TesteMkiPage />} />
             </Route>
