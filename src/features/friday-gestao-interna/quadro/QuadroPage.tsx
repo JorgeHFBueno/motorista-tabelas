@@ -6,6 +6,7 @@ import {
 } from 'lucide-react';
 import { duplicarQuadro, excluir, mudarEstado, type Pessoa, type Row } from '../api.ts';
 import { useAuth } from '../../../contexts/AuthContext';
+import { veArea } from '../../../services/credenciais';
 import { DesfazerOficial, GrupoOficialDialogo, TornarOficial } from './TornarOficial.tsx';
 import { AgendaQuadro } from './AgendaQuadro.tsx';
 import { NomeModal } from '../layout/Lateral.tsx';
@@ -41,6 +42,7 @@ export default function QuadroPage() {
   const navigate = useNavigate();
   const confirmar = useConfirmar();
   const avisar = useAvisoRapido();
+  const veEngenharia = veArea(useAuth().authorizationProfile, 'engenharia');
   const [params, setParams] = useSearchParams();
   const q = useQuadro(quadroId);
   const { dados } = q;
@@ -119,6 +121,8 @@ export default function QuadroPage() {
   // O item aberto pode ser um subitem: o painel usa as colunas dos subitens e mostra o item pai.
   const itemSel = itemAberto ? dados.itens.find(i => i.id === itemAberto) ?? dados.sub?.itens.find(i => i.id === itemAberto) : undefined;
   const paiSel = itemSel?.item_pai_id ? dados.itens.find(i => i.id === itemSel.item_pai_id) : undefined;
+  // Quadro ligado a obras-v2 (GESTÃO DE OBRAS): o item (ou o pai do subitem/LOTE) aponta para a página da obra.
+  const obraId = quadro.oficial?.colecao === 'obras-v2' && veEngenharia ? (itemSel?.vinculo?.id ?? paiSel?.vinculo?.id) : undefined;
   // Tipos de item e de subitem (tiposSubitem.ts): a tabela mostra as colunas que algum item mostrado usa (célula cinza
   // na linha cujo tipo não usa); o painel do item mostra só as do tipo dele, e o do subitem, as da combinação do pai.
   const tiposItem = tiposItemDo(quadro.config);
@@ -282,7 +286,7 @@ export default function QuadroPage() {
 
       {itemSel && (
         <PainelItem key={itemSel.id} item={itemSel} grupo={paiSel ? undefined : grupos.find(g => g.id === itemSel.grupo_id)} colunas={colunasDoPainel}
-          pai={paiSel} onAbrirPai={paiSel ? () => abrirItem(paiSel.id, 'subitens') : undefined}
+          pai={paiSel} onAbrirPai={paiSel ? () => abrirItem(paiSel.id, 'subitens') : undefined} obraId={obraId == null ? undefined : String(obraId)}
           acoes={q} ops={ops} sub={dados.sub} abaInicial={params.get('aba') ?? undefined} onFechar={() => abrirItem(null)} />
       )}
       {atividade && (

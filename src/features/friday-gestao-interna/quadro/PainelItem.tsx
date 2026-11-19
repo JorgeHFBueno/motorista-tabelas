@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { Activity, Archive, CornerLeftUp, ListTree, Zap, MessageCircle, Paperclip, Rows3, Trash2, X } from 'lucide-react';
+import { Link } from 'react-router-dom';
+import { Activity, Archive, Building2, CornerLeftUp, ListTree, Zap, MessageCircle, Paperclip, Rows3, Trash2, X } from 'lucide-react';
 import { listar, type Row } from '../api.ts';
 import { useNav } from '../nav.tsx';
 import { Avatar, Editavel, raizPortal } from '../ui/base.tsx';
@@ -15,8 +16,9 @@ type Aba = 'atualizacoes' | 'arquivos' | 'campos' | 'subitens' | 'atividade';
 
 // Painel lateral do item: atualizações (comentários), todos os campos e o registro de atividade.
 // "pai": quando o item aberto é um subitem (aí não há aba de subitens e o topo leva de volta ao item pai).
-export function PainelItem({ item, grupo, colunas, acoes, ops, sub, pai, onAbrirPai, abaInicial, onFechar }: {
-  item: Item; grupo?: Grupo; colunas: Coluna[]; acoes: Acoes; ops: OpsItens; sub: Sub | null; pai?: Item; onAbrirPai?: () => void; abaInicial?: string; onFechar: () => void;
+// obraId: item ligado a obras-v2 (quadro GESTÃO DE OBRAS); mostra o link para /engenharia/obras/:id.
+export function PainelItem({ item, grupo, colunas, acoes, ops, sub, pai, onAbrirPai, obraId, abaInicial, onFechar }: {
+  item: Item; grupo?: Grupo; colunas: Coluna[]; acoes: Acoes; ops: OpsItens; sub: Sub | null; pai?: Item; onAbrirPai?: () => void; obraId?: string; abaInicial?: string; onFechar: () => void;
 }) {
   const nav = useNav();
   const nSub = (sub?.itens ?? []).filter(s => s.item_pai_id === item.id).length;
@@ -34,6 +36,7 @@ export function PainelItem({ item, grupo, colunas, acoes, ops, sub, pai, onAbrir
           <div className="painel-topo">
             {grupo && <span className="painel-grupo" style={{ color: grupo.cor }}>● {grupo.nome}</span>}
             {pai && <button className="fr-btn-link painel-pai" onClick={onAbrirPai} title="Abrir o item pai"><CornerLeftUp size={14} /> {String(sub?.nome_item || 'Subitem')} de “{pai.nome}”</button>}
+            {obraId && <Link className="fr-btn-link painel-pai" to={`/engenharia/obras/${encodeURIComponent(obraId)}`} title="Abrir a página da obra, com todos os dados dela"><Building2 size={14} /> Página da obra</Link>}
             <span className="espaco" />
             <button className="btn-icone" title="Arquivar item" onClick={() => ops.arquivar([item.id])}><Archive size={16} /></button>
             <button className="btn-icone" title="Excluir item (vai para a lixeira)" onClick={() => ops.excluir([item.id], item.nome)}><Trash2 size={16} /></button>

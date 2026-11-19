@@ -79,6 +79,7 @@
 .co-search svg { color: #738590; }
 .co-search input { background: transparent; border: 0; box-shadow: none !important; flex: 1; min-width: 150px; padding-left: 7px; }
 .co-button { align-items: center; border: 1px solid transparent; border-radius: 5px; cursor: pointer; display: inline-flex; font-size: .76rem; font-weight: 750; gap: 5px; height: 34px; padding: 0 11px; }
+a.co-button { text-decoration: none; }
 .co-button--secondary { background: #eef4f7; border-color: #d4e1e8; color: #214f70; }
 .co-button--ghost { background: #fff; color: #667581; }
 .co-button:hover { background: #e4edf2; }
