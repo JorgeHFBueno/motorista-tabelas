@@ -1,12 +1,12 @@
 /*
  * Identidade visual do CronoObra ("quadro de planejamento"; nasceu no /testes/mkii e foi para a produção com o MKIII).
  * Página em cinza-azulado; cada seção num cartão branco; tabela com cabeçalho escuro de alto contraste; lista branca
- * e calendário em outro tom, separados por sombra; status em pílula; barras encorpadas; destaque índigo.
+ * e calendário em outro tom, separados por sombra; status em pílula; barras encorpadas; destaque no azul da Ledur (src/theme/ledurTheme.ts; sem roxo, 2026-11-19).
  * Tudo sob .co-tema-mkii (na página e no <body>, para os painéis).
  */
 
 .teste-aviso--mkii { background: #0f172a; }
-.teste-aviso--mkii svg { color: #818cf8; }
+.teste-aviso--mkii svg { color: #8FB3D1; }
 
 .co-tema-mkii {
   --k-fundo: #e6eaf0;
@@ -22,13 +22,13 @@
   --k-texto-3: #94a3b8;
   --k-borda: #d3d9e2;
   --k-borda-suave: #e8ecf1;
-  --k-destaque: #4f46e5;
-  --k-destaque-hover: #4338ca;
-  --k-destaque-claro: #eef2ff;
+  --k-destaque: #2F6B98;
+  --k-destaque-hover: #245B83;
+  --k-destaque-claro: #E8EEF3;
   --k-perigo: #dc2626;
   --co-weekend-shade: rgba(15, 23, 42, .055);
   --co-holiday-shade: rgba(239, 68, 68, .14);
-  --co-today-shade: rgba(79, 70, 229, .14);
+  --co-today-shade: rgba(47, 107, 152, .14);
 }
 .co-page.co-tema-mkii { --co-ink: var(--k-texto); --co-muted: var(--k-texto-2); --co-line: var(--k-borda); --co-line-soft: var(--k-borda-suave); --co-accent: var(--k-destaque); background: var(--k-fundo); color: var(--k-texto); padding-top: 18px; }
 
@@ -54,7 +54,7 @@
 .co-tema-mkii .co-filters label, .co-tema-mkii .co-status-filter > span { color: var(--k-texto-2); font-size: 11px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; }
 .co-tema-mkii .co-filters select, .co-tema-mkii .co-filters input, .co-tema-mkii .co-search { background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 6px; color: var(--k-texto); font-size: 13px; height: 34px; }
 .co-tema-mkii .co-search input { background: none; border: 0; height: auto; }
-.co-tema-mkii .co-filters select:focus, .co-tema-mkii .co-filters input:focus, .co-tema-mkii .co-search:focus-within { border-color: var(--k-destaque); box-shadow: 0 0 0 3px rgba(79, 70, 229, .15); }
+.co-tema-mkii .co-filters select:focus, .co-tema-mkii .co-filters input:focus, .co-tema-mkii .co-search:focus-within { border-color: var(--k-destaque); box-shadow: 0 0 0 3px rgba(47, 107, 152, .15); }
 .co-tema-mkii .co-status-chip { border-color: #cbd5e1; border-radius: 999px; font-size: 12px; font-weight: 600; }
 
 /* seções: cartões brancos, título com marcador colorido */
@@ -81,8 +81,8 @@
 .co-tema-mkii .co-days > .is-week-start { border-left: 1px solid rgba(255, 255, 255, .22); }
 .co-tema-mkii .co-days > .is-weekend { background: rgba(255, 255, 255, .05); }
 .co-tema-mkii .co-days > .is-holiday { background: rgba(248, 113, 113, .28); color: #fecaca; cursor: help; }
-.co-tema-mkii .co-days > .is-today { background: #818cf8; border-radius: 6px; color: #0f172a; font-weight: 800; }
-.co-tema-mkii .co-days > .is-today::after { color: #1e1b4b; }
+.co-tema-mkii .co-days > .is-today { background: #8FB3D1; border-radius: 6px; color: #0f172a; font-weight: 800; }
+.co-tema-mkii .co-days > .is-today::after { color: #12293B; }
 .co-tema-mkii .co-header-timeline { border-left: 0; }
 
 .co-tema-mkii .co-grid-row, .co-tema-mkii .co-text-row { border-bottom: 1px solid var(--k-borda-suave); }
@@ -130,7 +130,7 @@
 .co-tema-mkii .co-drawer { color: var(--k-texto); font-size: 14px; }
 .co-tema-mkii .co-drawer-header { background: var(--k-cab); border-bottom: 0; color: var(--k-cab-texto); }
 .co-tema-mkii .co-drawer-header button, .co-tema-mkii .co-drawer-header svg { color: var(--k-cab-texto); }
-.co-tema-mkii .co-eyebrow { color: #a5b4fc; font-size: 11px; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; }
+.co-tema-mkii .co-eyebrow { color: #A9C3D8; font-size: 11px; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; }
 .co-tema-mkii .co-drawer-header h2 { color: #fff; font-size: 22px; font-weight: 800; }
 .co-tema-mkii .co-drawer-body h3 { color: var(--k-texto); font-size: 14px; font-weight: 800; }
 .co-tema-mkii .co-drawer-body h4 { color: var(--k-texto-2); font-size: 11px; font-weight: 800; letter-spacing: .08em; }
