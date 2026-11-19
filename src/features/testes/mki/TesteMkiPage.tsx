@@ -52,6 +52,8 @@ type LfMock = { id: string; tipo: string; status: string; pdfs: PdfLf[] };
 type LoteMock = { chave: string; nome: string; status: string; coordenada: { lat: number; lng: number } | null; lfs: LfMock[] };
 type Alvo = { lote: string; lf: string };
 type ModoPdf = 'anexar' | 'substituir' | 'revisao';
+/** O que a janela de Revisões mostra: um item, ou todos os itens de um grupo de Tipo recolhido. */
+type AlvoRevisoes = { lote: string; lfs: string[]; titulo: string };
 
 const pdf = (id: string, nome: string, kb: number, quando: string, por: string): PdfLf =>
   ({ id, nome, tamanho: kb * 1024, anexadoEm: new Date(quando), anexadoPor: por, url: null });
@@ -78,11 +80,12 @@ const LOTES_INICIAIS: LoteMock[] = [
   {
     chave: 'l1', nome: 'LOTE 1 - LINHA SÃO JOSÉ - (6,00X10,00M) - PONTE', status: 'Concluído', coordenada: { lat: -29.3359, lng: -53.0532 },
     lfs: [
-      { id: 'f1', tipo: 'Pilar 1', status: 'Aprovado', pdfs: [
+      { id: 'f1', tipo: 'Pilar 1', status: 'Concluído', pdfs: [
         pdf('p1', 'LF_LOTE1_pilar1_rev0.pdf', 412, '2026-10-21T14:12:00-03:00', 'Mariana Kern'),
         pdf('p2', 'LF_LOTE1_pilar1_rev1.pdf', 436, '2026-10-28T09:47:00-03:00', 'Mariana Kern'),
       ] },
-      { id: 'f2', tipo: 'Pilar 2', status: 'Aprovado', pdfs: [pdf('p3', 'LF_LOTE1_pilar2.pdf', 398, '2026-10-29T11:05:00-03:00', 'Mariana Kern')] },
+      { id: 'f2', tipo: 'Pilar 2', status: 'Concluído', pdfs: [pdf('p3', 'LF_LOTE1_pilar2.pdf', 398, '2026-10-29T11:05:00-03:00', 'Mariana Kern')] },
+      { id: 'f7', tipo: 'Pilar 3', status: 'Em análise', pdfs: [pdf('p6', 'LF_LOTE1_pilar3.pdf', 405, '2026-11-17T10:02:00-03:00', 'Mariana Kern')] },
       { id: 'f3', tipo: 'Vão 1', status: 'Em análise', pdfs: [pdf('p4', 'LF_LOTE1_vao1.pdf', 1210, '2026-11-12T16:30:00-03:00', 'Rafael Dornelles')] },
     ],
   },
@@ -100,8 +103,60 @@ const LOTES_INICIAIS: LoteMock[] = [
   { chave: 'l4', nome: 'LOTE 4 - ACESSO CENTRO - PAVIMENTAÇÃO', status: '', coordenada: null, lfs: [] },
 ];
 
-/** Cor do status do LF (valores inventados para o mock). */
-const COR_STATUS: Record<string, 'success' | 'info' | 'warning' | 'default'> = { Aprovado: 'success', 'Em análise': 'info', Revisar: 'warning' };
+/**
+ * Status dos pré-fabricados — PROVISÓRIO: os nomes que a API vai mandar ainda não estão definidos. Para corrigir,
+ * troque só esta lista:
+ * - `nome`: exatamente como vier da API (comparado sem diferença de maiúsculas/acentos);
+ * - `cor`: a cor do chip (cores do tema);
+ * - `concluido`: marca o status final; no grupo recolhido ele só aparece se todos os itens estiverem nele;
+ * - a ordem: do mais urgente para o menos; desempata o status do grupo recolhido quando dois aparecem igual.
+ * Um status que não estiver aqui aparece com o nome que veio, em chip sem cor, e perde os desempates.
+ */
+const STATUS_PRE_FABRICADO: { nome: string; cor: 'success' | 'info' | 'warning' | 'default'; concluido?: boolean }[] = [
+  { nome: 'Revisar', cor: 'warning' },
+  { nome: 'Em análise', cor: 'info' },
+  { nome: 'Pendente', cor: 'default' },
+  { nome: 'Concluído', cor: 'success', concluido: true },
+];
+
+const normalizarStatus = (status: string) => status.normalize('NFD').replace(/[̀-ͯ]/g, '').trim().toLowerCase();
+const configDoStatus = (status: string) => STATUS_PRE_FABRICADO.find((item) => normalizarStatus(item.nome) === normalizarStatus(status));
+const ordemDoStatus = (status: string) => {
+  const config = configDoStatus(status);
+  return config ? STATUS_PRE_FABRICADO.indexOf(config) : STATUS_PRE_FABRICADO.length;
+};
+
+/**
+ * Status do grupo recolhido: o que mais aparece entre os itens que não estão concluídos (empate: o mais urgente da
+ * lista). Só fica "concluído" quando todos os itens estão concluídos. Itens sem status não contam.
+ */
+function statusDoGrupo(lfs: LfMock[]): string {
+  const comStatus = lfs.filter((lf) => lf.status.trim());
+  const abertos = comStatus.filter((lf) => !configDoStatus(lf.status)?.concluido);
+  if (!abertos.length) return comStatus.length && comStatus.length === lfs.length ? comStatus[0].status : '';
+  const contagem = new Map<string, number>();
+  for (const lf of abertos) contagem.set(lf.status, (contagem.get(lf.status) ?? 0) + 1);
+  return [...contagem].sort(([a, qa], [b, qb]) => qb - qa || ordemDoStatus(a) - ordemDoStatus(b))[0][0];
+}
+
+const totalPdfs = (lfs: LfMock[]) => lfs.reduce((total, lf) => total + lf.pdfs.length, 0);
+
+function BotaoRevisoes({ quantidade, rotulo, onClick }: { quantidade: number; rotulo: string; onClick: () => void }) {
+  return (
+    <Tooltip title="Revisões">
+      <IconButton size="small" onClick={onClick} aria-label={rotulo}>
+        <Badge badgeContent={quantidade} color="primary">
+          <HistoryIcon fontSize="small" />
+        </Badge>
+      </IconButton>
+    </Tooltip>
+  );
+}
+
+function ChipStatus({ status }: { status: string }) {
+  const cor = configDoStatus(status)?.cor ?? 'default';
+  return <Chip size="small" label={status || 'Sem status'} color={cor} variant={cor === 'default' ? 'outlined' : 'filled'} />;
+}
 
 const dataHora = (data: Date) => data.toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short', timeZone: 'America/Sao_Paulo' });
 const tamanhoTexto = (bytes: number) => (bytes >= 1024 * 1024 ? `${(bytes / 1024 / 1024).toFixed(1)} MB` : `${Math.round(bytes / 1024)} KB`);
@@ -184,7 +239,7 @@ export default function TesteMkiPage() {
   const [local, setLocal] = useState(OBRA.local);
   const [sigla, setSigla] = useState(OBRA.siglaObra);
   const [lotes, setLotes] = useState(LOTES_INICIAIS);
-  const [historico, setHistorico] = useState<Alvo | null>(null);
+  const [historico, setHistorico] = useState<AlvoRevisoes | null>(null);
   const [excluir, setExcluir] = useState<PdfLf | null>(null);
   const [aviso, setAviso] = useState<string | null>(null);
   // Grupos de Tipo recolhidos ("lote:grupo"); começam todos abertos.
@@ -250,7 +305,7 @@ export default function TesteMkiPage() {
   }
 
   const loteHistorico = historico ? lotes.find((lote) => lote.chave === historico.lote) : undefined;
-  const lfHistorico = loteHistorico?.lfs.find((lf) => lf.id === historico?.lf);
+  const lfsHistorico = loteHistorico?.lfs.filter((lf) => historico?.lfs.includes(lf.id)) ?? [];
   const salvar = (set: (valor: string) => void) => async (valor: string) => { set(valor.trim()); return true; };
 
   return (
@@ -300,7 +355,7 @@ export default function TesteMkiPage() {
                   <TableCell colSpan={4} align="center" className="mki-lotes__grupo">Pré-Fabricados</TableCell>
                 </TableRow>
                 <TableRow>
-                  <TableCell>Tipo</TableCell>
+                  <TableCell align="center">Tipo</TableCell>
                   <TableCell>PDF</TableCell>
                   <TableCell>Status</TableCell>
                   <TableCell align="center">Revisões</TableCell>
@@ -313,7 +368,7 @@ export default function TesteMkiPage() {
                     const chave = `${lote.chave}:${grupo.nome}`;
                     const aberto = !recolhidos.has(chave);
                     return [
-                      { tipo: 'grupo' as const, chave, nome: grupo.nome, quantidade: grupo.lfs.length, aberto },
+                      { tipo: 'grupo' as const, chave, nome: grupo.nome, lfs: grupo.lfs, aberto },
                       ...(aberto ? grupo.lfs.map((lf) => ({ tipo: 'item' as const, chave: lf.id, lf })) : []),
                     ];
                   });
@@ -336,7 +391,7 @@ export default function TesteMkiPage() {
                           return (
                             <TableRow key={linha.chave} className={`mki-lotes__tipo ${classe ?? ''}`}>
                               {index === 0 && celulaLote}
-                              <TableCell colSpan={4}>
+                              <TableCell align="center">
                                 <Button
                                   size="small"
                                   color="inherit"
@@ -346,9 +401,27 @@ export default function TesteMkiPage() {
                                   sx={{ fontWeight: 700, textTransform: 'none' }}
                                 >
                                   {linha.nome}
-                                  <Typography component="span" variant="body2" color="text.secondary" sx={{ ml: 1 }}>{linha.quantidade}</Typography>
+                                  <Typography component="span" variant="body2" color="text.secondary" sx={{ ml: 1 }}>{linha.lfs.length}</Typography>
                                 </Button>
                               </TableCell>
+                              {/* Recolhido, o grupo resume os itens: total de PDFs, o status do grupo e as revisões de todos. */}
+                              {linha.aberto ? <TableCell colSpan={3} /> : (
+                                <>
+                                  <TableCell>
+                                    <Typography variant="body2" color="text.secondary">
+                                      {totalPdfs(linha.lfs) === 1 ? '1 PDF' : `${totalPdfs(linha.lfs)} PDFs`}
+                                    </Typography>
+                                  </TableCell>
+                                  <TableCell>{statusDoGrupo(linha.lfs) ? <ChipStatus status={statusDoGrupo(linha.lfs)} /> : null}</TableCell>
+                                  <TableCell align="center">
+                                    <BotaoRevisoes
+                                      quantidade={totalPdfs(linha.lfs)}
+                                      rotulo={`Revisões de ${linha.nome} do ${lote.nome}`}
+                                      onClick={() => setHistorico({ lote: lote.chave, lfs: linha.lfs.map((lf) => lf.id), titulo: linha.nome })}
+                                    />
+                                  </TableCell>
+                                </>
+                              )}
                             </TableRow>
                           );
                         }
@@ -359,7 +432,7 @@ export default function TesteMkiPage() {
                         return (
                           <TableRow key={linha.chave} className={classe}>
                             {index === 0 && celulaLote}
-                            <TableCell sx={{ fontWeight: 600, whiteSpace: 'nowrap', pl: 6 }}>{lf.tipo || '—'}</TableCell>
+                            <TableCell align="center" sx={{ fontWeight: 600, whiteSpace: 'nowrap' }}>{lf.tipo || '—'}</TableCell>
                             <TableCell>
                               {atual ? (
                                 <Stack direction="row" spacing={0.5} alignItems="center">
@@ -387,17 +460,13 @@ export default function TesteMkiPage() {
                                 </Button>
                               )}
                             </TableCell>
-                            <TableCell>
-                              <Chip size="small" label={lf.status || 'Sem status'} color={COR_STATUS[lf.status] ?? 'default'} variant={COR_STATUS[lf.status] ? 'filled' : 'outlined'} />
-                            </TableCell>
+                            <TableCell><ChipStatus status={lf.status} /></TableCell>
                             <TableCell align="center">
-                              <Tooltip title="Revisões">
-                                <IconButton size="small" onClick={() => setHistorico(alvo)} aria-label={`Revisões do ${rotuloLf}`}>
-                                  <Badge badgeContent={lf.pdfs.length} color="primary">
-                                    <HistoryIcon fontSize="small" />
-                                  </Badge>
-                                </IconButton>
-                              </Tooltip>
+                              <BotaoRevisoes
+                                quantidade={lf.pdfs.length}
+                                rotulo={`Revisões do ${rotuloLf}`}
+                                onClick={() => setHistorico({ lote: lote.chave, lfs: [lf.id], titulo: lf.tipo || 'pré-fabricado sem tipo' })}
+                              />
                             </TableCell>
                           </TableRow>
                         );
@@ -455,15 +524,19 @@ export default function TesteMkiPage() {
         </Secao>
       </Container>
 
-      <Dialog open={Boolean(lfHistorico)} onClose={() => setHistorico(null)} fullWidth maxWidth="sm">
+      <Dialog open={lfsHistorico.length > 0} onClose={() => setHistorico(null)} fullWidth maxWidth="sm">
         <DialogTitle>Revisões</DialogTitle>
         <DialogContent dividers>
           <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
-            {loteHistorico?.nome} · {lfHistorico?.tipo || 'pré-fabricado sem tipo'}
+            {loteHistorico?.nome} · {historico?.titulo}
           </Typography>
-          {lfHistorico?.pdfs.length ? (
+          {lfsHistorico.map((lf) => (
+            <Box key={lf.id} sx={{ mb: 1 }}>
+              {/* Grupo recolhido: uma seção por item, com o Tipo de cada um. */}
+              {lfsHistorico.length > 1 && <Typography sx={{ fontWeight: 700, mt: 1.5 }}>{lf.tipo || 'Sem tipo'}</Typography>}
+          {lf.pdfs.length ? (
             <List dense disablePadding>
-              {revisoes(lfHistorico.pdfs).map(({ item, revisao }, index) => (
+              {revisoes(lf.pdfs).map(({ item, revisao }, index) => (
                 <ListItem
                   key={item.id}
                   divider
@@ -489,7 +562,9 @@ export default function TesteMkiPage() {
                 </ListItem>
               ))}
             </List>
-          ) : <Typography color="text.secondary">Nenhum PDF anexado a este pré-fabricado.</Typography>}
+          ) : <Typography variant="body2" color="text.secondary">Nenhum PDF anexado.</Typography>}
+            </Box>
+          ))}
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setHistorico(null)}>Fechar</Button>
