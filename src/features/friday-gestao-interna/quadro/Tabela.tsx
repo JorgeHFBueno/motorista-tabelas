@@ -6,7 +6,7 @@ import {
 import { useAuth } from '../../../contexts/AuthContext';
 import type { Pessoa } from '../api.ts';
 import { Menu, Popover, useConfirmar, usePopover, Editavel, type ItemMenu } from '../ui/base.tsx';
-import { arrastarBorda, CORES, fmtData, fmtNumeroColuna, larguraDoConteudo, NOME_TRAVADO, posEntre } from '../util.ts';
+import { arrastarBorda, arrastarCabecalho, CORES, fmtData, fmtNumeroColuna, larguraDoConteudo, NOME_TRAVADO, posEntre } from '../util.ts';
 import { Celula } from './Celula.tsx';
 import { EditorFormula } from './EditorFormula.tsx';
 import { AGRUPAVEIS, type GrupoVirtual } from './filtros.ts';
@@ -131,6 +131,52 @@ export function Tabela({ grupos: gruposReais, colunas: colunasVisiveis, todasCol
     if (w !== c.largura) acoes.atualizarColuna(c.id, { largura: w });
   };
 
+  // Arrastar o cabeçalho muda a coluna de lugar para todos (posicao), com a mesma regra de "Mover para a
+  // esquerda/direita": fixada só entre fixadas, livre só entre livres. alvo = quantas das outras colunas da mesma
+  // parte ficam antes dela ao soltar.
+  const [arrasteCol, setArrasteCol] = useState<{ id: number; alvo: number } | null>(null);
+  const daParte = (c: Coluna) => colunas.filter(x => ehFixa(x) === ehFixa(c));
+  const iniciarArrasteColuna = (c: Coluna, e: EventoMouse<HTMLTableCellElement>) => {
+    const th = e.currentTarget;
+    const alvoDom = e.target as HTMLElement;
+    if (e.button !== 0 || !th.contains(alvoDom) || alvoDom.closest('button, input, textarea, select, .redim') || th.closest('.somente-leitura')) return;
+    const parte = daParte(c);
+    const atual = parte.indexOf(c);
+    const outras = parte.filter(x => x !== c);
+    const linha = th.parentElement!;
+    const cabs = outras.map(o => linha.querySelector<HTMLElement>(`:scope > th[data-coluna="${o.id}"]`));
+    // Coluna livre: a parte parada (seleção, item e fixadas) cobre o começo da tabela; perto dela, rola para a esquerda.
+    const esquerda = ehFixa(c) ? null : Math.max(0, ...[...linha.querySelectorAll<HTMLElement>(':scope > th.fixo')].map(f => f.getBoundingClientRect().right));
+    let alvo = -1;
+    arrastarCabecalho(e.nativeEvent, th, c.titulo, esquerda, x => {
+      const k = cabs.findIndex(h => { const r = h?.getBoundingClientRect(); return !!r && x < r.left + r.width / 2; });
+      const novo = k < 0 ? outras.length : k;
+      if (novo !== alvo) { alvo = novo; setArrasteCol({ id: c.id, alvo }); }
+    }, soltou => {
+      setArrasteCol(null);
+      if (soltou && alvo >= 0 && alvo !== atual) moverColuna(c, outras[alvo - 1], outras[alvo]);
+    });
+  };
+  const moverColuna = (c: Coluna, antes?: Coluna, depois?: Coluna) => {
+    const p = posEntre(antes?.posicao, depois?.posicao);
+    if ((!antes || p > antes.posicao) && (!depois || p < depois.posicao)) { acoes.atualizarColuna(c.id, { posicao: p }); return; }
+    // Vizinhas com a mesma posição (ou sem espaço entre elas): renumera as colunas do quadro já na ordem nova.
+    const ordem = todasColunas.filter(x => x.id !== c.id);
+    ordem.splice(depois ? ordem.findIndex(x => x.id === depois.id) : ordem.findIndex(x => x.id === antes!.id) + 1, 0, c);
+    ordem.forEach((x, n) => { if (x.posicao !== n + 1) acoes.atualizarColuna(x.id, { posicao: n + 1 }); });
+  };
+  // Durante o arraste: a coluna arrastada fica apagada e uma linha azul marca onde ela vai entrar.
+  const classeArraste = (c: Coluna) => {
+    const arrastada = arrasteCol && colunas.find(x => x.id === arrasteCol.id);
+    if (!arrastada) return '';
+    if (c.id === arrastada.id) return ' col-arrastada';
+    const parte = daParte(arrastada);
+    if (ehFixa(c) !== ehFixa(arrastada) || arrasteCol.alvo === parte.indexOf(arrastada)) return '';
+    const outras = parte.filter(x => x !== arrastada);
+    if (outras[arrasteCol.alvo]?.id === c.id) return ' alvo-esq';
+    return arrasteCol.alvo === outras.length && outras[outras.length - 1]?.id === c.id ? ' alvo-dir' : '';
+  };
+
   // Hover: o texto cortado (…) aparece inteiro na dica, no nome do item e em qualquer célula.
   const dicaTextoCortado = (e: EventoMouse<HTMLTableSectionElement>) => {
     const td = (e.target as HTMLElement).closest('td');
@@ -203,7 +249,7 @@ export function Tabela({ grupos: gruposReais, colunas: colunasVisiveis, todasCol
                         ordenacao={ordenacao} setOrdenacao={setOrdenacao} ordenacaoAlterada={ordenacaoAlterada} onSalvarOrdenacao={onSalvarOrdenacao}
                         onOcultar={() => onOcultar(c.id)} onAgrupar={() => onAgrupar(c.id)}
                         anterior={vizinha(ci - 1, c)} proxima={vizinha(ci + 1, c)} onResize={x => iniciarResize(c, x)} onAjustar={() => ajustarColuna(c, ci + 2)}
-                        classeFixa={classeFixa(c)} estiloFixa={estiloFixa(c)} />
+                        onArrastar={e => iniciarArrasteColuna(c, e)} classeArraste={classeArraste(c)} classeFixa={classeFixa(c)} estiloFixa={estiloFixa(c)} />
                     ))}
                     <th className="tq-mais"><AdicionarColuna acoes={acoes} aoCriar={aoCriar} /></th>
                   </tr>
@@ -359,12 +405,13 @@ function CabecalhoGrupo({ grupo, total, acoes, confirmar, nomeItem, virtual, rec
 }
 
 // ---------------------------------------------------------------- cabeçalho da coluna
-function CabecalhoColuna({ coluna, acoes, confirmar, ordenacao, setOrdenacao, ordenacaoAlterada, onSalvarOrdenacao, anterior, proxima, onResize, onAjustar, onFormula, aoCriar, onOcultar, onAgrupar,
-  classeFixa, estiloFixa }: {
+function CabecalhoColuna({ coluna, acoes, confirmar, ordenacao, setOrdenacao, ordenacaoAlterada, onSalvarOrdenacao, anterior, proxima, onResize, onAjustar, onArrastar, onFormula, aoCriar, onOcultar, onAgrupar,
+  classeArraste, classeFixa, estiloFixa }: {
   coluna: Coluna; acoes: Acoes; confirmar: ReturnType<typeof useConfirmar>;
   ordenacao: Ordenacao; setOrdenacao: (o: Ordenacao) => void; ordenacaoAlterada: boolean; onSalvarOrdenacao: () => void;
   onFormula: (c: Coluna) => void; aoCriar: (c: Coluna) => void; onOcultar: () => void; onAgrupar: () => void;
   anterior?: Coluna; proxima?: Coluna; onResize: (x: number) => void; onAjustar: () => void;
+  onArrastar: (e: EventoMouse<HTMLTableCellElement>) => void; classeArraste: string;
   classeFixa: string; estiloFixa?: { left: number | undefined };
 }) {
   // Ordenação rápida: a seta ordena só por esta coluna (crescente, depois decrescente), na hora; "salvar" grava na visão.
@@ -383,7 +430,8 @@ function CabecalhoColuna({ coluna, acoes, confirmar, ordenacao, setOrdenacao, or
     acoes.atualizarColuna(outra.id, { posicao: coluna.posicao });
   };
   return (
-    <th className={`tq-col${dir ? ' ordenada' : ''}${dir && ordenacaoAlterada ? ' com-ordem-rapida' : ''}${classeFixa}`} style={estiloFixa}>
+    <th className={`tq-col arrastavel${dir ? ' ordenada' : ''}${dir && ordenacaoAlterada ? ' com-ordem-rapida' : ''}${classeFixa}${classeArraste}`} style={estiloFixa}
+      data-coluna={coluna.id} onMouseDown={onArrastar}>
       {dir && ordenacaoAlterada && (
         <div className="ordem-rapida">
           <button onClick={() => setOrdenacao(ordenacao.filter(o => o.colunaId !== coluna.id))} title="Tirar esta ordenação">limpar</button>
