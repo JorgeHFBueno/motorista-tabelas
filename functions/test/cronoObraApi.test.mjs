@@ -2,27 +2,31 @@ import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import { test } from 'node:test';
 import {
-  EntradaInvalida, diasNT, formatoChaveSistema, hashChaveSistema, lerFiltrosCronograma, lerNaoTrabalhados, montarCronograma, pessoaDaChaveSistema,
-} from '../lib/sistemaApiDominio.js';
+  EntradaInvalida, diasNT, formatoChaveCronoObra, hashChaveCronoObra, lerFiltrosCronograma, lerNaoTrabalhados, montarCronograma, pessoaDaChaveCronoObra,
+} from '../lib/cronoObraApiDominio.js';
 import { responderMcp } from '../lib/fridayMcp.js';
 
-const CHAVE = `sis_${'A1b2C3d4E5'.repeat(4)}`;
+const CHAVE = `encr_${'A1b2C3d4E5'.repeat(4)}`;
 
-test('system key: format sis_ + 40 and SHA-256 equal to the browser hash', () => {
-  assert.equal(formatoChaveSistema(CHAVE), true);
-  assert.equal(formatoChaveSistema(`fri_${'a'.repeat(40)}`), false);
-  assert.equal(formatoChaveSistema(`sis_${'a'.repeat(39)}`), false);
-  assert.equal(formatoChaveSistema(undefined), false);
-  assert.equal(hashChaveSistema(CHAVE), createHash('sha256').update(CHAVE).digest('hex'));
+test('CronoObra key: format encr_ + 40 and SHA-256 equal to the browser hash', () => {
+  assert.equal(formatoChaveCronoObra(CHAVE), true);
+  assert.equal(formatoChaveCronoObra(`fri_${'a'.repeat(40)}`), false);
+  assert.equal(formatoChaveCronoObra(`sis_${'a'.repeat(40)}`), false);
+  assert.equal(formatoChaveCronoObra(`encr_${'a'.repeat(39)}`), false);
+  assert.equal(formatoChaveCronoObra(undefined), false);
+  assert.equal(hashChaveCronoObra(CHAVE), createHash('sha256').update(CHAVE).digest('hex'));
 });
 
-test('system key person: not revoked, active employee', () => {
+test('CronoObra key person: not revoked, active employee who sees the Engenharia area (or adm2)', () => {
   const registro = { uid: 'u1', nome: 'Robô', revogada_em: null };
-  assert.deepEqual(pessoaDaChaveSistema(registro, { ativo: true, nome: 'Samuel' }), { uid: 'u1', nome: 'Samuel' });
-  assert.equal(pessoaDaChaveSistema({ ...registro, revogada_em: '2026-11-19 10:00:00' }, { ativo: true }), null);
-  assert.equal(pessoaDaChaveSistema(registro, { ativo: false }), null);
-  assert.equal(pessoaDaChaveSistema(registro, undefined), null);
-  assert.equal(pessoaDaChaveSistema(undefined, { ativo: true }), null);
+  const engenharia = { ativo: true, nome: 'Samuel', areas: { engenharia: 'ver' } };
+  assert.deepEqual(pessoaDaChaveCronoObra(registro, engenharia), { uid: 'u1', nome: 'Samuel', adm2: false });
+  assert.deepEqual(pessoaDaChaveCronoObra(registro, { ativo: true, nome: 'Jorge', perfis: { adm2: true } }), { uid: 'u1', nome: 'Jorge', adm2: true });
+  assert.equal(pessoaDaChaveCronoObra(registro, { ativo: true, nome: 'Outro', areas: { friday: 'editar' } }), null, 'sem a área Engenharia');
+  assert.equal(pessoaDaChaveCronoObra({ ...registro, revogada_em: '2026-11-19 10:00:00' }, engenharia), null);
+  assert.equal(pessoaDaChaveCronoObra(registro, { ...engenharia, ativo: false }), null);
+  assert.equal(pessoaDaChaveCronoObra(registro, undefined), null);
+  assert.equal(pessoaDaChaveCronoObra(undefined, engenharia), null);
 });
 
 test('filters: dates in both formats, de after ate refused, status list', () => {
@@ -106,9 +110,9 @@ test('cronograma filters: period touching the interval, contract, master without
 
 test('MCP with another server: its own tools, name and instructions', async () => {
   const ferramentas = [{ name: 'quem_sou_eu', title: 'Quem', description: 'x', inputSchema: { type: 'object', properties: {} }, escrita: false, annotations: { readOnlyHint: true, openWorldHint: false } }];
-  const ctx = { escrita: false, ferramentas, servidor: { name: 'ledur-sistema', title: 'Sistema Ledur' }, instrucoes: 'oi', executar: async (nome) => ({ nome }), mensagemDeErro: () => 'erro' };
+  const ctx = { escrita: false, ferramentas, servidor: { name: 'ledur-cronoobra', title: 'CronoObra Ledur' }, instrucoes: 'oi', executar: async (nome) => ({ nome }), mensagemDeErro: () => 'erro' };
   const init = await responderMcp({ jsonrpc: '2.0', id: 1, method: 'initialize', params: {} }, ctx);
-  assert.equal(init.result.serverInfo.name, 'ledur-sistema');
+  assert.equal(init.result.serverInfo.name, 'ledur-cronoobra');
   assert.equal(init.result.instructions, 'oi');
   const lista = await responderMcp({ jsonrpc: '2.0', id: 2, method: 'tools/list' }, ctx);
   assert.deepEqual(lista.result.tools.map((t) => t.name), ['quem_sou_eu']);

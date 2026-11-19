@@ -18,7 +18,7 @@ const CombustivelNovoPage = lazy(() => import('./pages/CombustivelNovoPage'));
 const LoginPage = lazy(() => import('./pages/LoginPage'));
 const CadastroUsuarioNovoPage = lazy(() => import('./pages/CadastroUsuarioNovoPage'));
 const CadastroUsuariosEditarPage = lazy(() => import('./pages/CadastroUsuariosEditarPage'));
-const CadastroChavesApiPage = lazy(() => import('./pages/CadastroChavesApiPage'));
+const CadastroApisPage = lazy(() => import('./pages/CadastroApisPage'));
 const RegistrosPage = lazy(() => import('./pages/RegistrosPage'));
 const ChecklistsPage = lazy(() => import('./pages/ChecklistsPage'));
 const ChecklistDetalhePage = lazy(() => import('./pages/ChecklistDetalhePage'));
@@ -110,9 +110,9 @@ export default function App() {
             <Route element={<PrivateRoute permite={(p) => editaArea(p, 'cadastros')} />}>
               <Route path="cadastros/usuarios/novo" element={<CadastroUsuarioNovoPage />} />
             </Route>
-            {/* Chaves de API do sistema (fora do Friday): só o adm2, como as Rules de chaves-api. */}
+            {/* APIs por área e as chaves delas: só o adm2, como as Rules de friday-chaves-api e cronoobra-chaves-api. */}
             <Route element={<PrivateRoute permite={(p) => temCredencial(p, 'adm2')} />}>
-              <Route path="cadastros/chaves-api" element={<CadastroChavesApiPage />} />
+              <Route path="cadastros/apis" element={<CadastroApisPage />} />
             </Route>
             {/* Frota e Combustível são grupos, como Engenharia: /frota e /combustivel não têm página própria. */}
             <Route element={<PrivateRoute permite={(p) => veArea(p, 'frota')} />}>

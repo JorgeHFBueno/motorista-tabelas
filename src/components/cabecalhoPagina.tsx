@@ -22,7 +22,7 @@ const TITULOS: Array<{ padrao: string } & TituloPagina> = [
   { padrao: '/friday/importar-monday', ...FRIDAY },
   { padrao: '/friday/quadros/:id', ...FRIDAY },
   { padrao: '/friday/quadros/:id/automacoes', ...FRIDAY },
-  // Any other Friday screen (e.g. /friday/chaves-api) also gets the logo instead of falling back to the Ledur logo.
+  // Any other Friday screen (e.g. /friday/historico) also gets the logo instead of falling back to the Ledur logo.
   { padrao: '/friday/*', ...FRIDAY },
   // Cronograma logos (hourglass): "Engenharia · Ledur" here, "Frota · Ledur" on the logistics one.
   { padrao: '/engenharia/cronograma', titulo: 'Cronograma de Obras', logo: '/logo-cronograma-engenharia.svg' },
@@ -34,7 +34,7 @@ const TITULOS: Array<{ padrao: string } & TituloPagina> = [
   { padrao: '/combustivel/registros/novo', titulo: 'Lançamento de combustível' },
   { padrao: '/cadastros/usuarios/novo', titulo: 'Cadastro de usuários' },
   { padrao: '/cadastros/editar/usuarios', titulo: 'Usuários' },
-  { padrao: '/cadastros/chaves-api', titulo: 'Chaves de API' },
+  { padrao: '/cadastros/apis', titulo: 'APIs' },
   { padrao: '/frota/veiculos', titulo: 'Veículos' },
   { padrao: '/frota/veiculos/:id', titulo: 'Detalhes do Veículo' },
   { padrao: '/frota/registros', titulo: 'Registros' },

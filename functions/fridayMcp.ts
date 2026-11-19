@@ -131,7 +131,7 @@ export type ContextoMcp = {
   /** Executa a ferramenta (mesmas funções das rotas). Erro vira resposta de erro da ferramenta, com mensagemDeErro. */
   executar: (nome: string, args: AnyRecord) => Promise<unknown>;
   mensagemDeErro: (e: unknown) => string;
-  /** Outro servidor MCP (ex.: sistemaApi): as ferramentas, o nome e as instruções dele; sem isso, os do Friday. */
+  /** Outro servidor MCP (ex.: cronoObraApi): as ferramentas, o nome e as instruções dele; sem isso, os do Friday. */
   ferramentas?: FerramentaMcp[];
   servidor?: { name: string; title: string };
   instrucoes?: string;

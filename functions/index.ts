@@ -25,7 +25,7 @@ export { portalEmailsEnviar } from './portalEmails.js';
 export { portalNoticiasColeta, portalNoticiasAtualizar } from './portalNoticias/funcoes.js';
 export { roboObras } from './roboObras.js';
 export { fridayApi } from './fridayApi.js';
-export { sistemaApi } from './sistemaApi.js';
+export { cronoObraApi } from './cronoObraApi.js';
 export { logisticaPessoasFriday } from './logisticaPessoas.js';
 export { logisticaPedidoNota } from './logisticaPedidoNota.js';
 export { avisosPush } from './avisosPush.js';

@@ -1,7 +1,7 @@
 import { useEffect, useState, type CSSProperties, type ReactNode } from 'react';
 import { NavLink, useLocation, useNavigate } from 'react-router-dom';
 import {
-  ArrowDownAZ, Archive, ChevronDown, ChevronRight, ChevronsDownUp, ChevronsLeft, ChevronsUpDown, Copy, Folder, FolderOpen, FolderPlus, History, Home, KeyRound, LayoutDashboard, LayoutGrid,
+  ArrowDownAZ, Archive, ChevronDown, ChevronRight, ChevronsDownUp, ChevronsLeft, ChevronsUpDown, Copy, Folder, FolderOpen, FolderPlus, History, Home, LayoutDashboard, LayoutGrid,
   ListChecks, Lock, MoreHorizontal, Pencil, Plus, Search, Star, Trash2, FolderInput, CloudDownload,
 } from 'lucide-react';
 import { Permissoes } from './Permissoes.tsx';
@@ -162,7 +162,6 @@ export function Lateral({ onRecolher }: { onRecolher: () => void }) {
         <NavLink to="/friday/historico" className={({ isActive }) => `atalho${isActive ? ' ativo' : ''}`}><History size={17} /> Histórico</NavLink>
         <NavLink to="/friday/arquivo" className={({ isActive }) => `atalho${isActive ? ' ativo' : ''}`}><Archive size={17} /> Arquivo e lixeira</NavLink>
         {adm2 && MONDAY_NA_TELA && <NavLink to="/friday/importar-monday" className={({ isActive }) => `atalho${isActive ? ' ativo' : ''}`}><CloudDownload size={17} /> Importar do monday</NavLink>}
-        {adm2 && <NavLink to="/friday/chaves-api" className={({ isActive }) => `atalho${isActive ? ' ativo' : ''}`}><KeyRound size={17} /> Chaves de API</NavLink>}
         <button className="btn-icone recolher" onClick={onRecolher} title="Recolher lateral" aria-label="Recolher lateral"><ChevronsLeft size={16} /></button>
       </nav>
 

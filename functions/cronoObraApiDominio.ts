@@ -1,22 +1,23 @@
-// Regras da API do sistema (sistemaApi.ts), sem Firestore, para serem testadas: a chave e a consulta do Cronograma de
+// Regras da API do CronoObra (cronoObraApi.ts), sem Firestore, para serem testadas: a chave e a consulta do Cronograma de
 // Obras, montada como a tela /engenharia/cronograma monta (src/features/cronograma-obras: obrasV2CronogramaAdapter,
 // mestresFirestoreAdapter, alocacaoReconciliation e hydrateFirestoreAlocacoes da CronogramaObrasPage).
-// Contrato: The Manuscript, 01_FIRESTORE/COLECOES/chaves-api.md e 02_APIS_FUNCTIONS.
+// Contrato: The Manuscript, 01_FIRESTORE/COLECOES/cronoobra-chaves-api.md e 02_APIS_FUNCTIONS/10_APIS_POR_AREA.md.
 import { createHash } from 'node:crypto';
+import { veArea } from './credenciais.js';
 
 type AnyRecord = Record<string, any>;
 export type Doc = { id: string; data: AnyRecord | undefined };
 
-/** Chave: "sis_" + 40 letras e números (gerada na tela Cadastros → Chaves de API, só adm2). */
-export const formatoChaveSistema = (chave: unknown): chave is string => typeof chave === 'string' && /^sis_[A-Za-z0-9]{40}$/.test(chave);
-/** O banco guarda só o SHA-256 da chave (id do documento em chaves-api), nunca a chave. */
-export const hashChaveSistema = (chave: string) => createHash('sha256').update(chave).digest('hex');
+/** Chave: "encr_" + 40 letras e números (gerada em Cadastros → APIs, seção CronoObra, só adm2). */
+export const formatoChaveCronoObra = (chave: unknown): chave is string => typeof chave === 'string' && /^encr_[A-Za-z0-9]{40}$/.test(chave);
+/** O banco guarda só o SHA-256 da chave (id do documento em cronoobra-chaves-api), nunca a chave. */
+export const hashChaveCronoObra = (chave: string) => createHash('sha256').update(chave).digest('hex');
 
-/** Quem a chave representa: chave não revogada de um funcionário ativo. As áreas são conferidas em cada rota. */
-export function pessoaDaChaveSistema(registro: AnyRecord | undefined, funcionario: AnyRecord | undefined): { uid: string; nome: string } | null {
+/** Quem a chave representa: chave não revogada de um funcionário ativo que vê a área Engenharia (ou adm2). */
+export function pessoaDaChaveCronoObra(registro: AnyRecord | undefined, funcionario: AnyRecord | undefined): { uid: string; nome: string; adm2: boolean } | null {
   if (!registro || registro.revogada_em || typeof registro.uid !== 'string' || !registro.uid) return null;
-  if (funcionario?.ativo !== true) return null;
-  return { uid: registro.uid, nome: String(funcionario.nome ?? registro.nome ?? '') };
+  if (!veArea(funcionario, 'engenharia')) return null;
+  return { uid: registro.uid, nome: String(funcionario.nome ?? registro.nome ?? ''), adm2: (funcionario.perfis as AnyRecord | undefined)?.adm2 === true };
 }
 
 /** Pedido que não pode ser atendido como veio (vira 400 com a mensagem). */

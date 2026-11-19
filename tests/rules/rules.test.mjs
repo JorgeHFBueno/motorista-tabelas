@@ -1055,28 +1055,30 @@ test('[firestore] Friday: API keys (friday-chaves-api) listed, created (read-onl
   await assertFails(updateDoc(doc(adm, 'friday-chaves-api', hash), { revogada_em: '2026-11-10 12:00:00', revogada_por: 'uid-adm2' }), 'revogada não volta');
   await assertFails(deleteDoc(doc(adm, 'friday-chaves-api', hash)));
 });
-// Chaves de API do sistema (sistemaApi, PR #10): o modelo de friday-chaves-api, sem "escrita".
-test('[firestore] system API keys (chaves-api) listed, created and revoked only by adm2, never deleted', async () => {
+// Chaves da API do CronoObra (cronoObraApi, área Engenharia): o modelo de friday-chaves-api, sem "escrita".
+test('[firestore] CronoObra API keys (cronoobra-chaves-api) listed, created and revoked only by adm2, never deleted', async () => {
   const hash = 'c'.repeat(64);
   const chave = (extra = {}) => ({ uid: 'uid-escritorio', nome: 'Robô', sufixo: 'abcd', criado_por: 'uid-adm2', criado_em: '2026-11-19 10:00:00', revogada_em: null, ...extra });
   const esc = dbAs('escritorio');
-  await assertFails(setDoc(doc(esc, 'chaves-api', hash), chave({ criado_por: 'uid-escritorio' })));
-  await assertFails(getDocs(collection(esc, 'chaves-api')));
-  await assertFails(getDoc(doc(esc, 'chaves-api', hash)));
+  await assertFails(setDoc(doc(esc, 'cronoobra-chaves-api', hash), chave({ criado_por: 'uid-escritorio' })));
+  await assertFails(getDocs(collection(esc, 'cronoobra-chaves-api')));
+  await assertFails(getDoc(doc(esc, 'cronoobra-chaves-api', hash)));
   const adm = dbAs('adm2');
-  await assertFails(setDoc(doc(adm, 'chaves-api', 'nao-e-hash'), chave()));
-  await assertFails(setDoc(doc(adm, 'chaves-api', hash), chave({ criado_por: 'uid-escritorio' })), 'em nome de outra pessoa');
-  await assertFails(setDoc(doc(adm, 'chaves-api', hash), chave({ revogada_em: '2026-11-19 10:00:00' })), 'já nasce revogada');
-  await assertFails(setDoc(doc(adm, 'chaves-api', hash), chave({ escrita: true })), 'sem escrita');
-  await assertFails(setDoc(doc(adm, 'chaves-api', hash), chave({ uid: '' })), 'sem pessoa');
-  await assertSucceeds(setDoc(doc(adm, 'chaves-api', hash), chave()));
-  await assertSucceeds(getDocs(collection(adm, 'chaves-api')));
-  await assertFails(updateDoc(doc(adm, 'chaves-api', hash), { uid: 'uid-adm2' }), 'trocar a pessoa');
-  await assertFails(updateDoc(doc(esc, 'chaves-api', hash), { revogada_em: '2026-11-19 11:00:00', revogada_por: 'uid-escritorio' }));
-  await assertFails(updateDoc(doc(adm, 'chaves-api', hash), { revogada_em: '2026-11-19 11:00:00', revogada_por: 'uid-escritorio' }), 'revogada em nome de outra pessoa');
-  await assertSucceeds(updateDoc(doc(adm, 'chaves-api', hash), { revogada_em: '2026-11-19 11:00:00', revogada_por: 'uid-adm2' }));
-  await assertFails(updateDoc(doc(adm, 'chaves-api', hash), { revogada_em: '2026-11-19 12:00:00', revogada_por: 'uid-adm2' }), 'revogada não volta');
-  await assertFails(deleteDoc(doc(adm, 'chaves-api', hash)));
+  await assertFails(setDoc(doc(adm, 'cronoobra-chaves-api', 'nao-e-hash'), chave()));
+  await assertFails(setDoc(doc(adm, 'cronoobra-chaves-api', hash), chave({ criado_por: 'uid-escritorio' })), 'em nome de outra pessoa');
+  await assertFails(setDoc(doc(adm, 'cronoobra-chaves-api', hash), chave({ revogada_em: '2026-11-19 10:00:00' })), 'já nasce revogada');
+  await assertFails(setDoc(doc(adm, 'cronoobra-chaves-api', hash), chave({ escrita: true })), 'sem escrita');
+  await assertFails(setDoc(doc(adm, 'cronoobra-chaves-api', hash), chave({ uid: '' })), 'sem pessoa');
+  await assertSucceeds(setDoc(doc(adm, 'cronoobra-chaves-api', hash), chave()));
+  await assertSucceeds(getDocs(collection(adm, 'cronoobra-chaves-api')));
+  await assertFails(updateDoc(doc(adm, 'cronoobra-chaves-api', hash), { uid: 'uid-adm2' }), 'trocar a pessoa');
+  await assertFails(updateDoc(doc(esc, 'cronoobra-chaves-api', hash), { revogada_em: '2026-11-19 11:00:00', revogada_por: 'uid-escritorio' }));
+  await assertFails(updateDoc(doc(adm, 'cronoobra-chaves-api', hash), { revogada_em: '2026-11-19 11:00:00', revogada_por: 'uid-escritorio' }), 'revogada em nome de outra pessoa');
+  await assertSucceeds(updateDoc(doc(adm, 'cronoobra-chaves-api', hash), { revogada_em: '2026-11-19 11:00:00', revogada_por: 'uid-adm2' }));
+  await assertFails(updateDoc(doc(adm, 'cronoobra-chaves-api', hash), { revogada_em: '2026-11-19 12:00:00', revogada_por: 'uid-adm2' }), 'revogada não volta');
+  await assertFails(deleteDoc(doc(adm, 'cronoobra-chaves-api', hash)));
+  // A antiga coleção do sistema (sistemaApi) não tem mais regra.
+  await assertFails(getDocs(collection(adm, 'chaves-api')));
 });
 test('[firestore] Friday: items keep "vinculo" and import control written only by Functions', async () => {
   const db = dbAs('escritorio');

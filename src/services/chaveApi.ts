@@ -1,6 +1,7 @@
-// Geração das chaves de API (as do Friday, "fri_", e as do sistema, "sis_"): o texto é sorteado no navegador, mostrado
-// uma vez e guardado só como SHA-256, que é o id do documento. As Functions acham a chave pelo mesmo hash (hashChave em
-// functions/fridayApiDominio.ts). Sem Firebase aqui, para os testes rodarem em Node.
+// Geração das chaves das APIs por área (Friday "fri_", CronoObra "encr_"; lista em chavesApi.ts): o texto é sorteado no
+// navegador, mostrado uma vez e guardado só como SHA-256, que é o id do documento. As Functions acham a chave pelo mesmo
+// hash (hashChave em functions/fridayApiDominio.ts, hashChaveCronoObra em functions/cronoObraApiDominio.ts). Sem
+// Firebase aqui, para os testes rodarem em Node.
 const LETRAS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
 
 /** Prefixo + 40 letras e números, sorteados pelo crypto do navegador. */

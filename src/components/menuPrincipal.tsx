@@ -83,7 +83,7 @@ export const menuPrincipal: MenuPrincipalItem[] = [
     children: [
       { label: 'Usuários', to: '/cadastros/editar/usuarios', icon: <PeopleAltOutlinedIcon />, descricao: 'Contas do sistema, credenciais e o QR/PIN do Kiosk' },
       { label: 'Novo usuário', to: '/cadastros/usuarios/novo', icon: <PersonAddAltOutlinedIcon />, descricao: 'Cadastrar um funcionário com login', acesso: { editar: ['cadastros'] } },
-      { label: 'Chaves de API', to: '/cadastros/chaves-api', icon: <KeyOutlinedIcon />, descricao: 'Chaves por pessoa para robôs, planilhas e o Claude', acesso: { credencial: ['adm2'] } },
+      { label: 'APIs', to: '/cadastros/apis', icon: <KeyOutlinedIcon />, descricao: 'Chaves das APIs de cada área para robôs, planilhas e o Claude', acesso: { credencial: ['adm2'] } },
       // Meu perfil é de qualquer credencial ou área: quem não vê Cadastros vê o grupo só com ele.
       { label: 'Meu perfil', to: '/perfil', icon: <PersonOutlineRoundedIcon />, descricao: 'Seus dados, login e senha', acesso: 'qualquer' },
     ],

@@ -12,7 +12,6 @@ import Arquivo from './paginas/Arquivo.tsx';
 import AutomacoesPage from './quadro/Automacoes.tsx';
 import TiposSubitemPage from './quadro/TiposSubitemPage.tsx';
 import ImportarMonday from './paginas/ImportarMonday.tsx';
-import ChavesApi from './paginas/ChavesApi.tsx';
 import Historico from './paginas/Historico.tsx';
 import './styles.css';
 import LoadingFallback from '../../components/LoadingFallback';
@@ -61,7 +60,6 @@ function Friday() {
           <Route path="quadros/:id/automacoes" element={<AutomacoesPage />} />
           <Route path="quadros/:id/tipos" element={<TiposSubitemPage />} />
           <Route path="importar-monday" element={<ImportarMonday />} />
-          <Route path="chaves-api" element={<ChavesApi />} />
           <Route path="*" element={<Navigate to="/friday" replace />} />
         </Routes>
       </main>

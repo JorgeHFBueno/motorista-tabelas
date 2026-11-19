@@ -1306,9 +1306,9 @@ service cloud.firestore {
       allow delete: if false;
     }
 
-    // Chaves de API do sistema (Function sistemaApi; tela Cadastros → Chaves de API): o mesmo modelo de friday-chaves-api,
-    // fora do Friday e só de consulta (sem "escrita"). Cada rota da Function confere as áreas da WEB da pessoa da chave.
-    match /chaves-api/{hash} {
+    // Chaves da API do CronoObra (Function cronoObraApi, área Engenharia; tela Cadastros → APIs): o mesmo modelo de
+    // friday-chaves-api, só de consulta (sem "escrita"). A Function confere a área Engenharia da pessoa da chave.
+    match /cronoobra-chaves-api/{hash} {
       allow read: if isAdm2();
       allow create: if isAdm2()
         && hash.matches('^[0-9a-f]{64}$')
