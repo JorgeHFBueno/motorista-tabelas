@@ -8,6 +8,7 @@ import { Link, useLocation } from 'react-router-dom';
 import { useState } from 'react';
 import MenuLateral from './MenuLateral';
 import BotaoAvisos from './BotaoAvisos';
+import BotaoFerramentas from './BotaoFerramentas';
 import { useAuth } from '../contexts/AuthContext';
 import { rotaAnterior, useCabecalhoPagina } from './cabecalhoPagina';
 import { ehAppMotorista, ehRotaMotorista } from '../features/saida-chegada/appMotorista';
@@ -85,6 +86,8 @@ export default function Header() {
 
           {currentUser ? (
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+              {/* Ferramentas de tela (Canvas), só para o adm2. */}
+              {authorizationProfile?.adm2 === true && <BotaoFerramentas botaoSx={botaoClaroSx} />}
               {/* The system's notices, from every area (avisos/{uid}/itens). */}
               <BotaoAvisos botaoSx={botaoClaroSx} />
               <Button
