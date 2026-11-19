@@ -70,10 +70,7 @@ import {
   updateObraStatusByLoteId,
 } from "./application/localPlanner";
 import { calculatedEnd, todayCivil } from "./domain/temporal";
-import {
-  separarObrasPorSituacao,
-  statusLoteConhecido,
-} from "./domain/contractStatus";
+import { separarObrasPorSituacao } from "./domain/contractStatus";
 import { useAuth } from "../../contexts/AuthContext";
 import { editaArea } from "../../services/credenciais";
 import {
@@ -326,8 +323,8 @@ type CronogramaObrasViewProps = {
   tema?: "mki" | "mkii";
   /** Grade de "Obra iniciada": QuadroGantt na produção; padrão (layout anterior, /testes/mki): GanttGrid. */
   gradeIniciadas?: ComponentType<GanttGridProps>;
-  /** Lista de "Obra finalizada": QuadroLista na produção; padrão: ContractTextTable. */
-  tabelaFinalizadas?: ComponentType<ContractTextTableProps>;
+  /** Listas de "Obra não iniciada" e "Obra finalizada": QuadroLista na produção; padrão: ContractTextTable. */
+  tabelaSecoes?: ComponentType<ContractTextTableProps>;
   /** Grade da visão Mestres: QuadroMestres na produção; padrão: GanttGrid. */
   gradeMestres?: ComponentType<GanttGridProps>;
   /**
@@ -344,7 +341,7 @@ export function CronogramaObrasView({
   edicaoLiberada = false,
   tema,
   gradeIniciadas: GradeIniciadas = GanttGrid,
-  tabelaFinalizadas: TabelaFinalizadas = ContractTextTable,
+  tabelaSecoes: TabelaSecoes = ContractTextTable,
   gradeMestres: GradeMestres = GanttGrid,
   abas,
 }: CronogramaObrasViewProps) {
@@ -632,19 +629,6 @@ export function CronogramaObrasView({
       ).size,
     }),
     [obrasPorSituacao],
-  );
-  const statusDesconhecidos = useMemo(
-    () => [
-      ...new Set(
-        obrasDasSecoes
-          .filter(
-            (obra) =>
-              obra.targetType === "obra" && !statusLoteConhecido(obra.status),
-          )
-          .map((obra) => obra.status),
-      ),
-    ],
-    [obrasDasSecoes],
   );
   // Tabs layout (/testes): the Mestres tab has no Status filter, so its load ignores the Status chosen in Cronograma.
   const obrasMestres = useMemo(() => (abas ? filterObras(obras, { ...filters, status: [] }) : filtered), [abas, obras, filters, filtered]);
@@ -1631,7 +1615,7 @@ export function CronogramaObrasView({
           </section>
           <section>
           <header className="co-section-heading"><h2>Obra não iniciada ({contratosPorSituacao["nao-iniciada"]})</h2><button type="button" className="co-button co-button--secondary" aria-expanded={textSectionsExpanded.notStarted} onClick={() => setTextSectionsExpanded((current) => ({ ...current, notStarted: !current.notStarted }))}>{textSectionsExpanded.notStarted ? "Recolher" : "Expandir"}</button></header>
-          <CronogramaProfiler id="ContractTextTable"><ContractTextTable
+          <CronogramaProfiler id="ContractTextTable"><TabelaSecoes
             viewMode={sectionViews.notStarted}
             variant="not-started"
             sectionTitle="Obra não iniciada"
@@ -1657,7 +1641,7 @@ export function CronogramaObrasView({
           <section>
           {/* /testes themes: the finished section gets a heading like the others (production keeps the title in the table). */}
           {tema && <header className="co-section-heading"><h2>Obra finalizada ({contratosPorSituacao.finalizada})</h2><button type="button" className="co-button co-button--secondary" aria-expanded={textSectionsExpanded.finished} onClick={() => setTextSectionsExpanded((current) => ({ ...current, finished: !current.finished }))}>{textSectionsExpanded.finished ? "Recolher" : "Expandir"}</button></header>}
-          <CronogramaProfiler id="ContractTextTable"><TabelaFinalizadas
+          <CronogramaProfiler id="ContractTextTable"><TabelaSecoes
             viewMode={sectionViews.finished}
             sectionTitle="Obra finalizada"
               sectionCount={contratosPorSituacao.finalizada}
@@ -1684,12 +1668,6 @@ export function CronogramaObrasView({
               onStatusConfirmed={applyConfirmedLoteStatus}
             /></CronogramaProfiler>
           </section>
-          {statusDesconhecidos.length > 0 && (
-            <p className="co-empty" role="status">
-              Status não mapeado, exibido em Obra não iniciada:{" "}
-              {statusDesconhecidos.join(", ")}.
-            </p>
-          )}
         </div>
       ) : view === "mestres" ? (
         <>
@@ -1802,5 +1780,5 @@ export default function CronogramaObrasPage() {
       desligarBonequinho();
     };
   }, []);
-  return <CronogramaObrasView tema="mkii" gradeIniciadas={QuadroGantt} gradeMestres={QuadroMestres} tabelaFinalizadas={QuadroLista} abas={ABAS_CRONOGRAMA} />;
+  return <CronogramaObrasView tema="mkii" gradeIniciadas={QuadroGantt} gradeMestres={QuadroMestres} tabelaSecoes={QuadroLista} abas={ABAS_CRONOGRAMA} />;
 }
