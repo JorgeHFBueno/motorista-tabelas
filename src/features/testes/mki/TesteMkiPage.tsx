@@ -140,6 +140,7 @@ function statusDoGrupo(lfs: LfMock[]): string {
 }
 
 const totalPdfs = (lfs: LfMock[]) => lfs.reduce((total, lf) => total + lf.pdfs.length, 0);
+const comPdf = (lfs: LfMock[]) => lfs.filter((lf) => lf.pdfs.length > 0).length;
 
 function BotaoRevisoes({ quantidade, rotulo, onClick }: { quantidade: number; rotulo: string; onClick: () => void }) {
   return (
@@ -404,12 +405,12 @@ export default function TesteMkiPage() {
                                   <Typography component="span" variant="body2" color="text.secondary" sx={{ ml: 1 }}>{linha.lfs.length}</Typography>
                                 </Button>
                               </TableCell>
-                              {/* Recolhido, o grupo resume os itens: total de PDFs, o status do grupo e as revisões de todos. */}
+                              {/* Recolhido, o grupo resume os itens: quantos itens têm PDF, o status do grupo e as revisões de todos. */}
                               {linha.aberto ? <TableCell colSpan={3} /> : (
                                 <>
                                   <TableCell>
                                     <Typography variant="body2" color="text.secondary">
-                                      {totalPdfs(linha.lfs) === 1 ? '1 PDF' : `${totalPdfs(linha.lfs)} PDFs`}
+                                      {`${comPdf(linha.lfs)} de ${linha.lfs.length} com PDF`}
                                     </Typography>
                                   </TableCell>
                                   <TableCell>{statusDoGrupo(linha.lfs) ? <ChipStatus status={statusDoGrupo(linha.lfs)} /> : null}</TableCell>
