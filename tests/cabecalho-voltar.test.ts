@@ -71,18 +71,20 @@ test('Meu perfil fica dentro de Cadastros e continua aberto a qualquer credencia
   assert.deepEqual(grupo(perfil({ areas: { cadastros: 'editar' } }), 'Cadastros'), ['Usuários', 'Novo usuário', 'Meu perfil']);
   assert.deepEqual(grupo(perfil({ areas: { cadastros: 'ver' } }), 'Cadastros'), ['Usuários', 'Meu perfil']);
   assert.deepEqual(grupo(perfil({ motorista: true }), 'Cadastros'), ['Meu perfil']);
-  assert.deepEqual(filtrarMenuPrincipal(perfil({ motorista: true })).map((i) => i.label), ['Motorista', 'Cadastros']);
+  assert.deepEqual(filtrarMenuPrincipal(perfil({ motorista: true }), true).map((i) => i.label), ['Motorista', 'Cadastros']);
   assert.equal(filtrarMenuPrincipal(perfil({ adm2: true })).some((i) => i.label === 'Meu perfil'), false);
   assert.deepEqual(filtrarMenuPrincipal(perfil({})), []);
 });
 
 test('Saída e Chegada (2026-11-18) e Checklist (2026-11-19) no WEB: cartão Motorista para motorista, mecânico e adm2, levando a /motorista', () => {
-  // O cartão é um link direto para /motorista, onde ficam os botões de cada credencial.
-  const motorista = (p: AuthorizationProfile) => filtrarMenuPrincipal(p).find((item) => item.label === 'Motorista');
+  // O cartão é um link direto para /motorista, onde ficam os botões de cada credencial; só no celular (2026-11-19).
+  const motorista = (p: AuthorizationProfile, celular = true) => filtrarMenuPrincipal(p, celular).find((item) => item.label === 'Motorista');
   for (const quem of [perfil({ motorista: true }), perfil({ mecanico: true }), perfil({ adm2: true })]) {
     assert.equal(motorista(quem)?.to, '/motorista');
     assert.equal(motorista(quem)?.children, undefined);
+    assert.equal(motorista(quem, false), undefined);
   }
+  assert.deepEqual(filtrarMenuPrincipal(perfil({ motorista: true }), false).map((i) => i.label), ['Cadastros']);
   for (const outro of [{ frentista: true }, { areas: { mecanica: 'editar' as const } }]) {
     assert.equal(motorista(perfil(outro)), undefined, JSON.stringify(outro));
   }

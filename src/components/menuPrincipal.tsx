@@ -43,12 +43,15 @@ export type MenuPrincipalItem = {
   children?: Array<{ label: string; to: string; icon: ReactNode; descricao: string; acesso?: Acesso }>;
   // Item desenhado como telinha CRT, só com o ícone (área DEV): card escuro na Home, sem texto no menu lateral.
   crt?: true;
+  // Só aparece no celular ou tablet (tela de toque); a rota continua aberta pelo endereço.
+  soCelular?: true;
 };
 
 export const menuPrincipal: MenuPrincipalItem[] = [
   {
     // Saída e Chegada (2026-11-18, credencial motorista) e Checklist (2026-11-19, credencial mecanico) no WEB; o adm2 entra.
     // Não é uma área. Os botões ficam na página /motorista, que é também o início do app Motorista instalado.
+    // 2026-11-19: o cartão só aparece no celular, onde o motorista e o mecânico usam.
     label: 'Motorista',
     icon: <AirportShuttleOutlinedIcon fontSize="large" />,
     // Azul-marinho da Ledur, como o app Flutter.
@@ -56,6 +59,7 @@ export const menuPrincipal: MenuPrincipalItem[] = [
     accent: '#12293B',
     to: '/motorista',
     acesso: { credencial: ['motorista', 'mecanico'] },
+    soCelular: true,
   },
   {
     label: 'The Manuscript',
@@ -157,9 +161,13 @@ const temAcesso = (profile: AuthorizationProfile | null, acesso: Acesso) =>
         : 'credencial' in acesso ? temCredencial(profile, ...acesso.credencial) : editaArea(profile, ...acesso.editar);
 
 // Cada área aparece para quem a vê (areas); o adm2 vê tudo, salvo a DEV (retr0). Um grupo mostra só os subitens
-// que a pessoa pode abrir e some sem nenhum. Quem só tem credenciais do app vê Cadastros com o Meu perfil; o motorista, também o grupo Motorista.
-export function filtrarMenuPrincipal(profile: AuthorizationProfile | null): MenuPrincipalItem[] {
+// que a pessoa pode abrir e some sem nenhum. Quem só tem credenciais do app vê Cadastros com o Meu perfil; o motorista
+// e o mecânico, no celular, também o cartão Motorista.
+export const ehCelular = () => typeof window !== 'undefined' && window.matchMedia('(pointer: coarse)').matches;
+
+export function filtrarMenuPrincipal(profile: AuthorizationProfile | null, celular = ehCelular()): MenuPrincipalItem[] {
   return menuPrincipal.flatMap((item) => {
+    if (item.soCelular && !celular) return [];
     if (!item.children) return temAcesso(profile, item.acesso) ? [item] : [];
     const children = item.children.filter((child) => temAcesso(profile, child.acesso ?? item.acesso));
     return children.length ? [{ ...item, children }] : [];
