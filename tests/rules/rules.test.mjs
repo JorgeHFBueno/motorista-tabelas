@@ -2111,3 +2111,35 @@ test('[storage] areas: Friday, Portal and Logística files follow the area and i
   await assertFails(deleteObject(ref(storageAs('logVer'), 'logistica/observacoes/ob-area/a.pdf')));
   await assertSucceeds(deleteObject(ref(storageAs('logEditar'), 'logistica/observacoes/ob-area/a.pdf')));
 });
+
+test('[firestore] logistica: linha completa (local, 4 veículos, pessoas, obra, PDFs) continua gravável', async () => {
+  // Regressão de 2026-11-19: conferir a linha inteira a cada gravação passava do limite de 1000 expressões numa linha
+  // completa, e o envio do PDF (e qualquer alteração) era recusado. Na alteração, só o que mudou é conferido.
+  await env.withSecurityRulesDisabled(async (ctx) => {
+    await setDoc(doc(ctx.firestore(), 'logistica-programacoes', 'lcheia'), {
+      schemaVersion: 1, cod: 452609, semanaId: '2026-W45', item: 'Transporte de vigas para a obra', status: '6',
+      inicio: '2026-11-03', fim: '2026-11-05',
+      motorista: { id: 'm1', nome: 'Motorista' }, auxiliar: { id: 'a1', nome: 'Auxiliar' },
+      veiculos: [{ id: 'v1', nome: 'V1' }, { id: 'v2', nome: 'V2' }, { id: 'v3', nome: 'V3' }, { id: 'v4', nome: 'V4' }],
+      obra: { id: 'o1', nome: 'Obra' },
+      local: { link: 'https://www.google.com/maps/search/?api=1&query=-29.3%2C-53.1', lat: -29.3, lng: -53.1, cidade: 'Arroio do Tigre', uf: 'RS' },
+      expedicao: 'EXP 4521', adiamento: 'adiada de 01/11 (2 dias), pelo motivo de chuva', posicao: 1,
+      conflitosIgnorados: Array.from({ length: 20 }, (_, i) => `p:m1|outra${i}`),
+      nota: { caminho: 'logistica/notas/lcheia/0-antiga.pdf', url: 'https://u', nome: 'antiga.pdf', tamanho: 10 },
+      criadoPorUid: 'uid-canonical-adm2', criadoPorNome: 'Adm', criadoEm: Timestamp.fromMillis(1),
+      atualizadoPorUid: 'uid-canonical-adm2', atualizadoPorNome: 'Adm', atualizadoEm: Timestamp.fromMillis(1),
+    });
+  });
+  const ref = doc(dbAs('canonicalAdm2'), 'logistica-programacoes', 'lcheia');
+  const alterou = { atualizadoPorUid: 'uid-canonical-adm2', atualizadoPorNome: 'Adm', atualizadoEm: serverTimestamp() };
+  const pdf = (i) => ({ caminho: `logistica/notas/lcheia/${i}-NF.pdf`, url: 'https://u', nome: `NF ${i}.pdf`, tamanho: 19455 });
+  await assertSucceeds(updateDoc(ref, { expedicao: 'EXP 1', ...alterou }));
+  await assertSucceeds(updateDoc(ref, { notas: [pdf(1)], status: '1', ...alterou }));
+  await assertSucceeds(updateDoc(ref, { notas: Array.from({ length: 10 }, (_, i) => pdf(i)), ...alterou }));
+  // O que muda continua conferido.
+  await assertFails(updateDoc(ref, { expedicao: 'x'.repeat(201), ...alterou }));
+  await assertFails(updateDoc(ref, { local: { link: 'nao-e-link' }, ...alterou }));
+  await assertFails(updateDoc(ref, { veiculos: [{ id: 'v1', nome: 'V1', extra: 1 }], ...alterou }));
+  await assertFails(updateDoc(ref, { semanaId: '2026-W46', ...alterou }));
+  await assertFails(updateDoc(ref, { notas: Array.from({ length: 11 }, (_, i) => pdf(i)), ...alterou }));
+});

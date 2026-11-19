@@ -1561,6 +1561,40 @@ service cloud.firestore {
         && logisticaTextoOpcional(data, 'atualizadoPorNome');
     }
 
+    // Alteração de uma programação: só os campos que mudaram são conferidos (os outros já foram ao serem gravados).
+    // Conferir a linha inteira a cada gravação passava do limite de 1000 expressões por gravação numa linha completa
+    // (local, quatro veículos, pessoas, obra, PDFs da nota): a gravação era recusada. A semana não muda (didNotChange),
+    // então não precisa ler de novo se ela existe.
+    function validLogisticaAlteracao(data, antes, programacaoId) {
+      let mudou = data.diff(antes).affectedKeys();
+      return data.keys().hasOnly([
+          'schemaVersion', 'cod', 'semanaId', 'item', 'status', 'inicio', 'fim', 'motorista', 'auxiliar', 'veiculo', 'veiculos',
+          'obra', 'local', 'expedicao', 'adiamento', 'nota', 'notas', 'posicao', 'conflitosIgnorados', 'criadoPorUid', 'criadoPorNome', 'criadoEm',
+          'atualizadoPorUid', 'atualizadoPorNome', 'atualizadoEm'
+        ])
+        && (!mudou.hasAny(['schemaVersion']) || data.schemaVersion == 1)
+        && (!mudou.hasAny(['cod']) || !('cod' in data) || data.cod == null || logisticaCodigoNumero(data.cod)
+          || (data.cod is string && data.cod.matches('^[0-9]{8,9}$')))
+        && (!mudou.hasAny(['item']) || (data.item is string && data.item.size() >= 1 && data.item.size() <= 200))
+        && (!mudou.hasAny(['status']) || (data.status is string && data.status.size() <= 60))
+        && (!mudou.hasAny(['inicio', 'fim'])
+          || (logisticaDataOuNula(data.get('inicio', null)) && logisticaDataOuNula(data.get('fim', null))
+            && (data.get('inicio', null) == null || data.get('fim', null) == null || data.fim >= data.inicio)))
+        && (!mudou.hasAny(['motorista']) || logisticaRef(data.motorista, 'id') || logisticaRef(data.motorista, 'uid'))
+        && (!mudou.hasAny(['auxiliar']) || logisticaRef(data.auxiliar, 'id') || logisticaRef(data.auxiliar, 'uid'))
+        && (!mudou.hasAny(['veiculo']) || !('veiculo' in data) || logisticaRef(data.veiculo, 'id'))
+        && (!mudou.hasAny(['veiculos']) || !('veiculos' in data) || logisticaVeiculos(data.veiculos))
+        && (!mudou.hasAny(['obra']) || logisticaRef(data.obra, 'id'))
+        && (!mudou.hasAny(['local']) || logisticaLocal(data))
+        && (!mudou.hasAny(['expedicao']) || logisticaTextoOpcional(data, 'expedicao'))
+        && (!mudou.hasAny(['adiamento']) || logisticaTextoOpcional(data, 'adiamento'))
+        && (!mudou.hasAny(['posicao']) || data.posicao is number)
+        && (!mudou.hasAny(['conflitosIgnorados']) || !('conflitosIgnorados' in data)
+          || (data.conflitosIgnorados is list && data.conflitosIgnorados.size() <= 100))
+        && (!mudou.hasAny(['atualizadoPorNome']) || logisticaTextoOpcional(data, 'atualizadoPorNome'))
+        && (!mudou.hasAny(['nota', 'notas']) || logisticaNota(data, programacaoId));
+    }
+
     // Local: o link do Google Maps colado e o que a Function logisticaLocal leu dele, {link, lat, lng, cidade, uf};
     // null ou ausente é sem local.
     function logisticaLocal(data) {
@@ -1589,9 +1623,9 @@ service cloud.firestore {
         && nota.tamanho is int && nota.tamanho >= 1 && nota.tamanho <= 25 * 1024 * 1024;
     }
 
-    // Item da lista `notas`: só a forma ({caminho, url, nome, tamanho}), para dez PDFs caberem no limite de 1000
-    // expressões por gravação (a checagem completa de cada um passava dele). O arquivo (só PDF, até 25 MB, na pasta
-    // logistica/notas/) é garantido pelas Rules do Storage.
+    // Item da lista `notas`: só a forma ({caminho, url, nome, tamanho}). A checagem completa de dez itens passa do limite
+    // de 1000 expressões por gravação; o arquivo (só PDF, até 25 MB, na pasta logistica/notas/) é garantido pelas Rules
+    // do Storage.
     function logisticaNotaNa(notas, indice) {
       return notas.size() <= indice || (notas[indice] is map && notas[indice].keys().hasOnly(['caminho', 'url', 'nome', 'tamanho']));
     }
@@ -1645,8 +1679,7 @@ service cloud.firestore {
       // Alteração assinada, com o código como estava; ou só o código, sem assinar (não é alteração de ninguém): a
       // linha sem código ganha o número, a do formato anterior (texto) passa ao número. Número não muda mais.
       allow update: if editaArea('logistica')
-        && validLogisticaProgramacao(request.resource.data)
-        && logisticaNota(request.resource.data, programacaoId)
+        && validLogisticaAlteracao(request.resource.data, resource.data, programacaoId)
         && didNotChange(['semanaId', 'criadoPorUid', 'criadoPorNome', 'criadoEm'])
         && (
           (logisticaAssinada(request.resource.data) && request.resource.data.get('cod', null) == resource.data.get('cod', null))
