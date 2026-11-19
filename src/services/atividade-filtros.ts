@@ -1,6 +1,6 @@
 import type { AtividadeV2 } from './atividade-normalizer';
 
-/** Filters of /frota/registros. Empty values mean "no filter". Local is the contract's `destino`. */
+/** Filters of /mecanica/registros. Empty values mean "no filter". Local is the contract's `destino`. */
 export type FiltrosAtividade = {
   /** yyyy-mm-dd, inclusive, local time. */
   dataInicial: string;

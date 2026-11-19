@@ -124,24 +124,23 @@ export default function App() {
             <Route element={<PrivateRoute permite={(p) => temCredencial(p, 'adm2')} />}>
               <Route path="cadastros/apis" element={<CadastroApisPage />} />
             </Route>
-            {/* Frota e Combustível são grupos, como Engenharia: /frota e /combustivel não têm página própria. */}
-            <Route element={<PrivateRoute permite={(p) => veArea(p, 'frota')} />}>
-              <Route path="frota/veiculos" element={<FrotaVeiculosPage />} />
-              <Route path="frota/veiculos/:id" element={<FrotaVeiculoDetalhesPage />} />
-              <Route path="frota/registros" element={<RegistrosPage />} />
-              <Route path="frota/checklists" element={<ChecklistsPage />} />
-              <Route path="frota/checklists/:id" element={<ChecklistDetalhePage />} />
-              <Route path="frota/analytics" element={<FrotaAnalyticsPage />} />
-            </Route>
-            <Route element={<PrivateRoute permite={(p) => veArea(p, 'combustivel')} />}>
-              <Route path="combustivel/registros" element={<TabelaCombustivel />} />
-              <Route path="combustivel/bombas" element={<BombasPage />} />
-            </Route>
-            <Route element={<PrivateRoute permite={(p) => editaArea(p, 'combustivel')} />}>
-              <Route path="combustivel/registros/novo" element={<CombustivelNovoPage />} />
+            {/* Mecânica e Logística são grupos, como Engenharia: /mecanica e /logistica não têm página própria (2026-11-19:
+                Frota virou Mecânica; Combustível e o KPI entraram na Logística). */}
+            <Route element={<PrivateRoute permite={(p) => veArea(p, 'mecanica')} />}>
+              <Route path="mecanica/veiculos" element={<FrotaVeiculosPage />} />
+              <Route path="mecanica/veiculos/:id" element={<FrotaVeiculoDetalhesPage />} />
+              <Route path="mecanica/registros" element={<RegistrosPage />} />
+              <Route path="mecanica/checklists" element={<ChecklistsPage />} />
+              <Route path="mecanica/checklists/:id" element={<ChecklistDetalhePage />} />
             </Route>
             <Route element={<PrivateRoute permite={(p) => veArea(p, 'logistica')} />}>
+              <Route path="logistica/kpi" element={<FrotaAnalyticsPage />} />
+              <Route path="logistica/combustivel/registros" element={<TabelaCombustivel />} />
+              <Route path="logistica/combustivel/bombas" element={<BombasPage />} />
               <Route path="logistica/cronograma" element={<LogisticaCronogramaPage />} />
+            </Route>
+            <Route element={<PrivateRoute permite={(p) => editaArea(p, 'logistica')} />}>
+              <Route path="logistica/combustivel/registros/novo" element={<CombustivelNovoPage />} />
             </Route>
             {/* Portal do cliente, lado da equipe: The Manuscript, 16_PORTAL_DO_CLIENTE.md. */}
             <Route element={<PrivateRoute permite={(p) => veArea(p, 'portal')} />}>

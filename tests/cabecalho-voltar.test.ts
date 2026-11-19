@@ -7,7 +7,7 @@ import { emptyAuthorizationProfile, type AuthorizationProfile } from '../src/ser
 
 test('Voltar do cabeçalho sobe pela URL até a página mais próxima, até a Home (2026-11-10)', () => {
   assert.equal(rotaAnterior('/'), null);
-  assert.equal(rotaAnterior('/combustivel/registros/novo'), '/combustivel/registros');
+  assert.equal(rotaAnterior('/logistica/combustivel/registros/novo'), '/logistica/combustivel/registros');
   assert.equal(rotaAnterior('/perfil'), '/');
   assert.equal(rotaAnterior('/engenharia/obras/abc'), '/engenharia/obras');
   assert.equal(rotaAnterior('/portal-cliente/contratos/abc'), '/portal-cliente/contratos');
@@ -15,15 +15,15 @@ test('Voltar do cabeçalho sobe pela URL até a página mais próxima, até a Ho
   assert.equal(rotaAnterior('/friday/quadros/q1'), '/friday');
 });
 
-test('grupo sem página própria é pulado: /frota, /cadastros e /combustivel não existem, então voltam para a Home', () => {
+test('grupo sem página própria é pulado: /mecanica, /cadastros, /logistica e /logistica/combustivel não existem, então voltam para a Home', () => {
   assert.equal(rotaAnterior('/cadastros/usuarios/novo'), '/');
   assert.equal(rotaAnterior('/cadastros/editar/usuarios'), '/');
-  assert.equal(rotaAnterior('/combustivel/registros'), '/');
-  assert.equal(rotaAnterior('/combustivel/bombas'), '/');
-  assert.equal(rotaAnterior('/frota/veiculos/abc'), '/frota/veiculos');
-  assert.equal(rotaAnterior('/frota/checklists/abc'), '/frota/checklists');
-  assert.equal(rotaAnterior('/frota/veiculos'), '/');
-  assert.equal(rotaAnterior('/frota/analytics'), '/');
+  assert.equal(rotaAnterior('/logistica/combustivel/registros'), '/');
+  assert.equal(rotaAnterior('/logistica/combustivel/bombas'), '/');
+  assert.equal(rotaAnterior('/mecanica/veiculos/abc'), '/mecanica/veiculos');
+  assert.equal(rotaAnterior('/mecanica/checklists/abc'), '/mecanica/checklists');
+  assert.equal(rotaAnterior('/mecanica/veiculos'), '/');
+  assert.equal(rotaAnterior('/logistica/kpi'), '/');
 });
 
 test('documentos do The Manuscript voltam à raiz do Reader', () => {
@@ -55,10 +55,11 @@ test('menu e rotas de 2026-11-10: Cadastros e Combustível são grupos, sem /che
   const titulos = readFileSync('src/components/cabecalhoPagina.tsx', 'utf8');
   assert.match(menu, /label: 'Usuários', to: '\/cadastros\/editar\/usuarios'/);
   assert.match(menu, /label: 'Novo usuário', to: '\/cadastros\/usuarios\/novo'/);
-  assert.match(menu, /label: 'Registros', to: '\/combustivel\/registros'/);
-  assert.match(menu, /label: 'Bombas', to: '\/combustivel\/bombas'/);
-  assert.doesNotMatch(menu, /to: '\/(cadastros|combustivel|checklist)'/);
-  assert.doesNotMatch(app, /path="(cadastros|combustivel|combustivel\/novo|bombas|checklist[^"]*)"/);
+  assert.match(menu, /label: 'Comb. Registros', to: '\/logistica\/combustivel\/registros'/);
+  assert.match(menu, /label: 'Comb. Bombas', to: '\/logistica\/combustivel\/bombas'/);
+  assert.doesNotMatch(menu, /to: '\/(cadastros|combustivel|logistica|mecanica|checklist)'/);
+  // 2026-11-19: Frota virou Mecânica e Combustível entrou na Logística; as rotas antigas foram apagadas, sem redirecionar.
+  assert.doesNotMatch(app, /path="(cadastros|combustivel[^"]*|frota[^"]*|bombas|checklist[^"]*)"/);
   assert.doesNotMatch(app, /CadastrosPage/);
   assert.equal(titulos.match(/subtitulo: '/g)?.length, 1);
 });
@@ -82,7 +83,7 @@ test('Saída e Chegada (2026-11-18) e Checklist (2026-11-19) no WEB: cartão Mot
     assert.equal(motorista(quem)?.to, '/motorista');
     assert.equal(motorista(quem)?.children, undefined);
   }
-  for (const outro of [{ frentista: true }, { areas: { frota: 'editar' as const } }]) {
+  for (const outro of [{ frentista: true }, { areas: { mecanica: 'editar' as const } }]) {
     assert.equal(motorista(perfil(outro)), undefined, JSON.stringify(outro));
   }
   assert.equal(motorista(perfil({ motorista: true, ativo: false })), undefined);
@@ -114,7 +115,7 @@ test('Home ocupa o resto da tela sem chutar a altura do cabeçalho (sem rolagem 
 
 test('Registros e Bombas de combustível mostram a logo Abastecedora Ledur no lugar do título (2026-11-10)', () => {
   const cabecalho = readFileSync('src/components/cabecalhoPagina.tsx', 'utf8');
-  for (const rota of ['/combustivel/registros', '/combustivel/bombas']) {
+  for (const rota of ['/logistica/combustivel/registros', '/logistica/combustivel/bombas']) {
     assert.match(cabecalho, new RegExp(`padrao: '${rota}', titulo: '[^']+', \\.\\.\\.ABASTECEDORA`), rota);
   }
   assert.match(cabecalho, /logo: '\/logo-abastecedora-ledur\.svg'/);

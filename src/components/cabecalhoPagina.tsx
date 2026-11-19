@@ -30,18 +30,18 @@ const TITULOS: Array<{ padrao: string } & TituloPagina> = [
   { padrao: '/engenharia/obras/:id', titulo: 'Detalhes da Obra' },
   { padrao: '/dev', titulo: 'DEV' },
   { padrao: '/the-manuscript/*', titulo: 'The Manuscript' },
-  { padrao: '/combustivel/registros', titulo: 'Registros de combustível', ...ABASTECEDORA },
-  { padrao: '/combustivel/registros/novo', titulo: 'Lançamento de combustível' },
+  { padrao: '/logistica/combustivel/registros', titulo: 'Registros de combustível', ...ABASTECEDORA },
+  { padrao: '/logistica/combustivel/registros/novo', titulo: 'Lançamento de combustível' },
   { padrao: '/cadastros/usuarios/novo', titulo: 'Cadastro de usuários' },
   { padrao: '/cadastros/editar/usuarios', titulo: 'Usuários' },
   { padrao: '/cadastros/apis', titulo: 'APIs' },
-  { padrao: '/frota/veiculos', titulo: 'Veículos' },
-  { padrao: '/frota/veiculos/:id', titulo: 'Detalhes do Veículo' },
-  { padrao: '/frota/registros', titulo: 'Registros' },
-  { padrao: '/frota/checklists', titulo: 'Checklists' },
-  { padrao: '/frota/checklists/:id', titulo: 'Checklist' },
-  { padrao: '/frota/analytics', titulo: 'Analytics da Frota' },
-  { padrao: '/combustivel/bombas', titulo: 'Bombas', ...ABASTECEDORA },
+  { padrao: '/mecanica/veiculos', titulo: 'Veículos' },
+  { padrao: '/mecanica/veiculos/:id', titulo: 'Detalhes do Veículo' },
+  { padrao: '/mecanica/registros', titulo: 'Registros' },
+  { padrao: '/mecanica/checklists', titulo: 'Checklists' },
+  { padrao: '/mecanica/checklists/:id', titulo: 'Checklist' },
+  { padrao: '/logistica/kpi', titulo: 'KPI da frota' },
+  { padrao: '/logistica/combustivel/bombas', titulo: 'Bombas', ...ABASTECEDORA },
   { padrao: '/logistica/cronograma', titulo: 'Cronograma Logístico', logo: '/logo-cronograma-frota.svg' },
   { padrao: '/portal-cliente/clientes', titulo: 'Clientes do portal' },
   { padrao: '/portal-cliente/contratos', titulo: 'Contratos no portal' },
@@ -69,7 +69,7 @@ const ehPagina = (caminho: string) =>
   TITULOS.some(({ padrao }) => (padrao.endsWith('/*') ? padrao.slice(0, -2) === caminho : matchPath({ path: padrao, end: true }, caminho)));
 
 // Where the header's back button goes: up the URL to the nearest page, until the Home
-// (/cadastros/usuarios/novo -> /cadastros -> /). A group without a page of its own (/frota) is skipped. Null on the Home.
+// (/cadastros/usuarios/novo -> /cadastros -> /). A group without a page of its own (/mecanica, /logistica) is skipped. Null on the Home.
 export function rotaAnterior(caminho: string): string | null {
   const partes = caminho.split('/').filter(Boolean);
   if (partes.length === 0) return null;

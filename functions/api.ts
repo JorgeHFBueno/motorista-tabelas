@@ -27,13 +27,13 @@ async function verifyIdToken(
   }
 }
 
-// WEB Combustível (/combustivel): the Combustível area, 'ver' to read (GET) and 'editar' to write (or adm2). The Admin
+// WEB Combustível (/logistica/combustivel): the Logística area, 'ver' to read (GET) and 'editar' to write (or adm2). The Admin
 // SDK skips the Rules, so the area is checked here.
 async function verifyCombustivel(req: AuthRequest, res: Response, next: NextFunction) {
   try {
     const funcionario = await db.collection('funcionarios').doc(req.user!.uid).get();
     const pode = req.method === 'GET' ? veArea : editaArea;
-    if (pode(funcionario.data(), 'combustivel')) return next();
+    if (pode(funcionario.data(), 'logistica')) return next();
     res.status(403).json({ error: 'Forbidden' });
   } catch {
     res.status(503).json({ error: 'authorization_unavailable' });

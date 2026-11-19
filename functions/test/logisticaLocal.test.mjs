@@ -47,7 +47,7 @@ test('cidade e estado: sigla no Brasil, nome do estado fora; cidade, town ou vil
 });
 
 function servico({ redirecionamentos = {}, endereco = { city: 'Caxias do Sul', 'ISO3166-2-lvl4': 'BR-RS' }, achado = null } = {}) {
-  const funcionarios = { log: { ativo: true, perfis: {}, areas: { frota: 'editar', combustivel: 'editar', logistica: 'editar' } }, mec: { ativo: true, perfis: { mecanico: true }, areas: { frota: 'editar', combustivel: 'editar', logistica: 'editar', friday: 'editar' } }, adm: { ativo: true, perfis: { adm2: true } }, eng: { ativo: true, perfis: {}, areas: { engenharia: 'ver', portal: 'editar' } }, por: { ativo: true, perfis: {}, areas: { portal: 'editar' } }, inativo: { ativo: false, perfis: {}, areas: { logistica: 'editar' } } };
+  const funcionarios = { log: { ativo: true, perfis: {}, areas: { mecanica: 'editar', logistica: 'editar' } }, mec: { ativo: true, perfis: { mecanico: true }, areas: { mecanica: 'editar', logistica: 'editar', friday: 'editar' } }, adm: { ativo: true, perfis: { adm2: true } }, eng: { ativo: true, perfis: {}, areas: { engenharia: 'ver', portal: 'editar' } }, por: { ativo: true, perfis: {}, areas: { portal: 'editar' } }, inativo: { ativo: false, perfis: {}, areas: { logistica: 'editar' } } };
   const chamadas = { redirecionamento: [], enderecoDa: [], buscar: [] };
   const service = createLogisticaLocalService({
     async getEmployee(uid) { return funcionarios[uid]; },

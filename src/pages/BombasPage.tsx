@@ -79,7 +79,7 @@ function bombaName(bomba: Bomba): string {
 export default function BombasPage() {
   const { currentUser } = useAuth();
   const { profile, loading: authorizationLoading } = useAuthorizationProfile();
-  const canRegister = editaArea(profile, 'combustivel');
+  const canRegister = editaArea(profile, 'logistica');
   const [bombas, setBombas] = useState<Bomba[]>([]);
   const [selectedId, setSelectedId] = useState('');
   const [movements, setMovements] = useState<FuelMovement[]>([]);

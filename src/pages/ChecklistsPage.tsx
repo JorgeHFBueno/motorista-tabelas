@@ -6,7 +6,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { listarChecklists, type Checklist } from '../services/checklists.service';
 import { abreEmNovaGuia } from '../utils/novaGuia';
 
-const urlChecklist = (id: string) => `/frota/checklists/${encodeURIComponent(id)}`;
+const urlChecklist = (id: string) => `/mecanica/checklists/${encodeURIComponent(id)}`;
 
 const dateFmt = new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit' });
 

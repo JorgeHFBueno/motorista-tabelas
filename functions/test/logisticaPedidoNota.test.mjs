@@ -6,7 +6,7 @@ const d = await import('../lib/logisticaPedidoNotaDominio.js');
 // Avisos "Novo Pedido de Nota" e "Nota anexada" do Cronograma Logístico. Só dados fictícios.
 // Áreas da WEB (2026-11-16): `logistica` = a área logistica (ver basta para receber o aviso).
 const funcionario = (perfis, ativo = true, areas = {}) => ({ ativo, perfis, areas });
-const LOG = { frota: 'editar', combustivel: 'editar', logistica: 'editar' };
+const LOG = { mecanica: 'editar', logistica: 'editar' };
 
 test('Ag. NF: pelo id da etiqueta com esse nome, pelo padrão sem lista e pelo nome nas linhas de antes', () => {
   assert.deepEqual([...d.idsAgNf(undefined)], ['2']);
@@ -32,7 +32,7 @@ test('destinatários: sem limite (teto técnico de 50), sem repetir, ativos que 
   const funcionarios = new Map([
     ['ana', funcionario({}, true, LOG)],
     ['bia', { ativo: true, perfis: {}, areas: { logistica: 'ver' } }],
-    ['caio', { ativo: true, perfis: { logistica: true }, areas: { frota: 'editar' } }],
+    ['caio', { ativo: true, perfis: { logistica: true }, areas: { mecanica: 'editar' } }],
     ['chefe', funcionario({ adm2: true })],
     ['escritorio', funcionario({}, true, { friday: 'editar', cadastros: 'editar', portal: 'editar' })],
     ['inativo', funcionario({}, false, LOG)],

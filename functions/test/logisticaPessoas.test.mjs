@@ -31,11 +31,11 @@ test('coluna "Função Desejada" pelo título, sem acento nem maiúsculas', () =
 
 test('só quem vê a área logistica, ou adm2, ativos; devolve os dois quadros', async () => {
   const funcionarios = {
-    log: { ativo: true, perfis: {}, areas: { frota: 'editar', combustivel: 'editar', logistica: 'editar' } },
-    mec: { ativo: true, perfis: { mecanico: true }, areas: { frota: 'editar', combustivel: 'editar', logistica: 'editar', friday: 'editar' } },
+    log: { ativo: true, perfis: {}, areas: { mecanica: 'editar', logistica: 'editar' } },
+    mec: { ativo: true, perfis: { mecanico: true }, areas: { mecanica: 'editar', logistica: 'editar', friday: 'editar' } },
     adm: { ativo: true, perfis: { adm2: true } },
     eng: { ativo: true, perfis: {}, areas: { engenharia: 'editar', portal: 'editar' } },
-    inativo: { ativo: false, perfis: {}, areas: { frota: 'editar', combustivel: 'editar', logistica: 'editar' } },
+    inativo: { ativo: false, perfis: {}, areas: { mecanica: 'editar', logistica: 'editar' } },
     antigo: { ativo: true, perfis: { logistica: true } },
   };
   const pedidos = [];

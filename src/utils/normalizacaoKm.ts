@@ -1,4 +1,4 @@
-// Normalização de KM/horímetro do detalhe do veículo (/frota/veiculos/:id), portada da ferramenta local
+// Normalização de KM/horímetro do detalhe do veículo (/mecanica/veiculos/:id), portada da ferramenta local
 // normalizacao-km-v2. O sistema só aponta leituras suspeitas; quem decide o valor certo é a pessoa.
 
 export type ColecaoKm = 'atividades' | '03-combustivel' | 'veiculos-v2';

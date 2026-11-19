@@ -40,7 +40,7 @@ service cloud.firestore {
     }
 
     // WEB areas (Manuscript funcionarios.md, 2026-11-16): funcionarios/{uid}.areas = { area: 'ver' | 'editar' }.
-    // Areas: combustivel, frota, logistica, engenharia, portal, cadastros, manuscript, friday (one level, 'editar').
+    // Areas: logistica, mecanica, engenharia, portal, cadastros, manuscript, friday (one level, 'editar').
     // A missing area (or a document without `areas`) = no access; adm2 edits every area. One read of the profile;
     // '' = no access.
     function nivelArea(a) {
@@ -60,14 +60,14 @@ service cloud.firestore {
     }
 
     // Who picks people from funcionarios (the whole document comes back): app pickers (frentista, mecanico, Kiosk),
-    // adm2 and the WEB areas that choose people (Friday, Combustível, Frota, Logística, Cadastros). Not motorista or
+    // adm2 and the WEB areas that choose people (Friday, Logística, Mecânica, Cadastros). Not motorista or
     // retr0 alone.
     function lePessoas() {
       let perfis = isAuthorized() ? employee().get('perfis', {}) : {};
       return perfis.get('adm2', false) == true
         || perfis.get('frentista', false) == true
         || perfis.get('mecanico', false) == true
-        || veArea('friday') || veArea('combustivel') || veArea('frota') || veArea('logistica') || veArea('cadastros');
+        || veArea('friday') || veArea('logistica') || veArea('mecanica') || veArea('cadastros');
     }
 
     // Activity of the signed-in person: driver or author, in any of the shapes the app queries (Histórico). Direct
@@ -276,7 +276,7 @@ service cloud.firestore {
     // frentista holds frentista or adm2.
     function validFuelV2Create() {
       let data = request.resource.data;
-      return (hasEitherPerfil('frentista', 'adm2') || editaArea('combustivel'))
+      return (hasEitherPerfil('frentista', 'adm2') || editaArea('logistica'))
         && data.get('tipo', '') == 'saida'
         && data.get('data', null) is timestamp
         && validFuelCriadoPor(data)
@@ -713,9 +713,9 @@ service cloud.firestore {
       allow write: if false;
     }
 
-    // ERP (Query 47) guardado por veículo: só a Function grava; valores e fornecedores, então só a Frota lê.
+    // ERP (Query 47) guardado por veículo: só a Function grava; valores e fornecedores, então só a Mecânica e a Logística (KPI) leem.
     match /erp-veiculos/{veiculoId} {
-      allow read: if veArea('frota');
+      allow read: if veArea('mecanica') || veArea('logistica');
       allow write: if false;
     }
 
@@ -751,20 +751,20 @@ service cloud.firestore {
         isAdm2()
         // WEB Frota editar (vehicle detail): only the name and the initial meter with its date and origin.
         || (
-          editaArea('frota')
+          editaArea('mecanica')
           && changedOnly(['identificacao'])
           && request.resource.data.identificacao.diff(resource.data.get('identificacao', {})).affectedKeys().hasOnly(['nome'])
           && nonEmptyString(request.resource.data.identificacao.nome)
         )
         || (
-          editaArea('frota')
+          editaArea('mecanica')
           && changedOnly(['operacional'])
           && request.resource.data.operacional.diff(resource.data.get('operacional', {})).affectedKeys()
             .hasOnly(['quilometragemInicial', 'dataQuilometragemInicial', 'origemQuilometragemInicial'])
         )
         // WEB Frota KM normalization (Frota editar): the last meter reading, in either direction.
         || (
-          editaArea('frota')
+          editaArea('mecanica')
           && changedOnly(['operacional'])
           && request.resource.data.operacional.diff(resource.data.get('operacional', {})).affectedKeys()
             .hasOnly(['quilometragemUltima'])
@@ -855,23 +855,23 @@ service cloud.firestore {
     // Categories and suppliers of the old WEB maintenance records (no cadastro screen since 2026-11-06; new
     // maintenance lives in the ERP). Frota reads them to name old records and in the KPI.
     match /notas-categorias/{documentId} {
-      allow read: if veArea('frota');
-      allow create, update, delete: if editaArea('frota');
+      allow read: if veArea('mecanica');
+      allow create, update, delete: if editaArea('mecanica');
     }
 
     match /notas-fornecedores/{documentId} {
-      allow read: if veArea('frota');
-      allow create, update, delete: if editaArea('frota');
+      allow read: if veArea('mecanica');
+      allow create, update, delete: if editaArea('mecanica');
     }
 
     match /notas-fornecedores-numeros/{documentId} {
-      allow read: if veArea('frota');
-      allow create, update, delete: if editaArea('frota');
+      allow read: if veArea('mecanica');
+      allow create, update, delete: if editaArea('mecanica');
     }
 
     match /app-metadata/notas-fornecedores-numero {
-      allow read: if veArea('frota');
-      allow create, update: if editaArea('frota');
+      allow read: if veArea('mecanica');
+      allow create, update: if editaArea('mecanica');
       allow delete: if false;
     }
 
@@ -879,11 +879,11 @@ service cloud.firestore {
     // ================================================================ activities
 
     match /atividades/{atividadeId} {
-      // Full listings: Frota and Engenharia areas (WEB; Engenharia in the obra detail, by id_obra). Everyone else reads their own (app
+      // Full listings: Mecânica, Logística (KPI) and Engenharia areas (WEB; Engenharia in the obra detail, by id_obra). Everyone else reads their own (app
       // Histórico) and, in the app's send transaction, the id about to be created (resource == null).
-      allow get: if veArea('frota') || veArea('engenharia')
+      allow get: if veArea('mecanica') || veArea('logistica') || veArea('engenharia')
         || (isAuthorized() && (resource == null || atividadeDoProprio(resource.data)));
-      allow list: if veArea('frota') || veArea('engenharia') || (isAuthorized() && atividadeDoProprio(resource.data));
+      allow list: if veArea('mecanica') || veArea('logistica') || veArea('engenharia') || (isAuthorized() && atividadeDoProprio(resource.data));
 
       // V2 and migrated activities carry driver and author snapshots; mecanico/adm2 register for another driver.
       allow create: if
@@ -915,14 +915,14 @@ service cloud.firestore {
       // Activity history is immutable, except the odometer reading corrected by the WEB Frota KM normalization
       // (Frota editar), as a non-negative integer.
       allow update: if
-        editaArea('frota')
+        editaArea('mecanica')
         && changedOnly(['km'])
         && request.resource.data.km is int
         && request.resource.data.km >= 0;
       allow delete: if false;
 
       match /checklist_saida/{itemId} {
-        allow read: if veArea('frota') || veArea('engenharia')
+        allow read: if veArea('mecanica') || veArea('engenharia')
           || (isAuthorized() && atividadeDoProprio(get(/databases/$(database)/documents/atividades/$(atividadeId)).data));
 
         allow create: if
@@ -933,7 +933,7 @@ service cloud.firestore {
       }
 
       match /checklist_chegada/{itemId} {
-        allow read: if veArea('frota') || veArea('engenharia')
+        allow read: if veArea('mecanica') || veArea('engenharia')
           || (isAuthorized() && atividadeDoProprio(get(/databases/$(database)/documents/atividades/$(atividadeId)).data));
 
         // Catalog version and payload shape are application concerns.
@@ -988,15 +988,15 @@ service cloud.firestore {
 
     match /checklists-v2/{checklistId} {
       // The checklist (app and WEB /motorista/checklist, credential mecanico) reads before creating, lists the author's
-      // history and the vehicle's last checklist; the WEB Frota area reads them all. Same readers as in storage.rules.
-      allow read: if isMecanico() || veArea('frota');
+      // history and the vehicle's last checklist; the WEB Mecânica area reads them all. Same readers as in storage.rules.
+      allow read: if isMecanico() || veArea('mecanica');
       allow create: if (isMecanico() || isAdm2()) && validChecklistV2Create() && validChecklistV2Pessoas(checklistId);
       allow update, delete: if false;
     }
 
     // Mechanic maintenance record (app, Manuscript manutencoes-v2.md): one document per visit, rewritten on each Save
     // with a higher revisao while status == 'aberta', immutable once 'fechada'. Any mechanic or adm2 continues an open
-    // record, not only its creator (decision of 2026-11-04). Readers: the app mechanic and the WEB Frota area (adm2
+    // record, not only its creator (decision of 2026-11-04). Readers: the app mechanic and the WEB Mecânica area (adm2
     // included); the saving transaction reads the document before it exists. May already be created 'fechada'
     // (opened and closed before the first successful upload).
     function isManutencaoV2User() {
@@ -1038,7 +1038,7 @@ service cloud.firestore {
     }
 
     match /manutencoes-v2/{manutencaoId} {
-      allow read: if isMecanico() || veArea('frota');
+      allow read: if isMecanico() || veArea('mecanica');
       allow create: if isManutencaoV2User() && validManutencaoV2Create();
       allow update: if isManutencaoV2User() && validManutencaoV2Update();
       allow delete: if false;
@@ -1048,9 +1048,9 @@ service cloud.firestore {
     // ================================================================ fuel
 
     match /03-combustivel/{registroId} {
-      // Full reads: Combustível (Registros, Bombas) and Frota areas, Engenharia (obra detail), frentista and the
+      // Full reads: Logística (fuel Registros, Bombas, KPI) and Mecânica areas, Engenharia (obra detail), frentista and the
       // Kiosk (app: last record and entries, unfiltered). Everyone else reads their own (app Histórico).
-      allow read: if veArea('combustivel') || veArea('frota') || veArea('engenharia') || isFrentista()
+      allow read: if veArea('logistica') || veArea('mecanica') || veArea('engenharia') || isFrentista()
         || (isAuthorized() && combustivelDoProprio(resource.data));
 
       allow create: if
@@ -1058,30 +1058,30 @@ service cloud.firestore {
         && (
           validFuelV2Create()
           || validFuelAjusteV2Create()
-          || (editaArea('combustivel') && validFuelEntradaV2Create())
+          || (editaArea('logistica') && validFuelEntradaV2Create())
           || validLegacyFuelCreate()
         );
 
       // Corrections: Combustível editar (adjustments replaced by lançamentos, document inspector), the Admin SDK (WEB
       // /combustivel API) or the administrative claim. Frota editar only corrects the meter (KM normalization).
-      allow update: if editaArea('combustivel') || hasAdminClaim()
+      allow update: if editaArea('logistica') || hasAdminClaim()
         || (
-          editaArea('frota')
+          editaArea('mecanica')
           && changedOnly(['quilometragem', 'horimetro'])
         );
-      allow delete: if editaArea('combustivel') || hasAdminClaim();
+      allow delete: if editaArea('logistica') || hasAdminClaim();
     }
 
     match /bombas/{bombaId} {
       // WEB Combustível area (Bombas), the app's frentista and the Kiosk.
-      allow read: if veArea('combustivel') || isFrentista();
+      allow read: if veArea('logistica') || isFrentista();
 
       // The frentista (app, Kiosk) and the WEB Combustível editar (Bombas) modify only the shared fuel state; adm2
       // anything.
       allow update: if
         isAdm2()
         || (
-          (isFrentista() || editaArea('combustivel'))
+          (isFrentista() || editaArea('logistica'))
           && changedOnly([
             'montanteAtual',
             'estoqueAtual',
@@ -1171,11 +1171,11 @@ service cloud.firestore {
 
     // ================================================================ maintenance
 
-    // Frota area: ver reads, editar edits and deletes maintenance records (WEB document inspector); the claim keeps working.
+    // Mecânica area (Logística reads for the KPI): ver reads, editar edits and deletes maintenance records (WEB document inspector); the claim keeps working.
     match /manutencoes/{manutencaoId} {
-      allow read: if veArea('frota') || hasAdminClaim();
-      allow create: if editaArea('frota');
-      allow update, delete: if editaArea('frota') || hasAdminClaim();
+      allow read: if veArea('mecanica') || veArea('logistica') || hasAdminClaim();
+      allow create: if editaArea('mecanica');
+      allow update, delete: if editaArea('mecanica') || hasAdminClaim();
     }
 
 

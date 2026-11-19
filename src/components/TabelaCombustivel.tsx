@@ -71,7 +71,7 @@ function parseKmNumber(value: unknown): number | null {
 export default function TabelaCombustivel() {
   const { data: rows, loading, remove } = useCombustivel();
   const principalGridApiRef = useGridApiRef();
-  const isAdmin = editaArea(useAuth().authorizationProfile, 'combustivel');
+  const isAdmin = editaArea(useAuth().authorizationProfile, 'logistica');
   const { isOnline } = useOnlineStatus();
 
   const [view, setView] = useState<View>('principal');
@@ -551,7 +551,7 @@ export default function TabelaCombustivel() {
       )}
       <Stack direction="row" spacing={2} mt={2}>
         {isAdmin && (
-          <Button variant="contained" href="/combustivel/registros/novo" sx={{ mb: 1 }}>
+          <Button variant="contained" href="/logistica/combustivel/registros/novo" sx={{ mb: 1 }}>
             Novo
           </Button>
         )}

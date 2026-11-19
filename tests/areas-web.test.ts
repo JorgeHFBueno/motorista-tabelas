@@ -8,12 +8,12 @@ import { editaArea, temAlgumaCredencial, temCredencial, veArea } from '../src/se
 const perfil = (data: Record<string, unknown>) => authorizationProfileFromData('uid', { nome: 'Pessoa', ativo: true, ...data });
 
 test('areas: a document with the map uses only it; ver lets in, editar also edits', () => {
-  const p = perfil({ perfis: { logistica: true }, areas: { combustivel: 'ver', frota: 'editar' } });
-  assert.equal(veArea(p, 'combustivel'), true);
-  assert.equal(editaArea(p, 'combustivel'), false);
-  assert.equal(veArea(p, 'frota'), true);
-  assert.equal(editaArea(p, 'frota'), true);
-  assert.equal(veArea(p, 'logistica'), false, 'with the map, the old logistica credential no longer counts');
+  const p = perfil({ perfis: { engenharia: true }, areas: { logistica: 'ver', mecanica: 'editar' } });
+  assert.equal(veArea(p, 'logistica'), true);
+  assert.equal(editaArea(p, 'logistica'), false);
+  assert.equal(veArea(p, 'mecanica'), true);
+  assert.equal(editaArea(p, 'mecanica'), true);
+  assert.equal(veArea(p, 'engenharia'), false, 'with the map, the old engenharia credential no longer counts');
 });
 
 test('areas: without the map there is no WEB area, old credentials included (cleanup of 2026-11-16)', () => {
@@ -25,12 +25,12 @@ test('areas: adm2 sees and edits every area; an inactive person none', () => {
   assert.equal(editaArea(adm2, 'cadastros'), true);
   assert.equal(veArea(adm2, 'manuscript'), true);
   assert.equal(temCredencial(adm2, 'retr0'), false, 'DEV stays retr0 only');
-  const inativo = authorizationProfileFromData('uid', { ativo: false, areas: { combustivel: 'editar' } });
-  assert.equal(veArea(inativo, 'combustivel'), false);
+  const inativo = authorizationProfileFromData('uid', { ativo: false, areas: { logistica: 'editar' } });
+  assert.equal(veArea(inativo, 'logistica'), false);
 });
 
 test('areas: invalid keys and levels are dropped; Friday has one level', () => {
-  assert.deepEqual(areasValidas({ combustivel: 'ver', friday: 'ver', x: 'editar', frota: 'admin' }), { combustivel: 'ver', friday: 'editar' });
+  assert.deepEqual(areasValidas({ logistica: 'ver', friday: 'ver', x: 'editar', mecanica: 'admin' }), { logistica: 'ver', friday: 'editar' });
   assert.deepEqual(areasDoFuncionario({ areas: null }), {});
 });
 

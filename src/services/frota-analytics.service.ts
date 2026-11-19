@@ -1,4 +1,4 @@
-// KPI da frota (/frota/analytics). Funções puras; a tela carrega os dados e chama estas funções.
+// KPI da frota (/logistica/kpi). Funções puras; a tela carrega os dados e chama estas funções.
 // Custo = a mesma conta do relatório do veículo (vehicle-report-core): diesel interno a R$ 5,90/L, o abastecimento
 // externo que já virou manutenção não conta duas vezes, manutenções FROTA e, quando carregado, ERP Q47 (DESPESA).
 import { isSemOdometro } from './combustivel-normalizer';

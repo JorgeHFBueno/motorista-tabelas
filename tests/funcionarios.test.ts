@@ -4,7 +4,7 @@ import { areasMarcadas, camposExtrasFuncionario, iniciais, perfisMarcados } from
 
 test('profile page lists only the true credentials, in the list order', () => {
   assert.deepEqual(perfisMarcados({ user: true, adm1: true, motorista: true, adm2: true, mecanico: true, engenharia: true, escritorio: false, novo: true }), ['Adm2', 'Motorista', 'Mecânico']);
-  assert.deepEqual(areasMarcadas({ portal: 'ver', combustivel: 'editar', x: 'editar' }), ['Combustível', 'Portal do cliente (ver)']);
+  assert.deepEqual(areasMarcadas({ portal: 'ver', logistica: 'editar', combustivel: 'editar', x: 'editar' }), ['Logística', 'Portal do cliente (ver)']);
   assert.deepEqual(perfisMarcados(undefined), []);
   assert.deepEqual(perfisMarcados('adm2'), []);
 });

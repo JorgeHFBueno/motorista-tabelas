@@ -260,7 +260,7 @@ export default function FrotaAnalyticsPanel({ vehicles, vehicle }: Props) {
         <Table size="small">
           <TableHead><TableRow><TableCell>Veículo</TableCell><TableCell align="right">Viagens</TableCell><TableCell align="right">KM / horas</TableCell><TableCell align="right">Combustível</TableCell><TableCell align="right">Manutenção</TableCell><TableCell align="right">ERP</TableCell><TableCell align="right">Custo total</TableCell><TableCell align="right">R$/km · R$/h</TableCell></TableRow></TableHead>
           <TableBody>{ranking.map(row => <TableRow key={row.vehicle.id}>
-            <TableCell><Button size="small" sx={{ p: 0, minWidth: 0, textTransform: 'none', justifyContent: 'flex-start' }} href={`/frota/analytics?veiculo=${encodeURIComponent(row.vehicle.id)}`}>{vehicleLabel(row.vehicle)}</Button></TableCell>
+            <TableCell><Button size="small" sx={{ p: 0, minWidth: 0, textTransform: 'none', justifyContent: 'flex-start' }} href={`/logistica/kpi?veiculo=${encodeURIComponent(row.vehicle.id)}`}>{vehicleLabel(row.vehicle)}</Button></TableCell>
             <TableCell align="right">{metric(row.metrics.viagens, 'number')}</TableCell>
             <TableCell align="right">{row.metrics.horasTrabalhadas !== null && row.metrics.kmRodado === null ? metric(row.metrics.horasTrabalhadas, 'h') : `${metric(row.metrics.kmRodado, 'km')}${row.metrics.kmQuality === 'PARTIAL' ? '*' : ''}`}</TableCell>
             <TableCell align="right">{metric(row.metrics.custoCombustivel, 'currency')}</TableCell>

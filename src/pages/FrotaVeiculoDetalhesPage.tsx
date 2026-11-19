@@ -300,10 +300,10 @@ async function fetchManutencoes(item: ItemFrotaV2): Promise<LinhaEvento[]> {
 export default function FrotaVeiculoDetalhesPage() {
     const { id } = useParams();
     const { authorizationProfile } = useAuth();
-    const isAdmin = editaArea(authorizationProfile, 'frota');
+    const isAdmin = editaArea(authorizationProfile, 'mecanica');
     // Correções de KM/horímetro: a transação grava atividades e veículos (Frota) e saídas de 03-combustivel
     // (Combustível), então pede editar nas duas áreas, como as Rules.
-    const podeNormalizarKm = editaArea(authorizationProfile, 'frota') && editaArea(authorizationProfile, 'combustivel');
+    const podeNormalizarKm = editaArea(authorizationProfile, 'mecanica') && editaArea(authorizationProfile, 'logistica');
     const [normalizacaoAberta, setNormalizacaoAberta] = useState(false);
     // ERP guardado do veículo (erp-veiculos): data da última consulta e "Atualizar agora" (Function pede editar Frota).
     const [erpGuardado, setErpGuardado] = useState<ErpGuardado | null>(null);
@@ -1243,7 +1243,7 @@ export default function FrotaVeiculoDetalhesPage() {
                 <Stack direction="row" spacing={2}>
                     {veiculo && (
                         <>
-                            <Button variant="outlined" href={`/frota/analytics?veiculo=${encodeURIComponent(veiculo.id)}`}>Ver no Analytics</Button>
+                            <Button variant="outlined" href={`/logistica/kpi?veiculo=${encodeURIComponent(veiculo.id)}`}>Ver no Analytics</Button>
                             <Button variant="contained" onClick={(event) => setReportMenuAnchor(event.currentTarget)} disabled={generatingReport}>{generatingReport ? 'Gerando Relatório...' : 'Gerar Relatório'}</Button>
                             <Menu anchorEl={reportMenuAnchor} open={Boolean(reportMenuAnchor)} onClose={() => setReportMenuAnchor(null)}>
                                 <MenuItem disabled>Gerar relatório</MenuItem>
@@ -1436,7 +1436,7 @@ export default function FrotaVeiculoDetalhesPage() {
                             selectedTipo={selectedTipo}
                             loading={selectedLoading}
                             // Abastecimento é 03-combustivel: editar ou excluir pede também editar Combustível (Rules).
-                            isAdmin={isAdmin && (selectedTipo !== 'abastecimento' || editaArea(authorizationProfile, 'combustivel'))}
+                            isAdmin={isAdmin && (selectedTipo !== 'abastecimento' || editaArea(authorizationProfile, 'logistica'))}
                             diagnostico={isAdmin && showErp ? erpDiagnostico : null}
                             error={selectedError}
                             onReload={handleReloadSelected}

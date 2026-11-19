@@ -49,10 +49,10 @@ export async function queryErp(queryId: typeof VEHICLE_ERP_QUERY_ALLOWLIST[numbe
   } finally { clearTimeout(timer); }
 }
 
-/** Mirrors the /frota policy: the Frota area at the level ('ver' reads, 'editar' writes), or adm2. */
+/** Vehicle ERP costs: Mecânica (vehicle page) or Logística (KPI) at the level ('ver' reads, 'editar' refreshes), or adm2. */
 export async function assertFrotaAuthorization(uid: string, nivel: Nivel) {
   const employee = await db.collection('funcionarios').doc(uid).get();
-  if (!(nivel === 'ver' ? veArea : editaArea)(employee.data(), 'frota')) {
+  if (!(nivel === 'ver' ? veArea : editaArea)(employee.data(), 'mecanica', 'logistica')) {
     throw new HttpsError('permission-denied', 'Acesso não autorizado.');
   }
 }

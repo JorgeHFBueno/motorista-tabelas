@@ -8,7 +8,7 @@ declare module "express-serve-static-core" {
       exists: boolean;
       ativo: boolean;
       credenciais: Record<'adm2' | 'motorista' | 'frentista' | 'mecanico' | 'retr0', boolean>;
-      areas: Partial<Record<'combustivel' | 'frota' | 'logistica' | 'engenharia' | 'portal' | 'cadastros' | 'manuscript' | 'friday', 'ver' | 'editar'>>;
+      areas: Partial<Record<'logistica' | 'mecanica' | 'engenharia' | 'portal' | 'cadastros' | 'manuscript' | 'friday', 'ver' | 'editar'>>;
     };
   }
 }

@@ -12,7 +12,7 @@ function fixture() {
     ['admin', { ativo: true, perfis: { adm2: true }, nome: 'Admin' }],
     ['common', { ativo: true, perfis: {}, nome: 'Common' }],
     ['escritorioAntigo', { ativo: true, perfis: { escritorio: true }, nome: 'Escritorio sem areas' }],
-    ['logisticaOnly', { ativo: true, perfis: {}, areas: { frota: 'editar', combustivel: 'editar', logistica: 'editar' }, nome: 'Logistica' }],
+    ['logisticaOnly', { ativo: true, perfis: {}, areas: { mecanica: 'editar', logistica: 'editar' }, nome: 'Logistica' }],
     ['cadastrosEditar', { ativo: true, perfis: {}, areas: { cadastros: 'editar' }, nome: 'Cadastros' }],
     ['cadastrosVer', { ativo: true, perfis: {}, areas: { cadastros: 'ver' }, nome: 'Cadastros ver' }],
     ['escritorioMigrado', { ativo: true, perfis: { escritorio: true }, areas: { portal: 'editar' }, nome: 'Migrado' }],

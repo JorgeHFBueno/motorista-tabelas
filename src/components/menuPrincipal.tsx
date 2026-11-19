@@ -5,7 +5,6 @@ import DirectionsCarFilledIcon from '@mui/icons-material/DirectionsCarFilled';
 import FactCheckOutlinedIcon from '@mui/icons-material/FactCheckOutlined';
 import InsightsOutlinedIcon from '@mui/icons-material/InsightsOutlined';
 import LocalShippingOutlinedIcon from '@mui/icons-material/LocalShippingOutlined';
-import LocalGasStationIcon from '@mui/icons-material/LocalGasStation';
 import ReceiptLongOutlinedIcon from '@mui/icons-material/ReceiptLongOutlined';
 import OilBarrelOutlinedIcon from '@mui/icons-material/OilBarrelOutlined';
 import EngineeringIcon from '@mui/icons-material/Engineering';
@@ -89,29 +88,16 @@ export const menuPrincipal: MenuPrincipalItem[] = [
     ],
   },
   {
-    label: 'Frota',
+    label: 'Mecânica',
     icon: <DirectionsCarFilledIcon fontSize="large" />,
     color: '#EEF5F1',
     accent: '#2E9D6F',
-    acesso: ['frota'],
-    // Ordem em grade de duas colunas: Veículos | Registros, Checklists | KPI.
+    acesso: ['mecanica'],
+    // Ordem em grade de duas colunas: Veículos | Registros, Checklists. Revisão vem depois.
     children: [
-      { label: 'Veículos', to: '/frota/veiculos', icon: <LocalShippingOutlinedIcon />, descricao: 'Frota, manutenções e custos de cada veículo' },
-      { label: 'Registros', to: '/frota/registros', icon: <ListAltIcon />, descricao: 'Saídas e chegadas registradas no app' },
-      { label: 'Checklists', to: '/frota/checklists', icon: <FactCheckOutlinedIcon />, descricao: 'Checklists de veículos e máquinas' },
-      { label: 'KPI', to: '/frota/analytics', icon: <InsightsOutlinedIcon />, descricao: 'Indicadores da frota desde 01/01/2025' },
-    ],
-  },
-  {
-    label: 'Combustível',
-    icon: <LocalGasStationIcon fontSize="large" />,
-    color: '#FFF6E8',
-    accent: '#E79A25',
-    // /combustivel não tem página própria.
-    acesso: ['combustivel'],
-    children: [
-      { label: 'Registros', to: '/combustivel/registros', icon: <ReceiptLongOutlinedIcon />, descricao: 'Histórico e lançamento de abastecimentos' },
-      { label: 'Bombas', to: '/combustivel/bombas', icon: <OilBarrelOutlinedIcon />, descricao: 'Estoque, montante e entradas de diesel' },
+      { label: 'Veículos', to: '/mecanica/veiculos', icon: <LocalShippingOutlinedIcon />, descricao: 'Frota, manutenções e custos de cada veículo' },
+      { label: 'Registros', to: '/mecanica/registros', icon: <ListAltIcon />, descricao: 'Saídas e chegadas registradas no app' },
+      { label: 'Checklists', to: '/mecanica/checklists', icon: <FactCheckOutlinedIcon />, descricao: 'Checklists de veículos e máquinas' },
     ],
   },
   {
@@ -131,7 +117,13 @@ export const menuPrincipal: MenuPrincipalItem[] = [
     color: '#EEF3FA',
     accent: '#3A6EA5',
     acesso: ['logistica'],
-    children: [{ label: 'Cronograma', to: '/logistica/cronograma', icon: <CalendarMonthIcon />, descricao: 'Quem sai, para qual obra, com qual veículo e por quê' }],
+    // Ordem em grade de duas colunas: KPI | Comb. Registros, Comb. Bombas | Cronograma.
+    children: [
+      { label: 'KPI', to: '/logistica/kpi', icon: <InsightsOutlinedIcon />, descricao: 'Indicadores da frota desde 01/01/2025' },
+      { label: 'Comb. Registros', to: '/logistica/combustivel/registros', icon: <ReceiptLongOutlinedIcon />, descricao: 'Histórico e lançamento de abastecimentos' },
+      { label: 'Comb. Bombas', to: '/logistica/combustivel/bombas', icon: <OilBarrelOutlinedIcon />, descricao: 'Estoque, montante e entradas de diesel' },
+      { label: 'Cronograma', to: '/logistica/cronograma', icon: <CalendarMonthIcon />, descricao: 'Quem sai, para qual obra, com qual veículo e por quê' },
+    ],
   },
   {
     // Lado da equipe do portal do cliente (The Manuscript, 16_PORTAL_DO_CLIENTE.md).

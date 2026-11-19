@@ -46,9 +46,9 @@ service firebase.storage {
       return hasPerfil('mecanico') || hasPerfil('adm2');
     }
 
-    // Reading them: the checklist (app mecanico) and the WEB Frota area, adm2 included.
+    // Reading them: the checklist (app mecanico) and the WEB Mecânica area, adm2 included.
     function isChecklistV2Reader() {
-      return hasPerfil('mecanico') || veArea('frota');
+      return hasPerfil('mecanico') || veArea('mecanica');
     }
 
     // Writing over an existing object is evaluated as create; resource == null keeps files from being replaced.

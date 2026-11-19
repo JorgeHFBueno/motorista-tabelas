@@ -2,9 +2,8 @@
 // { área: 'ver' | 'editar' }; área ausente = sem acesso. O adm2 vê e edita todas. O Friday tem um nível só (gravado
 // como 'editar'). Só o adm2 dá áreas. As mesmas listas estão nas Functions (functions/credenciais.ts) e nas Rules.
 export const AREAS = [
-  { chave: 'combustivel', rotulo: 'Combustível', ver: 'Registros e Bombas', editar: 'lançar, corrigir, excluir e entrada de diesel' },
-  { chave: 'frota', rotulo: 'Frota', ver: 'Veículos, Registros, Checklists e KPI', editar: 'renomear, KM inicial e normalizar KM' },
-  { chave: 'logistica', rotulo: 'Logística', ver: 'Cronograma', editar: 'montar o cronograma' },
+  { chave: 'logistica', rotulo: 'Logística', ver: 'KPI, abastecimentos, bombas e Cronograma', editar: 'lançar e corrigir abastecimentos, entrada de diesel e montar o cronograma' },
+  { chave: 'mecanica', rotulo: 'Mecânica', ver: 'Veículos, Registros e Checklists', editar: 'renomear, KM inicial, normalizar KM e manutenções' },
   { chave: 'engenharia', rotulo: 'Engenharia', ver: 'Cronograma, Prazos e Obras', editar: 'Status do LOTE e medições' },
   { chave: 'portal', rotulo: 'Portal do cliente', ver: 'Clientes, Contratos, Atendimento e Notícias', editar: 'logins, contratos, atendimento e notícias' },
   { chave: 'cadastros', rotulo: 'Cadastros', ver: 'lista de usuários', editar: 'criar e editar pessoas, credenciais do app e Kiosk' },

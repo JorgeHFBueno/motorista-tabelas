@@ -60,28 +60,28 @@ test('areas in force: only the areas map; old credentials without it give no WEB
   assert.deepEqual(areasDe({ ativo: true, perfis: { logistica: true, escritorio: true, mecanico: true } }), {});
   assert.equal(veArea({ ativo: true, perfis: { escritorio: true, engenharia: true, autor: true } }, 'cadastros', 'portal', 'engenharia', 'manuscript'), false);
   assert.deepEqual(areasDe({ ativo: true, perfis: { logistica: true }, areas: {} }), {});
-  assert.deepEqual(areasDe({ ativo: true, perfis: { logistica: true }, areas: { combustivel: 'ver' } }), { combustivel: 'ver' });
+  assert.deepEqual(areasDe({ ativo: true, perfis: { logistica: true }, areas: { logistica: 'ver' } }), { logistica: 'ver' });
   assert.deepEqual(areasDe(undefined), {});
 });
 
 test('stored areas: unknown keys and levels are dropped; Friday has one level', () => {
-  assert.deepEqual(areasValidas({ frota: 'ver', x: 'editar', portal: 'admin', friday: 'ver', cadastros: 'editar' }), { frota: 'ver', friday: 'editar', cadastros: 'editar' });
+  assert.deepEqual(areasValidas({ mecanica: 'ver', x: 'editar', portal: 'admin', friday: 'ver', cadastros: 'editar' }), { mecanica: 'ver', friday: 'editar', cadastros: 'editar' });
   assert.deepEqual(areasValidas(null), {});
-  assert.deepEqual(areasValidas(['frota']), {});
+  assert.deepEqual(areasValidas(['mecanica']), {});
 });
 
 test('veArea / editaArea: ver reads, editar reads and writes; adm2 everything; inactive nothing', () => {
-  const ver = { ativo: true, perfis: {}, areas: { combustivel: 'ver' } };
-  const editar = { ativo: true, perfis: {}, areas: { combustivel: 'editar' } };
-  assert.equal(veArea(ver, 'combustivel'), true);
-  assert.equal(editaArea(ver, 'combustivel'), false);
-  assert.equal(veArea(editar, 'combustivel'), true);
-  assert.equal(editaArea(editar, 'combustivel'), true);
-  assert.equal(veArea(editar, 'frota'), false);
-  assert.equal(veArea(editar, 'frota', 'combustivel'), true);
+  const ver = { ativo: true, perfis: {}, areas: { logistica: 'ver' } };
+  const editar = { ativo: true, perfis: {}, areas: { logistica: 'editar' } };
+  assert.equal(veArea(ver, 'logistica'), true);
+  assert.equal(editaArea(ver, 'logistica'), false);
+  assert.equal(veArea(editar, 'logistica'), true);
+  assert.equal(editaArea(editar, 'logistica'), true);
+  assert.equal(veArea(editar, 'mecanica'), false);
+  assert.equal(veArea(editar, 'mecanica', 'logistica'), true);
   assert.equal(editaArea({ ativo: true, perfis: { adm2: true }, areas: {} }, 'manuscript'), true);
-  assert.equal(veArea({ ativo: false, perfis: { adm2: true }, areas: { frota: 'editar' } }, 'frota'), false);
-  assert.equal(veArea({ ativo: 1, areas: { frota: 'editar' } }, 'frota'), false);
+  assert.equal(veArea({ ativo: false, perfis: { adm2: true }, areas: { mecanica: 'editar' } }, 'mecanica'), false);
+  assert.equal(veArea({ ativo: 1, areas: { mecanica: 'editar' } }, 'mecanica'), false);
   assert.equal(editaArea({ ativo: true, perfis: { escritorio: true } }, 'cadastros'), false, 'old credential, no areas');
 });
 
@@ -92,7 +92,7 @@ test('entry to the WEB counts the areas: an office person may have no app creden
 });
 
 test('areas sent by the WEB: whole map of known areas at ver or editar; Friday only editar', () => {
-  assert.deepEqual(lerAreas({ frota: 'ver', friday: 'editar' }), { frota: 'ver', friday: 'editar' });
+  assert.deepEqual(lerAreas({ mecanica: 'ver', friday: 'editar' }), { mecanica: 'ver', friday: 'editar' });
   assert.deepEqual(lerAreas({}), {});
   assert.equal(lerAreas({ friday: 'ver' }), null);
   assert.equal(lerAreas({ frota: true }), null);

@@ -1,6 +1,6 @@
 import type { ItemFrotaV2 } from './cadastrosV2';
 
-// Regras da lista de /frota/veiculos: busca, medidor e idade da última atualização.
+// Regras da lista de /mecanica/veiculos: busca, medidor e idade da última atualização.
 
 export type FiltroCategoria = 'TODOS' | ItemFrotaV2['categoria'];
 export type Frescor = 'recente' | 'atencao' | 'antiga' | 'sem-dado';

@@ -131,7 +131,7 @@ export default function FrotaKpiTestes({ alvos, period, individual }: Props) {
               <TableCell sx={{ whiteSpace: 'nowrap' }}>{p.tipo === 'leitura-solta' ? 'Leitura solta' : p.tipo === 'km-inicial' ? 'KM inicial' : 'Sem atualização'}</TableCell>
               <TableCell>{p.detalhe}</TableCell>
               <TableCell sx={{ color: 'text.secondary', fontSize: 12 }}>{p.origem ?? '—'}</TableCell>
-              <TableCell><Button size="small" href={`/frota/veiculos/${encodeURIComponent(p.vehicle.id)}`}>Abrir</Button></TableCell>
+              <TableCell><Button size="small" href={`/mecanica/veiculos/${encodeURIComponent(p.vehicle.id)}`}>Abrir</Button></TableCell>
             </TableRow>)}</TableBody>
           </Table></Box>}
       </Teste>

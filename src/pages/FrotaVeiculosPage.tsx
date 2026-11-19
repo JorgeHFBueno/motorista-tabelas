@@ -317,7 +317,7 @@ export default function FrotaVeiculosPage() {
                             <VeiculoLinha
                                 key={item.id}
                                 item={item}
-                                href={`/frota/veiculos/${encodeURIComponent(item.id)}`}
+                                href={`/mecanica/veiculos/${encodeURIComponent(item.id)}`}
                             />
                         ))}
                     </Paper>
