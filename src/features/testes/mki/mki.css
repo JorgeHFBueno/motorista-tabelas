@@ -7,6 +7,7 @@
 .mki-lotes th { background: #f8fafc; font-weight: 700; white-space: nowrap; }
 .mki-lotes td { vertical-align: middle; }
 .mki-lotes th.mki-lotes__grupo { background: #eef2ff; color: #3730a3; }
+.mki-lotes tr.mki-lotes__tipo td { background: #f8fafc; padding-bottom: 2px; padding-top: 2px; }
 /* Linha mais forte entre um LOTE e o seguinte; entre os LFs do mesmo LOTE, a linha fina. */
 .mki-lotes tr.mki-lotes__fim td, .mki-lotes td.mki-lotes__lote { border-bottom: 2px solid #cbd5e1; }
 .mki-lotes tbody tr:last-child td { border-bottom: 0; }
