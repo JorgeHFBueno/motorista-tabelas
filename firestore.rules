@@ -853,9 +853,9 @@ service cloud.firestore {
     }
 
     // Categories and suppliers of the old WEB maintenance records (no cadastro screen since 2026-11-06; new
-    // maintenance lives in the ERP). Frota reads them to name old records and in the KPI.
+    // maintenance lives in the ERP). Mecânica reads them to name old records; Logística too, for the KPI (2026-11-19).
     match /notas-categorias/{documentId} {
-      allow read: if veArea('mecanica');
+      allow read: if veArea('mecanica') || veArea('logistica');
       allow create, update, delete: if editaArea('mecanica');
     }
 

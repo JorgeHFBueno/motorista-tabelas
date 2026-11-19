@@ -2157,7 +2157,7 @@ test('[firestore] logistica: linha completa (local, 4 veículos, pessoas, obra, 
   await assertFails(updateDoc(ref, { notas: Array.from({ length: 11 }, (_, i) => pdf(i)), ...alterou }));
 });
 
-test('[firestore] areas: Logística reads the KPI sources (atividades, manutencoes, erp-veiculos) but not the Mecânica-only data (2026-11-19)', async () => {
+test('[firestore] areas: Logística reads the KPI sources (atividades, manutencoes, notas-categorias, erp-veiculos) but not the Mecânica-only data (2026-11-19)', async () => {
   await env.withSecurityRulesDisabled(async (ctx) => {
     await setDoc(doc(ctx.firestore(), 'manutencoes', 'kpi-m1'), { valor: 10 });
     await setDoc(doc(ctx.firestore(), 'erp-veiculos', 'kpi-v1'), { total: 10 });
@@ -2167,6 +2167,7 @@ test('[firestore] areas: Logística reads the KPI sources (atividades, manutenco
   await assertSucceeds(getDoc(doc(log, 'manutencoes', 'kpi-m1')));
   await assertSucceeds(getDoc(doc(log, 'erp-veiculos', 'kpi-v1')));
   await assertFails(updateDoc(doc(dbAs('logEditar'), 'manutencoes', 'kpi-m1'), { valor: 11 }));
+  await assertSucceeds(getDocs(collection(log, 'notas-categorias')));
   await assertFails(getDocs(collection(log, 'checklists-v2')));
   await assertSucceeds(updateDoc(doc(dbAs('frotaEditar'), 'manutencoes', 'kpi-m1'), { valor: 12 }));
 });

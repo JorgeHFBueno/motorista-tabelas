@@ -60,7 +60,7 @@ import {
     motoristaNome,
 } from '../components/manutencaoFormShared';
 import { useAuth } from '../contexts/AuthContext';
-import { editaArea } from '../services/credenciais';
+import { editaArea, veArea } from '../services/credenciais';
 import { db } from '../firebase';
 import { normalizeFornecedorNumero } from '../services/fornecedores.service';
 import { normalizarMovimentoCombustivel } from '../services/combustivel-normalizer';
@@ -1243,7 +1243,7 @@ export default function FrotaVeiculoDetalhesPage() {
                 <Stack direction="row" spacing={2}>
                     {veiculo && (
                         <>
-                            <Button variant="outlined" href={`/logistica/kpi?veiculo=${encodeURIComponent(veiculo.id)}`}>Ver no Analytics</Button>
+                            {veArea(authorizationProfile, 'logistica') && <Button variant="outlined" href={`/logistica/kpi?veiculo=${encodeURIComponent(veiculo.id)}`}>Ver no Analytics</Button>}
                             <Button variant="contained" onClick={(event) => setReportMenuAnchor(event.currentTarget)} disabled={generatingReport}>{generatingReport ? 'Gerando Relatório...' : 'Gerar Relatório'}</Button>
                             <Menu anchorEl={reportMenuAnchor} open={Boolean(reportMenuAnchor)} onClose={() => setReportMenuAnchor(null)}>
                                 <MenuItem disabled>Gerar relatório</MenuItem>
