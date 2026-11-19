@@ -1,9 +1,9 @@
 import ExpandMoreRounded from "@mui/icons-material/ExpandMoreRounded";
-import { useState, type CSSProperties } from "react";
+import { useState, type CSSProperties, type ReactNode } from "react";
 import { ContractAnalysisRequest } from "../components/ContractAnalysisRequest";
 import { displayOptionalValue, type ContractTextTableProps } from "../components/ContractTextTable";
 import { LoteStatusControl } from "../components/LoteStatusControl";
-import { StatusBadge } from "../components/StatusBadge";
+import { WorkHoverActions, WorkHoverTrigger } from "../components/WorkHoverActions";
 import { requiresContractReview } from "../data/source/obrasV2CronogramaAdapter";
 import { buildFlatWorkGroupsByWorkType, groupContractGroupsByWorkType, groupObrasByContract, type ContractGroup } from "../domain/contractGroups";
 import { startedMasterPeriods } from "../domain/masterPlanningDetails";
@@ -11,6 +11,7 @@ import { getMestreColor } from "../domain/mestres";
 import type { ContratoCronograma, ObraCronograma } from "../domain/models";
 import { nextTableSort, sortContractGroups, sortObras, type ColumnId, type TableSort } from "../domain/tableSort";
 import { formatDateShort, inclusiveCivilDays, todayCivil } from "../domain/temporal";
+import { PilulaStatus } from "./PilulaStatus";
 
 /**
  * CronoObra: listas de Obra não iniciada e Obra finalizada no mesmo padrão da grade de Obra iniciada (sem calendário).
@@ -58,6 +59,10 @@ export function QuadroLista({ obras, contratos, viewMode = "contracts", onOpenCo
   const botaoContrato = (contrato: ContratoCronograma | undefined, titulo = false) => (
     <button type="button" className={`qg-contrato ${titulo ? "qg-contrato--titulo" : ""}`} title={contrato?.nome} onClick={(e) => { e.stopPropagation(); if (contrato) onOpenContract(contrato); }}>{contrato?.nome ?? "—"}</button>
   );
+  /** Hover menu on the name (⋮ contract details, $ balance), as in the previous tables. */
+  const comMenu = (id: string, contrato: ContratoCronograma | undefined, conteudo: ReactNode) => (contrato
+    ? <WorkHoverTrigger id={id} contractId={contrato.id} idObra={contrato.idObra} contractName={contrato.nome} subcentroErp={contrato.subcentroErp} onMore={() => onOpenContract(contrato)}>{conteudo}</WorkHoverTrigger>
+    : conteudo);
 
   const linhaObra = (obra: ObraCronograma, filho = false) => {
     const contrato = contratos.get(obra.contratoId ?? "");
@@ -65,12 +70,12 @@ export function QuadroLista({ obras, contratos, viewMode = "contracts", onOpenCo
     const analisar = obra.targetType === "contrato" && contrato && requiresContractReview(contrato);
     const celula = (coluna: Coluna) => {
       switch (coluna.id) {
-        case "obra": return <div key="obra" className="qg-obra"><div className="qg-obra-textos">{analisar ? <span className="qg-lote"><ContractAnalysisRequest contrato={contrato} variant="alert" /></span> : <span className="qg-lote" title={obra.nomeObra}>{obra.nomeObra}</span>}{botaoContrato(contrato)}</div></div>;
+        case "obra": return <div key="obra" className="qg-obra"><div className="qg-obra-textos">{analisar ? <span className="qg-lote">{comMenu(obra.id, contrato, <ContractAnalysisRequest contrato={contrato} variant="alert" />)}</span> : <span className="qg-lote" title={obra.nomeObra}>{comMenu(obra.id, contrato, obra.nomeObra)}</span>}{botaoContrato(contrato)}</div></div>;
         case "contrato": return <span key="contrato" className="qg-numero">{contrato?.numeroContrato ?? "—"}</span>;
         case "empresa": return <span key="empresa" className="qg-texto">{obra.empresa || contrato?.empresa || "—"}</span>;
         case "status": return naoIniciada
-          ? <div key="status" className="qg-status" onClick={(e) => e.stopPropagation()}>{obra.targetType === "obra" && obra.loteId ? <LoteStatusControl obra={obra} canStart onStatusConfirmed={onStatusConfirmed} /> : <StatusBadge status={contrato?.status ?? "Sem status"} />}</div>
-          : <span key="status" className="qg-status"><StatusBadge status={obra.status} /></span>;
+          ? <div key="status" className="qg-status" onClick={(e) => e.stopPropagation()}>{obra.targetType === "obra" && obra.loteId ? <LoteStatusControl obra={obra} canStart onStatusConfirmed={onStatusConfirmed} /> : <PilulaStatus status={contrato?.status} />}</div>
+          : <span key="status" className="qg-status"><PilulaStatus status={obra.status} /></span>;
         case "mestres": return <button key="mestres" type="button" className="qg-mestres" onClick={(e) => { e.stopPropagation(); onSelectMasters(obra); }}>{chips([obra])}</button>;
         case "ordemInicio": return <span key="ordemInicio" className="qg-texto">{displayOptionalValue(contrato?.ordemInicio)}</span>;
         case "confirmacaoRecurso": return <span key="confirmacaoRecurso" className="qg-texto">{displayOptionalValue(contrato?.confirmacaoRecurso)}</span>;
@@ -95,13 +100,13 @@ export function QuadroLista({ obras, contratos, viewMode = "contracts", onOpenCo
         case "obra": return (
           <div key="obra" className="qg-obra">
             <ExpandMoreRounded className={`qg-seta ${aberto ? "" : "is-fechada"}`} fontSize="small" />
-            <div className="qg-obra-textos">{botaoContrato(contrato, true)}<span className="qg-lote">{lotes ? `${lotes} ${lotes === 1 ? "LOTE" : "LOTEs"}` : "Sem LOTE"}</span></div>
+            <div className="qg-obra-textos">{comMenu(grupo.id, contrato, botaoContrato(contrato, true))}<span className="qg-lote">{lotes ? `${lotes} ${lotes === 1 ? "LOTE" : "LOTEs"}` : "Sem LOTE"}</span></div>
             {contrato && requiresContractReview(contrato) && <ContractAnalysisRequest contrato={contrato} variant="indicator" />}
           </div>
         );
         case "contrato": return <span key="contrato" className="qg-numero">{contrato?.numeroContrato ?? "—"}</span>;
         case "empresa": return <span key="empresa" className="qg-texto">{contrato?.empresa || "—"}</span>;
-        case "status": return <span key="status" className="qg-status"><StatusBadge status={contrato?.status ?? "Sem status"} /></span>;
+        case "status": return <span key="status" className="qg-status"><PilulaStatus status={contrato?.status} /></span>;
         case "mestres": return <span key="mestres" className="qg-mestres">{chips(grupo.obras)}</span>;
         case "ordemInicio": return <span key="ordemInicio" className="qg-texto">{displayOptionalValue(contrato?.ordemInicio)}</span>;
         case "confirmacaoRecurso": return <span key="confirmacaoRecurso" className="qg-texto">{displayOptionalValue(contrato?.confirmacaoRecurso)}</span>;
@@ -128,7 +133,7 @@ export function QuadroLista({ obras, contratos, viewMode = "contracts", onOpenCo
     ]);
 
   return (
-    <section className="qg qg--lista" aria-label={sectionTitle} style={estilo}>
+    <WorkHoverActions closeKey={`${viewMode}.${variant}.${sort.column ?? ""}.${sort.direction ?? ""}.${[...abertos].join(",")}`}><section className="qg qg--lista" aria-label={sectionTitle} style={estilo}>
       <div className="qg-rolagem">
         <div className="qg-cab">
           <div className="qg-esq qg-esq--cab">
@@ -146,6 +151,6 @@ export function QuadroLista({ obras, contratos, viewMode = "contracts", onOpenCo
         </div>
         {linhas.length ? linhas : <p className="qg-vazio">Nenhuma obra {naoIniciada ? "não iniciada" : "finalizada"} com estes filtros.</p>}
       </div>
-    </section>
+    </section></WorkHoverActions>
   );
 }

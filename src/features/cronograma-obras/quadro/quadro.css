@@ -228,3 +228,7 @@ body.qg-laceando, body.qg-laceando * { cursor: crosshair !important; user-select
 .qp-limite input:focus { border-color: var(--k-destaque); box-shadow: 0 0 0 3px rgba(47, 107, 152, .15); outline: none; }
 .qp-grade .qg-esq--cab > span { line-height: 1.2; }
 .qp-obs { color: #475569; display: -webkit-box; font-size: 12px; line-height: 1.35; overflow: hidden; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
+
+/* Status com a cor de cada um (PilulaStatus): LOTE com as cores do controle de Status; contrato pela equivalente */
+.qg-pilula { background: var(--qg-pilula); border-radius: 999px; color: #fff; display: inline-block; font-size: 11px; font-weight: 700; line-height: 22px; max-width: 100%; overflow: hidden; padding: 0 10px; text-overflow: ellipsis; text-shadow: 0 1px 1px rgba(0, 0, 0, .18); white-space: nowrap; }
+.qg-pilula.is-neutra { background: #e5e7eb; color: #334155; text-shadow: none; }

@@ -4,6 +4,7 @@ import ExpandMoreRounded from "@mui/icons-material/ExpandMoreRounded";
 import { useEffect, useMemo, useRef, useState, type CSSProperties, type DragEvent, type PointerEvent, type ReactNode } from "react";
 import type { GanttGridProps } from "../components/GanttGrid";
 import { LoteStatusControl } from "../components/LoteStatusControl";
+import { WorkHoverActions, WorkHoverTrigger } from "../components/WorkHoverActions";
 import { buildStartedFlatWorkStages, groupContractGroupsByWorkType, groupObrasByContract, type ContractGroup } from "../domain/contractGroups";
 import { masterSelectionForPeriod, recentStartedMaster } from "../domain/masterPlanningDetails";
 import { isEditableTarget } from "../domain/undoStack";
@@ -17,6 +18,7 @@ import { getBucketTimelineAggregate, layoutMasterAllocationLanes } from "../doma
 import { addDays, formatDateShort, inclusiveCivilDays } from "../domain/temporal";
 import { CabecalhoCalendario, useCalendario, type Geometria } from "./calendario";
 import { useColunasOcultas } from "./colunasVisiveis";
+import { PilulaStatus } from "./PilulaStatus";
 
 /**
  * CronoObra: grade de "Obra iniciada" (nasceu no /testes/mkiii; não é o GanttGrid). Uma linha por LOTE (ou por
@@ -181,6 +183,11 @@ export function QuadroGantt(props: GanttGridProps) {
   );
   const dataDoPonteiro = (clientX: number, el: HTMLElement) => dias[Math.min(dias.length - 1, Math.max(0, Math.floor((clientX - el.getBoundingClientRect().left) / dw)))];
 
+  /** Hover menu on the name (⋮ contract details, $ balance), as in the previous grid. */
+  const comMenu = (id: string, contrato: ContratoCronograma | undefined, conteudo: ReactNode) => (contrato
+    ? <WorkHoverTrigger id={id} contractId={contrato.id} idObra={contrato.idObra} contractName={contrato.nome} subcentroErp={contrato.subcentroErp} onMore={() => onOpenContract(contrato)}>{conteudo}</WorkHoverTrigger>
+    : conteudo);
+
   const chipsMestres = (lista: readonly MestrePlanejado[]) => {
     const nomes = [...new Map(lista.map((m) => [m.mestreKey ?? normalizeMestreKey(m.nome), m.nome])).entries()];
     return nomes.length ? nomes.map(([chave, nome]) => { const cor = getMestreColor(chave); return <span key={chave} className="qg-mestre" style={{ background: cor.background, color: cor.text }}>{nome}</span>; }) : <span className="qg-sem-mestre">Sem mestre</span>;
@@ -192,7 +199,7 @@ export function QuadroGantt(props: GanttGridProps) {
         <div key="obra" className="qg-obra">
           {alca}
           <div className="qg-obra-textos">
-            <span className="qg-lote" title={obra.nomeObra}>{obra.nomeObra}</span>
+            <span className="qg-lote" title={obra.nomeObra}>{comMenu(obra.id, contrato, obra.nomeObra)}</span>
             <button type="button" className="qg-contrato" title={contrato?.nome} onClick={(e) => { e.stopPropagation(); if (contrato) onOpenContract(contrato); }}>{contrato?.nome ?? "—"}</button>
           </div>
         </div>
@@ -279,13 +286,13 @@ export function QuadroGantt(props: GanttGridProps) {
                 <div key="obra" className="qg-obra">
                   <ExpandMoreRounded className={`qg-seta ${aberto ? "" : "is-fechada"}`} fontSize="small" />
                   <div className="qg-obra-textos">
-                    <button type="button" className="qg-contrato qg-contrato--titulo" title={contrato?.nome} onClick={(e) => { e.stopPropagation(); if (contrato) onOpenContract(contrato); }}>{contrato?.nome ?? grupo.name}</button>
+                    {comMenu(grupo.id, contrato, <button type="button" className="qg-contrato qg-contrato--titulo" title={contrato?.nome} onClick={(e) => { e.stopPropagation(); if (contrato) onOpenContract(contrato); }}>{contrato?.nome ?? grupo.name}</button>)}
                     <span className="qg-lote">{grupo.obras.length} {grupo.obras.length === 1 ? "LOTE" : "LOTEs"}</span>
                   </div>
                 </div>
               );
               case "empresa": return <span key="empresa" className="qg-texto">{contrato?.empresa || "—"}</span>;
-              case "status": return <span key="status" className="qg-texto qg-situacao" title={contrato?.status}>{contrato?.status || "—"}</span>;
+              case "status": return <span key="status" className="qg-status"><PilulaStatus status={contrato?.status} /></span>;
               case "mestres": return <button key="mestres" type="button" className="qg-mestres" onClick={(e) => e.stopPropagation()}>{chipsMestres(todos)}</button>;
               case "inicio": return <span key="inicio" className="qg-numero">{formatDateShort(contrato?.inicio)}</span>;
               case "dias": return <span key="dias" className="qg-numero">{inclusiveCivilDays(contrato?.inicio, contrato?.fim) ?? "—"}</span>;
@@ -327,7 +334,7 @@ export function QuadroGantt(props: GanttGridProps) {
     ]);
 
   return (
-    <section ref={secao} className={`qg qg--${zoom} ${comBase ? "qg--base" : ""}`} aria-label="Cronograma de obras iniciadas" style={estiloGrade}>
+    <WorkHoverActions closeKey={`${viewMode}.${sort.column ?? ""}.${sort.direction ?? ""}.${completo}.${[...abertos].join(",")}`}><section ref={secao} className={`qg qg--${zoom} ${comBase ? "qg--base" : ""}`} aria-label="Cronograma de obras iniciadas" style={estiloGrade}>
       {laco && <div className="qg-laco" style={{ left: laco.x, top: laco.y, width: laco.w, height: laco.h }} aria-hidden="true" />}
       <div className="qg-rolagem" ref={rolagem}>
         <div className="qg-cab">
@@ -352,7 +359,7 @@ export function QuadroGantt(props: GanttGridProps) {
         </div>
         {linhas.length ? linhas : <p className="qg-vazio">Nenhuma obra iniciada com estes filtros.</p>}
       </div>
-    </section>
+    </section></WorkHoverActions>
   );
 }
 
