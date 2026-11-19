@@ -1,6 +1,7 @@
 import { Alert, Box, Button, Card, CardContent, Chip, Stack, Typography } from '@mui/material';
 import AndroidIcon from '@mui/icons-material/Android';
 import AppleIcon from '@mui/icons-material/Apple';
+import ChecklistRoundedIcon from '@mui/icons-material/ChecklistRounded';
 import CloudOffOutlinedIcon from '@mui/icons-material/CloudOffOutlined';
 import HistoryRoundedIcon from '@mui/icons-material/HistoryRounded';
 import IosShareRoundedIcon from '@mui/icons-material/IosShareRounded';
@@ -8,6 +9,8 @@ import LoginRoundedIcon from '@mui/icons-material/LoginRounded';
 import LogoutRoundedIcon from '@mui/icons-material/LogoutRounded';
 import MoreVertIcon from '@mui/icons-material/MoreVert';
 import type { ReactNode } from 'react';
+import { useAuth } from '../../contexts/AuthContext';
+import { temCredencial } from '../../services/credenciais';
 import PaginaMotorista from './components/PaginaMotorista';
 
 /** iPhone/iPad (o iPad novo se apresenta como Mac com toque). */
@@ -70,9 +73,28 @@ function InstalarIphone() {
   );
 }
 
-/** /motorista/como-usar: o que fazer em cada tela e como instalar no celular (Android e iPhone). */
+function ComoUsarChecklist() {
+  return (
+    <Secao icone={<ChecklistRoundedIcon color="primary" />} titulo="Checklist">
+      <Typography sx={{ mb: 1 }}>A revisão do veículo ou da máquina, item por item, com fotos e a assinatura do motorista.</Typography>
+      <Passos itens={[
+        <>Escolha <strong>Veículo</strong> ou <strong>Máquina</strong>, o equipamento, o <strong>KM</strong> ou horímetro, o motorista e se é Saída ou Chegada.</>,
+        <>Em cada parte, marque cada item como <strong>OK</strong>, <strong>Avaria</strong> ou <strong>Não se aplica</strong>; nas avarias, escreva o que houve e tire fotos.</>,
+        <>Na última parte, toque em <strong>Concluir checklist</strong> e peça a assinatura do motorista (com o celular deitado).</>,
+        <>Sem internet, o checklist fica guardado no celular e é enviado sozinho quando ela voltar, <strong>com o app aberto</strong>. Para enviar na hora, toque em <strong>Enviar agora</strong>.</>,
+        <>Se sair no meio, o checklist continua de onde parou: toque em <strong>Continuar checklist</strong>.</>,
+      ]} />
+      <Button sx={{ mt: 1 }} variant="contained" href="/motorista/checklist">Abrir Checklist</Button>
+    </Secao>
+  );
+}
+
+/** /motorista/como-usar: o que fazer em cada tela (só as que a pessoa tem) e como instalar no celular (Android e iPhone). */
 export default function ComoUsarPage() {
   const iphone = ehIphone();
+  const { authorizationProfile } = useAuth();
+  const motorista = temCredencial(authorizationProfile, 'motorista');
+  const mecanico = temCredencial(authorizationProfile, 'mecanico');
   return (
     <PaginaMotorista>
       <Stack spacing={2}>
@@ -80,6 +102,7 @@ export default function ComoUsarPage() {
           ? <Alert severity="success">Você está usando o app instalado. As atualizações chegam sozinhas.</Alert>
           : <Alert severity="info">Instale no celular para abrir como um app, pelo ícone, e usar mesmo sem internet. Veja como no fim desta página.</Alert>}
 
+        {motorista && <>
         <Secao icone={<LogoutRoundedIcon color="primary" />} titulo="Saída">
           <Typography sx={{ mb: 1 }}>Ao sair com um veículo (para uma obra ou outro serviço).</Typography>
           <Passos itens={[
@@ -118,6 +141,9 @@ export default function ComoUsarPage() {
             <>Para as listas de veículos e obras aparecerem sem internet, abra as telas com internet pelo menos uma vez antes.</>,
           ]} />
         </Secao>
+        </>}
+
+        {mecanico && <ComoUsarChecklist />}
 
         <Typography variant="h6" fontWeight={800} sx={{ pt: 1 }}>Instalar no celular</Typography>
         {iphone ? <><InstalarIphone /><InstalarAndroid /></> : <><InstalarAndroid /><InstalarIphone /></>}

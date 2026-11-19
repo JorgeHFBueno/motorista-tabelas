@@ -35,7 +35,7 @@ const ATRASO_SALVAR_MS = 400;
 const TITULO_PARTE = Object.fromEntries(PARTES.map((p) => [p.id, p.titulo])) as Record<ParteId, string>;
 const botaoGrande = { minHeight: 52, fontSize: 16, fontWeight: 700, textTransform: 'none' } as const;
 
-/** /checklist/itens: preenchimento em páginas, "Dados" e uma por parte, salvando no aparelho a cada mudança. */
+/** /motorista/checklist/itens: preenchimento em páginas, "Dados" e uma por parte, salvando no aparelho a cada mudança. */
 export default function ChecklistItensPage() {
   const navigate = useNavigate();
   const { currentUser, authorizationProfile } = useAuth();
@@ -66,11 +66,11 @@ export default function ChecklistItensPage() {
       .then((r) => {
         if (!ativo) return;
         if (r) setRascunho(r);
-        else navigate('/checklist', { replace: true });
+        else navigate('/motorista/checklist', { replace: true });
       })
       .catch((error) => {
         console.error('Checklist: falha ao abrir o rascunho', error);
-        if (ativo) navigate('/checklist', { replace: true });
+        if (ativo) navigate('/motorista/checklist', { replace: true });
       });
     // Sem conexão: o nome pode ser digitado.
     listarMotoristasChecklist().then((lista) => { if (ativo) setMotoristas(lista); }).catch((error) => console.warn('Checklist: sem a lista de motoristas', error));
@@ -202,7 +202,7 @@ export default function ChecklistItensPage() {
       concluido.current = true;
       await descartarRascunho({ apagarArquivos: false });
       void enviador.enviarPendentes({ forcar: true });
-      navigate('/checklist', { replace: true, state: { aviso: 'Checklist concluído. O envio continua em seguida.' } });
+      navigate('/motorista/checklist', { replace: true, state: { aviso: 'Checklist concluído. O envio continua em seguida.' } });
     } catch (error) {
       console.error('Checklist: falha ao concluir', error);
       setRascunho(final);

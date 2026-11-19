@@ -47,6 +47,9 @@ const SaidaChegadaPage = lazy(() => import('./features/saida-chegada/SaidaChegad
 const HistoricoMotoristaPage = lazy(() => import('./features/saida-chegada/HistoricoMotoristaPage'));
 const ComoUsarPage = lazy(() => import('./features/saida-chegada/ComoUsarPage'));
 const MotoristaPage = lazy(() => import('./features/saida-chegada/MotoristaPage'));
+const ChecklistInicioPage = lazy(() => import('./features/checklist-mecanico/ChecklistInicioPage'));
+const ChecklistItensPage = lazy(() => import('./features/checklist-mecanico/ChecklistItensPage'));
+const ChecklistHistoricoPage = lazy(() => import('./features/checklist-mecanico/ChecklistHistoricoPage'));
 
 console.log('[build]', import.meta.env.MODE, '__BUILD__', '1122');
 
@@ -70,15 +73,24 @@ export default function App() {
               <Route index element={<HomeDashboard />} />
               <Route path="perfil" element={<MeuPerfilPage />} />
             </Route>
-            {/* Saída e Chegada do app no WEB (src/features/saida-chegada, 2026-11-18): credencial motorista ou adm2, com fila
-                offline no aparelho. The Manuscript, 03_APLICACAO_WEB/06_REGISTROS_E_CHECKLISTS.md. */}
+            {/* /motorista (2026-11-18): Saída e Chegada (src/features/saida-chegada; credencial motorista) e, desde 2026-11-19,
+                o Checklist do mecânico (src/features/checklist-mecanico; credencial mecanico), com fila offline no aparelho.
+                O adm2 entra em tudo. The Manuscript, 03_APLICACAO_WEB/06_REGISTROS_E_CHECKLISTS.md. */}
             {/* Sem login, o próprio /motorista mostra o formulário (o app Motorista instalado não sai de /motorista). */}
-            <Route element={<PrivateRoute permite={(p) => temCredencial(p, 'motorista')} semSessao={<LoginPage destino="/motorista" />} />}>
+            <Route element={<PrivateRoute permite={(p) => temCredencial(p, 'motorista', 'mecanico')} semSessao={<LoginPage destino="/motorista" />} />}>
               <Route path="motorista" element={<MotoristaPage />} />
-              <Route path="motorista/saida" element={<SaidaChegadaPage key="saida" tipo="saida" />} />
-              <Route path="motorista/chegada" element={<SaidaChegadaPage key="chegada" tipo="chegada" />} />
-              <Route path="motorista/historico" element={<HistoricoMotoristaPage />} />
               <Route path="motorista/como-usar" element={<ComoUsarPage />} />
+              <Route element={<PrivateRoute permite={(p) => temCredencial(p, 'motorista')} />}>
+                <Route path="motorista/saida" element={<SaidaChegadaPage key="saida" tipo="saida" />} />
+                <Route path="motorista/chegada" element={<SaidaChegadaPage key="chegada" tipo="chegada" />} />
+                <Route path="motorista/historico" element={<HistoricoMotoristaPage />} />
+              </Route>
+              <Route element={<PrivateRoute permite={(p) => temCredencial(p, 'mecanico')} />}>
+                <Route path="motorista/checklist" element={<ChecklistInicioPage />} />
+                <Route path="motorista/checklist/itens" element={<ChecklistItensPage />} />
+                <Route path="motorista/checklist/historico" element={<ChecklistHistoricoPage />} />
+                <Route path="motorista/checklist/historico/:id" element={<ChecklistDetalhePage />} />
+              </Route>
             </Route>
             <Route element={<PrivateRoute permite={entraNoFriday} />}>
               <Route path="friday/*" element={<FridayApp />} />
@@ -88,8 +100,6 @@ export default function App() {
               <Route path="engenharia/obras" element={<ObrasPage />} />
               <Route path="engenharia/obras/:id" element={<ObraDetalhesPage />} />
             </Route>
-            {/* Checklist do mecânico para celular (src/features/checklist-mecanico): pausado desde 2026-11-10, sem rota nem
-                item de menu, porque quem ia usar saiu. The Manuscript, 06_REGISTROS_E_CHECKLISTS.md. */}
             {/* /testes: provas de conceito e de interface com dados fictícios (nada grava no Firestore). O MKIII foi para a
                 produção (/engenharia/cronograma) em 2026-11-17. O MKI é o mock do detalhe da obra com os LOTEs em lista
                 (2026-11-19). Aberto a quem vê a Engenharia. */}

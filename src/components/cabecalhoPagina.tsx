@@ -53,6 +53,10 @@ const TITULOS: Array<{ padrao: string } & TituloPagina> = [
   { padrao: '/motorista/chegada', titulo: 'Chegada' },
   { padrao: '/motorista/historico', titulo: 'Meu histórico' },
   { padrao: '/motorista/como-usar', titulo: 'Como usar' },
+  { padrao: '/motorista/checklist', titulo: 'Checklist' },
+  { padrao: '/motorista/checklist/itens', titulo: 'Checklist' },
+  { padrao: '/motorista/checklist/historico', titulo: 'Checklist' },
+  { padrao: '/motorista/checklist/historico/:id', titulo: 'Checklist' },
 ];
 
 const tituloDaRota = (caminho: string): TituloPagina | null => {

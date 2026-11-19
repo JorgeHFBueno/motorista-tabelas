@@ -7,11 +7,12 @@ import { listarChecklistsDoAutor } from './data/checklistFirestore';
 import { enviador, useFilaEnvio } from './data/filaEnvio';
 import type { ChecklistPendente } from './domain/rascunho';
 import { totais } from './domain/regras';
+import PaginaMotorista from '../saida-chegada/components/PaginaMotorista';
 
 const dataHora = new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
 const avarias = (n: number) => (n === 1 ? '1 avaria' : `${n} avarias`);
 
-/** /checklist/historico: os checklists que o mecânico fez, com os ainda não enviados deste aparelho no topo. */
+/** /motorista/checklist/historico: os checklists que o mecânico fez, com os ainda não enviados deste aparelho no topo. */
 export default function ChecklistHistoricoPage() {
   const navigate = useNavigate();
   const { currentUser } = useAuth();
@@ -44,7 +45,7 @@ export default function ChecklistHistoricoPage() {
 
   const enviados = new Set(lista?.map((c) => c.id));
   return (
-    <Box sx={{ maxWidth: 640, mx: 'auto', px: 2, py: 2, pb: 6 }}>
+    <PaginaMotorista>
       <Typography variant="h5" fontWeight={800} sx={{ mb: 2 }}>Histórico</Typography>
       <Stack spacing={1.5}>
         {pendentes.filter((p) => !enviados.has(p.rascunho.id)).map((p) => (
@@ -69,7 +70,7 @@ export default function ChecklistHistoricoPage() {
         {lista?.length === 0 && pendentes.length === 0 && <Typography color="text.secondary" sx={{ py: 4, textAlign: 'center' }}>Nenhum checklist encontrado.</Typography>}
         {lista?.map((c) => (
           <Card key={c.id} variant="outlined">
-            <CardActionArea onClick={() => navigate(`/checklist/historico/${encodeURIComponent(c.id)}`)}>
+            <CardActionArea onClick={() => navigate(`/motorista/checklist/historico/${encodeURIComponent(c.id)}`)}>
               <CardContent>
                 <Stack direction="row" justifyContent="space-between" alignItems="flex-start" spacing={1}>
                   <Box sx={{ minWidth: 0 }}>
@@ -86,6 +87,6 @@ export default function ChecklistHistoricoPage() {
           </Card>
         ))}
       </Stack>
-    </Box>
+    </PaginaMotorista>
   );
 }

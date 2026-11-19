@@ -16,11 +16,11 @@ export default function InstalarNoIphone() {
   if (!precisaInstalar()) return null;
   return (
     <Alert severity="info" icon={<IosShareRoundedIcon />} sx={{ mb: 2 }}>
-      <Typography fontWeight={700}>Instale o checklist no iPhone</Typography>
+      <Typography fontWeight={700}>Instale o app no iPhone</Typography>
       <Box component="ol" sx={{ m: 0, mt: 0.5, pl: 2.5 }}>
         <li>Toque em <strong>Compartilhar</strong> (o quadrado com a seta, na barra do Safari).</li>
         <li>Escolha <strong>Adicionar à Tela de Início</strong> e toque em <strong>Adicionar</strong>.</li>
-        <li>Abra sempre pelo ícone <strong>Ledur</strong> da Tela de Início.</li>
+        <li>Abra sempre pelo ícone <strong>Motorista</strong> da Tela de Início.</li>
       </Box>
       <Typography variant="body2" sx={{ mt: 0.5 }}>Sem instalar, o iPhone pode apagar checklists guardados no aparelho.</Typography>
     </Alert>

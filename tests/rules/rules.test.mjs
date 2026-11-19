@@ -1345,6 +1345,19 @@ test('[firestore] checklists-v2: mechanic saves in one transaction (read before 
     tx.update(veiculo, { 'operacional.quilometragemUltima': 95000, 'operacional.dataUltimaAtualizacao': Timestamp.fromMillis(4) });
   }));
 });
+test('[firestore] checklists-v2: the mecanico credential alone (no Frota area) reads and saves; nobody else without Frota reads', async () => {
+  // 2026-11-19: a new mechanic with only the app credential uses the WEB checklist in /motorista/checklist.
+  const db = dbAs('mecanico2');
+  const checklist = doc(db, 'checklists-v2', 'mecanico2-sem-area-0001');
+  await assertSucceeds(runTransaction(db, async (tx) => {
+    if ((await tx.get(checklist)).exists()) return;
+    tx.set(checklist, checklistV2({ criadoPor: { uid: 'uid-mecanico2', nome: 'Mecanico 2' }, criadoPorUid: 'uid-mecanico2' }));
+  }));
+  await assertSucceeds(getDocs(query(collection(db, 'checklists-v2'), where('criadoPorUid', '==', 'uid-mecanico2'))));
+  await assertSucceeds(getDoc(doc(db, 'checklists-v2', 'AbCdEfGhIjKlMnOpQrSt')));
+  await assertFails(getDoc(doc(dbAs('canonicalUser'), 'checklists-v2', 'mecanico2-sem-area-0001')));
+});
+
 test('[firestore] checklists-v2: mechanic corrects the meter downwards in the saving transaction; others cannot', async () => {
   await assertFails(updateDoc(doc(dbAs('canonicalUser'), 'veiculos-v2', 'vv-correcao'), { 'operacional.quilometragemUltima': 50000 }));
   await assertFails(updateDoc(doc(dbAs('canonicalFrentista'), 'veiculos-v2', 'vv-correcao'), { 'operacional.quilometragemUltima': 50000 }));

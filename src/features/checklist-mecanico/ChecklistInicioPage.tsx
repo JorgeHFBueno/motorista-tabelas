@@ -1,5 +1,5 @@
 import {
-  Alert, Autocomplete, Box, Button, Card, CardContent, CircularProgress, Dialog, DialogActions, DialogContent,
+  Alert, Autocomplete, Button, Card, CardContent, CircularProgress, Dialog, DialogActions, DialogContent,
   DialogTitle, FormControlLabel, LinearProgress, Snackbar, Stack, Switch, TextField, ToggleButton, ToggleButtonGroup,
   Typography,
 } from '@mui/material';
@@ -20,6 +20,7 @@ import { enviador, useFilaEnvio } from './data/filaEnvio';
 import MedidorCampo from './components/MedidorCampo';
 import MotoristaCampo from './components/MotoristaCampo';
 import InstalarNoIphone from './components/InstalarNoIphone';
+import PaginaMotorista from '../saida-chegada/components/PaginaMotorista';
 
 type Inicio =
   | { estado: 'carregando' }
@@ -29,7 +30,7 @@ type Inicio =
 
 const botaoGrande = { minHeight: 52, fontSize: 16, fontWeight: 700, textTransform: 'none' } as const;
 
-/** /checklist: começa um checklist ou retoma o rascunho em andamento (um por vez), como no app. */
+/** /motorista/checklist: começa um checklist ou retoma o rascunho em andamento (um por vez), como no app. */
 export default function ChecklistInicioPage() {
   const navigate = useNavigate();
   const location = useLocation();
@@ -61,14 +62,14 @@ export default function ChecklistInicioPage() {
   useEffect(() => { void carregar(); }, [carregar]);
   // O aviso vem uma vez: recarregar a página não o mostra de novo.
   useEffect(() => {
-    if ((location.state as { aviso?: string } | null)?.aviso) navigate('/checklist', { replace: true, state: null });
+    if ((location.state as { aviso?: string } | null)?.aviso) navigate('/motorista/checklist', { replace: true, state: null });
   }, [location.state, navigate]);
 
   return (
-    <Box sx={{ maxWidth: 640, mx: 'auto', px: 2, py: 2, pb: 6 }}>
+    <PaginaMotorista>
       <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 2 }}>
         <Typography variant="h5" fontWeight={800}>Checklist</Typography>
-        <Button variant="outlined" startIcon={<HistoryRoundedIcon />} onClick={() => navigate('/checklist/historico')}>Histórico</Button>
+        <Button variant="outlined" startIcon={<HistoryRoundedIcon />} onClick={() => navigate('/motorista/checklist/historico')}>Histórico</Button>
       </Stack>
       <InstalarNoIphone />
       {fila.pendentes > 0 && (
@@ -94,11 +95,11 @@ export default function ChecklistInicioPage() {
         </Stack>
       )}
       {inicio.estado === 'rascunho' && (
-        <EmAndamento rascunho={inicio.rascunho} onContinuar={() => navigate('/checklist/itens')} onDescartado={() => void carregar()} />
+        <EmAndamento rascunho={inicio.rascunho} onContinuar={() => navigate('/motorista/checklist/itens')} onDescartado={() => void carregar()} />
       )}
-      {inicio.estado === 'novo' && <Formulario veiculos={inicio.veiculos} motoristas={inicio.motoristas} onComecou={() => navigate('/checklist/itens')} />}
+      {inicio.estado === 'novo' && <Formulario veiculos={inicio.veiculos} motoristas={inicio.motoristas} onComecou={() => navigate('/motorista/checklist/itens')} />}
       <Snackbar open={aviso != null} autoHideDuration={5000} onClose={() => setAviso(null)} message={aviso} anchorOrigin={{ vertical: 'top', horizontal: 'center' }} />
-    </Box>
+    </PaginaMotorista>
   );
 }
 

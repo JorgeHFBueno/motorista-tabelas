@@ -89,7 +89,7 @@ function Item({ item, onAbrir }: { item: ChecklistItem; onAbrir: (aberta: FotoAb
   );
 }
 
-/** Detalhe de um checklist em /frota/checklists. */
+/** Detalhe de um checklist: em /frota/checklists e no histórico do mecânico (/motorista/checklist/historico). */
 export default function ChecklistDetalhePage() {
   const { id = '' } = useParams();
   const [checklist, setChecklist] = useState<Checklist | null>(null);

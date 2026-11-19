@@ -48,15 +48,15 @@ export type MenuPrincipalItem = {
 
 export const menuPrincipal: MenuPrincipalItem[] = [
   {
-    // Saída e Chegada do app no WEB (2026-11-18): a credencial motorista e o adm2, não uma área. Os botões (Saída,
-    // Chegada, Meu histórico, Como usar) ficam na página /motorista, que é também o início do app Motorista instalado.
+    // Saída e Chegada (2026-11-18, credencial motorista) e Checklist (2026-11-19, credencial mecanico) no WEB; o adm2 entra.
+    // Não é uma área. Os botões ficam na página /motorista, que é também o início do app Motorista instalado.
     label: 'Motorista',
     icon: <AirportShuttleOutlinedIcon fontSize="large" />,
     // Azul-marinho da Ledur, como o app Flutter.
     color: '#EEF2F6',
     accent: '#12293B',
     to: '/motorista',
-    acesso: { credencial: ['motorista'] },
+    acesso: { credencial: ['motorista', 'mecanico'] },
   },
   {
     label: 'The Manuscript',

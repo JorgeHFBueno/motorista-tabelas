@@ -987,7 +987,9 @@ service cloud.firestore {
     }
 
     match /checklists-v2/{checklistId} {
-      allow read: if veArea('frota');
+      // The checklist (app and WEB /motorista/checklist, credential mecanico) reads before creating, lists the author's
+      // history and the vehicle's last checklist; the WEB Frota area reads them all. Same readers as in storage.rules.
+      allow read: if isMecanico() || veArea('frota');
       allow create: if (isMecanico() || isAdm2()) && validChecklistV2Create() && validChecklistV2Pessoas(checklistId);
       allow update, delete: if false;
     }

@@ -49,7 +49,7 @@ test('o Voltar fica só no cabeçalho: as páginas não têm mais o seu', () => 
   }
 });
 
-test('menu e rotas de 2026-11-10: Cadastros e Combustível são grupos, Checklist do mecânico pausado, legenda só na Home', () => {
+test('menu e rotas de 2026-11-10: Cadastros e Combustível são grupos, sem /checklist (o Checklist voltou em /motorista em 2026-11-19), legenda só na Home', () => {
   const menu = readFileSync('src/components/menuPrincipal.tsx', 'utf8');
   const app = readFileSync('src/App.tsx', 'utf8');
   const titulos = readFileSync('src/components/cabecalhoPagina.tsx', 'utf8');
@@ -59,7 +59,7 @@ test('menu e rotas de 2026-11-10: Cadastros e Combustível são grupos, Checklis
   assert.match(menu, /label: 'Bombas', to: '\/combustivel\/bombas'/);
   assert.doesNotMatch(menu, /to: '\/(cadastros|combustivel|checklist)'/);
   assert.doesNotMatch(app, /path="(cadastros|combustivel|combustivel\/novo|bombas|checklist[^"]*)"/);
-  assert.doesNotMatch(app, /CadastrosPage|checklist-mecanico\//);
+  assert.doesNotMatch(app, /CadastrosPage/);
   assert.equal(titulos.match(/subtitulo: '/g)?.length, 1);
 });
 
@@ -75,14 +75,14 @@ test('Meu perfil fica dentro de Cadastros e continua aberto a qualquer credencia
   assert.deepEqual(filtrarMenuPrincipal(perfil({})), []);
 });
 
-test('Saída e Chegada no WEB (2026-11-18): cartão Motorista só para a credencial motorista e o adm2, levando a /motorista', () => {
-  // Desde 2026-11-18 o cartão é um link direto para /motorista, onde ficam os quatro botões.
+test('Saída e Chegada (2026-11-18) e Checklist (2026-11-19) no WEB: cartão Motorista para motorista, mecânico e adm2, levando a /motorista', () => {
+  // O cartão é um link direto para /motorista, onde ficam os botões de cada credencial.
   const motorista = (p: AuthorizationProfile) => filtrarMenuPrincipal(p).find((item) => item.label === 'Motorista');
-  for (const quem of [perfil({ motorista: true }), perfil({ adm2: true })]) {
+  for (const quem of [perfil({ motorista: true }), perfil({ mecanico: true }), perfil({ adm2: true })]) {
     assert.equal(motorista(quem)?.to, '/motorista');
     assert.equal(motorista(quem)?.children, undefined);
   }
-  for (const outro of [{ mecanico: true }, { frentista: true }, { areas: { frota: 'editar' as const } }]) {
+  for (const outro of [{ frentista: true }, { areas: { frota: 'editar' as const } }]) {
     assert.equal(motorista(perfil(outro)), undefined, JSON.stringify(outro));
   }
   assert.equal(motorista(perfil({ motorista: true, ativo: false })), undefined);
@@ -90,6 +90,9 @@ test('Saída e Chegada no WEB (2026-11-18): cartão Motorista só para a credenc
   assert.equal(rotaAnterior('/motorista/saida'), '/motorista');
   assert.equal(rotaAnterior('/motorista/como-usar'), '/motorista');
   assert.equal(rotaAnterior('/motorista'), '/');
+  assert.equal(rotaAnterior('/motorista/checklist/itens'), '/motorista/checklist');
+  assert.equal(rotaAnterior('/motorista/checklist/historico/abc'), '/motorista/checklist/historico');
+  assert.equal(rotaAnterior('/motorista/checklist'), '/motorista');
 });
 
 test('subitens da Home mostram uma descrição, não o caminho', () => {

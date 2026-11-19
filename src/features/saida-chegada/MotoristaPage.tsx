@@ -1,27 +1,37 @@
 import { Alert, Box, Button, Card, CardActionArea, Stack, Typography } from '@mui/material';
+import ChecklistRoundedIcon from '@mui/icons-material/ChecklistRounded';
 import HelpOutlineRoundedIcon from '@mui/icons-material/HelpOutlineRounded';
 import HistoryRoundedIcon from '@mui/icons-material/HistoryRounded';
 import LoginRoundedIcon from '@mui/icons-material/LoginRounded';
 import LogoutRoundedIcon from '@mui/icons-material/LogoutRounded';
-import type { ReactNode } from 'react';
+import { lazy, Suspense, type ReactNode } from 'react';
+import { useAuth } from '../../contexts/AuthContext';
+import { temCredencial, type Credencial } from '../../services/credenciais';
 import { useFilaEnvio } from './data/filaEnvio';
 import PaginaMotorista from './components/PaginaMotorista';
 import { CORES_LEDUR } from './appMotorista';
 
-const BOTOES: Array<{ label: string; to: string; icon: ReactNode }> = [
-  { label: 'Saída', to: '/motorista/saida', icon: <LogoutRoundedIcon /> },
-  { label: 'Chegada', to: '/motorista/chegada', icon: <LoginRoundedIcon /> },
-  { label: 'Meu histórico', to: '/motorista/historico', icon: <HistoryRoundedIcon /> },
+// Só no chunk de quem tem o Checklist.
+const AvisoChecklistsPendentes = lazy(() => import('../checklist-mecanico/components/AvisoChecklistsPendentes'));
+
+// Cada botão só aparece para quem tem a credencial (o adm2 vê todos); Como usar é de todos.
+const BOTOES: Array<{ label: string; to: string; icon: ReactNode; credencial?: Credencial }> = [
+  { label: 'Saída', to: '/motorista/saida', icon: <LogoutRoundedIcon />, credencial: 'motorista' },
+  { label: 'Chegada', to: '/motorista/chegada', icon: <LoginRoundedIcon />, credencial: 'motorista' },
+  { label: 'Meu histórico', to: '/motorista/historico', icon: <HistoryRoundedIcon />, credencial: 'motorista' },
+  { label: 'Checklist', to: '/motorista/checklist', icon: <ChecklistRoundedIcon />, credencial: 'mecanico' },
   { label: 'Como usar', to: '/motorista/como-usar', icon: <HelpOutlineRoundedIcon /> },
 ];
 
 /**
- * /motorista: o início do motorista (e do app Motorista instalado), com os quatro botões no estilo do menu principal
+ * /motorista: o início do motorista e do mecânico (e do app Motorista instalado), com os botões no estilo do menu principal
  * do app Flutter (lib/features/home/main_menu_page.dart): cartão claro com sombra leve, ícone azul-marinho e o nome.
  */
 export default function MotoristaPage() {
+  const { authorizationProfile } = useAuth();
   const fila = useFilaEnvio();
   const pendentes = fila.pendentes.length;
+  const botoes = BOTOES.filter((b) => !b.credencial || temCredencial(authorizationProfile, b.credencial));
   return (
     <PaginaMotorista>
       <Stack spacing={2}>
@@ -30,8 +40,9 @@ export default function MotoristaPage() {
             {pendentes === 1 ? '1 lançamento aguardando envio.' : `${pendentes} lançamentos aguardando envio.`}
           </Alert>
         )}
+        {temCredencial(authorizationProfile, 'mecanico') && <Suspense fallback={null}><AvisoChecklistsPendentes /></Suspense>}
         <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 1.5 }}>
-          {BOTOES.map((b) => (
+          {botoes.map((b) => (
             <Card
               key={b.to}
               elevation={0}
