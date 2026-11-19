@@ -38,3 +38,10 @@ test('areas: a person with only WEB areas (no app credential) enters the WEB', (
   assert.equal(temAlgumaCredencial(perfil({ perfis: {}, areas: { portal: 'ver' } })), true);
   assert.equal(temAlgumaCredencial(perfil({ perfis: {}, areas: {} })), false);
 });
+
+test('areas: Tools (Ferramentas ao lado do sino) has one level; adm2 always has it (2026-11-19)', () => {
+  assert.deepEqual(areasValidas({ tools: 'ver' }), { tools: 'editar' });
+  assert.equal(veArea(perfil({ perfis: {}, areas: { tools: 'editar' } }), 'tools'), true);
+  assert.equal(veArea(perfil({ perfis: {}, areas: { friday: 'editar' } }), 'tools'), false);
+  assert.equal(veArea(perfil({ perfis: { adm2: true }, areas: {} }), 'tools'), true);
+});

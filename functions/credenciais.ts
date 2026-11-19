@@ -38,13 +38,13 @@ export function mudaCredencialProibida(antes: Credenciais, depois: Credenciais):
 
 // ---------------------------------------------------------------- WEB areas (owner's decision, 2026-11-16)
 // funcionarios/{uid}.areas = { area: 'ver' | 'editar' }; a missing area = no access. adm2 sees and edits every area.
-// Friday has one level (stored as 'editar'). Only adm2 grants areas. The same lists are in src/services/credenciais.ts
+// Friday and Tools have one level (stored as 'editar'). Only adm2 grants areas. The same lists are in src/services/credenciais.ts
 // and in the Rules (nivelArea).
-export const AREAS = ['logistica', 'mecanica', 'engenharia', 'portal', 'cadastros', 'manuscript', 'friday'] as const;
+export const AREAS = ['logistica', 'mecanica', 'engenharia', 'portal', 'cadastros', 'manuscript', 'friday', 'tools'] as const;
 export type Area = (typeof AREAS)[number];
 export type Nivel = 'ver' | 'editar';
 export type Areas = Partial<Record<Area, Nivel>>;
-export const AREAS_NIVEL_UNICO: readonly Area[] = ['friday'];
+export const AREAS_NIVEL_UNICO: readonly Area[] = ['friday', 'tools'];
 
 /** Valid areas of a stored map (unknown keys and values are dropped; Friday is always 'editar'). */
 export function areasValidas(valor: unknown): Areas {

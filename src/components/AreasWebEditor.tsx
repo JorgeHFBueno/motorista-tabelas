@@ -43,7 +43,7 @@ export default function AreasWebEditor({ areas, onChange, somenteLeitura }: {
               >
                 <ToggleButton value="nenhum">Sem acesso</ToggleButton>
                 {!unico && <ToggleButton value="ver">Ver</ToggleButton>}
-                <ToggleButton value="editar">{unico ? 'Acesso' : 'Editar'}</ToggleButton>
+                <ToggleButton value="editar">{unico ? 'Com acesso' : 'Editar'}</ToggleButton>
               </ToggleButtonGroup>
             </Box>
           );

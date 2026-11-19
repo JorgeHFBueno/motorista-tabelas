@@ -109,3 +109,9 @@ test('non-adm2 Cadastros changes only motorista, frentista and mecanico', () => 
   assert.equal(mudaCredencialProibida(semCredenciais(), credenciaisDe({ adm2: true })), true);
   assert.equal(mudaCredencialProibida(semCredenciais(), credenciaisDe({ retr0: true })), true);
 });
+
+test('Tools area (2026-11-19): one level, stored as editar; adm2 grants it', () => {
+  assert.deepEqual(areasValidas({ tools: 'ver', friday: 'editar' }), { friday: 'editar', tools: 'editar' });
+  assert.deepEqual(lerAreas({ tools: 'editar' }), { tools: 'editar' });
+  assert.equal(veArea({ ativo: true, perfis: {}, areas: { tools: 'editar' } }, 'tools'), true);
+});
