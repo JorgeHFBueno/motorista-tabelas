@@ -1,6 +1,7 @@
 import { Alert, Box, Button, Card, CardContent, Chip, Stack, Typography } from '@mui/material';
 import AndroidIcon from '@mui/icons-material/Android';
 import AppleIcon from '@mui/icons-material/Apple';
+import BuildOutlinedIcon from '@mui/icons-material/BuildOutlined';
 import ChecklistRoundedIcon from '@mui/icons-material/ChecklistRounded';
 import CloudOffOutlinedIcon from '@mui/icons-material/CloudOffOutlined';
 import HistoryRoundedIcon from '@mui/icons-material/HistoryRounded';
@@ -76,7 +77,7 @@ function InstalarIphone() {
 function ComoUsarChecklist() {
   return (
     <Secao icone={<ChecklistRoundedIcon color="primary" />} titulo="Checklist">
-      <Typography sx={{ mb: 1 }}>A revisão do veículo ou da máquina, item por item, com fotos e a assinatura do motorista.</Typography>
+      <Typography sx={{ mb: 1 }}>A inspeção do veículo ou da máquina, item por item, com fotos e a assinatura do motorista.</Typography>
       <Passos itens={[
         <>Escolha <strong>Veículo</strong> ou <strong>Máquina</strong>, o equipamento, o <strong>KM</strong> ou horímetro, o motorista e se é Saída ou Chegada.</>,
         <>Em cada parte, marque cada item como <strong>OK</strong>, <strong>Avaria</strong> ou <strong>Não se aplica</strong>; nas avarias, escreva o que houve e tire fotos.</>,
@@ -85,6 +86,24 @@ function ComoUsarChecklist() {
         <>Se sair no meio, o checklist continua de onde parou: toque em <strong>Continuar checklist</strong>.</>,
       ]} />
       <Button sx={{ mt: 1 }} variant="contained" href="/motorista/checklist">Abrir Checklist</Button>
+    </Secao>
+  );
+}
+
+function ComoUsarRevisao() {
+  return (
+    <Secao icone={<BuildOutlinedIcon color="primary" />} titulo="Revisão">
+      <Typography sx={{ mb: 1 }}>O registro de cada ida do veículo ou da máquina ao mecânico: o que foi trocado, consertado ou revisado.</Typography>
+      <Passos itens={[
+        <>Escolha <strong>Veículo</strong> ou <strong>Máquina</strong> e o equipamento e toque em <strong>Começar revisão</strong>.</>,
+        <>Informe o <strong>KM</strong> ou horímetro, <strong>Preventiva</strong> ou <strong>Corretiva</strong>, o motivo e a data que foi ao mecânico.</>,
+        <>Em <strong>Adicionar item</strong>, escolha a categoria, a ação e a peça; quantidade, nota e fotos são opcionais.</>,
+        <>Toque em <strong>Salvar</strong> para guardar e continuar depois: a revisão fica <strong>Em manutenção</strong>, e qualquer mecânico pode continuá-la.</>,
+        <>Quando o equipamento voltar, toque em <strong>Fechar revisão</strong> e informe a data que voltou. Fechada, não muda mais.</>,
+        <>Sem internet, fica guardada no celular e é enviada sozinha quando ela voltar, <strong>com o app aberto</strong>.</>,
+      ]} />
+      <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>No <strong>Meu histórico</strong> aparecem, resumidos, os checklists e as revisões de todos os mecânicos.</Typography>
+      <Button sx={{ mt: 1 }} variant="contained" href="/motorista/revisao">Abrir Revisão</Button>
     </Secao>
   );
 }
@@ -144,6 +163,7 @@ export default function ComoUsarPage() {
         </>}
 
         {mecanico && <ComoUsarChecklist />}
+        {mecanico && <ComoUsarRevisao />}
 
         <Typography variant="h6" fontWeight={800} sx={{ pt: 1 }}>Instalar no celular</Typography>
         {iphone ? <><InstalarIphone /><InstalarAndroid /></> : <><InstalarAndroid /><InstalarIphone /></>}

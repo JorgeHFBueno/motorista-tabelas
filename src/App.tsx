@@ -50,6 +50,10 @@ const MotoristaPage = lazy(() => import('./features/saida-chegada/MotoristaPage'
 const ChecklistInicioPage = lazy(() => import('./features/checklist-mecanico/ChecklistInicioPage'));
 const ChecklistItensPage = lazy(() => import('./features/checklist-mecanico/ChecklistItensPage'));
 const ChecklistHistoricoPage = lazy(() => import('./features/checklist-mecanico/ChecklistHistoricoPage'));
+const RevisaoInicioPage = lazy(() => import('./features/revisao/RevisaoInicioPage'));
+const RevisaoRegistroPage = lazy(() => import('./features/revisao/RevisaoRegistroPage'));
+const RevisaoHistoricoPage = lazy(() => import('./features/revisao/RevisaoHistoricoPage'));
+const RevisaoDetalhePage = lazy(() => import('./features/revisao/RevisaoDetalhePage'));
 
 console.log('[build]', import.meta.env.MODE, '__BUILD__', '1122');
 
@@ -74,22 +78,27 @@ export default function App() {
               <Route path="perfil" element={<MeuPerfilPage />} />
             </Route>
             {/* /motorista (2026-11-18): Saída e Chegada (src/features/saida-chegada; credencial motorista) e, desde 2026-11-19,
-                o Checklist do mecânico (src/features/checklist-mecanico; credencial mecanico), com fila offline no aparelho.
+                o Checklist e a Revisão do mecânico (src/features/checklist-mecanico e src/features/revisao; credencial
+                mecanico), com fila offline no aparelho. O Meu histórico é dos dois.
                 O adm2 entra em tudo. The Manuscript, 03_APLICACAO_WEB/06_REGISTROS_E_CHECKLISTS.md. */}
             {/* Sem login, o próprio /motorista mostra o formulário (o app Motorista instalado não sai de /motorista). */}
             <Route element={<PrivateRoute permite={(p) => temCredencial(p, 'motorista', 'mecanico')} semSessao={<LoginPage destino="/motorista" />} />}>
               <Route path="motorista" element={<MotoristaPage />} />
               <Route path="motorista/como-usar" element={<ComoUsarPage />} />
+              <Route path="motorista/historico" element={<HistoricoMotoristaPage />} />
               <Route element={<PrivateRoute permite={(p) => temCredencial(p, 'motorista')} />}>
                 <Route path="motorista/saida" element={<SaidaChegadaPage key="saida" tipo="saida" />} />
                 <Route path="motorista/chegada" element={<SaidaChegadaPage key="chegada" tipo="chegada" />} />
-                <Route path="motorista/historico" element={<HistoricoMotoristaPage />} />
               </Route>
               <Route element={<PrivateRoute permite={(p) => temCredencial(p, 'mecanico')} />}>
                 <Route path="motorista/checklist" element={<ChecklistInicioPage />} />
                 <Route path="motorista/checklist/itens" element={<ChecklistItensPage />} />
                 <Route path="motorista/checklist/historico" element={<ChecklistHistoricoPage />} />
                 <Route path="motorista/checklist/historico/:id" element={<ChecklistDetalhePage />} />
+                <Route path="motorista/revisao" element={<RevisaoInicioPage />} />
+                <Route path="motorista/revisao/historico" element={<RevisaoHistoricoPage />} />
+                <Route path="motorista/revisao/historico/:id" element={<RevisaoDetalhePage />} />
+                <Route path="motorista/revisao/:id" element={<RevisaoRegistroPage />} />
               </Route>
             </Route>
             <Route element={<PrivateRoute permite={entraNoFriday} />}>

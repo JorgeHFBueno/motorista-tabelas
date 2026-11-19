@@ -1,5 +1,5 @@
 // Leituras do Firestore para começar um checklist, iguais às do app (data/checklist_repository.dart).
-import { collection, getDocs, query, where } from 'firebase/firestore';
+import { collection, getDocs, limit, orderBy, query, where } from 'firebase/firestore';
 import { db } from '../../../firebase';
 import { listVeiculosAtivos } from '../../../services/veiculos.service';
 import type { ItemFrotaV2 } from '../../../utils/cadastrosV2';
@@ -46,4 +46,10 @@ export async function listarChecklistsDoAutor(uid: string): Promise<Checklist[]>
   return snapshot.docs
     .map((d) => normalizarChecklist(d.data(), d.id))
     .sort((a, b) => (b.concluidoEm?.getTime() ?? 0) - (a.concluidoEm?.getTime() ?? 0));
+}
+
+/** Os checklists mais recentes, de qualquer mecânico (Meu histórico do mecânico; índice automático de campo único). */
+export async function listarChecklistsRecentes(quantos: number): Promise<Checklist[]> {
+  const snapshot = await getDocs(query(collection(db, 'checklists-v2'), orderBy('concluidoEm', 'desc'), limit(quantos)));
+  return snapshot.docs.map((d) => normalizarChecklist(d.data(), d.id));
 }

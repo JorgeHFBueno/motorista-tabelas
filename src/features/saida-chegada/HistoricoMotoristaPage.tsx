@@ -1,9 +1,12 @@
-import { Alert, Box, Button, Card, CardContent, Chip, CircularProgress, Snackbar, Stack, Typography } from '@mui/material';
+import { Alert, Box, Button, Card, CardContent, Chip, CircularProgress, Snackbar, Stack, ToggleButton, ToggleButtonGroup, Typography } from '@mui/material';
 import CloudDoneOutlinedIcon from '@mui/icons-material/CloudDoneOutlined';
 import CloudOffOutlinedIcon from '@mui/icons-material/CloudOffOutlined';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
+import { temCredencial } from '../../services/credenciais';
+import type { ResumoMecanico } from './domain/resumoMecanico';
+import { carregarResumosDoMecanico } from './data/historicoMecanico';
 import type { AtividadePendente } from './domain/atividade';
 import { listarHistoricoDoMotorista, type AtividadeHistorico } from './data/atividadesFirestore';
 import { enviador, useFilaEnvio } from './data/filaEnvio';
@@ -13,6 +16,8 @@ const dataHora = new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: '2-di
 const hora = new Intl.DateTimeFormat('pt-BR', { hour: '2-digit', minute: '2-digit' });
 const nomeTipo = (tipo: string) => (tipo === 'chegada' ? 'Chegada' : 'Saída');
 const km = (valor: number | null) => (valor == null ? '—' : `KM ${valor.toLocaleString('pt-BR')}`);
+
+type Filtro = 'tudo' | 'atividades' | 'checklist' | 'revisao';
 
 const paraHistorico = (p: AtividadePendente): AtividadeHistorico => ({
   id: p.id,
@@ -27,23 +32,29 @@ const paraHistorico = (p: AtividadePendente): AtividadeHistorico => ({
 });
 
 /**
- * /motorista/historico: as Saídas e Chegadas do motorista logado, só leitura. No topo, os lançamentos deste aparelho que
- * ainda não chegaram ao servidor, com "Tentar novamente"; os demais aparecem como enviados.
+ * /motorista/historico: para o motorista, as Saídas e Chegadas dele, só leitura, com os lançamentos deste aparelho que
+ * ainda não chegaram ao servidor no topo ("Tentar novamente"). Para o mecânico (2026-11-19), também os checklists e as
+ * revisões de todos os mecânicos, resumidos (os detalhes ficam na WEB); as Saídas e Chegadas continuam só as próprias.
  */
 export default function HistoricoMotoristaPage() {
   const navigate = useNavigate();
   const location = useLocation();
-  const { currentUser } = useAuth();
+  const { currentUser, authorizationProfile } = useAuth();
   const fila = useFilaEnvio();
   const uid = currentUser?.uid;
-  const [lista, setLista] = useState<AtividadeHistorico[] | null>(null);
+  const motorista = temCredencial(authorizationProfile, 'motorista');
+  const mecanico = temCredencial(authorizationProfile, 'mecanico');
+  const [filtro, setFiltro] = useState<Filtro>('tudo');
+  const [lista, setLista] = useState<AtividadeHistorico[] | null>(motorista ? null : []);
   const [erro, setErro] = useState(false);
+  const [resumos, setResumos] = useState<ResumoMecanico[] | null>(mecanico ? null : []);
+  const [erroResumos, setErroResumos] = useState(false);
   const [semConexao, setSemConexao] = useState(false);
   // Aviso deixado pela Saída/Chegada ao salvar.
   const [aviso, setAviso] = useState<string | null>(() => (location.state as { aviso?: string } | null)?.aviso ?? null);
 
   const carregar = useCallback(async () => {
-    if (!uid) return;
+    if (!uid || !motorista) return;
     setErro(false);
     try {
       setLista(await listarHistoricoDoMotorista(uid));
@@ -51,9 +62,21 @@ export default function HistoricoMotoristaPage() {
       console.error('Histórico: falha ao carregar', error);
       setErro(true);
     }
-  }, [uid]);
+  }, [uid, motorista]);
+
+  const carregarResumos = useCallback(async () => {
+    if (!uid || !mecanico) return;
+    setErroResumos(false);
+    try {
+      setResumos(await carregarResumosDoMecanico());
+    } catch (error) {
+      console.error('Histórico: falha ao carregar checklists e revisões', error);
+      setErroResumos(true);
+    }
+  }, [uid, mecanico]);
 
   useEffect(() => { void carregar(); }, [carregar]);
+  useEffect(() => { void carregarResumos(); }, [carregarResumos]);
   // O aviso vem uma vez: recarregar a página não o mostra de novo.
   useEffect(() => {
     if ((location.state as { aviso?: string } | null)?.aviso) navigate('/motorista/historico', { replace: true, state: null });
@@ -74,16 +97,43 @@ export default function HistoricoMotoristaPage() {
   const pendentes = fila.pendentes.filter((p) => !doServidor.has(p.id));
   // Enviados agora por este aparelho que a lista ainda não trouxe (ela pode ter vindo do cache, sem conexão).
   const enviadosAgora = fila.enviados.filter((p) => p.criadoPor.uid === uid && !doServidor.has(p.id)).map(paraHistorico);
-  const exibidos = lista == null ? null
-    : [...enviadosAgora, ...lista].sort((a, b) => (b.data?.getTime() ?? 0) - (a.data?.getTime() ?? 0));
+  const verAtividades = motorista && (filtro === 'tudo' || filtro === 'atividades');
+  const verResumos = mecanico && filtro !== 'atividades';
+  const atividades = !verAtividades ? [] : lista == null ? null : [...enviadosAgora, ...lista];
+  const doMecanico = !verResumos ? [] : resumos == null ? null : resumos.filter((r) => filtro === 'tudo' || r.tipo === filtro);
+  const exibidos = atividades == null || doMecanico == null ? null
+    : [
+      ...atividades.map((a) => ({ chave: `atividade:${a.id}`, data: a.data, atividade: a, resumo: null })),
+      ...doMecanico.map((r) => ({ chave: r.chave, data: r.data, atividade: null, resumo: r })),
+    ].sort((a, b) => (b.data?.getTime() ?? 0) - (a.data?.getTime() ?? 0));
+  const filtros: { id: Filtro; titulo: string }[] = [
+    { id: 'tudo', titulo: 'Tudo' },
+    ...(motorista ? [{ id: 'atividades' as const, titulo: 'Saída/Chegada' }] : []),
+    { id: 'checklist', titulo: 'Checklist' },
+    { id: 'revisao', titulo: 'Revisão' },
+  ];
   return (
     <PaginaMotorista>
-      <Stack direction="row" spacing={1} sx={{ mb: 2 }}>
-        <Button fullWidth variant="contained" href="/motorista/saida">Nova Saída</Button>
-        <Button fullWidth variant="contained" href="/motorista/chegada">Nova Chegada</Button>
-      </Stack>
+      {motorista && (
+        <Stack direction="row" spacing={1} sx={{ mb: 2 }}>
+          <Button fullWidth variant="contained" href="/motorista/saida">Nova Saída</Button>
+          <Button fullWidth variant="contained" href="/motorista/chegada">Nova Chegada</Button>
+        </Stack>
+      )}
       <Stack spacing={1.5}>
-        {pendentes.length > 0 && (
+        {mecanico && (
+          <>
+            <ToggleButtonGroup exclusive fullWidth size="small" color="primary" value={filtro} onChange={(_, f: Filtro | null) => { if (f) setFiltro(f); }}>
+              {filtros.map((f) => <ToggleButton key={f.id} value={f.id} sx={{ textTransform: 'none', px: 0.5 }}>{f.titulo}</ToggleButton>)}
+            </ToggleButtonGroup>
+            {filtro !== 'atividades' && (
+              <Typography variant="body2" color="text.secondary">
+                Checklists e revisões de todos os mecânicos, resumidos. Itens, fotos e assinatura completos: na WEB, no computador.
+              </Typography>
+            )}
+          </>
+        )}
+        {verAtividades && pendentes.length > 0 && (
           <Alert
             severity="warning"
             action={fila.enviando
@@ -99,18 +149,25 @@ export default function HistoricoMotoristaPage() {
             </Typography>
           </Alert>
         )}
-        {pendentes.map((p) => <CardPendente key={p.id} pendente={p} />)}
-        {erro && (
+        {verAtividades && pendentes.map((p) => <CardPendente key={p.id} pendente={p} />)}
+        {erroResumos && verResumos && (
+          <Alert severity="error" action={<Button color="inherit" size="small" onClick={() => void carregarResumos()}>Tentar de novo</Button>}>
+            Não foi possível carregar os checklists e as revisões.
+          </Alert>
+        )}
+        {erro && verAtividades && (
           <Alert severity="error" action={<Button color="inherit" size="small" onClick={() => void carregar()}>Tentar de novo</Button>}>
             Não foi possível carregar o histórico.
           </Alert>
         )}
-        {!erro && lista == null && <Stack alignItems="center" sx={{ py: 4 }}><CircularProgress /></Stack>}
-        {exibidos?.length === 0 && pendentes.length === 0 && (
-          <Typography color="text.secondary" sx={{ py: 4, textAlign: 'center' }}>Nenhuma saída ou chegada registrada.</Typography>
+        {!erro && !erroResumos && exibidos == null && <Stack alignItems="center" sx={{ py: 4 }}><CircularProgress /></Stack>}
+        {exibidos?.length === 0 && (!verAtividades || pendentes.length === 0) && (
+          <Typography color="text.secondary" sx={{ py: 4, textAlign: 'center' }}>
+            {filtro === 'checklist' ? 'Nenhum checklist registrado.' : filtro === 'revisao' ? 'Nenhuma revisão registrada.' : motorista && !mecanico ? 'Nenhuma saída ou chegada registrada.' : 'Nada registrado.'}
+          </Typography>
         )}
-        {exibidos?.map((a) => (
-          <Card key={a.id} variant="outlined">
+        {exibidos?.map(({ chave, atividade: a, resumo }) => (resumo ? <CardResumo key={chave} resumo={resumo} /> : a && (
+          <Card key={chave} variant="outlined">
             <CardContent>
               <Stack direction="row" justifyContent="space-between" alignItems="flex-start" spacing={1}>
                 <Box sx={{ minWidth: 0 }}>
@@ -125,7 +182,7 @@ export default function HistoricoMotoristaPage() {
               </Stack>
             </CardContent>
           </Card>
-        ))}
+        )))}
       </Stack>
       <Snackbar open={aviso != null} autoHideDuration={4000} onClose={() => setAviso(null)} message={aviso} anchorOrigin={{ vertical: 'top', horizontal: 'center' }} />
     </PaginaMotorista>
@@ -151,6 +208,25 @@ function CardPendente({ pendente: p }: { pendente: AtividadePendente }) {
             )}
           </Box>
           <Chip size="small" color="warning" icon={<CloudOffOutlinedIcon />} label="Aguardando envio" />
+        </Stack>
+      </CardContent>
+    </Card>
+  );
+}
+
+/** Checklist ou revisão resumido, só leitura (os detalhes ficam na WEB). */
+function CardResumo({ resumo: r }: { resumo: ResumoMecanico }) {
+  return (
+    <Card variant="outlined" sx={r.envio ? { borderColor: 'warning.main' } : undefined}>
+      <CardContent>
+        <Stack direction="row" justifyContent="space-between" alignItems="flex-start" spacing={1}>
+          <Box sx={{ minWidth: 0 }}>
+            <Typography fontWeight={700}>{r.veiculo} · {r.tipo === 'checklist' ? 'Checklist' : 'Revisão'}</Typography>
+            <Typography variant="body2" color="text.secondary">{r.data ? dataHora.format(r.data) : '—'}</Typography>
+            <Typography variant="body2" color="text.secondary">{r.linhas.map((l) => `${l.rotulo}: ${l.valor}`).join(' · ')}</Typography>
+            {r.envio && <Typography variant="body2" color="warning.dark">Envio: {r.envio}</Typography>}
+          </Box>
+          <Chip size="small" variant="outlined" color={r.tipo === 'checklist' ? 'primary' : 'secondary'} label={r.tipo === 'checklist' ? 'Checklist' : 'Revisão'} />
         </Stack>
       </CardContent>
     </Card>

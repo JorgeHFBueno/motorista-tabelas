@@ -96,6 +96,11 @@ test('Saída e Chegada (2026-11-18) e Checklist (2026-11-19) no WEB: cartão Mot
   assert.equal(rotaAnterior('/motorista/checklist/itens'), '/motorista/checklist');
   assert.equal(rotaAnterior('/motorista/checklist/historico/abc'), '/motorista/checklist/historico');
   assert.equal(rotaAnterior('/motorista/checklist'), '/motorista');
+  // Revisão (2026-11-19): o registro e o histórico voltam para /motorista/revisao.
+  assert.equal(rotaAnterior('/motorista/revisao'), '/motorista');
+  assert.equal(rotaAnterior('/motorista/revisao/AbC123'), '/motorista/revisao');
+  assert.equal(rotaAnterior('/motorista/revisao/historico'), '/motorista/revisao');
+  assert.equal(rotaAnterior('/motorista/revisao/historico/AbC123'), '/motorista/revisao/historico');
 });
 
 test('subitens da Home mostram uma descrição, não o caminho', () => {
