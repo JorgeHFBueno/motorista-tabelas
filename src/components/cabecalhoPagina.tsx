@@ -34,6 +34,7 @@ const TITULOS: Array<{ padrao: string } & TituloPagina> = [
   { padrao: '/combustivel/registros/novo', titulo: 'Lançamento de combustível' },
   { padrao: '/cadastros/usuarios/novo', titulo: 'Cadastro de usuários' },
   { padrao: '/cadastros/editar/usuarios', titulo: 'Usuários' },
+  { padrao: '/cadastros/chaves-api', titulo: 'Chaves de API' },
   { padrao: '/frota/veiculos', titulo: 'Veículos' },
   { padrao: '/frota/veiculos/:id', titulo: 'Detalhes do Veículo' },
   { padrao: '/frota/registros', titulo: 'Registros' },
