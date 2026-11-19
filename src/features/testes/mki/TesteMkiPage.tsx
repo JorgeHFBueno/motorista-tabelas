@@ -14,7 +14,6 @@ import {
   List,
   ListItem,
   ListItemText,
-  MenuItem,
   Paper,
   Snackbar,
   Stack,
@@ -24,11 +23,9 @@ import {
   TableContainer,
   TableHead,
   TableRow,
-  TextField,
   Tooltip,
   Typography,
 } from '@mui/material';
-import AddIcon from '@mui/icons-material/Add';
 import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
 import HistoryIcon from '@mui/icons-material/History';
 import PictureAsPdfOutlinedIcon from '@mui/icons-material/PictureAsPdfOutlined';
@@ -43,7 +40,8 @@ import './mki.css';
 /**
  * /testes/mki: mock do detalhe da obra (/engenharia/obras/:id) com os LOTEs em lista. Cada LOTE tem os seus LFs
  * (Lançamento Final), um por linha: Tipo (Pilar 1, Vão 1…), PDF, Status e Histórico (quem anexou cada PDF e
- * quando; permite excluir). Obra, LOTEs e LFs fictícios em memória: nada vai para o Firestore nem para o Storage.
+ * quando; permite excluir). Os LFs, o Tipo e o Status chegam por API: na tela só se anexa e se exclui PDF.
+ * Obra, LOTEs e LFs fictícios em memória: nada vai para o Firestore nem para o Storage.
  */
 
 type PdfLf = { id: string; nome: string; tamanho: number; anexadoEm: Date; anexadoPor: string; url: string | null };
@@ -98,8 +96,7 @@ const LOTES_INICIAIS: LoteMock[] = [
   { chave: 'l4', nome: 'LOTE 4 - ACESSO CENTRO - PAVIMENTAÇÃO', status: '', coordenada: null, lfs: [] },
 ];
 
-/** Status do LF (inventado para o mock). */
-const STATUS_LF = ['Pendente', 'Em análise', 'Revisar', 'Aprovado'];
+/** Cor do status do LF (valores inventados para o mock). */
 const COR_STATUS: Record<string, 'success' | 'info' | 'warning' | 'default'> = { Aprovado: 'success', 'Em análise': 'info', Revisar: 'warning' };
 
 const dataHora = (data: Date) => data.toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short', timeZone: 'America/Sao_Paulo' });
@@ -170,7 +167,6 @@ export default function TesteMkiPage() {
   const [historico, setHistorico] = useState<Alvo | null>(null);
   const [excluir, setExcluir] = useState<PdfLf | null>(null);
   const [aviso, setAviso] = useState<string | null>(null);
-  const [novoLf, setNovoLf] = useState<string | null>(null); // o Tipo do LF recém-adicionado já abre com o cursor
   const entrada = useRef<HTMLInputElement>(null);
   const anexarEm = useRef<Alvo | null>(null);
   const urls = useRef<string[]>([]);
@@ -182,15 +178,6 @@ export default function TesteMkiPage() {
       ...item,
       lfs: item.lfs.map((atual) => (atual.id === lf ? alterar(atual) : atual)),
     })));
-
-  function adicionarLf(chave: string) {
-    const id = `${Date.now()}`;
-    setNovoLf(id);
-    setLotes((atuais) => atuais.map((item) => (item.chave !== chave ? item : {
-      ...item,
-      lfs: [...item.lfs, { id, tipo: '', status: 'Pendente', pdfs: [] }],
-    })));
-  }
 
   function escolherPdf(alvo: Alvo) {
     anexarEm.current = alvo;
@@ -288,12 +275,7 @@ export default function TesteMkiPage() {
                 {lotes.map((lote) => {
                   const linhas = Math.max(lote.lfs.length, 1);
                   const celulaLote = (
-                    <TableCell rowSpan={linhas} className="mki-lotes__lote">
-                      <Stack spacing={0.75} alignItems="flex-start">
-                        <ChipLote lote={lote} />
-                        <Button size="small" startIcon={<AddIcon />} onClick={() => adicionarLf(lote.chave)}>Adicionar LF</Button>
-                      </Stack>
-                    </TableCell>
+                    <TableCell rowSpan={linhas} className="mki-lotes__lote"><ChipLote lote={lote} /></TableCell>
                   );
                   if (!lote.lfs.length) {
                     return (
@@ -312,17 +294,7 @@ export default function TesteMkiPage() {
                         return (
                           <TableRow key={lf.id} className={index === lote.lfs.length - 1 ? 'mki-lotes__fim' : undefined}>
                             {index === 0 && celulaLote}
-                            <TableCell>
-                              <TextField
-                                size="small"
-                                value={lf.tipo}
-                                placeholder="Ex.: Pilar 1"
-                                autoFocus={lf.id === novoLf}
-                                onChange={(event) => alterarLf(alvo, (item) => ({ ...item, tipo: event.target.value }))}
-                                inputProps={{ 'aria-label': `Tipo do LF do ${lote.nome}` }}
-                                sx={{ width: 140 }}
-                              />
-                            </TableCell>
+                            <TableCell sx={{ fontWeight: 600, whiteSpace: 'nowrap' }}>{lf.tipo || '—'}</TableCell>
                             <TableCell>
                               <Stack direction="row" spacing={0.5} alignItems="center">
                                 {atual && (
@@ -346,17 +318,7 @@ export default function TesteMkiPage() {
                               </Stack>
                             </TableCell>
                             <TableCell>
-                              <TextField
-                                select
-                                size="small"
-                                value={lf.status}
-                                onChange={(event) => alterarLf(alvo, (item) => ({ ...item, status: event.target.value }))}
-                                inputProps={{ 'aria-label': `Status do ${rotuloLf}` }}
-                                sx={{ minWidth: 140 }}
-                                SelectProps={{ renderValue: (valor) => <Chip size="small" label={String(valor)} color={COR_STATUS[String(valor)] ?? 'default'} /> }}
-                              >
-                                {STATUS_LF.map((status) => <MenuItem key={status} value={status}>{status}</MenuItem>)}
-                              </TextField>
+                              <Chip size="small" label={lf.status || 'Sem status'} color={COR_STATUS[lf.status] ?? 'default'} variant={COR_STATUS[lf.status] ? 'filled' : 'outlined'} />
                             </TableCell>
                             <TableCell align="center">
                               <Tooltip title="Histórico de PDFs">
