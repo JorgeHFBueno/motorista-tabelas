@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { Fragment, useEffect, useRef, useState, type ReactNode } from 'react';
 import {
   Alert,
   Badge,
@@ -14,6 +14,7 @@ import {
   List,
   ListItem,
   ListItemText,
+  MenuItem,
   Paper,
   Snackbar,
   Stack,
@@ -27,6 +28,7 @@ import {
   Tooltip,
   Typography,
 } from '@mui/material';
+import AddIcon from '@mui/icons-material/Add';
 import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
 import HistoryIcon from '@mui/icons-material/History';
 import PictureAsPdfOutlinedIcon from '@mui/icons-material/PictureAsPdfOutlined';
@@ -39,23 +41,17 @@ import { useAuth } from '../../../contexts/AuthContext';
 import './mki.css';
 
 /**
- * /testes/mki: mock do detalhe da obra (/engenharia/obras/:id) com os LOTEs em lista de colunas — LOTE, LF
- * (Lançamento Final), PDF, Status e Histórico (quem anexou cada PDF e quando; permite excluir). Obra e LOTEs
- * fictícios em memória: nada vai para o Firestore nem para o Storage.
+ * /testes/mki: mock do detalhe da obra (/engenharia/obras/:id) com os LOTEs em lista. Cada LOTE tem os seus LFs
+ * (Lançamento Final), um por linha: Tipo (Pilar 1, Vão 1…), PDF, Status e Histórico (quem anexou cada PDF e
+ * quando; permite excluir). Obra, LOTEs e LFs fictícios em memória: nada vai para o Firestore nem para o Storage.
  */
 
-type PdfLote = { id: string; nome: string; tamanho: number; anexadoEm: Date; anexadoPor: string; url: string | null };
-type LoteMock = {
-  chave: string;
-  nome: string;
-  status: string;
-  coordenada: { lat: number; lng: number } | null;
-  /** LF: data do Lançamento Final (aaaa-mm-dd), vazio enquanto não lançado. */
-  lf: string;
-  pdfs: PdfLote[];
-};
+type PdfLf = { id: string; nome: string; tamanho: number; anexadoEm: Date; anexadoPor: string; url: string | null };
+type LfMock = { id: string; tipo: string; status: string; pdfs: PdfLf[] };
+type LoteMock = { chave: string; nome: string; status: string; coordenada: { lat: number; lng: number } | null; lfs: LfMock[] };
+type Alvo = { lote: string; lf: string };
 
-const pdf = (id: string, nome: string, kb: number, quando: string, por: string): PdfLote =>
+const pdf = (id: string, nome: string, kb: number, quando: string, por: string): PdfLf =>
   ({ id, nome, tamanho: kb * 1024, anexadoEm: new Date(quando), anexadoPor: por, url: null });
 
 const OBRA = {
@@ -78,35 +74,37 @@ const OBRA = {
 
 const LOTES_INICIAIS: LoteMock[] = [
   {
-    chave: 'l1', nome: 'LOTE 1 - LINHA SÃO JOSÉ - (6,00X10,00M) - PONTE', status: 'Concluído',
-    coordenada: { lat: -29.3359, lng: -53.0532 }, lf: '2026-10-28',
-    pdfs: [
-      pdf('p1', 'LF_LOTE1_rev0.pdf', 412, '2026-10-21T14:12:00-03:00', 'Mariana Kern'),
-      pdf('p2', 'LF_LOTE1_rev1.pdf', 436, '2026-10-28T09:47:00-03:00', 'Mariana Kern'),
+    chave: 'l1', nome: 'LOTE 1 - LINHA SÃO JOSÉ - (6,00X10,00M) - PONTE', status: 'Concluído', coordenada: { lat: -29.3359, lng: -53.0532 },
+    lfs: [
+      { id: 'f1', tipo: 'Pilar 1', status: 'Aprovado', pdfs: [
+        pdf('p1', 'LF_LOTE1_pilar1_rev0.pdf', 412, '2026-10-21T14:12:00-03:00', 'Mariana Kern'),
+        pdf('p2', 'LF_LOTE1_pilar1_rev1.pdf', 436, '2026-10-28T09:47:00-03:00', 'Mariana Kern'),
+      ] },
+      { id: 'f2', tipo: 'Pilar 2', status: 'Aprovado', pdfs: [pdf('p3', 'LF_LOTE1_pilar2.pdf', 398, '2026-10-29T11:05:00-03:00', 'Mariana Kern')] },
+      { id: 'f3', tipo: 'Vão 1', status: 'Em análise', pdfs: [pdf('p4', 'LF_LOTE1_vao1.pdf', 1210, '2026-11-12T16:30:00-03:00', 'Rafael Dornelles')] },
     ],
   },
   {
-    chave: 'l2', nome: 'LOTE 2 - SÍTIO ALTO - BUEIRO CELULAR 2,00X2,00M', status: 'Em execução',
-    coordenada: { lat: -29.3051, lng: -53.0917 }, lf: '',
-    pdfs: [pdf('p3', 'Projeto_bueiro_LOTE2.pdf', 1280, '2026-11-04T16:30:00-03:00', 'Rafael Dornelles')],
+    chave: 'l2', nome: 'LOTE 2 - SÍTIO ALTO - BUEIRO CELULAR 2,00X2,00M', status: 'Em execução', coordenada: { lat: -29.3051, lng: -53.0917 },
+    lfs: [
+      { id: 'f4', tipo: 'Cabeceira 1', status: 'Revisar', pdfs: [pdf('p5', 'LF_LOTE2_cabeceira1.pdf', 845, '2026-11-04T08:20:00-03:00', 'Rafael Dornelles')] },
+      { id: 'f5', tipo: 'Cabeceira 2', status: 'Pendente', pdfs: [] },
+    ],
   },
   {
-    chave: 'l3', nome: 'LOTE 3 - CORREDEIRA - (7,60X12,00M) - PONTE', status: 'Revisar escopo',
-    coordenada: { lat: -29.3712, lng: -53.0204 }, lf: '', pdfs: [],
+    chave: 'l3', nome: 'LOTE 3 - CORREDEIRA - (7,60X12,00M) - PONTE', status: 'Revisar escopo', coordenada: { lat: -29.3712, lng: -53.0204 },
+    lfs: [{ id: 'f6', tipo: 'Pilar 1', status: 'Pendente', pdfs: [] }],
   },
-  { chave: 'l4', nome: 'LOTE 4 - ACESSO CENTRO - PAVIMENTAÇÃO', status: 'Não iniciado', coordenada: null, lf: '', pdfs: [] },
+  { chave: 'l4', nome: 'LOTE 4 - ACESSO CENTRO - PAVIMENTAÇÃO', status: '', coordenada: null, lfs: [] },
 ];
 
-const COR_STATUS: Record<string, 'success' | 'info' | 'warning' | 'default'> = {
-  'Concluído': 'success',
-  'Em execução': 'info',
-  'Revisar escopo': 'warning',
-};
+/** Status do LF (inventado para o mock). */
+const STATUS_LF = ['Pendente', 'Em análise', 'Revisar', 'Aprovado'];
+const COR_STATUS: Record<string, 'success' | 'info' | 'warning' | 'default'> = { Aprovado: 'success', 'Em análise': 'info', Revisar: 'warning' };
 
 const dataHora = (data: Date) => data.toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short', timeZone: 'America/Sao_Paulo' });
-const dataCivil = (iso: string) => (iso ? iso.split('-').reverse().join('/') : '');
 const tamanhoTexto = (bytes: number) => (bytes >= 1024 * 1024 ? `${(bytes / 1024 / 1024).toFixed(1)} MB` : `${Math.round(bytes / 1024)} KB`);
-const maisRecente = (pdfs: PdfLote[]) => pdfs.reduce<PdfLote | null>((atual, item) => (!atual || item.anexadoEm > atual.anexadoEm ? item : atual), null);
+const maisRecente = (pdfs: PdfLf[]) => pdfs.reduce<PdfLf | null>((atual, item) => (!atual || item.anexadoEm > atual.anexadoEm ? item : atual), null);
 
 function Campo({ rotulo, valor }: { rotulo: string; valor: ReactNode }) {
   return (
@@ -143,8 +141,9 @@ function Tabela({ cabecalho, linhas, direita = [] }: { cabecalho: string[]; linh
   );
 }
 
-/** Coluna principal: o mesmo chip de hoje (abre o Google Maps quando há coordenada), sem o status, que ganhou coluna. */
+/** Coluna LOTE: o mesmo chip de hoje (status do Friday no rótulo; abre o Google Maps quando há coordenada). */
 function ChipLote({ lote }: { lote: LoteMock }) {
+  const rotulo = lote.status ? `${lote.nome} · ${lote.status}` : lote.nome;
   return lote.coordenada ? (
     <Tooltip title="Abrir no Google Maps">
       <Chip
@@ -154,13 +153,12 @@ function ChipLote({ lote }: { lote: LoteMock }) {
         rel="noopener noreferrer"
         clickable
         icon={<PlaceOutlinedIcon />}
-        label={`${lote.nome} · ${coordenadaCurta(lote.coordenada)}`}
+        label={`${rotulo} · ${coordenadaCurta(lote.coordenada)}`}
         variant="outlined"
         color="primary"
-        sx={{ maxWidth: '100%' }}
       />
     </Tooltip>
-  ) : <Chip label={lote.nome} variant="outlined" sx={{ maxWidth: '100%' }} />;
+  ) : <Chip label={rotulo} variant="outlined" />;
 }
 
 export default function TesteMkiPage() {
@@ -169,51 +167,68 @@ export default function TesteMkiPage() {
   const [local, setLocal] = useState(OBRA.local);
   const [sigla, setSigla] = useState(OBRA.siglaObra);
   const [lotes, setLotes] = useState(LOTES_INICIAIS);
-  const [historico, setHistorico] = useState<string | null>(null); // chave do LOTE com o histórico aberto
-  const [excluir, setExcluir] = useState<PdfLote | null>(null);
+  const [historico, setHistorico] = useState<Alvo | null>(null);
+  const [excluir, setExcluir] = useState<PdfLf | null>(null);
   const [aviso, setAviso] = useState<string | null>(null);
+  const [novoLf, setNovoLf] = useState<string | null>(null); // o Tipo do LF recém-adicionado já abre com o cursor
   const entrada = useRef<HTMLInputElement>(null);
-  const anexarEm = useRef<string | null>(null);
+  const anexarEm = useRef<Alvo | null>(null);
   const urls = useRef<string[]>([]);
 
   useEffect(() => () => urls.current.forEach((url) => URL.revokeObjectURL(url)), []);
 
-  const alterarLote = (chave: string, alterar: (lote: LoteMock) => LoteMock) =>
-    setLotes((atuais) => atuais.map((lote) => (lote.chave === chave ? alterar(lote) : lote)));
+  const alterarLf = ({ lote, lf }: Alvo, alterar: (item: LfMock) => LfMock) =>
+    setLotes((atuais) => atuais.map((item) => (item.chave !== lote ? item : {
+      ...item,
+      lfs: item.lfs.map((atual) => (atual.id === lf ? alterar(atual) : atual)),
+    })));
 
-  function escolherPdf(chave: string) {
-    anexarEm.current = chave;
+  function adicionarLf(chave: string) {
+    const id = `${Date.now()}`;
+    setNovoLf(id);
+    setLotes((atuais) => atuais.map((item) => (item.chave !== chave ? item : {
+      ...item,
+      lfs: [...item.lfs, { id, tipo: '', status: 'Pendente', pdfs: [] }],
+    })));
+  }
+
+  function escolherPdf(alvo: Alvo) {
+    anexarEm.current = alvo;
     entrada.current?.click();
   }
 
   function anexar(arquivo: File | undefined) {
-    const chave = anexarEm.current;
+    const alvo = anexarEm.current;
     if (entrada.current) entrada.current.value = '';
-    if (!arquivo || !chave) return;
+    if (!arquivo || !alvo) return;
     if (arquivo.type !== 'application/pdf' && !arquivo.name.toLowerCase().endsWith('.pdf')) {
       setAviso('Só arquivos PDF.');
       return;
     }
     const url = URL.createObjectURL(arquivo);
     urls.current.push(url);
-    const novo: PdfLote = { id: `${Date.now()}`, nome: arquivo.name, tamanho: arquivo.size, anexadoEm: new Date(), anexadoPor: usuario, url };
-    alterarLote(chave, (lote) => ({ ...lote, pdfs: [...lote.pdfs, novo] }));
+    const novo: PdfLf = { id: `${Date.now()}`, nome: arquivo.name, tamanho: arquivo.size, anexadoEm: new Date(), anexadoPor: usuario, url };
+    alterarLf(alvo, (item) => ({ ...item, pdfs: [...item.pdfs, novo] }));
     setAviso(`${arquivo.name} anexado.`);
   }
 
-  function abrirPdf(item: PdfLote) {
+  function abrirPdf(item: PdfLf) {
     if (item.url) window.open(item.url, '_blank', 'noopener');
     else setAviso('PDF fictício do teste: não há arquivo para abrir.');
   }
 
   function confirmarExclusao() {
     if (!excluir) return;
-    setLotes((atuais) => atuais.map((lote) => ({ ...lote, pdfs: lote.pdfs.filter((item) => item.id !== excluir.id) })));
+    setLotes((atuais) => atuais.map((lote) => ({
+      ...lote,
+      lfs: lote.lfs.map((lf) => ({ ...lf, pdfs: lf.pdfs.filter((item) => item.id !== excluir.id) })),
+    })));
     setAviso(`${excluir.nome} excluído.`);
     setExcluir(null);
   }
 
-  const loteHistorico = lotes.find((lote) => lote.chave === historico) ?? null;
+  const loteHistorico = historico ? lotes.find((lote) => lote.chave === historico.lote) : undefined;
+  const lfHistorico = loteHistorico?.lfs.find((lf) => lf.id === historico?.lf);
   const salvar = (set: (valor: string) => void) => async (valor: string) => { set(valor.trim()); return true; };
 
   return (
@@ -221,7 +236,7 @@ export default function TesteMkiPage() {
       <div className="teste-aviso" role="note">
         <ScienceRounded fontSize="small" />
         <strong>Teste de interface · MKI</strong>
-        <span>Detalhe da obra com os LOTEs em lista. Obra e LOTEs fictícios em memória: nada é salvo, e recarregar a página volta ao início.</span>
+        <span>Detalhe da obra com os LOTEs e os LFs em lista. Dados fictícios em memória: nada é salvo, e recarregar a página volta ao início.</span>
       </div>
 
       <Container sx={{ py: 4 }}>
@@ -259,8 +274,11 @@ export default function TesteMkiPage() {
             <Table size="small">
               <TableHead>
                 <TableRow>
-                  <TableCell>LOTE</TableCell>
-                  <TableCell><Tooltip title="Lançamento Final"><span>LF</span></Tooltip></TableCell>
+                  <TableCell rowSpan={2}>LOTE</TableCell>
+                  <TableCell colSpan={4} align="center" className="mki-lotes__grupo">LF · Lançamento Final</TableCell>
+                </TableRow>
+                <TableRow>
+                  <TableCell>Tipo</TableCell>
                   <TableCell>PDF</TableCell>
                   <TableCell>Status</TableCell>
                   <TableCell align="center">Histórico</TableCell>
@@ -268,55 +286,91 @@ export default function TesteMkiPage() {
               </TableHead>
               <TableBody>
                 {lotes.map((lote) => {
-                  const atual = maisRecente(lote.pdfs);
+                  const linhas = Math.max(lote.lfs.length, 1);
+                  const celulaLote = (
+                    <TableCell rowSpan={linhas} className="mki-lotes__lote">
+                      <Stack spacing={0.75} alignItems="flex-start">
+                        <ChipLote lote={lote} />
+                        <Button size="small" startIcon={<AddIcon />} onClick={() => adicionarLf(lote.chave)}>Adicionar LF</Button>
+                      </Stack>
+                    </TableCell>
+                  );
+                  if (!lote.lfs.length) {
+                    return (
+                      <TableRow key={lote.chave} className="mki-lotes__fim">
+                        {celulaLote}
+                        <TableCell colSpan={4}><Typography variant="body2" color="text.secondary">Nenhum LF neste LOTE.</Typography></TableCell>
+                      </TableRow>
+                    );
+                  }
                   return (
-                    <TableRow key={lote.chave} hover>
-                      <TableCell className="mki-lotes__lote"><ChipLote lote={lote} /></TableCell>
-                      <TableCell>
-                        <TextField
-                          type="date"
-                          size="small"
-                          value={lote.lf}
-                          onChange={(event) => alterarLote(lote.chave, (atualLote) => ({ ...atualLote, lf: event.target.value }))}
-                          inputProps={{ 'aria-label': `Lançamento Final do ${lote.nome}` }}
-                          sx={{ width: 150 }}
-                        />
-                      </TableCell>
-                      <TableCell>
-                        <Stack direction="row" spacing={0.5} alignItems="center">
-                          {atual && (
-                            <Tooltip title={`${atual.nome} · ${dataHora(atual.anexadoEm)} · ${atual.anexadoPor}`}>
-                              <Chip
+                    <Fragment key={lote.chave}>
+                      {lote.lfs.map((lf, index) => {
+                        const alvo = { lote: lote.chave, lf: lf.id };
+                        const atual = maisRecente(lf.pdfs);
+                        const rotuloLf = `${lf.tipo || 'LF sem tipo'} do ${lote.nome}`;
+                        return (
+                          <TableRow key={lf.id} className={index === lote.lfs.length - 1 ? 'mki-lotes__fim' : undefined}>
+                            {index === 0 && celulaLote}
+                            <TableCell>
+                              <TextField
                                 size="small"
-                                icon={<PictureAsPdfOutlinedIcon />}
-                                label={lote.pdfs.length > 1 ? `${atual.nome} (+${lote.pdfs.length - 1})` : atual.nome}
-                                onClick={() => abrirPdf(atual)}
-                                variant="outlined"
-                                color="error"
-                                sx={{ maxWidth: 200 }}
+                                value={lf.tipo}
+                                placeholder="Ex.: Pilar 1"
+                                autoFocus={lf.id === novoLf}
+                                onChange={(event) => alterarLf(alvo, (item) => ({ ...item, tipo: event.target.value }))}
+                                inputProps={{ 'aria-label': `Tipo do LF do ${lote.nome}` }}
+                                sx={{ width: 140 }}
                               />
-                            </Tooltip>
-                          )}
-                          <Tooltip title="Anexar PDF">
-                            <IconButton size="small" onClick={() => escolherPdf(lote.chave)} aria-label={`Anexar PDF ao ${lote.nome}`}>
-                              <UploadFileOutlinedIcon fontSize="small" />
-                            </IconButton>
-                          </Tooltip>
-                        </Stack>
-                      </TableCell>
-                      <TableCell>
-                        <Chip size="small" label={lote.status || 'Sem status'} color={COR_STATUS[lote.status] ?? 'default'} variant={COR_STATUS[lote.status] ? 'filled' : 'outlined'} />
-                      </TableCell>
-                      <TableCell align="center">
-                        <Tooltip title="Histórico de PDFs">
-                          <IconButton size="small" onClick={() => setHistorico(lote.chave)} aria-label={`Histórico de PDFs do ${lote.nome}`}>
-                            <Badge badgeContent={lote.pdfs.length} color="primary">
-                              <HistoryIcon fontSize="small" />
-                            </Badge>
-                          </IconButton>
-                        </Tooltip>
-                      </TableCell>
-                    </TableRow>
+                            </TableCell>
+                            <TableCell>
+                              <Stack direction="row" spacing={0.5} alignItems="center">
+                                {atual && (
+                                  <Tooltip title={`${atual.nome} · ${dataHora(atual.anexadoEm)} · ${atual.anexadoPor}`}>
+                                    <Chip
+                                      size="small"
+                                      icon={<PictureAsPdfOutlinedIcon />}
+                                      label={lf.pdfs.length > 1 ? `${atual.nome} (+${lf.pdfs.length - 1})` : atual.nome}
+                                      onClick={() => abrirPdf(atual)}
+                                      variant="outlined"
+                                      color="error"
+                                      sx={{ maxWidth: 220 }}
+                                    />
+                                  </Tooltip>
+                                )}
+                                <Tooltip title="Anexar PDF">
+                                  <IconButton size="small" onClick={() => escolherPdf(alvo)} aria-label={`Anexar PDF ao ${rotuloLf}`}>
+                                    <UploadFileOutlinedIcon fontSize="small" />
+                                  </IconButton>
+                                </Tooltip>
+                              </Stack>
+                            </TableCell>
+                            <TableCell>
+                              <TextField
+                                select
+                                size="small"
+                                value={lf.status}
+                                onChange={(event) => alterarLf(alvo, (item) => ({ ...item, status: event.target.value }))}
+                                inputProps={{ 'aria-label': `Status do ${rotuloLf}` }}
+                                sx={{ minWidth: 140 }}
+                                SelectProps={{ renderValue: (valor) => <Chip size="small" label={String(valor)} color={COR_STATUS[String(valor)] ?? 'default'} /> }}
+                              >
+                                {STATUS_LF.map((status) => <MenuItem key={status} value={status}>{status}</MenuItem>)}
+                              </TextField>
+                            </TableCell>
+                            <TableCell align="center">
+                              <Tooltip title="Histórico de PDFs">
+                                <IconButton size="small" onClick={() => setHistorico(alvo)} aria-label={`Histórico de PDFs do ${rotuloLf}`}>
+                                  <Badge badgeContent={lf.pdfs.length} color="primary">
+                                    <HistoryIcon fontSize="small" />
+                                  </Badge>
+                                </IconButton>
+                              </Tooltip>
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })}
+                    </Fragment>
                   );
                 })}
               </TableBody>
@@ -369,13 +423,15 @@ export default function TesteMkiPage() {
         </Secao>
       </Container>
 
-      <Dialog open={Boolean(loteHistorico)} onClose={() => setHistorico(null)} fullWidth maxWidth="sm">
+      <Dialog open={Boolean(lfHistorico)} onClose={() => setHistorico(null)} fullWidth maxWidth="sm">
         <DialogTitle>Histórico de PDFs</DialogTitle>
         <DialogContent dividers>
-          <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>{loteHistorico?.nome}</Typography>
-          {loteHistorico?.pdfs.length ? (
+          <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
+            {loteHistorico?.nome} · {lfHistorico?.tipo || 'LF sem tipo'}
+          </Typography>
+          {lfHistorico?.pdfs.length ? (
             <List dense disablePadding>
-              {[...loteHistorico.pdfs].sort((a, b) => b.anexadoEm.getTime() - a.anexadoEm.getTime()).map((item, index) => (
+              {[...lfHistorico.pdfs].sort((a, b) => b.anexadoEm.getTime() - a.anexadoEm.getTime()).map((item, index) => (
                 <ListItem
                   key={item.id}
                   divider
@@ -400,15 +456,10 @@ export default function TesteMkiPage() {
                 </ListItem>
               ))}
             </List>
-          ) : <Typography color="text.secondary">Nenhum PDF anexado a este LOTE.</Typography>}
-          {loteHistorico?.lf && (
-            <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 1.5 }}>
-              Lançamento Final em {dataCivil(loteHistorico.lf)}.
-            </Typography>
-          )}
+          ) : <Typography color="text.secondary">Nenhum PDF anexado a este LF.</Typography>}
         </DialogContent>
         <DialogActions>
-          {loteHistorico && <Button startIcon={<UploadFileOutlinedIcon />} onClick={() => escolherPdf(loteHistorico.chave)}>Anexar PDF</Button>}
+          {historico && <Button startIcon={<UploadFileOutlinedIcon />} onClick={() => escolherPdf(historico)}>Anexar PDF</Button>}
           <Button onClick={() => setHistorico(null)}>Fechar</Button>
         </DialogActions>
       </Dialog>
@@ -416,7 +467,7 @@ export default function TesteMkiPage() {
       <Dialog open={Boolean(excluir)} onClose={() => setExcluir(null)}>
         <DialogTitle>Excluir PDF?</DialogTitle>
         <DialogContent>
-          <Typography>{excluir?.nome} sai do LOTE e do histórico. Não dá para desfazer.</Typography>
+          <Typography>{excluir?.nome} sai do LF e do histórico. Não dá para desfazer.</Typography>
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setExcluir(null)}>Cancelar</Button>

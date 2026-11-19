@@ -6,7 +6,11 @@
 .mki-lotes { border: 1px solid #e2e8f0; border-radius: 10px; }
 .mki-lotes th { background: #f8fafc; font-weight: 700; white-space: nowrap; }
 .mki-lotes td { vertical-align: middle; }
-.mki-lotes__lote { min-width: 240px; }
+.mki-lotes th.mki-lotes__grupo { background: #eef2ff; color: #3730a3; }
+/* Linha mais forte entre um LOTE e o seguinte; entre os LFs do mesmo LOTE, a linha fina. */
+.mki-lotes tr.mki-lotes__fim td, .mki-lotes td.mki-lotes__lote { border-bottom: 2px solid #cbd5e1; }
+.mki-lotes tbody tr:last-child td { border-bottom: 0; }
+.mki-lotes__lote { border-right: 1px solid #e2e8f0; min-width: 240px; vertical-align: top !important; }
 /* Nome longo do LOTE quebra em linhas em vez de ser cortado. */
 .mki-lotes__lote .MuiChip-root { height: auto; min-height: 32px; padding: 4px 0; }
 .mki-lotes__lote .MuiChip-label { white-space: normal; }
