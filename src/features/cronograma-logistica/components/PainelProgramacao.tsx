@@ -88,7 +88,7 @@ export function PainelProgramacao({ programacao, aba, onAba, observacoes, eu, ca
                 <CampoTexto valor={programacao.expedicao} maximo={200} onSalvar={(expedicao) => acoes.atualizar(programacao.id, { expedicao })} />
               </label>
               <div className="lg-painel-campo"><span>Nota</span>
-                <CampoNota nota={programacao.nota} onEnviar={(arquivo) => acoes.enviarNota(programacao, arquivo)} onRemover={() => acoes.removerNota(programacao)} />
+                <CampoNota notas={programacao.notas} onEnviar={(arquivos) => acoes.enviarNotas(programacao, arquivos)} onRemover={(nota) => acoes.removerNota(programacao, nota)} />
               </div>
               </fieldset>
               {programacao.adiamento && (

@@ -1531,7 +1531,7 @@ service cloud.firestore {
     function validLogisticaProgramacao(data) {
       return data.keys().hasOnly([
           'schemaVersion', 'cod', 'semanaId', 'item', 'status', 'inicio', 'fim', 'motorista', 'auxiliar', 'veiculo', 'veiculos',
-          'obra', 'local', 'expedicao', 'adiamento', 'nota', 'posicao', 'conflitosIgnorados', 'criadoPorUid', 'criadoPorNome', 'criadoEm',
+          'obra', 'local', 'expedicao', 'adiamento', 'nota', 'notas', 'posicao', 'conflitosIgnorados', 'criadoPorUid', 'criadoPorNome', 'criadoEm',
           'atualizadoPorUid', 'atualizadoPorNome', 'atualizadoEm'
         ])
         && data.schemaVersion == 1
@@ -1577,16 +1577,34 @@ service cloud.firestore {
 
     // Nota: o PDF no Storage (logistica/notas/{programação}/{arquivo}), {caminho, url, nome, tamanho}; null ou ausente
     // é sem nota.
+    // Um PDF da nota: no Storage da própria programação, nome até 200 e tamanho até 25 MB.
+    function logisticaNotaItem(nota, programacaoId) {
+      return nota is map
+        && nota.keys().hasAll(['caminho', 'url', 'nome', 'tamanho'])
+        && nota.keys().hasOnly(['caminho', 'url', 'nome', 'tamanho'])
+        && nota.caminho is string
+        && nota.caminho.matches('^logistica/notas/' + programacaoId + '/[^/]{1,260}$')
+        && nota.url is string && nota.url.size() >= 1 && nota.url.size() <= 2000
+        && nota.nome is string && nota.nome.size() >= 1 && nota.nome.size() <= 200
+        && nota.tamanho is int && nota.tamanho >= 1 && nota.tamanho <= 25 * 1024 * 1024;
+    }
+
+    // Item da lista `notas`: só a forma ({caminho, url, nome, tamanho}), para dez PDFs caberem no limite de 1000
+    // expressões por gravação (a checagem completa de cada um passava dele). O arquivo (só PDF, até 25 MB, na pasta
+    // logistica/notas/) é garantido pelas Rules do Storage.
+    function logisticaNotaNa(notas, indice) {
+      return notas.size() <= indice || (notas[indice] is map && notas[indice].keys().hasOnly(['caminho', 'url', 'nome', 'tamanho']));
+    }
+
+    // `nota` (um PDF só, como era até 2026-11-19: ausente, null ou o PDF) e `notas` (a lista, até 10 PDFs).
     function logisticaNota(data, programacaoId) {
-      return !('nota' in data) || data.nota == null
-        || (data.nota is map
-          && data.nota.keys().hasAll(['caminho', 'url', 'nome', 'tamanho'])
-          && data.nota.keys().hasOnly(['caminho', 'url', 'nome', 'tamanho'])
-          && data.nota.caminho is string
-          && data.nota.caminho.matches('^logistica/notas/' + programacaoId + '/[^/]{1,260}$')
-          && data.nota.url is string && data.nota.url.size() >= 1 && data.nota.url.size() <= 2000
-          && data.nota.nome is string && data.nota.nome.size() >= 1 && data.nota.nome.size() <= 200
-          && data.nota.tamanho is int && data.nota.tamanho >= 1 && data.nota.tamanho <= 25 * 1024 * 1024);
+      return (!('nota' in data) || data.nota == null || logisticaNotaItem(data.nota, programacaoId))
+        && (!('notas' in data)
+          || (data.notas is list && data.notas.size() <= 10
+            && logisticaNotaNa(data.notas, 0) && logisticaNotaNa(data.notas, 1) && logisticaNotaNa(data.notas, 2)
+            && logisticaNotaNa(data.notas, 3) && logisticaNotaNa(data.notas, 4) && logisticaNotaNa(data.notas, 5)
+            && logisticaNotaNa(data.notas, 6) && logisticaNotaNa(data.notas, 7) && logisticaNotaNa(data.notas, 8)
+            && logisticaNotaNa(data.notas, 9)));
     }
 
     // Quem grava assina: o próprio UID e o horário do servidor (o nome vai em atualizadoPorNome).

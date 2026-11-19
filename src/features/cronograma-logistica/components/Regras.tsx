@@ -56,10 +56,10 @@ export function BotaoRegras({ etiquetas, papeis, nome }: {
         {aba === 'regras' ? (
           <>
             <ul>
-              {REGRAS.map((regra) => {
+              {REGRAS.map((regra, indice) => {
                 const ativa = regraAtiva(regra, etiquetas);
                 return (
-                  <li key={regra.etiqueta} className={ativa ? '' : 'is-inativa'}>
+                  <li key={indice} className={ativa ? '' : 'is-inativa'}>
                     <BoltRounded fontSize="inherit" />
                     <span>
                       <strong>Quando</strong> <Trechos trechos={regra.quando} etiquetas={etiquetas} />, <strong>então</strong>{' '}

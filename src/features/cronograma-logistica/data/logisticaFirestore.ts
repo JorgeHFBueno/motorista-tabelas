@@ -6,7 +6,7 @@ import { connectFunctionsEmulator, httpsCallable } from 'firebase/functions';
 import { deleteObject, getDownloadURL, ref as refArquivo, uploadBytes } from 'firebase/storage';
 import { db, functions, storage } from '../../../firebase';
 import {
-  pessoaDoDocumento, veiculosDoDocumento, type AnexoObservacao, type LocalProgramacao, type NotaProgramacao, type Observacao, type Programacao, type ProgramacaoEditavel, type RefCadastro,
+  MAX_NOTAS, pessoaDoDocumento, veiculosDoDocumento, type AnexoObservacao, type LocalProgramacao, type NotaProgramacao, type Observacao, type Programacao, type ProgramacaoEditavel, type RefCadastro,
   type RefPessoa, type Semana,
 } from '../domain/models';
 import { codigoConvertido, codigoDaProgramacao } from '../domain/codigo';
@@ -52,6 +52,13 @@ function notaDo(value: unknown): NotaProgramacao | null {
     : null;
 }
 
+/** `nota` (um PDF só, de antes da lista; marcado como antigo, primeiro por ser o mais velho) e `notas`, sem repetir o caminho. */
+function notasDo(lista: unknown, antiga: unknown): NotaProgramacao[] {
+  const notas = (Array.isArray(lista) ? lista : []).map(notaDo).filter((nota): nota is NotaProgramacao => nota !== null);
+  const velha = notaDo(antiga);
+  return velha && !notas.some((nota) => nota.caminho === velha.caminho) ? [{ ...velha, antiga: true }, ...notas] : notas;
+}
+
 function localDo(value: unknown): LocalProgramacao | null {
   const local = value as Partial<LocalProgramacao> | null | undefined;
   return local && typeof local.link === 'string' && typeof local.lat === 'number' && typeof local.lng === 'number'
@@ -83,7 +90,7 @@ export function programacaoDoDocumento(id: string, value: Record<string, unknown
     local: localDo(value.local),
     expedicao: texto(value.expedicao),
     adiamento: texto(value.adiamento),
-    nota: notaDo(value.nota),
+    notas: notasDo(value.notas, value.nota),
     posicao: typeof value.posicao === 'number' ? value.posicao : 0,
     conflitosIgnorados: Array.isArray(value.conflitosIgnorados) ? value.conflitosIgnorados.filter((chave): chave is string => typeof chave === 'string') : [],
     criadoPor: autoria(value.criadoPorUid, value.criadoPorNome),
@@ -309,12 +316,15 @@ async function apagarArquivos(anexos: readonly Pick<AnexoObservacao, 'caminho'>[
 
 export const ehPdf = (arquivo: File) => arquivo.type === 'application/pdf' || /\.pdf$/i.test(arquivo.name);
 
+const semMarca = ({ caminho, url, nome, tamanho }: NotaProgramacao) => ({ caminho, url, nome, tamanho });
+
 /**
- * Envia o PDF para logistica/notas/{programação}/ e grava `nota`, com o que mais vier na mesma gravação (o status da
- * automação). Se a gravação falhar, o PDF novo é apagado; depois dela, o PDF de antes (troca de nota).
+ * Envia o PDF para logistica/notas/{programação}/ e o acrescenta em `notas` (até MAX_NOTAS), com o que mais vier na
+ * mesma gravação (o status da automação). A gravação lê a linha na hora (transação): dois PDFs enviados juntos, por
+ * pessoas diferentes, ficam os dois. Se a gravação falhar, o PDF novo é apagado.
  */
 export async function enviarNota(
-  programacao: Pick<Programacao, 'id' | 'nota'>,
+  programacao: Pick<Programacao, 'id'>,
   arquivo: File,
   extra: Partial<ProgramacaoEditavel>,
   eu: RefPessoa,
@@ -325,21 +335,36 @@ export async function enviarNota(
   const caminho = `logistica/notas/${programacao.id}/${Date.now()}-${nome.replace(/[/\\]/g, '_')}`;
   const alvo = refArquivo(storage, caminho);
   await uploadBytes(alvo, arquivo, { contentType: 'application/pdf', contentDisposition: `inline; filename*=UTF-8''${encodeURIComponent(nome)}` });
-  const nota: NotaProgramacao = { caminho, url: await getDownloadURL(alvo), nome, tamanho: arquivo.size };
+  const nota = { caminho, url: await getDownloadURL(alvo), nome, tamanho: arquivo.size };
   try {
-    await updateDoc(doc(db, PROGRAMACOES, programacao.id), { ...extra, nota, ...assinatura(eu) });
+    await runTransaction(db, async (transacao) => {
+      const linha = doc(db, PROGRAMACOES, programacao.id);
+      const atual = await transacao.get(linha);
+      if (!atual.exists()) throw new Error('A programação não existe mais.');
+      const notas = (Array.isArray(atual.data().notas) ? atual.data().notas : []).map(notaDo).filter(Boolean) as NotaProgramacao[];
+      if (notas.length + (notaDo(atual.data().nota) ? 1 : 0) >= MAX_NOTAS) throw new Error(`A nota já tem ${MAX_NOTAS} PDFs, o máximo.`);
+      transacao.update(linha, { ...extra, notas: [...notas.map(semMarca), nota], ...assinatura(eu) });
+    });
   } catch (error) {
     await apagarArquivos([nota]).catch(() => undefined);
     throw error;
   }
-  if (programacao.nota) await apagarArquivos([programacao.nota]).catch(() => undefined);
 }
 
-/** Tira a nota da linha e apaga o PDF. */
-export async function removerNota(programacao: Pick<Programacao, 'id' | 'nota'>, eu: RefPessoa): Promise<void> {
-  if (!programacao.nota) return;
-  await updateDoc(doc(db, PROGRAMACOES, programacao.id), { nota: null, ...assinatura(eu) });
-  await apagarArquivos([programacao.nota]).catch(() => undefined);
+/** Tira um PDF da nota (pelo caminho, lendo a linha na hora) e apaga o arquivo. */
+export async function removerNota(programacao: Pick<Programacao, 'id'>, nota: NotaProgramacao, eu: RefPessoa): Promise<void> {
+  await runTransaction(db, async (transacao) => {
+    const linha = doc(db, PROGRAMACOES, programacao.id);
+    const atual = await transacao.get(linha);
+    if (!atual.exists()) return;
+    const dados = atual.data();
+    const alteracao: Record<string, ReturnType<typeof serverTimestamp> | string | null | object> = { ...assinatura(eu) };
+    if (notaDo(dados.nota)?.caminho === nota.caminho) alteracao.nota = null;
+    const notas = (Array.isArray(dados.notas) ? dados.notas : []).map(notaDo).filter(Boolean) as NotaProgramacao[];
+    if (notas.some((item) => item.caminho === nota.caminho)) alteracao.notas = notas.filter((item) => item.caminho !== nota.caminho).map(semMarca);
+    transacao.update(linha, alteracao);
+  });
+  await apagarArquivos([nota]).catch(() => undefined);
 }
 
 async function excluirObservacaoComArquivos(observacao: Pick<Observacao, 'id' | 'anexos'>): Promise<void> {
@@ -347,14 +372,14 @@ async function excluirObservacaoComArquivos(observacao: Pick<Observacao, 'id' | 
   await deleteDoc(doc(db, OBSERVACOES, observacao.id));
 }
 
-/** Apaga as observações (e os arquivos) da programação, o PDF da nota e depois a programação. */
-export async function excluirProgramacao(programacao: Pick<Programacao, 'id' | 'nota'>): Promise<void> {
+/** Apaga as observações (e os arquivos) da programação, os PDFs da nota e depois a programação. */
+export async function excluirProgramacao(programacao: Pick<Programacao, 'id' | 'notas'>): Promise<void> {
   const observacoes = await getDocs(query(collection(db, OBSERVACOES), where('programacaoId', '==', programacao.id)));
   for (const item of observacoes.docs) {
     const observacao = observacaoDoDocumento(item.id, item.data());
     await excluirObservacaoComArquivos({ id: item.id, anexos: observacao?.anexos ?? [] });
   }
-  if (programacao.nota) await apagarArquivos([programacao.nota]);
+  await apagarArquivos(programacao.notas);
   await deleteDoc(doc(db, PROGRAMACOES, programacao.id));
 }
 

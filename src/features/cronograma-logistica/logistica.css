@@ -366,6 +366,17 @@ body.lg-redimensionando, body.lg-redimensionando * { cursor: col-resize !importa
 .lg-nota-enviar { display: inline-flex; align-items: center; gap: 4px; margin: 0 auto; padding: 2px 8px; border: 1px dashed var(--lg-borda); border-radius: 4px; background: none; color: var(--lg-texto-3); font-size: 12px; cursor: pointer; white-space: nowrap; }
 .lg-nota-enviar:hover { background: var(--lg-hover); color: var(--lg-texto); }
 .lg-nota-enviando { margin: 0 auto; color: var(--lg-texto-3); font-size: 12px; font-style: italic; }
+/* Nota com vários PDFs: "+N" abre a lista (fora de .lg-pagina: cores fixas). */
+.lg-nota-mais { flex: none; padding: 0 5px; border: 1px solid var(--lg-borda); border-radius: 10px; background: var(--lg-superficie); color: var(--lg-texto-2); font-size: 11px; font-weight: 600; cursor: pointer; }
+.lg-nota-mais:hover { background: var(--lg-hover); color: var(--lg-texto); }
+.lg-notas-lista { width: 300px; max-width: calc(100vw - 32px); padding: 8px 10px; font-size: 13px; color: #323338; }
+.lg-notas-lista ul { list-style: none; margin: 0 0 8px; padding: 0; display: grid; gap: 4px; }
+.lg-notas-lista li { display: flex; align-items: center; gap: 4px; min-width: 0; }
+.lg-notas-lista .lg-nota-link { color: #323338; }
+.lg-notas-lista .lg-nota-enviar { border-color: #d0d4e4; color: #676879; }
+/* Linha aberta pelo aviso: fundo amarelo com borda, piscando no começo, até o próximo clique. */
+.lg-tabela tr.is-destaque td { background: #fff3c4 !important; box-shadow: inset 0 2px 0 #f2a516, inset 0 -2px 0 #f2a516; animation: lg-destaque 1s ease-in-out 3; }
+@keyframes lg-destaque { 50% { background: #ffe08a; } }
 .lg-th-automacao { display: inline-flex; flex: none; color: #fdab3d; font-size: 15px; cursor: help; }
 .lg-autor { display: block; padding: 0 8px; color: var(--lg-texto-2); font-size: 13px; text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 

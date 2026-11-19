@@ -1,5 +1,5 @@
 import type { Conflito } from '../domain/conflitos';
-import type { Programacao, ProgramacaoEditavel, RefCadastro } from '../domain/models';
+import type { NotaProgramacao, Programacao, ProgramacaoEditavel, RefCadastro } from '../domain/models';
 import type { EtiquetaStatus } from '../domain/status';
 import type { Opcao } from './campos';
 
@@ -29,9 +29,10 @@ export interface AcoesLogistica {
   excluir: (programacao: Programacao) => void;
   abrir: (id: string, aba?: AbaPainel) => void;
   salvarEtiquetas: (etiquetas: EtiquetaStatus[]) => void;
-  /** Envia o PDF da nota (troca o que houver); resolve depois de gravar ou de avisar o erro. */
-  enviarNota: (programacao: Programacao, arquivo: File) => Promise<void>;
-  removerNota: (programacao: Programacao) => void;
+  /** Envia os PDFs da nota, um de cada vez (acrescenta aos que houver); resolve depois de gravar ou de avisar o erro. */
+  enviarNotas: (programacao: Programacao, arquivos: File[]) => Promise<void>;
+  /** Tira um PDF da nota (com confirmação). */
+  removerNota: (programacao: Programacao, nota: NotaProgramacao) => void;
   /** Lê o link do Google Maps colado e grava o local; true quando gravou. */
   lerLocal: (programacao: Programacao, texto: string) => Promise<boolean>;
   /** Grava a Obra e, quando ela tem LOTE com coordenada, pergunta qual LOTE preenche o Local. */

@@ -1836,6 +1836,18 @@ test('[firestore] logistica: código da linha com o contador da semana; etiqueta
   await assertFails(updateDoc(ref('lc1'), { nota: 'https://exemplo/nf.pdf', ...alterou }));
   const { url: _semUrl, ...semUrl } = nota();
   await assertFails(updateDoc(ref('lc1'), { nota: semUrl, ...alterou }));
+  // Vários PDFs (2026-11-19): `notas`, lista de até 10, cada item na forma {caminho, url, nome, tamanho} (só a forma:
+  // a checagem completa de dez itens passa do limite de expressões; o arquivo é conferido pelas Rules do Storage).
+  // Os dois campos juntos valem.
+  const varias = (n, extra = {}) => Array.from({ length: n }, (_, i) => nota({ caminho: `logistica/notas/lc1/${i}-NF.pdf`, ...extra }));
+  await assertSucceeds(updateDoc(ref('lc1'), { notas: varias(2), status: '1', ...alterou }));
+  await assertSucceeds(updateDoc(ref('lc1'), { notas: varias(10), nota: nota(), ...alterou }));
+  await assertSucceeds(updateDoc(ref('lc1'), { notas: [], nota: null, ...alterou }));
+  await assertFails(updateDoc(ref('lc1'), { notas: varias(11), ...alterou }));
+  await assertFails(updateDoc(ref('lc1'), { notas: [...varias(9), nota({ extra: true })], ...alterou }));
+  await assertFails(updateDoc(ref('lc1'), { notas: varias(10), nota: nota({ caminho: 'logistica/notas/outra/nf.pdf' }), ...alterou }));
+  await assertFails(updateDoc(ref('lc1'), { notas: nota(), ...alterou }));
+  await assertFails(updateDoc(ref('lc1'), { notas: ['logistica/notas/lc1/nf.pdf'], ...alterou }));
   // Local: o link do Maps e o que a Function leu, {link, lat, lng, cidade, uf}; null tira.
   const local = (extra = {}) => ({ link: 'https://maps.app.goo.gl/abc', lat: -29.1678123, lng: -51.1794987, cidade: 'Caxias do Sul', uf: 'RS', ...extra });
   await assertSucceeds(updateDoc(ref('lc1'), { local: local(), ...alterou }));

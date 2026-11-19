@@ -35,8 +35,8 @@ export interface Programacao {
   expedicao: string;
   /** "adiada de dd/mm (x dias), pelo motivo de …": gravado quando o fim passa para depois como adiamento; '' sem adiamento. */
   adiamento: string;
-  /** PDF da nota (Storage logistica/notas/{programação}/); null sem nota. */
-  nota: NotaProgramacao | null;
+  /** PDFs da nota (Storage logistica/notas/{programação}/), na ordem de envio; [] sem nota. Até MAX_NOTAS. */
+  notas: NotaProgramacao[];
   posicao: number;
   /** Conflitos que alguém mandou ignorar, pela chave "recurso|outra programação" (domain/conflitos.ts). */
   conflitosIgnorados: string[];
@@ -61,7 +61,12 @@ export interface NotaProgramacao {
   url: string;
   nome: string;
   tamanho: number;
+  /** Gravada no campo `nota` de antes (um PDF só); tirar limpa esse campo. Os novos vão para `notas`. */
+  antiga?: boolean;
 }
+
+/** Quantos PDFs a nota de uma programação aceita (Rules). */
+export const MAX_NOTAS = 10;
 
 export const MAX_VEICULOS = 4;
 
@@ -105,4 +110,4 @@ export interface Observacao {
 }
 
 /** Campos que a tela altera numa programação. */
-export type ProgramacaoEditavel = Pick<Programacao, 'item' | 'status' | 'inicio' | 'fim' | 'motorista' | 'auxiliar' | 'veiculos' | 'obra' | 'local' | 'expedicao' | 'adiamento' | 'nota' | 'posicao'>;
+export type ProgramacaoEditavel = Pick<Programacao, 'item' | 'status' | 'inicio' | 'fim' | 'motorista' | 'auxiliar' | 'veiculos' | 'obra' | 'local' | 'expedicao' | 'adiamento' | 'notas' | 'posicao'>;

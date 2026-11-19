@@ -3,6 +3,7 @@ import CalendarMonthRounded from '@mui/icons-material/CalendarMonthRounded';
 import TableRowsRounded from '@mui/icons-material/TableRowsRounded';
 import Alert from '@mui/material/Alert';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import { editaArea } from '../../services/credenciais';
 import { listFuncionariosAtivos } from '../../services/funcionarios-selecao.service';
@@ -45,6 +46,10 @@ export default function LogisticaCronogramaPage() {
   // Área Logística em "ver": a página só mostra (as Rules recusam a gravação do mesmo jeito).
   const podeEditar = editaArea(authorizationProfile, 'logistica');
   const [aba, setAba] = useState<Aba>('quadro');
+  // Aviso do ADMINISTRATIVO (?programacao=<id>): abre no Quadro, com a linha centralizada e destacada até o próximo clique.
+  const [parametros, setParametros] = useSearchParams();
+  const pedida = parametros.get('programacao');
+  const [destaque, setDestaque] = useState<string | null>(null);
   const [semanas, setSemanas] = useState<Semana[] | null>(null);
   const [programacoes, setProgramacoes] = useState<Programacao[] | null>(null);
   const [observacoes, setObservacoes] = useState<Observacao[]>([]);
@@ -108,6 +113,41 @@ export default function LogisticaCronogramaPage() {
       for (const programacao of pendentes) await darCodigo(programacao.id);
     })().catch((error) => setErro(`Não foi possível gerar o código das linhas: ${mensagem(error)}`));
   }, [podeEditar, programacoes, uid]);
+
+  // Veio de um aviso: a linha pedida (se ainda existe) fica destacada no Quadro; o parâmetro sai do endereço.
+  useEffect(() => {
+    if (!pedida || !programacoes) return;
+    const existe = programacoes.some((programacao) => programacao.id === pedida);
+    const resto = new URLSearchParams(parametros);
+    resto.delete('programacao');
+    setParametros(resto, { replace: true });
+    if (!existe) { setErro('A programação do aviso não existe mais.'); return; }
+    setAba('quadro');
+    setDestaque(pedida);
+  }, [pedida, programacoes, parametros, setParametros]);
+
+  // Centraliza a linha destacada (de novo depois, quando cadastros e avisos chegam e a página cresce); o destaque sai
+  // no próximo clique ou tecla. Sem espaço abaixo da linha, ela fica o mais perto do meio que der.
+  useEffect(() => {
+    if (!destaque) return;
+    const centralizar = () => {
+      document.querySelector(`tr[data-programacao="${CSS.escape(destaque)}"]`)?.scrollIntoView({ block: 'center', inline: 'nearest', behavior: 'smooth' });
+    };
+    const rolar = window.setTimeout(centralizar, 150);
+    const deNovo = window.setTimeout(centralizar, 1200);
+    const tirar = () => setDestaque(null);
+    const ligar = window.setTimeout(() => {
+      document.addEventListener('pointerdown', tirar, { once: true });
+      document.addEventListener('keydown', tirar, { once: true });
+    }, 600);
+    return () => {
+      window.clearTimeout(rolar);
+      window.clearTimeout(deNovo);
+      window.clearTimeout(ligar);
+      document.removeEventListener('pointerdown', tirar);
+      document.removeEventListener('keydown', tirar);
+    };
+  }, [destaque]);
 
   const cadastros = useMemo<CadastrosLogistica>(() => {
     const pessoas = cadastrosBrutos?.pessoas ?? [];
@@ -181,7 +221,7 @@ export default function LogisticaCronogramaPage() {
     podeEditar: false,
     criar: () => undefined,
     atualizar: () => undefined,
-    enviarNota: () => Promise.resolve(),
+    enviarNotas: () => Promise.resolve(),
     removerNota: () => undefined,
     lerLocal: () => Promise.resolve(false),
     escolherObra: () => undefined,
@@ -202,13 +242,23 @@ export default function LogisticaCronogramaPage() {
       const status = antes ? statusPorAutomacao(antes, alteracao, etiquetas) : null;
       atualizarProgramacao(id, status !== null ? { ...alteracao, status } : alteracao, eu).catch(falhar('salvar a alteração'));
     },
-    enviarNota: (programacao, arquivo) => {
-      const status = statusPorAutomacao(programacao, { nota: { caminho: '', url: '', nome: arquivo.name, tamanho: arquivo.size } }, etiquetas);
-      return enviarNota(programacao, arquivo, status !== null ? { status } : {}, eu).catch(falhar('enviar a nota'));
+    // Um PDF de cada vez; a automação (Status → Em viagem) só no primeiro PDF da linha.
+    enviarNotas: async (programacao, arquivos) => {
+      let primeiro = programacao.notas.length === 0;
+      for (const arquivo of arquivos) {
+        const novo = { caminho: '', url: '', nome: arquivo.name, tamanho: arquivo.size };
+        const status = primeiro ? statusPorAutomacao(programacao, { notas: [novo] }, etiquetas) : null;
+        try {
+          await enviarNota(programacao, arquivo, status !== null ? { status } : {}, eu);
+          primeiro = false;
+        } catch (error) {
+          falhar('enviar a nota')(error);
+        }
+      }
     },
-    removerNota: (programacao) => {
-      if (!window.confirm(`Tirar a nota "${programacao.nota?.nome ?? ''}" desta programação?`)) return;
-      removerNota(programacao, eu).catch(falhar('tirar a nota'));
+    removerNota: (programacao, nota) => {
+      if (!window.confirm(`Tirar o PDF "${nota.nome}" desta programação?`)) return;
+      removerNota(programacao, nota, eu).catch(falhar('tirar o PDF'));
     },
     lerLocal: (programacao, texto) => localDoMaps(texto)
       .then((local) => { atualizarProgramacao(programacao.id, { local }, eu).catch(falhar('salvar o local')); return true; })
@@ -297,6 +347,7 @@ export default function LogisticaCronogramaPage() {
             todosConflitos={todosConflitos}
             acoes={acoes}
             nObservacoes={nObservacoes}
+            destaque={destaque}
             prefs={prefsColunas}
             mudarPrefs={mudarPrefsColunas}
           />

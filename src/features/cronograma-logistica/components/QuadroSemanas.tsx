@@ -35,6 +35,8 @@ interface Comum {
   acoes: AcoesLogistica;
   /** Quantas observações cada programação tem. */
   nObservacoes: ReadonlyMap<string, number>;
+  /** Programação aberta pelo aviso (?programacao=): a linha fica destacada e a semana dela, aberta. */
+  destaque: string | null;
 }
 
 interface Tabela {
@@ -85,7 +87,7 @@ function valorParaOrdenar({ chave, porFim }: OrdemColuna, programacao: Programac
   }
 }
 
-function LinhaProgramacao({ programacao, cadastros, conflitos, todosConflitos, acoes, nObservacoes, arraste, colunas, vinda }: Comum & {
+function LinhaProgramacao({ programacao, cadastros, conflitos, todosConflitos, acoes, nObservacoes, destaque, arraste, colunas, vinda }: Comum & {
   programacao: Programacao;
   arraste: Arraste;
   colunas: ColunaVisivel[];
@@ -98,6 +100,7 @@ function LinhaProgramacao({ programacao, cadastros, conflitos, todosConflitos, a
     lista.length ? 'is-conflito' : '',
     arraste.arrastando === programacao.id ? 'is-arrastando' : '',
     arraste.arrastando && arraste.alvo === programacao.id ? 'is-alvo' : '',
+    destaque === programacao.id ? 'is-destaque' : '',
   ].filter(Boolean).join(' ');
   const atualizar = acoes.atualizar.bind(null, programacao.id);
   // Em "ver", os campos ficam desligados (fieldset disabled); links da nota e do local continuam abrindo.
@@ -172,7 +175,7 @@ function LinhaProgramacao({ programacao, cadastros, conflitos, todosConflitos, a
       case 'expedicao':
         return <CampoTexto valor={programacao.expedicao} maximo={200} onSalvar={(expedicao) => atualizar({ expedicao })} />;
       case 'nota':
-        return <CampoNota nota={programacao.nota} onEnviar={(arquivo) => acoes.enviarNota(programacao, arquivo)} onRemover={() => acoes.removerNota(programacao)} />;
+        return <CampoNota notas={programacao.notas} onEnviar={(arquivos) => acoes.enviarNotas(programacao, arquivos)} onRemover={(nota) => acoes.removerNota(programacao, nota)} />;
       case 'adiamento':
         return programacao.adiamento ? <span className="lg-adiamento" title={programacao.adiamento}>{programacao.adiamento}</span> : null;
       case 'criadoPor':
@@ -188,6 +191,7 @@ function LinhaProgramacao({ programacao, cadastros, conflitos, todosConflitos, a
   return (
     <tr
       className={classes}
+      data-programacao={programacao.id}
       onDragOver={vinda ? undefined : (event) => { if (arraste.arrastando) { event.preventDefault(); arraste.onAlvo(programacao.id); } }}
       onDrop={vinda ? undefined : (event) => { event.preventDefault(); arraste.onSoltar(programacao.id); }}
     >
@@ -351,6 +355,14 @@ export function QuadroSemanas({ futuras, atual, anteriores, porSemana, vindas, p
     [prefs, larguraAoVivo],
   );
   const tabela: Tabela = { colunas, prefs, mudarPrefs, onLarguraAoVivo: setLarguraAoVivo };
+  // A semana onde a linha destacada aparece (a atual, quando ela vem de semana anterior) abre sozinha.
+  const semanaDoDestaque = useMemo(() => {
+    if (!comum.destaque) return null;
+    if (atual && vindas.some((programacao) => programacao.id === comum.destaque)) return atual;
+    for (const [id, lista] of porSemana) if (lista.some((programacao) => programacao.id === comum.destaque)) return id;
+    return null;
+  }, [comum.destaque, atual, vindas, porSemana]);
+  const anterioresVisiveis = anterioresAbertas || (semanaDoDestaque !== null && anteriores.includes(semanaDoDestaque));
   const alternar = (id: string) => setAlternadas((atuais) => {
     const novas = new Set(atuais);
     if (novas.has(id)) novas.delete(id); else novas.add(id);
@@ -363,7 +375,7 @@ export function QuadroSemanas({ futuras, atual, anteriores, porSemana, vindas, p
       tipo={tipo}
       programacoes={porSemana.get(id) ?? []}
       vindas={tipo === 'atual' ? vindas : undefined}
-      aberto={tipo === 'anterior' ? alternadas.has(id) : !alternadas.has(id)}
+      aberto={(tipo === 'anterior' ? alternadas.has(id) : !alternadas.has(id)) || id === semanaDoDestaque}
       onAlternar={() => alternar(id)}
       tabela={tabela}
       {...comum}
@@ -375,11 +387,11 @@ export function QuadroSemanas({ futuras, atual, anteriores, porSemana, vindas, p
       {atual && grupo(atual, 'atual')}
       {anteriores.length > 0 && (
         <section className="lg-anteriores">
-          <button type="button" className="lg-anteriores-cab" onClick={() => setAnterioresAbertas((aberto) => !aberto)} aria-expanded={anterioresAbertas}>
-            {anterioresAbertas ? <ExpandMoreRounded /> : <ChevronRightRounded />}
+          <button type="button" className="lg-anteriores-cab" onClick={() => setAnterioresAbertas(!anterioresVisiveis)} aria-expanded={anterioresVisiveis}>
+            {anterioresVisiveis ? <ExpandMoreRounded /> : <ChevronRightRounded />}
             Semanas anteriores <span className="lg-grupo-total">{anteriores.length}</span>
           </button>
-          {anterioresAbertas && anteriores.map((id) => grupo(id, 'anterior'))}
+          {anterioresVisiveis && anteriores.map((id) => grupo(id, 'anterior'))}
         </section>
       )}
     </div>

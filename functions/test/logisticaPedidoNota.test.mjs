@@ -52,7 +52,7 @@ test('aviso: título com a expedição, detalhe com item, obra e quem pediu, abr
   const p = { expedicao: ' 4521 ', item: 'Pilares', obra: { id: 'o1', nome: 'Obra A' }, atualizadoPorNome: 'Jorge B' };
   assert.deepEqual(d.avisoPedidoNota('prog1', p), {
     area: 'logistica', tipo: 'pedido_nota', titulo: 'Novo Pedido de Nota - Expedição 4521',
-    mensagem: 'Pilares · Obra A · pedido por Jorge B', rota: '/logistica/cronograma', local: 'Cronograma Logístico',
+    mensagem: 'Pilares · Obra A · pedido por Jorge B', rota: '/logistica/cronograma?programacao=prog1', local: 'Cronograma Logístico',
     origem: { colecao: 'logistica-programacoes', id: 'prog1' }, lida: false,
   });
   const vazio = d.avisoPedidoNota('prog2', { expedicao: '  ' });
@@ -66,12 +66,13 @@ test('id do aviso: o mesmo evento e pessoa dão o mesmo id; outro evento, outro 
   assert.match(d.idAvisoPedidoNota('ev1', 'ana'), /^pnf_[0-9a-f]{28}$/);
 });
 
-test('nota anexada: só quando a programação recebe o PDF (não na troca nem ao tirar)', () => {
+test('nota anexada: quando entra um PDF novo (não ao tirar)', () => {
   const nota = { caminho: 'logistica/notas/p/1-nf.pdf', url: 'u', nome: 'nf.pdf', tamanho: 1 };
   assert.equal(d.recebeuNota({ nota: null }, { nota }), true);
   assert.equal(d.recebeuNota(undefined, { nota }), true);
   assert.equal(d.recebeuNota({}, { nota }), true);
-  assert.equal(d.recebeuNota({ nota }, { nota: { ...nota, caminho: 'logistica/notas/p/2-nf.pdf' } }), false);
+  // Troca do PDF de antes (um só) por outro é um PDF novo: avisa.
+  assert.equal(d.recebeuNota({ nota }, { nota: { ...nota, caminho: 'logistica/notas/p/2-nf.pdf' } }), true);
   assert.equal(d.recebeuNota({ nota }, { nota: null }), false);
   assert.equal(d.recebeuNota({ nota: null }, { nota: { caminho: '' } }), false);
 });
@@ -80,7 +81,7 @@ test('aviso de nota anexada: título com a expedição, detalhe com quem anexou;
   const p = { expedicao: '4521', item: 'Pilares', obra: { id: 'o1', nome: 'Obra A' }, atualizadoPorNome: 'Ana' };
   assert.deepEqual(d.avisoNotaAnexada('prog1', p), {
     area: 'logistica', tipo: 'nota_anexada', titulo: 'Nota anexada - Expedição 4521',
-    mensagem: 'Pilares · Obra A · anexada por Ana', rota: '/logistica/cronograma', local: 'Cronograma Logístico',
+    mensagem: 'Pilares · Obra A · anexada por Ana', rota: '/logistica/cronograma?programacao=prog1', local: 'Cronograma Logístico',
     origem: { colecao: 'logistica-programacoes', id: 'prog1' }, lida: false,
   });
   assert.match(d.idAvisoNotaAnexada('ev1', 'ana'), /^nta_[0-9a-f]{28}$/);
@@ -114,4 +115,17 @@ test('aviso da ENGENHARIA: quem mudou, o status e a obra; sem rota; id próprio'
   assert.equal(d.avisoListaMateriais('p', {}).titulo, 'Alguém notificou a Engenharia sobre Ag. Lista de Materiais para programação sem obra');
   assert.match(d.idAvisoListaMateriais('ev1', 'eng'), /^alm_[0-9a-f]{28}$/);
   assert.notEqual(d.idAvisoListaMateriais('ev1', 'eng'), d.idAvisoPedidoNota('ev1', 'eng'));
+});
+
+test('vários PDFs: avisa a cada PDF novo em `notas` (inclusive com o `nota` de antes), não ao tirar', () => {
+  const pdf = (n) => ({ caminho: `logistica/notas/p/${n}-nf.pdf`, url: 'u', nome: 'nf.pdf', tamanho: 1 });
+  assert.equal(d.recebeuNota({}, { notas: [pdf(1)] }), true);
+  assert.equal(d.recebeuNota({ notas: [pdf(1)] }, { notas: [pdf(1), pdf(2)] }), true);
+  assert.equal(d.recebeuNota({ nota: pdf(1) }, { nota: pdf(1), notas: [pdf(2)] }), true);
+  assert.equal(d.recebeuNota({ notas: [pdf(1), pdf(2)] }, { notas: [pdf(1)] }), false);
+  assert.equal(d.recebeuNota({ nota: pdf(1), notas: [pdf(2)] }, { nota: null, notas: [pdf(2)] }), false);
+  assert.equal(d.recebeuNota({ notas: [pdf(1)] }, { notas: [pdf(1)], status: '1' }), false);
+  assert.equal(d.temNota({ notas: [] }), false);
+  assert.equal(d.temNota({ nota: pdf(1) }), true);
+  assert.equal(d.rotaDaProgramacao('a b'), '/logistica/cronograma?programacao=a%20b');
 });

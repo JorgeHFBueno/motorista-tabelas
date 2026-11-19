@@ -9,7 +9,7 @@ import { mesmoNome, type EtiquetaStatus } from './status';
  */
 export const AUTOMACOES = [
   { campo: 'expedicao', status: 'Carregar' },
-  { campo: 'nota', status: 'Em viagem' },
+  { campo: 'notas', status: 'Em viagem' },
 ] as const;
 
 type CampoAutomacao = (typeof AUTOMACOES)[number]['campo'];
@@ -29,7 +29,8 @@ export const REGRAS: readonly {
   coluna: string;
   quando: readonly Trecho[];
   entao: readonly (readonly Trecho[])[];
-  etiqueta: string;
+  /** Etiqueta de status de que a regra depende; null quando não depende de nenhuma. */
+  etiqueta: string | null;
   papel: 'administrativo' | 'engenharia' | null;
 }[] = [
   {
@@ -55,10 +56,17 @@ export const REGRAS: readonly {
   },
   {
     coluna: 'nota',
-    quando: ['a ', { coluna: 'Nota' }, ' receber o PDF'],
-    entao: [['o ADMINISTRATIVO recebe o aviso ', { aviso: 'Nota anexada' }], ['o ', { coluna: 'Status' }, ' passa para ', { status: 'Em viagem' }]],
-    etiqueta: 'Em viagem',
+    quando: ['a ', { coluna: 'Nota' }, ' receber um PDF'],
+    entao: [['o ADMINISTRATIVO recebe o aviso ', { aviso: 'Nota anexada' }]],
+    etiqueta: null,
     papel: 'administrativo',
+  },
+  {
+    coluna: 'nota',
+    quando: ['a ', { coluna: 'Nota' }, ' receber o primeiro PDF'],
+    entao: [['o ', { coluna: 'Status' }, ' passa para ', { status: 'Em viagem' }]],
+    etiqueta: 'Em viagem',
+    papel: null,
   },
 ];
 
@@ -70,7 +78,8 @@ export function textoDosTrechos(trechos: readonly Trecho[]): string {
 }
 
 /** A regra funciona: a etiqueta de que ela depende está na lista (sem diferença de acento, caixa e espaços). */
-export const regraAtiva = (regra: Regra, etiquetas: readonly EtiquetaStatus[]) => etiquetas.some((etiqueta) => mesmoNome(etiqueta.nome, regra.etiqueta));
+export const regraAtiva = (regra: Regra, etiquetas: readonly EtiquetaStatus[]) =>
+  regra.etiqueta === null || etiquetas.some((etiqueta) => mesmoNome(etiqueta.nome, regra.etiqueta as string));
 
 /** Texto das automações da coluna (o raio no cabeçalho), uma por linha, ou null. */
 export function automacaoDaColuna(chave: string): string | null {
@@ -80,7 +89,7 @@ export function automacaoDaColuna(chave: string): string | null {
     : null;
 }
 
-const vazio = (valor: unknown) => valor == null || (typeof valor === 'string' && valor.trim() === '');
+const vazio = (valor: unknown) => valor == null || (typeof valor === 'string' && valor.trim() === '') || (Array.isArray(valor) && valor.length === 0);
 
 /** Status que a alteração leva por automação (id da etiqueta), ou null quando nenhuma dispara ou o status já é esse. */
 export function statusPorAutomacao(

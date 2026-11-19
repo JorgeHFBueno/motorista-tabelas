@@ -47,13 +47,23 @@ export const idsListaMateriais = (etiquetas: unknown) => idsDaEtiqueta(etiquetas
 export const entrouEmListaMateriais = (antes: AnyRecord | undefined, depois: AnyRecord | undefined, ids: Set<string>) =>
   entrouEm(antes, depois, ids, NOME_LISTA_MATERIAIS);
 
-/** A programação tem o PDF da nota. */
-export const temNota = (p: AnyRecord | undefined) => typeof p?.nota?.caminho === 'string' && p.nota.caminho !== '';
-
-/** Recebeu o PDF agora (antes não tinha); trocar o PDF não conta. */
-export function recebeuNota(antes: AnyRecord | undefined, depois: AnyRecord | undefined): boolean {
-  return temNota(depois) && !temNota(antes);
+/** Caminhos dos PDFs da nota: `notas` (a lista, desde 2026-11-19) e `nota` (um PDF só, de antes). */
+export function caminhosDaNota(p: AnyRecord | undefined): Set<string> {
+  const itens = [...(Array.isArray(p?.notas) ? p.notas : []), p?.nota];
+  return new Set(itens.map(n => n?.caminho).filter((c): c is string => typeof c === 'string' && c !== ''));
 }
+
+/** A programação tem algum PDF na nota. */
+export const temNota = (p: AnyRecord | undefined) => caminhosDaNota(p).size > 0;
+
+/** Recebeu um PDF novo agora (um caminho que antes não estava); tirar um PDF não conta. */
+export function recebeuNota(antes: AnyRecord | undefined, depois: AnyRecord | undefined): boolean {
+  const antigos = caminhosDaNota(antes);
+  return [...caminhosDaNota(depois)].some(c => !antigos.has(c));
+}
+
+/** Rota do aviso do ADMINISTRATIVO: o cronograma já na linha (a WEB centraliza e destaca a programação). */
+export const rotaDaProgramacao = (programacaoId: string) => `${ROTA_CRONOGRAMA}?programacao=${encodeURIComponent(programacaoId)}`;
 
 /** UIDs distintos da lista de um papel (até o teto técnico). */
 export function uidsDoPapel(lista: unknown): string[] {
@@ -78,7 +88,7 @@ function aviso(programacaoId: string, p: AnyRecord, tipo: string, titulo: string
     area: 'logistica', tipo,
     titulo: `${titulo} - Expedição ${expedicao}`.slice(0, 200),
     mensagem: [item, obra, quem && `${acao} por ${quem}`].filter(Boolean).join(' · ').slice(0, 300),
-    rota: ROTA_CRONOGRAMA, local: 'Cronograma Logístico',
+    rota: rotaDaProgramacao(programacaoId), local: 'Cronograma Logístico',
     origem: { colecao: 'logistica-programacoes', id: programacaoId },
     lida: false,
   };

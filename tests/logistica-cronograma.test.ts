@@ -22,7 +22,7 @@ import { feriadoEm, feriadosDoAno, fimDeSemana, pascoa } from '../src/features/c
 
 const programacao = (id: string, extra: Partial<Programacao> = {}): Programacao => ({
   id, cod: null, codAntigo: null, semanaId: '2026-W45', item: `Item ${id}`, status: '', inicio: null, fim: null,
-  motorista: null, auxiliar: null, veiculos: [], obra: null, local: null, expedicao: '', adiamento: '', nota: null, posicao: 0, conflitosIgnorados: [],
+  motorista: null, auxiliar: null, veiculos: [], obra: null, local: null, expedicao: '', adiamento: '', notas: [], posicao: 0, conflitosIgnorados: [],
   criadoPor: null, criadoEm: null, modificadoPor: null, modificadoEm: null, ...extra,
 });
 
@@ -158,16 +158,18 @@ test('automações: Expedição recebe valor → Carregar; Nota recebe o PDF →
   const nota = { caminho: 'logistica/notas/p/1-nf.pdf', url: 'u', nome: 'nf.pdf', tamanho: 1 };
   const linha = programacao('p', { status: '2' });
   assert.equal(statusPorAutomacao(linha, { expedicao: 'EXP 1234' }, ETIQUETAS_PADRAO), '3');
-  assert.equal(statusPorAutomacao(linha, { nota }, ETIQUETAS_PADRAO), '1');
+  assert.equal(statusPorAutomacao(linha, { notas: [nota] }, ETIQUETAS_PADRAO), '1');
   assert.equal(statusPorAutomacao(linha, { expedicao: '   ' }, ETIQUETAS_PADRAO), null);
   assert.equal(statusPorAutomacao(programacao('p', { status: '2', expedicao: 'EXP 1' }), { expedicao: 'EXP 2' }, ETIQUETAS_PADRAO), null); // troca não dispara
-  assert.equal(statusPorAutomacao(programacao('p', { status: '2', nota }), { nota: { ...nota, nome: 'outra.pdf' } }, ETIQUETAS_PADRAO), null);
+  // Vários PDFs: só o primeiro muda o Status; o segundo, não.
+  assert.equal(statusPorAutomacao(programacao('p', { status: '2', notas: [nota] }), { notas: [nota, { ...nota, nome: 'outra.pdf' }] }, ETIQUETAS_PADRAO), null);
+  assert.equal(statusPorAutomacao(linha, { notas: [] }, ETIQUETAS_PADRAO), null);
   assert.equal(statusPorAutomacao(programacao('p', { status: '3' }), { expedicao: 'EXP 1' }, ETIQUETAS_PADRAO), null); // já está em Carregar
   assert.equal(statusPorAutomacao(linha, { motorista: null }, ETIQUETAS_PADRAO), null);
   assert.equal(statusPorAutomacao(linha, { status: '2' }, ETIQUETAS_PADRAO), null); // Ag. NF só avisa (Function), não muda nada aqui
   // Pelo nome da etiqueta (sem acento nem caixa), com a lista editada; sem a etiqueta, nada muda.
   const editadas = [{ id: '30', nome: 'EM VIAGEM', cor: '#fff' }, { id: '31', nome: ' carregar ', cor: '#fff' }];
-  assert.equal(statusPorAutomacao(linha, { nota }, editadas), '30');
+  assert.equal(statusPorAutomacao(linha, { notas: [nota] }, editadas), '30');
   assert.equal(statusPorAutomacao(linha, { expedicao: 'EXP 1' }, editadas), '31');
   assert.equal(statusPorAutomacao(linha, { expedicao: 'EXP 1' }, [{ id: '1', nome: 'Ag. NF', cor: '#fff' }]), null);
   assert.ok(automacaoDaColuna('expedicao')?.includes('Carregar'));
@@ -178,10 +180,11 @@ test('automações: Expedição recebe valor → Carregar; Nota recebe o PDF →
   assert.equal(automacaoDaColuna('expedicao'), 'Automação: quando a Expedição receber valor, o Status passa para Carregar.');
   // Botão Regras: as três, cada uma sem efeito quando a etiqueta de que depende saiu da lista.
   assert.deepEqual(REGRAS.map((regra) => [regra.coluna, regra.papel]), [
-    ['expedicao', null], ['status', 'administrativo'], ['status', 'engenharia'], ['nota', 'administrativo'],
+    ['expedicao', null], ['status', 'administrativo'], ['status', 'engenharia'], ['nota', 'administrativo'], ['nota', null],
   ]);
-  assert.deepEqual(REGRAS.map((regra) => regraAtiva(regra, ETIQUETAS_PADRAO)), [true, true, true, true]);
-  assert.deepEqual(REGRAS.map((regra) => regraAtiva(regra, [{ id: '9', nome: ' ag. nf ', cor: '#fff' }])), [false, true, false, false]);
+  assert.deepEqual(REGRAS.map((regra) => regraAtiva(regra, ETIQUETAS_PADRAO)), [true, true, true, true, true]);
+  // O aviso "Nota anexada" não depende de etiqueta: continua valendo.
+  assert.deepEqual(REGRAS.map((regra) => regraAtiva(regra, [{ id: '9', nome: ' ag. nf ', cor: '#fff' }])), [false, true, false, true, false]);
   // A coluna Status tem duas regras: o raio mostra as duas, uma por linha.
   assert.deepEqual(automacaoDaColuna('status')?.split('\n').length, 2);
   assert.ok(automacaoDaColuna('status')?.includes('ENGENHARIA'));

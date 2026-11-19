@@ -11,13 +11,12 @@ import DeleteOutlineRounded from '@mui/icons-material/DeleteOutlineRounded';
 import EditOutlined from '@mui/icons-material/EditOutlined';
 import PictureAsPdfOutlined from '@mui/icons-material/PictureAsPdfOutlined';
 import PlaceOutlined from '@mui/icons-material/PlaceOutlined';
-import SwapHorizRounded from '@mui/icons-material/SwapHorizRounded';
 import UploadFileOutlined from '@mui/icons-material/UploadFileOutlined';
 import { useEffect, useRef, useState, type ChangeEvent, type KeyboardEvent } from 'react';
 import { MAX_MOTIVO_ADIAMENTO, perguntarAdiamento, textoAdiamento } from '../domain/adiamento';
 import { ddmm } from '../domain/semanas';
 import { linkDoMapa, textoLocal } from '../domain/local';
-import type { CivilDate, LocalProgramacao, NotaProgramacao } from '../domain/models';
+import { MAX_NOTAS, type CivilDate, type LocalProgramacao, type NotaProgramacao } from '../domain/models';
 import {
   COR_SEM_STATUS, CORES_ETIQUETA, MAX_ETIQUETAS, etiquetasLimpas, novoIdEtiqueta, statusExibido, textoEscuro,
   type EtiquetaStatus,
@@ -58,34 +57,67 @@ export function CampoTexto({ valor, onSalvar, placeholder, obrigatorio = false, 
   );
 }
 
-/** Nota em PDF: o nome abre o arquivo em outra aba (de onde se baixa); sem nota, o botão envia. Trocar e tirar ao lado. */
-export function CampoNota({ nota, onEnviar, onRemover }: {
-  nota: NotaProgramacao | null;
-  onEnviar: (arquivo: File) => Promise<void>;
-  onRemover: () => void;
+/**
+ * Nota em PDF, um ou vários (até MAX_NOTAS): o nome do primeiro abre o arquivo em outra aba (de onde se baixa); com mais
+ * de um, o "+N" abre a lista de todos, com a lixeira de cada. "+" envia mais (pode escolher vários); sem nota, o botão envia.
+ */
+export function CampoNota({ notas, onEnviar, onRemover }: {
+  notas: readonly NotaProgramacao[];
+  /** Envia os PDFs, um de cada vez; resolve depois de gravar ou de avisar o erro. */
+  onEnviar: (arquivos: File[]) => Promise<void>;
+  onRemover: (nota: NotaProgramacao) => void;
 }) {
   const entrada = useRef<HTMLInputElement>(null);
   const [enviando, setEnviando] = useState(false);
+  const [lista, setLista] = useState<HTMLElement | null>(null);
+  const cheia = notas.length >= MAX_NOTAS;
   const escolher = () => entrada.current?.click();
   const aoEscolher = (event: ChangeEvent<HTMLInputElement>) => {
-    const arquivo = event.target.files?.[0];
+    const arquivos = [...(event.target.files ?? [])];
     event.target.value = '';
-    if (!arquivo) return;
+    if (!arquivos.length) return;
     setEnviando(true);
-    onEnviar(arquivo).finally(() => setEnviando(false));
+    onEnviar(arquivos).finally(() => setEnviando(false));
   };
+  const link = (nota: NotaProgramacao) => (
+    <a className="lg-nota-link" href={nota.url} target="_blank" rel="noreferrer" title={`${nota.nome}: abrir ou baixar`}>
+      <PictureAsPdfOutlined fontSize="inherit" /><span>{nota.nome}</span>
+    </a>
+  );
   return (
     <span className="lg-nota">
-      <input ref={entrada} type="file" accept="application/pdf,.pdf" hidden onChange={aoEscolher} />
+      <input ref={entrada} type="file" accept="application/pdf,.pdf" multiple hidden onChange={aoEscolher} />
       {enviando ? (
         <span className="lg-nota-enviando">Enviando…</span>
-      ) : nota ? (
+      ) : notas.length ? (
         <>
-          <a className="lg-nota-link" href={nota.url} target="_blank" rel="noreferrer" title={`${nota.nome}: abrir ou baixar`}>
-            <PictureAsPdfOutlined fontSize="inherit" /><span>{nota.nome}</span>
-          </a>
-          <button type="button" className="lg-btn-icone lg-nota-acao" onClick={escolher} title="Trocar o PDF" aria-label="Trocar o PDF"><SwapHorizRounded fontSize="inherit" /></button>
-          <button type="button" className="lg-btn-icone lg-nota-acao" onClick={onRemover} title="Tirar a nota" aria-label="Tirar a nota"><DeleteOutlineRounded fontSize="inherit" /></button>
+          {link(notas[0])}
+          {notas.length > 1 && (
+            <button type="button" className="lg-nota-mais" onClick={(event) => setLista(event.currentTarget)} title={`Ver os ${notas.length} PDFs`}>
+              +{notas.length - 1}
+            </button>
+          )}
+          {!cheia && (
+            <button type="button" className="lg-btn-icone lg-nota-acao" onClick={escolher} title="Enviar mais PDFs" aria-label="Enviar mais PDFs"><AddRounded fontSize="inherit" /></button>
+          )}
+          {notas.length === 1 && (
+            <button type="button" className="lg-btn-icone lg-nota-acao" onClick={() => onRemover(notas[0])} title="Tirar este PDF" aria-label="Tirar este PDF"><DeleteOutlineRounded fontSize="inherit" /></button>
+          )}
+          <Popover open={lista !== null} anchorEl={lista} onClose={() => setLista(null)} slotProps={{ paper: { className: 'lg-notas-lista' } }}>
+            <ul>
+              {notas.map((nota) => (
+                <li key={nota.caminho}>
+                  {link(nota)}
+                  <button type="button" className="lg-btn-icone lg-nota-acao" onClick={() => { setLista(null); onRemover(nota); }} title="Tirar este PDF" aria-label={`Tirar ${nota.nome}`}>
+                    <DeleteOutlineRounded fontSize="inherit" />
+                  </button>
+                </li>
+              ))}
+            </ul>
+            {!cheia && (
+              <button type="button" className="lg-nota-enviar" onClick={() => { setLista(null); escolher(); }}><UploadFileOutlined fontSize="inherit" />Enviar mais PDFs</button>
+            )}
+          </Popover>
         </>
       ) : (
         <button type="button" className="lg-nota-enviar" onClick={escolher}><UploadFileOutlined fontSize="inherit" />Enviar PDF</button>
