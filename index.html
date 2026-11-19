@@ -11,6 +11,19 @@
     <meta name="apple-mobile-web-app-title" content="Ledur" />
     <meta name="apple-mobile-web-app-status-bar-style" content="default" />
     <meta name="theme-color" content="#3f51b5" />
+    <script>
+      // App Motorista (src/features/saida-chegada/appMotorista.ts): o Safari do iPhone usa o manifesto lido na carga da
+      // página, antes do React trocá-lo. Em /motorista ele já nasce com o do Motorista (start_url /motorista).
+      (function () {
+        var p = location.pathname;
+        if (p !== '/motorista' && p.indexOf('/motorista/') !== 0) return;
+        document.querySelector('link[rel="manifest"]').setAttribute('href', '/manifest-motorista.webmanifest');
+        document.querySelector('meta[name="apple-mobile-web-app-title"]').setAttribute('content', 'Motorista');
+        var tema = document.querySelector('meta[name="theme-color"]');
+        tema.setAttribute('data-geral', tema.getAttribute('content'));
+        tema.setAttribute('content', '#12293B');
+      })();
+    </script>
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Ledur Pré-Fabricados - Central de Controle</title>
   </head>
