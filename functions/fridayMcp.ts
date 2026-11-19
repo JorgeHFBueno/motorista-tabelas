@@ -131,6 +131,10 @@ export type ContextoMcp = {
   /** Executa a ferramenta (mesmas funções das rotas). Erro vira resposta de erro da ferramenta, com mensagemDeErro. */
   executar: (nome: string, args: AnyRecord) => Promise<unknown>;
   mensagemDeErro: (e: unknown) => string;
+  /** Outro servidor MCP (ex.: sistemaApi): as ferramentas, o nome e as instruções dele; sem isso, os do Friday. */
+  ferramentas?: FerramentaMcp[];
+  servidor?: { name: string; title: string };
+  instrucoes?: string;
 };
 
 const resposta = (id: unknown, result: unknown) => ({ jsonrpc: '2.0', id, result });
@@ -146,22 +150,23 @@ async function responderUma(m: unknown, ctx: ContextoMcp): Promise<unknown | nul
   // Notificação (sem id), como notifications/initialized: só recebe.
   if (!('id' in msg)) return null;
   const params: AnyRecord = msg.params && typeof msg.params === 'object' && !Array.isArray(msg.params) ? msg.params : {};
+  const ferramentas = ctx.ferramentas ?? FERRAMENTAS;
   switch (msg.method) {
     case 'initialize': {
       const pedida = String(params.protocolVersion ?? '');
       return resposta(msg.id, {
         protocolVersion: VERSOES_MCP.includes(pedida) ? pedida : VERSOES_MCP[0],
         capabilities: { tools: { listChanged: false } },
-        serverInfo: { name: 'friday', title: 'Friday (Ledur)', version: '1.0.0' },
-        instructions: INSTRUCOES,
+        serverInfo: { ...(ctx.servidor ?? { name: 'friday', title: 'Friday (Ledur)' }), version: '1.0.0' },
+        instructions: ctx.instrucoes ?? INSTRUCOES,
       });
     }
     case 'ping':
       return resposta(msg.id, {});
     case 'tools/list':
-      return resposta(msg.id, { tools: FERRAMENTAS.filter(f => ctx.escrita || !f.escrita).map(({ escrita: _e, ...f }) => f) });
+      return resposta(msg.id, { tools: ferramentas.filter(f => ctx.escrita || !f.escrita).map(({ escrita: _e, ...f }) => f) });
     case 'tools/call': {
-      const f = FERRAMENTAS.find(x => x.name === params.name);
+      const f = ferramentas.find(x => x.name === params.name);
       if (!f) return erroRpc(msg.id, -32602, `Ferramenta desconhecida: ${String(params.name)}.`);
       if (f.escrita && !ctx.escrita) return resposta(msg.id, { content: textoDe({ erro: 'Esta chave é só de consulta.' }), isError: true });
       const args: AnyRecord = params.arguments && typeof params.arguments === 'object' && !Array.isArray(params.arguments) ? params.arguments : {};
