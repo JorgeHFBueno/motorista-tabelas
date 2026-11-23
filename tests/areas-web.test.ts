@@ -45,3 +45,10 @@ test('areas: Tools (Ferramentas ao lado do sino) has one level; adm2 always has 
   assert.equal(veArea(perfil({ perfis: {}, areas: { friday: 'editar' } }), 'tools'), false);
   assert.equal(veArea(perfil({ perfis: { adm2: true }, areas: {} }), 'tools'), true);
 });
+
+test('areas: Comercial has ver and editar; adm2 always has it (2026-11-23)', () => {
+  assert.deepEqual(areasValidas({ comercial: 'ver' }), { comercial: 'ver' });
+  assert.equal(veArea(perfil({ perfis: {}, areas: { comercial: 'ver' } }), 'comercial'), true);
+  assert.equal(editaArea(perfil({ perfis: {}, areas: { comercial: 'ver' } }), 'comercial'), false);
+  assert.equal(veArea(perfil({ perfis: { adm2: true }, areas: {} }), 'comercial'), true);
+});

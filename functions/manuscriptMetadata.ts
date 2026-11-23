@@ -33,7 +33,7 @@ export const MANUSCRIPT_NAO_CORPUS = ['AGENTS.md', 'CLAUDE.md'];
 
 export const MANUSCRIPT_TIPOS = ['visao-geral', 'colecao', 'regras', 'function', 'integracao', 'processo', 'tela', 'app', 'auditoria'] as const;
 export const MANUSCRIPT_STATUS = ['vigente', 'parcial', 'divergente', 'proposta', 'legado', 'historico'] as const;
-export const MANUSCRIPT_DOMINIOS = ['autenticacao', 'funcionarios', 'frota', 'obras', 'atividades', 'checklists', 'combustivel', 'bombas', 'manutencao', 'fornecedores', 'engenharia', 'monday', 'erp', 'relatorios', 'friday', 'logistica', 'kiosk', 'manuscript', 'sistema'] as const;
+export const MANUSCRIPT_DOMINIOS = ['autenticacao', 'funcionarios', 'frota', 'obras', 'atividades', 'checklists', 'combustivel', 'bombas', 'manutencao', 'fornecedores', 'engenharia', 'monday', 'erp', 'relatorios', 'friday', 'logistica', 'comercial', 'kiosk', 'manuscript', 'sistema'] as const;
 export const MANUSCRIPT_RELACOES = ['le', 'escreve', 'chama', 'integra'] as const;
 export const MANUSCRIPT_ENTIDADES = ['colecao', 'function', 'rota', 'externo'] as const;
 
