@@ -82,16 +82,17 @@ test("NT changes are part of the period: a later NT edit by someone else blocks 
   assert.equal(planUndo(marcou, { ...atual, naoTrabalhados: [{ inicio: "2026-10-08", dias: 3 }] }).ok, false);
 });
 
-test("Juntar is undone as one action: both allocations or none", () => {
-  const b: AlocacaoUndoSnapshot = { ...alocacao, id: "a2", inicio: "2026-10-23", tempoPlanejado: 5 };
-  const juntou: UndoEntry = { kind: "group", mestreNome: "DILAMAR", entries: [
-    { kind: "update", mestreNome: "DILAMAR", id: "a1", mestreId: "m-dilamar", before: { inicio: "2026-10-05", tempoPlanejado: 14 }, after: { inicio: "2026-10-05", tempoPlanejado: 23, naoTrabalhados: [{ inicio: "2026-10-19", dias: 4 }] } },
-    { kind: "delete", mestreNome: "DILAMAR", alocacao: b },
+test("splitting a period at the NT is undone as one action: both allocations or none", () => {
+  const novo: AlocacaoUndoSnapshot = { ...alocacao, id: "a2", inicio: "2026-10-23", tempoPlanejado: 5 };
+  const dividiu: UndoEntry = { kind: "group", mestreNome: "DILAMAR", entries: [
+    { kind: "update", mestreNome: "DILAMAR", id: "a1", mestreId: "m-dilamar", before: { inicio: "2026-10-05", tempoPlanejado: 23 }, after: { inicio: "2026-10-05", tempoPlanejado: 18, naoTrabalhados: [{ inicio: "2026-10-22", dias: 1 }] } },
+    { kind: "create", mestreNome: "DILAMAR", alocacao: novo },
   ] };
-  const juntada = { ...alocacao, tempoPlanejado: 23, naoTrabalhados: [{ inicio: "2026-10-19", dias: 4 }] };
-  const plan = planUndoAll(juntou, (id) => (id === "a1" ? juntada : null));
+  const primeiro = { ...alocacao, tempoPlanejado: 18, naoTrabalhados: [{ inicio: "2026-10-22", dias: 1 }] };
+  const plan = planUndoAll(dividiu, (id) => (id === "a1" ? primeiro : id === "a2" ? novo : null));
   assert.equal(plan.ok, true);
-  assert.deepEqual(plan.ok ? plan.operations.map((op) => op.type) : [], ["update", "recreate"]);
-  assert.equal(planUndoAll(juntou, (id) => (id === "a1" ? juntada : b)).ok, false);
-  assert.deepEqual(dropUndoFor([juntou, created], "a2"), [created]);
+  assert.deepEqual(plan.ok ? plan.operations.map((op) => op.type) : [], ["update", "delete"]);
+  // Someone changed the new period in the meantime: nothing is undone.
+  assert.equal(planUndoAll(dividiu, (id) => (id === "a1" ? primeiro : { ...novo, tempoPlanejado: 9 })).ok, false);
+  assert.deepEqual(dropUndoFor([dividiu, created], "a2"), [created]);
 });

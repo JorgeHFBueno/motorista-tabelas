@@ -35,7 +35,7 @@ type SingleUndoEntry =
 
 export type UndoEntry =
   | SingleUndoEntry
-  /** Várias alocações numa ação só (ex.: "Juntar" dois períodos): desfaz todas ou nenhuma. */
+  /** Várias alocações numa ação só (ex.: dividir um período no NT, Del numa seleção): desfaz todas ou nenhuma. */
   | { kind: "group"; mestreNome: string; entries: SingleUndoEntry[] };
 
 export type UndoOperation =

@@ -404,7 +404,6 @@ a.co-button { text-decoration: none; }
 .co-period-details { display: grid; gap: 6px; list-style: none; margin: 8px 0 0; padding: 0; }.co-period-details li, .co-other-works article { background: #edf4f7; border: 1px solid #d6e3e9; border-radius: 5px; color: #31566e; font-size: .72rem; padding: 8px; }.co-other-works { display: grid; gap: 8px; }.co-other-works article { display: grid; gap: 5px; }.co-other-works span { font-variant-numeric: tabular-nums; }.co-current-work { color: #294455; display: block; font-size: .88rem; margin-bottom: 7px; }.co-drawer-body h4 { color: #637784; font-size: .66rem; letter-spacing: .04em; margin: 16px 0 0; text-transform: uppercase; }
 .co-period-line { align-items: baseline; display: flex; flex-wrap: wrap; gap: 4px 10px; justify-content: space-between; }
 .co-period-line strong { font-weight: 750; }
-.co-period-join { display: block; margin-top: 4px; padding: 2px 0; }
 .co-nt-chip--inline { padding: 0 5px; }
 .co-nt-list { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 6px; }
 .co-nt-chip { align-items: center; background: repeating-linear-gradient(135deg, #fff 0 4px, #eef2f4 4px 8px); border: 1px dashed #93a7b3; border-radius: 4px; color: #24323b; display: inline-flex; font-size: .68rem; font-weight: 700; gap: 4px; padding: 2px 4px 2px 7px; }

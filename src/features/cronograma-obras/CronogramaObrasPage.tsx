@@ -31,11 +31,11 @@ import { getDirectMasterDropInterval } from "./domain/dropPlanning";
 import { planPrioridadeMove } from "./domain/prioridade";
 import {
   desmarcarNaoTrabalhado,
-  juntarPeriodos,
-  marcarNaoTrabalhado,
   normalizarNaoTrabalhados,
   NT_ARRASTE,
+  planoMarcarNT,
   type NaoTrabalhado,
+  type PlanoNT,
 } from "./domain/naoTrabalhados";
 import { FONTES_FIRESTORE } from "./data/fontesFirestore";
 import { GravarStatusLoteContext, type FontesCronograma } from "./data/fontesCronograma";
@@ -308,6 +308,7 @@ function withOptimisticAlocacao(
           nome: mestre.nome,
           inicio: alocacao.inicio,
           tempoPlanejado: alocacao.tempoPlanejado,
+          ...(alocacao.naoTrabalhados ? { naoTrabalhados: alocacao.naoTrabalhados } : {}),
         },
       ],
     };
@@ -816,7 +817,7 @@ export function CronogramaObrasView({
         );
         return;
       }
-      salvarNaoTrabalhados(alvo.localId, marcarNaoTrabalhado(alvo, target, 1));
+      aplicarPlanoNT(alvo.localId, planoMarcarNT(alvo, target));
       return;
     }
     if (zoom !== "year") {
@@ -1175,52 +1176,75 @@ export function CronogramaObrasView({
         );
       });
   };
-  /** "Juntar": the first period grows to cover both, the gap becomes NT, and the second is removed. */
-  const juntarAlocacoes = (primeiroId: string, segundoId: string) => {
-    const a = alocacoesRef.current.find((item) => item.id === primeiroId);
-    const b = alocacoesRef.current.find((item) => item.id === segundoId);
-    if (!a || !b || a.mestreId !== b.mestreId) return;
-    const junto = juntarPeriodos(a, b);
-    const mestreNome =
-      mestres.find((mestre) => mestre.id === a.mestreId)?.nome ?? "mestre";
+  /**
+   * Applies an NT edit (2026-11-23, for the mestres' teams): the edited period, the next one when the boundary between
+   * them moved, and a new period after the edited one when the NT split it. One action, undone at once by Ctrl+Z.
+   */
+  const aplicarPlanoNT = (localId: string, plano: PlanoNT, sucessorId?: string) => {
+    const alocacao = alocacoesRef.current.find((item) => item.id === localId);
+    const sucessor = sucessorId ? alocacoesRef.current.find((item) => item.id === sucessorId) : undefined;
+    const mestre = mestres.find((item) => item.id === alocacao?.mestreId);
+    // Drag previews are replaced by the plan's values (or dropped, when nothing changes).
+    resizeDrafts.current.delete(localId);
+    if (sucessorId) resizeDrafts.current.delete(sucessorId);
+    setObras(withResizeDrafts(confirmedObras.current, resizeDrafts.current));
+    if (!alocacao || !mestre) return;
+    const mestreNome = mestre.nome;
+    const mudou = (antes: AlocacaoFirestore, depois: PlanoNT["periodo"]) =>
+      antes.inicio !== depois.inicio || antes.tempoPlanejado !== depois.tempoPlanejado || !mesmoNT(antes.naoTrabalhados, depois.naoTrabalhados);
+    const atualizar = [
+      ...(mudou(alocacao, plano.periodo) ? [{ antes: alocacao, depois: plano.periodo }] : []),
+      ...(sucessor && plano.sucessor && mudou(sucessor, plano.sucessor) ? [{ antes: sucessor, depois: plano.sucessor }] : []),
+    ];
+    let novo: AlocacaoFirestore | null = null;
+    const reference = plano.novo ? alocacoesSource.createAlocacaoReference() : null;
+    try {
+      if (plano.novo && reference)
+        novo = {
+          id: reference.id,
+          ...(alocacao.obraId ? { obraId: alocacao.obraId } : {}),
+          contratoId: alocacao.contratoId,
+          mestreId: alocacao.mestreId,
+          ...plano.novo,
+          criadoPorFuncionarioId: criadorAtual(),
+        };
+    } catch (cause) {
+      setWriteError(cause instanceof Error ? cause.message : String(cause));
+      return;
+    }
+    if (!atualizar.length && !novo) return;
     setWriteError(null);
-    const entry = {
-      kind: "group" as const,
-      mestreNome,
-      entries: [
-        {
-          kind: "update" as const,
-          mestreNome,
-          id: a.id,
-          mestreId: a.mestreId,
-          before: {
-            inicio: a.inicio,
-            tempoPlanejado: a.tempoPlanejado,
-            naoTrabalhados: a.naoTrabalhados,
-          },
-          after: {
-            inicio: junto.inicio,
-            tempoPlanejado: junto.tempoPlanejado,
-            naoTrabalhados: junto.naoTrabalhados,
-          },
-        },
-        { kind: "delete" as const, mestreNome, alocacao: undoSnapshot(b) },
-      ],
-    };
+    // The screen shows the result right away; the snapshot confirms it.
+    atualizar.forEach(({ antes, depois }) =>
+      resizeDrafts.current.set(antes.id, { inicio: depois.inicio, tempoPlanejado: depois.tempoPlanejado, naoTrabalhados: depois.naoTrabalhados }),
+    );
+    if (novo) confirmedObras.current = withOptimisticAlocacao(confirmedObras.current, novo, mestre);
+    lastHydratedObras = confirmedObras.current;
+    setObras(withResizeDrafts(confirmedObras.current, resizeDrafts.current));
+    const entries = [
+      ...atualizar.map(({ antes, depois }) => ({
+        kind: "update" as const,
+        mestreNome,
+        id: antes.id,
+        mestreId: antes.mestreId,
+        before: { inicio: antes.inicio, tempoPlanejado: antes.tempoPlanejado, naoTrabalhados: antes.naoTrabalhados },
+        after: { inicio: depois.inicio, tempoPlanejado: depois.tempoPlanejado, naoTrabalhados: depois.naoTrabalhados },
+      })),
+      ...(novo ? [{ kind: "create" as const, mestreNome, alocacao: undoSnapshot(novo) }] : []),
+    ];
+    const entry: UndoEntry = entries.length === 1 ? entries[0] : { kind: "group", mestreNome, entries };
     undoStack.current = pushUndo(undoStack.current, entry);
     void (async () => {
       try {
-        await alocacoesSource.updateAlocacao(a.id, {
-          inicio: junto.inicio,
-          tempoPlanejado: junto.tempoPlanejado,
-          naoTrabalhados: junto.naoTrabalhados,
-        });
-        await alocacoesSource.deleteAlocacao(b.id);
+        // The new period first: if a later write fails, days are duplicated on screen, never lost.
+        if (novo && reference) await alocacoesSource.createAlocacao(novo, reference);
+        for (const { antes, depois } of atualizar)
+          await alocacoesSource.updateAlocacao(antes.id, { inicio: depois.inicio, tempoPlanejado: depois.tempoPlanejado, naoTrabalhados: depois.naoTrabalhados });
       } catch (cause) {
         undoStack.current = undoStack.current.filter((item) => item !== entry);
-        setWriteError(
-          `Os períodos não foram juntados: ${cause instanceof Error ? cause.message : String(cause)}`,
-        );
+        atualizar.forEach(({ antes }) => resizeDrafts.current.delete(antes.id));
+        setObras(withResizeDrafts(confirmedObras.current, resizeDrafts.current));
+        setWriteError(`Os dias NT não foram salvos: ${cause instanceof Error ? cause.message : String(cause)}`);
       }
     })();
   };
@@ -1611,6 +1635,7 @@ export function CronogramaObrasView({
               onResizeMasterPreview={podeEditar ? resizeMasterPreview : () => undefined}
               onResizeMasterCommit={podeEditar ? resizeMaster : () => undefined}
               onResizeMasterCancel={cancelResizeMaster}
+              onAplicarPlanoNT={podeEditar ? aplicarPlanoNT : undefined}
             /></CronogramaProfiler>
           </section>
           <section>
@@ -1749,7 +1774,6 @@ export function CronogramaObrasView({
         masterKey={masterPanel?.key ?? null}
         selectedLocalId={masterPanel?.localId ?? null}
         onSalvarNaoTrabalhados={podeEditar ? salvarNaoTrabalhados : undefined}
-        onJuntar={podeEditar ? juntarAlocacoes : undefined}
         allKeys={masters.map(normalizeMestreKey)}
         onClose={() => setMasterPanel(null)}
       />

@@ -2,10 +2,12 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   desmarcarNaoTrabalhado,
-  juntarPeriodos,
+  dividirNoNT,
   lerNaoTrabalhados,
   marcarNaoTrabalhado,
   normalizarNaoTrabalhados,
+  planoMarcarNT,
+  planoRedimensionarNT,
   redimensionarNaoTrabalhado,
   rotuloDias,
   segmentosNT,
@@ -41,13 +43,55 @@ test("mark and unmark NT", () => {
   assert.equal(desmarcarNaoTrabalhado({ ...periodo, naoTrabalhados: marcado }, { inicio: "2026-10-20", dias: 3 }), undefined);
 });
 
-test("Juntar turns two periods into one, the gap becomes NT", () => {
-  // X..19 and 23..Y → X..Y with 20, 21, 22 as NT.
-  assert.deepEqual(juntarPeriodos({ inicio: "2026-10-23", tempoPlanejado: 5 }, { inicio: "2026-10-01", tempoPlanejado: 19 }),
-    { inicio: "2026-10-01", tempoPlanejado: 27, naoTrabalhados: [{ inicio: "2026-10-20", dias: 3 }] });
-  // Existing NT is kept; a day worked in either period stays worked; overlapping periods leave no gap.
-  assert.deepEqual(juntarPeriodos({ inicio: "2026-10-01", tempoPlanejado: 10, naoTrabalhados: [{ inicio: "2026-10-03", dias: 1 }] }, { inicio: "2026-10-08", tempoPlanejado: 5, naoTrabalhados: [{ inicio: "2026-10-09", dias: 1 }] }),
-    { inicio: "2026-10-01", tempoPlanejado: 12, naoTrabalhados: [{ inicio: "2026-10-03", dias: 1 }] });
+test("NT in the middle splits the period: NT at the end of the first, the second starts the next day", () => {
+  // 12..30 with NT 19..22 → 12..22 (NT 19..22) and 23..30; another NT later goes to the second.
+  const p = { inicio: "2026-11-12", tempoPlanejado: 19, naoTrabalhados: [{ inicio: "2026-11-19", dias: 4 }, { inicio: "2026-11-27", dias: 1 }] };
+  assert.deepEqual(dividirNoNT(p, { inicio: "2026-11-19", dias: 4 }), {
+    primeiro: { inicio: "2026-11-12", tempoPlanejado: 11, naoTrabalhados: [{ inicio: "2026-11-19", dias: 4 }] },
+    segundo: { inicio: "2026-11-23", tempoPlanejado: 8, naoTrabalhados: [{ inicio: "2026-11-27", dias: 1 }] },
+  });
+  // NT on an edge does not split.
+  assert.equal(dividirNoNT(p, { inicio: "2026-11-12", dias: 2 }), null);
+  assert.equal(dividirNoNT(p, { inicio: "2026-11-29", dias: 2 }), null);
+});
+
+test("dropping NT on a day: splits in the middle, not on the edges", () => {
+  const p = { inicio: "2026-11-12", tempoPlanejado: 19 };
+  assert.deepEqual(planoMarcarNT(p, "2026-11-19"), {
+    periodo: { inicio: "2026-11-12", tempoPlanejado: 8, naoTrabalhados: [{ inicio: "2026-11-19", dias: 1 }] },
+    novo: { inicio: "2026-11-20", tempoPlanejado: 11 },
+  });
+  assert.deepEqual(planoMarcarNT(p, "2026-11-30"), { periodo: { inicio: "2026-11-12", tempoPlanejado: 19, naoTrabalhados: [{ inicio: "2026-11-30", dias: 1 }] } });
+  // Next to an NT already at the end of the period: they merge and stay at the end.
+  const comFim = { ...p, naoTrabalhados: [{ inicio: "2026-11-29", dias: 2 }] };
+  assert.deepEqual(planoMarcarNT(comFim, "2026-11-28"), { periodo: { inicio: "2026-11-12", tempoPlanejado: 19, naoTrabalhados: [{ inicio: "2026-11-28", dias: 3 }] } });
+});
+
+test("stretching the NT at the end of a period moves the boundary with the next period", () => {
+  const a = { inicio: "2026-11-12", tempoPlanejado: 11, naoTrabalhados: [{ inicio: "2026-11-19", dias: 4 }] }; // 12..22
+  const b = { inicio: "2026-11-23", tempoPlanejado: 8 }; // 23..30
+  const nt = { inicio: "2026-11-19", dias: 4 };
+  // Stretch to the 24th: the first goes to 24, the second starts on the 25th.
+  assert.deepEqual(planoRedimensionarNT(a, nt, "end", "2026-11-24", b), {
+    periodo: { inicio: "2026-11-12", tempoPlanejado: 13, naoTrabalhados: [{ inicio: "2026-11-19", dias: 6 }] },
+    sucessor: { inicio: "2026-11-25", tempoPlanejado: 6 },
+  });
+  // Shrink to the 20th: days 21 and 22 go to the second.
+  assert.deepEqual(planoRedimensionarNT(a, nt, "end", "2026-11-20", b), {
+    periodo: { inicio: "2026-11-12", tempoPlanejado: 9, naoTrabalhados: [{ inicio: "2026-11-19", dias: 2 }] },
+    sucessor: { inicio: "2026-11-21", tempoPlanejado: 10 },
+  });
+  // The second keeps at least one day.
+  assert.equal(planoRedimensionarNT(a, nt, "end", "2026-12-15", b).sucessor?.tempoPlanejado, 1);
+  // The start edge is free inside the first period; the NT stays at its end, no split.
+  assert.deepEqual(planoRedimensionarNT(a, nt, "start", "2026-11-21", b), {
+    periodo: { inicio: "2026-11-12", tempoPlanejado: 11, naoTrabalhados: [{ inicio: "2026-11-21", dias: 2 }] },
+  });
+  // Without a next period, shrinking the end leaves the NT in the middle: the period splits.
+  assert.deepEqual(planoRedimensionarNT(a, nt, "end", "2026-11-20"), {
+    periodo: { inicio: "2026-11-12", tempoPlanejado: 9, naoTrabalhados: [{ inicio: "2026-11-19", dias: 2 }] },
+    novo: { inicio: "2026-11-21", tempoPlanejado: 2 },
+  });
 });
 
 test("NT pieces inside a calendar window", () => {

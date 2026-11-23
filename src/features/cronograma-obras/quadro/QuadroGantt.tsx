@@ -11,7 +11,7 @@ import { isEditableTarget } from "../domain/undoStack";
 import { resizeMasterPlanning, type MasterResizeEdge } from "../domain/masterResize";
 import { getMestreColor, normalizeMestreKey } from "../domain/mestres";
 import type { ContratoCronograma, MestrePlanejado, ObraCronograma } from "../domain/models";
-import { NT_ARRASTE, redimensionarNaoTrabalhado, rotuloDias, segmentosNT, type NaoTrabalhado } from "../domain/naoTrabalhados";
+import { NT_ARRASTE, planoRedimensionarNT, rotuloDias, segmentosNT, type NaoTrabalhado, type PlanoNT } from "../domain/naoTrabalhados";
 import { clampColumnWidth } from "../domain/obraGridColumns";
 import { nextTableSort, sortContractGroups, sortObras, type ColumnId, type TableSort } from "../domain/tableSort";
 import { getBucketTimelineAggregate, layoutMasterAllocationLanes } from "../domain/timelineAggregation";
@@ -45,7 +45,7 @@ const COLUNAS: readonly Coluna[] = [
 const GRUPO_NOME: Record<string, string> = { "OBRAS PÚBLICAS": "Obras públicas", "OBRAS PRIVADAS": "Obras privadas", "PRÓXIMA A INICIAR": "Próxima a iniciar" };
 
 export function QuadroGantt(props: GanttGridProps) {
-  const { obras, contratos, zoom, viewMode = "flat", draggingMaster, selectedId, centerRequest, display, onSelect, onSelectMasters, onSelectMaster, onOpenContract, onDropMaster, onResizeMasterPreview, onResizeMasterCommit, onResizeMasterCancel, onStatusConfirmed, onMovePrioridade, onApagarSelecao } = props;
+  const { obras, contratos, zoom, viewMode = "flat", draggingMaster, selectedId, centerRequest, display, onSelect, onSelectMasters, onSelectMaster, onOpenContract, onDropMaster, onResizeMasterPreview, onResizeMasterCommit, onResizeMasterCancel, onAplicarPlanoNT, onStatusConfirmed, onMovePrioridade, onApagarSelecao } = props;
   const { zoom: zoomCal, hoje, dias, dw, geo, rolagem, fundo, largura: larguraCalendario } = useCalendario(zoom, centerRequest);
   const [sort, setSort] = useState<TableSort>({ column: null, direction: null });
   const [completo, setCompleto] = useState(true);
@@ -260,7 +260,8 @@ export function QuadroGantt(props: GanttGridProps) {
               onFocar={(varios) => selecionar({ tipo: "periodo", localId: mestre.localId }, varios)}
               onFocarNT={(trecho, varios) => selecionar({ tipo: "nt", localId: mestre.localId, trecho }, varios)}
               onDetalhes={() => { limparSelecao(); onSelectMaster(masterSelectionForPeriod(obra, mestre)); }}
-              onPreview={onResizeMasterPreview} onCommit={(draft) => onResizeMasterCommit(obra.id, draft)} onCancel={() => onResizeMasterCancel(mestre.localId)} />
+              onPreview={onResizeMasterPreview} onCommit={(draft) => onResizeMasterCommit(obra.id, draft)} onCancel={onResizeMasterCancel}
+              onPlanoNT={onAplicarPlanoNT ? (plano, sucessorId) => onAplicarPlanoNT(mestre.localId, plano, sucessorId) : undefined} />
           ))}
         </>, altura)}
       </div>
@@ -363,9 +364,11 @@ export function QuadroGantt(props: GanttGridProps) {
   );
 }
 
-function Barra({ obra, mestre, geo, topo, mostrarNome, podeNT, focada, ntsFocados, onFocar, onFocarNT, onDetalhes, onPreview, onCommit, onCancel }: {
+function Barra({ obra, mestre, geo, topo, mostrarNome, podeNT, focada, ntsFocados, onFocar, onFocarNT, onDetalhes, onPreview, onCommit, onCancel, onPlanoNT }: {
   obra: ObraCronograma; mestre: MestrePlanejado; geo: Geometria; topo: number; mostrarNome: boolean; podeNT: boolean;
-  focada: boolean; ntsFocados: ReadonlySet<string>; onFocar: (varios: boolean) => void; onFocarNT: (trecho: NaoTrabalhado, varios: boolean) => void; onDetalhes: () => void; onPreview: (m: MestrePlanejado) => void; onCommit: (m: MestrePlanejado) => void; onCancel: () => void;
+  focada: boolean; ntsFocados: ReadonlySet<string>; onFocar: (varios: boolean) => void; onFocarNT: (trecho: NaoTrabalhado, varios: boolean) => void; onDetalhes: () => void; onPreview: (m: MestrePlanejado) => void; onCommit: (m: MestrePlanejado) => void; onCancel: (localId: string) => void;
+  /** NT edge drag: the page applies the plan (split the period, or move the boundary with the next one). */
+  onPlanoNT?: (plano: PlanoNT, sucessorId?: string) => void;
 }) {
   const ini = geo.indice(mestre.inicio);
   const esq = Math.max(0, ini);
@@ -382,10 +385,24 @@ function Barra({ obra, mestre, geo, topo, mostrarNome, podeNT, focada, ntsFocado
     if (!trilho) return;
     alca.setPointerCapture(event.pointerId);
     let draft = mestre;
+    // NT edge: the next period of the same mestre in this LOTE, starting the day after this one ends.
+    const fimPeriodo = addDays(mestre.inicio, mestre.tempoPlanejado - 1);
+    const sucessor = trecho ? obra.mestresPlanejados.find((item) => item.localId !== mestre.localId && (item.mestreId ?? item.nome) === (mestre.mestreId ?? mestre.nome) && item.inicio === addDays(fimPeriodo, 1)) : undefined;
+    let plano: PlanoNT | null = null;
     const mover = (e: globalThis.PointerEvent) => {
       const i = Math.min(geo.dias.length - 1, Math.max(0, Math.floor((e.clientX - trilho.getBoundingClientRect().left) / geo.dw)));
       const data = geo.dias[i];
-      draft = trecho ? { ...mestre, naoTrabalhados: redimensionarNaoTrabalhado(mestre, trecho, edge, data) } : resizeMasterPlanning(obra, mestre, edge, data);
+      if (trecho) {
+        plano = planoRedimensionarNT(mestre, trecho, edge, data, sucessor);
+        draft = { ...mestre, ...plano.periodo, naoTrabalhados: plano.periodo.naoTrabalhados };
+        onPreview(draft);
+        if (sucessor) {
+          if (plano.sucessor) onPreview({ ...sucessor, ...plano.sucessor, naoTrabalhados: plano.sucessor.naoTrabalhados });
+          else onCancel(sucessor.localId);
+        }
+        return;
+      }
+      draft = resizeMasterPlanning(obra, mestre, edge, data);
       onPreview(draft);
     };
     const soltar = (e: globalThis.PointerEvent) => {
@@ -393,7 +410,11 @@ function Barra({ obra, mestre, geo, topo, mostrarNome, podeNT, focada, ntsFocado
       document.removeEventListener("pointerup", soltar);
       document.removeEventListener("pointercancel", soltar);
       document.body.classList.remove("co-is-resizing");
-      if (e.type === "pointercancel") onCancel(); else onCommit(draft);
+      if (e.type === "pointercancel") {
+        onCancel(mestre.localId);
+        if (sucessor) onCancel(sucessor.localId);
+      } else if (plano && onPlanoNT) onPlanoNT(plano, plano.sucessor ? sucessor?.localId : undefined);
+      else onCommit(draft);
     };
     document.body.classList.add("co-is-resizing");
     document.addEventListener("pointermove", mover);
