@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import type { Pessoa } from '../src/features/friday-gestao-interna/api.ts';
 import { estadoDaVisao, lerOrdenacao, mesmoEstado, ordenarItens } from '../src/features/friday-gestao-interna/quadro/filtros.ts';
-import { aceitaReais, colunaDoMenu, emReais, infoColuna, pessoasDoQuadro, type Coluna, type Item, type Visao } from '../src/features/friday-gestao-interna/quadro/tipos.ts';
+import { aceitaReais, colunaDoMenu, emReais, infoColuna, pessoasDoQuadro, somaFormula, textoCelula, textoFormula, type Coluna, type Item, type Visao } from '../src/features/friday-gestao-interna/quadro/tipos.ts';
 import { fmtNumeroColuna } from '../src/features/friday-gestao-interna/util.ts';
 
 // Ordenação da visão (vários critérios, como no monday), visões antigas e pessoas do quadro. Só dados fictícios.
@@ -70,4 +70,22 @@ test('coluna Valor (R$) é uma coluna de número em reais', () => {
   assert.ok(!emReais(col({ unidade: '' })) && aceitaReais(col({ unidade: '' })), 'Números comum pode passar para reais');
   assert.ok(!aceitaReais(col({ x10: true })) && !aceitaReais(col({ milhar: false })), '×10 e sem separador de milhar ficam de fora');
   assert.ok(!aceitaReais({ tipo: 'texto', config: {} }));
+});
+
+test('fórmula em reais: resultado como moeda e soma do rodapé só quando dá número', () => {
+  const QTD = { id: 10, titulo: 'Qtd', tipo: 'numero', config: {} } as unknown as Coluna;
+  const UNIT = { id: 11, titulo: 'Unitário', tipo: 'numero', config: { unidade: 'R$' } } as unknown as Coluna;
+  const TOTAL = { id: 12, titulo: 'Total', tipo: 'formula', config: { formula: '{@10} * {@11}', unidade: 'R$' } } as unknown as Coluna;
+  const SITU = { id: 13, titulo: 'Situação', tipo: 'formula', config: { formula: 'IF({@10} > 2, "Muito", "Pouco")' } } as unknown as Coluna;
+  const cols = [QTD, UNIT, TOTAL, SITU];
+  const ctx = { colunas: cols, nomeUsuario: () => '' };
+  const lista = [item(1, 1, { 10: 2, 11: 1500.25 }), item(2, 2, { 10: 3, 11: 100 })];
+  assert.ok(aceitaReais(TOTAL) && emReais(TOTAL) && !emReais(SITU), 'fórmula aceita "Mostrar em reais"');
+  assert.equal(textoCelula(TOTAL, lista[0], cols, () => '').replace(/\s/g, ' '), 'R$ 3.000,50');
+  assert.equal(somaFormula(TOTAL, lista, ctx), 3300.5);
+  assert.equal(textoFormula(TOTAL, 3300.5).replace(/\s/g, ' '), 'R$ 3.300,50');
+  assert.equal(somaFormula(SITU, lista, ctx), null, 'fórmula que dá texto não soma');
+  assert.equal(somaFormula(TOTAL, [], ctx), null, 'grupo vazio: sem soma');
+  assert.equal(textoFormula({ tipo: 'formula', config: {} }, 1234.5), '1.234,5', 'sem R$, como antes');
+  assert.equal(textoFormula(TOTAL, 'Pouco'), 'Pouco', 'texto continua texto');
 });

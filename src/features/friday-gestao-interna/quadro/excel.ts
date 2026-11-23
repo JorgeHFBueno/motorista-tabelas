@@ -2,7 +2,7 @@
 import { hojeISO } from '../util.ts';
 import { itensDoQuadro } from './Celula.tsx';
 import { calcular, textoResultado } from './formula.ts';
-import { textoDoValor, type Coluna, type Grupo, type Item, type Sub } from './tipos.ts';
+import { emReais, textoDoValor, type Coluna, type Grupo, type Item, type Sub } from './tipos.ts';
 import { duracaoSessao, sessoesDe, totalSegundos, type Sessao } from './tempo.ts';
 import { porPosicao } from './useQuadro.ts';
 
@@ -38,7 +38,7 @@ function valorExcel(c: Coluna, item: Item, colunas: Coluna[], nomeUsuario: (id: 
 
 function formatoColuna(c: Coluna): string | undefined {
   if (c.tipo === 'data') return 'dd/mm/yyyy';
-  if (c.tipo === 'numero' && c.config.unidade === 'R$') return '"R$" #,##0.00';
+  if (emReais(c)) return '"R$" #,##0.00'; // número ou fórmula com "Mostrar em reais"
   if (c.tipo === 'tempo') return FMT_DURACAO;
   return undefined;
 }
