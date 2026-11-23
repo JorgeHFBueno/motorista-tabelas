@@ -10,6 +10,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import { temCredencial, type Credencial } from '../../services/credenciais';
 import { useFilaEnvio } from './data/filaEnvio';
 import PaginaMotorista from './components/PaginaMotorista';
+import AvisoInstalar from './components/AvisoInstalar';
 import { CORES_LEDUR } from './appMotorista';
 
 // Só no chunk de quem tem o Checklist.
@@ -38,6 +39,7 @@ export default function MotoristaPage() {
   return (
     <PaginaMotorista>
       <Stack spacing={2}>
+        <AvisoInstalar />
         {pendentes > 0 && (
           <Alert severity="warning" action={<Button color="inherit" size="small" href="/motorista/historico">Ver</Button>}>
             {pendentes === 1 ? '1 lançamento aguardando envio.' : `${pendentes} lançamentos aguardando envio.`}

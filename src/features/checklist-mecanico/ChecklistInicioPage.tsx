@@ -19,7 +19,7 @@ import {
 import { enviador, useFilaEnvio } from './data/filaEnvio';
 import MedidorCampo from './components/MedidorCampo';
 import MotoristaCampo from './components/MotoristaCampo';
-import InstalarNoIphone from './components/InstalarNoIphone';
+import AvisoInstalar from '../saida-chegada/components/AvisoInstalar';
 import PaginaMotorista from '../saida-chegada/components/PaginaMotorista';
 
 type Inicio =
@@ -71,7 +71,7 @@ export default function ChecklistInicioPage() {
         <Typography variant="h5" fontWeight={800}>Checklist</Typography>
         <Button variant="outlined" startIcon={<HistoryRoundedIcon />} onClick={() => navigate('/motorista/checklist/historico')}>Histórico</Button>
       </Stack>
-      <InstalarNoIphone />
+      <AvisoInstalar />
       {fila.pendentes > 0 && (
         <Alert
           severity={fila.enviando ? 'info' : 'warning'}

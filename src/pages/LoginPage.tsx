@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, type ReactNode } from 'react';
 import { Link as RouterLink, useNavigate } from 'react-router-dom';
 import { getAuth, sendPasswordResetEmail } from 'firebase/auth';
 import { app } from '../firebase';
@@ -16,7 +16,8 @@ import {
 import { isValidEmailIdentifier, prepareLoginIdentifier } from '../services/loginIdentifier';
 
 // `destino`: para onde ir depois de entrar (o app Motorista mostra o login dentro de /motorista e volta para lá).
-export default function LoginPage({ destino = '/' }: { destino?: string }) {
+// `aviso`: mostrado no topo do formulário (em /motorista, o convite para instalar o app).
+export default function LoginPage({ destino = '/', aviso }: { destino?: string; aviso?: ReactNode }) {
   const { signIn } = useAuth();
   const navigate = useNavigate();
   const [identifier, setIdentifier] = useState('');
@@ -95,6 +96,7 @@ export default function LoginPage({ destino = '/' }: { destino?: string }) {
     >
       <Paper component="form" onSubmit={handleSubmit} elevation={2} sx={{ maxWidth: 380, p: 3, width: '100%' }}>
         <Stack spacing={2}>
+          {aviso}
           <Typography variant="h4">Login</Typography>
           {error && <Alert severity="error">{error}</Alert>}
           {info && <Alert severity="info">{info}</Alert>}

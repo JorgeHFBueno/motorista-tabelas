@@ -52,3 +52,45 @@ export function aplicarManifestoDaRota(caminho: string) {
     tema.setAttribute('content', motorista ? CORES_LEDUR.azulMarinho : tema.getAttribute('data-geral') ?? '');
   }
 }
+
+// ------------------------------------------------------------------ instalar (Android/Chrome)
+
+/** Evento do Chrome que permite abrir a janela de instalação por um botão da página. */
+type EventoInstalar = Event & { prompt: () => Promise<void>; userChoice: Promise<{ outcome: 'accepted' | 'dismissed' }> };
+
+let eventoInstalar: EventoInstalar | null = null;
+const ouvintesInstalar = new Set<() => void>();
+const avisarInstalar = () => { for (const ouvinte of ouvintesInstalar) ouvinte(); };
+
+// Guardado na carga da página: o Chrome o dispara uma vez. Só em /motorista, onde o manifesto é o do app Motorista e a
+// página mostra o próprio aviso; nas demais telas o Chrome segue com o dele.
+if (typeof window !== 'undefined') {
+  window.addEventListener('beforeinstallprompt', (e) => {
+    if (!ehRotaMotorista(window.location.pathname)) return;
+    e.preventDefault();
+    eventoInstalar = e as EventoInstalar;
+    avisarInstalar();
+  });
+  window.addEventListener('appinstalled', () => {
+    eventoInstalar = null;
+    avisarInstalar();
+  });
+}
+
+export const assinarInstalar = (ouvinte: () => void) => {
+  ouvintesInstalar.add(ouvinte);
+  return () => { ouvintesInstalar.delete(ouvinte); };
+};
+
+/** O Chrome deixa instalar por um botão (Android; no iPhone, nunca). */
+export const podeInstalarPorBotao = () => eventoInstalar != null;
+
+/** Abre a janela de instalação do Chrome; true se a pessoa aceitou. */
+export async function instalarPorBotao(): Promise<boolean> {
+  const evento = eventoInstalar;
+  if (!evento) return false;
+  eventoInstalar = null;
+  avisarInstalar();
+  await evento.prompt();
+  return (await evento.userChoice).outcome === 'accepted';
+}

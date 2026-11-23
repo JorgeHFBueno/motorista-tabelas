@@ -10,6 +10,7 @@ import NetworkStatusBanner from './components/NetworkStatusBanner';
 import PwaUpdateBanner from './components/PwaUpdateBanner';
 import PwaUpdateOverlay from './components/PwaUpdateOverlay';
 import ManifestoDaRota from './features/saida-chegada/ManifestoDaRota';
+import AvisoInstalar from './features/saida-chegada/components/AvisoInstalar';
 
 import LoadingFallback from './components/LoadingFallback';
 
@@ -84,7 +85,7 @@ export default function App() {
                 mecanico), com fila offline no aparelho. O Meu histórico é dos dois.
                 O adm2 entra em tudo. The Manuscript, 03_APLICACAO_WEB/06_REGISTROS_E_CHECKLISTS.md. */}
             {/* Sem login, o próprio /motorista mostra o formulário (o app Motorista instalado não sai de /motorista). */}
-            <Route element={<PrivateRoute permite={(p) => temCredencial(p, 'motorista', 'mecanico')} semSessao={<LoginPage destino="/motorista" />} />}>
+            <Route element={<PrivateRoute permite={(p) => temCredencial(p, 'motorista', 'mecanico')} semSessao={<LoginPage destino="/motorista" aviso={<AvisoInstalar antesDoLogin />} />} />}>
               <Route path="motorista" element={<MotoristaPage />} />
               <Route path="motorista/como-usar" element={<ComoUsarPage />} />
               <Route path="motorista/historico" element={<HistoricoMotoristaPage />} />

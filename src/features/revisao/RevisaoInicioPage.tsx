@@ -11,7 +11,7 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import { itemFrotaLabel, type ItemFrotaV2 } from '../../utils/cadastrosV2';
 import { catalogoParaCategoria, type CatalogoId } from '../checklist-mecanico/domain/catalogo';
 import { checklistVeiculoDe, listarVeiculosChecklist } from '../checklist-mecanico/data/checklistFirestore';
-import InstalarNoIphone from '../checklist-mecanico/components/InstalarNoIphone';
+import AvisoInstalar from '../saida-chegada/components/AvisoInstalar';
 import PaginaMotorista from '../saida-chegada/components/PaginaMotorista';
 import { carregarRascunho, descartarRascunho, listarRegistros, salvarRascunho } from './data/armazenamentoLocal';
 import { enviador, useFilaRevisao } from './data/filaEnvio';
@@ -69,7 +69,7 @@ export default function RevisaoInicioPage() {
         <Typography variant="h5" fontWeight={800}>Revisão</Typography>
         <Button variant="outlined" startIcon={<HistoryRoundedIcon />} onClick={() => navigate('/motorista/revisao/historico')}>Histórico</Button>
       </Stack>
-      <InstalarNoIphone />
+      <AvisoInstalar />
       {(fila.pendentes > 0 || fila.naoEnviadas > 0) && (
         <Alert
           severity={fila.naoEnviadas > 0 ? 'error' : fila.enviando ? 'info' : 'warning'}
