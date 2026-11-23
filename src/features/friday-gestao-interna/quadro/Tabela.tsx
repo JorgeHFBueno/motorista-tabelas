@@ -5,6 +5,7 @@ import {
 } from 'lucide-react';
 import { useAuth } from '../../../contexts/AuthContext';
 import type { Pessoa } from '../api.ts';
+import { useNav } from '../nav.tsx';
 import { Menu, Popover, useConfirmar, usePopover, Editavel, type ItemMenu } from '../ui/base.tsx';
 import { arrastarBorda, arrastarCabecalho, CORES, fmtData, fmtNumeroColuna, larguraDoConteudo, NOME_TRAVADO, posEntre } from '../util.ts';
 import { Celula } from './Celula.tsx';
@@ -15,7 +16,7 @@ import { TabelaSubitens, type OpsItens } from './Subitens.tsx';
 import { alvosPara } from './mudarTipo.ts';
 import { MudarTipoDialogo } from './MudarTipo.tsx';
 import { CampoOficialDialogo, TIPOS_OFICIAIS } from './TornarOficial.tsx';
-import { aceitaReais, ehPrazo, emReais, infoColuna, infoTipo, type Coluna, type Grupo, type Item, type Ordenacao, type Rotulo, type Sub } from './tipos.ts';
+import { aceitaReais, ehPrazo, emReais, infoColuna, infoTipo, somaFormula, textoFormula, type Coluna, type Grupo, type Item, type Ordenacao, type Rotulo, type Sub } from './tipos.ts';
 import { fmtDuracao, totalSegundos } from './tempo.ts';
 import { colunaNoTipo, tipoDoItem, type TiposItem } from './tiposSubitem.ts';
 import type { Acoes } from './useQuadro.ts';
@@ -225,7 +226,7 @@ export function Tabela({ grupos: gruposReais, colunas: colunasVisiveis, todasCol
                   <tr className="tq-recolhido">
                     <td className="tq-sel" />
                     <td className="tq-nome fixo"><strong style={{ color: g.cor }}>{g.nome}</strong> <span className="muted">{lista.length} {lista.length === 1 ? nomeItem.toLowerCase() : 'itens'}</span></td>
-                    {colunas.map(c => <td key={c.id} className={`tq-resumo${classeFixa(c)}`} style={estiloFixa(c)}><Resumo coluna={c} itens={lista} /></td>)}
+                    {colunas.map(c => <td key={c.id} className={`tq-resumo${classeFixa(c)}`} style={estiloFixa(c)}><Resumo coluna={c} itens={lista} colunas={todasColunas} /></td>)}
                     <td />
                   </tr>
                 </tbody>
@@ -331,7 +332,7 @@ export function Tabela({ grupos: gruposReais, colunas: colunasVisiveis, todasCol
                   <tr className="tq-rodape">
                     <td className="tq-sel-vazio fixo" />
                     <td className="tq-nome-vazio fixo" />
-                    {colunas.map(c => <td key={c.id} className={`tq-resumo${classeFixa(c)}`} style={estiloFixa(c)}><Resumo coluna={c} itens={lista} /></td>)}
+                    {colunas.map(c => <td key={c.id} className={`tq-resumo${classeFixa(c)}`} style={estiloFixa(c)}><Resumo coluna={c} itens={lista} colunas={todasColunas} /></td>)}
                     <td />
                   </tr>
                 </tbody>
@@ -558,7 +559,9 @@ function NovoItem({ nomeItem, onCriar }: { nomeItem: string; onCriar: (nome: str
 }
 
 // ---------------------------------------------------------------- resumo do rodapé do grupo
-export function Resumo({ coluna, itens }: { coluna: Coluna; itens: Item[] }) {
+// colunas: todas as colunas do quadro (a fórmula pode usar colunas ocultas), para somar as fórmulas numéricas.
+export function Resumo({ coluna, itens, colunas }: { coluna: Coluna; itens: Item[]; colunas?: Coluna[] }) {
+  const nav = useNav();
   const vals = itens.map(i => i.valores[coluna.id]).filter(v => v != null && v !== '');
   switch (coluna.tipo) {
     case 'status': {
@@ -583,6 +586,11 @@ export function Resumo({ coluna, itens }: { coluna: Coluna; itens: Item[] }) {
       const ds = vals.flatMap(v => (coluna.tipo === 'periodo' ? [v.inicio, v.fim] : [v])).filter(Boolean).sort();
       if (!ds.length) return null;
       return <div className="resumo-datas">{fmtData(ds[0])}{ds.length > 1 && ds[0] !== ds.at(-1) ? ` – ${fmtData(ds.at(-1))}` : ''}</div>;
+    }
+    case 'formula': {
+      if (!colunas || coluna.config.resumo === 'nenhum') return null;
+      const soma = somaFormula(coluna, itens, { colunas, nomeUsuario: nav.nomeUsuario });
+      return soma == null ? null : <div className="resumo-num"><strong>{textoFormula(coluna, soma)}</strong><small>soma</small></div>;
     }
     case 'caixa': return vals.length ? <div className="resumo-num"><strong>{vals.length}/{itens.length}</strong></div> : null;
     case 'tempo': {

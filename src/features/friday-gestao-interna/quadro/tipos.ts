@@ -3,7 +3,8 @@ import {
   type LucideIcon,
 } from 'lucide-react';
 import type { Pessoa, Row } from '../api.ts';
-import { calcular, textoResultado } from './formula.ts';
+import { fmtNumero } from '../util.ts';
+import { calcular, textoResultado, type Contexto, type Valor } from './formula.ts';
 import { fmtDuracao, sessoesDe, totalSegundos } from './tempo.ts';
 
 // concluido: o rótulo conta como "feito" (Meu trabalho, atrasos, cronograma com ✓, filtro de concluídos).
@@ -34,9 +35,29 @@ export const colunaDoMenu = (t: TipoMenu): { tipo: TipoColuna; config?: Record<s
     : t === 'moeda' ? { tipo: 'numero', config: { unidade: 'R$', resumo: 'soma' } }
       : { tipo: t });
 
-// Coluna de número que pode virar reais: a ×10 e a sem separador de milhar têm formato próprio (uma casa; ano/código).
-export const aceitaReais = (c: Pick<Coluna, 'tipo' | 'config'>) => c.tipo === 'numero' && !c.config.x10 && c.config.milhar !== false;
-export const emReais = (c: Pick<Coluna, 'tipo' | 'config'>) => c.tipo === 'numero' && c.config.unidade === 'R$';
+// Coluna que pode mostrar reais ("Mostrar em reais (R$)", `config.unidade = 'R$'`): número e fórmula. Número ×10 e
+// sem separador de milhar têm formato próprio (uma casa; ano/código). Na fórmula, só o resultado numérico vira moeda.
+export const aceitaReais = (c: Pick<Coluna, 'tipo' | 'config'>) =>
+  c.tipo === 'formula' || (c.tipo === 'numero' && !c.config.x10 && c.config.milhar !== false);
+export const emReais = (c: Pick<Coluna, 'tipo' | 'config'>) => (c.tipo === 'numero' || c.tipo === 'formula') && c.config.unidade === 'R$';
+
+// Texto do resultado de uma fórmula (célula, busca, Painel, rodapé). Fica aqui, e não em formula.ts, porque formula.ts
+// é copiado igual para functions/fridayFormula.ts (teste friday-formula-servidor).
+export const textoFormula = (c: Pick<Coluna, 'tipo' | 'config'>, v: Valor): string =>
+  (typeof v === 'number' && Number.isFinite(v) && emReais(c) ? fmtNumero(v, 'R$') : textoResultado(v));
+
+// Soma do rodapé do grupo para uma fórmula: só quando ela dá número. Vazio e erro não contam; se algum item der texto
+// ou verdadeiro/falso, a coluna não é numérica e não há soma (null).
+export function somaFormula(c: Coluna, itens: Item[], ctx: Contexto): number | null {
+  let soma = 0, algum = false;
+  for (const item of itens) {
+    const { valor, erro } = calcular(c, item, ctx);
+    if (erro || valor === '') continue;
+    if (typeof valor !== 'number') return null;
+    if (Number.isFinite(valor)) { soma += valor; algum = true; }
+  }
+  return algum ? soma : null;
+}
 
 // Catálogo de tipos de coluna. "grupo" organiza o menu de adicionar coluna.
 export const TIPOS: { tipo: TipoMenu; rotulo: string; icone: LucideIcon; cor: string; descricao: string; grupo: 'essencial' | 'util'; busca?: string }[] = [
@@ -106,7 +127,7 @@ export function textoDoValor(c: Coluna, v: any, nomeUsuario: (id: unknown) => st
 export function textoCelula(c: Coluna, item: Item, colunas: Coluna[], nomeUsuario: (id: unknown) => string): string {
   if (c.tipo !== 'formula') return textoDoValor(c, item.valores[c.id], nomeUsuario);
   const r = calcular(c, item, { colunas, nomeUsuario });
-  return r.erro ? '' : textoResultado(r.valor);
+  return r.erro ? '' : textoFormula(c, r.valor);
 }
 
 // Valor comparável para ordenação.

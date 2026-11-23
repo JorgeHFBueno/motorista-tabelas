@@ -2,8 +2,8 @@ import { useMemo, useRef, useState } from 'react';
 import { AlertTriangle, CheckCircle2, Search } from 'lucide-react';
 import { useNav } from '../nav.tsx';
 import { Modal } from '../ui/base.tsx';
-import { analisar, calcular, COLUNAS_DO_ITEM, FUNCOES, paraIds, paraTitulos, textoResultado } from './formula.ts';
-import { infoColuna, type Coluna, type Item } from './tipos.ts';
+import { analisar, calcular, COLUNAS_DO_ITEM, FUNCOES, paraIds, paraTitulos } from './formula.ts';
+import { infoColuna, textoFormula, type Coluna, type Item } from './tipos.ts';
 
 // Editor de fórmula: o usuário escreve com {Título da coluna}; o app guarda com os ids.
 export function EditorFormula({ coluna, colunas, itens, onSalvar, onFechar }: {
@@ -65,7 +65,7 @@ export function EditorFormula({ coluna, colunas, itens, onSalvar, onFechar }: {
               {previa.map(({ item, r }) => (
                 <div key={item.id} className="ef-previa-linha">
                   <span className="ef-item" title={item.nome}>{item.nome}</span>
-                  <span className={r.erro ? 'texto-alerta' : ''}>{r.erro ? r.erro : textoResultado(r.valor) || <span className="muted">(vazio)</span>}</span>
+                  <span className={r.erro ? 'texto-alerta' : ''}>{r.erro ? r.erro : textoFormula(coluna, r.valor) || <span className="muted">(vazio)</span>}</span>
                 </div>
               ))}
             </div>

@@ -2,11 +2,11 @@ import { useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { AlertCircle, AlertTriangle, Check, CheckCircle2, Circle, Download, ExternalLink, Lock, Paperclip, Pencil, Plus, Search, Star, Trash2, Upload, UserPlus, X } from 'lucide-react';
 import { copiarArquivosMonday, enviarArquivo, excluir, listar, type Pessoa, type Row } from '../api.ts';
 import { useNav } from '../nav.tsx';
-import { calcular, textoResultado } from './formula.ts';
+import { calcular } from './formula.ts';
 import { IconeTipo, urlArquivo } from './Atualizacoes.tsx';
 import { Avatar, Popover, useAvisoRapido, usePopover } from '../ui/base.tsx';
 import { CORES, corTexto, diasEntre, fmtData, fmtDataComAno, fmtNumeroColuna, hojeISO, MONDAY_NA_TELA, somarDias } from '../util.ts';
-import { ehPrazo, itemConcluido, rotuloDe, vazio, type Coluna, type Item, type Rotulo } from './tipos.ts';
+import { ehPrazo, itemConcluido, rotuloDe, textoFormula, vazio, type Coluna, type Item, type Rotulo } from './tipos.ts';
 import { CelulaTempo } from './CelulaTempo.tsx';
 import { ColaboradoresDoQuadro } from './colaboradores.ts';
 import type { OpTempo } from './tempo.ts';
@@ -433,7 +433,7 @@ function CelulaFormula({ coluna, item, colunas, modo }: CelulaProps) {
     // Referência a coluna inexistente: vazio (como no monday), com aviso discreto.
     return <div className={`cel cel-formula erro${modo === 'painel' ? '' : ' cel-centro'}`} title={r.erro}><AlertTriangle size={13} /></div>;
   }
-  const txt = textoResultado(r.valor);
+  const txt = textoFormula(coluna, r.valor);
   return <div className={`cel cel-formula${typeof r.valor === 'number' ? ' cel-centro' : ''}`} title={txt}><span className="cel-valor">{txt}</span></div>;
 }
 
