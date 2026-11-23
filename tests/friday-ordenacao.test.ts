@@ -64,7 +64,9 @@ test('coluna Valor (R$) é uma coluna de número em reais', () => {
   const { tipo, config } = colunaDoMenu('moeda');
   assert.deepEqual({ tipo, config }, { tipo: 'numero', config: { unidade: 'R$', resumo: 'soma' } });
   assert.equal(fmtNumeroColuna(config, 1234.5).replace(/\s/g, ' '), 'R$ 1.234,50');
-  assert.equal(fmtNumeroColuna(config, 1500).replace(/\s/g, ' '), 'R$ 1.500');
+  assert.equal(fmtNumeroColuna(config, 1500).replace(/\s/g, ' '), 'R$ 1.500,00', 'sempre com os centavos');
+  assert.equal(fmtNumeroColuna(config, 276866).replace(/\s/g, ' '), 'R$ 276.866,00');
+  assert.equal(fmtNumeroColuna(config, 0.5).replace(/\s/g, ' '), 'R$ 0,50');
   const col = (cfg: Record<string, unknown>) => ({ tipo: 'numero', config: cfg }) as Pick<Coluna, 'tipo' | 'config'>;
   assert.ok(emReais(col(config!)) && aceitaReais(col(config!)));
   assert.ok(!emReais(col({ unidade: '' })) && aceitaReais(col({ unidade: '' })), 'Números comum pode passar para reais');
