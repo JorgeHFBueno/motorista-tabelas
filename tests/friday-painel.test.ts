@@ -153,7 +153,7 @@ test('carga de trabalho por pessoa e semana, com clique até os itens', () => {
 test('clique: itens de uma fatia e de uma parte da pilha', () => {
   const wb = w({ tipo: 'barras', calculo: 'soma', valor: 'Valor', eixo: 'Responsável', pilha: 'Etapa' });
   assert.deepEqual(itensDoWidget(wb, dados, ctx, undefined, { chave: 'Pessoa 7' }).map(i => i.nome), ['A', 'C', 'D']);
-  assert.deepEqual(itensDoWidget(wb, dados, ctx, undefined, { chave: 'Pessoa 7', pilha: 'Ganho' }).map(i => [i.nome, i.valor]), [['A', 'R$\u00a0100']]);
+  assert.deepEqual(itensDoWidget(wb, dados, ctx, undefined, { chave: 'Pessoa 7', pilha: 'Ganho' }).map(i => [i.nome, i.valor]), [['A', 'R$\u00a0100,00']]);
   assert.deepEqual(itensDoWidget(wb, dados, ctx, { janela: { coluna: 'Data de fechamento', atalho: 'mes_anterior' } }, {}).map(i => i.nome), ['B']);
 });
 
