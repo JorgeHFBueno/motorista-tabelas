@@ -2,6 +2,8 @@ import type { AtividadeV2 } from '../../services/atividade-normalizer';
 import type { NormalizedCombustivel } from '../../services/combustivel-normalizer';
 import { calculatedEnd, isValidCivilDate } from '../cronograma-obras/domain/temporal';
 import { rotuloDias, type NaoTrabalhado } from '../cronograma-obras/domain/naoTrabalhados';
+import { periodoCurto } from '../cronograma-obras/domain/apoio';
+import type { ApoioAlocacao } from '../cronograma-obras/domain/models';
 import { lotesDaObra, type LoteV2 } from '../../utils/cadastrosV2';
 
 // Obra de obras-v2 (The Manuscript, 01_FIRESTORE/COLECOES/obras-v2.md): um contrato com os LOTEs em `lotes`.
@@ -121,14 +123,14 @@ export function filtrarObras(obras: ObraDetalhe[], busca: string, filtro: Filtro
 }
 
 /** Alocação de monday-cronograma (01_FIRESTORE/COLECOES/engenharia-monday.md): `obraId` é a chave do LOTE. */
-export type AlocacaoObra = { id: string; mestreId: string; obraId?: string; inicio: string; tempoPlanejado: number; naoTrabalhados?: NaoTrabalhado[] };
+export type AlocacaoObra = { id: string; mestreId: string; obraId?: string; contratoId?: string; inicio: string; tempoPlanejado: number; naoTrabalhados?: NaoTrabalhado[]; /** Apoio ("ajuda por fora"): de onde o mestre veio. */ apoio?: ApoioAlocacao };
 /** `diasTexto`: "21 dias" ou "21 dias (3 NT)", como no CronoObra. */
 export type PeriodoMestre = { id: string; mestre: string; lote: string; inicio: string; fim: string; dias: number; diasTexto: string };
 
-/** Um período por alocação, na ordem do início; o fim é o do CronoObra (início + dias − 1). */
+/** Um período por alocação, na ordem do início; o fim é o do CronoObra (início + dias − 1). O apoio fica de fora. */
 export function periodosDosMestres(alocacoes: AlocacaoObra[], nomesMestres: Record<string, string>, nomesLotes: Record<string, string>): PeriodoMestre[] {
   return alocacoes
-    .filter((item) => isValidCivilDate(item.inicio) && Number.isInteger(item.tempoPlanejado) && item.tempoPlanejado > 0)
+    .filter((item) => !item.apoio && isValidCivilDate(item.inicio) && Number.isInteger(item.tempoPlanejado) && item.tempoPlanejado > 0)
     .map((item) => ({
       id: item.id,
       mestre: nomesMestres[item.mestreId] ?? item.mestreId,
@@ -139,6 +141,23 @@ export function periodosDosMestres(alocacoes: AlocacaoObra[], nomesMestres: Reco
       diasTexto: rotuloDias(item),
     }))
     .sort((a, b) => a.inicio.localeCompare(b.inicio) || a.mestre.localeCompare(b.mestre, 'pt-BR'));
+}
+
+/** "Mestres alocados" da obra: os períodos e, em linhas à parte, os apoios recebidos e prestados. */
+export type MestresDaObra = { periodos: PeriodoMestre[]; apoios: string[] };
+
+/**
+ * Apoios ("ajuda por fora") da obra, em ordem de início:
+ * "Recebeu apoio de AAA, período dd/mm" (alocações de apoio nesta obra) e
+ * "Prestou apoio AAA, Obra BBB, período dd/mm" (apoios que mestres desta obra deram a outra; `contratoId` = a outra).
+ */
+export function linhasDeApoio(recebidos: AlocacaoObra[], prestados: AlocacaoObra[], nomesMestres: Record<string, string>, nomesObras: Record<string, string>): string[] {
+  const validos = (lista: AlocacaoObra[]) => lista.filter((item) => item.apoio && isValidCivilDate(item.inicio) && Number.isInteger(item.tempoPlanejado) && item.tempoPlanejado > 0);
+  const mestre = (item: AlocacaoObra) => nomesMestres[item.mestreId] ?? item.mestreId;
+  return [
+    ...validos(recebidos).map((item) => ({ inicio: item.inicio, texto: `Recebeu apoio de ${mestre(item)}, período ${periodoCurto(item.inicio, item.tempoPlanejado)}` })),
+    ...validos(prestados).map((item) => ({ inicio: item.inicio, texto: `Prestou apoio ${mestre(item)}, Obra ${nomesObras[item.contratoId ?? ''] ?? item.contratoId ?? '—'}, período ${periodoCurto(item.inicio, item.tempoPlanejado)}` })),
+  ].sort((a, b) => a.inicio.localeCompare(b.inicio) || a.texto.localeCompare(b.texto, 'pt-BR')).map((item) => item.texto);
 }
 
 /** Timestamp do Firestore, Date ou `{ seconds }`. */

@@ -7,6 +7,7 @@ import type { MedicoesObra } from './obraRelatorioPdf';
 import { CRONOGRAMA_COLLECTION } from '../cronograma-obras/data/cronogramaFirestore';
 import { MESTRES_COLLECTION } from '../cronograma-obras/data/mestresFirestore';
 import { lerNaoTrabalhados } from '../cronograma-obras/domain/naoTrabalhados';
+import { lerApoio } from '../cronograma-obras/domain/apoio';
 import { localDaCidade, obraDetalheFromV2, type AlocacaoObra, type CampoEditavelObra, type LoteObra, type ObraDetalhe } from './obrasDomain';
 import { LOCAIS_SUGERIDOS } from './locaisSugeridos';
 import { localDoMaps } from '../cronograma-logistica/data/logisticaFirestore';
@@ -47,19 +48,38 @@ export async function carregarMedicoesDaObra(idObra: string, subcentroErp: strin
   }
 }
 
+const alocacaoDe = (item: { id: string; data: () => Record<string, unknown> }): AlocacaoObra => {
+  const data = item.data();
+  const naoTrabalhados = lerNaoTrabalhados(data.naoTrabalhados);
+  const apoio = lerApoio(data.apoio);
+  return {
+    id: item.id,
+    mestreId: typeof data.mestreId === 'string' ? data.mestreId : '',
+    ...(typeof data.obraId === 'string' ? { obraId: data.obraId } : {}),
+    ...(typeof data.contratoId === 'string' ? { contratoId: data.contratoId } : {}),
+    inicio: typeof data.inicio === 'string' ? data.inicio : '',
+    tempoPlanejado: typeof data.tempoPlanejado === 'number' ? data.tempoPlanejado : 0,
+    ...(naoTrabalhados ? { naoTrabalhados } : {}),
+    ...(apoio ? { apoio } : {}),
+  };
+};
+
+/** Alocações do CronoObra nesta obra (inclusive os apoios que ela recebeu). */
 export async function carregarAlocacoesDaObra(contratoId: string): Promise<AlocacaoObra[]> {
   const snapshot = await getDocs(query(collection(db, CRONOGRAMA_COLLECTION), where('contratoId', '==', contratoId)));
-  return snapshot.docs.map((item) => {
-    const data = item.data();
-    return {
-      id: item.id,
-      mestreId: typeof data.mestreId === 'string' ? data.mestreId : '',
-      ...(typeof data.obraId === 'string' ? { obraId: data.obraId } : {}),
-      inicio: typeof data.inicio === 'string' ? data.inicio : '',
-      tempoPlanejado: typeof data.tempoPlanejado === 'number' ? data.tempoPlanejado : 0,
-      ...(lerNaoTrabalhados(data.naoTrabalhados) ? { naoTrabalhados: lerNaoTrabalhados(data.naoTrabalhados) } : {}),
-    };
-  });
+  return snapshot.docs.map(alocacaoDe);
+}
+
+/** Apoios que mestres desta obra deram a outras ("ajuda por fora"): `contratoId` de cada um é a obra ajudada. */
+export async function carregarApoiosPrestados(contratoId: string): Promise<AlocacaoObra[]> {
+  const snapshot = await getDocs(query(collection(db, CRONOGRAMA_COLLECTION), where('apoio.contratoId', '==', contratoId)));
+  return snapshot.docs.map(alocacaoDe);
+}
+
+/** `nomeObra` de alguns contratos de obras-v2 (para "Prestou apoio …, Obra …"). */
+export async function carregarNomesDeObras(ids: string[]): Promise<Record<string, string>> {
+  const docs = await Promise.all([...new Set(ids)].map((id) => getDoc(doc(db, OBRAS_V2, id))));
+  return Object.fromEntries(docs.map((item) => [item.id, typeof item.data()?.nomeObra === 'string' ? item.data()!.nomeObra : item.id]));
 }
 
 export async function carregarNomesMestres(): Promise<Record<string, string>> {

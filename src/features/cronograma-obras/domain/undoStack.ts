@@ -3,6 +3,7 @@
  * nesta aba. Recarregar a página zera a pilha.
  */
 
+import type { ApoioAlocacao } from "./models";
 import type { NaoTrabalhado } from "./naoTrabalhados";
 
 export type AlocacaoUndoSnapshot = {
@@ -13,6 +14,8 @@ export type AlocacaoUndoSnapshot = {
   inicio: string;
   tempoPlanejado: number;
   naoTrabalhados?: NaoTrabalhado[];
+  /** Alocação de apoio: recriada como apoio. */
+  apoio?: ApoioAlocacao;
 };
 
 /** `naoTrabalhados` ausente = nenhum dia NT. */

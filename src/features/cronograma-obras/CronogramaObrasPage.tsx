@@ -32,12 +32,14 @@ import { planPrioridadeMove } from "./domain/prioridade";
 import {
   desmarcarNaoTrabalhado,
   normalizarNaoTrabalhados,
+  juntarSeguidos,
   NT_ARRASTE,
   planoMarcarNT,
   type NaoTrabalhado,
   type PlanoNT,
 } from "./domain/naoTrabalhados";
 import { FONTES_FIRESTORE } from "./data/fontesFirestore";
+import { apoiosPorOrigem } from "./domain/apoio";
 import { GravarStatusLoteContext, type FontesCronograma } from "./data/fontesCronograma";
 import {
   dropUndoFor,
@@ -218,6 +220,7 @@ function hydrateFirestoreAlocacoes(
                 ...(alocacao.naoTrabalhados
                   ? { naoTrabalhados: alocacao.naoTrabalhados }
                   : {}),
+                ...(alocacao.apoio ? { apoio: alocacao.apoio } : {}),
               },
             ]
           : [];
@@ -277,6 +280,7 @@ function undoSnapshot(alocacao: AlocacaoFirestore): AlocacaoUndoSnapshot {
     ...(alocacao.naoTrabalhados
       ? { naoTrabalhados: alocacao.naoTrabalhados }
       : {}),
+    ...(alocacao.apoio ? { apoio: alocacao.apoio } : {}),
   };
 }
 
@@ -309,6 +313,7 @@ function withOptimisticAlocacao(
           inicio: alocacao.inicio,
           tempoPlanejado: alocacao.tempoPlanejado,
           ...(alocacao.naoTrabalhados ? { naoTrabalhados: alocacao.naoTrabalhados } : {}),
+          ...(alocacao.apoio ? { apoio: alocacao.apoio } : {}),
         },
       ],
     };
@@ -803,6 +808,7 @@ export function CronogramaObrasView({
       // NT marks one day on the mestre's bar under the pointer (or the only one covering that day).
       const noDia = obra.mestresPlanejados.filter(
         (item) =>
+          !item.apoio &&
           target >= item.inicio &&
           target <= calculatedEnd(item.inicio, item.tempoPlanejado),
       );
@@ -1248,6 +1254,79 @@ export function CronogramaObrasView({
       }
     })();
   };
+  /** "Juntar com o próximo período" (only without conflict, checked by the panel): one action, undone at once. */
+  const juntarAlocacoes = (primeiroId: string, segundoId: string) => {
+    const a = alocacoesRef.current.find((item) => item.id === primeiroId);
+    const b = alocacoesRef.current.find((item) => item.id === segundoId);
+    if (!a || !b || a.mestreId !== b.mestreId || a.apoio || b.apoio) return;
+    const junto = juntarSeguidos(a, b);
+    const mestreNome = mestres.find((mestre) => mestre.id === a.mestreId)?.nome ?? "mestre";
+    setWriteError(null);
+    setMasterPanel(null);
+    const entry: UndoEntry = {
+      kind: "group",
+      mestreNome,
+      entries: [
+        {
+          kind: "update",
+          mestreNome,
+          id: a.id,
+          mestreId: a.mestreId,
+          before: { inicio: a.inicio, tempoPlanejado: a.tempoPlanejado, naoTrabalhados: a.naoTrabalhados },
+          after: { inicio: junto.inicio, tempoPlanejado: junto.tempoPlanejado, naoTrabalhados: junto.naoTrabalhados },
+        },
+        { kind: "delete", mestreNome, alocacao: undoSnapshot(b) },
+      ],
+    };
+    undoStack.current = pushUndo(undoStack.current, entry);
+    void (async () => {
+      try {
+        await alocacoesSource.updateAlocacao(a.id, { inicio: junto.inicio, tempoPlanejado: junto.tempoPlanejado, naoTrabalhados: junto.naoTrabalhados });
+        await alocacoesSource.deleteAlocacao(b.id);
+      } catch (cause) {
+        undoStack.current = undoStack.current.filter((item) => item !== entry);
+        setWriteError(`Os períodos não foram juntados: ${cause instanceof Error ? cause.message : String(cause)}`);
+      }
+    })();
+  };
+  /**
+   * Apoio ("ajuda por fora"): Alt + drag a mestre's bar to another LOTE row creates a 1-day apoio there (stretch it by
+   * the edges). The mestre stays in his own obra (no NT); the apoio is only visual.
+   */
+  const criarApoio = (origemId: string, destinoObraId: string, dia: string) => {
+    const origem = alocacoesRef.current.find((item) => item.id === origemId);
+    const destino = obras.find((item) => item.id === destinoObraId);
+    const mestre = mestres.find((item) => item.id === origem?.mestreId);
+    if (!origem || !destino?.contratoId || !mestre || origem.apoio) return;
+    const destinoObraIdFirestore = destino.targetType === "obra" ? destino.id : undefined;
+    if (origem.contratoId === destino.contratoId && origem.obraId === destinoObraIdFirestore) return;
+    try {
+      const reference = alocacoesSource.createAlocacaoReference();
+      const apoio: AlocacaoFirestore = {
+        id: reference.id,
+        ...(destinoObraIdFirestore ? { obraId: destinoObraIdFirestore } : {}),
+        contratoId: destino.contratoId,
+        mestreId: origem.mestreId,
+        inicio: dia,
+        tempoPlanejado: 1,
+        apoio: { alocacaoId: origem.id, contratoId: origem.contratoId, ...(origem.obraId ? { obraId: origem.obraId } : {}) },
+        criadoPorFuncionarioId: criadorAtual(),
+      };
+      setWriteError(null);
+      confirmedObras.current = withOptimisticAlocacao(confirmedObras.current, apoio, mestre);
+      lastHydratedObras = confirmedObras.current;
+      setObras(withResizeDrafts(confirmedObras.current, resizeDrafts.current));
+      undoStack.current = pushUndo(undoStack.current, { kind: "create", mestreNome: mestre.nome, alocacao: undoSnapshot(apoio) });
+      void alocacoesSource.createAlocacao(apoio, reference).catch((cause: unknown) => {
+        undoStack.current = dropUndoFor(undoStack.current, apoio.id);
+        setWriteError(`O apoio não foi salvo: ${cause instanceof Error ? cause.message : String(cause)}`);
+      });
+    } catch (cause) {
+      setWriteError(cause instanceof Error ? cause.message : String(cause));
+    }
+  };
+  // Apoios each period gave (marks on the origin bar), from every LOTE, not only the filtered ones.
+  const apoiosPrestados = useMemo(() => apoiosPorOrigem(obras), [obras]);
   const calendarShortcut = useRef<(event: KeyboardEvent) => void>(() => {});
   useEffect(() => {
     calendarShortcut.current = (event) => {
@@ -1636,6 +1715,8 @@ export function CronogramaObrasView({
               onResizeMasterCommit={podeEditar ? resizeMaster : () => undefined}
               onResizeMasterCancel={cancelResizeMaster}
               onAplicarPlanoNT={podeEditar ? aplicarPlanoNT : undefined}
+              onCriarApoio={podeEditar ? criarApoio : undefined}
+              apoiosPrestados={apoiosPrestados}
             /></CronogramaProfiler>
           </section>
           <section>
@@ -1774,6 +1855,7 @@ export function CronogramaObrasView({
         masterKey={masterPanel?.key ?? null}
         selectedLocalId={masterPanel?.localId ?? null}
         onSalvarNaoTrabalhados={podeEditar ? salvarNaoTrabalhados : undefined}
+        onJuntar={podeEditar ? juntarAlocacoes : undefined}
         allKeys={masters.map(normalizeMestreKey)}
         onClose={() => setMasterPanel(null)}
       />

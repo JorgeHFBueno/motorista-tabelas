@@ -8,7 +8,12 @@ export type CivilDate = string;
 /** Formato de importação da planilha legado; não é exposto à UI. */
 export interface RawCronogramaObra { sourceRow: number; local: string; status: CronogramaStatus; contrato: string | null; empresa: string; mestre: string | null; prev: string | null; dias: string | null; progresso: string | null; descricao: string | null; allocations: ReadonlyArray<readonly [weekIndex: number, days: number]>; }
 /** mestreKey is local today; a future source may provide the preferred uid. */
-export interface MestrePlanejado { localId: string; mestreId?: string; mestreKey?: string; nome: string; inicio: CivilDate; tempoPlanejado: number; /** Dias NT (não trabalhados) dentro do período. */ naoTrabalhados?: NaoTrabalhado[]; }
+/**
+ * "Ajuda por fora" (2026-11-23): o mestre ajuda outra obra por alguns dias sem sair da dele. A alocação de apoio fica no
+ * LOTE que recebeu a ajuda e guarda de onde o mestre veio; é só visual: não conta dias nem conflito, nem tira a origem.
+ */
+export interface ApoioAlocacao { alocacaoId: string; contratoId: string; obraId?: string; }
+export interface MestrePlanejado { localId: string; mestreId?: string; mestreKey?: string; nome: string; inicio: CivilDate; tempoPlanejado: number; /** Dias NT (não trabalhados) dentro do período. */ naoTrabalhados?: NaoTrabalhado[]; /** Alocação de apoio: o período do mestre de onde ele veio. */ apoio?: ApoioAlocacao; }
 export interface ObraCatalogo { id: string; targetType?: 'obra' | 'contrato'; /** Set only for a real LOTE: its key in obras-v2 `lotes`. */ loteId?: string; /** obras-v2 `lotes.{id}.prioridade`: order inside "Próxima a iniciar" (lower first). */ prioridade?: number; allocationAllowed?: boolean; sourceRow: number; contratoId?: string; contratoNome?: string; codObra: string; siglaObra: string; nomeObra: string; local: string; status: CronogramaStatus; empresa: string; mestreInicial: string | null; descricao: string | null; }
 /** The work planning period comes from its parent contract and can be absent. */
 export interface ObraCronograma extends ObraCatalogo { inicioPlanejado: CivilDate | null; tempoPlanejado: number | null; mestresPlanejados: MestrePlanejado[]; }

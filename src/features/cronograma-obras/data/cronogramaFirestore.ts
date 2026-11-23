@@ -3,6 +3,7 @@ import { db } from '../../../firebase';
 import { reconcileAlocacoes, type AlocacaoChange } from './alocacaoReconciliation';
 export { reconcileAlocacoes, type AlocacaoChange } from './alocacaoReconciliation';
 
+import type { ApoioAlocacao } from '../domain/models';
 import type { NaoTrabalhado } from '../domain/naoTrabalhados';
 
 export const CRONOGRAMA_COLLECTION = 'monday-cronograma';
@@ -16,6 +17,8 @@ export type AlocacaoFirestore = {
   tempoPlanejado: number;
   /** Dias NT (não trabalhados) dentro do período; ausente = nenhum. */
   naoTrabalhados?: NaoTrabalhado[];
+  /** Alocação de apoio ("ajuda por fora"): o período de origem do mestre. */
+  apoio?: ApoioAlocacao;
   criadoPorFuncionarioId: string;
 };
 

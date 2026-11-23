@@ -16,10 +16,11 @@ export function allMasters(obras: ObraCronograma[], catalogMasters: string[] = [
 
 export function buildWorkloads(obras: ObraCronograma[], year = 2026): MestreWorkload[] {
   const byMaster = new Map<string, ObraCronograma[]>();
-  obras.forEach((obra) => obra.mestresPlanejados.forEach((item) => { if (item.nome && item.tempoPlanejado > 0) byMaster.set(item.nome, [...(byMaster.get(item.nome) ?? []), obra]); }));
+  obras.forEach((obra) => obra.mestresPlanejados.forEach((item) => { if (item.nome && item.tempoPlanejado > 0 && !item.apoio) byMaster.set(item.nome, [...(byMaster.get(item.nome) ?? []), obra]); }));
   return [...byMaster.entries()].sort(([a], [b]) => a.localeCompare(b, 'pt-BR')).map(([mestre, works]) => {
     const daily = yearDays(year).map((date) => {
-      const naData = (obra: ObraCronograma) => obra.mestresPlanejados.filter((item) => item.nome === mestre && intersectsRange(item.inicio, item.tempoPlanejado, date, 1));
+      // Apoio ("ajuda por fora") is only visual: it counts neither days nor conflicts.
+      const naData = (obra: ObraCronograma) => obra.mestresPlanejados.filter((item) => item.nome === mestre && !item.apoio && intersectsRange(item.inicio, item.tempoPlanejado, date, 1));
       const active = [...new Map(obras.filter((obra) => naData(obra).length).map((obra) => [obra.id, obra])).values()];
       // A day NT (não trabalhado) keeps the mestre on that work but does not occupy him: no conflict.
       const working = active.filter((obra) => naData(obra).some((item) => !ehNaoTrabalhado(item, date)));

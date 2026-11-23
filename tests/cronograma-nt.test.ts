@@ -3,16 +3,20 @@ import test from "node:test";
 import {
   desmarcarNaoTrabalhado,
   dividirNoNT,
+  juntarSeguidos,
   lerNaoTrabalhados,
   marcarNaoTrabalhado,
   normalizarNaoTrabalhados,
   planoMarcarNT,
   planoRedimensionarNT,
+  podeJuntar,
   redimensionarNaoTrabalhado,
   rotuloDias,
   segmentosNT,
 } from "../src/features/cronograma-obras/domain/naoTrabalhados";
 import { buildWorkloads } from "../src/features/cronograma-obras/domain/cronograma";
+import { apoiosPorOrigem, lerApoio, periodoCurto } from "../src/features/cronograma-obras/domain/apoio";
+import { masterPeriodsForObra, masterSelectionForPeriod } from "../src/features/cronograma-obras/domain/masterPlanningDetails";
 import type { ObraCronograma } from "../src/features/cronograma-obras/domain/models";
 
 // A 25-day period starting 01/10.
@@ -118,4 +122,31 @@ test("an NT stretch is stretched or shrunk by its edges, inside the period", () 
   // Past the other edge it stops at one day; outside the period it stops at the period.
   assert.deepEqual(redimensionarNaoTrabalhado(comNT, { inicio: "2026-10-20", dias: 3 }, "start", "2026-10-30"), [{ inicio: "2026-10-22", dias: 1 }]);
   assert.deepEqual(redimensionarNaoTrabalhado(comNT, { inicio: "2026-10-20", dias: 3 }, "end", "2026-12-01"), [{ inicio: "2026-10-20", dias: 6 }]);
+});
+
+test("Juntar only without conflict: the next starts the day after and the first does not end in NT", () => {
+  const a = { inicio: "2026-11-12", tempoPlanejado: 7 }; // 12..18
+  const b = { inicio: "2026-11-19", tempoPlanejado: 5, naoTrabalhados: [{ inicio: "2026-11-21", dias: 1 }] }; // 19..23
+  assert.equal(podeJuntar(a, b), true);
+  assert.equal(podeJuntar(a, { ...b, inicio: "2026-11-20" }), false); // gap
+  assert.equal(podeJuntar({ ...a, naoTrabalhados: [{ inicio: "2026-11-18", dias: 1 }] }, b), false); // NT at the end of the first
+  assert.deepEqual(juntarSeguidos(a, b), { inicio: "2026-11-12", tempoPlanejado: 12, naoTrabalhados: [{ inicio: "2026-11-21", dias: 1 }] });
+});
+
+test("apoio: read from Firestore, out of the mestre's load and of the obra's mestres; marks on the origin period", () => {
+  assert.deepEqual(lerApoio({ alocacaoId: "o1", contratoId: "c1", obraId: "l1" }), { alocacaoId: "o1", contratoId: "c1", obraId: "l1" });
+  for (const ruim of [null, {}, { alocacaoId: "o1" }, { alocacaoId: "o1", contratoId: "" }, { alocacaoId: "o1", contratoId: "c1", obraId: 3 }]) assert.equal(lerApoio(ruim), undefined);
+  const lote = (id: string, nomeObra: string, mestres: ObraCronograma["mestresPlanejados"]) => ({ id, nomeObra, contratoNome: "CONTRATO", status: "Em andamento", mestresPlanejados: mestres } as unknown as ObraCronograma);
+  const origem = lote("l1", "LOTE 1", [{ localId: "o1", nome: "DILAMAR", inicio: "2026-11-01", tempoPlanejado: 30 }]);
+  const destino = lote("l2", "LOTE 2", [{ localId: "ap1", nome: "DILAMAR", inicio: "2026-11-24", tempoPlanejado: 2, apoio: { alocacaoId: "o1", contratoId: "c1", obraId: "l1" } }]);
+  // Same days in two works, but the apoio is visual: no conflict, and its days do not count.
+  const [carga] = buildWorkloads([origem, destino]);
+  assert.equal(carga.conflictDays, 0);
+  assert.equal(carga.diasProgramados, 30);
+  assert.deepEqual(carga.obras.map((obra) => obra.id), ["l1"]);
+  assert.deepEqual(masterPeriodsForObra(destino), []);
+  assert.deepEqual(masterSelectionForPeriod(destino, destino.mestresPlanejados[0]).periods.map((p) => p.localId), ["ap1"]);
+  assert.deepEqual(apoiosPorOrigem([origem, destino]).get("o1"), [{ localId: "ap1", inicio: "2026-11-24", dias: 2, destino: "LOTE 2 (CONTRATO)" }]);
+  assert.equal(periodoCurto("2026-11-24", 1), "24/11");
+  assert.equal(periodoCurto("2026-11-24", 3), "24/11 a 26/11");
 });

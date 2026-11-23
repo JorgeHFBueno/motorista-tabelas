@@ -232,3 +232,11 @@ body.qg-laceando, body.qg-laceando * { cursor: crosshair !important; user-select
 /* Status com a cor de cada um (PilulaStatus): LOTE com as cores do controle de Status; contrato pela equivalente */
 .qg-pilula { background: var(--qg-pilula); border-radius: 999px; color: #fff; display: inline-block; font-size: 11px; font-weight: 700; line-height: 22px; max-width: 100%; overflow: hidden; padding: 0 10px; text-overflow: ellipsis; text-shadow: 0 1px 1px rgba(0, 0, 0, .18); white-space: nowrap; }
 .qg-pilula.is-neutra { background: #e5e7eb; color: #334155; text-shadow: none; }
+
+/* Apoio ("ajuda por fora"): barra fina e tracejada, só com o nome do mestre; na barra de origem, a marca ↗ nos dias */
+.qg-barra--apoio { background: color-mix(in srgb, var(--qg-cor-apoio) 14%, #fff); border: 2px dashed var(--qg-cor-apoio); box-shadow: none; color: var(--qg-cor-apoio); height: 16px; padding: 0 6px; }
+.qg-barra--apoio { overflow: visible; }
+.qg-barra--apoio .qg-barra-nome { font-size: 10px; overflow: visible; }
+.qg-apoio-marca { align-items: center; background: rgba(255, 255, 255, .85); border-radius: 3px; bottom: 2px; color: #12293b; display: flex; font-size: 10px; font-weight: 900; justify-content: center; position: absolute; top: 2px; z-index: 2; }
+.qg-trilho.is-alvo-apoio::after { background: rgba(47, 107, 152, .16); bottom: 0; content: ''; left: var(--qg-alvo-esq, -9999px); outline: 2px dashed #2f6b98; pointer-events: none; position: absolute; top: 0; width: var(--qg-alvo-larg, 0); }
+body.qg-apoiando, body.qg-apoiando * { cursor: copy !important; user-select: none !important; }

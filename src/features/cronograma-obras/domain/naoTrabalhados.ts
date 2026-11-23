@@ -155,3 +155,20 @@ export function planoRedimensionarNT(periodo: Periodo, trecho: NaoTrabalhado, ed
   // The edge that did not move still belongs to the edited stretch.
   return planoComDivisao(periodo, lista, edge === "start" ? fimTrecho : trecho.inicio);
 }
+
+/**
+ * "Juntar com o próximo período" (volta em 2026-11-23, sem conflito): só quando o segundo começa no dia seguinte ao fim
+ * do primeiro e o último dia do primeiro não é NT (depois de tirar o NT que os separava). Juntar com NT no fim do
+ * primeiro deixaria o NT no meio, e a regra de dividir no NT separaria de novo.
+ */
+export function podeJuntar(a: Periodo, b: Periodo): boolean {
+  const fimA = calculatedEnd(a.inicio, a.tempoPlanejado);
+  return b.inicio === addDays(fimA, 1) && !diasNT(a).has(fimA);
+}
+
+/** O primeiro passa a cobrir os dois, com os NT dos dois; o segundo é apagado. */
+export function juntarSeguidos(a: Periodo, b: Periodo): ValoresPeriodo {
+  const tempoPlanejado = a.tempoPlanejado + b.tempoPlanejado;
+  const naoTrabalhados = normalizarNaoTrabalhados({ inicio: a.inicio, tempoPlanejado, naoTrabalhados: [...(a.naoTrabalhados ?? []), ...(b.naoTrabalhados ?? [])] });
+  return { inicio: a.inicio, tempoPlanejado, ...(naoTrabalhados ? { naoTrabalhados } : {}) };
+}

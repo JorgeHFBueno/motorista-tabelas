@@ -6,7 +6,8 @@ export type MasterPeriods = { key: string; nome: string; periods: MestrePlanejad
 /** `localId`: the clicked period (the allocation Del removes). */
 export type MasterSelection = { obraId: string; mestreKey: string; localId: string; periods: MestrePlanejado[] };
 const periodStart = (item: MestrePlanejado) => item.inicio;
-const hasRealPeriod = (item: MestrePlanejado) => Boolean(item.nome.trim()) && /^\d{4}-\d{2}-\d{2}$/.test(item.inicio) && item.tempoPlanejado > 0;
+/** Apoio periods are not the obra's mestres (they stay with their own obra). */
+const hasRealPeriod = (item: MestrePlanejado) => !item.apoio && Boolean(item.nome.trim()) && /^\d{4}-\d{2}-\d{2}$/.test(item.inicio) && item.tempoPlanejado > 0;
 function groupRealMasterPeriods(periods: readonly MestrePlanejado[]): MasterPeriods[] {
   const groups = new Map<string, MasterPeriods>();
   periods.filter(hasRealPeriod).forEach((item) => { const key = item.mestreKey ?? getMestreKey(item); const group = groups.get(key) ?? { key, nome: item.nome, periods: [] }; group.periods.push(item); groups.set(key, group); });
@@ -19,6 +20,7 @@ export const mastersWithRealPeriods = masterPeriodsForObra;
 export function aggregateMastersWithRealPeriods(obras: readonly ObraCronograma[]): MasterPeriods[] { return groupRealMasterPeriods(obras.flatMap((obra) => mastersWithRealPeriods(obra).flatMap((group) => group.periods))); }
 export function masterSelectionForPeriod(obra: ObraCronograma, mestre: MestrePlanejado): MasterSelection {
   const mestreKey = mestre.mestreKey ?? getMestreKey(mestre);
+  if (mestre.apoio) return { obraId: obra.id, mestreKey, localId: mestre.localId, periods: [mestre] };
   return { obraId: obra.id, mestreKey, localId: mestre.localId, periods: masterPeriodsForObra(obra).find((group) => group.key === mestreKey)?.periods ?? [] };
 }
 export function startedMasterPeriods(obra: ObraCronograma, today: string): MasterPeriods[] { return masterPeriodsForObra(obra).filter((group) => group.periods.some((item) => item.inicio <= today)); }

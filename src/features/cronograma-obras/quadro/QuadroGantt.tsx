@@ -19,6 +19,7 @@ import { addDays, formatDateShort, inclusiveCivilDays } from "../domain/temporal
 import { CabecalhoCalendario, useCalendario, type Geometria } from "./calendario";
 import { useColunasOcultas } from "./colunasVisiveis";
 import { PilulaStatus } from "./PilulaStatus";
+import { periodoCurto, type ApoioPrestado } from "../domain/apoio";
 
 /**
  * CronoObra: grade de "Obra iniciada" (nasceu no /testes/mkiii; não é o GanttGrid). Uma linha por LOTE (ou por
@@ -45,7 +46,7 @@ const COLUNAS: readonly Coluna[] = [
 const GRUPO_NOME: Record<string, string> = { "OBRAS PÚBLICAS": "Obras públicas", "OBRAS PRIVADAS": "Obras privadas", "PRÓXIMA A INICIAR": "Próxima a iniciar" };
 
 export function QuadroGantt(props: GanttGridProps) {
-  const { obras, contratos, zoom, viewMode = "flat", draggingMaster, selectedId, centerRequest, display, onSelect, onSelectMasters, onSelectMaster, onOpenContract, onDropMaster, onResizeMasterPreview, onResizeMasterCommit, onResizeMasterCancel, onAplicarPlanoNT, onStatusConfirmed, onMovePrioridade, onApagarSelecao } = props;
+  const { obras, contratos, zoom, viewMode = "flat", draggingMaster, selectedId, centerRequest, display, onSelect, onSelectMasters, onSelectMaster, onOpenContract, onDropMaster, onResizeMasterPreview, onResizeMasterCommit, onResizeMasterCancel, onAplicarPlanoNT, onCriarApoio, apoiosPrestados, onStatusConfirmed, onMovePrioridade, onApagarSelecao } = props;
   const { zoom: zoomCal, hoje, dias, dw, geo, rolagem, fundo, largura: larguraCalendario } = useCalendario(zoom, centerRequest);
   const [sort, setSort] = useState<TableSort>({ column: null, direction: null });
   const [completo, setCompleto] = useState(true);
@@ -155,6 +156,7 @@ export function QuadroGantt(props: GanttGridProps) {
   const trilho = (obra: ObraCronograma, conteudo: ReactNode, alturaBarras: number, recebe = true) => (
     <div
       className={`qg-trilho ${recebe && draggingMaster ? "is-recebendo" : ""}`}
+      data-obra-id={recebe ? obra.id : undefined}
       style={{ width: larguraCalendario, ...fundo, minHeight: alturaBarras }}
       onPointerDown={recebe ? iniciarLaco : undefined}
       onClick={(event) => { if (houveLaco.current) { houveLaco.current = false; return; } if (!(event.target as HTMLElement).closest(".qg-barra")) limparSelecao(); }}
@@ -189,7 +191,8 @@ export function QuadroGantt(props: GanttGridProps) {
     : conteudo);
 
   const chipsMestres = (lista: readonly MestrePlanejado[]) => {
-    const nomes = [...new Map(lista.map((m) => [m.mestreKey ?? normalizeMestreKey(m.nome), m.nome])).entries()];
+    // Apoio ("ajuda por fora") is not a mestre of this obra.
+    const nomes = [...new Map(lista.filter((m) => !m.apoio).map((m) => [m.mestreKey ?? normalizeMestreKey(m.nome), m.nome])).entries()];
     return nomes.length ? nomes.map(([chave, nome]) => { const cor = getMestreColor(chave); return <span key={chave} className="qg-mestre" style={{ background: cor.background, color: cor.text }}>{nome}</span>; }) : <span className="qg-sem-mestre">Sem mestre</span>;
   };
 
@@ -261,7 +264,9 @@ export function QuadroGantt(props: GanttGridProps) {
               onFocarNT={(trecho, varios) => selecionar({ tipo: "nt", localId: mestre.localId, trecho }, varios)}
               onDetalhes={() => { limparSelecao(); onSelectMaster(masterSelectionForPeriod(obra, mestre)); }}
               onPreview={onResizeMasterPreview} onCommit={(draft) => onResizeMasterCommit(obra.id, draft)} onCancel={onResizeMasterCancel}
-              onPlanoNT={onAplicarPlanoNT ? (plano, sucessorId) => onAplicarPlanoNT(mestre.localId, plano, sucessorId) : undefined} />
+              onPlanoNT={onAplicarPlanoNT ? (plano, sucessorId) => onAplicarPlanoNT(mestre.localId, plano, sucessorId) : undefined}
+              apoios={apoiosPrestados?.get(mestre.localId)}
+              onCriarApoio={onCriarApoio ? (destinoObraId, dia) => onCriarApoio(mestre.localId, destinoObraId, dia) : undefined} />
           ))}
         </>, altura)}
       </div>
@@ -364,12 +369,21 @@ export function QuadroGantt(props: GanttGridProps) {
   );
 }
 
-function Barra({ obra, mestre, geo, topo, mostrarNome, podeNT, focada, ntsFocados, onFocar, onFocarNT, onDetalhes, onPreview, onCommit, onCancel, onPlanoNT }: {
+/** After an Alt + drag (apoio), the click that follows on the bar must not select it. */
+let ignorarCliqueDaBarra = false;
+
+function Barra({ obra, mestre, geo, topo, mostrarNome, podeNT: podeNTNoZoom, focada, ntsFocados, onFocar, onFocarNT, onDetalhes, onPreview, onCommit, onCancel, onPlanoNT, apoios, onCriarApoio }: {
   obra: ObraCronograma; mestre: MestrePlanejado; geo: Geometria; topo: number; mostrarNome: boolean; podeNT: boolean;
   focada: boolean; ntsFocados: ReadonlySet<string>; onFocar: (varios: boolean) => void; onFocarNT: (trecho: NaoTrabalhado, varios: boolean) => void; onDetalhes: () => void; onPreview: (m: MestrePlanejado) => void; onCommit: (m: MestrePlanejado) => void; onCancel: (localId: string) => void;
   /** NT edge drag: the page applies the plan (split the period, or move the boundary with the next one). */
   onPlanoNT?: (plano: PlanoNT, sucessorId?: string) => void;
+  /** Apoios this period gave (marks on the bar). */
+  apoios?: readonly ApoioPrestado[];
+  /** Alt + drag the bar to another LOTE row: creates a 1-day apoio there. */
+  onCriarApoio?: (destinoObraId: string, dia: string) => void;
 }) {
+  const ehApoio = Boolean(mestre.apoio);
+  const podeNT = podeNTNoZoom && !ehApoio;
   const ini = geo.indice(mestre.inicio);
   const esq = Math.max(0, ini);
   const fim = Math.min(geo.dias.length, ini + mestre.tempoPlanejado);
@@ -422,16 +436,48 @@ function Barra({ obra, mestre, geo, topo, mostrarNome, podeNT, focada, ntsFocado
     document.addEventListener("pointercancel", soltar);
   };
 
+  // Alt + drag: carry the mestre to another LOTE row as apoio (the day under the pointer).
+  const arrastarApoio = (event: PointerEvent<HTMLDivElement>) => {
+    if (!event.altKey || event.button !== 0 || !onCriarApoio || ehApoio || (event.target as HTMLElement).closest(".qg-borda, .qg-nt-borda")) return;
+    event.preventDefault(); event.stopPropagation();
+    let alvo: HTMLElement | null = null;
+    const limpar = () => { alvo?.classList.remove("is-alvo-apoio"); alvo = null; };
+    const diaEm = (el: HTMLElement, x: number) => geo.dias[Math.min(geo.dias.length - 1, Math.max(0, Math.floor((x - el.getBoundingClientRect().left) / geo.dw)))];
+    const mover = (e: globalThis.PointerEvent) => {
+      const trilho = document.elementFromPoint(e.clientX, e.clientY)?.closest<HTMLElement>(".qg-trilho[data-obra-id]") ?? null;
+      if (trilho !== alvo) limpar();
+      if (!trilho || trilho.dataset.obraId === obra.id) return;
+      alvo = trilho;
+      trilho.classList.add("is-alvo-apoio");
+      trilho.style.setProperty("--qg-alvo-esq", `${geo.indice(diaEm(trilho, e.clientX)) * geo.dw}px`);
+      trilho.style.setProperty("--qg-alvo-larg", `${geo.dw}px`);
+    };
+    const soltar = (e: globalThis.PointerEvent) => {
+      document.removeEventListener("pointermove", mover);
+      document.removeEventListener("pointerup", soltar);
+      document.body.classList.remove("qg-apoiando");
+      ignorarCliqueDaBarra = true;
+      const destino = alvo;
+      limpar();
+      if (destino?.dataset.obraId) onCriarApoio(destino.dataset.obraId, diaEm(destino, e.clientX));
+    };
+    document.body.classList.add("qg-apoiando");
+    document.addEventListener("pointermove", mover);
+    document.addEventListener("pointerup", soltar);
+  };
+  const cartaz = ehApoio ? "Apoio" : rotuloDias(mestre);
+
   return (
     <div
-      className={`qg-barra ${focada ? "is-focada" : ""}`}
+      className={`qg-barra ${ehApoio ? "qg-barra--apoio" : ""} ${focada ? "is-focada" : ""}`}
       role="button"
       aria-pressed={focada}
       tabIndex={0}
       data-alocacao-id={mestre.localId}
-      title={`${mestre.nome}\n${formatDateShort(mestre.inicio)} → ${formatDateShort(addDays(mestre.inicio, mestre.tempoPlanejado - 1))}\n${rotuloDias(mestre)}\nClique: selecionar (no NT, só o NT) · Ctrl+clique ou arrastar no calendário: vários · Botão direito: detalhes · Del: apagar`}
-      style={{ left: esq * geo.dw, width: largura, top: topo, background: cor.background, color: cor.text } as CSSProperties}
-      onClick={(e) => { e.stopPropagation(); onFocar(e.ctrlKey || e.metaKey); }}
+      title={`${mestre.nome}\n${formatDateShort(mestre.inicio)} → ${formatDateShort(addDays(mestre.inicio, mestre.tempoPlanejado - 1))}\n${cartaz}\nClique: selecionar (no NT, só o NT) · Ctrl+clique ou arrastar no calendário: vários · Botão direito: detalhes · Del: apagar${ehApoio ? "" : " · Alt+arrastar para outra obra: apoio"}`}
+      style={(ehApoio ? { left: esq * geo.dw, width: largura, top: topo + 2, "--qg-cor-apoio": cor.background } : { left: esq * geo.dw, width: largura, top: topo, background: cor.background, color: cor.text }) as CSSProperties}
+      onPointerDown={arrastarApoio}
+      onClick={(e) => { e.stopPropagation(); if (ignorarCliqueDaBarra) { ignorarCliqueDaBarra = false; return; } onFocar(e.ctrlKey || e.metaKey); }}
       onContextMenu={(e) => { e.preventDefault(); e.stopPropagation(); onDetalhes(); }}
     >
       <button type="button" className="qg-borda is-ini" aria-label={`Ajustar início de ${mestre.nome}`} onPointerDown={arrastar("start")} onClick={(e) => e.stopPropagation()} />
@@ -444,7 +490,13 @@ function Barra({ obra, mestre, geo, topo, mostrarNome, podeNT, focada, ntsFocado
           </span>
         );
       })}
-      {mostrarNome && largura >= 44 && <span className="qg-barra-nome">{mestre.nome}</span>}
+      {(apoios ?? []).map((apoio) => {
+        const a = Math.max(esq, geo.indice(apoio.inicio)) - esq;
+        const b = Math.min(fim, geo.indice(apoio.inicio) + apoio.dias) - esq;
+        return b > a ? <span key={apoio.localId} className="qg-apoio-marca" style={{ left: a * geo.dw, width: (b - a) * geo.dw }} title={`Apoio em ${apoio.destino}, ${periodoCurto(apoio.inicio, apoio.dias)}`}>{(b - a) * geo.dw >= 14 ? "↗" : ""}</span> : null;
+      })}
+      {/* The apoio always shows the mestre's name (beside the bar when it is short). */}
+      {(ehApoio || (mostrarNome && largura >= 44)) && <span className="qg-barra-nome">{mestre.nome}</span>}
       <button type="button" className="qg-borda is-fim" aria-label={`Ajustar fim de ${mestre.nome}`} onPointerDown={arrastar("end")} onClick={(e) => e.stopPropagation()} />
     </div>
   );

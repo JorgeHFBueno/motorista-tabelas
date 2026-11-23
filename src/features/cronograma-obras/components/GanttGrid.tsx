@@ -39,6 +39,7 @@ import {
 import { getDirectMasterDropInterval } from "../domain/dropPlanning";
 import { feriadoEm } from "../../cronograma-logistica/domain/feriados";
 import { NT_ARRASTE, redimensionarNaoTrabalhado, rotuloDias, segmentosNT, type NaoTrabalhado, type PlanoNT } from "../domain/naoTrabalhados";
+import type { ApoioPrestado } from "../domain/apoio";
 import { requiresContractReview } from "../data/source/obrasV2CronogramaAdapter";
 import {
   resizeMasterPlanning,
@@ -121,6 +122,10 @@ interface Props {
   onResizeMasterCancel: (id: string) => void;
   /** NT edge drag that may split the period or move the boundary with the next one (used by the new grid, not by GanttGrid). */
   onAplicarPlanoNT?: (localId: string, plano: PlanoNT, sucessorId?: string) => void;
+  /** Alt + drag a bar to another LOTE row: 1-day apoio ("ajuda por fora") there (used by the new grid, not by GanttGrid). */
+  onCriarApoio?: (origemId: string, destinoObraId: string, dia: string) => void;
+  /** Apoios each period gave, by origin allocation id (marks on the origin bar). */
+  apoiosPrestados?: ReadonlyMap<string, ApoioPrestado[]>;
   onFocusDate: (date: string) => void;
   onStatusConfirmed?: (contratoId: string, loteId: string, status: LoteStatus) => void;
   /** "Próxima a iniciar" drag and drop: `obras` is the work-type list as shown, `targetIndex` excludes the moved LOTE. */

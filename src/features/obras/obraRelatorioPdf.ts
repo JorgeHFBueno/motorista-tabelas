@@ -6,7 +6,7 @@ import {
   dataTexto,
   localPendente,
   type ObraDetalhe,
-  type PeriodoMestre,
+  type MestresDaObra,
   type ResumoCombustivel,
   type VeiculoNaObra,
 } from './obrasDomain';
@@ -18,7 +18,7 @@ export type MedicoesObra = { snapshot: MondaySerpSnapshot | null; atualizadoAgor
 export type RelatorioObra = {
   obra: ObraDetalhe;
   medicoes: Parte<MedicoesObra>;
-  mestres: Parte<PeriodoMestre[]>;
+  mestres: Parte<MestresDaObra>;
   veiculos: Parte<VeiculoNaObra[]>;
   combustivel: Parte<ResumoCombustivel>;
   geradoEm: Date;
@@ -82,8 +82,13 @@ export function createObraRelatorioPdf(relatorio: RelatorioObra) {
 
   drawing.section('MESTRES ALOCADOS');
   if (relatorio.mestres.status === 'erro') indisponivel('Não foi possível carregar as alocações do CronoObra.');
-  else if (!relatorio.mestres.data.length) vazio('Nenhum mestre alocado no CronoObra.');
-  else drawing.table(['Mestre', 'LOTE', 'Início', 'Fim', 'Dias'], relatorio.mestres.data.map((item) => [item.mestre, item.lote, dataCivilTexto(item.inicio), dataCivilTexto(item.fim), item.diasTexto]), [110, 173, 75, 75, 90], direita([4]));
+  else if (!relatorio.mestres.data.periodos.length && !relatorio.mestres.data.apoios.length) vazio('Nenhum mestre alocado no CronoObra.');
+  else {
+    const { periodos, apoios } = relatorio.mestres.data;
+    if (periodos.length) drawing.table(['Mestre', 'LOTE', 'Início', 'Fim', 'Dias'], periodos.map((item) => [item.mestre, item.lote, dataCivilTexto(item.inicio), dataCivilTexto(item.fim), item.diasTexto]), [110, 173, 75, 75, 90], direita([4]));
+    // Apoios ("ajuda por fora"): received and given, one line each.
+    if (apoios.length) drawing.table(['Apoio'], apoios.map((linha) => [linha]), [523]);
+  }
 
   drawing.section('VEÍCULOS QUE FORAM PARA A OBRA');
   if (relatorio.veiculos.status === 'erro') indisponivel('Não foi possível carregar as atividades.');

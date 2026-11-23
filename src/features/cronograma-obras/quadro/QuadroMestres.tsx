@@ -28,17 +28,19 @@ type Periodo = { obra: ObraCronograma; mestre: MestrePlanejado };
 const periodosDo = (workload: MestreWorkload): Periodo[] =>
   workload.obras.flatMap((obra) => obra.mestresPlanejados.filter((mestre) => mestre.nome === workload.mestre && mestre.tempoPlanejado > 0).map((mestre) => ({ obra, mestre })));
 
-export function QuadroMestres({ workloads, contratos, zoom, centerRequest, onSelectMaster }: GanttGridProps) {
+export function QuadroMestres({ workloads, obras, contratos, zoom, centerRequest, onSelectMaster }: GanttGridProps) {
   const { zoom: zoomCal, hoje, dias, dw, geo, rolagem, fundo, largura } = useCalendario(zoom, centerRequest);
   const larguraEsq = COLUNAS.reduce((total, coluna) => total + coluna.largura, 0);
   const estilo = { "--qg-esq": `${larguraEsq}px`, "--qg-esq-colunas": COLUNAS.map((coluna) => `${coluna.largura}px`).join(" "), "--qg-total": `${larguraEsq + largura}px` } as CSSProperties;
 
   const linha = (workload: MestreWorkload) => {
-    const periodos = periodosDo(workload);
+    // Apoios ("ajuda por fora") of this mestre: dashed bars on their own lanes; they count neither days nor conflicts.
+    const apoios = obras.flatMap((obra) => obra.mestresPlanejados.filter((mestre) => mestre.apoio && mestre.nome === workload.mestre && mestre.tempoPlanejado > 0).map((mestre) => ({ obra, mestre })));
+    const periodos = [...periodosDo(workload), ...apoios];
     const lanes = layoutMasterAllocationLanes(periodos.map((item) => item.mestre));
     const nFaixas = Math.max(1, ...[...lanes.values()].map((lane) => lane.count));
     const altura = Math.max(48, 8 + nFaixas * ALTURA_FAIXA + 6);
-    const nt = periodos.reduce((total, item) => total + diasNT(item.mestre).size, 0);
+    const nt = periodos.reduce((total, item) => total + (item.mestre.apoio ? 0 : diasNT(item.mestre).size), 0);
     const conflitos = new Set(workload.daily.filter((dia) => dia.conflict).map((dia) => dia.date));
     // Conflict days as stretches (consecutive days together).
     const trechos = dias.reduce<Array<{ esq: number; dias: number }>>((lista, dia, i) => {
@@ -94,11 +96,11 @@ function BarraObra({ obra, mestre, numero, geo, topo, onDetalhes }: {
   const rotulo = [numero, obra.nomeObra].filter(Boolean).join(" · ");
   return (
     <div
-      className="qg-barra qm-barra"
+      className={`qg-barra qm-barra ${mestre.apoio ? "qg-barra--apoio" : ""}`}
       role="button"
       tabIndex={0}
-      title={`${rotulo}\n${formatDateShort(mestre.inicio)} → ${formatDateShort(addDays(mestre.inicio, mestre.tempoPlanejado - 1))}\n${rotuloDias(mestre)}\nClique: detalhes`}
-      style={{ left: esq * geo.dw, width: largura, top: topo, background: cor.background, color: cor.text }}
+      title={`${rotulo}\n${formatDateShort(mestre.inicio)} → ${formatDateShort(addDays(mestre.inicio, mestre.tempoPlanejado - 1))}\n${mestre.apoio ? "Apoio (não conta dias nem conflito)" : rotuloDias(mestre)}\nClique: detalhes`}
+      style={(mestre.apoio ? { left: esq * geo.dw, width: largura, top: topo + 2, "--qg-cor-apoio": cor.background } : { left: esq * geo.dw, width: largura, top: topo, background: cor.background, color: cor.text }) as CSSProperties}
       onClick={onDetalhes}
       onContextMenu={(e) => { e.preventDefault(); onDetalhes(); }}
       onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onDetalhes(); } }}

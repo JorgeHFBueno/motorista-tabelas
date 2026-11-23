@@ -22,6 +22,8 @@ import PlaceOutlinedIcon from '@mui/icons-material/PlaceOutlined';
 import { useParams } from 'react-router-dom';
 import {
   carregarAlocacoesDaObra,
+  carregarApoiosPrestados,
+  carregarNomesDeObras,
   carregarAtividadesDaObra,
   carregarCombustivelDaObra,
   carregarMedicoesDaObra,
@@ -40,13 +42,14 @@ import {
   dataTexto,
   localPendente,
   obraFinalizada,
+  linhasDeApoio,
   periodosDosMestres,
   resumirCombustivel,
   veiculosNaObra,
   ROTULOS_CAMPOS,
   type CampoEditavelObra,
   type ObraDetalhe,
-  type PeriodoMestre,
+  type MestresDaObra,
   type ResumoCombustivel,
   type VeiculoNaObra,
 } from './obrasDomain';
@@ -118,7 +121,7 @@ export default function ObraDetalhesPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [medicoes, setMedicoes] = useState<Estado<MedicoesObra>>(CARREGANDO);
-  const [mestres, setMestres] = useState<Estado<PeriodoMestre[]>>(CARREGANDO);
+  const [mestres, setMestres] = useState<Estado<MestresDaObra>>(CARREGANDO);
   const [veiculos, setVeiculos] = useState<Estado<VeiculoNaObra[]>>(CARREGANDO);
   const [combustivel, setCombustivel] = useState<Estado<ResumoCombustivel>>(CARREGANDO);
   const [salvandoCampo, setSalvandoCampo] = useState(false);
@@ -136,8 +139,11 @@ export default function ObraDetalhesPage() {
         if (encontrada.subcentroErp) parte(carregarMedicoesDaObra(encontrada.id, encontrada.subcentroErp), setMedicoes, ativo, 'medições');
         else setMedicoes({ status: 'ok', data: { snapshot: null, atualizadoAgora: false } });
         parte(
-          Promise.all([carregarAlocacoesDaObra(encontrada.id), carregarNomesMestres()])
-            .then(([alocacoes, nomes]) => periodosDosMestres(alocacoes, nomes, encontrada.nomesLotes)),
+          Promise.all([carregarAlocacoesDaObra(encontrada.id), carregarNomesMestres(), carregarApoiosPrestados(encontrada.id)])
+            .then(async ([alocacoes, nomes, prestados]) => ({
+              periodos: periodosDosMestres(alocacoes, nomes, encontrada.nomesLotes),
+              apoios: linhasDeApoio(alocacoes, prestados, nomes, await carregarNomesDeObras(prestados.flatMap((item) => (item.contratoId ? [item.contratoId] : [])))),
+            })),
           setMestres, ativo, 'mestres',
         );
         parte(carregarAtividadesDaObra(encontrada.id).then(veiculosNaObra), setVeiculos, ativo, 'veículos');
@@ -180,7 +186,7 @@ export default function ObraDetalhesPage() {
       const file = createObraRelatorioPdf({
         obra, geradoEm,
         medicoes: medicoes as Parte<MedicoesObra>,
-        mestres: mestres as Parte<PeriodoMestre[]>,
+        mestres: mestres as Parte<MestresDaObra>,
         veiculos: veiculos as Parte<VeiculoNaObra[]>,
         combustivel: combustivel as Parte<ResumoCombustivel>,
       });
@@ -312,12 +318,21 @@ export default function ObraDetalhesPage() {
       </Secao>
 
       <Secao titulo="Mestres alocados" estado={mestres} erro="Não foi possível carregar as alocações do CronoObra.">
-        {(itens) => itens.length ? (
-          <Tabela
-            cabecalho={['Mestre', 'LOTE', 'Início', 'Fim', 'Dias']}
-            direita={[4]}
-            linhas={itens.map((item) => [item.mestre, item.lote, dataCivilTexto(item.inicio), dataCivilTexto(item.fim), item.diasTexto])}
-          />
+        {({ periodos, apoios }) => periodos.length || apoios.length ? (
+          <>
+            {periodos.length > 0 && (
+              <Tabela
+                cabecalho={['Mestre', 'LOTE', 'Início', 'Fim', 'Dias']}
+                direita={[4]}
+                linhas={periodos.map((item) => [item.mestre, item.lote, dataCivilTexto(item.inicio), dataCivilTexto(item.fim), item.diasTexto])}
+              />
+            )}
+            {apoios.length > 0 && (
+              <Box component="ul" sx={{ m: 0, mt: periodos.length ? 1.5 : 0, pl: 2.5, color: 'text.secondary', fontSize: 14 }} aria-label="Apoios">
+                {apoios.map((linha) => <li key={linha}>{linha}</li>)}
+              </Box>
+            )}
+          </>
         ) : <Vazio>Nenhum mestre alocado no CronoObra.</Vazio>}
       </Secao>
 
