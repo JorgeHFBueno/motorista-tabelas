@@ -1,0 +1,16 @@
+/* LOTEs do detalhe da obra (ListaLotes.tsx). Cores da identidade Ledur (src/theme/ledurTheme.ts): azul-marinho #12293B, borda #DDE3E8. */
+.obra-lotes { border: 1px solid #DDE3E8; border-radius: 10px; }
+.obra-lotes th { background: #f8fafc; font-weight: 700; white-space: nowrap; }
+.obra-lotes td { vertical-align: middle; }
+.obra-lotes th.obra-lotes__grupo { background: #E8EEF3; color: #12293B; }
+.obra-lotes tr.obra-lotes__tipo td { background: #f8fafc; padding-bottom: 2px; padding-top: 2px; }
+/* Linha mais forte entre um LOTE e o seguinte; entre os itens do mesmo LOTE, a linha fina. */
+.obra-lotes tr.obra-lotes__fim td, .obra-lotes td.obra-lotes__lote { border-bottom: 2px solid #cbd5e1; }
+.obra-lotes tbody tr:last-child td { border-bottom: 0; }
+.obra-lotes__lote { border-right: 1px solid #DDE3E8; min-width: 240px; vertical-align: top !important; }
+/* Nome longo do LOTE quebra em linhas em vez de ser cortado. */
+.obra-lotes__lote .MuiChip-root { height: auto; min-height: 32px; padding: 4px 0; }
+.obra-lotes__lote .MuiChip-label { white-space: normal; }
+
+.obra-lotes__link { cursor: pointer; overflow-wrap: anywhere; }
+.obra-lotes__link:hover { text-decoration: underline; }

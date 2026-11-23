@@ -15,10 +15,8 @@ import {
   TableContainer,
   TableHead,
   TableRow,
-  Tooltip,
   Typography,
 } from '@mui/material';
-import PlaceOutlinedIcon from '@mui/icons-material/PlaceOutlined';
 import { useParams } from 'react-router-dom';
 import {
   carregarAlocacoesDaObra,
@@ -29,11 +27,13 @@ import {
   carregarMedicoesDaObra,
   carregarNomesMestres,
   carregarObra,
+  carregarPreFabricados,
   gravarCampoObra,
   locaisDosLotes,
 } from './obrasData';
-import { coordenadaCurta, linkDoMapa } from '../cronograma-logistica/domain/local';
 import CampoEditavel from './CampoEditavelObra';
+import ListaLotes from './ListaLotes';
+import type { PreFabricado } from './preFabricados';
 import { useAuth } from '../../contexts/AuthContext';
 import { editaArea } from '../../services/credenciais';
 import {
@@ -124,6 +124,7 @@ export default function ObraDetalhesPage() {
   const [mestres, setMestres] = useState<Estado<MestresDaObra>>(CARREGANDO);
   const [veiculos, setVeiculos] = useState<Estado<VeiculoNaObra[]>>(CARREGANDO);
   const [combustivel, setCombustivel] = useState<Estado<ResumoCombustivel>>(CARREGANDO);
+  const [preFabricados, setPreFabricados] = useState<Estado<Record<string, PreFabricado[]> | null>>(CARREGANDO);
   const [salvandoCampo, setSalvandoCampo] = useState(false);
   const [gerando, setGerando] = useState(false);
   const [snackbar, setSnackbar] = useState<{ open: boolean; severity: 'success' | 'error'; message: string }>({ open: false, severity: 'success', message: '' });
@@ -148,6 +149,7 @@ export default function ObraDetalhesPage() {
         );
         parte(carregarAtividadesDaObra(encontrada.id).then(veiculosNaObra), setVeiculos, ativo, 'veículos');
         parte(carregarCombustivelDaObra(encontrada.id).then(resumirCombustivel), setCombustivel, ativo, 'combustível');
+        parte(carregarPreFabricados(encontrada), setPreFabricados, ativo, 'pré-fabricados');
       })
       .catch((err) => {
         console.error('Erro ao carregar a obra', err);
@@ -271,27 +273,13 @@ export default function ObraDetalhesPage() {
 
         <Typography variant="body2" color="text.secondary" sx={{ mt: 2.5, mb: 1 }}>LOTEs</Typography>
         {obra.lotes.length ? (
-          <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
-            {obra.lotes.map((lote) => {
-              const rotulo = lote.status ? `${lote.nome} · ${lote.status}` : lote.nome;
-              // Com coordenada (coluna Coordenada do subitem no Friday): o chip abre o Google Maps com o pino.
-              return lote.coordenada ? (
-                <Tooltip key={lote.chave} title="Abrir no Google Maps">
-                  <Chip
-                    component="a"
-                    href={linkDoMapa(lote.coordenada)}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    clickable
-                    icon={<PlaceOutlinedIcon />}
-                    label={`${rotulo} · ${coordenadaCurta(lote.coordenada)}`}
-                    variant="outlined"
-                    color="primary"
-                  />
-                </Tooltip>
-              ) : <Chip key={lote.chave} label={rotulo} variant="outlined" />;
-            })}
-          </Stack>
+          // Pré-fabricados de cada LOTE: `null` enquanto a API não estiver ligada (carregarPreFabricados).
+          <ListaLotes
+            lotes={obra.lotes.map((lote) => ({
+              ...lote,
+              itens: preFabricados.status === 'ok' ? preFabricados.data?.[lote.chave] ?? (preFabricados.data ? [] : null) : null,
+            }))}
+          />
         ) : <Vazio>Sem LOTEs cadastrados.</Vazio>}
 
         <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 2 }}>

@@ -10,10 +10,23 @@ import { lerNaoTrabalhados } from '../cronograma-obras/domain/naoTrabalhados';
 import { lerApoio } from '../cronograma-obras/domain/apoio';
 import { localDaCidade, obraDetalheFromV2, type AlocacaoObra, type CampoEditavelObra, type LoteObra, type ObraDetalhe } from './obrasDomain';
 import { LOCAIS_SUGERIDOS } from './locaisSugeridos';
+import type { PreFabricado } from './preFabricados';
 import { localDoMaps } from '../cronograma-logistica/data/logisticaFirestore';
 import { linkDoMapa } from '../cronograma-logistica/domain/local';
 
 const OBRAS_V2 = 'obras-v2';
+
+/**
+ * Pré-fabricados de cada LOTE da obra (chave do LOTE → itens com Tipo e Status), vindos de uma API externa.
+ * PLACEHOLDER — vem novidade aí: a API já existe do lado de lá, mas ainda não temos o endereço nem a chave. Até lá
+ * devolve `null`, e a lista de LOTEs mostra o aviso no lugar dos pré-fabricados. Quando chegarem, a consulta vai por
+ * uma Function (a chave fica num secret, nunca no navegador), como as medições do ERP; os PDFs e as revisões de
+ * cada item ainda precisam de lugar no Storage e no Firestore, com Rules.
+ */
+export async function carregarPreFabricados(obra: Pick<ObraDetalhe, 'id' | 'lotes'>): Promise<Record<string, PreFabricado[]> | null> {
+  void obra;
+  return null;
+}
 
 export async function listarObras(): Promise<ObraDetalhe[]> {
   const snapshot = await getDocs(collection(db, OBRAS_V2));

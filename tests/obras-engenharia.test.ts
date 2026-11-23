@@ -17,6 +17,7 @@ import {
 } from '../src/features/obras/obrasDomain';
 import { createObraRelatorioPdf, nomeArquivoRelatorioObra } from '../src/features/obras/obraRelatorioPdf';
 import { LOCAIS_SUGERIDOS } from '../src/features/obras/locaisSugeridos';
+import { agruparPorTipo, comPdf, revisoes, statusDoGrupo, totalPdfs, type PreFabricado } from '../src/features/obras/preFabricados';
 import { coordenadaDoLote, lotesDaObra, obraFromV2 } from '../src/utils/cadastrosV2';
 
 const contrato = {
@@ -185,4 +186,27 @@ test('Local pela coordenada do LOTE: a grafia da lista de sugestões, sem difere
   assert.equal(localDaCidade('Cidade Nova', 'SP', LOCAIS_SUGERIDOS), 'Cidade Nova - SP'); // fora da lista: como veio
   assert.equal(localDaCidade('Roma', '', LOCAIS_SUGERIDOS), 'Roma');
   assert.equal(localDaCidade('  ', 'RS', LOCAIS_SUGERIDOS), null);
+});
+
+const pdfItem = (id: string, quando: string) => ({ id, nome: `${id}.pdf`, tamanho: 1024, anexadoEm: new Date(quando), anexadoPor: 'Teste', url: null });
+const preFabricado = (id: string, tipo: string, status: string, pdfs = 0): PreFabricado =>
+  ({ id, tipo, status, pdfs: Array.from({ length: pdfs }, (_, i) => pdfItem(`${id}-${i}`, `2026-11-0${i + 1}T10:00:00-03:00`)) });
+
+test('pré-fabricados: agrupa pelo Tipo sem o número do fim, na ordem em que aparecem', () => {
+  const grupos = agruparPorTipo([preFabricado('a', 'Pilar 1', ''), preFabricado('b', 'Vão 1', ''), preFabricado('c', 'Pilar 2', ''), preFabricado('d', '', '')]);
+  assert.deepEqual(grupos.map((g) => [g.nome, g.itens.map((i) => i.id)]), [['Pilar', ['a', 'c']], ['Vão', ['b']], ['Sem tipo', ['d']]]);
+});
+
+test('pré-fabricados: status do grupo é o mais frequente fora os concluídos; empate vai ao mais urgente', () => {
+  assert.equal(statusDoGrupo([preFabricado('a', 'Pilar 1', 'Concluído'), preFabricado('b', 'Pilar 2', 'Concluído'), preFabricado('c', 'Pilar 3', 'Em análise')]), 'Em análise');
+  assert.equal(statusDoGrupo([preFabricado('a', 'Cab 1', 'Pendente'), preFabricado('b', 'Cab 2', 'revisar')]), 'revisar');
+  assert.equal(statusDoGrupo([preFabricado('a', 'Pilar 1', 'Concluído'), preFabricado('b', 'Pilar 2', 'concluido')]), 'Concluído');
+  assert.equal(statusDoGrupo([preFabricado('a', 'Pilar 1', 'Concluído'), preFabricado('b', 'Pilar 2', '')]), '');
+});
+
+test('pré-fabricados: "N de M com PDF", total de PDFs e revisões da mais nova (Rev. N) à mais antiga (Rev. 0)', () => {
+  const itens = [preFabricado('a', 'Pilar 1', '', 2), preFabricado('b', 'Pilar 2', '', 0), preFabricado('c', 'Pilar 3', '', 1)];
+  assert.equal(comPdf(itens), 2);
+  assert.equal(totalPdfs(itens), 3);
+  assert.deepEqual(revisoes(itens[0].pdfs).map((r) => [r.item.id, r.revisao]), [['a-1', 1], ['a-0', 0]]);
 });

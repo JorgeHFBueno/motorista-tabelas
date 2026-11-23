@@ -1,21 +1,5 @@
-/* /testes/mki: faixa de aviso do teste e a lista de LOTEs do detalhe da obra. */
-/* Cores da identidade Ledur (src/theme/ledurTheme.ts): azul-marinho #12293B, azul #2F6B98, borda #DDE3E8. */
+/* /testes/mki: faixa de aviso do teste (a lista de LOTEs usa src/features/obras/listaLotes.css). */
+/* Cores da identidade Ledur (src/theme/ledurTheme.ts): azul-marinho #12293B, borda #DDE3E8. */
 .teste-aviso { align-items: center; background: #12293B; color: #DDE3E8; display: flex; flex-wrap: wrap; font-size: 13px; gap: 6px 10px; padding: 8px 28px; }
 .teste-aviso strong { color: #fff; font-weight: 700; }
 .teste-aviso svg { color: #fff; }
-
-.mki-lotes { border: 1px solid #DDE3E8; border-radius: 10px; }
-.mki-lotes th { background: #f8fafc; font-weight: 700; white-space: nowrap; }
-.mki-lotes td { vertical-align: middle; }
-.mki-lotes th.mki-lotes__grupo { background: #E8EEF3; color: #12293B; }
-.mki-lotes tr.mki-lotes__tipo td { background: #f8fafc; padding-bottom: 2px; padding-top: 2px; }
-/* Linha mais forte entre um LOTE e o seguinte; entre os LFs do mesmo LOTE, a linha fina. */
-.mki-lotes tr.mki-lotes__fim td, .mki-lotes td.mki-lotes__lote { border-bottom: 2px solid #cbd5e1; }
-.mki-lotes tbody tr:last-child td { border-bottom: 0; }
-.mki-lotes__lote { border-right: 1px solid #DDE3E8; min-width: 240px; vertical-align: top !important; }
-/* Nome longo do LOTE quebra em linhas em vez de ser cortado. */
-.mki-lotes__lote .MuiChip-root { height: auto; min-height: 32px; padding: 4px 0; }
-.mki-lotes__lote .MuiChip-label { white-space: normal; }
-
-.mki-link { cursor: pointer; overflow-wrap: anywhere; }
-.mki-link:hover { text-decoration: underline; }
