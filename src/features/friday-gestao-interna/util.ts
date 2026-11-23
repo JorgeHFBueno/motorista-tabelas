@@ -76,7 +76,8 @@ export function fmtNumero(v: unknown, unidade = '') {
   if (v == null || v === '') return '';
   const n = Number(v);
   if (!Number.isFinite(n)) return String(v);
-  if (unidade === 'R$') return n.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: n % 1 ? 2 : 0 });
+  // Reais sempre com os centavos (R$ 1.500,00), como no Excel exportado.
+  if (unidade === 'R$') return n.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
   const s = n.toLocaleString('pt-BR', { maximumFractionDigits: 2 });
   return unidade ? `${s} ${unidade}` : s;
 }
