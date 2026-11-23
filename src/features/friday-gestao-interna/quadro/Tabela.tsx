@@ -1,6 +1,6 @@
 import { useMemo, useRef, useState, type MouseEvent as EventoMouse } from 'react';
 import {
-  AlarmClock, Archive, ArrowDown, ArrowDownAZ, ArrowDownUp, ArrowLeft, ArrowRight, ArrowUp, ArrowUpAZ, CalendarDays, Check, ChevronDown, ChevronRight, Copy, EyeOff, FileSpreadsheet, GripVertical, Group, ListTree, Maximize2,
+  AlarmClock, Archive, ArrowDown, Banknote, ArrowDownAZ, ArrowDownUp, ArrowLeft, ArrowRight, ArrowUp, ArrowUpAZ, CalendarDays, Check, ChevronDown, ChevronRight, Copy, EyeOff, FileSpreadsheet, GripVertical, Group, ListTree, Maximize2,
   Lock, LockOpen, MessageCircle, Shuffle, MessageCirclePlus, Sigma, MoreHorizontal, Palette, Pencil, Pin, PinOff, Plus, Trash2,
 } from 'lucide-react';
 import { useAuth } from '../../../contexts/AuthContext';
@@ -15,7 +15,7 @@ import { TabelaSubitens, type OpsItens } from './Subitens.tsx';
 import { alvosPara } from './mudarTipo.ts';
 import { MudarTipoDialogo } from './MudarTipo.tsx';
 import { CampoOficialDialogo, TIPOS_OFICIAIS } from './TornarOficial.tsx';
-import { ehPrazo, infoColuna, infoTipo, type Coluna, type Grupo, type Item, type Ordenacao, type Rotulo, type Sub } from './tipos.ts';
+import { aceitaReais, ehPrazo, emReais, infoColuna, infoTipo, type Coluna, type Grupo, type Item, type Ordenacao, type Rotulo, type Sub } from './tipos.ts';
 import { fmtDuracao, totalSegundos } from './tempo.ts';
 import { colunaNoTipo, tipoDoItem, type TiposItem } from './tiposSubitem.ts';
 import type { Acoes } from './useQuadro.ts';
@@ -472,6 +472,7 @@ function CabecalhoColuna({ coluna, acoes, confirmar, ordenacao, setOrdenacao, or
                   { rotulo: 'Mostrar sempre o ano', icone: <CalendarDays size={15} />, ativo: !!coluna.config.com_ano, sub: coluna.config.com_ano ? <Check size={14} className="menu-check" /> : undefined,
                     onClick: () => acoes.atualizarColuna(coluna.id, { config: { ...coluna.config, com_ano: !coluna.config.com_ano } }) },
                 ] : []),
+                ...itensReais(coluna, acoes),
                 { rotulo: ehFixa(coluna) ? 'Desafixar coluna' : 'Fixar coluna', icone: ehFixa(coluna) ? <PinOff size={15} /> : <Pin size={15} />,
                   onClick: () => acoes.atualizarColuna(coluna.id, { config: { ...coluna.config, fixa: !ehFixa(coluna) } }) },
                 { rotulo: 'Mover para a esquerda', icone: <ArrowLeft size={15} />, onClick: () => trocar(anterior) },
@@ -493,6 +494,14 @@ function CabecalhoColuna({ coluna, acoes, confirmar, ordenacao, setOrdenacao, or
       {mudarTipo && <MudarTipoDialogo coluna={coluna} onFechar={() => setMudarTipo(false)} onPronto={() => { setMudarTipo(false); acoes.recarregar(); }} />}
     </th>
   );
+}
+
+/** "Mostrar em reais (R$)" numa coluna de número: liga/desliga `config.unidade = 'R$'` (só a exibição; os valores ficam). */
+export function itensReais(coluna: Coluna, acoes: Pick<Acoes, 'atualizarColuna'>): ItemMenu[] {
+  if (!aceitaReais(coluna)) return [];
+  const ligado = emReais(coluna);
+  return [{ rotulo: 'Mostrar em reais (R$)', icone: <Banknote size={15} />, ativo: ligado, sub: ligado ? <Check size={14} className="menu-check" /> : undefined,
+    onClick: () => acoes.atualizarColuna(coluna.id, { config: { ...coluna.config, unidade: ligado ? '' : 'R$' } }) }];
 }
 
 /** Itens de menu de cadastro oficial de uma coluna (só adm2, quadro ou subitens já oficiais). */

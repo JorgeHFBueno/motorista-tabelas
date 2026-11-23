@@ -1,5 +1,5 @@
 import {
-  AlignLeft, Calendar, CalendarRange, CheckSquare, CircleDot, Hash, Link2, List, Mail, Paperclip, Phone, Sigma, Star, Text, Timer, UserRound, UsersRound, Workflow,
+  AlignLeft, Banknote, Calendar, CalendarRange, CheckSquare, CircleDot, Hash, Link2, List, Mail, Paperclip, Phone, Sigma, Star, Text, Timer, UserRound, UsersRound, Workflow,
   type LucideIcon,
 } from 'lucide-react';
 import type { Pessoa, Row } from '../api.ts';
@@ -27,9 +27,16 @@ export type TipoColuna = 'status' | 'texto' | 'texto_longo' | 'numero' | 'pessoa
 
 // Tipos do menu de adicionar coluna. "Colaboradores" é uma coluna de pessoa (tipo `pessoa`, `config.colaboradores`)
 // que só oferece quem tem acesso ao quadro; o resto do sistema (Meu trabalho, filtros, automações) a trata como pessoa.
-export type TipoMenu = TipoColuna | 'colaboradores';
+// "Valor (R$)" é uma coluna de número com `config.unidade = 'R$'`: só a exibição muda (R$ 1.234,56); o valor é um número.
+export type TipoMenu = TipoColuna | 'colaboradores' | 'moeda';
 export const colunaDoMenu = (t: TipoMenu): { tipo: TipoColuna; config?: Record<string, unknown> } =>
-  (t === 'colaboradores' ? { tipo: 'pessoa', config: { colaboradores: true } } : { tipo: t });
+  (t === 'colaboradores' ? { tipo: 'pessoa', config: { colaboradores: true } }
+    : t === 'moeda' ? { tipo: 'numero', config: { unidade: 'R$', resumo: 'soma' } }
+      : { tipo: t });
+
+// Coluna de número que pode virar reais: a ×10 e a sem separador de milhar têm formato próprio (uma casa; ano/código).
+export const aceitaReais = (c: Pick<Coluna, 'tipo' | 'config'>) => c.tipo === 'numero' && !c.config.x10 && c.config.milhar !== false;
+export const emReais = (c: Pick<Coluna, 'tipo' | 'config'>) => c.tipo === 'numero' && c.config.unidade === 'R$';
 
 // Catálogo de tipos de coluna. "grupo" organiza o menu de adicionar coluna.
 export const TIPOS: { tipo: TipoMenu; rotulo: string; icone: LucideIcon; cor: string; descricao: string; grupo: 'essencial' | 'util'; busca?: string }[] = [
@@ -39,7 +46,8 @@ export const TIPOS: { tipo: TipoMenu; rotulo: string; icone: LucideIcon; cor: st
   { tipo: 'data', rotulo: 'Data', icone: Calendar, cor: '#a25ddc', descricao: 'Um dia', grupo: 'essencial', busca: 'prazo vencimento dia' },
   { tipo: 'pessoa', rotulo: 'Pessoa', icone: UserRound, cor: '#579bfc', descricao: 'Qualquer pessoa do sistema', grupo: 'essencial', busca: 'responsável dono pessoas equipe' },
   { tipo: 'colaboradores', rotulo: 'Colaboradores', icone: UsersRound, cor: '#4eccc6', descricao: 'Só quem tem acesso ao quadro', grupo: 'essencial', busca: 'pessoas do quadro membros equipe responsável' },
-  { tipo: 'numero', rotulo: 'Números', icone: Hash, cor: '#fdab3d', descricao: 'Valores, quantidades, R$', grupo: 'essencial', busca: 'valor dinheiro quantidade horas km' },
+  { tipo: 'numero', rotulo: 'Números', icone: Hash, cor: '#fdab3d', descricao: 'Quantidades, horas, km', grupo: 'essencial', busca: 'valor quantidade horas km' },
+  { tipo: 'moeda', rotulo: 'Valor (R$)', icone: Banknote, cor: '#00c875', descricao: 'Valores em reais', grupo: 'essencial', busca: 'dinheiro reais real moeda preço custo orçamento financeiro' },
   { tipo: 'arquivos', rotulo: 'Arquivos', icone: Paperclip, cor: '#ff642e', descricao: 'Documentos e fotos', grupo: 'util', busca: 'anexo documento pdf foto imagem contrato art' },
   { tipo: 'periodo', rotulo: 'Período', icone: CalendarRange, cor: '#784bd1', descricao: 'Início e fim (cronograma)', grupo: 'util', busca: 'timeline cronograma gantt início fim' },
   { tipo: 'caixa', rotulo: 'Caixa de seleção', icone: CheckSquare, cor: '#037f4c', descricao: 'Marcar / desmarcar', grupo: 'util', busca: 'checkbox feito check' },
