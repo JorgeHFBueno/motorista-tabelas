@@ -29,6 +29,7 @@ export { cronoObraApi } from './cronoObraApi.js';
 export { logisticaPessoasFriday } from './logisticaPessoas.js';
 export { logisticaPedidoNota } from './logisticaPedidoNota.js';
 export { avisosPush } from './avisosPush.js';
+export { combustivelDivergencia } from './combustivelDivergencia.js';
 export { logisticaLocal } from './logisticaLocal.js';
 export { funcionariosImportarFriday } from './funcionariosImportarFriday.js';
 
