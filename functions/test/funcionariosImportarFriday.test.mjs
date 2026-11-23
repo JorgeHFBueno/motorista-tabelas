@@ -125,7 +125,7 @@ test('funcionário novo: só Motorista, login pelo celular, item ligado, sem CPF
   assert.equal(doc.email, '51999990001@example.com');
   assert.equal(doc.perfis.motorista, true);
   assert.ok(Object.entries(doc.perfis).every(([k, v]) => k === 'motorista' || v === false));
-  assert.deepEqual(doc.motorista, { ordem: 0 });
+  assert.equal(doc.motorista, undefined);
   assert.equal(doc.fridayItemId, '1');
   assert.ok(!JSON.stringify(doc).includes(CPF_A));
 });

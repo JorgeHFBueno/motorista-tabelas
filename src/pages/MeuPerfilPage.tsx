@@ -81,7 +81,6 @@ export default function MeuPerfilPage() {
 
   const nome = typeof funcionario?.nome === 'string' && funcionario.nome.trim() ? funcionario.nome.trim() : currentUser.displayName || currentUser.email || '';
   const perfis = [...perfisMarcados(funcionario?.perfis), ...areasMarcadas(funcionario?.areas)];
-  const ordemMotorista = (funcionario?.motorista as { ordem?: unknown } | undefined)?.ordem;
   const extras = funcionario ? camposExtrasFuncionario(funcionario) : [];
   const nomeCadastro = typeof funcionario?.nome === 'string' ? funcionario.nome : '';
   const nomeLimpo = nomeEditado.trim().replace(/\s+/g, ' ');
@@ -198,7 +197,6 @@ export default function MeuPerfilPage() {
                 <Campo rotulo="Login no cadastro">{textoLogin(funcionario.email)}</Campo>
                 <Campo rotulo="UID">{currentUser.uid}</Campo>
                 <Campo rotulo="Situação">{funcionario.ativo === true ? 'Ativo' : 'Inativo'}</Campo>
-                {ordemMotorista !== undefined && <Campo rotulo="Ordem de motorista">{formatarValor(ordemMotorista)}</Campo>}
                 <Campo rotulo="Cadastrado em">{formatarValor(funcionario.createdAt)}</Campo>
                 <Campo rotulo="Atualizado em">{formatarValor(funcionario.updatedAt)}</Campo>
                 <Campo rotulo="Último acesso">{formatarValor(funcionario.ultimoAcesso)}</Campo>

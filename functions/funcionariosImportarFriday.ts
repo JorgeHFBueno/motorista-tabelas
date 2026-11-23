@@ -204,11 +204,11 @@ export interface ImportarFridayStore {
   gravarUids(colunaId: number, mudancas: { itemId: number; valor: string | null }[]): Promise<void>;
 }
 
-/** Documento do funcionário criado pelo quadro: só Motorista; `motorista.ordem` como nos outros pontos de criação. */
+/** Documento do funcionário criado pelo quadro: só Motorista. */
 export function novoFuncionario(p: { nome: string; celular: string; id: string }): AnyRecord {
   return {
     nome: p.nome, email: loginDoCelular(p.celular), ativo: true, perfis: credenciaisDe({ motorista: true }),
-    motorista: { ordem: 0 }, fridayItemId: p.id,
+    fridayItemId: p.id,
   };
 }
 

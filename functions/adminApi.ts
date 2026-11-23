@@ -130,7 +130,6 @@ adminApp.post('/api/admin/users/register', async (req: AdminRequest, res) => {
       ativo: true,
       perfis,
       areas: areas ?? {},
-      ...(perfis.motorista ? { motorista: { ordem: 0 } } : {}),
       createdAt: FieldValue.serverTimestamp(),
       updatedAt: FieldValue.serverTimestamp(),
     });
@@ -183,7 +182,6 @@ adminApp.patch('/api/admin/users/:uid', async (req: AdminRequest, res) => {
       ativo,
       perfis,
       ...(areas !== undefined ? { areas } : {}),
-      ...(perfis.motorista && employee.get('motorista') == null ? { motorista: { ordem: 0 } } : {}),
       updatedAt: FieldValue.serverTimestamp(),
     });
     res.json({ user: await formatAdminUser(await adminAuth.getUser(uid)) });

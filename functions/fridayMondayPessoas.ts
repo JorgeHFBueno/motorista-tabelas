@@ -169,7 +169,6 @@ export async function criarPessoas(pessoas: PessoaMonday[], credenciais: Credenc
       try {
         await db.collection('funcionarios').doc(uid).create({
           nome: p.nome || p.email, email: p.email, ativo: true, perfis: credenciais, areas,
-          ...(credenciais.motorista ? { motorista: { ordem: 0 } } : {}),
           mondayId: p.id, createdAt: FieldValue.serverTimestamp(), updatedAt: FieldValue.serverTimestamp(),
         });
       } catch (e) {

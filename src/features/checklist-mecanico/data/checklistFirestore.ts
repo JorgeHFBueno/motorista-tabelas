@@ -20,18 +20,13 @@ export const checklistVeiculoDe = (item: ItemFrotaV2): ChecklistVeiculo => ({
   medidorUltimo: item.quilometragemUltima,
 });
 
-/** Quem tem a credencial `motorista` (sugestão; o nome digitado continua aceito), pela ordem de motorista e nome. */
+/** Quem tem a credencial `motorista` (sugestão; o nome digitado continua aceito), por nome. */
 export async function listarMotoristasChecklist(): Promise<ChecklistMotorista[]> {
   const snapshot = await getDocs(query(collection(db, 'funcionarios'), where('ativo', '==', true), where('perfis.motorista', '==', true)));
-  const ordem = (d: Record<string, unknown>) => {
-    const valor = (d.motorista as { ordem?: unknown } | undefined)?.ordem;
-    return typeof valor === 'number' ? valor : Number.MAX_SAFE_INTEGER;
-  };
   return snapshot.docs
-    .map((d) => ({ uid: d.id, nome: typeof d.data().nome === 'string' ? (d.data().nome as string).trim() : '', ordem: ordem(d.data()) }))
+    .map((d) => ({ uid: d.id, nome: typeof d.data().nome === 'string' ? (d.data().nome as string).trim() : '' }))
     .filter((m) => m.nome !== '')
-    .sort((a, b) => a.ordem - b.ordem || a.nome.localeCompare(b.nome, 'pt-BR'))
-    .map(({ uid, nome }) => ({ uid, nome }));
+    .sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'));
 }
 
 /** Itens em "Não se aplica" no último checklist do veículo (filtrado e ordenado no cliente: sem índice composto). */
