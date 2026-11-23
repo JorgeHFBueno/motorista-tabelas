@@ -1,4 +1,4 @@
-import { Suspense, lazy, useEffect, useMemo, useState, type ReactNode, type SyntheticEvent } from 'react';
+import { useEffect, useMemo, useState, type ReactNode, type SyntheticEvent } from 'react';
 import {
   Alert,
   Autocomplete,
@@ -18,7 +18,6 @@ import { useSearchParams } from 'react-router-dom';
 import { DataGrid, type GridColDef } from '@mui/x-data-grid';
 import useAtividade from '../hooks/useAtividade';
 import useOnlineStatus from '../hooks/useOnlineStatus';
-import type { ChartKey, ChartPoint } from '../components/FrotaCharts';
 import {
   FILTROS_VAZIOS,
   filtrarAtividades,
@@ -27,19 +26,14 @@ import {
   type AtividadeComData,
   type FiltrosAtividade,
 } from '../services/atividade-filtros';
+import AbaRastreador from '../features/rastreador/AbaRastreador';
+import useRastreador from '../features/rastreador/useRastreador';
+import { filtrarViagens, valoresDaViagem } from '../features/rastreador/domain/viagem';
 
-const FrotaCharts = lazy(() => import('../components/FrotaCharts'));
-
-type TabKey = 'geral' | 'graficos' | 'hibrido';
+type TabKey = 'geral' | 'rastreador';
 type FiltroLista = 'veiculos' | 'motoristas' | 'locais' | 'obras';
 
-type MotoristaResumo = {
-  id: string;
-  registros: number;
-  ultimoRegistro: Date | null;
-};
-
-const TAB_KEYS: TabKey[] = ['geral', 'graficos', 'hibrido'];
+const TAB_KEYS: TabKey[] = ['geral', 'rastreador'];
 const DEFAULT_TAB: TabKey = 'geral';
 const TIPO_OPTIONS: Array<{ value: FiltrosAtividade['tipo']; label: string }> = [
   { value: 'todos', label: 'Saídas e chegadas' },
@@ -124,7 +118,6 @@ export default function RegistrosPage() {
   const { isOnline } = useOnlineStatus();
   const [searchParams, setSearchParams] = useSearchParams();
   const [tab, setTab] = useState<TabKey>(() => getValidTab(searchParams.get('tab')));
-  const [chartTab, setChartTab] = useState<ChartKey>('caminhoes');
   const { data: atividade, loading: loadingAtividade } = useAtividade();
   const [filtros, setFiltros] = useState<FiltrosAtividade>(FILTROS_VAZIOS);
   const [paginationModel, setPaginationModel] = useState({ page: 0, pageSize: 100 });
@@ -135,16 +128,25 @@ export default function RegistrosPage() {
   );
 
   const rowsFiltradas = useMemo(() => filtrarAtividades(rowsAtividade, filtros), [rowsAtividade, filtros]);
+  const rastreador = useRastreador(tab === 'rastreador');
+  const viagens = useMemo(() => rastreador.viagens ?? [], [rastreador.viagens]);
+  const naAbaRastreador = tab === 'rastreador';
 
-  // Each list's options come from the rows that match the other filters, so choices narrow each other.
+  // Each list's options come from the rows that match the other filters, so choices narrow each other. On the
+  // Rastreador tab, from the trips.
   const opcoes = useMemo(() => {
     const result = {} as Record<FiltroLista, string[]>;
     FILTROS_LISTA.forEach(({ key, valor }) => {
-      const outros = filtrarAtividades(rowsAtividade, { ...filtros, [key]: [] });
-      result[key] = opcoesDistintas([...outros.map(valor), ...filtros[key]]);
+      const valores = naAbaRastreador
+        ? filtrarViagens(viagens, { ...filtros, [key]: [] }).flatMap((v) => valoresDaViagem(v, key))
+        : filtrarAtividades(rowsAtividade, { ...filtros, [key]: [] }).map(valor);
+      result[key] = opcoesDistintas([...valores, ...filtros[key]]);
     });
     return result;
-  }, [rowsAtividade, filtros]);
+  }, [naAbaRastreador, viagens, rowsAtividade, filtros]);
+  const contagem = naAbaRastreador
+    ? `${filtrarViagens(viagens, filtros).length} de ${viagens.length} viagem(ns)`
+    : `${rowsFiltradas.length} de ${rowsAtividade.length} registro(s)`;
 
   const atualizarFiltros = (patch: Partial<FiltrosAtividade>) => {
     setFiltros((current) => ({ ...current, ...patch }));
@@ -256,71 +258,6 @@ export default function RegistrosPage() {
     );
   };
 
-  const motoristaResumo: MotoristaResumo[] = useMemo(() => {
-    const acc = new Map<string, MotoristaResumo>();
-    rowsFiltradas.forEach((row) => {
-      const motorista = row.motorista || '—';
-      const current = acc.get(motorista) ?? { id: motorista, registros: 0, ultimoRegistro: null };
-      current.registros += 1;
-      if (row.dataJS && (!current.ultimoRegistro || current.ultimoRegistro < row.dataJS)) {
-        current.ultimoRegistro = row.dataJS;
-      }
-      acc.set(motorista, current);
-    });
-    return Array.from(acc.values());
-  }, [rowsFiltradas]);
-
-  const colunasMotoristaResumo: GridColDef<MotoristaResumo>[] = useMemo(
-    () => [
-      { field: 'id', headerName: 'Motorista', flex: 1.2, minWidth: 200 },
-      {
-        field: 'ultimoRegistro',
-        headerName: 'Último registro',
-        flex: 1,
-        minWidth: 160,
-        renderCell: ({ value }) => (value instanceof Date ? dateFmt.format(value) : '—'),
-        sortComparator: sortByDate,
-      },
-      {
-        field: 'registros',
-        headerName: 'Registros',
-        flex: 1,
-        minWidth: 120,
-        valueFormatter: (value) => kmFormatter.format(Number(value)),
-      },
-    ],
-    [dateFmt, kmFormatter],
-  );
-
-  const chartData = useMemo(() => {
-    const countByPlaca = new Map<string, number>();
-    const kmByPlaca = new Map<string, number>();
-    const countByMotorista = new Map<string, number>();
-
-    rowsFiltradas.forEach((row) => {
-      const placa = row.placa || '—';
-      const motorista = row.motorista || '—';
-      const kmValue = Number(row.km) || 0;
-
-      countByPlaca.set(placa, (countByPlaca.get(placa) ?? 0) + 1);
-      kmByPlaca.set(placa, (kmByPlaca.get(placa) ?? 0) + kmValue);
-      countByMotorista.set(motorista, (countByMotorista.get(motorista) ?? 0) + 1);
-    });
-
-    const toPoints = (map: Map<string, number>): ChartPoint[] =>
-      Array.from(map.entries())
-        .map(([label, value]) => ({ label, value }))
-        .sort((a, b) => b.value - a.value);
-
-    return {
-      caminhoes: toPoints(countByPlaca),
-      km: toPoints(kmByPlaca),
-      motorista: toPoints(countByMotorista),
-    };
-  }, [rowsFiltradas]);
-
-  const currentChartData = chartData[chartTab];
-
   return (
     <Container maxWidth={false} sx={{ py: 3 }}>
       {!isOnline && (
@@ -407,7 +344,7 @@ export default function RegistrosPage() {
             </Button>
           </Stack>
           <Typography variant="body2" color="text.secondary">
-            {rowsFiltradas.length} de {rowsAtividade.length} registro(s) · {periodoLabel}
+            {contagem} · {periodoLabel}
           </Typography>
         </Stack>
       </Paper>
@@ -420,8 +357,7 @@ export default function RegistrosPage() {
         allowScrollButtonsMobile
       >
         <Tab label="Geral" value="geral" {...a11yProps('geral')} />
-        <Tab label="Gráficos" value="graficos" {...a11yProps('graficos')} />
-        <Tab label="Híbrido" value="hibrido" {...a11yProps('hibrido')} />
+        <Tab label="Rastreador" value="rastreador" {...a11yProps('rastreador')} />
       </Tabs>
 
       <TabPanel value={tab} tabKey="geral">
@@ -458,62 +394,8 @@ export default function RegistrosPage() {
         </Box>
       </TabPanel>
 
-      <TabPanel value={tab} tabKey="graficos">
-        <Stack spacing={2}>
-          {!isOnline && (
-            <Alert severity="info">
-              Você está offline. Os gráficos usam os dados em cache e podem não refletir atualizações recentes.
-            </Alert>
-          )}
-
-          <Tabs
-            value={chartTab}
-            onChange={(_event, value) => setChartTab(value)}
-            aria-label="Gráficos da frota"
-            variant="scrollable"
-            allowScrollButtonsMobile
-          >
-            <Tab label="Caminhões" value="caminhoes" />
-            <Tab label="KM" value="km" />
-            <Tab label="Motorista" value="motorista" />
-          </Tabs>
-
-          {currentChartData.length === 0 ? (
-            <Typography variant="body1">Sem dados para os filtros selecionados.</Typography>
-          ) : (
-            <Suspense fallback={<Typography>Carregando gráficos...</Typography>}>
-              <FrotaCharts
-                chartTab={chartTab}
-                data={currentChartData}
-                dateRangeLabel={periodoLabel}
-                hoverMode="valueOnly"
-              />
-            </Suspense>
-          )}
-        </Stack>
-      </TabPanel>
-
-      <TabPanel value={tab} tabKey="hibrido">
-        <Paper elevation={1} sx={{ p: 2 }}>
-          <Typography variant="h6" mb={2}>
-            Sobre motorista
-          </Typography>
-          <div style={{ height: 400, width: '100%' }}>
-            <DataGrid
-              rows={motoristaResumo}
-              columns={colunasMotoristaResumo}
-              loading={loadingAtividade}
-              getRowId={(row) => row.id}
-              disableRowSelectionOnClick
-              density="compact"
-              initialState={{
-                sorting: {
-                  sortModel: [{ field: 'registros', sort: 'desc' }],
-                },
-              }}
-            />
-          </div>
-        </Paper>
+      <TabPanel value={tab} tabKey="rastreador">
+        <AbaRastreador filtros={filtros} atividades={rowsAtividade} dados={rastreador} />
       </TabPanel>
     </Container>
   );

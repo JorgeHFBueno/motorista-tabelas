@@ -1,73 +1,40 @@
 import Plot from 'react-plotly.js';
 import type { Data, Layout } from 'plotly.js';
 
-export type ChartKey = 'caminhoes' | 'km' | 'motorista';
-
 export type ChartPoint = {
   label: string;
   value: number;
 };
 
 interface Props {
-  chartTab?: ChartKey;
   data: ChartPoint[];
   title?: string;
-  dateRangeLabel?: string;
   xAxisTitle?: string;
   yAxisTitle?: string;
   valueFormatter?: (value: number) => string;
   xAxisTickAngle?: number;
-  hoverMode?: 'labelAndValue' | 'valueOnly';
-}
-
-function getDefaultTitle(chartTab?: ChartKey, dateRangeLabel?: string) {
-  const suffix = dateRangeLabel ? ` (${dateRangeLabel})` : '';
-
-  if (chartTab === 'caminhoes') {
-    return `Caminh\u00f5es mais utilizados${suffix}`;
-  }
-
-  if (chartTab === 'km') {
-    return `Quilometragem por caminh\u00e3o${suffix}`;
-  }
-
-  if (chartTab === 'motorista') {
-    return `Registros por motorista${suffix}`;
-  }
-
-  return '';
 }
 
 export default function FrotaCharts({
-  chartTab,
   data,
   title,
-  dateRangeLabel,
   xAxisTitle,
   yAxisTitle,
   valueFormatter,
   xAxisTickAngle,
-  hoverMode = 'labelAndValue',
 }: Props) {
   if (data.length === 0) {
     return null;
   }
 
-  const resolvedTitle = title ?? getDefaultTitle(chartTab, dateRangeLabel);
-  const resolvedXAxisTitle =
-    xAxisTitle ?? (chartTab === 'motorista' ? 'Motorista' : 'Placa');
-  const resolvedYAxisTitle =
-    yAxisTitle ?? (chartTab === 'km' ? 'KM' : 'Registros');
+  const resolvedTitle = title ?? '';
+  const resolvedXAxisTitle = xAxisTitle ?? '';
+  const resolvedYAxisTitle = yAxisTitle ?? '';
 
   const formattedValues = valueFormatter
     ? data.map((item) => valueFormatter(item.value))
     : undefined;
-  const hoverTemplate =
-    hoverMode === 'valueOnly'
-      ? '%{y}<extra></extra>'
-      : valueFormatter
-        ? '%{x}<br>%{text}<extra></extra>'
-        : undefined;
+  const hoverTemplate = valueFormatter ? '%{x}<br>%{text}<extra></extra>' : undefined;
 
   return (
     <Plot

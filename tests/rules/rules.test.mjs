@@ -73,6 +73,7 @@ const identities = {
   logVer: { uid: 'uid-log-ver', email: 'log-ver@example.com' },
   logEditar: { uid: 'uid-log-editar', email: 'log-editar@example.com' },
   frotaEditar: { uid: 'uid-frota-editar', email: 'frota-editar@example.com' },
+  mecVer: { uid: 'uid-mec-ver', email: 'mec-ver@example.com' },
 };
 
 function dbAs(name, tokenOverrides = {}) {
@@ -151,6 +152,7 @@ async function seed() {
     await comAreas('uid-log-ver', 'Log ver', {}, { logistica: 'ver' });
     await comAreas('uid-log-editar', 'Log editar', {}, { logistica: 'editar' });
     await comAreas('uid-frota-editar', 'Frota editar', {}, { mecanica: 'editar' });
+    await comAreas('uid-mec-ver', 'Mec ver', {}, { mecanica: 'ver' });
     await setDoc(doc(db, '00-autorizados', 'legacy-only@example.com'), { nome: 'Legacy only', ativo: true, adm2: true });
     await setDoc(doc(db, 'veiculos-v2', 'vv-inativo'), {
       schemaVersion: 2, cadastro: { ativo: false }, identificacao: { categoria: 'PLACA', identificador: 'OLD1A23', nome: 'Caminhão parado' },
@@ -2196,4 +2198,35 @@ test('[firestore] areas: Logística reads the KPI sources (atividades, manutenco
   await assertSucceeds(getDocs(collection(log, 'notas-categorias')));
   await assertFails(getDocs(collection(log, 'checklists-v2')));
   await assertSucceeds(updateDoc(doc(dbAs('frotaEditar'), 'manutencoes', 'kpi-m1'), { valor: 12 }));
+});
+
+test('[firestore] atividades-rastreador: a Mecânica lê; quem edita só atribui o motorista à mão (ativo, assinado); nada mais muda', async () => {
+  await env.withSecurityRulesDisabled(async (ctx) => {
+    const db = ctx.firestore();
+    await setDoc(doc(db, 'atividades-rastreador', 'v1_1'), { schemaVersion: 1, item_frota_id: 'v1', situacao: 'concluida', motorista: null, motoristaOrigem: null, kmRodado: 100 });
+    await setDoc(doc(db, 'atividades-rastreador-veiculos', 'v1'), { schemaVersion: 1, item_frota_id: 'v1' });
+  });
+  await assertSucceeds(getDocs(collection(dbAs('mecVer'), 'atividades-rastreador')));
+  await assertSucceeds(getDoc(doc(dbAs('mecVer'), 'atividades-rastreador-veiculos', 'v1')));
+  await assertFails(getDocs(collection(dbAs('logVer'), 'atividades-rastreador')));
+  await assertFails(getDocs(collection(dbAs('user'), 'atividades-rastreador')));
+  await assertFails(getDoc(doc(dbAs('engenharia'), 'atividades-rastreador-veiculos', 'v1')));
+
+  const atribuir = (quem, uid, extra = {}) => updateDoc(doc(dbAs(quem), 'atividades-rastreador', 'v1_1'), {
+    motorista: { uid, nome: 'User' }, motoristaOrigem: 'manual',
+    motoristaAtribuidoPor: { uid: identities[quem].uid, nome: 'Quem' }, motoristaAtribuidoEm: serverTimestamp(), ...extra,
+  });
+  await assertFails(atribuir('mecVer', 'uid-user'));
+  await assertFails(atribuir('frotaEditar', 'uid-nao-existe'));
+  await assertFails(atribuir('frotaEditar', 'uid-inactive'));
+  await assertFails(atribuir('frotaEditar', 'uid-user', { kmRodado: 1 }));
+  await assertFails(atribuir('frotaEditar', 'uid-user', { motoristaOrigem: 'programacao' }));
+  await assertFails(atribuir('frotaEditar', 'uid-user', { motoristaAtribuidoPor: { uid: 'uid-adm2', nome: 'Outro' } }));
+  await assertFails(atribuir('frotaEditar', 'uid-user', { motoristaAtribuidoEm: Timestamp.fromMillis(1) }));
+  await assertSucceeds(atribuir('frotaEditar', 'uid-user'));
+  await assertSucceeds(atribuir('adm2', 'uid-user'));
+
+  await assertFails(setDoc(doc(dbAs('adm2'), 'atividades-rastreador', 'nova'), { schemaVersion: 1 }));
+  await assertFails(deleteDoc(doc(dbAs('adm2'), 'atividades-rastreador', 'v1_1')));
+  await assertFails(updateDoc(doc(dbAs('adm2'), 'atividades-rastreador-veiculos', 'v1'), { schemaVersion: 2 }));
 });

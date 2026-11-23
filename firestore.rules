@@ -898,6 +898,37 @@ service cloud.firestore {
       }
     }
 
+    // Trips detected by the tracker (Fulltrack), written by the rastreadorViagens Function (Admin SDK). The Mecânica
+    // (aba Rastreador of /mecanica/registros) reads; whoever edits it assigns the driver by hand: an active
+    // funcionarios document, signed by the author with the server time. Nothing else changes from the WEB.
+    match /atividades-rastreador/{viagemId} {
+      allow read: if veArea('mecanica');
+      allow create, delete: if false;
+      allow update: if
+        editaArea('mecanica')
+        && changedOnly(['motorista', 'motoristaOrigem', 'motoristaAtribuidoPor', 'motoristaAtribuidoEm'])
+        && request.resource.data.motoristaOrigem == 'manual'
+        && request.resource.data.motorista is map
+        && request.resource.data.motorista.keys().hasOnly(['uid', 'nome'])
+        && request.resource.data.motorista.uid is string
+        && request.resource.data.motorista.nome is string
+        && request.resource.data.motorista.nome.size() > 0
+        && request.resource.data.motorista.nome.size() <= 120
+        && exists(/databases/$(database)/documents/funcionarios/$(request.resource.data.motorista.uid))
+        && get(/databases/$(database)/documents/funcionarios/$(request.resource.data.motorista.uid)).data.get('ativo', false) == true
+        && request.resource.data.motoristaAtribuidoPor is map
+        && request.resource.data.motoristaAtribuidoPor.keys().hasOnly(['uid', 'nome'])
+        && request.resource.data.motoristaAtribuidoPor.uid == request.auth.uid
+        && request.resource.data.motoristaAtribuidoPor.nome is string
+        && request.resource.data.motoristaAtribuidoEm == request.time;
+    }
+
+    // Reading state of each vehicle (linked tracker, last point, cursor): only the Function writes.
+    match /atividades-rastreador-veiculos/{itemFrotaId} {
+      allow read: if veArea('mecanica');
+      allow write: if false;
+    }
+
     // Mechanic checklist (app), written once after its photos are uploaded; immutable. Mechanics read every checklist
     // (the app remembers "Não se aplica" per vehicle), and the saving transaction reads the document before it exists.
     function validChecklistV2Create() {
