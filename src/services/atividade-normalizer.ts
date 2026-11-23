@@ -18,6 +18,8 @@ export type AtividadeV2 = {
   obraId?: string | null;
   motivo?: string;
   km?: number | null;
+  /** `rastreador`: gravado pela Function do rastreador (campo `origem`); os demais vieram do App ou da WEB. */
+  origem?: 'app' | 'rastreador';
 };
 
 const text = (v: unknown) => (typeof v === 'string' ? v.trim() : '');
@@ -36,5 +38,6 @@ export function normalizarAtividade(raw: Record<string, unknown>, id: string): A
     placa: text(item.identificador), veiculoNome: text(item.nome), veiculoId: text(raw.item_frota_id) || null,
     destino: text(raw.destino), obra: text(obra.nomeObra), obraId: text(raw.id_obra) || null,
     motivo: text(raw.motivo), km: typeof raw.km === 'number' && Number.isFinite(raw.km) ? raw.km : null,
+    origem: raw.origem === 'rastreador' ? 'rastreador' : 'app',
   };
 }

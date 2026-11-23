@@ -1,7 +1,8 @@
 // Viagens pelo rastreador (Fulltrack/Soluzion): a cada 30 minutos, lê o histórico de posições de cada veículo com placa
 // desde a última leitura, detecta as viagens (saída e volta ao raio da Fábrica) e grava atividades-rastreador; o estado
-// de leitura de cada veículo fica em atividades-rastreador-veiculos. Fase A: só mostra (aba Rastreador de
-// /mecanica/registros); não grava atividades. Regras: rastreadorDominio.ts. Contrato: The Manuscript,
+// de leitura de cada veículo fica em atividades-rastreador-veiculos. Fase A.1: calibra o KM de cada veículo uma vez
+// por dia e grava em `atividades` só a Saída/Chegada pronta (motorista, obra confirmada e KM calibrado); o resto fica
+// "a completar" na aba Geral de /mecanica/registros. Regras: rastreadorDominio.ts. Contrato: The Manuscript,
 // 01_FIRESTORE/COLECOES/atividades-rastreador.md.
 import { onSchedule } from 'firebase-functions/v2/scheduler';
 import { defineSecret } from 'firebase-functions/params';
@@ -9,9 +10,11 @@ import * as logger from 'firebase-functions/logger';
 import { FieldValue, Timestamp } from 'firebase-admin/firestore';
 import { db } from './firebaseAdmin.js';
 import {
-  documentoViagem, estadoInicial, idViagem, ligarRastreadores, ordenarPontos, pontoFulltrack, processarPontos,
-  type EstadoVeiculo, type Ponto, type ViagemAberta,
+  CALIBRACAO_DIAS, calibrar, documentoViagem, estadoInicial, idViagem, ligarRastreadores, ordenarPontos, pontoFulltrack,
+  processarPontos, registrosDaViagem,
+  type AtividadeLida, type EstadoVeiculo, type LeituraPainel, type Ponto, type ViagemAberta, type ViagemKm,
 } from './rastreadorDominio.js';
+import { cidadeEstado } from './logisticaLocal.js';
 
 const fulltrackApiKey = defineSecret('FULLTRACK_API_KEY');
 const fulltrackSecretKey = defineSecret('FULLTRACK_SECRET_KEY');
@@ -24,8 +27,10 @@ export const VEICULOS = 'atividades-rastreador-veiculos';
 const INICIO = Date.UTC(2026, 10, 9, 3, 0, 0);
 /** A Fulltrack devolveu 7 dias numa consulta só; janelas maiores não foram testadas. */
 const JANELA = 7 * 864e5;
-/** Viagens com saída nos últimos dias são recalculadas a cada execução (programação editada depois, por exemplo). */
-const RECALCULAR_DIAS = 7;
+/** A calibração é refeita quando tem mais que isso (uma vez por dia, na prática). */
+const CALIBRACAO_VALIDADE = 20 * 3600e3;
+/** Cidades sugeridas (Nominatim, 1 pedido por segundo) por execução. */
+const SUGESTOES_POR_EXECUCAO = 15;
 const SIMULTANEAS = 3;
 
 type AnyRecord = Record<string, any>;
@@ -54,7 +59,7 @@ const comparavel = (v: unknown): unknown => (v instanceof Timestamp ? v.toMillis
   : Array.isArray(v) ? v.map(comparavel) : v && typeof v === 'object' ? Object.fromEntries(Object.entries(v as AnyRecord).sort(([a], [b]) => a.localeCompare(b)).map(([k, x]) => [k, comparavel(x)])) : v);
 const mudou = (antes: AnyRecord | undefined, campos: AnyRecord) => !antes || Object.entries(campos).some(([k, v]) => JSON.stringify(comparavel(antes[k])) !== JSON.stringify(comparavel(v)));
 
-/** Grava a viagem preservando o motorista atribuído à mão (motoristaOrigem 'manual'). */
+/** Grava a viagem preservando o motorista atribuído à mão (motoristaOrigem 'manual'); devolve o motorista que ficou. */
 async function gravarViagem(id: string, campos: ReturnType<typeof documentoViagem>) {
   const ref = db.collection(VIAGENS).doc(id);
   return db.runTransaction(async (tx) => {
@@ -63,11 +68,40 @@ async function gravarViagem(id: string, campos: ReturnType<typeof documentoViage
     const manual = antes?.motoristaOrigem === 'manual';
     const motorista = manual ? {} : { motorista: campos.motoristaProgramacao, motoristaOrigem: campos.motoristaProgramacao ? 'programacao' : null };
     const novo = { ...campos, ...motorista };
-    if (!mudou(antes, novo)) return false;
+    const ficou = (manual ? antes?.motorista : campos.motoristaProgramacao) ?? null;
+    if (!mudou(antes, novo)) return { gravou: false, motorista: ficou };
     tx.set(ref, { ...novo, ...(antes ? {} : { criadoEm: FieldValue.serverTimestamp() }), atualizadoEm: FieldValue.serverTimestamp() }, { merge: true });
+    return { gravou: true, motorista: ficou };
+  });
+}
+
+/** Saída/Chegada pronta em `atividades`, como a do app: se o id já existe, nada; o KM do veículo só sobe. */
+async function gravarAtividade(id: string, campos: Record<string, any>) {
+  const ref = db.collection('atividades').doc(id);
+  const veiculoRef = db.collection('veiculos-v2').doc(String(campos.item_frota_id));
+  return db.runTransaction(async (tx) => {
+    if ((await tx.get(ref)).exists) return false;
+    const veiculo = await tx.get(veiculoRef);
+    tx.set(ref, { ...campos, registradoEm: FieldValue.serverTimestamp() });
+    const atual = veiculo.get('operacional.quilometragemUltima');
+    if (veiculo.exists && typeof campos.km === 'number' && (typeof atual !== 'number' || campos.km > Math.trunc(atual))) {
+      tx.update(veiculoRef, { 'operacional.quilometragemUltima': campos.km, 'operacional.dataUltimaAtualizacao': FieldValue.serverTimestamp() });
+    }
     return true;
   });
 }
+
+const NOMINATIM = 'https://nominatim.openstreetmap.org';
+/** Cidade da parada mais longa (OpenStreetMap), sugestão para o destino da linha a completar. */
+async function cidadeDoPonto(lat: number, lng: number) {
+  const resposta = await fetch(`${NOMINATIM}/reverse?${new URLSearchParams({ format: 'jsonv2', lat: String(lat), lon: String(lng), zoom: '10', addressdetails: '1' })}`, {
+    headers: { 'User-Agent': 'LedurMotoristaWeb/1.0 (rastreador)', 'Accept-Language': 'pt-BR' }, signal: AbortSignal.timeout(8000),
+  });
+  if (!resposta.ok) throw new Error(`Nominatim ${resposta.status}`);
+  const corpo = await resposta.json() as Record<string, any>;
+  return cidadeEstado(corpo?.address);
+}
+const esperar = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 /** Viagem guardada → forma do domínio, para recalcular programação, obra e motorista. */
 function viagemDoDocumento(d: AnyRecord): (ViagemAberta & { chegada: Ponto | null }) | null {
@@ -97,7 +131,7 @@ export async function processarRastreador(chaves: Chaves, agora = Date.now()) {
   const estados = new Map(estadosSnap.docs.map((d) => [d.id, d.data()]));
   const ligados = ligarRastreadores(ultimos, [...veiculos].map(([id, v]) => ({ id, identificador: String(v.identificacao?.identificador ?? '') })), agora);
   const contexto = { programacoes, obras, funcionarios, agora };
-  const resumo = { veiculos: veiculos.size, comRastreador: ligados.size, viagensGravadas: 0, erros: [] as string[] };
+  const resumo = { veiculos: veiculos.size, comRastreador: ligados.size, viagensGravadas: 0, atividadesGravadas: 0, aCompletar: 0, calibrados: null as number | null, erros: [] as string[] };
 
   const fila = [...veiculos.keys()];
   const trabalhar = async () => {
@@ -141,16 +175,100 @@ export async function processarRastreador(chaves: Chaves, agora = Date.now()) {
   };
   await Promise.all(Array.from({ length: SIMULTANEAS }, trabalhar));
 
-  // Programação, obra e motorista das viagens recentes já fechadas acompanham o Cronograma.
-  const recentes = await db.collection(VIAGENS).where('saida.data', '>=', new Date(agora - RECALCULAR_DIAS * 864e5)).get();
+  // Viagens dos últimos 15 dias: programação, obra e motorista das fechadas acompanham o Cronograma; depois, a
+  // Saída/Chegada de cada uma em `atividades` (já registrada, aguardando, gravada agora ou a completar).
+  const desde = new Date(agora - CALIBRACAO_DIAS * 864e5);
+  const [recentes, atividadesSnap] = await Promise.all([
+    db.collection(VIAGENS).where('saida.data', '>=', desde).get(),
+    db.collection('atividades').where('data', '>=', new Date(desde.getTime() - 3600e3)).get(),
+  ]);
+  const atividades: AtividadeLida[] = atividadesSnap.docs.flatMap((d) => {
+    const a = d.data(), t = a.data instanceof Timestamp ? a.data.toMillis() : null;
+    if (t == null || (a.tipo !== 'saida' && a.tipo !== 'chegada') || !a.item_frota_id) return [];
+    const m = a.motorista && typeof a.motorista === 'object' ? { uid: typeof a.motorista.uid === 'string' ? a.motorista.uid : null, nome: String(a.motorista.nome ?? '') } : null;
+    return [{ id: d.id, tipo: a.tipo, t, itemFrotaId: String(a.item_frota_id), motorista: m, rastreadorViagemId: typeof a.rastreadorViagemId === 'string' ? a.rastreadorViagemId : null }];
+  });
+  const viagensPorVeiculo = new Map<string, ViagemKm[]>();
+  for (const d of recentes.docs) {
+    const v = viagemDoDocumento(d.data());
+    if (!v) continue;
+    const lista = viagensPorVeiculo.get(d.get('item_frota_id')) ?? [];
+    lista.push({ saida: v.saida, chegada: v.chegada });
+    viagensPorVeiculo.set(d.get('item_frota_id'), lista);
+  }
+
+  // Calibração do KM (uma vez por dia): leituras do painel dos últimos 15 dias contra o hodômetro do rastreador.
+  const ajustes = new Map<string, number | null>([...estados].map(([id, e]) => [id, typeof e.calibracao?.ajusteKm === 'number' ? e.calibracao.ajusteKm : null]));
+  const calibrarAgora = [...ligados.keys()].some((id) => {
+    const em = estados.get(id)?.calibracao?.calculadaEm;
+    return !(em instanceof Timestamp) || agora - em.toMillis() > CALIBRACAO_VALIDADE;
+  });
+  if (calibrarAgora) {
+    const combustivel = await db.collection('03-combustivel').where('data', '>=', desde).get();
+    const leituras = new Map<string, LeituraPainel[]>();
+    const somar = (itemId: unknown, l: LeituraPainel) => { if (typeof itemId === 'string') leituras.set(itemId, [...(leituras.get(itemId) ?? []), l]); };
+    for (const a of atividadesSnap.docs) {
+      const x = a.data();
+      if (!x.rastreadorViagemId && x.data instanceof Timestamp && typeof x.km === 'number') somar(x.item_frota_id, { id: a.id, fonte: 'atividade', t: x.data.toMillis(), km: x.km });
+    }
+    for (const c of combustivel.docs) {
+      const x = c.data();
+      if (x.data instanceof Timestamp && typeof x.quilometragem === 'number') somar(x.item_frota_id, { id: c.id, fonte: 'combustivel', t: x.data.toMillis(), km: x.quilometragem });
+    }
+    for (const itemId of ligados.keys()) {
+      const c = calibrar(leituras.get(itemId) ?? [], viagensPorVeiculo.get(itemId) ?? []);
+      ajustes.set(itemId, c.ajusteKm);
+      await db.collection(VEICULOS).doc(itemId).set({
+        calibracao: {
+          ajusteKm: c.ajusteKm, motivo: c.motivo, calculadaEm: FieldValue.serverTimestamp(),
+          amostras: c.amostras.map((a) => ({ fonte: a.fonte, id: a.id, data: new Date(a.t), km: a.km, kmRastreador: a.kmRastreador, diferenca: a.diferenca, concorda: a.concorda })),
+        },
+      }, { merge: true });
+    }
+    resumo.calibrados = [...ligados.keys()].filter((id) => ajustes.get(id) != null).length;
+  }
+
+  let sugestoes = 0;
   for (const d of recentes.docs) {
     const dados = d.data();
-    if (dados.situacao !== 'concluida') continue;
     const veiculo = veiculos.get(dados.item_frota_id);
     const viagem = viagemDoDocumento(dados);
     if (!veiculo || !viagem) continue;
-    const campos = documentoViagem({ itemFrotaId: dados.item_frota_id, veiculo, rastreador: dados.rastreador, viagem, ...contexto });
-    if (await gravarViagem(d.id, campos)) resumo.viagensGravadas += 1;
+    let motorista = dados.motorista ?? null, visita = dados.visitaObra ?? null;
+    if (dados.situacao === 'concluida') {
+      const campos = documentoViagem({ itemFrotaId: dados.item_frota_id, veiculo, rastreador: dados.rastreador, viagem, ...contexto });
+      const r = await gravarViagem(d.id, campos);
+      if (r.gravou) resumo.viagensGravadas += 1;
+      motorista = r.motorista;
+      visita = campos.visitaObra;
+    }
+    const registros = registrosDaViagem({
+      viagemId: d.id, itemFrotaId: dados.item_frota_id, veiculoSnapshot: dados.item_frota_snapshot,
+      saida: viagem.saida, chegada: viagem.chegada, motorista,
+      programacaoDaVisita: visita?.programacaoId ? programacoes.find((p) => p.id === visita.programacaoId) ?? null : null,
+      ajusteKm: ajustes.get(dados.item_frota_id) ?? null, obras, atividades, agora,
+    });
+    for (const g of registros.gravar) {
+      if (await gravarAtividade(g.id, g.campos)) resumo.atividadesGravadas += 1;
+    }
+    for (const r of [registros.saida, registros.chegada]) if (r?.estado === 'pendente') resumo.aCompletar += 1;
+
+    // Destino sugerido: a cidade da parada mais longa, só para a Saída a completar sem obra ou destino.
+    const longa = dados.paradaMaisLonga;
+    const precisa = registros.saida.estado === 'pendente' && (registros.saida.faltam.includes('obra') || registros.saida.faltam.includes('destino')) && longa;
+    let destinoSugerido = dados.destinoSugerido ?? null;
+    if (precisa && (destinoSugerido?.lat !== longa.lat || destinoSugerido?.lng !== longa.lng) && sugestoes < SUGESTOES_POR_EXECUCAO) {
+      try {
+        if (sugestoes) await esperar(1100);
+        sugestoes += 1;
+        const { cidade, uf } = await cidadeDoPonto(longa.lat, longa.lng);
+        destinoSugerido = { cidade, uf, lat: longa.lat, lng: longa.lng };
+      } catch (error) {
+        logger.warn('rastreador: cidade da parada falhou', { viagemId: d.id, erro: String((error as Error)?.message ?? error) });
+      }
+    }
+    const extra = { registros: { saida: registros.saida, chegada: registros.chegada }, destinoSugerido };
+    if (mudou(dados, extra)) await d.ref.set({ ...extra, atualizadoEm: FieldValue.serverTimestamp() }, { merge: true });
   }
   return resumo;
 }

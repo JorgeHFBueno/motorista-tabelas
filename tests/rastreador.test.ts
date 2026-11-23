@@ -1,7 +1,9 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { FILTROS_VAZIOS, type AtividadeComData } from '../src/services/atividade-filtros';
-import { filtrarViagens, registroProximo, valoresDaViagem, veiculosSemSinal, viagemDoDocumento } from '../src/features/rastreador/domain/viagem';
+import {
+  calibracaoDoDocumento, filtrarViagens, linhasACompletar, marcarDuplicados, registroProximo, valoresDaViagem, veiculosSemSinal, viagemDoDocumento,
+} from '../src/features/rastreador/domain/viagem';
 
 // Aba Rastreador de /mecanica/registros. Só dados fictícios.
 const ts = (iso: string) => ({ toDate: () => new Date(iso) });
@@ -54,9 +56,41 @@ test('registro do motorista: mesmo veículo e tipo, o mais perto até 4 h', () =
 test('sem rastreador ou sem sinal há mais de 3 dias', () => {
   const agora = new Date('2026-11-23T12:00:00Z');
   const lista = veiculosSemSinal([
-    { id: 'a', identificador: 'BBB-2C22', temRastreador: true, ultimaComunicacao: new Date('2026-11-23T10:00:00Z'), erro: null },
-    { id: 'b', identificador: 'CCC-3D33', temRastreador: true, ultimaComunicacao: new Date('2026-08-01T10:00:00Z'), erro: null },
-    { id: 'c', identificador: 'AAA-1B11', temRastreador: false, ultimaComunicacao: null, erro: null },
+    { id: 'a', identificador: 'BBB-2C22', temRastreador: true, ultimaComunicacao: new Date('2026-11-23T10:00:00Z'), erro: null, calibracao: null },
+    { id: 'b', identificador: 'CCC-3D33', temRastreador: true, ultimaComunicacao: new Date('2026-08-01T10:00:00Z'), erro: null, calibracao: null },
+    { id: 'c', identificador: 'AAA-1B11', temRastreador: false, ultimaComunicacao: null, erro: null, calibracao: null },
   ], agora);
   assert.deepEqual(lista.map((v) => v.identificador), ['AAA-1B11', 'CCC-3D33']);
+});
+
+test('aba Geral: Saída/Chegada a completar viram linhas; o rastreador com App a até 60 min é possível duplicado', () => {
+  const doc = {
+    ...DOC,
+    registros: {
+      saida: { estado: 'pendente', atividadeId: null, faltam: ['obra', 'destino', 'motivo', 'xyz'], km: 403000, motorista: { uid: 'u1', nome: 'FULANO' }, obra: null, destino: null, motivo: null },
+      chegada: { estado: 'rastreador', atividadeId: 'chegada - x', faltam: [], km: 403100, motorista: null, obra: { id: 'f', nome: 'FAB - FABRICA' }, destino: 'Palmeira das Missões - RS', motivo: 'Volta a Fábrica' },
+    },
+    destinoSugerido: { cidade: 'Cruz Alta', uf: 'RS', lat: 1, lng: 1 },
+  };
+  const v = viagemDoDocumento('v1_1', doc)!;
+  const linhas = linhasACompletar([v]);
+  assert.equal(linhas.length, 1);
+  assert.equal(linhas[0].id, 'v1_1:saida');
+  assert.deepEqual(linhas[0].aCompletar, { viagemId: 'v1_1', faltam: ['obra', 'destino', 'motivo'], destinoSugerido: 'Cruz Alta - RS' });
+  assert.equal(linhas[0].km, 403000);
+  const t = new Date('2026-11-10T10:00:00Z');
+  const marcadas = marcarDuplicados([
+    { id: 'r', tipo: 'saida', origem: 'rastreador', veiculoId: 'v1', dataJS: t },
+    { id: 'a', tipo: 'saida', origem: 'app', veiculoId: 'v1', dataJS: new Date(t.getTime() + 40 * 60e3) },
+    { id: 'r2', tipo: 'chegada', origem: 'rastreador', veiculoId: 'v1', dataJS: t },
+  ]);
+  assert.deepEqual(marcadas.map((l) => Boolean(l.possivelDuplicado)), [true, false, false]);
+});
+
+test('calibração guardada: ajuste, motivo e amostras', () => {
+  const c = calibracaoDoDocumento({ ajusteKm: 402000, motivo: null, amostras: [{ fonte: 'combustivel', data: new Date('2026-11-20T10:00:00Z'), km: 403100, kmRastreador: 1100, diferenca: 402000, concorda: true }, { fonte: 'x' }] })!;
+  assert.equal(c.ajusteKm, 402000);
+  assert.equal(c.amostras.length, 1);
+  assert.equal(calibracaoDoDocumento(undefined), null);
+  assert.equal(calibracaoDoDocumento({ ajusteKm: null, motivo: 'poucas' })!.motivo, 'poucas');
 });

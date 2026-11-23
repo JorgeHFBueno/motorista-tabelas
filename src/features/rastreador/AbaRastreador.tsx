@@ -1,15 +1,16 @@
-// Aba Rastreador de /mecanica/registros: as viagens que o rastreador (Fulltrack) detectou, com a programação do
-// Cronograma Logístico, a chegada na obra e o registro do motorista ao lado, para conferir (fase A: ainda não viram
-// Saída/Chegada). Quem edita a Mecânica atribui o motorista das viagens sem programação.
+// Aba Rastreador de /mecanica/registros: uma linha por viagem (saiu da Fábrica e voltou), com a programação do
+// Cronograma Logístico, a chegada na obra, o KM calibrado e onde a Saída/Chegada está em `atividades` (fase A.1: só a
+// pronta é gravada; o resto aparece na aba Geral a completar). Quem edita a Mecânica atribui o motorista.
 import { useEffect, useMemo, useState } from 'react';
-import { Alert, Autocomplete, Box, Button, Chip, Dialog, DialogActions, DialogContent, DialogTitle, Stack, TextField, Typography } from '@mui/material';
+import { Accordion, AccordionDetails, AccordionSummary, Alert, Autocomplete, Box, Button, Chip, Dialog, DialogActions, DialogContent, DialogTitle, Stack, TextField, Typography } from '@mui/material';
+import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import { DataGrid, type GridColDef } from '@mui/x-data-grid';
 import { useAuth } from '../../contexts/AuthContext';
 import { editaArea } from '../../services/credenciais';
 import type { AtividadeComData, FiltrosAtividade } from '../../services/atividade-filtros';
 import { listarMotoristas } from '../saida-chegada/data/atividadesFirestore';
 import { atribuirMotorista } from './data/rastreadorFirestore';
-import { filtrarViagens, registroProximo, veiculosSemSinal, type ViagemRastreador } from './domain/viagem';
+import { filtrarViagens, registroProximo, veiculosSemSinal, type Falta, type RegistroViagem, type VeiculoRastreador, type ViagemRastreador } from './domain/viagem';
 import type { DadosRastreador } from './useRastreador';
 
 type Pessoa = { uid: string; nome: string };
@@ -18,6 +19,9 @@ const dataHora = new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: '2-di
 const km = new Intl.NumberFormat('pt-BR');
 const fmtKm = (v: number | null | undefined) => (typeof v === 'number' ? km.format(v) : '—');
 const duracao = (min: number) => `${Math.floor(min / 60)}h${String(min % 60).padStart(2, '0')}`;
+/** KM do painel (calibrado) quando houver; senão, o hodômetro do rastreador, que não é o do painel. */
+const kmTexto = (painel: number | null | undefined, rastreador: number | null) =>
+  (typeof painel === 'number' ? `KM ${fmtKm(painel)}` : `hodômetro ${fmtKm(rastreador)} (sem calibração)`);
 
 function Linhas({ principal, detalhe }: { principal: string; detalhe?: string | null }) {
   return (
@@ -32,6 +36,27 @@ function registroTexto(a: AtividadeComData | null, kmRastreador: number | null) 
   if (!a?.dataJS) return null;
   const dif = typeof a.km === 'number' && kmRastreador != null ? a.km - kmRastreador : null;
   return `${dataHora.format(a.dataJS)} · KM ${fmtKm(a.km)}${dif != null ? ` (dif. ${dif > 0 ? '+' : ''}${km.format(dif)})` : ''}`;
+}
+
+const NOMES_FALTA: Record<Falta, string> = { motorista: 'motorista', obra: 'obra', destino: 'local', motivo: 'motivo', km: 'KM', saida: 'a Saída' };
+
+/** Onde a Saída/Chegada está em atividades, como a Function decidiu (o KM do App comparado ao calibrado). */
+function estadoTexto(tipo: string, r: RegistroViagem, atividades: AtividadeComData[]) {
+  if (r.estado === 'app') {
+    const a = atividades.find((x) => x.id === r.atividadeId) ?? null;
+    return `${tipo} pelo App${a ? ` ${registroTexto(a, r.km)}` : ''}`;
+  }
+  if (r.estado === 'rastreador') return `${tipo} gravada pelo rastreador`;
+  if (r.estado === 'aguardando') return `${tipo} aguardando o App (30 min)`;
+  return `${tipo} a completar: ${r.faltam.map((f) => NOMES_FALTA[f]).join(', ')}`;
+}
+
+function textoCalibracao(v: VeiculoRastreador) {
+  const c = v.calibracao;
+  if (!c) return 'ainda não calibrado';
+  if (c.ajusteKm == null) return `sem ajuste: ${c.motivo ?? 'leituras insuficientes'}`;
+  const concordam = c.amostras.filter((a) => a.concorda).length;
+  return `KM do painel = rastreador ${c.ajusteKm >= 0 ? '+' : '−'} ${km.format(Math.abs(c.ajusteKm))} km (${concordam} de ${c.amostras.length} leituras concordam)`;
 }
 
 export default function AbaRastreador({ filtros, atividades, dados }: { filtros: FiltrosAtividade; atividades: AtividadeComData[]; dados: DadosRastreador }) {
@@ -67,9 +92,9 @@ export default function AbaRastreador({ filtros, atividades, dados }: { filtros:
 
   const colunas: GridColDef<ViagemRastreador>[] = useMemo(() => [
     {
-      field: 'saida', headerName: 'Saída', width: 140,
+      field: 'saida', headerName: 'Saiu da Fábrica', width: 150,
       valueGetter: (_v, row) => row.saida.data.getTime(),
-      renderCell: ({ row }) => <Linhas principal={dataHora.format(row.saida.data)} detalhe={`KM ${fmtKm(row.saida.km)}`} />,
+      renderCell: ({ row }) => <Linhas principal={dataHora.format(row.saida.data)} detalhe={kmTexto(row.registros.saida?.km, row.saida.km)} />,
     },
     {
       field: 'veiculo', headerName: 'Veículo', minWidth: 150, flex: 0.9,
@@ -77,10 +102,10 @@ export default function AbaRastreador({ filtros, atividades, dados }: { filtros:
       renderCell: ({ row }) => <Linhas principal={row.placa || '—'} detalhe={row.veiculoNome} />,
     },
     {
-      field: 'chegada', headerName: 'Chegada', width: 150,
+      field: 'chegada', headerName: 'Voltou à Fábrica', width: 150,
       valueGetter: (_v, row) => row.chegada?.data.getTime() ?? Number.MAX_SAFE_INTEGER,
       renderCell: ({ row }) => (row.chegada
-        ? <Linhas principal={dataHora.format(row.chegada.data)} detalhe={`KM ${fmtKm(row.chegada.km)}`} />
+        ? <Linhas principal={dataHora.format(row.chegada.data)} detalhe={kmTexto(row.registros.chegada?.km, row.chegada.km)} />
         : <Chip size="small" color="warning" variant="outlined" label="Em andamento" />),
     },
     {
@@ -122,8 +147,18 @@ export default function AbaRastreador({ filtros, atividades, dados }: { filtros:
       ),
     },
     {
-      field: 'registro', headerName: 'Registro do motorista', minWidth: 230, flex: 1.3, sortable: false,
+      field: 'registro', headerName: 'Em atividades', minWidth: 240, flex: 1.3, sortable: false,
       renderCell: ({ row }) => {
+        const { saida, chegada } = row.registros;
+        if (saida) {
+          return (
+            <Linhas
+              principal={estadoTexto('Saída', saida, atividades)}
+              detalhe={chegada ? estadoTexto('Chegada', chegada, atividades) : row.chegada ? null : 'Chegada quando voltar'}
+            />
+          );
+        }
+        // Viagens de antes da fase A.1 (ou fora dos últimos 15 dias): o registro do motorista mais perto, a até 4 h.
         const s = registroTexto(registroProximo(atividades, row.veiculoId, 'saida', row.saida.data), row.saida.km);
         const c = registroTexto(registroProximo(atividades, row.veiculoId, 'chegada', row.chegada?.data ?? null), row.chegada?.km ?? null);
         if (!s && !c) return <Typography variant="body2" color="text.secondary">Sem registro</Typography>;
@@ -135,9 +170,39 @@ export default function AbaRastreador({ filtros, atividades, dados }: { filtros:
   return (
     <Stack spacing={2}>
       <Alert severity="info">
-        Viagens lidas do rastreador (Fulltrack) a cada 30 minutos, desde 09/11/2026: saída e volta ao raio de 1 km da Fábrica, chegada a 600 m da obra
-        programada (Local da programação ou LOTE da obra). Em conferência: ainda não viram Saída/Chegada. Os filtros de Local e Tipo não se aplicam aqui.
+        Uma linha por viagem lida do rastreador (Fulltrack) a cada 30 minutos, desde 09/11/2026: saiu do raio de 1 km da Fábrica e voltou a ele; chegada
+        a 600 m da obra programada (Local da programação ou LOTE da obra). Fase A.1: 30 min depois da saída e da volta, sem registro do App, a Saída e a
+        Chegada prontas (motorista, obra confirmada e KM calibrado) vão para a aba Geral; as outras aparecem lá a completar. Os filtros de Local e Tipo
+        não se aplicam aqui.
       </Alert>
+      {veiculos.some((v) => v.temRastreador) && (
+        <Accordion disableGutters variant="outlined">
+          <AccordionSummary expandIcon={<ExpandMoreIcon />}>
+            <Typography variant="body2">
+              Calibração do KM: {veiculos.filter((v) => v.calibracao?.ajusteKm != null).length} de {veiculos.filter((v) => v.temRastreador).length} veículos com ajuste
+            </Typography>
+          </AccordionSummary>
+          <AccordionDetails>
+            <Typography variant="caption" color="text.secondary" component="p" mb={1}>
+              Cada leitura do painel dos últimos 15 dias (Saída/Chegada do App e abastecimentos), com o veículo na Fábrica ou a até 60 min da saída/volta,
+              é comparada ao hodômetro do rastreador na mesma hora. O ajuste é a mediana das 7 mais recentes; vale com pelo menos 3 a até 15 km dela.
+              Recalculado uma vez por dia.
+            </Typography>
+            <Stack spacing={1}>
+              {veiculos.filter((v) => v.temRastreador).sort((a, b) => a.identificador.localeCompare(b.identificador, 'pt-BR')).map((v) => (
+                <Box key={v.id}>
+                  <Typography variant="body2"><strong>{v.identificador}</strong>: {textoCalibracao(v)}</Typography>
+                  {v.calibracao?.amostras.map((a) => (
+                    <Typography key={`${a.fonte}-${a.data.getTime()}`} variant="caption" color={a.concorda ? 'text.secondary' : 'warning.dark'} component="div" sx={{ pl: 2 }}>
+                      {dataHora.format(a.data)} · {a.fonte === 'combustivel' ? 'abastecimento' : 'Saída/Chegada do App'}: painel {fmtKm(a.km)} − rastreador {fmtKm(a.kmRastreador)} = {a.diferenca >= 0 ? '' : '−'}{fmtKm(Math.abs(a.diferenca))}{a.concorda ? '' : ' (fora)'}
+                    </Typography>
+                  ))}
+                </Box>
+              ))}
+            </Stack>
+          </AccordionDetails>
+        </Accordion>
+      )}
       {semSinal.length > 0 && (
         <Alert severity="warning">
           Sem rastreador ou sem sinal há mais de 3 dias (continuam com o registro manual): {semSinal.map((v) => v.identificador).join(', ')}.

@@ -224,10 +224,10 @@ export function documentoViagem(args: {
   const chegada = v.chegada ?? null;
   const progs = programacoesDaViagem(args.programacoes, args.itemFrotaId, v.saida.t, chegada?.t ?? null, args.agora);
   const paradas = paradasDaViagem(v);
-  let visita: ReturnType<typeof visitaObra> = null;
+  let visita: (NonNullable<ReturnType<typeof visitaObra>> & { programacaoId: string }) | null = null;
   for (const p of progs) {
     const vis = visitaObra(paradas, alvosDaProgramacao(p, args.obras));
-    if (vis && (!visita || vis.chegou < visita.chegou)) visita = vis;
+    if (vis && (!visita || vis.chegou < visita.chegou)) visita = { ...vis, programacaoId: String(p.id) };
   }
   const motoristas = progs.map((p) => motoristaDaProgramacao(p, args.funcionarios)).filter(Boolean) as { uid: string | null; nome: string }[];
   const unicos = [...new Map(motoristas.map((m) => [m.uid ?? `nome:${m.nome}`, m])).values()];
@@ -247,7 +247,7 @@ export function documentoViagem(args: {
     paradas: paradas.map((p) => ({ inicio: new Date(p.inicio), fim: new Date(p.fim), lat: p.lat, lng: p.lng })),
     paradaMaisLonga: longa ? { inicio: new Date(longa.inicio), fim: new Date(longa.fim), minutos: Math.round((longa.fim - longa.inicio) / 60e3), lat: longa.lat, lng: longa.lng } : null,
     programacoes: progs.map((p) => ({ id: String(p.id), item: texto(p.item), obra: p.obra?.id ? { id: String(p.obra.id), nome: texto(p.obra.nome) } : null, motorista: texto(p.motorista?.nome) || null, inicio: texto(p.inicio), fim: texto(p.fim) || texto(p.inicio) })),
-    visitaObra: visita ? { chegou: new Date(visita.chegou), saiu: new Date(visita.saiu), nome: visita.nome, origem: visita.origem } : null,
+    visitaObra: visita ? { chegou: new Date(visita.chegou), saiu: new Date(visita.saiu), nome: visita.nome, origem: visita.origem, programacaoId: visita.programacaoId } : null,
     /** Motorista pela programação: um só; com mais de um (ou nenhum), fica para a atribuição manual. */
     motoristaProgramacao: unicos.length === 1 ? unicos[0] : null,
   };
@@ -255,3 +255,172 @@ export function documentoViagem(args: {
 
 /** Id estável da viagem: o veículo e o segundo da saída (reprocessar não duplica). */
 export const idViagem = (itemFrotaId: string, saidaT: number) => `${itemFrotaId}_${Math.floor(saidaT / 1000)}`;
+
+// ---- Fase A.1: KM calibrado e Saída/Chegada prontas em `atividades` (decisões do responsável de 2026-11-23) ----
+
+/** Registro do App ou da WEB a até 60 min da saída/volta do rastreador é o mesmo: o rastreador não grava outro. */
+export const JANELA_REGISTRO_MIN = 60;
+/** O rastreador espera 30 min depois da saída/volta antes de gravar, para o registro do App chegar primeiro. */
+export const ESPERA_GRAVAR_MIN = 30;
+/** Calibração: as 7 leituras do painel mais recentes que dá para comparar; pelo menos 3 a até 15 km da mediana. */
+export const CALIBRACAO_AMOSTRAS = 7;
+export const CALIBRACAO_MINIMO = 3;
+export const CALIBRACAO_TOLERANCIA_KM = 15;
+/** Leituras do painel e viagens usadas na calibração, e janela das viagens conferidas a cada execução. */
+export const CALIBRACAO_DIAS = 15;
+export const LOCAL_PADRAO_CHEGADA = 'Palmeira das Missões - RS';
+export const MOTIVO_CHEGADA = 'Volta a Fábrica';
+export const CRIADO_POR_RASTREADOR = { uid: null, nome: 'Rastreador' };
+
+export type LeituraPainel = { id: string; fonte: 'atividade' | 'combustivel'; t: number; km: number };
+export type ViagemKm = { saida: { t: number; km: number | null }; chegada: { t: number; km: number | null } | null };
+type Borda = { t: number; km: number | null; tipo: 'saida' | 'chegada' };
+
+/**
+ * Hodômetro do rastreador na hora de uma leitura do painel: o da saída ou volta mais próxima, quando a leitura está a
+ * até 60 min dela ou quando o veículo estava parado na Fábrica entre duas viagens (a volta e a saída seguinte com o
+ * mesmo hodômetro). No meio de uma viagem, null: não dá para saber quanto ele já tinha andado.
+ */
+export function kmRastreadorNaHora(t: number, viagens: ViagemKm[]): number | null {
+  const bordas: Borda[] = viagens
+    .flatMap((v) => [{ t: v.saida.t, km: v.saida.km, tipo: 'saida' as const }, ...(v.chegada ? [{ t: v.chegada.t, km: v.chegada.km, tipo: 'chegada' as const }] : [])])
+    .sort((a, b) => a.t - b.t);
+  let antes: Borda | undefined, depois: Borda | undefined;
+  for (const b of bordas) { if (b.t <= t) antes = b; else { depois = b; break; } }
+  const perto = [antes, depois].filter((b): b is Borda => Boolean(b) && b!.km != null).sort((a, b) => Math.abs(a.t - t) - Math.abs(b.t - t))[0];
+  if (!perto) return null;
+  if (Math.abs(perto.t - t) <= JANELA_REGISTRO_MIN * 60e3) return perto.km;
+  const naFabrica = antes?.tipo === 'chegada' && depois?.tipo === 'saida' && antes.km != null && depois.km != null && Math.abs(depois.km - antes.km) <= 3;
+  return naFabrica ? perto.km : null;
+}
+
+const mediana = (xs: number[]) => {
+  const s = [...xs].sort((a, b) => a - b), m = s.length >> 1;
+  return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2;
+};
+
+/**
+ * Ajuste do veículo: KM do painel = hodômetro do rastreador + ajuste. Compara cada leitura do painel (Saída/Chegada
+ * do App e abastecimentos) com o hodômetro do rastreador na mesma hora; o ajuste é a mediana das diferenças que
+ * concordam. Sem 3 que concordem, não há ajuste e o KM fica a completar.
+ */
+export function calibrar(leituras: LeituraPainel[], viagens: ViagemKm[]) {
+  const amostras = leituras
+    .filter((l) => Number.isFinite(l.km) && l.km > 0)
+    .sort((a, b) => b.t - a.t)
+    .flatMap((l) => {
+      const kr = kmRastreadorNaHora(l.t, viagens);
+      return kr == null ? [] : [{ ...l, kmRastreador: Math.round(kr), diferenca: Math.round(l.km - kr) }];
+    })
+    .slice(0, CALIBRACAO_AMOSTRAS);
+  if (amostras.length < CALIBRACAO_MINIMO) {
+    return { ajusteKm: null, motivo: `${amostras.length} leitura(s) do painel para comparar; são precisas ${CALIBRACAO_MINIMO}`, amostras: amostras.map((a) => ({ ...a, concorda: false })) };
+  }
+  const med = mediana(amostras.map((a) => a.diferenca));
+  const marcadas = amostras.map((a) => ({ ...a, concorda: Math.abs(a.diferenca - med) <= CALIBRACAO_TOLERANCIA_KM }));
+  const concordam = marcadas.filter((a) => a.concorda);
+  if (concordam.length < CALIBRACAO_MINIMO) return { ajusteKm: null, motivo: 'as leituras do painel não concordam entre si', amostras: marcadas };
+  return { ajusteKm: Math.round(mediana(concordam.map((a) => a.diferenca))), motivo: null, amostras: marcadas };
+}
+
+export type Pessoa = { uid: string | null; nome: string };
+export type AtividadeLida = { id: string; tipo: 'saida' | 'chegada'; t: number; itemFrotaId: string; motorista: Pessoa | null; rastreadorViagemId: string | null };
+export type Falta = 'motorista' | 'obra' | 'destino' | 'motivo' | 'km' | 'saida';
+export type Registro = {
+  /** `app`: registrado pelo App/WEB; `rastreador`: gravado pelo rastreador; `aguardando`: menos de 30 min; `pendente`: a completar. */
+  estado: 'app' | 'rastreador' | 'aguardando' | 'pendente';
+  atividadeId: string | null;
+  faltam: Falta[];
+  km: number | null;
+  motorista: Pessoa | null;
+  obra: { id: string; nome: string } | null;
+  destino: string | null;
+  motivo: string | null;
+};
+
+/** Registro do App/WEB do mesmo veículo e tipo, o mais perto da hora, a até 60 min. */
+export function registroDoApp(atividades: AtividadeLida[], itemFrotaId: string, tipo: 'saida' | 'chegada', t: number) {
+  return atividades
+    .filter((a) => !a.rastreadorViagemId && a.itemFrotaId === itemFrotaId && a.tipo === tipo && Math.abs(a.t - t) <= JANELA_REGISTRO_MIN * 60e3)
+    .sort((a, b) => Math.abs(a.t - t) - Math.abs(b.t - t))[0] ?? null;
+}
+
+/** Id como o do app (`<tipo> - yyyy-MM-dd HH-mm-ss - <identificador>`), na hora de Brasília. */
+export function idAtividadeRastreador(tipo: 'saida' | 'chegada', identificador: string, t: number) {
+  const s = new Date(t - 3 * 3600e3).toISOString();
+  return `${tipo} - ${s.slice(0, 10)} ${s.slice(11, 19).replace(/:/g, '-')} - ${identificador}`;
+}
+
+const snapshotObra = (o: AnyRecord) => ({ codObra: o.codObra ?? null, siglaObra: texto(o.siglaObra), nomeObra: texto(o.nomeObra), local: typeof o.local === 'string' ? o.local : null });
+
+/**
+ * Saída e Chegada da viagem em `atividades`: já registradas (App ou rastreador), aguardando os 30 min, prontas para
+ * gravar ou a completar (com o que falta). A Saída fica pronta com motorista (ligado a um funcionário), obra
+ * confirmada (o veículo parou a até 600 m dela), destino, motivo (o item da programação) e KM calibrado; a Chegada,
+ * com a Saída registrada, motorista e KM calibrado (obra Fábrica, como no app).
+ */
+export function registrosDaViagem(args: {
+  viagemId: string; itemFrotaId: string; veiculoSnapshot: { categoria: string; identificador: string; nome: string };
+  saida: { t: number; km: number | null }; chegada: { t: number; km: number | null } | null;
+  motorista: Pessoa | null; programacaoDaVisita: AnyRecord | null; ajusteKm: number | null;
+  obras: Map<string, AnyRecord>; atividades: AtividadeLida[]; agora: number;
+}) {
+  // O nome da obra é o `nomeObra`, como o snapshot mostra na aba Geral (o filtro Obra serve aos dois).
+  const gravar: { id: string; campos: AnyRecord }[] = [];
+  const kmPainel = (km: number | null) => (km != null && args.ajusteKm != null ? Math.round(km + args.ajusteKm) : null);
+  const documento = (tipo: 'saida' | 'chegada', t: number, r: Registro, obraId: string) => ({
+    schemaVersion: 2, tipo, data: new Date(t), destino: r.destino, local: r.destino, km: r.km, motivo: r.motivo,
+    motorista: r.motorista, criadoPor: CRIADO_POR_RASTREADOR,
+    item_frota_id: args.itemFrotaId, item_frota_snapshot: args.veiculoSnapshot,
+    id_obra: obraId, id_obra_snap: snapshotObra(args.obras.get(obraId)!),
+    origem: 'rastreador', rastreadorViagemId: args.viagemId,
+  });
+  const decidir = (tipo: 'saida' | 'chegada', t: number, r: Omit<Registro, 'estado' | 'atividadeId'>, obraId: string | null): Registro => {
+    const doRastreador = args.atividades.find((a) => a.rastreadorViagemId === args.viagemId && a.tipo === tipo);
+    if (doRastreador) return { ...r, faltam: [], estado: 'rastreador', atividadeId: doRastreador.id };
+    const app = registroDoApp(args.atividades, args.itemFrotaId, tipo, t);
+    if (app) return { ...r, faltam: [], estado: 'app', atividadeId: app.id, motorista: app.motorista };
+    if (args.agora - t < ESPERA_GRAVAR_MIN * 60e3) return { ...r, estado: 'aguardando', atividadeId: null };
+    if (r.faltam.length || !obraId) return { ...r, estado: 'pendente', atividadeId: null };
+    const id = idAtividadeRastreador(tipo, args.veiculoSnapshot.identificador, t);
+    const registro: Registro = { ...r, estado: 'rastreador', atividadeId: id };
+    gravar.push({ id, campos: documento(tipo, t, registro, obraId) });
+    return registro;
+  };
+
+  const motoristaOk = args.motorista?.uid ? args.motorista : null;
+  const prog = args.programacaoDaVisita;
+  const obraId = texto(prog?.obra?.id);
+  const obra = obraId ? args.obras.get(obraId) : undefined;
+  const local = prog?.local;
+  const destino = [texto(local?.cidade), texto(local?.uf)].filter(Boolean).join(' - ') || (obra && typeof obra.local === 'string' ? obra.local.trim() : '');
+  const motivo = texto(prog?.item);
+  const kmSaida = kmPainel(args.saida.km);
+  const faltamSaida: Falta[] = [
+    ...(!motoristaOk ? ['motorista' as const] : []),
+    ...(!obra ? ['obra' as const] : []),
+    ...(!destino ? ['destino' as const] : []),
+    ...(motivo.length < 3 ? ['motivo' as const] : []),
+    ...(kmSaida == null ? ['km' as const] : []),
+  ];
+  const saida = decidir('saida', args.saida.t, {
+    faltam: faltamSaida, km: kmSaida, motorista: motoristaOk,
+    obra: obra ? { id: obraId, nome: texto(obra.nomeObra) } : null, destino: destino || null, motivo: motivo || null,
+  }, obra ? obraId : null);
+  if (!args.chegada) return { saida, chegada: null, gravar };
+
+  const fabrica = args.obras.get(OBRA_FABRICA_ID);
+  const motoristaChegada = motoristaOk ?? (saida.motorista?.uid ? saida.motorista : null);
+  const kmChegada = kmPainel(args.chegada.km);
+  const faltamChegada: Falta[] = [
+    ...(saida.estado === 'pendente' || saida.estado === 'aguardando' ? ['saida' as const] : []),
+    ...(!motoristaChegada ? ['motorista' as const] : []),
+    ...(!fabrica ? ['obra' as const] : []),
+    ...(kmChegada == null ? ['km' as const] : []),
+  ];
+  const chegada = decidir('chegada', args.chegada.t, {
+    faltam: faltamChegada, km: kmChegada, motorista: motoristaChegada,
+    obra: fabrica ? { id: OBRA_FABRICA_ID, nome: texto(fabrica.nomeObra) } : null, destino: LOCAL_PADRAO_CHEGADA, motivo: MOTIVO_CHEGADA,
+  }, fabrica ? OBRA_FABRICA_ID : null);
+  return { saida, chegada, gravar };
+}

@@ -1,7 +1,7 @@
 // Leitura das viagens do rastreador e do estado dos veículos (só a Function grava) e a atribuição manual do motorista.
 import { collection, doc, onSnapshot, serverTimestamp, updateDoc } from 'firebase/firestore';
 import { db } from '../../../firebase';
-import { toDate, viagemDoDocumento, type PessoaRef, type VeiculoRastreador, type ViagemRastreador } from '../domain/viagem';
+import { calibracaoDoDocumento, toDate, viagemDoDocumento, type PessoaRef, type VeiculoRastreador, type ViagemRastreador } from '../domain/viagem';
 
 export const VIAGENS = 'atividades-rastreador';
 export const VEICULOS = 'atividades-rastreador-veiculos';
@@ -23,6 +23,7 @@ export function observarVeiculos(onData: (veiculos: VeiculoRastreador[]) => void
         temRastreador: Boolean(data.rastreador),
         ultimaComunicacao: toDate(data.ultimaComunicacao),
         erro: typeof data.erro?.mensagem === 'string' ? data.erro.mensagem : null,
+        calibracao: calibracaoDoDocumento(data.calibracao),
       };
     }));
   }, onError);

@@ -12,6 +12,7 @@ import {
   Tab,
   Tabs,
   TextField,
+  Tooltip,
   Typography,
 } from '@mui/material';
 import { useSearchParams } from 'react-router-dom';
@@ -28,7 +29,14 @@ import {
 } from '../services/atividade-filtros';
 import AbaRastreador from '../features/rastreador/AbaRastreador';
 import useRastreador from '../features/rastreador/useRastreador';
-import { filtrarViagens, valoresDaViagem } from '../features/rastreador/domain/viagem';
+import {
+  filtrarViagens,
+  linhasACompletar,
+  marcarDuplicados,
+  valoresDaViagem,
+  type Falta,
+  type LinhaGeral,
+} from '../features/rastreador/domain/viagem';
 
 type TabKey = 'geral' | 'rastreador';
 type FiltroLista = 'veiculos' | 'motoristas' | 'locais' | 'obras';
@@ -114,6 +122,24 @@ function toDateAny(raw: unknown): Date | null {
 const sortByDate = (a: unknown, b: unknown) =>
   (a instanceof Date ? a.getTime() : 0) - (b instanceof Date ? b.getTime() : 0);
 
+const falta = (row: LinhaGeral, campo: Falta) => Boolean(row.aCompletar?.faltam.includes(campo));
+
+/** Campo que falta numa linha a completar: destacado, com a sugestão quando houver. */
+function ACompletar({ sugestao }: { sugestao?: string | null }) {
+  return (
+    <Box sx={{ py: 0.5 }}>
+      <Typography variant="body2" color="warning.dark" fontWeight={600}>
+        a completar
+      </Typography>
+      {sugestao && (
+        <Typography variant="caption" color="text.secondary">
+          sugestão: {sugestao}
+        </Typography>
+      )}
+    </Box>
+  );
+}
+
 export default function RegistrosPage() {
   const { isOnline } = useOnlineStatus();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -127,9 +153,15 @@ export default function RegistrosPage() {
     [atividade],
   );
 
-  const rowsFiltradas = useMemo(() => filtrarAtividades(rowsAtividade, filtros), [rowsAtividade, filtros]);
-  const rastreador = useRastreador(tab === 'rastreador');
+  const rastreador = useRastreador(true);
   const viagens = useMemo(() => rastreador.viagens ?? [], [rastreador.viagens]);
+  // Geral: os registros de atividades (App/WEB e rastreador) e as Saídas/Chegadas do rastreador a completar.
+  const rowsGeral = useMemo<LinhaGeral[]>(
+    () => marcarDuplicados([...rowsAtividade, ...linhasACompletar(viagens)]),
+    [rowsAtividade, viagens],
+  );
+  const rowsFiltradas = useMemo(() => filtrarAtividades(rowsGeral, filtros), [rowsGeral, filtros]);
+  const aCompletar = rowsFiltradas.filter((row) => row.aCompletar).length;
   const naAbaRastreador = tab === 'rastreador';
 
   // Each list's options come from the rows that match the other filters, so choices narrow each other. On the
@@ -139,14 +171,14 @@ export default function RegistrosPage() {
     FILTROS_LISTA.forEach(({ key, valor }) => {
       const valores = naAbaRastreador
         ? filtrarViagens(viagens, { ...filtros, [key]: [] }).flatMap((v) => valoresDaViagem(v, key))
-        : filtrarAtividades(rowsAtividade, { ...filtros, [key]: [] }).map(valor);
+        : filtrarAtividades(rowsGeral, { ...filtros, [key]: [] }).map(valor);
       result[key] = opcoesDistintas([...valores, ...filtros[key]]);
     });
     return result;
-  }, [naAbaRastreador, viagens, rowsAtividade, filtros]);
+  }, [naAbaRastreador, viagens, rowsGeral, filtros]);
   const contagem = naAbaRastreador
     ? `${filtrarViagens(viagens, filtros).length} de ${viagens.length} viagem(ns)`
-    : `${rowsFiltradas.length} de ${rowsAtividade.length} registro(s)`;
+    : `${rowsFiltradas.length} de ${rowsGeral.length} registro(s)${aCompletar ? `, ${aCompletar} a completar` : ''}`;
 
   const atualizarFiltros = (patch: Partial<FiltrosAtividade>) => {
     setFiltros((current) => ({ ...current, ...patch }));
@@ -184,7 +216,7 @@ export default function RegistrosPage() {
 
   const kmFormatter = useMemo(() => new Intl.NumberFormat('pt-BR'), []);
 
-  const colunasAtividade: GridColDef<AtividadeComData>[] = useMemo(
+  const colunasAtividade: GridColDef<LinhaGeral>[] = useMemo(
     () => [
       {
         field: 'dataJS',
@@ -208,6 +240,32 @@ export default function RegistrosPage() {
         ),
       },
       {
+        field: 'origem',
+        headerName: 'Origem',
+        width: 150,
+        valueGetter: (_value, row) => (row.aCompletar ? 'A completar' : row.origem === 'rastreador' ? 'Rastreador' : 'App'),
+        renderCell: ({ row, value }) => (
+          <Stack spacing={0.5} sx={{ py: 0.5 }} alignItems="flex-start">
+            <Chip
+              size="small"
+              label={value as string}
+              color={row.aCompletar ? 'warning' : row.origem === 'rastreador' ? 'info' : 'default'}
+              variant={row.aCompletar ? 'filled' : 'outlined'}
+            />
+            {falta(row, 'saida') && (
+              <Typography variant="caption" color="text.secondary">
+                espera a Saída
+              </Typography>
+            )}
+            {row.possivelDuplicado && (
+              <Typography variant="caption" color="error.main">
+                possível duplicado do App
+              </Typography>
+            )}
+          </Stack>
+        ),
+      },
+      {
         field: 'placa',
         headerName: 'Veículo',
         minWidth: 170,
@@ -225,17 +283,60 @@ export default function RegistrosPage() {
           </Box>
         ),
       },
-      { field: 'motorista', headerName: 'Motorista', minWidth: 180, flex: 1.2 },
-      { field: 'destino', headerName: 'Local', minWidth: 160, flex: 1 },
-      { field: 'obra', headerName: 'Obra', minWidth: 200, flex: 1.4 },
-      { field: 'motivo', headerName: 'Motivo', minWidth: 200, flex: 1.4 },
+      {
+        field: 'motorista',
+        headerName: 'Motorista',
+        minWidth: 180,
+        flex: 1.2,
+        renderCell: ({ row, value }) => (falta(row, 'motorista') ? <ACompletar /> : (value as string)),
+      },
+      {
+        field: 'destino',
+        headerName: 'Local',
+        minWidth: 160,
+        flex: 1,
+        renderCell: ({ row, value }) =>
+          falta(row, 'destino') ? <ACompletar sugestao={row.aCompletar?.destinoSugerido} /> : (value as string),
+      },
+      {
+        field: 'obra',
+        headerName: 'Obra',
+        minWidth: 200,
+        flex: 1.4,
+        renderCell: ({ row, value }) => (falta(row, 'obra') ? <ACompletar /> : (value as string)),
+      },
+      {
+        field: 'motivo',
+        headerName: 'Motivo',
+        minWidth: 200,
+        flex: 1.4,
+        renderCell: ({ row, value }) => (falta(row, 'motivo') ? <ACompletar /> : (value as string)),
+      },
       {
         field: 'km',
         headerName: 'KM',
         width: 110,
         align: 'right',
         headerAlign: 'right',
-        renderCell: ({ value }) => (typeof value === 'number' ? kmFormatter.format(value) : '—'),
+        renderCell: ({ row, value }) =>
+          falta(row, 'km') ? <ACompletar /> : typeof value === 'number' ? kmFormatter.format(value) : '—',
+      },
+      {
+        field: 'acoes',
+        headerName: '',
+        width: 120,
+        sortable: false,
+        filterable: false,
+        renderCell: ({ row }) =>
+          row.aCompletar ? (
+            <Tooltip title="Disponível na fase B">
+              <span>
+                <Button size="small" variant="outlined" disabled>
+                  Completar
+                </Button>
+              </span>
+            </Tooltip>
+          ) : null,
       },
     ],
     [dateFmt, kmFormatter],
@@ -378,7 +479,7 @@ export default function RegistrosPage() {
               noResultsOverlayLabel: 'Nenhum registro encontrado para os filtros selecionados.',
             }}
             initialState={{ sorting: { sortModel: [{ field: 'dataJS', sort: 'desc' }] } }}
-            getRowClassName={({ row }) => (row.foraDoContrato ? 'row-error' : '')}
+            getRowClassName={({ row }) => (row.foraDoContrato ? 'row-error' : row.aCompletar ? 'row-pendente' : '')}
             sx={{
               '& .MuiDataGrid-cell': {
                 display: 'flex',
@@ -389,6 +490,7 @@ export default function RegistrosPage() {
                 lineHeight: 1.35,
               },
               '& .row-error': { bgcolor: 'rgba(255,0,0,0.6)' },
+              '& .row-pendente': { bgcolor: 'rgba(237,108,2,0.08)' },
             }}
           />
         </Box>

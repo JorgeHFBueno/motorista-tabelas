@@ -120,3 +120,89 @@ test('programação com Local usa o Local; Fábrica não é obra; dois motorista
 test('id estável da viagem', () => {
   assert.equal(d.idViagem('v1', Date.UTC(2026, 10, 10, 10, 5, 0, 700)), `v1_${Date.UTC(2026, 10, 10, 10, 5, 0) / 1000}`);
 });
+
+// ---- Fase A.1: calibração do KM e Saída/Chegada prontas ----
+const H = 3600e3;
+const viagensKm = [
+  { saida: { t: T0, km: 1000 }, chegada: { t: T0 + 5 * H, km: 1100 } },
+  { saida: { t: T0 + 24 * H, km: 1100 }, chegada: { t: T0 + 30 * H, km: 1250 } },
+];
+
+test('KM do rastreador na hora: perto da saída/volta ou parado na Fábrica; no meio da viagem, não', () => {
+  assert.equal(d.kmRastreadorNaHora(T0 - 30 * 60e3, viagensKm), 1000);
+  assert.equal(d.kmRastreadorNaHora(T0 + 2.5 * H, viagensKm), null);
+  assert.equal(d.kmRastreadorNaHora(T0 + 12 * H, viagensKm), 1100);
+  assert.equal(d.kmRastreadorNaHora(T0 + 40 * H, viagensKm), null);
+});
+
+test('calibração: mediana das diferenças que concordam; sem 3, KM a completar', () => {
+  const leituras = [
+    { id: 'a', fonte: 'combustivel', t: T0 - 10 * 60e3, km: 403000 },
+    { id: 'b', fonte: 'atividade', t: T0 + 5 * H + 5 * 60e3, km: 403102 },
+    { id: 'c', fonte: 'combustivel', t: T0 + 12 * H, km: 403099 },
+    { id: 'd', fonte: 'atividade', t: T0 + 24 * H, km: 4031000 },
+    { id: 'e', fonte: 'combustivel', t: T0 + 2.5 * H, km: 403050 },
+  ];
+  const c = d.calibrar(leituras, viagensKm);
+  assert.equal(c.ajusteKm, 402000);
+  assert.equal(c.amostras.length, 4);
+  assert.deepEqual(c.amostras.map((a) => a.concorda), [false, true, true, true]);
+  const poucas = d.calibrar(leituras.slice(0, 2), viagensKm);
+  assert.equal(poucas.ajusteKm, null);
+  assert.match(poucas.motivo, /2 leitura/);
+  const discordam = d.calibrar([leituras[0], { ...leituras[1], km: 403300 }, { ...leituras[2], km: 402500 }], viagensKm);
+  assert.equal(discordam.ajusteKm, null);
+});
+
+test('id da atividade do rastreador: hora de Brasília, como o app', () => {
+  assert.equal(d.idAtividadeRastreador('saida', 'ICV-8E43', Date.UTC(2026, 9, 20, 11, 0, 5)), 'saida - 2026-10-20 08-00-05 - ICV-8E43');
+});
+
+const obrasA1 = new Map([
+  [d.OBRA_FABRICA_ID, { codObra: 1, siglaObra: 'FAB', nomeObra: 'FABRICA', local: 'Palmeira das Missões - RS' }],
+  ['o1', { codObra: 7, siglaObra: 'X1', nomeObra: 'Obra X', local: 'Ijuí - RS' }],
+]);
+const prog = { id: 'p1', item: 'Transporte de Material', obra: { id: 'o1', nome: 'X1 - Obra X' }, local: { cidade: 'Cruz Alta', uf: 'RS', lat: 1, lng: 1 } };
+const baseRegistros = {
+  viagemId: 'v1_1', itemFrotaId: 'v1', veiculoSnapshot: { categoria: 'PLACA', identificador: 'AAA-1B11', nome: 'CAMINHAO' },
+  saida: { t: T0, km: 1000 }, chegada: { t: T0 + 5 * H, km: 1100 },
+  motorista: { uid: 'u1', nome: 'Fulano' }, programacaoDaVisita: prog, ajusteKm: 402000, obras: obrasA1, atividades: [], agora: T0 + 6 * H,
+};
+
+test('registros: pronta grava Saída e Chegada; a Chegada espera 30 min', () => {
+  const r = d.registrosDaViagem(baseRegistros);
+  assert.equal(r.saida.estado, 'rastreador');
+  assert.equal(r.chegada.estado, 'rastreador');
+  assert.equal(r.gravar.length, 2);
+  const [saida, chegada] = r.gravar.map((g) => g.campos);
+  assert.equal(r.gravar[0].id, 'saida - 2026-11-10 07-00-00 - AAA-1B11');
+  assert.deepEqual([saida.km, saida.destino, saida.local, saida.motivo, saida.id_obra, saida.origem, saida.rastreadorViagemId], [403000, 'Cruz Alta - RS', 'Cruz Alta - RS', 'Transporte de Material', 'o1', 'rastreador', 'v1_1']);
+  assert.deepEqual(saida.id_obra_snap, { codObra: 7, siglaObra: 'X1', nomeObra: 'Obra X', local: 'Ijuí - RS' });
+  assert.deepEqual(saida.criadoPor, { uid: null, nome: 'Rastreador' });
+  assert.deepEqual([chegada.km, chegada.destino, chegada.motivo, chegada.id_obra], [403100, 'Palmeira das Missões - RS', 'Volta a Fábrica', d.OBRA_FABRICA_ID]);
+  const cedo = d.registrosDaViagem({ ...baseRegistros, agora: T0 + 5 * H + 10 * 60e3 });
+  assert.equal(cedo.chegada.estado, 'aguardando');
+  assert.equal(cedo.gravar.length, 1);
+});
+
+test('registros: sem obra confirmada, motorista ou calibração fica a completar; a Chegada espera a Saída', () => {
+  const r = d.registrosDaViagem({ ...baseRegistros, programacaoDaVisita: null, motorista: null, ajusteKm: null });
+  assert.equal(r.saida.estado, 'pendente');
+  assert.deepEqual(r.saida.faltam, ['motorista', 'obra', 'destino', 'motivo', 'km']);
+  assert.deepEqual(r.chegada.faltam, ['saida', 'motorista', 'km']);
+  assert.equal(r.gravar.length, 0);
+});
+
+test('registros: o do App a até 60 min vale e empresta o motorista à Chegada; o do rastreador não grava de novo', () => {
+  const app = { id: 'saida - app', tipo: 'saida', t: T0 + 20 * 60e3, itemFrotaId: 'v1', motorista: { uid: 'u2', nome: 'Beltrano' }, rastreadorViagemId: null };
+  const r = d.registrosDaViagem({ ...baseRegistros, motorista: null, programacaoDaVisita: null, atividades: [app] });
+  assert.equal(r.saida.estado, 'app');
+  assert.equal(r.saida.atividadeId, 'saida - app');
+  assert.equal(r.chegada.estado, 'rastreador');
+  assert.deepEqual(r.gravar.map((g) => g.campos.motorista), [{ uid: 'u2', nome: 'Beltrano' }]);
+  const longe = d.registrosDaViagem({ ...baseRegistros, atividades: [{ ...app, t: T0 + 2 * H }] });
+  assert.equal(longe.saida.estado, 'rastreador');
+  const ja = d.registrosDaViagem({ ...baseRegistros, atividades: [{ ...app, id: 'x', rastreadorViagemId: 'v1_1' }, { ...app, id: 'y', tipo: 'chegada', t: T0 + 5 * H, rastreadorViagemId: 'v1_1' }] });
+  assert.equal(ja.gravar.length, 0);
+  assert.deepEqual([ja.saida.atividadeId, ja.chegada.atividadeId], ['x', 'y']);
+});
