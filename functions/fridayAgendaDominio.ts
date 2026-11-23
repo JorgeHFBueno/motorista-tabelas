@@ -10,14 +10,16 @@ type AnyRecord = Record<string, any>;
 // openid e email: mostrar em Meu perfil com qual conta Google a pessoa conectou.
 export const ESCOPO_AGENDA = 'https://www.googleapis.com/auth/calendar.app.created';
 export const ESCOPOS = ['openid', 'email', ESCOPO_AGENDA] as const;
-export const ORIGEM_PADRAO = 'https://app-motor-api.web.app';
+// Endereço oficial da WEB desde 2026-11-22: a volta sem origem conhecida e os links dos eventos vão para ele.
+export const ORIGEM_PADRAO = 'https://interno.ledurprefabricados.com.br';
 export const PENDENTE_MS = 10 * 60 * 1000;
 export const NOME_AGENDA = 'Friday';
 
-/** Endereço da WEB para onde a pessoa volta depois do Google: o site, os canais de prévia e o servidor local. */
+/** Endereço da WEB para onde a pessoa volta depois do Google: o endereço oficial, o site, os canais de prévia e o servidor local. */
 export function origemPermitida(origem: unknown): string | null {
   if (typeof origem !== 'string') return null;
-  const ok = /^https:\/\/app-motor-api(--[a-z0-9-]+)?\.(web\.app|firebaseapp\.com)$/.test(origem)
+  const ok = origem === ORIGEM_PADRAO
+    || /^https:\/\/app-motor-api(--[a-z0-9-]+)?\.(web\.app|firebaseapp\.com)$/.test(origem)
     || /^http:\/\/(localhost|127\.0\.0\.1):\d{2,5}$/.test(origem);
   return ok ? origem : null;
 }

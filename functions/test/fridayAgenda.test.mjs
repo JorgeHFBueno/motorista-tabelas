@@ -45,9 +45,9 @@ test('evento de dia inteiro: fim exclusivo no dia seguinte, link para o item, n�
   assert.equal(eventoDoItem({ ...ITEM, nome: '  ' }, QUADRO, { inicio: '2026-01-01', fim: '2026-01-01' }, 'x').summary, '(sem nome)');
 });
 
-test('origem da volta: site, prévias e servidor local; o resto não', () => {
-  for (const o of ['https://app-motor-api.web.app', 'https://app-motor-api.firebaseapp.com', 'https://app-motor-api--pr12-abc.web.app', 'http://localhost:5173']) assert.equal(origemPermitida(o), o);
-  for (const o of ['https://evil.web.app', 'https://app-motor-api.web.app.evil.com', 'http://app-motor-api.web.app', 'javascript:alert(1)', 42, null]) assert.equal(origemPermitida(o), null);
+test('origem da volta: endereço oficial, site, prévias e servidor local; o resto não', () => {
+  for (const o of ['https://interno.ledurprefabricados.com.br', 'https://app-motor-api.web.app', 'https://app-motor-api.firebaseapp.com', 'https://app-motor-api--pr12-abc.web.app', 'http://localhost:5173']) assert.equal(origemPermitida(o), o);
+  for (const o of ['https://evil.web.app', 'https://app-motor-api.web.app.evil.com', 'http://app-motor-api.web.app', 'http://interno.ledurprefabricados.com.br', 'https://interno.ledurprefabricados.com.br.evil.com', 'https://outro.ledurprefabricados.com.br', 'javascript:alert(1)', 42, null]) assert.equal(origemPermitida(o), null);
 });
 
 test('configuração do quadro: as duas colunas, numéricas', () => {
@@ -190,8 +190,8 @@ test('volta do Google: cria a agenda Friday, guarda a autorização cifrada e pe
   assert.equal(conta.sincronizar, true);
   assert.notEqual(conta.token, 'refresh-1');
   assert.equal(decifrar(conta.token, 'chave-de-teste'), 'refresh-1');
-  // O state só vale uma vez.
-  assert.equal(await criarRetorno(deps)({ state, code: 'codigo' }), 'https://app-motor-api.web.app/perfil?agenda=erro');
+  // O state só vale uma vez (sem pendente, volta para o endereço oficial).
+  assert.equal(await criarRetorno(deps)({ state, code: 'codigo' }), 'https://interno.ledurprefabricados.com.br/perfil?agenda=erro');
   const status = await criarServicoAgenda(deps)('ana', { acao: 'status' });
   assert.deepEqual({ ...status, conectado_em: undefined }, { conectado: true, email: 'ana@gmail.com', erro: null, sincronizando: true, conectado_em: undefined });
 });
@@ -205,19 +205,19 @@ test('volta do Google: reconectar reaproveita a agenda; sem permissão da agenda
   const deps = { store, google: criarGoogle(() => SEGREDOS, f), segredos: () => SEGREDOS, agora: () => agora };
   const conectar = async () => new URL((await criarServicoAgenda(deps)('ana', { acao: 'conectar' })).url).searchParams.get('state');
 
-  assert.equal(await criarRetorno(deps)({ state: await conectar(), code: 'c' }), 'https://app-motor-api.web.app/perfil?agenda=conectada');
+  assert.equal(await criarRetorno(deps)({ state: await conectar(), code: 'c' }), 'https://interno.ledurprefabricados.com.br/perfil?agenda=conectada');
   assert.equal(store.contas.get('ana').calendario_id, 'cal-antiga');
   assert.ok(!chamadas.some(c => c.metodo === 'POST' && c.url.endsWith('/calendars')));
 
   token = { status: 200, json: { ...TOKEN_OK.json, scope: 'openid email' } };
-  assert.equal(await criarRetorno(deps)({ state: await conectar(), code: 'c' }), 'https://app-motor-api.web.app/perfil?agenda=sem-permissao');
+  assert.equal(await criarRetorno(deps)({ state: await conectar(), code: 'c' }), 'https://interno.ledurprefabricados.com.br/perfil?agenda=sem-permissao');
   assert.ok(chamadas.at(-1).url.endsWith('/revoke'));
 
-  assert.equal(await criarRetorno(deps)({ state: await conectar(), error: 'access_denied' }), 'https://app-motor-api.web.app/perfil?agenda=cancelada');
+  assert.equal(await criarRetorno(deps)({ state: await conectar(), error: 'access_denied' }), 'https://interno.ledurprefabricados.com.br/perfil?agenda=cancelada');
 
   const vencido = await conectar();
   agora += 11 * 60 * 1000;
-  assert.equal(await criarRetorno(deps)({ state: vencido, code: 'c' }), 'https://app-motor-api.web.app/perfil?agenda=erro');
+  assert.equal(await criarRetorno(deps)({ state: vencido, code: 'c' }), 'https://interno.ledurprefabricados.com.br/perfil?agenda=erro');
 });
 
 test('desconectar: apaga a agenda Friday, revoga e apaga a conta', async () => {
