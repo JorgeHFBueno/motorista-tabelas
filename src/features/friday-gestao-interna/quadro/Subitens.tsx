@@ -6,7 +6,7 @@ import { Editavel, Menu, Popover, useConfirmar, usePopover } from '../ui/base.ts
 import { Celula } from './Celula.tsx';
 import { MenuTipos } from './MenuTipos.tsx';
 import { arrastarBorda, larguraDoConteudo } from '../util.ts';
-import { itensCampoOficial } from './Tabela.tsx';
+import { itensCampoOficial, itensReais } from './Tabela.tsx';
 import { alvosPara } from './mudarTipo.ts';
 import { MudarTipoDialogo } from './MudarTipo.tsx';
 import { CampoOficialDialogo } from './TornarOficial.tsx';
@@ -201,6 +201,7 @@ function CabecalhoSub({ coluna, acoes, confirmar, onResize, onAjustar }: {
           <Menu onEscolher={pop.fechar} itens={[
             { rotulo: 'Renomear', icone: <Pencil size={15} />, onClick: () => setRenomear(true) },
             ...(alvosPara(coluna).length ? [{ rotulo: 'Mudar tipo…', icone: <Shuffle size={15} />, onClick: () => setMudarTipo(true) }] : []),
+            ...itensReais(coluna, acoes),
             ...itensCampoOficial(adm2 && acoes.oficial?.subitens === 'ativo', coluna, setCampoOficial),
             // Campo oficial não pode ser excluído (os dados vivem no cadastro oficial).
             ...(coluna.oficial ? [] : ['separador' as const,

@@ -2,7 +2,8 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import type { Pessoa } from '../src/features/friday-gestao-interna/api.ts';
 import { estadoDaVisao, lerOrdenacao, mesmoEstado, ordenarItens } from '../src/features/friday-gestao-interna/quadro/filtros.ts';
-import { colunaDoMenu, infoColuna, pessoasDoQuadro, type Coluna, type Item, type Visao } from '../src/features/friday-gestao-interna/quadro/tipos.ts';
+import { aceitaReais, colunaDoMenu, emReais, infoColuna, pessoasDoQuadro, type Coluna, type Item, type Visao } from '../src/features/friday-gestao-interna/quadro/tipos.ts';
+import { fmtNumeroColuna } from '../src/features/friday-gestao-interna/util.ts';
 
 // Ordenação da visão (vários critérios, como no monday), visões antigas e pessoas do quadro. Só dados fictícios.
 const DATA = { id: 1, titulo: 'Data Fim', tipo: 'data', config: {} } as unknown as Coluna;
@@ -57,4 +58,16 @@ test('coluna Colaboradores é uma coluna de pessoa marcada', () => {
   assert.deepEqual(colunaDoMenu('status'), { tipo: 'status' });
   assert.equal(infoColuna({ tipo: 'pessoa', config: { colaboradores: true } }).rotulo, 'Colaboradores');
   assert.equal(infoColuna({ tipo: 'pessoa', config: {} }).rotulo, 'Pessoa');
+});
+
+test('coluna Valor (R$) é uma coluna de número em reais', () => {
+  const { tipo, config } = colunaDoMenu('moeda');
+  assert.deepEqual({ tipo, config }, { tipo: 'numero', config: { unidade: 'R$', resumo: 'soma' } });
+  assert.equal(fmtNumeroColuna(config, 1234.5).replace(/\s/g, ' '), 'R$ 1.234,50');
+  assert.equal(fmtNumeroColuna(config, 1500).replace(/\s/g, ' '), 'R$ 1.500');
+  const col = (cfg: Record<string, unknown>) => ({ tipo: 'numero', config: cfg }) as Pick<Coluna, 'tipo' | 'config'>;
+  assert.ok(emReais(col(config!)) && aceitaReais(col(config!)));
+  assert.ok(!emReais(col({ unidade: '' })) && aceitaReais(col({ unidade: '' })), 'Números comum pode passar para reais');
+  assert.ok(!aceitaReais(col({ x10: true })) && !aceitaReais(col({ milhar: false })), '×10 e sem separador de milhar ficam de fora');
+  assert.ok(!aceitaReais({ tipo: 'texto', config: {} }));
 });
