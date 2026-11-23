@@ -51,6 +51,12 @@ service firebase.storage {
       return hasPerfil('mecanico') || veArea('mecanica');
     }
 
+    // The driver reads photos and signature of the checklists made for them (motoristaOperador.uid, as in firestore.rules).
+    function isChecklistV2Driver(checklistId) {
+      return isAuthorized()
+        && firestore.get(/databases/(default)/documents/checklists-v2/$(checklistId)).data.get('motoristaOperador', {}).get('uid', '') == request.auth.uid;
+    }
+
     // Writing over an existing object is evaluated as create; resource == null keeps files from being replaced.
     function isNewObject() {
       return resource == null;
@@ -98,13 +104,13 @@ service firebase.storage {
     // Mechanic checklist photos <itemId>_<n>.jpg (the app keeps them under 1 MB) and thumbnails. The app checks
     // whether a file already exists before re-sending and downloads photos to the gallery; never overwritten.
     match /checklists-v2/{checklistId}/{arquivo} {
-      allow read: if isChecklistV2Reader();
+      allow read: if isChecklistV2Reader() || isChecklistV2Driver(checklistId);
       allow create: if isChecklistV2User() && isChecklistV2Jpeg(2 * 1024 * 1024, arquivo);
       allow update, delete: if false;
     }
 
     match /checklists-v2/{checklistId}/miniaturas/{arquivo} {
-      allow read: if isChecklistV2Reader();
+      allow read: if isChecklistV2Reader() || isChecklistV2Driver(checklistId);
       allow create: if isChecklistV2User() && isChecklistV2Jpeg(200 * 1024, arquivo);
       allow update, delete: if false;
     }

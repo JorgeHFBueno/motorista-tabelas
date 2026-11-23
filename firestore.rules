@@ -181,29 +181,6 @@ service cloud.firestore {
         && request.resource.data.get('item_frota_id', null) is string;
     }
 
-    function hasLegacyActivityDriver() {
-      return nonEmptyString(request.resource.data.get('motoristaUid', ''))
-        || nonEmptyString(request.resource.data.get('motorista', ''))
-        || (
-          request.resource.data.get('motorista', null) is map
-          && nonEmptyString(request.resource.data.get('motorista', {}).get('uid', ''))
-        );
-    }
-
-    function legacyActivityTargetsCurrentUser() {
-      return request.resource.data.get('motoristaUid', '') == request.auth.uid
-        || request.resource.data.get('motorista', '') == request.auth.uid
-        || (request.resource.data.get('motorista', null) is map
-          && request.resource.data.get('motorista', {}).get('uid', '') == request.auth.uid);
-    }
-
-    function hasLegacyActivityShape() {
-      return request.resource.data.get('motorista', null) is string
-        || request.resource.data.keys().hasAny(['motoristaUid'])
-        || request.resource.data.get('criadoPor', null) is string
-        || request.resource.data.keys().hasAny(['criadoPorUid']);
-    }
-
     // Saída/Chegada: the driver (motorista) registers their own; mecanico and adm2 register for someone who has motorista.
     function activityDriverAllowed() {
       let motoristaUid = request.resource.data.get('motorista', {}).get('uid', '');
@@ -313,18 +290,6 @@ service cloud.firestore {
         && data.get('estoqueAntes', null) is int
         && data.get('estoqueAposMovimento', null) is int
         && (data.get('montanteSnapshot', null) == null || data.get('montanteSnapshot', null) is int);
-    }
-
-    // Untyped legacy record (automatic divergence adjustment of the app, external fuelling registered with a
-    // maintenance in the WEB). If identity fields are present they cannot be forged.
-    function validLegacyFuelCreate() {
-      let data = request.resource.data;
-      return data.get('tipo', null) == null
-        && data.get('schemaVersion', null) != 2
-        && (data.get('motivo', '') != 'Abastecimento de Diesel' || isAdm2())
-        && data.get('uid', request.auth.uid) == request.auth.uid
-        && data.get('criadoPorUid', request.auth.uid) == request.auth.uid
-        && (hasEitherPerfil('frentista', 'adm2') || data.get('motoristaUid', request.auth.uid) == request.auth.uid);
     }
 
     function isV2PumpUpdate() {
@@ -885,7 +850,9 @@ service cloud.firestore {
         || (isAuthorized() && (resource == null || atividadeDoProprio(resource.data)));
       allow list: if veArea('mecanica') || veArea('logistica') || veArea('engenharia') || (isAuthorized() && atividadeDoProprio(resource.data));
 
-      // V2 and migrated activities carry driver and author snapshots; mecanico/adm2 register for another driver.
+      // V2 and migrated activities carry driver and author snapshots; mecanico/adm2 register for another driver. The old
+      // format (driver login as text, plate as text, legacy checklist summary) is refused since 2026-11-23: only APKs older
+      // than the one distributed on 2026-11-10 wrote it, and they no longer list vehicles since 2026-10-28.
       allow create: if
         isAuthorized()
         && request.resource.data.get('criadoPorUid', request.auth.uid) == request.auth.uid
@@ -904,12 +871,6 @@ service cloud.firestore {
             && hasMigratedAuthorSnapshot()
             && activityDriverAllowed()
           )
-          || (
-            !isMigratedVehicleActivity()
-            && hasLegacyActivityDriver()
-            && hasLegacyActivityShape()
-            && (hasEitherPerfil('mecanico', 'adm2') || legacyActivityTargetsCurrentUser())
-          )
         );
 
       // Activity history is immutable, except the odometer reading corrected by the WEB Frota KM normalization
@@ -925,23 +886,15 @@ service cloud.firestore {
         allow read: if veArea('mecanica') || veArea('engenharia')
           || (isAuthorized() && atividadeDoProprio(get(/databases/$(database)/documents/atividades/$(atividadeId)).data));
 
-        allow create: if
-          isAuthorized()
-          && request.resource.data.get('criadoPorUid', request.auth.uid) == request.auth.uid;
-
-        allow update, delete: if false;
+        // Legacy checklist (converted to checklists-v2 on 2026-10-23): read only since 2026-11-23.
+        allow create, update, delete: if false;
       }
 
       match /checklist_chegada/{itemId} {
         allow read: if veArea('mecanica') || veArea('engenharia')
           || (isAuthorized() && atividadeDoProprio(get(/databases/$(database)/documents/atividades/$(atividadeId)).data));
 
-        // Catalog version and payload shape are application concerns.
-        allow create: if
-          isAuthorized()
-          && request.resource.data.get('criadoPorUid', request.auth.uid) == request.auth.uid;
-
-        allow update, delete: if false;
+        allow create, update, delete: if false;
       }
     }
 
@@ -988,8 +941,10 @@ service cloud.firestore {
 
     match /checklists-v2/{checklistId} {
       // The checklist (app and WEB /motorista/checklist, credential mecanico) reads before creating, lists the author's
-      // history and the vehicle's last checklist; the WEB Mecânica area reads them all. Same readers as in storage.rules.
-      allow read: if isMecanico() || veArea('mecanica');
+      // history and the vehicle's last checklist; the WEB Mecânica area reads them all; the driver reads the ones made for
+      // them (app Histórico, query by motoristaOperador.uid). Same readers as in storage.rules.
+      allow read: if isMecanico() || veArea('mecanica')
+        || (isAuthorized() && resource.data.get('motoristaOperador', {}).get('uid', '') == request.auth.uid);
       allow create: if (isMecanico() || isAdm2()) && validChecklistV2Create() && validChecklistV2Pessoas(checklistId);
       allow update, delete: if false;
     }
@@ -1059,7 +1014,6 @@ service cloud.firestore {
           validFuelV2Create()
           || validFuelAjusteV2Create()
           || (editaArea('logistica') && validFuelEntradaV2Create())
-          || validLegacyFuelCreate()
         );
 
       // Corrections: Combustível editar (adjustments replaced by lançamentos, document inspector), the Admin SDK (WEB

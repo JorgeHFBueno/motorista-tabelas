@@ -91,11 +91,11 @@ test('[firestore] fractional price is denied; zero price and a different author 
 
 // Lacuna conhecida (registrada no Manuscript): o registro sem tipo, com o motivo escrito de outro jeito, passa pelo
 // ramo legado e o estoque da bomba pode subir. Fechar exige migrar os registros legados para o formato V2.
-test('[firestore] known gap: regular user can disguise an entry and increase shared stock', async () => {
+test('[firestore] closed gap (2026-11-23): an untyped record can no longer disguise an entry and increase shared stock', async () => {
   const db = dbAs(regular);
   const movementRef = doc(db, '03-combustivel', 'disguised-regular-entry');
   const pumpRef = doc(db, 'bombas', 'diesel_patio_entrada');
-  await assertSucceeds(runTransaction(db, async (transaction) => {
+  await assertFails(runTransaction(db, async (transaction) => {
     const pump = await transaction.get(pumpRef);
     const currentStock = pump.data().estoqueAtual;
     transaction.set(movementRef, {

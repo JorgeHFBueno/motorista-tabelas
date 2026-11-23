@@ -331,17 +331,17 @@ test('[firestore] normal user cannot alter vehicle category', async () => assert
 test('[firestore] adm2 can create vehicle', async () => assertSucceeds(setDoc(doc(dbAs('adm2'), 'veiculos', 'v-adm2'), { placa: 'ADM2' })));
 test('[firestore] adm2 can administratively edit vehicle', async () => assertSucceeds(updateDoc(doc(dbAs('adm2'), 'veiculos', 'v1'), { categoria: 'admin-edit' })));
 
-test('[firestore] normal user creates own activity with additional fields', async () => assertSucceeds(setDoc(doc(dbAs('user'), 'atividades', 'new-activity'), {
+test('[firestore] old-format activity (driver as text) is refused since 2026-11-23, even the own one', async () => assertFails(setDoc(doc(dbAs('user'), 'atividades', 'new-activity'), {
   tipo: 'saida', motorista: 'User', motoristaUid: 'uid-user', criadoPorUid: 'uid-user', futureMetadata: { version: 3 },
 })));
 test('[firestore] normal user cannot create activity for another driver', async () => assertFails(setDoc(doc(dbAs('user'), 'atividades', 'foreign-activity'), {
   tipo: 'saida', motoristaUid: 'uid-other', criadoPorUid: 'uid-user',
 })));
-test('[firestore] mecanico creates legacy activity for another driver; frentista cannot', async () => {
-  await assertSucceeds(setDoc(doc(dbAs('mecanico'), 'atividades', 'mecanico-activity'), { tipo: 'saida', motoristaUid: 'uid-user', criadoPorUid: 'uid-mecanico' }));
+test('[firestore] old-format activity for another driver is refused, mecanico included', async () => {
+  await assertFails(setDoc(doc(dbAs('mecanico'), 'atividades', 'mecanico-activity'), { tipo: 'saida', motoristaUid: 'uid-user', criadoPorUid: 'uid-mecanico' }));
   await assertFails(setDoc(doc(dbAs('frentista'), 'atividades', 'frentista-activity'), { tipo: 'saida', motoristaUid: 'uid-user', criadoPorUid: 'uid-frentista' }));
 });
-test('[firestore] adm2 creates activity for another driver', async () => assertSucceeds(setDoc(doc(dbAs('adm2'), 'atividades', 'adm2-activity'), {
+test('[firestore] old-format activity is refused for adm2 too', async () => assertFails(setDoc(doc(dbAs('adm2'), 'atividades', 'adm2-activity'), {
   tipo: 'chegada', motoristaUid: 'uid-user', criadoPorUid: 'uid-adm2',
 })));
 test('[firestore] activity forged creator is denied', async () => assertFails(setDoc(doc(dbAs('user'), 'atividades', 'forged-activity'), {
@@ -414,24 +414,24 @@ test('[firestore] KM normalization: one transaction corrects activity, fuel and 
   }));
 });
 test('[firestore] activity delete is denied', async () => assertFails(deleteDoc(doc(dbAs('adm2'), 'atividades', 'historic'))));
-test('[firestore] checklist creator UID must match', async () => assertSucceeds(setDoc(doc(dbAs('user'), 'atividades', 'new-activity', 'checklist_saida', 'ok'), { criadoPorUid: 'uid-user' })));
-test('[firestore] checklist output accepts future additional field', async () => assertSucceeds(setDoc(doc(dbAs('user'), 'atividades', 'new-activity', 'checklist_saida', 'future'), { criadoPorUid: 'uid-user', futureSensor: true })));
+test('[firestore] legacy checklist subcollection is read only since 2026-11-23', async () => assertFails(setDoc(doc(dbAs('user'), 'atividades', 'new-activity', 'checklist_saida', 'ok'), { criadoPorUid: 'uid-user' })));
+test('[firestore] legacy checklist subcollection refuses any create', async () => assertFails(setDoc(doc(dbAs('user'), 'atividades', 'new-activity', 'checklist_saida', 'future'), { criadoPorUid: 'uid-user', futureSensor: true })));
 test('[firestore] checklist foreign creator UID is denied', async () => assertFails(setDoc(doc(dbAs('user'), 'atividades', 'new-activity', 'checklist_saida', 'bad'), { criadoPorUid: 'uid-other' })));
 test('[firestore] checklist update is denied', async () => assertFails(updateDoc(doc(dbAs('user'), 'atividades', 'historic', 'checklist_saida', 'item'), { status: 'avaria' })));
 test('[firestore] checklist delete is denied', async () => assertFails(deleteDoc(doc(dbAs('adm2'), 'atividades', 'historic', 'checklist_saida', 'item'))));
-test('[firestore] arrival checklist accepts catalog v2', async () => assertSucceeds(setDoc(doc(dbAs('user'), 'atividades', 'new-activity', 'checklist_chegada', 'arrival-v2'), { criadoPorUid: 'uid-user', catalogoVersao: 'v2' })));
-test('[firestore] arrival checklist accepts future catalog v3 and extra field', async () => assertSucceeds(setDoc(doc(dbAs('user'), 'atividades', 'new-activity', 'checklist_chegada', 'arrival-v3'), { criadoPorUid: 'uid-user', catalogoVersao: 'v3', futureField: ['ok'] })));
+test('[firestore] legacy arrival checklist refuses catalog v2', async () => assertFails(setDoc(doc(dbAs('user'), 'atividades', 'new-activity', 'checklist_chegada', 'arrival-v2'), { criadoPorUid: 'uid-user', catalogoVersao: 'v2' })));
+test('[firestore] legacy arrival checklist refuses catalog v3', async () => assertFails(setDoc(doc(dbAs('user'), 'atividades', 'new-activity', 'checklist_chegada', 'arrival-v3'), { criadoPorUid: 'uid-user', catalogoVersao: 'v3', futureField: ['ok'] })));
 test('[firestore] arrival checklist update is denied', async () => assertFails(updateDoc(doc(dbAs('user'), 'atividades', 'new-activity', 'checklist_chegada', 'arrival-v2'), { status: 'changed' })));
 test('[firestore] arrival checklist delete is denied', async () => assertFails(deleteDoc(doc(dbAs('adm2'), 'atividades', 'new-activity', 'checklist_chegada', 'arrival-v2'))));
 
-test('[firestore] authorized creates fuel record without legacy uid', async () => assertSucceeds(setDoc(doc(dbAs('user'), '03-combustivel', 'fuel-no-uid'), { lf: 20, motorista: 'uid-user' })));
-test('[firestore] additional fuel fields do not break an own record', async () => assertSucceeds(setDoc(doc(dbAs('user'), '03-combustivel', 'fuel-future-field'), { uid: 'uid-user', criadoPorUid: 'uid-user', motoristaUid: 'uid-user', futureMetadata: { version: 3 } })));
+test('[firestore] untyped legacy fuel record is refused since 2026-11-23', async () => assertFails(setDoc(doc(dbAs('user'), '03-combustivel', 'fuel-no-uid'), { lf: 20, motorista: 'uid-user' })));
+test('[firestore] untyped legacy fuel record is refused even with own uids', async () => assertFails(setDoc(doc(dbAs('user'), '03-combustivel', 'fuel-future-field'), { uid: 'uid-user', criadoPorUid: 'uid-user', motoristaUid: 'uid-user', futureMetadata: { version: 3 } })));
 test('[firestore] fuel uid must match when present', async () => assertFails(setDoc(doc(dbAs('user'), '03-combustivel', 'fuel-bad-uid'), { uid: 'uid-other', lf: 20 })));
 test('[firestore] normal fuel motoristaUid must be self when present', async () => assertFails(setDoc(doc(dbAs('user'), '03-combustivel', 'fuel-bad-driver'), { motoristaUid: 'uid-other', criadoPorUid: 'uid-user', lf: 20 })));
-test('[firestore] adm1 can register fuel for another driver with own authorship', async () => assertSucceeds(setDoc(doc(dbAs('frentista'), '03-combustivel', 'fuel-adm1-other'), { uid: 'uid-frentista', criadoPorUid: 'uid-frentista', motoristaUid: 'uid-user', futureField: true })));
-test('[firestore] adm2 can register fuel for another driver with own authorship', async () => assertSucceeds(setDoc(doc(dbAs('adm2'), '03-combustivel', 'fuel-adm2-other'), { uid: 'uid-adm2', criadoPorUid: 'uid-adm2', motoristaUid: 'uid-user' })));
+test('[firestore] frentista legacy fuel record is refused', async () => assertFails(setDoc(doc(dbAs('frentista'), '03-combustivel', 'fuel-adm1-other'), { uid: 'uid-frentista', criadoPorUid: 'uid-frentista', motoristaUid: 'uid-user', futureField: true })));
+test('[firestore] adm2 legacy fuel record is refused', async () => assertFails(setDoc(doc(dbAs('adm2'), '03-combustivel', 'fuel-adm2-other'), { uid: 'uid-adm2', criadoPorUid: 'uid-adm2', motoristaUid: 'uid-user' })));
 test('[firestore] normal user cannot register administrative diesel entry', async () => assertFails(setDoc(doc(dbAs('user'), '03-combustivel', 'fuel-stock-entry-user'), { motorista: 'uid-user', motivo: 'Abastecimento de Diesel', qa: 5000, diesel: 9000 })));
-test('[firestore] adm2 registers administrative diesel entry', async () => assertSucceeds(setDoc(doc(dbAs('adm2'), '03-combustivel', 'fuel-stock-entry-adm2'), { motorista: 'uid-adm2', motivo: 'Abastecimento de Diesel', qa: 5000, diesel: 9000, precoTotal: 2000, precoPorLitro: 4, lote: 'LT-2026-08' })));
+test('[firestore] adm2 legacy diesel entry is refused (entries are V2)', async () => assertFails(setDoc(doc(dbAs('adm2'), '03-combustivel', 'fuel-stock-entry-adm2'), { motorista: 'uid-adm2', motivo: 'Abastecimento de Diesel', qa: 5000, diesel: 9000, precoTotal: 2000, precoPorLitro: 4, lote: 'LT-2026-08' })));
 function entradaV2(overrides = {}) {
   return {
     data: Timestamp.fromDate(new Date('2026-09-04T12:00:00Z')), schemaVersion: 2, tipo: 'entrada', bombaId: 'diesel_patio',
@@ -498,9 +498,9 @@ test('[firestore] veiculos-v2: Frota (mecanico, logistica) renames and sets the 
 test('[firestore] normal fuel update is denied', async () => assertFails(updateDoc(doc(dbAs('user'), '03-combustivel', 'fuel-existing'), { lf: 30 })));
 test('[firestore] normal fuel delete is denied', async () => assertFails(deleteDoc(doc(dbAs('user'), '03-combustivel', 'fuel-existing'))));
 test('[firestore] custom claim admin updates fuel', async () => assertSucceeds(updateDoc(doc(dbAs('admin'), '03-combustivel', 'fuel-existing'), { lf: 31 })));
-test('[firestore] custom claim admin deletes fuel', async () => { await setDoc(doc(dbAs('user'), '03-combustivel', 'fuel-admin-delete'), { lf: 1 }); await assertSucceeds(deleteDoc(doc(dbAs('admin'), '03-combustivel', 'fuel-admin-delete'))); });
+test('[firestore] custom claim admin deletes fuel', async () => { await env.withSecurityRulesDisabled((ctx) => setDoc(doc(ctx.firestore(), '03-combustivel', 'fuel-admin-delete'), { lf: 1 })); await assertSucceeds(deleteDoc(doc(dbAs('admin'), '03-combustivel', 'fuel-admin-delete'))); });
 test('[firestore] Combustível (logistica, mecanico) and adm2 correct and delete fuel records (WEB document inspector); adm1 cannot', async () => {
-  await setDoc(doc(dbAs('user'), '03-combustivel', 'fuel-adm2-inspector'), { lf: 1 });
+  await env.withSecurityRulesDisabled((ctx) => setDoc(doc(ctx.firestore(), '03-combustivel', 'fuel-adm2-inspector'), { lf: 1 }));
   await assertFails(updateDoc(doc(dbAs('canonicalFrentista'), '03-combustivel', 'fuel-adm2-inspector'), { lf: 2 }));
   await assertSucceeds(updateDoc(doc(dbAs('mecanico'), '03-combustivel', 'fuel-adm2-inspector'), { lf: 5 }));
   await assertFails(updateDoc(doc(dbAs('engenharia'), '03-combustivel', 'fuel-adm2-inspector'), { lf: 6 }));
@@ -659,13 +659,13 @@ test('[firestore] adm2 and the admin claim edit maintenance records; others cann
 test('[firestore] unknown collection is default denied', async () => assertFails(getDoc(doc(dbAs('adm2'), 'unknown', 'x'))));
 test('[firestore] unknown collection write is default denied', async () => assertFails(setDoc(doc(dbAs('adm2'), 'future-undeclared', 'x'), { value: true })));
 
-test('[firestore] Flutter checklist batch succeeds atomically', async () => {
+test('[firestore] old Flutter checklist batch (legacy activity and subcollection) is refused since 2026-11-23', async () => {
   const db = dbAs('user'); const batch = writeBatch(db);
   batch.set(doc(db, 'atividades', 'batch-checklist'), { tipo: 'saida', motorista: 'uid-user', motoristaUid: 'uid-user', criadoPorUid: 'uid-user' });
   batch.set(doc(db, 'atividades', 'batch-checklist', 'checklist_saida', 'i1'), { criadoPorUid: 'uid-user', status: 'ok' });
   batch.set(doc(db, 'atividades', 'batch-checklist', 'checklist_saida', 'i2'), { criadoPorUid: 'uid-user', status: 'avaria' });
   batch.update(doc(db, 'veiculos', 'v1'), { quilometragemUltima: 150, dataUltimaAtualizacao: 3 });
-  await assertSucceeds(batch.commit());
+  await assertFails(batch.commit());
 });
 test('[firestore] Flutter checklist batch fails atomically for foreign creator', async () => {
   const db = dbAs('user'); const batch = writeBatch(db);
@@ -677,13 +677,13 @@ test('[firestore] Flutter checklist batch fails atomically for foreign creator',
   await env.withSecurityRulesDisabled(async (ctx) => assert.equal((await getDoc(doc(ctx.firestore(), 'atividades', 'batch-checklist-bad'))).exists(), false));
   void adminDb;
 });
-test('[firestore] Flutter simple activity transaction succeeds', async () => {
+test('[firestore] old Flutter activity transaction (legacy shape) is refused', async () => {
   const db = dbAs('user');
-  await assertSucceeds(runTransaction(db, async (tx) => { tx.set(doc(db, 'atividades', 'tx-arrival'), { tipo: 'chegada', motorista: 'uid-user', motoristaUid: 'uid-user', criadoPorUid: 'uid-user' }); tx.update(doc(db, 'veiculos', 'v1'), { quilometragemUltima: 160, dataUltimaAtualizacao: 5 }); }));
+  await assertFails(runTransaction(db, async (tx) => { tx.set(doc(db, 'atividades', 'tx-arrival'), { tipo: 'chegada', motorista: 'uid-user', motoristaUid: 'uid-user', criadoPorUid: 'uid-user' }); tx.update(doc(db, 'veiculos', 'v1'), { quilometragemUltima: 160, dataUltimaAtualizacao: 5 }); }));
 });
-test('[firestore] Flutter fuel transaction succeeds across fuel pump vehicle and call', async () => {
+test('[firestore] old Flutter fuel transaction (untyped record) is refused', async () => {
   const db = dbAs('frentista');
-  await assertSucceeds(runTransaction(db, async (tx) => {
+  await assertFails(runTransaction(db, async (tx) => {
     await tx.get(doc(db, 'bombas', 'diesel_patio'));
     tx.set(doc(db, '03-combustivel', 'tx-fuel'), { uid: 'uid-frentista', lf: 1200 });
     tx.update(doc(db, 'bombas', 'diesel_patio'), { montanteAtual: 1200, estoqueAtual: 4800, ultimoAbastecimento: 6, ultimoFrentista: 'user' });
@@ -955,8 +955,8 @@ test('[firestore] V2 activity: mecanico/adm2 register for someone with motorista
   await assertSucceeds(setDoc(doc(dbAs('user'), 'atividades', 'v2-snapshot-diferente'), atividadeV2({ item_frota_snapshot: { categoria: 'PLACA', identificador: 'ZZZ', nome: 'Caminhão 1' } })));
   await assertSucceeds(setDoc(doc(dbAs('user'), 'atividades', 'v2-extra'), atividadeV2({ item_frota_id: 'vm1', item_frota_snapshot: { categoria: 'EXTRA', identificador: 'CARREGADEIRA', nome: 'Carregadeira Case' } })));
 });
-test('[firestore] app automatic adjustment (legacy shape, id = chamado) is accepted', async () => {
-  await assertSucceeds(setDoc(doc(dbAs('canonicalUser'), '03-combustivel', 'chamado-ajuste-1'), {
+test('[firestore] app automatic adjustment in the legacy shape is refused (the APK of 2026-11-10 writes it as V2)', async () => {
+  await assertFails(setDoc(doc(dbAs('canonicalUser'), '03-combustivel', 'chamado-ajuste-1'), {
     semKm: 'Sem Odometro', tipoPlaca: false, li: 1000, lf: 1010, qa: 10, data: Timestamp.fromMillis(5), para_quem: 'ERRO', motivo: 'Uso Fábrica',
     local: '', placa: '', arla: 0, obra: '', motorista: 'ERRO', observacao: 'Ajuste | UID: uid-canonical-user', diesel: 4990,
   }));
@@ -1400,13 +1400,24 @@ test('[firestore] checklists-v2: driver/operator and signature are validated on 
     assinatura: { status: 'assinada', path: 'checklists-v2/ok-assinada/assinatura_1.jpg', em: Timestamp.fromMillis(2), bytes: 30000, largura: 1200, altura: 600 },
   })));
 });
-test('[firestore] checklists-v2: mechanic and adm2 read all; other employees and legacy-only cannot', async () => {
+test('[firestore] checklists-v2: mechanic and adm2 read all; the driver reads only the ones made for them; others cannot', async () => {
   await assertSucceeds(getDocs(query(collection(dbAs('mecanico'), 'checklists-v2'), where('item_frota_id', '==', 'vv-inativo'))));
   await assertSucceeds(getDocs(collection(dbAs('canonicalAdm2'), 'checklists-v2')));
   await assertSucceeds(getDoc(doc(dbAs('mecanico'), 'checklists-v2', 'ainda-nao-existe')));
   await assertFails(getDocs(collection(dbAs('canonicalUser'), 'checklists-v2')));
   await assertFails(getDocs(collection(dbAs('canonicalFrentista'), 'checklists-v2')));
   await assertFails(getDocs(collection(dbAs('legacyOnly'), 'checklists-v2')));
+  await env.withSecurityRulesDisabled(async (ctx) => {
+    await setDoc(doc(ctx.firestore(), 'checklists-v2', 'do-motorista'), { tipo: 'saida', motoristaOperador: { uid: 'uid-canonical-user', nome: 'User' } });
+    await setDoc(doc(ctx.firestore(), 'checklists-v2', 'de-outro'), { tipo: 'saida', motoristaOperador: { uid: 'uid-other', nome: 'Outro' } });
+    await setDoc(doc(ctx.firestore(), 'checklists-v2', 'sem-motorista'), { tipo: 'saida', motoristaOperador: { uid: null, nome: 'Terceiro' } });
+  });
+  const motorista = dbAs('canonicalUser');
+  await assertSucceeds(getDoc(doc(motorista, 'checklists-v2', 'do-motorista')));
+  await assertSucceeds(getDocs(query(collection(motorista, 'checklists-v2'), where('motoristaOperador.uid', '==', 'uid-canonical-user'))));
+  await assertFails(getDoc(doc(motorista, 'checklists-v2', 'de-outro')));
+  await assertFails(getDoc(doc(motorista, 'checklists-v2', 'sem-motorista')));
+  await assertFails(getDocs(query(collection(motorista, 'checklists-v2'), where('motoristaOperador.uid', '==', 'uid-other'))));
 });
 test('[firestore] checklists-v2: adm2 creates; plain employee cannot', async () => {
   await assertSucceeds(setDoc(doc(dbAs('canonicalAdm2'), 'checklists-v2', 'adm2-checklist'), checklistV2({ criadoPor: { uid: 'uid-canonical-adm2', nome: 'uid-canonical-adm2' }, criadoPorUid: 'uid-canonical-adm2' })));
@@ -1474,6 +1485,21 @@ test('[storage] checklists-v2: read by mechanic and adm2; never overwritten or d
   await assertFails(getBytes(ref(storageAs('canonicalUser'), path)));
   await assertFails(uploadBytes(ref(storageAs('mecanico'), path), image, { contentType: 'image/jpeg' }));
   await assertFails(deleteObject(ref(storageAs('canonicalAdm2'), path)));
+});
+test('[storage] checklists-v2: the driver reads photos, thumbnails and signature of the checklists made for them', async () => {
+  await env.withSecurityRulesDisabled(async (ctx) => {
+    await setDoc(doc(ctx.firestore(), 'checklists-v2', 'ck-motorista'), { tipo: 'saida', motoristaOperador: { uid: 'uid-canonical-user', nome: 'User' } });
+    await setDoc(doc(ctx.firestore(), 'checklists-v2', 'ck-outro'), { tipo: 'saida', motoristaOperador: { uid: 'uid-other', nome: 'Outro' } });
+  });
+  for (const path of ['checklists-v2/ck-motorista/frente_farolete_1.jpg', 'checklists-v2/ck-motorista/miniaturas/frente_farolete_1.jpg', 'checklists-v2/ck-motorista/assinatura_1.jpg']) {
+    await seedStorageObject(path);
+    await assertSucceeds(getBytes(ref(storageAs('canonicalUser'), path)));
+    await assertFails(uploadBytes(ref(storageAs('canonicalUser'), path), image, { contentType: 'image/jpeg' }));
+  }
+  const outro = 'checklists-v2/ck-outro/frente_farolete_1.jpg';
+  await seedStorageObject(outro);
+  await assertFails(getBytes(ref(storageAs('canonicalUser'), outro)));
+  await assertSucceeds(getBytes(ref(storageAs('mecanico'), outro)));
 });
 
 // ------------------------------------------------------------------ manutenção do mecânico (app, 2026-11-03)
