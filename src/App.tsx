@@ -11,6 +11,7 @@ import PwaUpdateBanner from './components/PwaUpdateBanner';
 import PwaUpdateOverlay from './components/PwaUpdateOverlay';
 import ManifestoDaRota from './features/saida-chegada/ManifestoDaRota';
 import AvisoInstalar from './features/saida-chegada/components/AvisoInstalar';
+import RegistroDeUso from './features/uso-web/RegistroDeUso';
 
 import LoadingFallback from './components/LoadingFallback';
 
@@ -20,6 +21,7 @@ const LoginPage = lazy(() => import('./pages/LoginPage'));
 const CadastroUsuarioNovoPage = lazy(() => import('./pages/CadastroUsuarioNovoPage'));
 const CadastroUsuariosEditarPage = lazy(() => import('./pages/CadastroUsuariosEditarPage'));
 const CadastroApisPage = lazy(() => import('./pages/CadastroApisPage'));
+const UsoDoSistemaPage = lazy(() => import('./features/uso-web/UsoDoSistemaPage'));
 const RegistrosPage = lazy(() => import('./pages/RegistrosPage'));
 const ChecklistsPage = lazy(() => import('./pages/ChecklistsPage'));
 const RevisoesPage = lazy(() => import('./pages/RevisoesPage'));
@@ -67,6 +69,7 @@ export default function App() {
   return (
     <BrowserRouter>
       <ManifestoDaRota />
+      <RegistroDeUso />
       <NetworkStatusBanner />
       <PwaUpdateOverlay />
       <PwaUpdateBanner />
@@ -141,9 +144,11 @@ export default function App() {
             <Route element={<PrivateRoute permite={(p) => editaArea(p, 'cadastros')} />}>
               <Route path="cadastros/usuarios/novo" element={<CadastroUsuarioNovoPage />} />
             </Route>
-            {/* APIs por área e as chaves delas: só o adm2, como as Rules de friday-chaves-api e cronoobra-chaves-api. */}
+            {/* APIs por área e as chaves delas: só o adm2, como as Rules de friday-chaves-api e cronoobra-chaves-api.
+                Uso do sistema: só o adm2, como as Rules de uso-web. */}
             <Route element={<PrivateRoute permite={(p) => temCredencial(p, 'adm2')} />}>
               <Route path="cadastros/apis" element={<CadastroApisPage />} />
+              <Route path="cadastros/uso" element={<UsoDoSistemaPage />} />
             </Route>
             {/* Mecânica e Logística são grupos, como Engenharia: /mecanica e /logistica não têm página própria (2026-11-19:
                 Frota virou Mecânica; Combustível e o KPI entraram na Logística). */}

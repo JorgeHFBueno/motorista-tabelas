@@ -11,6 +11,13 @@ const secoes: { titulo: string; texto: string[] }[] = [
     ],
   },
   {
+    titulo: 'Uso do sistema',
+    texto: [
+      'O sistema conta, por pessoa e por dia, quantas vezes cada tela da WEB é aberta. O que é digitado e os dados das telas não entram nessa contagem.',
+      'Só a administração vê esses números, para saber quais telas são usadas e onde melhorar o sistema.',
+    ],
+  },
+  {
     titulo: 'Google Agenda do Friday',
     texto: [
       'Quem quiser pode conectar a própria conta Google em Meu perfil. A conexão é opcional e pede só duas permissões: ver o e-mail principal da conta e criar agendas secundárias, com os eventos dentro delas.',

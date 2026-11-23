@@ -1311,6 +1311,23 @@ service cloud.firestore {
       allow delete: if false;
     }
 
+    // Uso do sistema (Manuscript uso-web.md, 2026-11-23): uso-web/{uid}_{AAAA-MM-DD} = { uid, dia, telas: { rota: n },
+    // atualizadoEm }. A WEB soma +1 na tela aberta, no documento da própria pessoa ativa; só o adm2 lê; ninguém apaga.
+    match /uso-web/{id} {
+      allow read: if isAdm2();
+      allow create, update: if isAuthorized()
+        && request.resource.data.keys().hasOnly(['uid', 'dia', 'telas', 'atualizadoEm'])
+        && request.resource.data.uid == request.auth.uid
+        && request.resource.data.dia is string
+        && request.resource.data.dia.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$')
+        && id == request.auth.uid + '_' + request.resource.data.dia
+        && request.resource.data.telas is map
+        && request.resource.data.telas.size() <= 100
+        && request.resource.data.atualizadoEm == request.time
+        && (resource == null || (resource.data.uid == request.auth.uid && resource.data.dia == request.resource.data.dia));
+      allow delete: if false;
+    }
+
     // Registro de atividade: só acrescenta (apagado junto com o quadro ou item). Quem grava assina com o próprio uid
     // (usuario_id); o Histórico lista as atividades de uma pessoa em todos os quadros: as próprias, ou qualquer uma
     // para adm2 (que vê todos os quadros).

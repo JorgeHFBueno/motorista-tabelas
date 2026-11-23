@@ -16,6 +16,7 @@ import HandshakeOutlinedIcon from '@mui/icons-material/HandshakeOutlined';
 import PeopleAltOutlinedIcon from '@mui/icons-material/PeopleAltOutlined';
 import PersonAddAltOutlinedIcon from '@mui/icons-material/PersonAddAltOutlined';
 import KeyOutlinedIcon from '@mui/icons-material/KeyOutlined';
+import QueryStatsOutlinedIcon from '@mui/icons-material/QueryStatsOutlined';
 import DescriptionOutlinedIcon from '@mui/icons-material/DescriptionOutlined';
 import SupportAgentOutlinedIcon from '@mui/icons-material/SupportAgentOutlined';
 import NewspaperOutlinedIcon from '@mui/icons-material/NewspaperOutlined';
@@ -91,6 +92,7 @@ export const menuPrincipal: MenuPrincipalItem[] = [
       { label: 'Usuários', to: '/cadastros/editar/usuarios', icon: <PeopleAltOutlinedIcon />, descricao: 'Contas do sistema, credenciais e o QR/PIN do Kiosk' },
       { label: 'Novo usuário', to: '/cadastros/usuarios/novo', icon: <PersonAddAltOutlinedIcon />, descricao: 'Cadastrar um funcionário com login', acesso: { editar: ['cadastros'] } },
       { label: 'APIs', to: '/cadastros/apis', icon: <KeyOutlinedIcon />, descricao: 'Chaves das APIs de cada área para robôs, planilhas e o Claude', acesso: { credencial: ['adm2'] } },
+      { label: 'Uso do sistema', to: '/cadastros/uso', icon: <QueryStatsOutlinedIcon />, descricao: 'Quais telas da WEB são abertas, por quem e quando', acesso: { credencial: ['adm2'] } },
       // Meu perfil é de qualquer credencial ou área: quem não vê Cadastros vê o grupo só com ele.
       { label: 'Meu perfil', to: '/perfil', icon: <PersonOutlineRoundedIcon />, descricao: 'Seus dados, login e senha', acesso: 'qualquer' },
     ],
