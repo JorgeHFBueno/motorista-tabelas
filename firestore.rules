@@ -40,7 +40,7 @@ service cloud.firestore {
     }
 
     // WEB areas (Manuscript funcionarios.md, 2026-11-16): funcionarios/{uid}.areas = { area: 'ver' | 'editar' }.
-    // Areas: logistica, mecanica, engenharia, portal, cadastros, manuscript, friday (one level, 'editar').
+    // Areas: logistica, mecanica, engenharia, comercial, portal, cadastros, manuscript, friday and tools (one level, 'editar').
     // A missing area (or a document without `areas`) = no access; adm2 edits every area. One read of the profile;
     // '' = no access.
     function nivelArea(a) {
@@ -60,14 +60,14 @@ service cloud.firestore {
     }
 
     // Who picks people from funcionarios (the whole document comes back): app pickers (frentista, mecanico, Kiosk),
-    // adm2 and the WEB areas that choose people (Friday, Logística, Mecânica, Cadastros). Not motorista or
+    // adm2 and the WEB areas that choose people (Friday, Logística, Mecânica, Comercial, Cadastros). Not motorista or
     // retr0 alone.
     function lePessoas() {
       let perfis = isAuthorized() ? employee().get('perfis', {}) : {};
       return perfis.get('adm2', false) == true
         || perfis.get('frentista', false) == true
         || perfis.get('mecanico', false) == true
-        || veArea('friday') || veArea('logistica') || veArea('mecanica') || veArea('cadastros');
+        || veArea('friday') || veArea('logistica') || veArea('mecanica') || veArea('comercial') || veArea('cadastros');
     }
 
     // Activity of the signed-in person: driver or author, in any of the shapes the app queries (Histórico). Direct
@@ -1720,6 +1720,120 @@ service cloud.firestore {
         && request.resource.data.criadoEm == request.time;
       allow update: if false;
       allow delete: if editaArea('logistica');
+    }
+
+    // ---------------------------------------------------------------- Comercial (2026-11-23)
+    // CRM da WEB (Manuscript 01_FIRESTORE/COLECOES/comercial.md): negócios (funil) e contatos, trazidos da pasta CRM LEDUR
+    // do Friday. Área comercial: 'ver' lê, 'editar' grava. Ninguém apaga: a lixeira é excluidoEm/excluidoPor.
+    function comercialTextoOuNulo(v, max) {
+      return v == null || (v is string && v.size() <= max);
+    }
+
+    function comercialPessoa(v) {
+      return v is map && v.keys().hasOnly(['uid', 'nome']) && v.uid == request.auth.uid
+        && v.nome is string && v.nome.size() <= 200;
+    }
+
+    function comercialPessoaOuNula(v) {
+      return v == null || (v is map && v.keys().hasOnly(['uid', 'nome']) && v.uid is string && v.nome is string);
+    }
+
+    function comercialDataOuNula(v) {
+      return v == null || (v is string && v.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$'));
+    }
+
+    function comercialNumeroOuNulo(v) {
+      return v == null || ((v is int || v is float) && v >= 0);
+    }
+
+    function validComercialNegocio(d) {
+      return d.keys().hasOnly(['schemaVersion', 'titulo', 'cliente', 'segmento', 'tipo', 'etapa', 'responsaveis',
+          'prioridade', 'origem', 'valor', 'metragem', 'dataCriacao', 'dataFechamento', 'motivoPerda', 'contatoIds',
+          'arquivos', 'origemFriday', 'criadoPor', 'registradoEm', 'atualizadoPor', 'atualizadoEm', 'excluidoEm', 'excluidoPor'])
+        && d.schemaVersion == 1
+        && d.titulo is string && d.titulo.size() > 0 && d.titulo.size() <= 200
+        && comercialTextoOuNulo(d.cliente, 200)
+        && d.segmento in ['privado', 'publico']
+        && d.tipo in ['negocio', 'projeto']
+        && d.etapa in ['lead', 'qualificacao', 'contato_feito', 'projeto_basico', 'orcamentacao', 'apresentacao',
+          'proposta_enviada', 'licitado', 'ganho', 'perdido', 'pos_venda']
+        && d.responsaveis is list && d.responsaveis.size() <= 10
+        && (d.prioridade == null || d.prioridade in ['critico', 'muito_alta', 'alta', 'media', 'baixa'])
+        && comercialTextoOuNulo(d.origem, 40)
+        && comercialNumeroOuNulo(d.valor)
+        && comercialNumeroOuNulo(d.metragem)
+        && comercialDataOuNula(d.dataCriacao) && d.dataCriacao != null
+        && comercialDataOuNula(d.dataFechamento)
+        && comercialTextoOuNulo(d.motivoPerda, 40)
+        && d.contatoIds is list && d.contatoIds.size() <= 50
+        && d.arquivos is list && d.arquivos.size() <= 100
+        && (d.origemFriday == null || d.origemFriday is map)
+        && comercialPessoaOuNula(d.criadoPor)
+        && comercialPessoaOuNula(d.excluidoPor);
+    }
+
+    function validComercialContato(d) {
+      return d.keys().hasOnly(['schemaVersion', 'nome', 'tipo', 'categoria', 'empresa', 'cargo', 'email', 'telefone',
+          'notas', 'origemFriday', 'criadoPor', 'registradoEm', 'atualizadoPor', 'atualizadoEm', 'excluidoEm', 'excluidoPor'])
+        && d.schemaVersion == 1
+        && d.nome is string && d.nome.size() > 0 && d.nome.size() <= 200
+        && (d.tipo == null || d.tipo in ['lead_qualificado', 'cliente', 'parceiro', 'fornecedor'])
+        && (d.categoria == null || d.categoria in ['particular', 'montador'])
+        && comercialTextoOuNulo(d.empresa, 200)
+        && comercialTextoOuNulo(d.cargo, 200)
+        && comercialTextoOuNulo(d.email, 200)
+        && comercialTextoOuNulo(d.telefone, 60)
+        && comercialTextoOuNulo(d.notas, 5000)
+        && (d.origemFriday == null || d.origemFriday is map)
+        && comercialPessoaOuNula(d.criadoPor)
+        && comercialPessoaOuNula(d.excluidoPor);
+    }
+
+    // Criar: quem grava assina criadoPor e atualizadoPor, com as horas do servidor, fora da lixeira. Alterar: assina
+    // atualizadoPor; não muda quem criou, quando nem a origem no Friday. Mover para a lixeira e restaurar são alterações.
+    function comercialCriacao(d) {
+      return comercialPessoa(d.criadoPor) && comercialPessoa(d.atualizadoPor)
+        && d.registradoEm == request.time && d.atualizadoEm == request.time
+        && d.excluidoEm == null && d.excluidoPor == null;
+    }
+
+    function comercialAlteracao(d) {
+      return comercialPessoa(d.atualizadoPor) && d.atualizadoEm == request.time
+        && didNotChange(['criadoPor', 'registradoEm', 'origemFriday'])
+        && (d.excluidoEm == null || d.excluidoEm == resource.data.get('excluidoEm', null) || d.excluidoEm == request.time)
+        && (d.excluidoPor == null || d.excluidoPor == resource.data.get('excluidoPor', null) || comercialPessoa(d.excluidoPor));
+    }
+
+    match /comercial-negocios/{negocioId} {
+      allow read: if veArea('comercial');
+      allow create: if editaArea('comercial') && validComercialNegocio(request.resource.data)
+        && comercialCriacao(request.resource.data);
+      allow update: if editaArea('comercial') && validComercialNegocio(request.resource.data)
+        && comercialAlteracao(request.resource.data);
+      allow delete: if false;
+
+      // Linha do tempo do negócio (as atualizações do item no Friday vêm junto na migração): texto, autor = quem grava.
+      // Não se edita; o autor apaga a sua.
+      match /atualizacoes/{atualizacaoId} {
+        allow read: if veArea('comercial');
+        allow create: if editaArea('comercial')
+          && request.resource.data.keys().hasOnly(['texto', 'autor', 'criadoEm'])
+          && request.resource.data.texto is string
+          && request.resource.data.texto.size() > 0 && request.resource.data.texto.size() <= 5000
+          && comercialPessoa(request.resource.data.autor)
+          && request.resource.data.criadoEm == request.time;
+        allow update: if false;
+        allow delete: if editaArea('comercial') && resource.data.get('autor', {}).get('uid', '') == request.auth.uid;
+      }
+    }
+
+    match /comercial-contatos/{contatoId} {
+      allow read: if veArea('comercial');
+      allow create: if editaArea('comercial') && validComercialContato(request.resource.data)
+        && comercialCriacao(request.resource.data);
+      allow update: if editaArea('comercial') && validComercialContato(request.resource.data)
+        && comercialAlteracao(request.resource.data);
+      allow delete: if false;
     }
 
 

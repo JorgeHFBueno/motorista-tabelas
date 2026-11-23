@@ -158,6 +158,17 @@ service firebase.storage {
       allow update: if false;
     }
 
+    // Comercial (2026-11-23): arquivos dos negócios (Referências, Projeto pronto e outros), comercial/negocios/{negocioId}/{arquivo}.
+    // Área comercial (ver lê, editar envia e apaga; o mesmo de comercial-negocios no Firestore), até 25 MB, sem sobrescrever.
+    match /comercial/negocios/{negocioId}/{arquivo} {
+      allow read: if veArea('comercial');
+      allow delete: if editaArea('comercial');
+      allow create: if editaArea('comercial')
+        && isNewObject()
+        && request.resource.size <= 25 * 1024 * 1024;
+      allow update: if false;
+    }
+
     // Cronograma Logístico: arquivos das observações, logistica/observacoes/{observacaoId}/{arquivo}. Logística area
     // (ver reads, editar sends and deletes; the same as logistica-observacoes in Firestore), up to 25 MB, never
     // overwritten; deleted together with the observation or the programação.

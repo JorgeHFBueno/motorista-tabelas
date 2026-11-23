@@ -39,6 +39,9 @@ const ContratoPortalPage = lazy(() => import('./features/portal-cliente/Contrato
 const AtendimentoPortalPage = lazy(() => import('./features/portal-cliente/AtendimentoPortalPage'));
 const NoticiasPortalPage = lazy(() => import('./features/portal-cliente/NoticiasPortalPage'));
 const ObrasPage = lazy(() => import('./features/obras/ObrasPage'));
+const ComercialPainelPage = lazy(() => import('./features/comercial/ComercialPainelPage'));
+const NegociosPage = lazy(() => import('./features/comercial/NegociosPage'));
+const ContatosPage = lazy(() => import('./features/comercial/ContatosPage'));
 const ObraDetalhesPage = lazy(() => import('./features/obras/ObraDetalhesPage'));
 const TheManuscriptPage = lazy(() => import('./pages/TheManuscriptPage'));
 const ManuscriptMapaPage = lazy(() => import('./pages/ManuscriptMapaPage'));
@@ -111,6 +114,12 @@ export default function App() {
               <Route path="engenharia/cronograma" element={<CronogramaObrasPage />} />
               <Route path="engenharia/obras" element={<ObrasPage />} />
               <Route path="engenharia/obras/:id" element={<ObraDetalhesPage />} />
+            </Route>
+            {/* Comercial (CRM da WEB, 2026-11-23): The Manuscript, 17_COMERCIAL.md. Quem tem 'ver' abre tudo só para leitura. */}
+            <Route element={<PrivateRoute permite={(p) => veArea(p, 'comercial')} />}>
+              <Route path="comercial" element={<ComercialPainelPage />} />
+              <Route path="comercial/negocios" element={<NegociosPage />} />
+              <Route path="comercial/contatos" element={<ContatosPage />} />
             </Route>
             {/* /testes: provas de conceito e de interface com dados fictícios (nada grava no Firestore). O MKIII foi para a
                 produção (/engenharia/cronograma) em 2026-11-17. O MKI é o mock do detalhe da obra com os LOTEs em lista

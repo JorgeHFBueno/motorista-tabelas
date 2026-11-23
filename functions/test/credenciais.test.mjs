@@ -115,3 +115,10 @@ test('Tools area (2026-11-19): one level, stored as editar; adm2 grants it', () 
   assert.deepEqual(lerAreas({ tools: 'editar' }), { tools: 'editar' });
   assert.equal(veArea({ ativo: true, perfis: {}, areas: { tools: 'editar' } }, 'tools'), true);
 });
+
+test('Comercial area (2026-11-23): two levels, like the other areas', () => {
+  assert.deepEqual(areasValidas({ comercial: 'ver' }), { comercial: 'ver' });
+  assert.equal(veArea({ ativo: true, perfis: {}, areas: { comercial: 'ver' } }, 'comercial'), true);
+  assert.equal(editaArea({ ativo: true, perfis: {}, areas: { comercial: 'ver' } }, 'comercial'), false);
+  assert.equal(editaArea({ ativo: true, perfis: {}, areas: { comercial: 'editar' } }, 'comercial'), true);
+});

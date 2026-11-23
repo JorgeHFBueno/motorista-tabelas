@@ -21,6 +21,9 @@ import SupportAgentOutlinedIcon from '@mui/icons-material/SupportAgentOutlined';
 import NewspaperOutlinedIcon from '@mui/icons-material/NewspaperOutlined';
 import AirportShuttleOutlinedIcon from '@mui/icons-material/AirportShuttleOutlined';
 import BuildOutlinedIcon from '@mui/icons-material/BuildOutlined';
+import TrendingUpOutlinedIcon from '@mui/icons-material/TrendingUpOutlined';
+import ViewKanbanOutlinedIcon from '@mui/icons-material/ViewKanbanOutlined';
+import ContactsOutlinedIcon from '@mui/icons-material/ContactsOutlined';
 import IconeDev from '../features/dev-toys/IconeDev';
 import IconeFriday from '../features/friday-gestao-interna/IconeFriday';
 import type { AuthorizationProfile } from '../services/authorizationProfile';
@@ -115,6 +118,19 @@ export const menuPrincipal: MenuPrincipalItem[] = [
     children: [
       { label: 'Cronograma', to: '/engenharia/cronograma', icon: <CalendarMonthIcon />, descricao: 'Andamento das obras, mestres e prazos contratuais' },
       { label: 'Obras', to: '/engenharia/obras', icon: <ConstructionIcon />, descricao: 'Lista das obras e o detalhe de cada uma' },
+    ],
+  },
+  {
+    // CRM da WEB (2026-11-23; The Manuscript, 17_COMERCIAL.md): veio da pasta CRM LEDUR do Friday.
+    label: 'Comercial',
+    icon: <TrendingUpOutlinedIcon fontSize="large" />,
+    color: '#FBF3E8',
+    accent: '#B86E1C',
+    acesso: ['comercial'],
+    children: [
+      { label: 'Painel', to: '/comercial', icon: <InsightsOutlinedIcon />, descricao: 'Funil, conversão, ganhos e perdas por origem e responsável' },
+      { label: 'Negócios', to: '/comercial/negocios', icon: <ViewKanbanOutlinedIcon />, descricao: 'Funil de vendas privado e público, com proposta, arquivos e histórico' },
+      { label: 'Contatos', to: '/comercial/contatos', icon: <ContactsOutlinedIcon />, descricao: 'Clientes, leads, parceiros e fornecedores' },
     ],
   },
   {

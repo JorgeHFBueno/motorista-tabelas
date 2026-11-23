@@ -5,6 +5,7 @@ export const AREAS = [
   { chave: 'logistica', rotulo: 'Logística', ver: 'KPI, abastecimentos, bombas e Cronograma', editar: 'lançar e corrigir abastecimentos, entrada de diesel e montar o cronograma' },
   { chave: 'mecanica', rotulo: 'Mecânica', ver: 'Veículos, Registros e Checklists', editar: 'renomear, KM inicial, normalizar KM e manutenções' },
   { chave: 'engenharia', rotulo: 'Engenharia', ver: 'Cronograma, Prazos e Obras', editar: 'Status do LOTE e medições' },
+  { chave: 'comercial', rotulo: 'Comercial', ver: 'Painel, Negócios e Contatos', editar: 'criar e editar negócios e contatos, mover no funil e arquivos' },
   { chave: 'portal', rotulo: 'Portal do cliente', ver: 'Clientes, Contratos, Atendimento e Notícias', editar: 'logins, contratos, atendimento e notícias' },
   { chave: 'cadastros', rotulo: 'Cadastros', ver: 'lista de usuários', editar: 'criar e editar pessoas, credenciais do app e Kiosk' },
   { chave: 'manuscript', rotulo: 'The Manuscript', ver: 'leitor', editar: 'leitor e chat' },
