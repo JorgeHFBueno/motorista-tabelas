@@ -38,12 +38,12 @@ test('idade da atualização: recente até 7 dias, atenção até 30, antiga dep
 test('Frota é um grupo sem /frota próprio; rotas antigas foram apagadas', () => {
   const app = readFileSync('src/App.tsx', 'utf8');
   const menu = readFileSync('src/components/menuPrincipal.tsx', 'utf8');
-  for (const rota of ['mecanica/veiculos', 'mecanica/veiculos/:id', 'mecanica/registros', 'mecanica/checklists', 'mecanica/checklists/:id', 'logistica/kpi']) {
+  for (const rota of ['mecanica/veiculos', 'mecanica/veiculos/:id', 'mecanica/registros', 'mecanica/checklists', 'mecanica/checklists/:id', 'mecanica/revisoes', 'mecanica/revisoes/:id', 'logistica/kpi']) {
     assert.match(app, new RegExp(`path="${rota}"`));
   }
   assert.doesNotMatch(app, /path="(frota[^"]*|mecanica|registros|checklists|checklists\/:id)"/);
-  const ordem = ['Veículos', 'Registros', 'Checklists'].map((label) => menu.indexOf(`label: '${label}', to: '/mecanica/`));
-  assert.ok(ordem.every((pos, i) => pos > 0 && (i === 0 || pos > ordem[i - 1])), 'ordem Veículos, Registros, Checklists');
+  const ordem = ['Veículos', 'Registros', 'Checklists', 'Revisões'].map((label) => menu.indexOf(`label: '${label}', to: '/mecanica/`));
+  assert.ok(ordem.every((pos, i) => pos > 0 && (i === 0 || pos > ordem[i - 1])), 'ordem Veículos, Registros, Checklists, Revisões');
   const logistica = ['KPI', 'Comb. Registros', 'Comb. Bombas', 'Cronograma'].map((label) => menu.indexOf(`label: '${label}', to: '/logistica/`));
   assert.ok(logistica.every((pos, i) => pos > 0 && (i === 0 || pos > logistica[i - 1])), 'ordem KPI, Comb. Registros, Comb. Bombas, Cronograma');
   assert.doesNotMatch(menu, /to: '\/(frota[^']*|mecanica|registros|checklists)'/);

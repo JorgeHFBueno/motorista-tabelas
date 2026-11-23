@@ -29,3 +29,9 @@ export async function obterRevisao(id: string): Promise<RevisaoLida | null> {
   const snapshot = await getDoc(doc(db, 'manutencoes-v2', id));
   return snapshot.exists() ? lerRevisao(snapshot.id, snapshot.data()) : null;
 }
+
+/** Todos os registros, na ordem do histórico (Mecânica › Revisões, que filtra no navegador, como os Checklists). */
+export async function listarTodasRevisoes(): Promise<RevisaoLida[]> {
+  const snapshot = await getDocs(colecao());
+  return ordenarHistorico(snapshot.docs.map((d) => lerRevisao(d.id, d.data())));
+}

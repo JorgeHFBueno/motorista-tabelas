@@ -2,7 +2,8 @@ import { useEffect, useMemo, useState } from 'react';
 import { Alert, Box, Button, Card, CardContent, Chip, CircularProgress, Container, Dialog, DialogActions, DialogContent, DialogTitle, Divider, Stack, Typography } from '@mui/material';
 import { useParams } from 'react-router-dom';
 import { useTituloPagina } from '../components/cabecalhoPagina';
-import { arquivoDaFoto, obterChecklist, urlDaFoto, type Checklist, type ChecklistFoto, type ChecklistItem, type ChecklistStatus } from '../services/checklists.service';
+import SalvarFoto from '../components/SalvarFoto';
+import { obterChecklist, urlDaFoto, type Checklist, type ChecklistFoto, type ChecklistItem, type ChecklistStatus } from '../services/checklists.service';
 
 const dateFmt = new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
 const STATUS: Record<ChecklistStatus, { label: string; color: 'success' | 'error' | 'default' }> = {
@@ -13,34 +14,6 @@ const STATUS: Record<ChecklistStatus, { label: string; color: 'success' | 'error
 const ORDEM: ChecklistStatus[] = ['avaria', 'ok', 'nao_se_aplica'];
 
 type FotoAberta = { url: string; titulo: string; path: string };
-
-/** "Salvar foto": baixa a original e abre o menu de compartilhar (no iPhone, "Salvar imagem"); sem ele, baixa o arquivo.
- * A foto é baixada ao abrir, porque o iPhone só abre o menu logo depois do toque. Sem o download, fica "Abrir original". */
-function SalvarFoto({ path, titulo }: { path: string; titulo: string }) {
-  const [arquivo, setArquivo] = useState<File | null>(null);
-  const [falhou, setFalhou] = useState(false);
-  useEffect(() => {
-    let active = true;
-    arquivoDaFoto(path).then((f) => active && setArquivo(f)).catch((error) => {
-      console.warn('Checklist: foto não baixada para salvar', error);
-      if (active) setFalhou(true);
-    });
-    return () => { active = false; };
-  }, [path]);
-  if (falhou) return null;
-  const salvar = () => {
-    if (!arquivo) return;
-    if (navigator.canShare?.({ files: [arquivo] })) {
-      navigator.share({ files: [arquivo], title: titulo }).catch(() => undefined);
-      return;
-    }
-    const url = URL.createObjectURL(arquivo);
-    const link = Object.assign(document.createElement('a'), { href: url, download: arquivo.name });
-    link.click();
-    setTimeout(() => URL.revokeObjectURL(url), 1000);
-  };
-  return <Button variant="contained" disabled={!arquivo} onClick={salvar}>{arquivo ? 'Salvar foto' : 'Preparando foto...'}</Button>;
-}
 
 function Assinatura({ path }: { path: string }) {
   const [url, setUrl] = useState<string | null>(null);

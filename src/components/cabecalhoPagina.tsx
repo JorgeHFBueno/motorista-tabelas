@@ -40,6 +40,8 @@ const TITULOS: Array<{ padrao: string } & TituloPagina> = [
   { padrao: '/mecanica/registros', titulo: 'Registros' },
   { padrao: '/mecanica/checklists', titulo: 'Checklists' },
   { padrao: '/mecanica/checklists/:id', titulo: 'Checklist' },
+  { padrao: '/mecanica/revisoes', titulo: 'Revisões' },
+  { padrao: '/mecanica/revisoes/:id', titulo: 'Revisão' },
   { padrao: '/logistica/kpi', titulo: 'KPI da frota' },
   { padrao: '/logistica/combustivel/bombas', titulo: 'Bombas', ...ABASTECEDORA },
   { padrao: '/logistica/cronograma', titulo: 'Cronograma Logístico', logo: '/logo-cronograma-frota.svg' },

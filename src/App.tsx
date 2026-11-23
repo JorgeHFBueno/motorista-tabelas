@@ -21,6 +21,8 @@ const CadastroUsuariosEditarPage = lazy(() => import('./pages/CadastroUsuariosEd
 const CadastroApisPage = lazy(() => import('./pages/CadastroApisPage'));
 const RegistrosPage = lazy(() => import('./pages/RegistrosPage'));
 const ChecklistsPage = lazy(() => import('./pages/ChecklistsPage'));
+const RevisoesPage = lazy(() => import('./pages/RevisoesPage'));
+const RevisaoDetalheMecanicaPage = lazy(() => import('./pages/RevisaoDetalheMecanicaPage'));
 const ChecklistDetalhePage = lazy(() => import('./pages/ChecklistDetalhePage'));
 const FrotaVeiculosPage = lazy(() => import('./pages/FrotaVeiculosPage'));
 const FrotaVeiculoDetalhesPage = lazy(() => import('./pages/FrotaVeiculoDetalhesPage'));
@@ -141,6 +143,8 @@ export default function App() {
               <Route path="mecanica/registros" element={<RegistrosPage />} />
               <Route path="mecanica/checklists" element={<ChecklistsPage />} />
               <Route path="mecanica/checklists/:id" element={<ChecklistDetalhePage />} />
+              <Route path="mecanica/revisoes" element={<RevisoesPage />} />
+              <Route path="mecanica/revisoes/:id" element={<RevisaoDetalheMecanicaPage />} />
             </Route>
             <Route element={<PrivateRoute permite={(p) => veArea(p, 'logistica')} />}>
               <Route path="logistica/kpi" element={<FrotaAnalyticsPage />} />

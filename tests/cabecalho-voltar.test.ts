@@ -22,6 +22,8 @@ test('grupo sem página própria é pulado: /mecanica, /cadastros, /logistica e 
   assert.equal(rotaAnterior('/logistica/combustivel/bombas'), '/');
   assert.equal(rotaAnterior('/mecanica/veiculos/abc'), '/mecanica/veiculos');
   assert.equal(rotaAnterior('/mecanica/checklists/abc'), '/mecanica/checklists');
+  assert.equal(rotaAnterior('/mecanica/revisoes/abc'), '/mecanica/revisoes');
+  assert.equal(rotaAnterior('/mecanica/revisoes'), '/');
   assert.equal(rotaAnterior('/mecanica/veiculos'), '/');
   assert.equal(rotaAnterior('/logistica/kpi'), '/');
 });

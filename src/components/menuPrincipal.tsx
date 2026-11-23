@@ -20,6 +20,7 @@ import DescriptionOutlinedIcon from '@mui/icons-material/DescriptionOutlined';
 import SupportAgentOutlinedIcon from '@mui/icons-material/SupportAgentOutlined';
 import NewspaperOutlinedIcon from '@mui/icons-material/NewspaperOutlined';
 import AirportShuttleOutlinedIcon from '@mui/icons-material/AirportShuttleOutlined';
+import BuildOutlinedIcon from '@mui/icons-material/BuildOutlined';
 import IconeDev from '../features/dev-toys/IconeDev';
 import IconeFriday from '../features/friday-gestao-interna/IconeFriday';
 import type { AuthorizationProfile } from '../services/authorizationProfile';
@@ -97,11 +98,12 @@ export const menuPrincipal: MenuPrincipalItem[] = [
     color: '#EEF5F1',
     accent: '#2E9D6F',
     acesso: ['mecanica'],
-    // Ordem em grade de duas colunas: Veículos | Registros, Checklists. Revisão vem depois.
+    // Ordem em grade de duas colunas: Veículos | Registros, Checklists | Revisões (2026-11-22).
     children: [
       { label: 'Veículos', to: '/mecanica/veiculos', icon: <LocalShippingOutlinedIcon />, descricao: 'Frota, manutenções e custos de cada veículo' },
       { label: 'Registros', to: '/mecanica/registros', icon: <ListAltIcon />, descricao: 'Saídas e chegadas registradas no app' },
       { label: 'Checklists', to: '/mecanica/checklists', icon: <FactCheckOutlinedIcon />, descricao: 'Checklists de veículos e máquinas' },
+      { label: 'Revisões', to: '/mecanica/revisoes', icon: <BuildOutlinedIcon />, descricao: 'Idas ao mecânico: o que foi trocado, consertado ou revisado' },
     ],
   },
   {
