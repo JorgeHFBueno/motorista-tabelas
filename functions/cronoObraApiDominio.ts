@@ -127,7 +127,16 @@ export function mestresDe(docs: Doc[]): { id: string; nome: string; cor: string 
   return mestres;
 }
 
-type Alocacao = { id: string; obraId?: string; contratoId: string; mestreId: string; inicio: string; tempoPlanejado: number; naoTrabalhados?: NaoTrabalhado[] };
+/** Apoio ("ajuda por fora"): o período de origem do mestre. Cópia de `lerApoio` (src/features/cronograma-obras/domain/apoio.ts). */
+type Apoio = { alocacaoId: string; contratoId: string; obraId?: string };
+export function lerApoio(value: unknown): Apoio | undefined {
+  const v = value as Partial<Apoio> | null | undefined;
+  if (!v || typeof v !== 'object' || typeof v.alocacaoId !== 'string' || !v.alocacaoId || typeof v.contratoId !== 'string' || !v.contratoId) return undefined;
+  if (v.obraId !== undefined && (typeof v.obraId !== 'string' || !v.obraId)) return undefined;
+  return { alocacaoId: v.alocacaoId, contratoId: v.contratoId, ...(v.obraId ? { obraId: v.obraId } : {}) };
+}
+
+type Alocacao = { id: string; obraId?: string; contratoId: string; mestreId: string; inicio: string; tempoPlanejado: number; naoTrabalhados?: NaoTrabalhado[]; apoio?: Apoio };
 
 /** Alocação de monday-cronograma com os campos que a tela exige; fora do formato, null. */
 export function alocacaoDe({ id, data }: Doc): Alocacao | null {
@@ -136,7 +145,8 @@ export function alocacaoDe({ id, data }: Doc): Alocacao | null {
     || typeof v.inicio !== 'string' || !isValidCivilDate(v.inicio) || !Number.isInteger(v.tempoPlanejado) || v.tempoPlanejado < 1
     || typeof v.criadoPorFuncionarioId !== 'string' || !v.criadoPorFuncionarioId) return null;
   const naoTrabalhados = lerNaoTrabalhados(v.naoTrabalhados);
-  return { id, ...(typeof v.obraId === 'string' ? { obraId: v.obraId } : {}), contratoId: v.contratoId, mestreId: v.mestreId, inicio: v.inicio, tempoPlanejado: v.tempoPlanejado, ...(naoTrabalhados ? { naoTrabalhados } : {}) };
+  const apoio = lerApoio(v.apoio);
+  return { id, ...(typeof v.obraId === 'string' ? { obraId: v.obraId } : {}), contratoId: v.contratoId, mestreId: v.mestreId, inicio: v.inicio, tempoPlanejado: v.tempoPlanejado, ...(naoTrabalhados ? { naoTrabalhados } : {}), ...(apoio ? { apoio } : {}) };
 }
 
 const casaContrato = (c: Contrato, filtro: string | null) => {
@@ -168,12 +178,16 @@ export function montarCronograma(fontes: { obras: Doc[]; mestres: Doc[]; alocaco
     if (!alvo) return [];
     const { contrato, lote } = alvo;
     const fim = calculatedEnd(a.inicio, a.tempoPlanejado);
-    const nt = diasNT(a).size;
+    const nt = a.apoio ? 0 : diasNT(a).size;
+    // Apoio ("ajuda por fora"): only visual on the screen; its days belong to the origin obra, so none are worked here.
+    const origem = a.apoio ? porContrato.get(a.apoio.contratoId) : undefined;
+    const loteOrigem = a.apoio?.obraId ? lotePorId.get(a.apoio.obraId)?.lote : undefined;
+    const apoio = a.apoio ? { alocacaoId: a.apoio.alocacaoId, contratoId: a.apoio.contratoId, obra: origem?.obra ?? null, loteId: a.apoio.obraId ?? null, lote: loteOrigem?.nome ?? null } : null;
     return [{
       alocacaoId: a.id, contratoId: contrato.contratoId, obra: contrato.obra, sigla: contrato.sigla, numeroContrato: contrato.numeroContrato,
       empresa: contrato.empresa, tipoObra: contrato.tipoObra, loteId: lote?.loteId ?? null, lote: lote?.nome ?? null,
       statusLote: lote ? lote.status : contrato.status, mestreId: mestre.id, mestre: mestre.nome, inicio: a.inicio, fim,
-      dias: a.tempoPlanejado, diasNT: nt, diasTrabalhados: a.tempoPlanejado - nt, naoTrabalhados: a.naoTrabalhados ?? [],
+      dias: a.tempoPlanejado, diasNT: nt, diasTrabalhados: apoio ? 0 : a.tempoPlanejado - nt, naoTrabalhados: apoio ? [] : a.naoTrabalhados ?? [], apoio,
     }];
   }).filter((l) => (!filtros.de || l.fim >= filtros.de) && (!filtros.ate || l.inicio <= filtros.ate)
     && casaContrato(porContrato.get(l.contratoId)!, filtros.contrato)

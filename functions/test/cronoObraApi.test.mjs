@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import { test } from 'node:test';
 import {
-  EntradaInvalida, diasNT, formatoChaveCronoObra, hashChaveCronoObra, lerFiltrosCronograma, lerNaoTrabalhados, montarCronograma, pessoaDaChaveCronoObra,
+  EntradaInvalida, diasNT, lerApoio, formatoChaveCronoObra, hashChaveCronoObra, lerFiltrosCronograma, lerNaoTrabalhados, montarCronograma, pessoaDaChaveCronoObra,
 } from '../lib/cronoObraApiDominio.js';
 import { responderMcp } from '../lib/fridayMcp.js';
 
@@ -93,6 +93,18 @@ test('cronograma: only allocations the screen shows, with end, NT and worked day
   assert.deepEqual(r.obras.map((o) => o.contratoId), ['c2', 'c1']);
   assert.deepEqual(r.obras[1].lotes.map((l) => [l.loteId, l.prioridade]), [['l1', null], ['l2', 1]]);
   assert.deepEqual(r.mestres.map((m) => m.id), ['dine', 'antonio']);
+});
+
+test('cronograma: apoio ("ajuda por fora") is marked with its origin and counts no worked days', () => {
+  assert.deepEqual(lerApoio({ alocacaoId: 'a1', contratoId: 'c1', obraId: 'l1' }), { alocacaoId: 'a1', contratoId: 'c1', obraId: 'l1' });
+  for (const ruim of [null, {}, { alocacaoId: 'a1' }, { alocacaoId: 'a1', contratoId: '' }, { alocacaoId: 'a1', contratoId: 'c1', obraId: 3 }]) assert.equal(lerApoio(ruim), undefined);
+  const f = fontes();
+  f.alocacoes.push(doc('ap1', alocacao({ contratoId: 'c2', mestreId: 'dine', inicio: '2026-11-06', tempoPlanejado: 2, apoio: { alocacaoId: 'a1', contratoId: 'c1', obraId: 'l1' } })));
+  const r = montarCronograma(f, semFiltro);
+  const ap = r.alocacoes.find((a) => a.alocacaoId === 'ap1');
+  assert.deepEqual(ap.apoio, { alocacaoId: 'a1', contratoId: 'c1', obra: 'Ponte Arroio', loteId: 'l1', lote: 'LOTE 1' });
+  assert.deepEqual([ap.contratoId, ap.dias, ap.diasNT, ap.diasTrabalhados, ap.naoTrabalhados], ['c2', 2, 0, 0, []]);
+  assert.equal(r.alocacoes.find((a) => a.alocacaoId === 'a1').apoio, null);
 });
 
 test('cronograma filters: period touching the interval, contract, master without accents, LOTE status', () => {
