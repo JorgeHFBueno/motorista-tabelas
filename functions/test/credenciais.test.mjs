@@ -122,3 +122,8 @@ test('Comercial area (2026-11-23): two levels, like the other areas', () => {
   assert.equal(editaArea({ ativo: true, perfis: {}, areas: { comercial: 'ver' } }, 'comercial'), false);
   assert.equal(editaArea({ ativo: true, perfis: {}, areas: { comercial: 'editar' } }, 'comercial'), true);
 });
+
+test('ERP area (2026-11-24): ver and editar are kept', () => {
+  assert.deepEqual(areasValidas({ erp: 'ver' }), { erp: 'ver' });
+  assert.deepEqual(lerAreas({ erp: 'editar' }), { erp: 'editar' });
+});

@@ -165,14 +165,13 @@ export const menuPrincipal: MenuPrincipalItem[] = [
     ],
   },
   {
-    // ERP próprio (2026-11-24): por enquanto só a página "Estamos trabalhando nisso", para o adm2. The Manuscript,
-    // 01_ROTAS_E_NAVEGACAO.md#erp.
+    // ERP próprio (2026-11-24): área ERP (o adm2 sempre). The Manuscript, 01_ROTAS_E_NAVEGACAO.md#erp.
     label: 'ERP',
     icon: <AccountBalanceOutlinedIcon fontSize="large" />,
     color: '#EEF2F6',
     accent: '#12293B',
     to: '/erp',
-    acesso: { credencial: ['adm2'] },
+    acesso: ['erp'],
   },
   {
     label: 'DEV',

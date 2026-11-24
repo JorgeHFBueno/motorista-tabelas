@@ -157,9 +157,9 @@ export default function App() {
               <Route path="cadastros/apis" element={<CadastroApisPage />} />
               <Route path="cadastros/uso" element={<UsoDoSistemaPage />} />
             </Route>
-            {/* ERP próprio (2026-11-24): o início com o mosaico e Clientes e Fornecedores em demonstração (sem gravação), só o
-                adm2. The Manuscript, 01_ROTAS_E_NAVEGACAO.md#erp. */}
-            <Route element={<PrivateRoute permite={(p) => temCredencial(p, 'adm2')} />}>
+            {/* ERP próprio (2026-11-24): o início com o mosaico e Clientes e Fornecedores em demonstração (sem gravação), área
+                ERP (o adm2 sempre). The Manuscript, 01_ROTAS_E_NAVEGACAO.md#erp. */}
+            <Route element={<PrivateRoute permite={(p) => veArea(p, 'erp')} />}>
               <Route path="erp" element={<ErpInicioPage />} />
               <Route path="erp/pessoas" element={<ErpPessoasPage />} />
               <Route path="erp/pessoas/:codigo" element={<ErpPessoaFichaPage />} />

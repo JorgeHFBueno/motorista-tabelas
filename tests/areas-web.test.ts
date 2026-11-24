@@ -52,3 +52,11 @@ test('areas: Comercial has ver and editar; adm2 always has it (2026-11-23)', () 
   assert.equal(editaArea(perfil({ perfis: {}, areas: { comercial: 'ver' } }), 'comercial'), false);
   assert.equal(veArea(perfil({ perfis: { adm2: true }, areas: {} }), 'comercial'), true);
 });
+
+test('areas: ERP (/erp) has ver and editar; adm2 always has it (2026-11-24)', () => {
+  assert.deepEqual(areasValidas({ erp: 'ver' }), { erp: 'ver' });
+  assert.equal(veArea(perfil({ perfis: {}, areas: { erp: 'ver' } }), 'erp'), true);
+  assert.equal(editaArea(perfil({ perfis: {}, areas: { erp: 'ver' } }), 'erp'), false);
+  assert.equal(veArea(perfil({ perfis: {}, areas: { comercial: 'editar' } }), 'erp'), false);
+  assert.equal(veArea(perfil({ perfis: { adm2: true }, areas: {} }), 'erp'), true);
+});

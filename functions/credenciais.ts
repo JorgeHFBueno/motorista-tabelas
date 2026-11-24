@@ -40,7 +40,7 @@ export function mudaCredencialProibida(antes: Credenciais, depois: Credenciais):
 // funcionarios/{uid}.areas = { area: 'ver' | 'editar' }; a missing area = no access. adm2 sees and edits every area.
 // Friday and Tools have one level (stored as 'editar'). Only adm2 grants areas. The same lists are in src/services/credenciais.ts
 // and in the Rules (nivelArea).
-export const AREAS = ['logistica', 'mecanica', 'engenharia', 'comercial', 'portal', 'cadastros', 'manuscript', 'friday', 'tools'] as const;
+export const AREAS = ['logistica', 'mecanica', 'engenharia', 'comercial', 'erp', 'portal', 'cadastros', 'manuscript', 'friday', 'tools'] as const;
 export type Area = (typeof AREAS)[number];
 export type Nivel = 'ver' | 'editar';
 export type Areas = Partial<Record<Area, Nivel>>;
