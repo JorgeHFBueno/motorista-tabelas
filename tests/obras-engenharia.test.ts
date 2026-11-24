@@ -147,16 +147,17 @@ test('relatório da obra: PDF com todas as seções; fonte que falhou aparece co
   const pdf = createObraRelatorioPdf({
     obra,
     geradoEm: new Date('2026-10-30T15:00:00Z'),
-    medicoes: { status: 'ok', data: { snapshot: { idObra: 'c1', subcentroErp: '0102', qtd_notas: 3, valor_bruto_servico: 123456.78 }, atualizadoAgora: true } },
     mestres: { status: 'ok', data: { periodos: periodosDosMestres([{ id: '1', mestreId: 'jefe', obraId: 'a', inicio: '2026-04-01', tempoPlanejado: 30 }], { jefe: 'JEFE' }, obra.nomesLotes), apoios: ['Recebeu apoio de DINE, periodo 24/11'] } },
     veiculos: { status: 'erro' },
     combustivel: { status: 'ok', data: resumirCombustivel([saida('1', 'ABC1D23', 1005, 59295, '2026-04-02T12:00:00Z')]) },
   });
   assert.equal(pdf.type, 'application/pdf');
   const conteudo = Buffer.from(await pdf.arrayBuffer()).toString('latin1');
-  for (const trecho of ['RELAT\xd3RIO DA OBRA', 'DADOS DA OBRA', 'Sin\xf4nimo', 'SALDO DO CONTRATO / MEDI\xc7\xd5ES', 'MESTRES ALOCADOS', 'VE\xcdCULOS QUE FORAM PARA A OBRA', 'COMBUST\xcdVEL', 'JEFE', 'Recebeu apoio de DINE', 'R$ 123.456,78', 'R$ 592,95', '100,5 L', 'N\xe3o foi poss\xedvel carregar as atividades.', 'Ledur Motorista \x97 relat\xf3rio da obra']) {
+  for (const trecho of ['RELAT\xd3RIO DA OBRA', 'DADOS DA OBRA', 'Sin\xf4nimo', 'MESTRES ALOCADOS', 'VE\xcdCULOS QUE FORAM PARA A OBRA', 'COMBUST\xcdVEL', 'JEFE', 'Recebeu apoio de DINE', 'R$ 592,95', '100,5 L', 'N\xe3o foi poss\xedvel carregar as atividades.', 'Ledur Motorista \x97 relat\xf3rio da obra']) {
     assert.ok(conteudo.includes(trecho), trecho);
   }
+  // A seção de medições saiu do detalhe da obra e do relatório (2026-11-24).
+  assert.ok(!conteudo.includes('MEDI\xc7\xd5ES'));
   assert.equal(nomeArquivoRelatorioObra(obra, new Date('2026-10-30T15:00:00Z')), 'Relatorio-Obra-LAGOA-BONITA-DO-SUL-16-2026-2026-10-30.pdf');
 });
 

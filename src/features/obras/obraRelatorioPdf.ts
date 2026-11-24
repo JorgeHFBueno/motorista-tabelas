@@ -1,5 +1,4 @@
 import { createDrawing, PAGE, pdfFromPages } from '../../services/vehicle-report-pdf';
-import type { MondaySerpSnapshot } from '../../services/monday-serp.service';
 import {
   contratoTexto,
   dataCivilTexto,
@@ -13,11 +12,9 @@ import {
 
 /** Cada parte do relatório vem de uma fonte; uma fonte que falhou aparece como indisponível, nunca como zero. */
 export type Parte<T> = { status: 'ok'; data: T } | { status: 'erro' };
-export type MedicoesObra = { snapshot: MondaySerpSnapshot | null; atualizadoAgora: boolean };
 
 export type RelatorioObra = {
   obra: ObraDetalhe;
-  medicoes: Parte<MedicoesObra>;
   mestres: Parte<MestresDaObra>;
   veiculos: Parte<VeiculoNaObra[]>;
   combustivel: Parte<ResumoCombustivel>;
@@ -65,20 +62,6 @@ export function createObraRelatorioPdf(relatorio: RelatorioObra) {
   ], [170, 353]);
   if (obra.lotes.length) drawing.table(['LOTE', 'Status'], obra.lotes.map((lote) => [lote.nome, ou(lote.status)]), [353, 170]);
   else vazio('Sem LOTEs cadastrados.');
-
-  drawing.section('SALDO DO CONTRATO / MEDIÇÕES');
-  if (!obra.subcentroErp) vazio('Não há Subcentro ERP vinculado: as medições não podem ser consultadas.');
-  else if (relatorio.medicoes.status === 'erro') indisponivel('Não foi possível consultar as medições.');
-  else {
-    const { snapshot, atualizadoAgora } = relatorio.medicoes.data;
-    drawing.table(['Item', 'Valor'], [
-      ['Medições (valor bruto dos serviços)', snapshot ? dinheiro(snapshot.valor_bruto_servico) : 'Sem medições'],
-      ['Notas de medição', snapshot ? String(snapshot.qtd_notas) : '—'],
-      ['Total do contrato', 'Não informado no sistema'],
-      ['Saldo do contrato', 'Não informado no sistema'],
-      ['Origem', atualizadoAgora ? 'ERP (Query 55), consultado na geração' : 'Última cópia salva do ERP (a consulta de agora falhou)'],
-    ], [253, 270], direita([1]));
-  }
 
   drawing.section('MESTRES ALOCADOS');
   if (relatorio.mestres.status === 'erro') indisponivel('Não foi possível carregar as alocações do CronoObra.');

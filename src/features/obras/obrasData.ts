@@ -3,8 +3,6 @@ import { deleteObject, getDownloadURL, ref as refArquivo, uploadBytes } from 'fi
 import { db, storage } from '../../firebase';
 import { normalizarAtividade, type AtividadeV2 } from '../../services/atividade-normalizer';
 import { normalizarMovimentoCombustivel, type NormalizedCombustivel } from '../../services/combustivel-normalizer';
-import { loadMondaySerpSnapshot, syncMondaySerpMeasurements } from '../../services/monday-serp.service';
-import type { MedicoesObra } from './obraRelatorioPdf';
 import { CRONOGRAMA_COLLECTION } from '../cronograma-obras/data/cronogramaFirestore';
 import { MESTRES_COLLECTION } from '../cronograma-obras/data/mestresFirestore';
 import { lerNaoTrabalhados } from '../cronograma-obras/domain/naoTrabalhados';
@@ -120,16 +118,6 @@ export async function gravarCampoObra(id: string, campo: CampoEditavelObra, valo
   if (campo === 'local' && !limpo) throw new Error('O local não pode ficar vazio.');
   await updateDoc(doc(db, OBRAS_V2, id), { [campo]: limpo });
   return limpo;
-}
-
-/** Como o saldo do CronoObra: consulta o ERP (Query 55) e, se falhar, usa a última cópia de `monday-serp/{id}`. */
-export async function carregarMedicoesDaObra(idObra: string, subcentroErp: string): Promise<MedicoesObra> {
-  try {
-    return { snapshot: await syncMondaySerpMeasurements({ idObra, subcentroErp }), atualizadoAgora: true };
-  } catch (err) {
-    console.warn('Medições não atualizadas pelo ERP; usando a cópia salva', err);
-    return { snapshot: await loadMondaySerpSnapshot(idObra), atualizadoAgora: false };
-  }
 }
 
 const alocacaoDe = (item: { id: string; data: () => Record<string, unknown> }): AlocacaoObra => {

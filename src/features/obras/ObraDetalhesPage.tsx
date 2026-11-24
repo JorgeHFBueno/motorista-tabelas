@@ -24,7 +24,6 @@ import {
   carregarNomesDeObras,
   carregarAtividadesDaObra,
   carregarCombustivelDaObra,
-  carregarMedicoesDaObra,
   carregarNomesMestres,
   carregarObra,
   anexarPdfPreFabricado,
@@ -58,7 +57,7 @@ import {
   type ResumoCombustivel,
   type VeiculoNaObra,
 } from './obrasDomain';
-import { createObraRelatorioPdf, nomeArquivoRelatorioObra, type MedicoesObra, type Parte } from './obraRelatorioPdf';
+import { createObraRelatorioPdf, nomeArquivoRelatorioObra, type Parte } from './obraRelatorioPdf';
 
 // Detalhe da obra (obras-v2): todos os dados do contrato, só leitura, menos o local e o sinônimo (`siglaObra`),
 // que engenharia e adm2 gravam.
@@ -126,7 +125,6 @@ export default function ObraDetalhesPage() {
   const [obra, setObra] = useState<ObraDetalhe | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [medicoes, setMedicoes] = useState<Estado<MedicoesObra>>(CARREGANDO);
   const [mestres, setMestres] = useState<Estado<MestresDaObra>>(CARREGANDO);
   const [veiculos, setVeiculos] = useState<Estado<VeiculoNaObra[]>>(CARREGANDO);
   const [combustivel, setCombustivel] = useState<Estado<ResumoCombustivel>>(CARREGANDO);
@@ -145,8 +143,6 @@ export default function ObraDetalhesPage() {
         if (!active) return;
         if (!encontrada) { setError('Obra não encontrada.'); return; }
         setObra(encontrada);
-        if (encontrada.subcentroErp) parte(carregarMedicoesDaObra(encontrada.id, encontrada.subcentroErp), setMedicoes, ativo, 'medições');
-        else setMedicoes({ status: 'ok', data: { snapshot: null, atualizadoAgora: false } });
         parte(
           Promise.all([carregarAlocacoesDaObra(encontrada.id), carregarNomesMestres(), carregarApoiosPrestados(encontrada.id)])
             .then(async ([alocacoes, nomes, prestados]) => ({
@@ -233,7 +229,7 @@ export default function ObraDetalhesPage() {
     } : {}),
   };
 
-  const partes = [medicoes, mestres, veiculos, combustivel];
+  const partes = [mestres, veiculos, combustivel];
   const carregandoPartes = partes.some((item) => item.status === 'carregando');
 
   function gerarRelatorio() {
@@ -243,7 +239,6 @@ export default function ObraDetalhesPage() {
       const geradoEm = new Date();
       const file = createObraRelatorioPdf({
         obra, geradoEm,
-        medicoes: medicoes as Parte<MedicoesObra>,
         mestres: mestres as Parte<MestresDaObra>,
         veiculos: veiculos as Parte<VeiculoNaObra[]>,
         combustivel: combustivel as Parte<ResumoCombustivel>,
@@ -347,24 +342,6 @@ export default function ObraDetalhesPage() {
           O cadastro da obra é feito no Friday (quadro GESTÃO DE OBRAS); aqui se editam só o local, o sinônimo e os PDFs dos pré-fabricados.
         </Typography>
       </Paper>
-
-      <Secao titulo="Saldo do contrato / medições" estado={medicoes} erro="Não foi possível consultar as medições.">
-        {({ snapshot, atualizadoAgora }) => !obra.subcentroErp ? (
-          <Vazio>Não há Subcentro ERP vinculado: as medições não podem ser consultadas.</Vazio>
-        ) : (
-          <>
-            <Box sx={{ display: 'grid', gap: 2, gridTemplateColumns: { xs: '1fr 1fr', md: 'repeat(4, minmax(0, 1fr))' } }}>
-              <Campo rotulo="Medições" valor={snapshot ? dinheiro.format(snapshot.valor_bruto_servico) : 'Sem medições'} />
-              <Campo rotulo="Notas de medição" valor={snapshot ? String(snapshot.qtd_notas) : ''} />
-              <Campo rotulo="Total do contrato" valor="Não informado" />
-              <Campo rotulo="Saldo do contrato" valor="Não informado" />
-            </Box>
-            <Typography variant="caption" color={atualizadoAgora ? 'text.secondary' : 'warning.dark'} sx={{ display: 'block', mt: 1.5 }}>
-              {atualizadoAgora ? 'Medições do ERP (Query 55), consultadas agora.' : 'O ERP não respondeu: valores da última consulta salva.'}
-            </Typography>
-          </>
-        )}
-      </Secao>
 
       <Secao titulo="Mestres alocados" estado={mestres} erro="Não foi possível carregar as alocações do CronoObra.">
         {({ periodos, apoios }) => periodos.length || apoios.length ? (
