@@ -812,6 +812,35 @@ service cloud.firestore {
         );
     }
 
+    // PDFs dos pré-fabricados de um LOTE no detalhe da obra (/engenharia/obras/:id), um documento por PDF (revisão),
+    // com o arquivo em obras/pre-fabricados/{obraId}/ no Storage (2026-11-24). `item` = "produto|nome" do item do
+    // Plannix no LOTE de código `plannix`. Área engenharia: 'ver' lê; 'editar' anexa, substitui (troca o arquivo do
+    // mesmo documento, sem nova revisão) e exclui. Quem grava assina anexadoPor, com a hora do servidor.
+    function validPdfPreFabricado(d) {
+      return d.keys().hasOnly(['schemaVersion', 'obraId', 'lote', 'plannix', 'item', 'nome', 'tamanho', 'caminho', 'anexadoPor', 'anexadoEm'])
+        && d.schemaVersion == 1
+        && d.obraId is string && d.obraId.size() > 0 && d.obraId.size() <= 100
+        && d.lote is string && d.lote.size() > 0 && d.lote.size() <= 100
+        && d.plannix is int && d.plannix > 0
+        && d.item is string && d.item.size() > 0 && d.item.size() <= 300
+        && d.nome is string && d.nome.size() > 0 && d.nome.size() <= 200
+        && d.tamanho is int && d.tamanho > 0 && d.tamanho <= 25 * 1024 * 1024
+        && d.caminho is string && d.caminho.size() <= 400
+        && d.caminho.matches('obras/pre-fabricados/' + d.obraId + '/[^/]+')
+        && d.anexadoPor is map && d.anexadoPor.keys().hasOnly(['uid', 'nome']) && d.anexadoPor.uid == request.auth.uid
+        && d.anexadoPor.nome is string && d.anexadoPor.nome.size() <= 200
+        && d.anexadoEm == request.time
+        && exists(/databases/$(database)/documents/obras-v2/$(d.obraId));
+    }
+
+    match /obras-pre-fabricados-pdfs/{pdfId} {
+      allow read: if veArea('engenharia');
+      allow create: if editaArea('engenharia') && validPdfPreFabricado(request.resource.data);
+      allow update: if editaArea('engenharia') && validPdfPreFabricado(request.resource.data)
+        && didNotChange(['schemaVersion', 'obraId', 'lote', 'plannix', 'item']);
+      allow delete: if editaArea('engenharia');
+    }
+
     match /motivos/{motivoId} {
       allow read: if isAuthorized();
       allow write: if false;

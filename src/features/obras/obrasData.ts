@@ -1,5 +1,6 @@
-import { collection, doc, getDoc, getDocs, query, updateDoc, where } from 'firebase/firestore';
-import { db } from '../../firebase';
+import { addDoc, collection, deleteDoc, doc, getDoc, getDocs, query, serverTimestamp, Timestamp, updateDoc, where } from 'firebase/firestore';
+import { deleteObject, getDownloadURL, ref as refArquivo, uploadBytes } from 'firebase/storage';
+import { db, storage } from '../../firebase';
 import { normalizarAtividade, type AtividadeV2 } from '../../services/atividade-normalizer';
 import { normalizarMovimentoCombustivel, type NormalizedCombustivel } from '../../services/combustivel-normalizer';
 import { loadMondaySerpSnapshot, syncMondaySerpMeasurements } from '../../services/monday-serp.service';
@@ -12,7 +13,7 @@ import { localDaCidade, obraDetalheFromV2, type AlocacaoObra, type CampoEditavel
 import { LOCAIS_SUGERIDOS } from './locaisSugeridos';
 import { httpsCallable } from 'firebase/functions';
 import { functions } from '../../firebase';
-import { preFabricadosDoPlannix, SEM_CODIGO_PLANNIX, type LotePlannix, type PreFabricadosDoLote } from './preFabricados';
+import { preFabricadosDoPlannix, SEM_CODIGO_PLANNIX, type LotePlannix, type PdfGravado, type PreFabricadosDoLote } from './preFabricados';
 import { localDoMaps } from '../cronograma-logistica/data/logisticaFirestore';
 import { linkDoMapa } from '../cronograma-logistica/domain/local';
 
@@ -28,6 +29,76 @@ export async function carregarPreFabricados(obra: Pick<ObraDetalhe, 'lotes'>): P
   const resultado = await httpsCallable<{ codigos: number[] }, { lotes: LotePlannix[] }>(functions, 'plannixPreFabricados', { timeout: 300_000 })({ codigos });
   return preFabricadosDoPlannix(obra.lotes, resultado.data.lotes);
 }
+
+// PDFs dos pré-fabricados (The Manuscript, 01_FIRESTORE/COLECOES/obras-pre-fabricados-pdfs.md): um documento por PDF,
+// com o arquivo em obras/pre-fabricados/{obraId}/. Substituir troca o arquivo do mesmo documento (sem nova revisão).
+const PDFS_PRE_FABRICADOS = 'obras-pre-fabricados-pdfs';
+const LIMITE_PDF = 25 * 1024 * 1024;
+type Autor = { uid: string; nome: string };
+type AlvoPdf = { obraId: string; lote: string; plannix: number; item: string };
+
+export async function carregarPdfsPreFabricados(obraId: string): Promise<PdfGravado[]> {
+  const snapshot = await getDocs(query(collection(db, PDFS_PRE_FABRICADOS), where('obraId', '==', obraId)));
+  return snapshot.docs.map((item) => {
+    const d = item.data();
+    return {
+      id: item.id,
+      nome: String(d.nome ?? ''),
+      tamanho: Number(d.tamanho) || 0,
+      anexadoEm: d.anexadoEm instanceof Timestamp ? d.anexadoEm.toDate() : new Date(0),
+      anexadoPor: String(d.anexadoPor?.nome ?? ''),
+      url: null,
+      caminho: String(d.caminho ?? ''),
+      lote: String(d.lote ?? ''),
+      plannix: Number(d.plannix) || 0,
+      item: String(d.item ?? ''),
+    };
+  });
+}
+
+/** Envia o PDF para o Storage; devolve o caminho, o nome (até 200 caracteres) e o tamanho. */
+async function enviarPdf(obraId: string, arquivo: File) {
+  const ehPdf = arquivo.type === 'application/pdf' || arquivo.name.toLowerCase().endsWith('.pdf');
+  if (!ehPdf) throw new Error(`“${arquivo.name}” não é PDF.`);
+  if (arquivo.size > LIMITE_PDF) throw new Error(`“${arquivo.name}” passa de 25 MB, o limite por arquivo.`);
+  const nome = arquivo.name.slice(0, 200);
+  const caminho = `obras/pre-fabricados/${obraId}/${Date.now()}-${nome.replace(/[/\\]/g, '_')}`;
+  await uploadBytes(refArquivo(storage, caminho), arquivo, { contentType: 'application/pdf', contentDisposition: `inline; filename*=UTF-8''${encodeURIComponent(nome)}` });
+  return { caminho, nome, tamanho: arquivo.size };
+}
+
+const apagarArquivo = (caminho: string) => deleteObject(refArquivo(storage, caminho)).catch((err) => console.warn('PDF não apagado do Storage', caminho, err));
+
+/** Anexar e Revisão: um PDF novo (uma revisão a mais) no item. */
+export async function anexarPdfPreFabricado(alvo: AlvoPdf, arquivo: File, autor: Autor): Promise<void> {
+  const enviado = await enviarPdf(alvo.obraId, arquivo);
+  try {
+    await addDoc(collection(db, PDFS_PRE_FABRICADOS), { schemaVersion: 1, ...alvo, ...enviado, anexadoPor: autor, anexadoEm: serverTimestamp() });
+  } catch (err) {
+    await apagarArquivo(enviado.caminho);
+    throw err;
+  }
+}
+
+/** Substituir: o PDF atual do item passa a ser o novo arquivo, sem nova revisão; o arquivo antigo sai do Storage. */
+export async function substituirPdfPreFabricado(obraId: string, atual: PdfGravado, arquivo: File, autor: Autor): Promise<void> {
+  const enviado = await enviarPdf(obraId, arquivo);
+  try {
+    await updateDoc(doc(db, PDFS_PRE_FABRICADOS, atual.id), { ...enviado, anexadoPor: autor, anexadoEm: serverTimestamp() });
+  } catch (err) {
+    await apagarArquivo(enviado.caminho);
+    throw err;
+  }
+  await apagarArquivo(atual.caminho);
+}
+
+/** Excluir: sai das revisões e do Storage. */
+export async function excluirPdfPreFabricado(pdf: PdfGravado): Promise<void> {
+  await deleteDoc(doc(db, PDFS_PRE_FABRICADOS, pdf.id));
+  await apagarArquivo(pdf.caminho);
+}
+
+export const enderecoDoPdf = (caminho: string) => getDownloadURL(refArquivo(storage, caminho));
 
 export async function listarObras(): Promise<ObraDetalhe[]> {
   const snapshot = await getDocs(collection(db, OBRAS_V2));

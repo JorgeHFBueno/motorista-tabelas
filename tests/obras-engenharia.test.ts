@@ -17,7 +17,7 @@ import {
 } from '../src/features/obras/obrasDomain';
 import { createObraRelatorioPdf, nomeArquivoRelatorioObra } from '../src/features/obras/obraRelatorioPdf';
 import { LOCAIS_SUGERIDOS } from '../src/features/obras/locaisSugeridos';
-import { agruparPorTipo, comPdf, preFabricadosDoPlannix, resumoEtapas, revisoes, semProjeto, totalPdfs, type PreFabricado } from '../src/features/obras/preFabricados';
+import { agruparPorTipo, comPdf, comPdfsGravados, preFabricadosDoPlannix, resumoEtapas, revisoes, semProjeto, totalPdfs, type PdfGravado, type PreFabricado } from '../src/features/obras/preFabricados';
 import { coordenadaDoLote, lotesDaObra, obraFromV2 } from '../src/utils/cadastrosV2';
 
 const contrato = {
@@ -228,7 +228,16 @@ test('pré-fabricados: resposta do Plannix ligada aos LOTEs pelo Código Plannix
   const l1 = r.l1 as { itens: PreFabricado[]; origem: string };
   assert.equal(l1.origem, 'Plannix 117 · PM IBARAMA · PONTE 5,00X25,00M (LAJ. GRINGA)');
   assert.deepEqual([l1.itens[0].grupo, l1.itens[0].tipo, l1.itens[0].pecas.length, l1.itens[0].desenhos], ['PILAR', 'P01', 1, ['p01.pdf']]);
+  assert.deepEqual([l1.itens[0].id, l1.itens[0].chave], ['117|PILAR|P01', 'PILAR|P01']);
   assert.match((r.l2 as { aviso: string }).aviso, /Sem código Plannix/);
   assert.match((r.l3 as { aviso: string }).aviso, /999 não foi encontrado/);
   assert.equal((r.l4 as { origem: string }).origem, 'Plannix 200 · PM NOVA · GALERIA (sem projeto: Lançamento Final)');
 });
+
+test('pré-fabricados: PDFs gravados vão para o item do mesmo LOTE e chave "produto|nome"', () => {
+  const gravado = (id: string, lote: string, item: string): PdfGravado => ({ ...pdfItem(id, '2026-11-24T10:00:00-03:00'), caminho: `obras/pre-fabricados/o1/${id}.pdf`, lote, plannix: 112, item });
+  const itens = [{ ...preFabricado('P01', 'PILAR', ['ACABADA']), chave: 'PILAR|P01' }, { ...preFabricado('VL', 'VIGA', []), chave: 'VIGA|VL' }];
+  const r = comPdfsGravados('l1', itens, [gravado('a', 'l1', 'PILAR|P01'), gravado('b', 'l2', 'PILAR|P01'), gravado('c', 'l1', 'VIGA|VL'), gravado('d', 'l1', 'PILAR|P01')]);
+  assert.deepEqual(r.map((i) => i.pdfs.map((p) => p.id)), [['a', 'd'], ['c']]);
+});
+

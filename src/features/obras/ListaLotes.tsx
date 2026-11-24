@@ -53,17 +53,20 @@ import './listaLotes.css';
  * - item: a peça do projeto (ex.: P01 com 10 peças), com o resumo das etapas (ex.: 3 Corte e dobra · 4 Acabada);
  *   abre para mostrar os códigos de controle, cada um com a etapa e a data;
  * - sem projeto no Plannix, o item é a linha do Lançamento Final ("aguardando projeto").
- * PDF: os nomes dos desenhos no Plannix e, com `acoesPdf` (só no /testes/mki por enquanto), anexar ("Anexar PDF";
- * com PDF, "Substituir", que troca o atual sem nova revisão, e "Revisão", que anexa uma nova) e as Revisões.
+ * PDF: os nomes dos desenhos no Plannix e os PDFs anexados (Revisões: quem anexou e quando). Com `acoesPdf.anexar`
+ * (quem edita), "Anexar PDF"; com PDF, "Substituir", que troca o atual sem nova revisão, e "Revisão", que anexa uma
+ * nova; com `acoesPdf.excluir`, excluir nas Revisões. Item sem projeto no Plannix não recebe PDF (o item muda de nome
+ * quando o projeto é cadastrado).
  * `itens: null` = sem pré-fabricados para mostrar; `aviso` diz o motivo (carregando, sem código Plannix, erro).
  */
 
 export type LoteComPreFabricados = LoteObra & { itens: PreFabricado[] | null; aviso?: string; origem?: string };
 export type ModoPdf = 'anexar' | 'substituir' | 'revisao';
 export type AcoesPdf = {
-  anexar: (alvo: { lote: string; item: string }, modo: ModoPdf, arquivo: File) => void;
   abrir: (pdf: PdfPreFabricado) => void;
-  excluir: (pdf: PdfPreFabricado) => void;
+  /** Sem anexar/excluir (área em "ver"), só abre e mostra as Revisões. */
+  anexar?: (alvo: { lote: string; item: string }, modo: ModoPdf, arquivo: File) => void;
+  excluir?: (pdf: PdfPreFabricado) => void;
 };
 /** O que a janela de Revisões mostra: um item, ou todos os itens de um grupo de Tipo recolhido. */
 type AlvoRevisoes = { lote: string; itens: string[]; titulo: string };
@@ -148,7 +151,7 @@ export default function ListaLotes({ lotes, acoesPdf }: { lotes: LoteComPreFabri
   function anexar(arquivo: File | undefined) {
     const escolha = anexarEm.current;
     if (entrada.current) entrada.current.value = '';
-    if (!arquivo || !escolha || !acoesPdf) return;
+    if (!arquivo || !escolha || !acoesPdf?.anexar) return;
     if (arquivo.type !== 'application/pdf' && !arquivo.name.toLowerCase().endsWith('.pdf')) {
       setAviso('Só arquivos PDF.');
       return;
@@ -236,11 +239,11 @@ export default function ListaLotes({ lotes, acoesPdf }: { lotes: LoteComPreFabri
                           {linha.aberto ? <TableCell colSpan={3} /> : (
                             <>
                               <TableCell>
-                                {acoesPdf && <Typography variant="body2" color="text.secondary">{`${comPdf(linha.itens)} de ${linha.itens.length} com PDF`}</Typography>}
+                                {(acoesPdf?.anexar || totalPdfs(linha.itens) > 0) && <Typography variant="body2" color="text.secondary">{`${comPdf(linha.itens)} de ${linha.itens.length} com PDF`}</Typography>}
                               </TableCell>
                               <TableCell><ResumoEtapas itens={linha.itens} /></TableCell>
                               <TableCell align="center">
-                                {(acoesPdf || totalPdfs(linha.itens) > 0) && (
+                                {(acoesPdf?.anexar || totalPdfs(linha.itens) > 0) && (
                                   <BotaoRevisoes
                                     quantidade={totalPdfs(linha.itens)}
                                     rotulo={`Revisões de ${linha.nome} do ${lote.nome}`}
@@ -300,7 +303,7 @@ export default function ListaLotes({ lotes, acoesPdf }: { lotes: LoteComPreFabri
                         </TableCell>
                         <TableCell>
                           {item.desenhos.length > 0 && (
-                            <Stack direction="row" spacing={0.5} flexWrap="wrap" useFlexGap sx={{ mb: acoesPdf ? 0.5 : 0 }}>
+                            <Stack direction="row" spacing={0.5} flexWrap="wrap" useFlexGap sx={{ mb: 0.5 }}>
                               {item.desenhos.map((nome) => (
                                 <Tooltip key={nome} title="Desenho no Plannix (a API só informa o nome)">
                                   <Chip size="small" icon={<PictureAsPdfOutlinedIcon />} label={nome} variant="outlined" sx={{ maxWidth: 230 }} />
@@ -321,7 +324,7 @@ export default function ListaLotes({ lotes, acoesPdf }: { lotes: LoteComPreFabri
                                   sx={{ maxWidth: 230 }}
                                 />
                               </Tooltip>
-                              {acoesPdf && (
+                              {acoesPdf?.anexar && (
                                 <>
                                   <Tooltip title="Trocar o PDF atual por outro (não cria revisão)">
                                     <Button size="small" onClick={() => escolherPdf(alvo, 'substituir')} aria-label={`Substituir o PDF do ${rotuloItem}`}>Substituir</Button>
@@ -332,7 +335,7 @@ export default function ListaLotes({ lotes, acoesPdf }: { lotes: LoteComPreFabri
                                 </>
                               )}
                             </Stack>
-                          ) : acoesPdf ? (
+                          ) : acoesPdf?.anexar && item.pecas.length > 0 ? (
                             <Button size="small" startIcon={<UploadFileOutlinedIcon />} onClick={() => escolherPdf(alvo, 'anexar')} aria-label={`Anexar PDF ao ${rotuloItem}`}>
                               Anexar PDF
                             </Button>
@@ -340,7 +343,7 @@ export default function ListaLotes({ lotes, acoesPdf }: { lotes: LoteComPreFabri
                         </TableCell>
                         <TableCell><ResumoEtapas itens={[item]} /></TableCell>
                         <TableCell align="center">
-                          {(acoesPdf || item.pdfs.length > 0) && (
+                          {((acoesPdf?.anexar && item.pecas.length > 0) || item.pdfs.length > 0) && (
                             <BotaoRevisoes
                               quantidade={item.pdfs.length}
                               rotulo={`Revisões do ${rotuloItem}`}
@@ -375,7 +378,7 @@ export default function ListaLotes({ lotes, acoesPdf }: { lotes: LoteComPreFabri
                     <ListItem
                       key={pdf.id}
                       divider
-                      secondaryAction={acoesPdf && (
+                      secondaryAction={acoesPdf?.excluir && (
                         <Tooltip title="Excluir PDF">
                           <IconButton edge="end" onClick={() => setExcluir(pdf)} aria-label={`Excluir ${pdf.nome}`}>
                             <DeleteOutlineIcon />
@@ -419,7 +422,7 @@ export default function ListaLotes({ lotes, acoesPdf }: { lotes: LoteComPreFabri
             color="error"
             variant="contained"
             onClick={() => {
-              if (excluir && acoesPdf) acoesPdf.excluir(excluir);
+              if (excluir && acoesPdf?.excluir) acoesPdf.excluir(excluir);
               setExcluir(null);
             }}
           >
