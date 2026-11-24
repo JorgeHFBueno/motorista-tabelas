@@ -16,19 +16,11 @@ export function nomeCapitalizado(nome: string): string {
   }).join(' ');
 }
 
-/* Nome já com maiúsculas e minúsculas: alguém o escreveu assim (a própria pessoa, em Meu perfil), então só "Da", "Dos" e as
- * outras partículas descem ("Gilson Da Silva Dos Santos" vira "Gilson da Silva dos Santos"); o resto fica como está. */
-const particulasMinusculas = (nome: string) =>
-  nome.replace(/(?<=\S\s+)\S+/g, (palavra) => {
-    const p = palavra.toLocaleLowerCase(PT);
-    return PARTICULAS.has(p) ? p : palavra;
-  });
-
-/** O nome corrigido, ou null quando fica como está. Nome todo em maiúsculas ou todo em minúsculas segue a regra inteira; nos
- *  outros só as partículas descem. E-mail no lugar do nome fica. */
+/** O nome corrigido, ou null quando fica como está. Só muda nome todo em maiúsculas ou todo em minúsculas: com as duas, alguém
+ *  o escreveu assim (a própria pessoa, em Meu perfil). E-mail no lugar do nome também fica. */
 export function nomeACorrigir(nome: unknown): string | null {
   if (typeof nome !== 'string' || nome.includes('@')) return null;
-  const misto = nome !== nome.toLocaleUpperCase(PT) && nome !== nome.toLocaleLowerCase(PT);
-  const novo = misto ? particulasMinusculas(nome) : nomeCapitalizado(nome);
+  if (nome !== nome.toLocaleUpperCase(PT) && nome !== nome.toLocaleLowerCase(PT)) return null;
+  const novo = nomeCapitalizado(nome);
   return novo !== nome ? novo : null;
 }

@@ -18,15 +18,11 @@ test('accents stay, hyphen and apostrophe raise the next letter, II/III/IV stay 
   assert.equal(nomeCapitalizado('  LUCAS   MOREIRA COSTA '), 'Lucas Moreira Costa');
 });
 
-test('names all in uppercase or all in lowercase follow the whole rule; in mixed-case names only the particles go lowercase', () => {
+test('only names all in uppercase or all in lowercase change', () => {
   assert.equal(nomeACorrigir('JOÃO PEREIRA DE LIMA'), 'João Pereira de Lima');
   assert.equal(nomeACorrigir('joão da silva'), 'João da Silva');
   assert.equal(nomeACorrigir('Pedro Alves Rodrigues'), null);
-  assert.equal(nomeACorrigir('Paulo Dos Reis'), 'Paulo dos Reis');
-  assert.equal(nomeACorrigir('Marcos Da Costa Dos Reis'), 'Marcos da Costa dos Reis');
-  assert.equal(nomeACorrigir('Ana  Da Luz'), 'Ana  da Luz');
-  assert.equal(nomeACorrigir('Dos Santos Moreira'), null);
-  assert.equal(nomeACorrigir('CARLOS Moreira De Souza'), 'CARLOS Moreira de Souza');
+  assert.equal(nomeACorrigir('Paulo Dos Reis'), null);
   assert.equal(nomeACorrigir('pessoa@example.com'), null);
   assert.equal(nomeACorrigir('51999999999'), null);
   assert.equal(nomeACorrigir(undefined), null);

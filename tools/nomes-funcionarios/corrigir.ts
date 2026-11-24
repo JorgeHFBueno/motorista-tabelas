@@ -1,7 +1,6 @@
 /* Nomes das pessoas com só a primeira letra de cada palavra maiúscula ("JOÃO PEREIRA DE LIMA" vira "João Pereira de Lima"),
  * em funcionarios/{uid}.nome e no nome da conta de login (displayName), que andam juntos (Meu perfil grava os dois). Regra em
- * ./regra.ts: refaz nome todo em maiúsculas ou todo em minúsculas; nos já escritos com as duas, só "Da", "Dos" e afins descem.
- * Pedido de 2026-11-23.
+ * ./regra.ts: só muda nome todo em maiúsculas ou todo em minúsculas. Pedido de 2026-11-23.
  *
  * Empacotar (da pasta do repositório WEB):
  *   npx esbuild tools/nomes-funcionarios/corrigir.ts --bundle --platform=node --format=esm --outfile=<scratchpad>/nomes.mjs
