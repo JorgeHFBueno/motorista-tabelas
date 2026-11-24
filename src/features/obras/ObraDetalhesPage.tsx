@@ -28,19 +28,16 @@ import {
   carregarNomesMestres,
   carregarObra,
   anexarPdfPreFabricado,
-  carregarObrasPlannix,
   carregarPdfsPreFabricados,
   carregarPreFabricados,
   enderecoDoPdf,
   excluirPdfPreFabricado,
-  gravarCodigoPlannix,
   substituirPdfPreFabricado,
   gravarCampoObra,
   locaisDosLotes,
 } from './obrasData';
 import CampoEditavel from './CampoEditavelObra';
 import ListaLotes, { type AcoesPdf } from './ListaLotes';
-import { sugerirCodigos, type ObraPlannix } from './codigoPlannix';
 import { comPdfsGravados, maisRecente, type PdfGravado, type PreFabricadosDoLote } from './preFabricados';
 import { useAuth } from '../../contexts/AuthContext';
 import { editaArea } from '../../services/credenciais';
@@ -136,8 +133,6 @@ export default function ObraDetalhesPage() {
   const [preFabricados, setPreFabricados] = useState<Estado<Record<string, PreFabricadosDoLote>>>(CARREGANDO);
   // PDFs anexados aos pré-fabricados (obras-pre-fabricados-pdfs); recarregados depois de anexar, substituir ou excluir.
   const [pdfs, setPdfs] = useState<PdfGravado[]>([]);
-  // Cadastro de obras do Plannix, para a coluna Código Plannix (sugestão e escolha); null enquanto carrega.
-  const [obrasPlannix, setObrasPlannix] = useState<ObraPlannix[] | null>(null);
   const [salvandoCampo, setSalvandoCampo] = useState(false);
   const [gerando, setGerando] = useState(false);
   const [snackbar, setSnackbar] = useState<{ open: boolean; severity: 'success' | 'error'; message: string }>({ open: false, severity: 'success', message: '' });
@@ -163,9 +158,6 @@ export default function ObraDetalhesPage() {
         parte(carregarAtividadesDaObra(encontrada.id).then(veiculosNaObra), setVeiculos, ativo, 'veículos');
         parte(carregarCombustivelDaObra(encontrada.id).then(resumirCombustivel), setCombustivel, ativo, 'combustível');
         parte(carregarPreFabricados(encontrada), setPreFabricados, ativo, 'pré-fabricados');
-        carregarObrasPlannix()
-          .then((lista) => { if (ativo()) setObrasPlannix(lista); })
-          .catch((err) => { console.error('Erro ao carregar as obras do Plannix', err); if (ativo()) setObrasPlannix([]); });
         carregarPdfsPreFabricados(encontrada.id)
           .then((lista) => { if (ativo()) setPdfs(lista); })
           .catch((err) => console.error('Erro ao carregar os PDFs dos pré-fabricados', err));
@@ -221,17 +213,17 @@ export default function ObraDetalhesPage() {
     },
     ...(podeEditar && obra ? {
       anexar: ({ lote, item }, modo, arquivo) => {
-        const doLote = obra.lotes.find((l) => l.chave === lote);
         const dados = preFabricados.status === 'ok' ? preFabricados.data[lote] : undefined;
-        const alvo = dados && 'itens' in dados ? dados.itens.find((i) => i.id === item) : undefined;
-        if (!doLote?.plannix || !alvo?.chave) return;
+        const doLote = dados && 'itens' in dados ? dados : undefined;
+        const alvo = doLote?.itens.find((i) => i.id === item);
+        if (!doLote || !alvo?.chave) return;
         const atual = maisRecente(pdfs.filter((pdf) => pdf.lote === lote && pdf.item === alvo.chave));
         const gravadoAtual = atual ? gravados(atual.id) : undefined;
         if (modo === 'substituir' && gravadoAtual) {
           void comPdf(() => substituirPdfPreFabricado(obra.id, gravadoAtual, arquivo, autor), `PDF substituído por ${arquivo.name}.`);
           return;
         }
-        void comPdf(() => anexarPdfPreFabricado({ obraId: obra.id, lote, plannix: doLote.plannix!, item: alvo.chave! }, arquivo, autor),
+        void comPdf(() => anexarPdfPreFabricado({ obraId: obra.id, lote, plannix: doLote.plannix, item: alvo.chave! }, arquivo, autor),
           modo === 'revisao' ? `${arquivo.name} anexado como nova revisão.` : `${arquivo.name} anexado.`);
       },
       excluir: (pdf) => {
@@ -240,29 +232,6 @@ export default function ObraDetalhesPage() {
       },
     } : {}),
   };
-
-  /** Coluna Código Plannix: grava `lotes.{id}.plannix` e busca de novo os pré-fabricados da obra. */
-  async function gravarPlannix(lote: string, codigo: number | null): Promise<boolean> {
-    if (!obra) return false;
-    try {
-      await gravarCodigoPlannix(obra.id, lote, codigo);
-    } catch (err) {
-      console.error('Erro ao gravar o código Plannix', err);
-      setSnackbar({ open: true, severity: 'error', message: 'Não foi possível gravar o código Plannix. Tente novamente.' });
-      return false;
-    }
-    const atualizada = { ...obra, lotes: obra.lotes.map((l) => (l.chave === lote ? { ...l, plannix: codigo } : l)) };
-    setObra(atualizada);
-    setSnackbar({ open: true, severity: 'success', message: codigo == null ? 'Código Plannix retirado.' : `Código Plannix ${codigo} salvo.` });
-    setPreFabricados(CARREGANDO);
-    parte(carregarPreFabricados(atualizada), setPreFabricados, () => true, 'pré-fabricados');
-    return true;
-  }
-  const codigoPlannix = obra ? {
-    obras: obrasPlannix,
-    sugestoes: obrasPlannix ? sugerirCodigos(obra.nomeObra, obra.lotes, obrasPlannix) : {},
-    gravar: podeEditar ? gravarPlannix : undefined,
-  } : undefined;
 
   const partes = [medicoes, mestres, veiculos, combustivel];
   const carregandoPartes = partes.some((item) => item.status === 'carregando');
@@ -360,7 +329,7 @@ export default function ObraDetalhesPage() {
 
         <Typography variant="body2" color="text.secondary" sx={{ mt: 2.5, mb: 1 }}>LOTEs</Typography>
         {obra.lotes.length ? (
-          // Pré-fabricados de cada LOTE, do Plannix pelo Código Plannix do LOTE (carregarPreFabricados).
+          // Pré-fabricados de cada LOTE, do Plannix pelo Nº Pedido do LOTE no Friday (carregarPreFabricados).
           <ListaLotes
             lotes={obra.lotes.map((lote) => {
               if (preFabricados.status === 'carregando') return { ...lote, itens: null, aviso: 'Carregando os pré-fabricados do Plannix…' };
@@ -371,12 +340,11 @@ export default function ObraDetalhesPage() {
                 : { ...lote, itens: null, aviso: doLote?.aviso };
             })}
             acoesPdf={acoesPdf}
-            codigoPlannix={codigoPlannix}
           />
         ) : <Vazio>Sem LOTEs cadastrados.</Vazio>}
 
         <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 2 }}>
-          O cadastro da obra é feito no Friday (quadro GESTÃO DE OBRAS); aqui se editam só o local, o sinônimo, o Código Plannix dos LOTEs e os PDFs dos pré-fabricados.
+          O cadastro da obra é feito no Friday (quadro GESTÃO DE OBRAS); aqui se editam só o local, o sinônimo e os PDFs dos pré-fabricados.
         </Typography>
       </Paper>
 

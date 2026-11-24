@@ -19,7 +19,7 @@ import {
 import ScienceRounded from '@mui/icons-material/ScienceRounded';
 import CampoEditavel from '../../obras/CampoEditavelObra';
 import ListaLotes, { type AcoesPdf, type LoteComPreFabricados } from '../../obras/ListaLotes';
-import { maisRecente, type PdfPreFabricado, type PreFabricado } from '../../obras/preFabricados';
+import { maisRecente, SEM_PEDIDO, type PdfPreFabricado, type PreFabricado } from '../../obras/preFabricados';
 import { useAuth } from '../../../contexts/AuthContext';
 import './mki.css';
 
@@ -58,8 +58,8 @@ const item = (id: string, grupo: string, tipo: string, lista: ReturnType<typeof 
 
 const LOTES_INICIAIS: LoteComPreFabricados[] = [
   {
-    chave: 'l1', plannix: 301, nome: 'LOTE 1 - LINHA SÃO JOSÉ - (6,00X10,00M) - PONTE', status: 'Em execução', coordenada: { lat: -29.3359, lng: -53.0532 },
-    origem: 'Plannix 301 · PM ARROIO DO TIGRE · PONTE 6,00X10,00M',
+    chave: 'l1', nome: 'LOTE 1 - LINHA SÃO JOSÉ - (6,00X10,00M) - PONTE', status: 'Em execução', coordenada: { lat: -29.3359, lng: -53.0532 },
+    origem: 'Pedido 951 · Plannix 301 · PM ARROIO DO TIGRE · PONTE 6,00X10,00M',
     itens: [
       item('f1', 'PILAR', 'P01', pecas(1376222, 10, ['CORTE DOBRA', 'CORTE DOBRA', 'CORTE DOBRA', 'ACABADA', 'ACABADA', 'ACABADA', 'ACABADA', 'EXPEDIDA', 'EXPEDIDA', 'EXPEDIDA']), {
         desenhos: ['P01-pilar-rev1.pdf'],
@@ -73,19 +73,19 @@ const LOTES_INICIAIS: LoteComPreFabricados[] = [
     ],
   },
   {
-    chave: 'l2', plannix: 302, nome: 'LOTE 2 - SÍTIO ALTO - BUEIRO CELULAR 2,00X2,00M', status: 'Em execução', coordenada: { lat: -29.3051, lng: -53.0917 },
-    origem: 'Plannix 302 · PM ARROIO DO TIGRE · GALERIA 2,00X2,00M',
+    chave: 'l2', nome: 'LOTE 2 - SÍTIO ALTO - BUEIRO CELULAR 2,00X2,00M', status: 'Em execução', coordenada: { lat: -29.3051, lng: -53.0917 },
+    origem: 'Pedido 952 · Plannix 302 · PM ARROIO DO TIGRE · GALERIA 2,00X2,00M',
     itens: [item('f4', 'GALERIA', 'GAL 2,00X2,00', pecas(1376400, 8, ['PROJETADA', 'PROGRAMADA']), { pdfs: [pdf('p5', 'LF_LOTE2_galeria.pdf', 845, '2026-11-04T08:20:00-03:00', 'Rafael Dornelles')] })],
   },
   {
-    chave: 'l3', plannix: 303, nome: 'LOTE 3 - CORREDEIRA - (7,60X12,00M) - PONTE', status: 'Revisar escopo', coordenada: { lat: -29.3712, lng: -53.0204 },
-    origem: 'Plannix 303 · PM ARROIO DO TIGRE · PONTE 7,60X12,00M (sem projeto: Lançamento Final)',
+    chave: 'l3', nome: 'LOTE 3 - CORREDEIRA - (7,60X12,00M) - PONTE', status: 'Revisar escopo', coordenada: { lat: -29.3712, lng: -53.0204 },
+    origem: 'Pedido 953 · Plannix 303 · PM ARROIO DO TIGRE · PONTE 7,60X12,00M (sem projeto: Lançamento Final)',
     itens: [
       { id: 'f6', grupo: 'VIGA', tipo: 'RETANGULAR · 25X70 · 12 m', quantidade: 4, pecas: [], desenhos: [], pdfs: [] },
       { id: 'f7', grupo: 'VIGOTA', tipo: 'TRELICADA · TR16 - 20CM · 1,35 m', quantidade: 24, pecas: [], desenhos: [], pdfs: [] },
     ],
   },
-  { chave: 'l4', plannix: null, nome: 'LOTE 4 - ACESSO CENTRO - PAVIMENTAÇÃO', status: '', coordenada: null, itens: null, aviso: 'Sem código Plannix: preencha a coluna Código Plannix deste LOTE no Friday (GESTÃO DE OBRAS).' },
+  { chave: 'l4', nome: 'LOTE 4 - ACESSO CENTRO - PAVIMENTAÇÃO', status: '', coordenada: null, itens: null, aviso: SEM_PEDIDO },
 ];
 
 function Campo({ rotulo, valor }: { rotulo: string; valor: ReactNode }) {
@@ -210,7 +210,7 @@ export default function TesteMkiPage() {
           <ListaLotes lotes={lotes} acoesPdf={acoesPdf} />
 
           <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 2 }}>
-            O cadastro da obra é feito no Friday (quadro GESTÃO DE OBRAS); aqui se editam só o local, o sinônimo, o Código Plannix dos LOTEs e os PDFs dos pré-fabricados.
+            O cadastro da obra é feito no Friday (quadro GESTÃO DE OBRAS); aqui se editam só o local, o sinônimo e os PDFs dos pré-fabricados.
           </Typography>
         </Paper>
 

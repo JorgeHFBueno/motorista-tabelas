@@ -86,8 +86,8 @@ export function coordenadaDoLote(value: unknown): Coordenada | null {
     && Math.abs(lat) <= 90 && Math.abs(lng) <= 180 ? { lat, lng } : null;
 }
 
-/** LOTE de uma obra de `obras-v2` (`lotes.{chave}`); `plannix`: código da obra do LOTE no Plannix (coluna do Friday). */
-export interface LoteV2 { chave: string; nome: string; status: string; coordenada: Coordenada | null; plannix: number | null }
+/** LOTE de uma obra de `obras-v2` (`lotes.{chave}`). */
+export interface LoteV2 { chave: string; nome: string; status: string; coordenada: Coordenada | null }
 
 /** LOTEs ativos da obra, na ordem do campo `ordem` (empate pela chave); sem os arquivados ou na lixeira do Friday (`situacao`). */
 export function lotesDaObra(lotes: unknown): LoteV2[] {
@@ -102,7 +102,6 @@ export function lotesDaObra(lotes: unknown): LoteV2[] {
       nome: text(raw.nome) || chave,
       status: text(raw.status),
       coordenada: coordenadaDoLote(raw.coordenada),
-      plannix: typeof raw.plannix === 'number' && Number.isInteger(raw.plannix) && raw.plannix > 0 ? raw.plannix : null,
     }));
 }
 

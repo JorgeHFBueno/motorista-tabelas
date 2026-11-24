@@ -1,4 +1,4 @@
-import { addDoc, collection, deleteDoc, doc, FieldPath, getDoc, getDocs, query, serverTimestamp, Timestamp, updateDoc, where } from 'firebase/firestore';
+import { addDoc, collection, deleteDoc, doc, getDoc, getDocs, query, serverTimestamp, Timestamp, updateDoc, where } from 'firebase/firestore';
 import { deleteObject, getDownloadURL, ref as refArquivo, uploadBytes } from 'firebase/storage';
 import { db, storage } from '../../firebase';
 import { normalizarAtividade, type AtividadeV2 } from '../../services/atividade-normalizer';
@@ -13,8 +13,7 @@ import { localDaCidade, obraDetalheFromV2, type AlocacaoObra, type CampoEditavel
 import { LOCAIS_SUGERIDOS } from './locaisSugeridos';
 import { httpsCallable } from 'firebase/functions';
 import { functions } from '../../firebase';
-import type { ObraPlannix } from './codigoPlannix';
-import { preFabricadosDoPlannix, SEM_CODIGO_PLANNIX, type LotePlannix, type PdfGravado, type PreFabricadosDoLote } from './preFabricados';
+import { preFabricadosDoPlannix, type LotePlannix, type PdfGravado, type PreFabricadosDoLote } from './preFabricados';
 import { localDoMaps } from '../cronograma-logistica/data/logisticaFirestore';
 import { linkDoMapa } from '../cronograma-logistica/domain/local';
 
@@ -22,24 +21,12 @@ const OBRAS_V2 = 'obras-v2';
 
 /**
  * Pré-fabricados de cada LOTE da obra (chave do LOTE → itens ou aviso), lidos do Plannix pela Function
- * plannixPreFabricados (a chave da API fica num secret). Só os LOTEs com Código Plannix são consultados, numa chamada.
+ * plannixPreFabricados (a chave da API fica num secret): ela lê o Nº Pedido de cada LOTE no Friday e acha a obra do
+ * Plannix com o mesmo Cód. Auxiliar.
  */
-export async function carregarPreFabricados(obra: Pick<ObraDetalhe, 'lotes'>): Promise<Record<string, PreFabricadosDoLote>> {
-  const codigos = [...new Set(obra.lotes.flatMap((lote) => (lote.plannix == null ? [] : [lote.plannix])))];
-  if (!codigos.length) return Object.fromEntries(obra.lotes.map((lote) => [lote.chave, { aviso: SEM_CODIGO_PLANNIX }]));
-  const resultado = await httpsCallable<{ codigos: number[] }, { lotes: LotePlannix[] }>(functions, 'plannixPreFabricados', { timeout: 300_000 })({ codigos });
+export async function carregarPreFabricados(obra: Pick<ObraDetalhe, 'id' | 'lotes'>): Promise<Record<string, PreFabricadosDoLote>> {
+  const resultado = await httpsCallable<{ obraId: string }, { lotes: LotePlannix[] }>(functions, 'plannixPreFabricados', { timeout: 300_000 })({ obraId: obra.id });
   return preFabricadosDoPlannix(obra.lotes, resultado.data.lotes);
-}
-
-/** Cadastro de obras do Plannix (Function plannixObras), para sugerir e escolher o Código Plannix dos LOTEs. */
-export async function carregarObrasPlannix(): Promise<ObraPlannix[]> {
-  const resultado = await httpsCallable<void, { obras: ObraPlannix[] }>(functions, 'plannixObras', { timeout: 60_000 })();
-  return resultado.data.obras;
-}
-
-/** Grava só `lotes.{lote}.plannix` (null tira o código); as Rules deixam a Engenharia mudar só esse campo de um LOTE. */
-export function gravarCodigoPlannix(obraId: string, lote: string, codigo: number | null): Promise<void> {
-  return updateDoc(doc(db, OBRAS_V2, obraId), new FieldPath('lotes', lote, 'plannix'), codigo);
 }
 
 // PDFs dos pré-fabricados (The Manuscript, 01_FIRESTORE/COLECOES/obras-pre-fabricados-pdfs.md): um documento por PDF,

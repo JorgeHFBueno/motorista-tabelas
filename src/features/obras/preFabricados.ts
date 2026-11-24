@@ -1,7 +1,7 @@
 // Pré-fabricados de cada LOTE no detalhe da obra (/engenharia/obras/:id), vindos do Plannix pela Function
 // plannixPreFabricados: cada item é uma peça do projeto (ex.: P01) com os códigos de controle das peças e a etapa de
-// produção de cada uma; sem projeto, as linhas do Lançamento Final. Os PDFs e as revisões anexados na tela ainda só
-// existem no /testes/mki. The Manuscript, 03_APLICACAO_WEB/07_ENGENHARIA_E_CRONOOBRA.md#obras.
+// produção de cada uma; sem projeto, as linhas do Lançamento Final. O LOTE se liga à obra do Plannix pelo Nº Pedido do
+// Friday (= Cód. Auxiliar no Plannix). The Manuscript, 03_APLICACAO_WEB/07_ENGENHARIA_E_CRONOOBRA.md#obras.
 
 /** `caminho`: o arquivo no Storage (PDFs gravados); `url`: o endereço já pronto (PDFs do /testes/mki, em memória). */
 export type PdfPreFabricado = { id: string; nome: string; tamanho: number; anexadoEm: Date; anexadoPor: string; url: string | null; caminho?: string };
@@ -94,10 +94,14 @@ export function agruparPorTipo(itens: PreFabricado[]): { nome: string; itens: Pr
 /** Resposta da Function plannixPreFabricados (mesmo formato de functions/plannixPreFabricados.ts). */
 export type ItemPlannix = { produto: string; nome: string; secao: string; pecas: PecaPreFabricado[]; quantidade: number; desenhos: string[] };
 export type LotePlannix =
-  | { codigo: number; sigla: string; nome: string; projeto: boolean; itens: ItemPlannix[] }
-  | { codigo: number; erro: string };
-/** O que a lista mostra em cada LOTE: os itens e de onde vieram, ou o aviso de por que não há itens. */
-export type PreFabricadosDoLote = { itens: PreFabricado[]; origem: string } | { aviso: string };
+  | { lote: string; pedido: string; codigo: number; sigla: string; nome: string; projeto: boolean; itens: ItemPlannix[] }
+  | { lote: string; pedido: string; erro: 'nao-encontrada' }
+  | { lote: string; pedido: string; erro: 'duplicada'; codigos: number[] };
+/**
+ * O que a lista mostra em cada LOTE: os itens, de onde vieram e o código da obra no Plannix (gravado com os PDFs), ou o
+ * aviso de por que não há itens.
+ */
+export type PreFabricadosDoLote = { itens: PreFabricado[]; origem: string; plannix: number } | { aviso: string };
 
 /** Chave do item do Plannix gravada com o PDF. */
 export const chaveDoItem = (produto: string, nome: string) => `${produto}|${nome}`;
@@ -110,16 +114,23 @@ export function comPdfsGravados(lote: string, itens: PreFabricado[], pdfs: PdfGr
   return itens.map((item) => ({ ...item, pdfs: pdfs.filter((pdf) => pdf.lote === lote && pdf.item === item.chave) }));
 }
 
-export const SEM_CODIGO_PLANNIX = 'Sem código Plannix: escolha a obra do Plannix na coluna Código Plannix.';
+export const SEM_PEDIDO = 'Sem Nº Pedido: preencha a coluna "Nº Pedido/Cód. Auxiliar" deste LOTE no Friday (GESTÃO DE OBRAS).';
 
-/** Junta a resposta do Plannix aos LOTEs pela coluna Código Plannix (`lotes.{id}.plannix`). */
-export function preFabricadosDoPlannix(lotes: { chave: string; plannix: number | null }[], resposta: LotePlannix[]): Record<string, PreFabricadosDoLote> {
-  const porCodigo = new Map(resposta.map((lote) => [lote.codigo, lote]));
-  return Object.fromEntries(lotes.map((lote) => {
-    const doPlannix = lote.plannix == null ? undefined : porCodigo.get(lote.plannix);
-    if (lote.plannix == null) return [lote.chave, { aviso: SEM_CODIGO_PLANNIX }];
-    if (!doPlannix || 'erro' in doPlannix) return [lote.chave, { aviso: `O código Plannix ${lote.plannix} não foi encontrado no Plannix. Confira a coluna Código Plannix.` }];
-    const origem = `Plannix ${doPlannix.codigo} · ${doPlannix.sigla} · ${doPlannix.nome}${doPlannix.projeto ? '' : ' (sem projeto: Lançamento Final)'}`;
+/**
+ * Junta a resposta do Plannix aos LOTEs: cada LOTE se liga à obra do Plannix pelo Nº Pedido do Friday, que é o mesmo
+ * número do Cód. Auxiliar da obra no Plannix.
+ */
+export function preFabricadosDoPlannix(lotes: { chave: string }[], resposta: LotePlannix[]): Record<string, PreFabricadosDoLote> {
+  const porLote = new Map(resposta.map((lote) => [lote.lote, lote]));
+  return Object.fromEntries(lotes.map((lote): [string, PreFabricadosDoLote] => {
+    const doPlannix = porLote.get(lote.chave);
+    if (!doPlannix) return [lote.chave, { aviso: SEM_PEDIDO }];
+    if ('erro' in doPlannix) {
+      return [lote.chave, { aviso: doPlannix.erro === 'duplicada'
+        ? `O pedido ${doPlannix.pedido} está no Cód. Auxiliar de mais de uma obra do Plannix (${doPlannix.codigos.join(', ')}): deixe só na obra deste LOTE.`
+        : `Pedido ${doPlannix.pedido} sem obra no Plannix: preencha o Cód. Auxiliar da obra deste LOTE no Plannix com ${doPlannix.pedido}.` }];
+    }
+    const origem = `Pedido ${doPlannix.pedido} · Plannix ${doPlannix.codigo} · ${doPlannix.sigla} · ${doPlannix.nome}${doPlannix.projeto ? '' : ' (sem projeto: Lançamento Final)'}`;
     const vistos = new Set<string>();
     const itens = doPlannix.itens.map((item, indice): PreFabricado => {
       const chave = chaveDoItem(item.produto, item.nome);
@@ -127,7 +138,6 @@ export function preFabricadosDoPlannix(lotes: { chave: string; plannix: number |
       vistos.add(chave);
       return { id, chave, grupo: item.produto, tipo: item.nome, quantidade: item.quantidade, pecas: item.pecas, desenhos: item.desenhos, pdfs: [] };
     });
-    return [lote.chave, { itens, origem }];
+    return [lote.chave, { itens, origem, plannix: doPlannix.codigo }];
   }));
 }
-

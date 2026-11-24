@@ -4,16 +4,17 @@ import { db } from './firebaseAdmin.js';
 import { veArea } from './credenciais.js';
 
 // Pré-fabricados de cada LOTE no detalhe da obra (WEB /engenharia/obras/:id), lidos do Plannix (sistema de produção da
-// fábrica). No Plannix, cada LOTE nosso é uma "obra" própria; o LOTE guarda o código dela em `obras-v2.lotes.{id}.plannix`
-// (coluna "Código Plannix" dos subitens do GESTÃO DE OBRAS no Friday). Para cada código: as peças do projeto agrupadas
-// pelo nome (ex.: P01 com 10 peças), cada uma com o código de controle e a etapa atual; sem projeto cadastrado, as linhas
-// do Lançamento Final. A chave da API fica no secret PLANNIX_API_KEY (nunca no navegador).
+// fábrica). No Plannix, cada LOTE nosso é uma "obra" própria, ligada pelo número do pedido: a coluna "Nº Pedido/Cód.
+// Auxiliar" dos LOTEs no Friday (subitens do GESTÃO DE OBRAS) tem o mesmo número que o "Cód. Auxiliar" (`codAuxiliarObra`)
+// da obra no Plannix, preenchido à mão lá. Para cada LOTE ligado: as peças do projeto agrupadas pelo nome (ex.: P01 com
+// 10 peças), cada uma com o código de controle e a etapa atual; sem projeto cadastrado, as linhas do Lançamento Final.
+// A chave da API fica no secret PLANNIX_API_KEY (nunca no navegador).
 // Contrato: The Manuscript, 02_APIS_FUNCTIONS/05_PLANNIX.md.
 type AnyRecord = Record<string, any>;
 
 export const plannixApiKey = defineSecret('PLANNIX_API_KEY');
 const BASE = 'https://api.plannix.com.br/public/v1/bi';
-const MAX_CODIGOS = 30;
+const MAX_LOTES = 30;
 const MAX_DESENHOS = 80;
 
 export type PecaPlannix = { codigo: string; etapa: string; data: string | null };
@@ -28,12 +29,16 @@ export type ItemPlannix = {
   /** Nomes dos desenhos (PDF) anexados à primeira peça no Plannix; a API não entrega o arquivo. */
   desenhos: string[];
 };
+/** Por LOTE da obra que tem Nº Pedido no Friday; `erro`: nenhuma obra do Plannix com esse Cód. Auxiliar, ou mais de uma. */
 export type LotePlannix =
-  | { codigo: number; sigla: string; nome: string; projeto: boolean; itens: ItemPlannix[] }
-  | { codigo: number; erro: 'nao-encontrada' };
+  | { lote: string; pedido: string; codigo: number; sigla: string; nome: string; projeto: boolean; itens: ItemPlannix[] }
+  | { lote: string; pedido: string; erro: 'nao-encontrada' }
+  | { lote: string; pedido: string; erro: 'duplicada'; codigos: number[] };
 
 export interface PlannixStore {
   getEmployee(uid: string): Promise<AnyRecord | undefined>;
+  /** Nº Pedido de cada LOTE da obra (chave do LOTE → célula da coluna "Nº Pedido/Cód. Auxiliar" no Friday). */
+  getPedidos(obraId: string): Promise<Record<string, unknown>>;
   /** GET em `${BASE}/${rota}` com os parâmetros; devolve o JSON (null quando a API responde null). */
   get(rota: string, parametros?: Record<string, string>): Promise<unknown>;
 }
@@ -42,14 +47,22 @@ const texto = (v: unknown) => (typeof v === 'string' ? v.replace(/\s+/g, ' ').tr
 const lista = (v: unknown): AnyRecord[] => (Array.isArray(v) ? v.filter((x) => x && typeof x === 'object') : []);
 const comparar = new Intl.Collator('pt-BR', { numeric: true, sensitivity: 'base' }).compare;
 
-/** Códigos de obra do Plannix pedidos pela tela: inteiros positivos, sem repetição. */
-export function codigosValidos(dados: unknown): number[] {
-  const bruto = (dados as AnyRecord | null)?.codigos;
-  if (!Array.isArray(bruto) || !bruto.length) throw new HttpsError('invalid-argument', 'Informe os códigos Plannix dos LOTEs.');
-  const codigos = [...new Set(bruto.map(Number))];
-  if (codigos.some((c) => !Number.isInteger(c) || c <= 0)) throw new HttpsError('invalid-argument', 'Código Plannix inválido.');
-  if (codigos.length > MAX_CODIGOS) throw new HttpsError('invalid-argument', `No máximo ${MAX_CODIGOS} LOTEs por consulta.`);
-  return codigos;
+/** Contrato (obras-v2) pedido pela tela. */
+export function obraIdValido(dados: unknown): string {
+  const obraId = (dados as AnyRecord | null)?.obraId;
+  if (typeof obraId !== 'string' || !/^[A-Za-z0-9_-]{1,100}$/.test(obraId)) throw new HttpsError('invalid-argument', 'Informe a obra.');
+  return obraId;
+}
+
+/** Título da coluna do pedido nos LOTEs do Friday ("Nº Pedido/Cód. Auxiliar"). */
+export const COLUNA_PEDIDO = /^n\s*[º°o.]?\s*pedido/i;
+
+/** Célula de link do Friday ({ url, texto }, ex.: texto "816" e o pedido no Elevor) → o número do pedido; '' sem valor. */
+export function pedidoDaCelula(valor: unknown): string {
+  if (valor == null) return '';
+  if (typeof valor !== 'object') return texto(valor);
+  const v = valor as AnyRecord;
+  return texto(v.texto) || texto(String(v.url ?? '').match(/[?&]Cod=([^&#]+)/i)?.[1]);
 }
 
 /** "24/11/2026 09:36:00" (informacaoGlobalPeca) → "2026-11-24T09:36:00"; null quando não é data. */
@@ -118,12 +131,22 @@ export function createPlannixService(store: PlannixStore) {
   return async (uid: string | undefined, dados: unknown): Promise<{ lotes: LotePlannix[] }> => {
     if (!uid) throw new HttpsError('unauthenticated', 'Autenticação obrigatória.');
     if (!veArea(await store.getEmployee(uid), 'engenharia')) throw new HttpsError('permission-denied', 'Acesso não autorizado.');
-    const codigos = codigosValidos(dados);
+    const obraId = obraIdValido(dados);
+    const pedidos = Object.entries(await store.getPedidos(obraId))
+      .map(([lote, celula]) => ({ lote, pedido: pedidoDaCelula(celula) }))
+      .filter((p) => p.pedido)
+      .slice(0, MAX_LOTES);
+    if (!pedidos.length) return { lotes: [] };
 
-    // Cadastro de obras do Plannix: código → sigla e nome (o período largo pega todas).
+    // Cadastro de obras do Plannix (o período largo pega todas): Cód. Auxiliar → obras.
     const obras = lista(await store.get('obras', { dataInicial: '2000-01-01', dataFinal: '2100-12-31' }));
-    const porCodigo = new Map(obras.map((o) => [Number(o.codObra), o]));
-    const siglas = [...new Set(codigos.map((c) => texto(porCodigo.get(c)?.siglaObra)).filter(Boolean))];
+    const porPedido = new Map<string, AnyRecord[]>();
+    for (const o of obras) {
+      const aux = texto(o.codAuxiliarObra);
+      if (aux && Number.isInteger(Number(o.codObra))) porPedido.set(aux, [...(porPedido.get(aux) ?? []), o]);
+    }
+    const ligadas = pedidos.map((p) => ({ ...p, obras: porPedido.get(p.pedido) ?? [] }));
+    const siglas = [...new Set(ligadas.filter((l) => l.obras.length === 1).map((l) => texto(l.obras[0].siglaObra)).filter(Boolean))];
 
     const porSigla = new Map<string, { pecas: AnyRecord[]; status: AnyRecord[]; lancamentos: AnyRecord[] | null }>();
     await Promise.all(siglas.map(async (sigla) => {
@@ -135,11 +158,13 @@ export function createPlannixService(store: PlannixStore) {
     }));
 
     const lotes: LotePlannix[] = [];
-    for (const codigo of codigos) {
-      const obra = porCodigo.get(codigo);
+    for (const { lote, pedido, obras: achadas } of ligadas) {
+      if (achadas.length > 1) { lotes.push({ lote, pedido, erro: 'duplicada', codigos: achadas.map((o) => Number(o.codObra)).sort((a, b) => a - b) }); continue; }
+      const obra = achadas[0];
       const sigla = texto(obra?.siglaObra);
       const dadosSigla = porSigla.get(sigla);
-      if (!obra || !dadosSigla) { lotes.push({ codigo, erro: 'nao-encontrada' }); continue; }
+      if (!obra || !dadosSigla) { lotes.push({ lote, pedido, erro: 'nao-encontrada' }); continue; }
+      const codigo = Number(obra.codObra);
       const nome = texto(obra.nomeObra);
       let itens = itensDasPecas(dadosSigla.pecas, dadosSigla.status, nome);
       const projeto = itens.length > 0;
@@ -147,7 +172,7 @@ export function createPlannixService(store: PlannixStore) {
         dadosSigla.lancamentos ??= lista(await store.get('lancamentoInicialeFinal', { sigla, fase: 'Final' }));
         itens = itensDoLancamento(dadosSigla.lancamentos, codigo);
       }
-      lotes.push({ codigo, sigla, nome, projeto, itens });
+      lotes.push({ lote, pedido, codigo, sigla, nome, projeto, itens });
     }
 
     // Desenhos: os nomes dos arquivos da primeira peça de cada item (uma chamada por item; falha não derruba a tela).
@@ -159,25 +184,6 @@ export function createPlannixService(store: PlannixStore) {
       }));
     }
     return { lotes };
-  };
-}
-
-/** Obra do cadastro do Plannix (cada LOTE nosso é uma), para escolher o Código Plannix do LOTE na tela. */
-export type ObraPlannix = { codigo: number; sigla: string; nome: string; inicio: string | null; fim: string | null };
-
-export function obrasDoCadastro(bruto: unknown): ObraPlannix[] {
-  return lista(bruto)
-    .map((o) => ({ codigo: Number(o.codObra), sigla: texto(o.siglaObra), nome: texto(o.nomeObra), inicio: texto(o.dataInicial) || null, fim: texto(o.dataFinal) || null }))
-    .filter((o) => Number.isInteger(o.codigo) && o.codigo > 0)
-    .sort((a, b) => b.codigo - a.codigo);
-}
-
-/** Cadastro de obras do Plannix (para a coluna Código Plannix do detalhe da obra): quem vê a área Engenharia. */
-export function createPlannixObrasService(store: PlannixStore) {
-  return async (uid: string | undefined): Promise<{ obras: ObraPlannix[] }> => {
-    if (!uid) throw new HttpsError('unauthenticated', 'Autenticação obrigatória.');
-    if (!veArea(await store.getEmployee(uid), 'engenharia')) throw new HttpsError('permission-denied', 'Acesso não autorizado.');
-    return { obras: obrasDoCadastro(await store.get('obras', { dataInicial: '2000-01-01', dataFinal: '2100-12-31' })) };
   };
 }
 
@@ -200,17 +206,28 @@ const store: PlannixStore = {
     const snapshot = await db.collection('funcionarios').doc(uid).get();
     return snapshot.exists ? snapshot.data() : undefined;
   },
+  async getPedidos(obraId) {
+    // LOTEs = subitens oficiais do registro de obras-v2 (friday-cadastros); a coluna do pedido é achada pelo título.
+    const registro = (await db.collection('friday-cadastros').where('colecao', '==', 'obras-v2').limit(1).get()).docs[0];
+    const quadro = Number(registro?.get('subitens.quadro_id'));
+    if (!registro || !quadro) return {};
+    const colunas = await db.collection('friday-colunas').where('quadro_id', '==', quadro).get();
+    const coluna = colunas.docs.find((c) => COLUNA_PEDIDO.test(texto(c.get('titulo'))));
+    if (!coluna) return {};
+    const itens = await db.collection('friday-itens').where('vinculo.id', '==', obraId).get();
+    const pedidos: Record<string, unknown> = {};
+    for (const item of itens.docs) {
+      const i = item.data();
+      if (i.vinculo?.cadastro !== registro.id || i.vinculo?.sub == null || Number(i.quadro_id) !== quadro || i.excluido_em) continue;
+      pedidos[String(i.vinculo.sub)] = i.valores?.[coluna.id];
+    }
+    return pedidos;
+  },
   get: getPlannix,
 };
 const service = createPlannixService(store);
-const servicoObras = createPlannixObrasService(store);
 
 export const plannixPreFabricados = onCall(
   { region: 'southamerica-east1', secrets: [plannixApiKey], timeoutSeconds: 300, memory: '512MiB' },
   (request) => service(request.auth?.uid, request.data),
-);
-
-export const plannixObras = onCall(
-  { region: 'southamerica-east1', secrets: [plannixApiKey], timeoutSeconds: 60 },
-  (request) => servicoObras(request.auth?.uid),
 );

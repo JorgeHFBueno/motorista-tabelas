@@ -8,7 +8,6 @@
 .obra-lotes tr.obra-lotes__fim td, .obra-lotes td.obra-lotes__lote { border-bottom: 2px solid #cbd5e1; }
 .obra-lotes tbody tr:last-child td { border-bottom: 0; }
 .obra-lotes__lote { border-right: 1px solid #DDE3E8; min-width: 240px; vertical-align: top !important; }
-.obra-lotes td.obra-lotes__plannix { border-bottom: 2px solid #cbd5e1; border-right: 1px solid #DDE3E8; max-width: 260px; min-width: 150px; vertical-align: top !important; }
 /* Nome longo do LOTE quebra em linhas em vez de ser cortado. */
 .obra-lotes__lote .MuiChip-root { height: auto; min-height: 32px; padding: 4px 0; }
 .obra-lotes__lote .MuiChip-label { white-space: normal; }

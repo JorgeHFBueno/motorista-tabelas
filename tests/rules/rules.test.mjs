@@ -910,21 +910,6 @@ test('[firestore] obras-v2: engenharia sets only one LOTE prioridade per write (
   await assertSucceeds(updateDoc(contrato('canonicalAdm2'), campo('l1', 'prioridade'), 8));
 });
 
-test('[firestore] obras-v2: engenharia sets only one LOTE Plannix code per write (detalhe da obra)', async () => {
-  const contrato = (as) => doc(dbAs(as), 'obras-v2', 'ob-lotes');
-  const campo = (lote, nome) => new FieldPath('lotes', lote, nome);
-  await assertSucceeds(updateDoc(contrato('engenharia'), campo('l1', 'plannix'), 112));
-  await assertSucceeds(updateDoc(contrato('engenharia'), campo('l1', 'plannix'), null));
-  await assertSucceeds(updateDoc(contrato('engenharia'), campo('l2', 'plannix'), 117));
-  await assertFails(updateDoc(contrato('engenharia'), campo('l1', 'plannix'), 0));
-  await assertFails(updateDoc(contrato('engenharia'), campo('l1', 'plannix'), 11.5));
-  await assertFails(updateDoc(contrato('engenharia'), campo('l1', 'plannix'), '112'));
-  await assertFails(updateDoc(contrato('engenharia'), campo('l1', 'plannix'), 113, campo('l2', 'plannix'), 114));
-  await assertFails(updateDoc(contrato('engenharia'), campo('l1', 'plannix'), 113, campo('l1', 'prioridade'), 2));
-  await assertFails(updateDoc(contrato('engenharia'), campo('l9', 'plannix'), 1));
-  await assertFails(updateDoc(contrato('canonicalUser'), campo('l1', 'plannix'), 115));
-});
-
 // monday-obras was deleted on 2026-10-27: default deny, even for adm2 and engenharia.
 test('[firestore] deleted monday-obras is closed to everyone, adm2 included', async () => {
   for (const identity of ['canonicalAdm2', 'engenharia']) {
