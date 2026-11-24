@@ -1,35 +1,31 @@
-/* Telas do ERP no layout do Elevor360 (tema escuro), a pedido da administração (2026-11-24): cores, medidas e classes
-   copiadas do ERP do Samuel (erp-ledur, web/src/styles.css), que foi comparado print a print com o Elevor. Tudo fica
-   dentro de .erp-elevor; o cabeçalho e o menu do painel continuam os nossos. Sem roxo: o Elevor escuro não usa. */
-
-html:has(.erp-elevor), body:has(.erp-elevor) { background: #353c48; }
+/* Telas do ERP na distribuição do Elevor360 (2026-11-24, a pedido da administração): disposição, medidas e classes
+   copiadas do ERP do Samuel (erp-ledur, web/src/styles.css), que foi comparado print a print com o Elevor. As cores e a
+   fonte são as do painel (src/index.css, ledurTheme): o tema escuro do Elevor saiu no mesmo dia, e um modo escuro para
+   toda a WEB ficou nas pendências. Tudo fica dentro de .erp-elevor. */
 
 .erp-elevor {
-  --fundo: #353c48;
-  --menu: #3c4452;
-  --divisoria: #6d737d;
-  --texto: #ced4da;
-  --texto-forte: #f1f3f5;
-  --texto-2: #9aa3b0;
-  --campo-fundo: #353c48;
-  --campo-borda: #6d737d;
-  --foco: #66afe9;
-  --link: #0080c8;
-  --link-hover: #2a9be0;
-  --primario: #00669f;
-  --primario-borda: #004d79;
-  --primario-hover: #0077b8;
-  --secundario: #303641;
-  --secundario-borda: #4f5467;
-  --grade-linha: #4f5467;
-  --grade-hover: #3c4452;
-  --aba-linha: #dee2e6;
-  --aba-ativa: #00456c;
-  font-family: 'Century Gothic', 'Questrial', 'Segoe UI', sans-serif;
+  --fundo: var(--ledur-background);
+  --divisoria: var(--ledur-border);
+  --texto: var(--ledur-foreground);
+  --texto-forte: var(--ledur-card-foreground);
+  --texto-2: var(--ledur-muted-foreground);
+  --campo-fundo: var(--ledur-card);
+  --campo-borda: var(--ledur-input);
+  --foco: var(--ledur-secondary);
+  --link: var(--ledur-secondary);
+  --link-hover: var(--ledur-secondary-hover);
+  --primario: var(--ledur-primary);
+  --primario-borda: var(--ledur-primary);
+  --primario-hover: var(--ledur-primary-hover);
+  --secundario: var(--ledur-card);
+  --secundario-borda: var(--ledur-border);
+  --grade-linha: var(--ledur-border);
+  --grade-hover: var(--ledur-muted);
+  --aba-linha: var(--ledur-border);
+  --aba-ativa: var(--ledur-primary);
   font-size: 14px;
   line-height: normal;
   color: var(--texto);
-  background: var(--fundo);
   padding: 16px 24px 40px;
 }
 .erp-elevor a { color: var(--link); text-decoration: none; font-weight: inherit; }
@@ -40,16 +36,16 @@ html:has(.erp-elevor), body:has(.erp-elevor) { background: #353c48; }
 .erp-elevor .btn svg, .erp-elevor .link-botao svg, .erp-elevor .fc-ajuda svg { width: 16px; height: 16px; }
 
 /* Aviso de demonstração (não existe no Elevor) */
-.erp-elevor .erp-aviso { border: 1px solid var(--secundario-borda); background: var(--secundario); border-radius: 4px; padding: 10px 14px; margin: 0 0 12px; }
+.erp-elevor .erp-aviso { border: 1px solid var(--secundario-borda); background: var(--grade-hover); border-radius: 4px; padding: 10px 14px; margin: 0 0 12px; }
 
 /* ---------------- campos, caixas e botões ---------------- */
 .erp-elevor .campo { height: 34px; border: 1px solid var(--campo-borda); border-radius: 4px; background: var(--campo-fundo); padding: 0 12px; color: var(--texto); min-width: 0; outline: none; }
-.erp-elevor .campo:focus { border-color: var(--foco); box-shadow: 0 0 0 3px rgba(102, 175, 233, 0.25); }
+.erp-elevor .campo:focus { border-color: var(--foco); box-shadow: 0 0 0 3px rgb(47 107 152 / 0.2); }
 .erp-elevor .campo:disabled, .erp-elevor .campo[readonly] { opacity: 0.85; cursor: default; }
 .erp-elevor select.campo { appearance: none; padding-right: 30px; background-image: linear-gradient(45deg, transparent 50%, var(--texto) 50%), linear-gradient(135deg, var(--texto) 50%, transparent 50%); background-position: calc(100% - 15px) 15px, calc(100% - 10px) 15px; background-size: 5px 5px; background-repeat: no-repeat; }
 .erp-elevor select.campo option { background: var(--fundo); }
 .erp-elevor .campo.area { height: auto; padding: 8px 12px; resize: vertical; width: 100%; }
-.erp-elevor .campo[type=date] { width: 160px; flex: none; color-scheme: dark; }
+.erp-elevor .campo[type=date] { width: 160px; flex: none; }
 .erp-elevor .campo.cheio { flex: 1; width: 100%; }
 .erp-elevor .campo.medio { width: 300px; }
 .erp-elevor .campo.curto { width: 150px; }
@@ -61,26 +57,26 @@ html:has(.erp-elevor), body:has(.erp-elevor) { background: #353c48; }
 .erp-elevor input[type=checkbox], .erp-elevor input[type=radio] { appearance: none; flex-shrink: 0; margin: 0; background: transparent; cursor: pointer; vertical-align: middle; }
 .erp-elevor input[type=checkbox] { width: 20px; height: 20px; border: 1px solid var(--campo-borda); border-radius: 4px; }
 .erp-elevor input[type=checkbox]:checked { background: var(--primario) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20'%3E%3Cpath d='M5 10.5l3.2 3.2L15 7' fill='none' stroke='%23fff' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") center / 100% no-repeat; border-color: var(--primario); }
-.erp-elevor input[type=radio] { width: 16px; height: 16px; border: 1px solid #626873; border-radius: 50%; }
+.erp-elevor input[type=radio] { width: 16px; height: 16px; border: 1px solid var(--texto-2); border-radius: 50%; }
 .erp-elevor input[type=radio]:checked { border-color: var(--primario); background: radial-gradient(circle, var(--primario) 0 5px, transparent 5.5px); }
-.erp-elevor input[type=checkbox]:focus-visible, .erp-elevor input[type=radio]:focus-visible { outline: 0; box-shadow: 0 0 0 3px rgba(102, 175, 233, 0.35); }
+.erp-elevor input[type=checkbox]:focus-visible, .erp-elevor input[type=radio]:focus-visible { outline: 0; box-shadow: 0 0 0 3px rgb(47 107 152 / 0.3); }
 .erp-elevor input[type=checkbox]:disabled, .erp-elevor input[type=radio]:disabled { opacity: 0.55; cursor: default; }
 
 .erp-elevor .botoes { display: flex; gap: 6px; justify-content: center; margin: 22px 0 12px; flex-wrap: wrap; }
 .erp-elevor .btn { height: 34px; padding: 0 12px; border: 1px solid var(--secundario-borda); border-radius: 3px; background: var(--secundario); color: var(--texto); cursor: pointer; display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
-.erp-elevor .btn:hover:not(:disabled) { background: #3a414e; }
+.erp-elevor .btn:hover:not(:disabled) { background: var(--grade-hover); }
 .erp-elevor .btn:disabled { opacity: 0.55; cursor: not-allowed; }
 .erp-elevor .btn.primario { background: var(--primario); border-color: var(--primario-borda); color: #fff; }
 .erp-elevor .btn.primario:hover:not(:disabled) { background: var(--primario-hover); }
 .erp-elevor .btn-icone { width: 34px; justify-content: center; padding: 0; }
 .erp-elevor .link-botao { border: 0; background: transparent; color: var(--link); cursor: pointer; padding: 0; display: inline-flex; align-items: center; gap: 4px; }
-.erp-elevor .mensagem { border: 1px solid var(--secundario-borda); background: var(--secundario); padding: 10px 12px; border-radius: 4px; margin: 10px 0; text-align: center; }
+.erp-elevor .mensagem { border: 1px solid var(--secundario-borda); background: var(--grade-hover); padding: 10px 12px; border-radius: 4px; margin: 10px 0; text-align: center; }
 
 /* ---------------- abas ---------------- */
 .erp-elevor .abas { display: flex; flex-wrap: wrap; border-bottom: 1px solid var(--aba-linha); margin: 4px 0 0; }
 .erp-elevor .aba { border: 0; background: transparent; color: var(--link); font-size: 15px; padding: 10px 16px 8px; cursor: pointer; white-space: nowrap; border-bottom: 2px solid transparent; }
 .erp-elevor .aba:hover { color: var(--link-hover); }
-.erp-elevor .aba.ativa { color: #2e6d93; border-bottom-color: var(--aba-ativa); cursor: default; }
+.erp-elevor .aba.ativa { color: var(--primario); border-bottom-color: var(--aba-ativa); cursor: default; }
 
 /* ---------------- grade ---------------- */
 .erp-elevor .grade { width: 100%; border-collapse: collapse; margin-top: 14px; }
@@ -155,7 +151,7 @@ html:has(.erp-elevor), body:has(.erp-elevor) { background: #353c48; }
 .erp-elevor .ficha-cad.negrito .campo.medio { width: 350px; flex: none; }
 .erp-elevor .ficha-cad.negrito .campo.codigo { width: 270px; flex: none; }
 .erp-elevor .fc-ajuda { color: var(--link); display: inline-flex; cursor: help; }
-.erp-elevor .erro-campo { color: #ffb3bd; }
+.erp-elevor .erro-campo { color: var(--ledur-destructive); }
 /* Listas dentro da ficha: título como seção, "Adicionar" à direita; Telefone(s) e E-mail(s) estreitos no centro */
 .erp-elevor .ficha-cad .fc-lista { grid-column: 1 / -1; width: 100%; min-width: min(640px, 100%); max-width: 760px; margin: 4px auto 8px; }
 .erp-elevor .ficha-cad .fc-lista:has(.lista-itens.estreita) { max-width: none; }

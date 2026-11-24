@@ -14,14 +14,13 @@ import CalendarMonthOutlinedIcon from '@mui/icons-material/CalendarMonthOutlined
 import ContactsOutlinedIcon from '@mui/icons-material/ContactsOutlined';
 import MailOutlineOutlinedIcon from '@mui/icons-material/MailOutlineOutlined';
 import Corvo from '../../components/corvo/Corvo';
-import './erpElevor.css';
 
 // /erp (2026-11-24): início do ERP próprio, com o mosaico de atalhos da tela inicial do Elevor (ERP360), que inspirou o
 // ERP próprio: mesmos blocos, posições e tamanhos, nas cores da Ledur (o roxo do Elevor virou azul-marinho). Bloco com
 // `para` abre a tela (Clientes e Fornecedores, em demonstração); os outros abrem o aviso "Estamos trabalhando nisso".
 // The Manuscript, 03_APLICACAO_WEB/01_ROTAS_E_NAVEGACAO.md#erp.
 
-// Cores do src/theme/ledurTheme.ts; texto escuro onde o fundo é claro. O fundo da tela é o escuro do Elevor (erpElevor.css).
+// Cores do src/theme/ledurTheme.ts; texto escuro onde o fundo é claro.
 const CORES = {
   financeiro: { fundo: '#E79A25', texto: '#12293B' }, // amarelo do Elevor → âmbar (warning)
   painel: { fundo: '#12293B', texto: '#FFFFFF' }, // roxo do Elevor → azul-marinho
@@ -93,12 +92,12 @@ export default function ErpInicioPage() {
   const abrir = (rotulo: string) => () => setAviso({ aberto: true, rotulo });
 
   return (
-    <Box className="erp-elevor">
+    <Box sx={{ p: { xs: 2, md: 3 } }}>
       <Stack direction="row" spacing={2} alignItems="center" sx={{ mb: 3 }}>
         <Corvo animacao="cabeca" pixel={3} />
         <Box>
-          <Typography variant="h6" fontWeight={700} sx={{ color: 'var(--texto-forte)', fontFamily: 'inherit' }}>Estamos trabalhando nisso</Typography>
-          <Typography variant="body2" sx={{ color: 'var(--texto-2)', fontFamily: 'inherit' }}>O ERP da Ledur está chegando ao painel, um módulo por vez.</Typography>
+          <Typography variant="h6" fontWeight={700}>Estamos trabalhando nisso</Typography>
+          <Typography variant="body2" color="text.secondary">O ERP da Ledur está chegando ao painel, um módulo por vez.</Typography>
         </Box>
       </Stack>
 
