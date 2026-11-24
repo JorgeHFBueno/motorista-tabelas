@@ -237,18 +237,6 @@ test('obras-v2: Coordenada do LOTE (link) → lotes.{id}.coordenada = { lat, lng
   assert.deepEqual(m.valorParaContrato(c, valorDoOficial(c, { lat: -29.502239, lng: -51.966187 })), { valor: { lat: -29.502239, lng: -51.966187 } });
 });
 
-test('obras-v2: Código Plannix do LOTE (coluna de número) → lotes.{id}.plannix inteiro', () => {
-  const cols = [{ id: 33, titulo: 'Código Plannix', tipo: 'numero' }, { id: 34, titulo: 'Obs', tipo: 'texto' }];
-  const r = m.montarCamposSubitens(obras, cols, [{ caminho: 'plannix', coluna_id: 33 }]);
-  assert.deepEqual(r.erros, []);
-  const [c] = r.campos;
-  assert.deepEqual(m.valorParaContrato(c, 112), { valor: 112 });
-  assert.deepEqual(m.valorParaContrato(c, '117'), { valor: 117 });
-  assert.match(m.valorParaContrato(c, 11.5).erro, /inteiro/);
-  assert.deepEqual(m.valorParaContrato(c, null), { vazio: true });
-  assert.match(m.montarCamposSubitens(obras, cols, [{ caminho: 'plannix', coluna_id: 34 }]).erros.join(), /não combina/);
-});
-
 test('obras-v2: resultado da fórmula → situacao e status', () => {
   assert.deepEqual(m.camposDaFormula(obras, 'Obra Finalizada'), [['situacao', 'Obra Finalizada'], ['status', 'FINALIZADA']]);
   assert.deepEqual(m.camposDaFormula(obras, 'Solicitar Aditivo de Prazo'), [['situacao', 'Solicitar Aditivo de Prazo'], ['status', 'CONTRATADA']]);

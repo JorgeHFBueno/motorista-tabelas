@@ -110,7 +110,7 @@ export function comPdfsGravados(lote: string, itens: PreFabricado[], pdfs: PdfGr
   return itens.map((item) => ({ ...item, pdfs: pdfs.filter((pdf) => pdf.lote === lote && pdf.item === item.chave) }));
 }
 
-export const SEM_CODIGO_PLANNIX = 'Sem código Plannix: preencha a coluna Código Plannix deste LOTE no Friday (GESTÃO DE OBRAS).';
+export const SEM_CODIGO_PLANNIX = 'Sem código Plannix: escolha a obra do Plannix na coluna Código Plannix.';
 
 /** Junta a resposta do Plannix aos LOTEs pela coluna Código Plannix (`lotes.{id}.plannix`). */
 export function preFabricadosDoPlannix(lotes: { chave: string; plannix: number | null }[], resposta: LotePlannix[]): Record<string, PreFabricadosDoLote> {
@@ -118,7 +118,7 @@ export function preFabricadosDoPlannix(lotes: { chave: string; plannix: number |
   return Object.fromEntries(lotes.map((lote) => {
     const doPlannix = lote.plannix == null ? undefined : porCodigo.get(lote.plannix);
     if (lote.plannix == null) return [lote.chave, { aviso: SEM_CODIGO_PLANNIX }];
-    if (!doPlannix || 'erro' in doPlannix) return [lote.chave, { aviso: `O código Plannix ${lote.plannix} não foi encontrado no Plannix. Confira a coluna Código Plannix do LOTE no Friday.` }];
+    if (!doPlannix || 'erro' in doPlannix) return [lote.chave, { aviso: `O código Plannix ${lote.plannix} não foi encontrado no Plannix. Confira a coluna Código Plannix.` }];
     const origem = `Plannix ${doPlannix.codigo} · ${doPlannix.sigla} · ${doPlannix.nome}${doPlannix.projeto ? '' : ' (sem projeto: Lançamento Final)'}`;
     const vistos = new Set<string>();
     const itens = doPlannix.itens.map((item, indice): PreFabricado => {

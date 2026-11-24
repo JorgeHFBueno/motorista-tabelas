@@ -28,16 +28,19 @@ import {
   carregarNomesMestres,
   carregarObra,
   anexarPdfPreFabricado,
+  carregarObrasPlannix,
   carregarPdfsPreFabricados,
   carregarPreFabricados,
   enderecoDoPdf,
   excluirPdfPreFabricado,
+  gravarCodigoPlannix,
   substituirPdfPreFabricado,
   gravarCampoObra,
   locaisDosLotes,
 } from './obrasData';
 import CampoEditavel from './CampoEditavelObra';
 import ListaLotes, { type AcoesPdf } from './ListaLotes';
+import { sugerirCodigos, type ObraPlannix } from './codigoPlannix';
 import { comPdfsGravados, maisRecente, type PdfGravado, type PreFabricadosDoLote } from './preFabricados';
 import { useAuth } from '../../contexts/AuthContext';
 import { editaArea } from '../../services/credenciais';
@@ -133,6 +136,8 @@ export default function ObraDetalhesPage() {
   const [preFabricados, setPreFabricados] = useState<Estado<Record<string, PreFabricadosDoLote>>>(CARREGANDO);
   // PDFs anexados aos pré-fabricados (obras-pre-fabricados-pdfs); recarregados depois de anexar, substituir ou excluir.
   const [pdfs, setPdfs] = useState<PdfGravado[]>([]);
+  // Cadastro de obras do Plannix, para a coluna Código Plannix (sugestão e escolha); null enquanto carrega.
+  const [obrasPlannix, setObrasPlannix] = useState<ObraPlannix[] | null>(null);
   const [salvandoCampo, setSalvandoCampo] = useState(false);
   const [gerando, setGerando] = useState(false);
   const [snackbar, setSnackbar] = useState<{ open: boolean; severity: 'success' | 'error'; message: string }>({ open: false, severity: 'success', message: '' });
@@ -158,6 +163,9 @@ export default function ObraDetalhesPage() {
         parte(carregarAtividadesDaObra(encontrada.id).then(veiculosNaObra), setVeiculos, ativo, 'veículos');
         parte(carregarCombustivelDaObra(encontrada.id).then(resumirCombustivel), setCombustivel, ativo, 'combustível');
         parte(carregarPreFabricados(encontrada), setPreFabricados, ativo, 'pré-fabricados');
+        carregarObrasPlannix()
+          .then((lista) => { if (ativo()) setObrasPlannix(lista); })
+          .catch((err) => { console.error('Erro ao carregar as obras do Plannix', err); if (ativo()) setObrasPlannix([]); });
         carregarPdfsPreFabricados(encontrada.id)
           .then((lista) => { if (ativo()) setPdfs(lista); })
           .catch((err) => console.error('Erro ao carregar os PDFs dos pré-fabricados', err));
@@ -232,6 +240,29 @@ export default function ObraDetalhesPage() {
       },
     } : {}),
   };
+
+  /** Coluna Código Plannix: grava `lotes.{id}.plannix` e busca de novo os pré-fabricados da obra. */
+  async function gravarPlannix(lote: string, codigo: number | null): Promise<boolean> {
+    if (!obra) return false;
+    try {
+      await gravarCodigoPlannix(obra.id, lote, codigo);
+    } catch (err) {
+      console.error('Erro ao gravar o código Plannix', err);
+      setSnackbar({ open: true, severity: 'error', message: 'Não foi possível gravar o código Plannix. Tente novamente.' });
+      return false;
+    }
+    const atualizada = { ...obra, lotes: obra.lotes.map((l) => (l.chave === lote ? { ...l, plannix: codigo } : l)) };
+    setObra(atualizada);
+    setSnackbar({ open: true, severity: 'success', message: codigo == null ? 'Código Plannix retirado.' : `Código Plannix ${codigo} salvo.` });
+    setPreFabricados(CARREGANDO);
+    parte(carregarPreFabricados(atualizada), setPreFabricados, () => true, 'pré-fabricados');
+    return true;
+  }
+  const codigoPlannix = obra ? {
+    obras: obrasPlannix,
+    sugestoes: obrasPlannix ? sugerirCodigos(obra.nomeObra, obra.lotes, obrasPlannix) : {},
+    gravar: podeEditar ? gravarPlannix : undefined,
+  } : undefined;
 
   const partes = [medicoes, mestres, veiculos, combustivel];
   const carregandoPartes = partes.some((item) => item.status === 'carregando');
@@ -340,6 +371,7 @@ export default function ObraDetalhesPage() {
                 : { ...lote, itens: null, aviso: doLote?.aviso };
             })}
             acoesPdf={acoesPdf}
+            codigoPlannix={codigoPlannix}
           />
         ) : <Vazio>Sem LOTEs cadastrados.</Vazio>}
 
