@@ -14,7 +14,7 @@ export type ChaveApi = {
 };
 
 export type ApiDeArea = {
-  id: 'friday' | 'cronoobra';
+  id: 'friday' | 'cronoobra' | 'prefabricados';
   titulo: string;
   /** Área da WEB que a pessoa da chave precisa ver (adm2 vê todas). */
   area: Area;
@@ -22,8 +22,8 @@ export type ApiDeArea = {
   prefixo: string;
   cabecalho: string;
   endereco: string;
-  /** Nome do servidor no `claude mcp add`. */
-  mcp: string;
+  /** Nome do servidor no `claude mcp add`; sem MCP (API só para robôs), ausente. */
+  mcp?: string;
   /** A API aceita chave de escrita (definida na criação, não muda depois). */
   escrita: boolean;
 };
@@ -40,7 +40,12 @@ export const API_CRONOOBRA: ApiDeArea = {
   cabecalho: 'X-CronoObra-Chave', endereco: `${BASE}/cronoObraApi`, mcp: 'cronoobra', escrita: false,
 };
 
-export const APIS: readonly ApiDeArea[] = [API_FRIDAY, API_CRONOOBRA];
+export const API_PREFABRICADOS: ApiDeArea = {
+  id: 'prefabricados', titulo: 'Pré-Fabricados (PDFs)', area: 'engenharia', colecao: 'prefabricados-chaves-api', prefixo: 'enpf_',
+  cabecalho: 'X-PreFabricados-Chave', endereco: `${BASE}/preFabricadosApi`, escrita: false,
+};
+
+export const APIS: readonly ApiDeArea[] = [API_FRIDAY, API_CRONOOBRA, API_PREFABRICADOS];
 
 export async function listarChaves(api: ApiDeArea): Promise<ChaveApi[]> {
   const s = await getDocs(collection(db, api.colecao));

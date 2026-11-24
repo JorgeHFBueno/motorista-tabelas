@@ -52,12 +52,29 @@ const DESCRICAO: Record<ApiDeArea['id'], string> = {
     + '(quadros abertos e os restritos em que ela está). A chave é só de consulta ou também de escrita.',
   cronoobra: 'Consulta do Cronograma de Obras (/engenharia/cronograma), área Engenharia: qual mestre está em qual LOTE, de '
     + 'quando a quando, com os dias NT. Só consulta.',
+  prefabricados: 'PDFs dos pré-fabricados anexados no detalhe da obra (/engenharia/obras), área Engenharia, achados pelo Nº Pedido '
+    + 'do LOTE (o Cód. Auxiliar da obra no Plannix). Para robôs, como o que lança os PDFs no Plannix. Só consulta.',
 };
 
-const EXEMPLO: Record<ApiDeArea['id'], string> = { friday: '/buscar?q=coqueiros', cronoobra: '/cronograma' };
+const EXEMPLO: Record<ApiDeArea['id'], string> = { friday: '/buscar?q=coqueiros', cronoobra: '/cronograma', prefabricados: '/pedidos/953/pdfs' };
 
 function ComoUsar({ api }: { api: ApiDeArea }) {
   const e = api.endereco;
+  if (api.id === 'prefabricados') {
+    return (
+      <Stack spacing={1}>
+        <Typography color="text.secondary">Mande a chave no cabeçalho <Codigo>{api.cabecalho}</Codigo>. Só consulta (GET):</Typography>
+        <Box component="ul" sx={{ m: 0, pl: 3, color: 'text.secondary', display: 'grid', gap: 0.5 }}>
+          <li><Codigo>{e}/eu</Codigo>: de quem é a chave.</li>
+          <li>
+            <Codigo>{e}/pedidos/&lt;pedido&gt;/pdfs</Codigo>: a obra, o LOTE com esse Nº Pedido (coluna "Nº Pedido/Cód. Auxiliar" do Friday) e o
+            PDF atual de cada item, com <Codigo>pdfId</Codigo>, a revisão e o nome do arquivo.
+          </li>
+          <li><Codigo>{e}/pdfs/&lt;pdfId&gt;</Codigo>: baixa o PDF (o próprio arquivo, não JSON).</li>
+        </Box>
+      </Stack>
+    );
+  }
   if (api.id === 'cronoobra') {
     return (
       <Stack spacing={1}>
@@ -245,9 +262,11 @@ function SecaoApi({ api, pessoas, uidAtual }: { api: ApiDeArea; pessoas: PessoaV
             <Typography variant="body2" color="text.secondary">
               Exemplo: <Codigo>curl -H "{api.cabecalho}: {criada?.chave}" "{api.endereco}{EXEMPLO[api.id]}"</Codigo>
             </Typography>
-            <Typography variant="body2" color="text.secondary">
-              No Claude Code (MCP): <Codigo>{criada ? comandoMcp(api, criada.chave) : ''}</Codigo>
-            </Typography>
+            {api.mcp && (
+              <Typography variant="body2" color="text.secondary">
+                No Claude Code (MCP): <Codigo>{criada ? comandoMcp(api, criada.chave) : ''}</Codigo>
+              </Typography>
+            )}
           </Stack>
         </DialogContent>
         <DialogActions>
@@ -308,7 +327,7 @@ function NovaChave({ api, pessoas, criadoPor, onFechar, onCriada }: {
           <TextField
             id={`chave-${api.id}-descricao`}
             label="Descrição (para quem é, onde roda)"
-            placeholder={api.id === 'friday' ? 'Ex.: Robô de obras do Samuel' : 'Ex.: Power BI do cronograma'}
+            placeholder={api.id === 'friday' ? 'Ex.: Robô de obras do Samuel' : api.id === 'prefabricados' ? 'Ex.: Robô do Plannix do Samuel' : 'Ex.: Power BI do cronograma'}
             value={descricao}
             onChange={(e) => setDescricao(e.target.value)}
             inputProps={{ maxLength: 80 }}
