@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState, type MouseEvent as EventoMouse } from 'react';
+import { useLayoutEffect, useMemo, useRef, useState, type MouseEvent as EventoMouse } from 'react';
 import {
   AlarmClock, Archive, ArrowDown, Banknote, ArrowDownAZ, ArrowDownUp, ArrowLeft, ArrowRight, ArrowUp, ArrowUpAZ, CalendarDays, Check, ChevronDown, ChevronRight, Copy, EyeOff, FileSpreadsheet, GripVertical, Group, ListTree, Maximize2,
   Lock, LockOpen, MessageCircle, Shuffle, MessageCirclePlus, Sigma, MoreHorizontal, Palette, Pencil, Pin, PinOff, Plus, Trash2,
@@ -7,7 +7,7 @@ import { useAuth } from '../../../contexts/AuthContext';
 import type { Pessoa } from '../api.ts';
 import { useNav } from '../nav.tsx';
 import { Menu, Popover, useConfirmar, usePopover, Editavel, type ItemMenu } from '../ui/base.tsx';
-import { arrastarBorda, arrastarCabecalho, CORES, fmtData, fmtNumeroColuna, larguraDoConteudo, NOME_TRAVADO, posEntre } from '../util.ts';
+import { areaQueRola, arrastarBorda, arrastarCabecalho, CORES, fmtData, fmtNumeroColuna, larguraDoConteudo, NOME_TRAVADO, posEntre } from '../util.ts';
 import { Celula } from './Celula.tsx';
 import { EditorFormula } from './EditorFormula.tsx';
 import { AGRUPAVEIS, type GrupoVirtual } from './filtros.ts';
@@ -29,6 +29,16 @@ export type Agrupamento = { grupos: GrupoVirtual[]; grupoDe: Map<number, number[
 const ehFixa = (c: Coluna) => !!c.config?.fixa; // coluna fixada (config.fixa), para todos que abrem o quadro
 const LARGURA_NOME = 360; // coluna do item, quando o quadro ainda não tem largura salva (config.largura_nome)
 const LIMITE_INICIAL = 60;
+
+// Põe x entre as vizinhas antes e depois (colunas ou grupos), gravando só a posicao dele, no meio delas. Vizinhas com a
+// mesma posição (ou sem espaço entre elas): renumera a lista toda (todos) já na ordem nova.
+function reposicionar<T extends { id: number; posicao: number }>(todos: T[], x: T, antes: T | undefined, depois: T | undefined, gravar: (id: number, posicao: number) => void) {
+  const p = posEntre(antes?.posicao, depois?.posicao);
+  if ((!antes || p > antes.posicao) && (!depois || p < depois.posicao)) { gravar(x.id, p); return; }
+  const ordem = todos.filter(y => y.id !== x.id);
+  ordem.splice(depois ? ordem.findIndex(y => y.id === depois.id) : ordem.findIndex(y => y.id === antes!.id) + 1, 0, x);
+  ordem.forEach((y, n) => { if (y.posicao !== n + 1) gravar(y.id, n + 1); });
+}
 
 export function Tabela({ grupos: gruposReais, colunas: colunasVisiveis, todasColunas, itens, sub, tiposItem, acoes, ops, usuarios, nomeItem, selecionados, setSelecionados, abrirItem,
   ordenacao, setOrdenacao, ordenacaoAlterada, onSalvarOrdenacao, onOcultar, onAgrupar, onExportarGrupo, agrupamento, larguraNome, onLarguraNome }: {
@@ -160,14 +170,8 @@ export function Tabela({ grupos: gruposReais, colunas: colunasVisiveis, todasCol
       if (soltou && alvo >= 0 && alvo !== atual) moverColuna(c, outras[alvo - 1], outras[alvo]);
     });
   };
-  const moverColuna = (c: Coluna, antes?: Coluna, depois?: Coluna) => {
-    const p = posEntre(antes?.posicao, depois?.posicao);
-    if ((!antes || p > antes.posicao) && (!depois || p < depois.posicao)) { acoes.atualizarColuna(c.id, { posicao: p }); return; }
-    // Vizinhas com a mesma posição (ou sem espaço entre elas): renumera as colunas do quadro já na ordem nova.
-    const ordem = todasColunas.filter(x => x.id !== c.id);
-    ordem.splice(depois ? ordem.findIndex(x => x.id === depois.id) : ordem.findIndex(x => x.id === antes!.id) + 1, 0, c);
-    ordem.forEach((x, n) => { if (x.posicao !== n + 1) acoes.atualizarColuna(x.id, { posicao: n + 1 }); });
-  };
+  const moverColuna = (c: Coluna, antes?: Coluna, depois?: Coluna) =>
+    reposicionar(todasColunas, c, antes, depois, (id, posicao) => acoes.atualizarColuna(id, { posicao }));
   // Durante o arraste: a coluna arrastada fica apagada e uma linha azul marca onde ela vai entrar.
   const classeArraste = (c: Coluna) => {
     const arrastada = arrasteCol && colunas.find(x => x.id === arrasteCol.id);
@@ -179,6 +183,59 @@ export function Tabela({ grupos: gruposReais, colunas: colunasVisiveis, todasCol
     if (outras[arrasteCol.alvo]?.id === c.id) return ' alvo-esq';
     return arrasteCol.alvo === outras.length && outras[outras.length - 1]?.id === c.id ? ' alvo-dir' : '';
   };
+
+  // Arrastar o cabeçalho de um grupo o muda de lugar, para todos (posicao), como no monday: durante o arraste, todos
+  // os grupos aparecem recolhidos (só na tela; o recolhido salvo não muda) e uma vaga tracejada, já no destino, marca
+  // onde ele vai entrar. alvo = quantos dos outros grupos ficam antes dele ao soltar.
+  const [arrasteGrupo, setArrasteGrupo] = useState<{ id: number; alvo: number } | null>(null);
+  const ancora = useRef<{ id: number; topo: number } | null>(null);
+  const iniciarArrasteGrupo = (g: Grupo, e: EventoMouse<HTMLDivElement>) => {
+    const cab = e.currentTarget;
+    if (virtual || e.button !== 0 || (e.target as HTMLElement).closest('button, input, textarea, select') || cab.closest('.somente-leitura')) return;
+    const atual = gruposReais.findIndex(x => x.id === g.id);
+    const outros = gruposReais.filter(x => x.id !== g.id);
+    const topo = cab.getBoundingClientRect().top;
+    const vaga = () => raiz.current?.querySelector<HTMLElement>(':scope > section.grupo-vaga');
+    let alvo = -1, ultimoY = 0;
+    // Destino pela altura do mouse; só mede depois que os grupos já aparecem recolhidos (com a vaga na tela).
+    const medir = (y: number) => {
+      if (!vaga()) return alvo;
+      const secoes = [...raiz.current!.querySelectorAll<HTMLElement>(':scope > section.grupo:not(.grupo-vaga)')];
+      const k = secoes.findIndex(s => { const r = s.getBoundingClientRect(); return y < r.top + r.height / 2; });
+      return k < 0 ? secoes.length : k;
+    };
+    arrastarCabecalho(e.nativeEvent, cab, g.nome, 0, y => {
+      ultimoY = y;
+      if (alvo < 0) { alvo = atual; ancora.current = { id: g.id, topo }; setArrasteGrupo({ id: g.id, alvo }); return; }
+      const novo = medir(y);
+      if (novo !== alvo) { alvo = novo; setArrasteGrupo({ id: g.id, alvo }); }
+    }, soltou => {
+      // Mede de novo ao soltar: num arraste rápido, a tela pode não ter acompanhado o último movimento. Com Esc, o
+      // grupo volta para onde estava e a tela também.
+      if (soltou) alvo = medir(ultimoY);
+      ancora.current = { id: g.id, topo: (soltou && vaga()?.getBoundingClientRect().top) || topo };
+      setArrasteGrupo(null);
+      if (soltou && alvo !== atual) reposicionar(gruposReais, g, outros[alvo - 1], outros[alvo], (id, posicao) => acoes.atualizarGrupo(id, { posicao }));
+    }, { vertical: true, cor: g.cor });
+  };
+  // Ao recolher (começo do arraste) e ao abrir de novo (fim), os grupos mudam de altura: rola a tela para o grupo
+  // arrastado ficar onde estava, debaixo do mouse.
+  useLayoutEffect(() => {
+    const a = ancora.current;
+    if (!a) return;
+    ancora.current = null;
+    const secao = raiz.current?.querySelector<HTMLElement>(`:scope > section[data-grupo="${a.id}"]`);
+    const rolagem = secao && areaQueRola(secao, true);
+    if (rolagem) rolagem.scrollTop += secao.getBoundingClientRect().top - a.topo;
+  }, [arrasteGrupo]);
+  // Na tela, durante o arraste, o grupo arrastado já fica no destino (como vaga).
+  const gruposNaTela = (() => {
+    const arrastado = arrasteGrupo && grupos.find(x => x.id === arrasteGrupo.id);
+    if (!arrastado) return grupos;
+    const lista = grupos.filter(x => x !== arrastado);
+    lista.splice(arrasteGrupo.alvo, 0, arrastado);
+    return lista;
+  })();
 
   // Hover: o texto cortado (…) aparece inteiro na dica, no nome do item e em qualquer célula.
   const dicaTextoCortado = (e: EventoMouse<HTMLTableSectionElement>) => {
@@ -213,15 +270,16 @@ export function Tabela({ grupos: gruposReais, colunas: colunasVisiveis, todasCol
 
   return (
     <div ref={raiz} className="tabela-quadro" style={{ width: `max(${larguraTotal}px, calc(100cqw - 56px))` }}>
-      {grupos.map(g => {
+      {gruposNaTela.map(g => {
         const lista = porGrupo.get(g.id) ?? [];
         const todosSel = lista.length > 0 && lista.every(i => selecionados.has(i.id));
+        const fechado = !!arrasteGrupo || recolhido(g);
         return (
-          <section key={g.id} className="grupo" style={{ ['--cor-grupo' as string]: g.cor }}>
-            <CabecalhoGrupo grupo={g} total={lista.length} acoes={acoes} confirmar={confirmar} nomeItem={nomeItem} virtual={virtual} recolhido={recolhido(g)}
-              onAlternar={() => alternarGrupo(g)} onExportar={() => onExportarGrupo(g, lista)}
+          <section key={g.id} className={`grupo${arrasteGrupo?.id === g.id ? ' grupo-vaga' : ''}`} data-grupo={g.id} style={{ ['--cor-grupo' as string]: g.cor }}>
+            <CabecalhoGrupo grupo={g} total={lista.length} acoes={acoes} confirmar={confirmar} nomeItem={nomeItem} virtual={virtual} recolhido={fechado}
+              onAlternar={() => alternarGrupo(g)} onExportar={() => onExportarGrupo(g, lista)} onArrastar={e => iniciarArrasteGrupo(g, e)}
               onSubitens={abrir => lista.forEach(i => (nSub.get(i.id) ? alternarSubs(i.id, abrir) : null))} />
-            {recolhido(g) ? (
+            {fechado ? (
               <table className="tq">
                 {colgroup}
                 <tbody>
@@ -359,9 +417,10 @@ export function Tabela({ grupos: gruposReais, colunas: colunasVisiveis, todasCol
 }
 
 // ---------------------------------------------------------------- cabeçalho do grupo
-function CabecalhoGrupo({ grupo, total, acoes, confirmar, nomeItem, virtual, recolhido, onAlternar, onExportar, onSubitens }: {
+function CabecalhoGrupo({ grupo, total, acoes, confirmar, nomeItem, virtual, recolhido, onAlternar, onExportar, onArrastar, onSubitens }: {
   grupo: Grupo; total: number; acoes: Acoes; confirmar: ReturnType<typeof useConfirmar>; nomeItem: string;
   virtual: boolean; recolhido: boolean; onAlternar: () => void; onExportar: () => void; onSubitens: (abrir: boolean) => void;
+  onArrastar: (e: EventoMouse<HTMLDivElement>) => void;
 }) {
   const menu = usePopover<HTMLButtonElement>();
   const [cores, setCores] = useState(false);
@@ -373,7 +432,7 @@ function CabecalhoGrupo({ grupo, total, acoes, confirmar, nomeItem, virtual, rec
     { rotulo: 'Exportar grupo para Excel', icone: <FileSpreadsheet size={15} />, onClick: onExportar },
   ];
   return (
-    <div className="grupo-cab">
+    <div className={`grupo-cab${virtual ? '' : ' arrastavel'}`} onMouseDown={onArrastar}>
       <button ref={menu.ref} className="btn-icone grupo-menu" aria-label="Menu do grupo" onClick={menu.alternar}><MoreHorizontal size={16} /></button>
       <button className="btn-icone" style={{ color: grupo.cor }} aria-label={recolhido ? 'Expandir grupo' : 'Recolher grupo'} onClick={onAlternar}>
         {recolhido ? <ChevronRight size={18} /> : <ChevronDown size={18} />}
