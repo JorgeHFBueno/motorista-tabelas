@@ -45,6 +45,7 @@ const ComercialPainelPage = lazy(() => import('./features/comercial/ComercialPai
 const NegociosPage = lazy(() => import('./features/comercial/NegociosPage'));
 const ContatosPage = lazy(() => import('./features/comercial/ContatosPage'));
 const ObraDetalhesPage = lazy(() => import('./features/obras/ObraDetalhesPage'));
+const ErpInicioPage = lazy(() => import('./features/erp/ErpInicioPage'));
 const TheManuscriptPage = lazy(() => import('./pages/TheManuscriptPage'));
 const ManuscriptMapaPage = lazy(() => import('./pages/ManuscriptMapaPage'));
 const MeuPerfilPage = lazy(() => import('./pages/MeuPerfilPage'));
@@ -152,6 +153,11 @@ export default function App() {
             <Route element={<PrivateRoute permite={(p) => temCredencial(p, 'adm2')} />}>
               <Route path="cadastros/apis" element={<CadastroApisPage />} />
               <Route path="cadastros/uso" element={<UsoDoSistemaPage />} />
+            </Route>
+            {/* ERP próprio (2026-11-24): por enquanto só a página "Estamos trabalhando nisso", só o adm2. The Manuscript,
+                01_ROTAS_E_NAVEGACAO.md#erp. */}
+            <Route element={<PrivateRoute permite={(p) => temCredencial(p, 'adm2')} />}>
+              <Route path="erp" element={<ErpInicioPage />} />
             </Route>
             {/* Mecânica e Logística são grupos, como Engenharia: /mecanica e /logistica não têm página própria (2026-11-19:
                 Frota virou Mecânica; Combustível e o KPI entraram na Logística). */}

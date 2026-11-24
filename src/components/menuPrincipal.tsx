@@ -25,6 +25,7 @@ import BuildOutlinedIcon from '@mui/icons-material/BuildOutlined';
 import TrendingUpOutlinedIcon from '@mui/icons-material/TrendingUpOutlined';
 import ViewKanbanOutlinedIcon from '@mui/icons-material/ViewKanbanOutlined';
 import ContactsOutlinedIcon from '@mui/icons-material/ContactsOutlined';
+import AccountBalanceOutlinedIcon from '@mui/icons-material/AccountBalanceOutlined';
 import IconeDev from '../features/dev-toys/IconeDev';
 import IconeFriday from '../features/friday-gestao-interna/IconeFriday';
 import type { AuthorizationProfile } from '../services/authorizationProfile';
@@ -162,6 +163,16 @@ export const menuPrincipal: MenuPrincipalItem[] = [
       { label: 'Atendimento', to: '/portal-cliente/atendimento', icon: <SupportAgentOutlinedIcon />, descricao: 'Chamados abertos pelos clientes' },
       { label: 'Notícias', to: '/portal-cliente/noticias', icon: <NewspaperOutlinedIcon />, descricao: 'Notícias mostradas aos clientes' },
     ],
+  },
+  {
+    // ERP próprio (2026-11-24): por enquanto só a página "Estamos trabalhando nisso", para o adm2. The Manuscript,
+    // 01_ROTAS_E_NAVEGACAO.md#erp.
+    label: 'ERP',
+    icon: <AccountBalanceOutlinedIcon fontSize="large" />,
+    color: '#EEF2F6',
+    accent: '#12293B',
+    to: '/erp',
+    acesso: { credencial: ['adm2'] },
   },
   {
     label: 'DEV',
