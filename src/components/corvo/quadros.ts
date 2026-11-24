@@ -16,15 +16,19 @@ export type Cena = {
   parado: number;
 };
 
+/** Linhas vazias no topo de toda cena: espaço para o enfeite das datas festivas (festas.ts) acima da cabeça. */
+export const MARGEM_ENFEITE = 2;
+
 export const CENAS: Record<Animacao, Cena> = {
-  cabeca: { largura: 30, altura: 20, quadros: 23, ms: 200, parado: 10 },
-  grito: { largura: 34, altura: 19, quadros: 20, ms: 170, parado: 5 },
-  teclando: { largura: 44, altura: 24, quadros: 96, ms: 150, parado: 0 },
-  placa: { largura: 34, altura: 36, quadros: 30, ms: 180, parado: 12 },
+  cabeca: { largura: 30, altura: 20 + MARGEM_ENFEITE, quadros: 23, ms: 200, parado: 10 },
+  grito: { largura: 34, altura: 19 + MARGEM_ENFEITE, quadros: 20, ms: 170, parado: 5 },
+  teclando: { largura: 44, altura: 24 + MARGEM_ENFEITE, quadros: 96, ms: 150, parado: 0 },
+  placa: { largura: 34, altura: 36 + MARGEM_ENFEITE, quadros: 30, ms: 180, parado: 12 },
 };
 
 type Grade = string[][];
-const novaCena = (c: Cena): Grade => Array.from({ length: c.altura }, () => Array<string>(c.largura).fill('.'));
+/** A cena sem a margem do enfeite (quadro() a acrescenta no fim). */
+const novaCena = (c: Cena): Grade => Array.from({ length: c.altura - MARGEM_ENFEITE }, () => Array<string>(c.largura).fill('.'));
 const pix = (g: Grade, x: number, y: number, c: string) => {
   if (y >= 0 && y < g.length && x >= 0 && x < g[0].length) g[y][x] = c;
 };
@@ -144,13 +148,13 @@ function grito(i: number): Grade {
   return g;
 }
 
-/** Bicando: agachado, com a cabeça 3 pixels abaixo e 2 à frente (o pescoço preenche o espaço). */
+/** Bicando: agachado, com a cabeça 3 pixels abaixo e 2 à frente (o pescoço preenche o espaço até o alto da cabeça). */
 function bicando(olho: 'o' | '#'): Grade {
   const r = agachado(olho).map((l) => l.slice());
   const cabeca = r.slice(1, 6).map((l) => l.slice());
   for (let y = 1; y <= 5; y++) for (let x = 12; x < 26; x++) if (y < 5 || x >= 17) r[y][x] = '.';
   cabeca.forEach((l, k) => l.forEach((c, x) => { if (x >= 12 && c !== '.' && x + 2 < 26) r[k + 4][x + 2] = c; }));
-  for (let y = 2; y <= 6; y++) for (let x = 13; x <= 16; x++) if (r[y][x] === '.') r[y][x] = '#';
+  for (let y = 4; y <= 6; y++) for (let x = 13; x <= 16; x++) if (r[y][x] === '.') r[y][x] = '#';
   return r;
 }
 
@@ -434,7 +438,8 @@ function comPlaca(i: number): Grade {
 /** O quadro `i` (0 a quadros - 1) da animação, como linhas da cena. */
 export function quadro(animacao: Animacao, i: number): string[] {
   const g = animacao === 'teclando' ? teclando(i) : animacao === 'placa' ? comPlaca(i) : animacao === 'grito' ? grito(i) : cabeca(i);
-  return g.map((l) => l.join(''));
+  const vazia = '.'.repeat(CENAS[animacao].largura);
+  return [...Array<string>(MARGEM_ENFEITE).fill(vazia), ...g.map((l) => l.join(''))];
 }
 
 /** Um path SVG por cor: cada pixel vira um quadrado 1×1 da cena. */

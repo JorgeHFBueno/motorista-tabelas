@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { CENAS, PASSOS_DA_CABECA, PASSOS_DA_PLACA, PASSOS_DO_GRITO, caminhos, quadro, type Animacao } from '../src/components/corvo/quadros';
+import { enfeitar, festaDoDia } from '../src/components/corvo/festas';
+import { CENAS, MARGEM_ENFEITE, PASSOS_DA_CABECA, PASSOS_DA_PLACA, PASSOS_DO_GRITO, caminhos, quadro, type Animacao } from '../src/components/corvo/quadros';
 
 const ANIMACOES = Object.keys(CENAS) as Animacao[];
 /** Posições "x,y" dos pixels de uma cor no quadro. */
@@ -33,7 +34,7 @@ test('Corvo cabeça: procura sem tirar os pés do lugar; "?" no pescoço esticad
     assert.equal(pixels('cabeca', i, 'p').length > 0, !!p.poeira, `cabeca ${i}: poeira`);
     // os pés ficam: a linha mais baixa do corvo é sempre a mesma
     const fundo = Math.max(...pixels('cabeca', i, 'b').map((x) => Number(x.split(',')[1])));
-    assert.equal(fundo, 18, `cabeca ${i}: os pés saíram do chão`);
+    assert.equal(fundo, 18 + MARGEM_ENFEITE, `cabeca ${i}: os pés saíram do chão`);
   });
   // olhando para trás, o olho fica à esquerda do corpo; parado, à direita
   const olhoX = (i: number) => Number(pixels('cabeca', i, 'o')[0].split(',')[0]);
@@ -76,8 +77,8 @@ test('Corvo teclando: a tecla acende no pouso, o texto cresce a cada pouso e o c
   assert.ok(letras(9) > letras(5));
   // no ar, os pés estão acima da linha do teclado
   const alturaDosPes = (i: number) => Math.max(...pixels('teclando', i, 'b').map((p) => Number(p.split(',')[1])));
-  assert.equal(alturaDosPes(0), 17);
-  assert.ok(alturaDosPes(1) < 17);
+  assert.equal(alturaDosPes(0), 17 + MARGEM_ENFEITE);
+  assert.ok(alturaDosPes(1) < 17 + MARGEM_ENFEITE);
 });
 
 test('Corvo placa: sem placa no começo e no fim, com a placa no meio; a interrogação some num quadro', () => {
@@ -95,3 +96,40 @@ test('Corvo placa: sem placa no começo e no fim, com a placa no meio; a interro
   const d = caminhos(quadro('placa', CENAS.placa.parado));
   assert.match(d.o, /^M\d+ \d+h1v1h-1zM\d+ \d+h1v1h-1z$/);
 });
+
+test('Festas: Natal de 24/11 a 06/01, em Brasília', () => {
+  const em = (iso: string) => festaDoDia(new Date(iso));
+  assert.equal(em('2026-11-24T02:59:00Z'), null); // 23/11, 23:59 em Brasília
+  assert.equal(em('2026-11-24T03:00:00Z'), 'natal'); // 24/11, 00:00
+  assert.equal(em('2026-12-25T12:00:00Z'), 'natal');
+  assert.equal(em('2027-01-01T12:00:00Z'), 'natal');
+  assert.equal(em('2027-01-07T02:59:00Z'), 'natal'); // 06/01, 23:59
+  assert.equal(em('2027-01-07T03:00:00Z'), null); // 07/01
+  assert.equal(em('2027-07-15T12:00:00Z'), null);
+  assert.equal(em('2027-11-30T12:00:00Z'), 'natal'); // todo ano
+});
+
+test('Festas: o gorro cabe inteiro em todo quadro de toda animação e vira para o lado em que o corvo olha', () => {
+  const conta = (l: string[], c: string) => l.join('').split(c).length - 1;
+  for (const a of ANIMACOES) {
+    for (let i = 0; i < CENAS[a].quadros; i++) {
+      const sem = quadro(a, i);
+      const com = enfeitar(sem, 'natal');
+      assert.deepEqual(com.map((l) => l.length), sem.map((l) => l.length));
+      // de perfil 16 pixels vermelhos, de frente 9: se faltar algum, o gorro saiu da cena
+      const vermelho = conta(com, 'r') + conta(com, 'R');
+      assert.ok(vermelho === 16 || vermelho === 9, `${a} ${i}: gorro cortado (${vermelho})`);
+      assert.deepEqual(enfeitar(sem, null), sem);
+    }
+  }
+  // o pompom fica atrás da cabeça: à esquerda olhando para a direita, à direita olhando para trás
+  const pompomX = (l: string[]) => Math.min(...l.flatMap((x, y) => [...x].map((c, k) => (c === 'g' && y < 6 + MARGEM_ENFEITE ? k : 99))));
+  const olhoX = (l: string[]) => l.map((x) => x.indexOf('o')).find((k) => k >= 0)!;
+  const parado = enfeitar(quadro('cabeca', 0), 'natal');
+  assert.ok(pompomX(parado) < olhoX(parado));
+  const virado = PASSOS_DA_CABECA.findIndex((p) => p.pose === 'virado' && !p.olho);
+  const deCostas = enfeitar(quadro('cabeca', virado), 'natal');
+  const pompomMaisADireita = Math.max(...deCostas.flatMap((x) => [...x].map((c, k) => (c === 'g' ? k : -1))));
+  assert.ok(pompomMaisADireita > olhoX(deCostas));
+});
+
