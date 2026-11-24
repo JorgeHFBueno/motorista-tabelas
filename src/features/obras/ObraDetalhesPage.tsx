@@ -376,7 +376,7 @@ export default function ObraDetalhesPage() {
         ) : <Vazio>Sem LOTEs cadastrados.</Vazio>}
 
         <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 2 }}>
-          O cadastro da obra é feito no Friday (quadro GESTÃO DE OBRAS); aqui só o local e o sinônimo podem ser editados.
+          O cadastro da obra é feito no Friday (quadro GESTÃO DE OBRAS); aqui se editam só o local, o sinônimo, o Código Plannix dos LOTEs e os PDFs dos pré-fabricados.
         </Typography>
       </Paper>
 
