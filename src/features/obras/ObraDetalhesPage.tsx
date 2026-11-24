@@ -33,7 +33,7 @@ import {
 } from './obrasData';
 import CampoEditavel from './CampoEditavelObra';
 import ListaLotes from './ListaLotes';
-import type { PreFabricado } from './preFabricados';
+import type { PreFabricadosDoLote } from './preFabricados';
 import { useAuth } from '../../contexts/AuthContext';
 import { editaArea } from '../../services/credenciais';
 import {
@@ -124,7 +124,7 @@ export default function ObraDetalhesPage() {
   const [mestres, setMestres] = useState<Estado<MestresDaObra>>(CARREGANDO);
   const [veiculos, setVeiculos] = useState<Estado<VeiculoNaObra[]>>(CARREGANDO);
   const [combustivel, setCombustivel] = useState<Estado<ResumoCombustivel>>(CARREGANDO);
-  const [preFabricados, setPreFabricados] = useState<Estado<Record<string, PreFabricado[]> | null>>(CARREGANDO);
+  const [preFabricados, setPreFabricados] = useState<Estado<Record<string, PreFabricadosDoLote>>>(CARREGANDO);
   const [salvandoCampo, setSalvandoCampo] = useState(false);
   const [gerando, setGerando] = useState(false);
   const [snackbar, setSnackbar] = useState<{ open: boolean; severity: 'success' | 'error'; message: string }>({ open: false, severity: 'success', message: '' });
@@ -273,12 +273,14 @@ export default function ObraDetalhesPage() {
 
         <Typography variant="body2" color="text.secondary" sx={{ mt: 2.5, mb: 1 }}>LOTEs</Typography>
         {obra.lotes.length ? (
-          // Pré-fabricados de cada LOTE: `null` enquanto a API não estiver ligada (carregarPreFabricados).
+          // Pré-fabricados de cada LOTE, do Plannix pelo Código Plannix do LOTE (carregarPreFabricados).
           <ListaLotes
-            lotes={obra.lotes.map((lote) => ({
-              ...lote,
-              itens: preFabricados.status === 'ok' ? preFabricados.data?.[lote.chave] ?? (preFabricados.data ? [] : null) : null,
-            }))}
+            lotes={obra.lotes.map((lote) => {
+              if (preFabricados.status === 'carregando') return { ...lote, itens: null, aviso: 'Carregando os pré-fabricados do Plannix…' };
+              if (preFabricados.status === 'erro') return { ...lote, itens: null, aviso: 'Não foi possível ler o Plannix. Recarregue a página para tentar de novo.' };
+              const doLote = preFabricados.data[lote.chave];
+              return doLote && 'itens' in doLote ? { ...lote, itens: doLote.itens, origem: doLote.origem } : { ...lote, itens: null, aviso: doLote?.aviso };
+            })}
           />
         ) : <Vazio>Sem LOTEs cadastrados.</Vazio>}
 

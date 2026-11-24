@@ -31,6 +31,7 @@ export { logisticaPedidoNota } from './logisticaPedidoNota.js';
 export { avisosPush } from './avisosPush.js';
 export { combustivelDivergencia } from './combustivelDivergencia.js';
 export { logisticaLocal } from './logisticaLocal.js';
+export { plannixPreFabricados } from './plannixPreFabricados.js';
 export { funcionariosImportarFriday } from './funcionariosImportarFriday.js';
 
 export const api = onRequest(app);

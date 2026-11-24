@@ -17,7 +17,7 @@ import {
 } from '../src/features/obras/obrasDomain';
 import { createObraRelatorioPdf, nomeArquivoRelatorioObra } from '../src/features/obras/obraRelatorioPdf';
 import { LOCAIS_SUGERIDOS } from '../src/features/obras/locaisSugeridos';
-import { agruparPorTipo, comPdf, revisoes, statusDoGrupo, totalPdfs, type PreFabricado } from '../src/features/obras/preFabricados';
+import { agruparPorTipo, comPdf, preFabricadosDoPlannix, resumoEtapas, revisoes, semProjeto, totalPdfs, type PreFabricado } from '../src/features/obras/preFabricados';
 import { coordenadaDoLote, lotesDaObra, obraFromV2 } from '../src/utils/cadastrosV2';
 
 const contrato = {
@@ -167,12 +167,15 @@ test('LOTE: coordenada da coluna Coordenada do subitem ({ lat, lng }) ou null; o
   }
   const lotes = lotesDaObra({
     b: { nome: 'LOTE 2', ordem: 1 },
-    a: { nome: 'LOTE 1', status: 'Em andamento', ordem: 0, coordenada: { lat: -29.5, lng: -53.1 } },
+    a: { nome: 'LOTE 1', status: 'Em andamento', ordem: 0, coordenada: { lat: -29.5, lng: -53.1 }, plannix: 117 },
+    c: { nome: 'LOTE 3', ordem: 3, plannix: 12.5 },
     z: { nome: 'LOTE VELHO', ordem: 2, situacao: 'arquivado', coordenada: { lat: -1, lng: -1 } },
   });
   assert.deepEqual(lotes, [
-    { chave: 'a', nome: 'LOTE 1', status: 'Em andamento', coordenada: { lat: -29.5, lng: -53.1 } },
-    { chave: 'b', nome: 'LOTE 2', status: '', coordenada: null },
+    { chave: 'a', nome: 'LOTE 1', status: 'Em andamento', coordenada: { lat: -29.5, lng: -53.1 }, plannix: 117 },
+    { chave: 'b', nome: 'LOTE 2', status: '', coordenada: null, plannix: null },
+    // Código Plannix só inteiro positivo; o resto fica sem código.
+    { chave: 'c', nome: 'LOTE 3', status: '', coordenada: null, plannix: null },
   ]);
   const detalhe = obraDetalheFromV2('c1', { ...contrato, lotes: { a: { nome: 'LOTE 1', ordem: 0, coordenada: { lat: -29.5, lng: -53.1 } } } })!;
   assert.deepEqual(detalhe.lotes[0].coordenada, { lat: -29.5, lng: -53.1 });
@@ -189,24 +192,43 @@ test('Local pela coordenada do LOTE: a grafia da lista de sugestões, sem difere
 });
 
 const pdfItem = (id: string, quando: string) => ({ id, nome: `${id}.pdf`, tamanho: 1024, anexadoEm: new Date(quando), anexadoPor: 'Teste', url: null });
-const preFabricado = (id: string, tipo: string, status: string, pdfs = 0): PreFabricado =>
-  ({ id, tipo, status, pdfs: Array.from({ length: pdfs }, (_, i) => pdfItem(`${id}-${i}`, `2026-11-0${i + 1}T10:00:00-03:00`)) });
-
-test('pré-fabricados: agrupa pelo Tipo sem o número do fim, na ordem em que aparecem', () => {
-  const grupos = agruparPorTipo([preFabricado('a', 'Pilar 1', ''), preFabricado('b', 'Vão 1', ''), preFabricado('c', 'Pilar 2', ''), preFabricado('d', '', '')]);
-  assert.deepEqual(grupos.map((g) => [g.nome, g.itens.map((i) => i.id)]), [['Pilar', ['a', 'c']], ['Vão', ['b']], ['Sem tipo', ['d']]]);
+const preFabricado = (id: string, grupo: string, etapas: string[], pdfs = 0, quantidade = etapas.length): PreFabricado => ({
+  id, grupo, tipo: id, quantidade, desenhos: [],
+  pecas: etapas.map((etapa, i) => ({ codigo: `${id}-${i}`, etapa, data: null })),
+  pdfs: Array.from({ length: pdfs }, (_, i) => pdfItem(`${id}-${i}`, `2026-11-0${i + 1}T10:00:00-03:00`)),
 });
 
-test('pré-fabricados: status do grupo é o mais frequente fora os concluídos; empate vai ao mais urgente', () => {
-  assert.equal(statusDoGrupo([preFabricado('a', 'Pilar 1', 'Concluído'), preFabricado('b', 'Pilar 2', 'Concluído'), preFabricado('c', 'Pilar 3', 'Em análise')]), 'Em análise');
-  assert.equal(statusDoGrupo([preFabricado('a', 'Cab 1', 'Pendente'), preFabricado('b', 'Cab 2', 'revisar')]), 'revisar');
-  assert.equal(statusDoGrupo([preFabricado('a', 'Pilar 1', 'Concluído'), preFabricado('b', 'Pilar 2', 'concluido')]), 'Concluído');
-  assert.equal(statusDoGrupo([preFabricado('a', 'Pilar 1', 'Concluído'), preFabricado('b', 'Pilar 2', '')]), '');
+test('pré-fabricados: agrupa pelo produto do Plannix (PILAR → Pilar), na ordem em que aparece', () => {
+  const grupos = agruparPorTipo([preFabricado('P01', 'PILAR', []), preFabricado('VL', 'VIGA', []), preFabricado('P02', 'PILAR', []), preFabricado('X', '', [])]);
+  assert.deepEqual(grupos.map((g) => [g.nome, g.itens.map((i) => i.id)]), [['Pilar', ['P01', 'P02']], ['Viga', ['VL']], ['Sem produto', ['X']]]);
+});
+
+test('pré-fabricados: resumo das etapas na ordem da produção, sem acento e etapa desconhecida no fim', () => {
+  const itens = [preFabricado('P01', 'PILAR', ['EXPEDIDA', 'CORTE DOBRA', 'ACABADA', 'CORTE DOBRA', 'ARMAÇÃO']), preFabricado('P02', 'PILAR', ['ACABADA', 'NOVA ETAPA'])];
+  assert.deepEqual(resumoEtapas(itens).map((e) => `${e.quantidade} ${e.rotulo}`), ['2 Corte e dobra', '1 Armação', '2 Acabada', '1 Expedida', '1 NOVA ETAPA']);
+  assert.equal(semProjeto([preFabricado('LF', 'VIGA', [], 0, 8), ...itens]), 8);
 });
 
 test('pré-fabricados: "N de M com PDF", total de PDFs e revisões da mais nova (Rev. N) à mais antiga (Rev. 0)', () => {
-  const itens = [preFabricado('a', 'Pilar 1', '', 2), preFabricado('b', 'Pilar 2', '', 0), preFabricado('c', 'Pilar 3', '', 1)];
+  const itens = [preFabricado('a', 'PILAR', [], 2), preFabricado('b', 'PILAR', [], 0), preFabricado('c', 'PILAR', [], 1)];
   assert.equal(comPdf(itens), 2);
   assert.equal(totalPdfs(itens), 3);
   assert.deepEqual(revisoes(itens[0].pdfs).map((r) => [r.item.id, r.revisao]), [['a-1', 1], ['a-0', 0]]);
+});
+
+test('pré-fabricados: resposta do Plannix ligada aos LOTEs pelo Código Plannix; sem código ou não achado vira aviso', () => {
+  const r = preFabricadosDoPlannix(
+    [{ chave: 'l1', plannix: 117 }, { chave: 'l2', plannix: null }, { chave: 'l3', plannix: 999 }, { chave: 'l4', plannix: 200 }],
+    [
+      { codigo: 117, sigla: 'PM IBARAMA', nome: 'PONTE 5,00X25,00M (LAJ. GRINGA)', projeto: true, itens: [{ produto: 'PILAR', nome: 'P01', secao: '25X40', quantidade: 1, desenhos: ['p01.pdf'], pecas: [{ codigo: '1001', etapa: 'ACABADA', data: null }] }] },
+      { codigo: 999, erro: 'nao-encontrada' },
+      { codigo: 200, sigla: 'PM NOVA', nome: 'GALERIA', projeto: false, itens: [] },
+    ],
+  );
+  const l1 = r.l1 as { itens: PreFabricado[]; origem: string };
+  assert.equal(l1.origem, 'Plannix 117 · PM IBARAMA · PONTE 5,00X25,00M (LAJ. GRINGA)');
+  assert.deepEqual([l1.itens[0].grupo, l1.itens[0].tipo, l1.itens[0].pecas.length, l1.itens[0].desenhos], ['PILAR', 'P01', 1, ['p01.pdf']]);
+  assert.match((r.l2 as { aviso: string }).aviso, /Sem código Plannix/);
+  assert.match((r.l3 as { aviso: string }).aviso, /999 não foi encontrado/);
+  assert.equal((r.l4 as { origem: string }).origem, 'Plannix 200 · PM NOVA · GALERIA (sem projeto: Lançamento Final)');
 });

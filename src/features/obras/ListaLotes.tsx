@@ -36,10 +36,11 @@ import type { LoteObra } from './obrasDomain';
 import {
   agruparPorTipo,
   comPdf,
-  configDoStatus,
+  etapaPlannix,
   maisRecente,
+  resumoEtapas,
   revisoes,
-  statusDoGrupo,
+  semProjeto,
   totalPdfs,
   type PdfPreFabricado,
   type PreFabricado,
@@ -47,14 +48,17 @@ import {
 import './listaLotes.css';
 
 /**
- * LOTEs do detalhe da obra em lista: LOTE | Pré-Fabricados (Tipo, PDF, Status, Revisões). Os pré-fabricados do LOTE
- * ficam agrupados por Tipo ("Pilar 1" e "Pilar 2" em "Pilar", que abre e fecha; recolhido, o grupo resume os itens).
- * Sem PDF, "Anexar PDF"; com PDF, "Substituir" (troca o atual, sem nova revisão) e "Revisão" (anexa uma nova).
- * `itens: null` = a API dos pré-fabricados ainda não respondeu para o LOTE (hoje, sempre: vem novidade aí).
- * Sem `acoesPdf`, a lista só mostra os PDFs (sem anexar, abrir nem excluir).
+ * LOTEs do detalhe da obra em lista: LOTE | Pré-Fabricados (Tipo, PDF, Status, Revisões), em três níveis:
+ * - grupo: o produto (Pilar, Viga…), que abre e fecha; recolhido, resume as peças de todos os itens;
+ * - item: a peça do projeto (ex.: P01 com 10 peças), com o resumo das etapas (ex.: 3 Corte e dobra · 4 Acabada);
+ *   abre para mostrar os códigos de controle, cada um com a etapa e a data;
+ * - sem projeto no Plannix, o item é a linha do Lançamento Final ("aguardando projeto").
+ * PDF: os nomes dos desenhos no Plannix e, com `acoesPdf` (só no /testes/mki por enquanto), anexar ("Anexar PDF";
+ * com PDF, "Substituir", que troca o atual sem nova revisão, e "Revisão", que anexa uma nova) e as Revisões.
+ * `itens: null` = sem pré-fabricados para mostrar; `aviso` diz o motivo (carregando, sem código Plannix, erro).
  */
 
-export type LoteComPreFabricados = LoteObra & { itens: PreFabricado[] | null };
+export type LoteComPreFabricados = LoteObra & { itens: PreFabricado[] | null; aviso?: string; origem?: string };
 export type ModoPdf = 'anexar' | 'substituir' | 'revisao';
 export type AcoesPdf = {
   anexar: (alvo: { lote: string; item: string }, modo: ModoPdf, arquivo: File) => void;
@@ -79,10 +83,24 @@ function BotaoRevisoes({ quantidade, rotulo, onClick }: { quantidade: number; ro
   );
 }
 
-function ChipStatus({ status }: { status: string }) {
-  const cor = configDoStatus(status)?.cor ?? 'default';
-  return <Chip size="small" label={status || 'Sem status'} color={cor} variant={cor === 'default' ? 'outlined' : 'filled'} />;
+/** Status de um item ou grupo: quantas peças há em cada etapa; as sem projeto aparecem como "aguardando projeto". */
+function ResumoEtapas({ itens }: { itens: PreFabricado[] }) {
+  const etapas = resumoEtapas(itens);
+  const aguardando = semProjeto(itens);
+  return (
+    <Stack direction="row" spacing={0.5} flexWrap="wrap" useFlexGap>
+      {etapas.map((etapa) => (
+        <Chip key={etapa.rotulo} size="small" label={`${etapa.quantidade} ${etapa.rotulo}`} color={etapa.cor} variant={etapa.cor === 'default' ? 'outlined' : 'filled'} />
+      ))}
+      {aguardando > 0 && <Chip size="small" variant="outlined" label={`${aguardando} aguardando projeto`} />}
+    </Stack>
+  );
 }
+
+const dataPlannix = (data: string | null) => {
+  const d = data ? new Date(data) : null;
+  return d && !Number.isNaN(d.getTime()) ? d.toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' }) : '';
+};
 
 /** Coluna LOTE: status do Friday no rótulo; com coordenada (coluna Coordenada do subitem), abre o Google Maps com o pino. */
 function ChipLote({ lote }: { lote: LoteObra }) {
@@ -108,18 +126,19 @@ export default function ListaLotes({ lotes, acoesPdf }: { lotes: LoteComPreFabri
   const [historico, setHistorico] = useState<AlvoRevisoes | null>(null);
   const [excluir, setExcluir] = useState<PdfPreFabricado | null>(null);
   const [aviso, setAviso] = useState<string | null>(null);
-  // Grupos de Tipo recolhidos ("lote:grupo"); começam todos abertos.
+  // Grupos recolhidos ("lote:grupo"; começam abertos) e itens abertos ("lote:item"; começam fechados, com as peças).
   const [recolhidos, setRecolhidos] = useState<Set<string>>(() => new Set());
+  const [itensAbertos, setItensAbertos] = useState<Set<string>>(() => new Set());
   const entrada = useRef<HTMLInputElement>(null);
   const anexarEm = useRef<{ alvo: { lote: string; item: string }; modo: ModoPdf } | null>(null);
 
-  function alternarGrupo(chave: string) {
-    setRecolhidos((atuais) => {
-      const proximos = new Set(atuais);
-      if (!proximos.delete(chave)) proximos.add(chave);
-      return proximos;
-    });
-  }
+  const alternar = (set: typeof setRecolhidos) => (chave: string) => set((atuais) => {
+    const proximos = new Set(atuais);
+    if (!proximos.delete(chave)) proximos.add(chave);
+    return proximos;
+  });
+  const alternarGrupo = alternar(setRecolhidos);
+  const alternarItem = alternar(setItensAbertos);
 
   function escolherPdf(alvo: { lote: string; item: string }, modo: ModoPdf) {
     anexarEm.current = { alvo, modo };
@@ -158,17 +177,27 @@ export default function ListaLotes({ lotes, acoesPdf }: { lotes: LoteComPreFabri
           </TableHead>
           <TableBody>
             {lotes.map((lote) => {
-              // Linhas visíveis do LOTE: o cabeçalho de cada grupo de Tipo e, se aberto, os itens dele.
+              // Linhas visíveis do LOTE: cada grupo; se aberto, os itens dele; de cada item aberto, as peças.
               const linhas = agruparPorTipo(lote.itens ?? []).flatMap((grupo) => {
                 const chave = `${lote.chave}:${grupo.nome}`;
                 const aberto = !recolhidos.has(chave);
                 return [
                   { tipo: 'grupo' as const, chave, nome: grupo.nome, itens: grupo.itens, aberto },
-                  ...(aberto ? grupo.itens.map((item) => ({ tipo: 'item' as const, chave: item.id, item })) : []),
+                  ...(aberto ? grupo.itens.flatMap((item) => {
+                    const chaveItem = `${lote.chave}:${item.id}`;
+                    const itemAberto = itensAbertos.has(chaveItem);
+                    return [
+                      { tipo: 'item' as const, chave: chaveItem, item, aberto: itemAberto },
+                      ...(itemAberto ? item.pecas.map((peca) => ({ tipo: 'peca' as const, chave: `${chaveItem}:${peca.codigo}`, peca })) : []),
+                    ];
+                  }) : []),
                 ];
               });
               const celulaLote = (
-                <TableCell rowSpan={Math.max(linhas.length, 1)} className="obra-lotes__lote"><ChipLote lote={lote} /></TableCell>
+                <TableCell rowSpan={Math.max(linhas.length, 1)} className="obra-lotes__lote">
+                  <ChipLote lote={lote} />
+                  {lote.origem && <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.75 }}>{lote.origem}</Typography>}
+                </TableCell>
               );
               if (!linhas.length) {
                 return (
@@ -176,7 +205,7 @@ export default function ListaLotes({ lotes, acoesPdf }: { lotes: LoteComPreFabri
                     {celulaLote}
                     <TableCell colSpan={4}>
                       <Typography variant="body2" color="text.secondary">
-                        {lote.itens ? 'Nenhum pré-fabricado neste LOTE.' : 'Vem novidade aí: os pré-fabricados do LOTE chegam por uma API que ainda não está ligada.'}
+                        {lote.itens ? 'Nenhum pré-fabricado neste LOTE no Plannix.' : lote.aviso ?? 'Sem pré-fabricados.'}
                       </Typography>
                     </TableCell>
                   </TableRow>
@@ -203,22 +232,41 @@ export default function ListaLotes({ lotes, acoesPdf }: { lotes: LoteComPreFabri
                               <Typography component="span" variant="body2" color="text.secondary" sx={{ ml: 1 }}>{linha.itens.length}</Typography>
                             </Button>
                           </TableCell>
-                          {/* Recolhido, o grupo resume os itens: quantos têm PDF, o status do grupo e as revisões de todos. */}
+                          {/* Recolhido, o grupo resume os itens: quantos têm PDF, as etapas de todas as peças e as revisões. */}
                           {linha.aberto ? <TableCell colSpan={3} /> : (
                             <>
                               <TableCell>
-                                <Typography variant="body2" color="text.secondary">{`${comPdf(linha.itens)} de ${linha.itens.length} com PDF`}</Typography>
+                                {acoesPdf && <Typography variant="body2" color="text.secondary">{`${comPdf(linha.itens)} de ${linha.itens.length} com PDF`}</Typography>}
                               </TableCell>
-                              <TableCell>{statusDoGrupo(linha.itens) ? <ChipStatus status={statusDoGrupo(linha.itens)} /> : null}</TableCell>
+                              <TableCell><ResumoEtapas itens={linha.itens} /></TableCell>
                               <TableCell align="center">
-                                <BotaoRevisoes
-                                  quantidade={totalPdfs(linha.itens)}
-                                  rotulo={`Revisões de ${linha.nome} do ${lote.nome}`}
-                                  onClick={() => setHistorico({ lote: lote.chave, itens: linha.itens.map((item) => item.id), titulo: linha.nome })}
-                                />
+                                {(acoesPdf || totalPdfs(linha.itens) > 0) && (
+                                  <BotaoRevisoes
+                                    quantidade={totalPdfs(linha.itens)}
+                                    rotulo={`Revisões de ${linha.nome} do ${lote.nome}`}
+                                    onClick={() => setHistorico({ lote: lote.chave, itens: linha.itens.map((item) => item.id), titulo: linha.nome })}
+                                  />
+                                )}
                               </TableCell>
                             </>
                           )}
+                        </TableRow>
+                      );
+                    }
+                    if (linha.tipo === 'peca') {
+                      const etapa = etapaPlannix(linha.peca.etapa);
+                      return (
+                        <TableRow key={linha.chave} className={`obra-lotes__peca ${classe ?? ''}`}>
+                          {index === 0 && celulaLote}
+                          <TableCell align="center" sx={{ fontFamily: 'monospace', whiteSpace: 'nowrap' }}>{linha.peca.codigo}</TableCell>
+                          <TableCell />
+                          <TableCell>
+                            <Stack direction="row" spacing={1} alignItems="center">
+                              <Chip size="small" label={etapa.rotulo} color={etapa.cor} variant={etapa.cor === 'default' ? 'outlined' : 'filled'} />
+                              <Typography variant="caption" color="text.secondary">{dataPlannix(linha.peca.data)}</Typography>
+                            </Stack>
+                          </TableCell>
+                          <TableCell />
                         </TableRow>
                       );
                     }
@@ -229,8 +277,37 @@ export default function ListaLotes({ lotes, acoesPdf }: { lotes: LoteComPreFabri
                     return (
                       <TableRow key={linha.chave} className={classe}>
                         {index === 0 && celulaLote}
-                        <TableCell align="center" sx={{ fontWeight: 600, whiteSpace: 'nowrap' }}>{item.tipo || '—'}</TableCell>
+                        <TableCell align="center" sx={{ whiteSpace: 'nowrap' }}>
+                          {item.pecas.length ? (
+                            <Button
+                              size="small"
+                              color="inherit"
+                              onClick={() => alternarItem(linha.chave)}
+                              startIcon={linha.aberto ? <KeyboardArrowUpIcon /> : <KeyboardArrowDownIcon />}
+                              aria-expanded={linha.aberto}
+                              aria-label={`${linha.aberto ? 'Fechar' : 'Abrir'} as peças de ${item.tipo}`}
+                              sx={{ fontWeight: 600, textTransform: 'none' }}
+                            >
+                              {item.tipo}
+                              <Typography component="span" variant="body2" color="text.secondary" sx={{ ml: 1 }}>{`${item.quantidade} ${item.quantidade === 1 ? 'peça' : 'peças'}`}</Typography>
+                            </Button>
+                          ) : (
+                            <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                              {item.tipo || '—'}
+                              <Typography component="span" variant="body2" color="text.secondary" sx={{ ml: 1 }}>{`${item.quantidade} ${item.quantidade === 1 ? 'peça' : 'peças'}`}</Typography>
+                            </Typography>
+                          )}
+                        </TableCell>
                         <TableCell>
+                          {item.desenhos.length > 0 && (
+                            <Stack direction="row" spacing={0.5} flexWrap="wrap" useFlexGap sx={{ mb: acoesPdf ? 0.5 : 0 }}>
+                              {item.desenhos.map((nome) => (
+                                <Tooltip key={nome} title="Desenho no Plannix (a API só informa o nome)">
+                                  <Chip size="small" icon={<PictureAsPdfOutlinedIcon />} label={nome} variant="outlined" sx={{ maxWidth: 230 }} />
+                                </Tooltip>
+                              ))}
+                            </Stack>
+                          )}
                           {atual ? (
                             <Stack direction="row" spacing={0.5} alignItems="center">
                               <Tooltip title={`${atual.nome} · ${dataHora(atual.anexadoEm)} · ${atual.anexadoPor}`}>
@@ -259,15 +336,17 @@ export default function ListaLotes({ lotes, acoesPdf }: { lotes: LoteComPreFabri
                             <Button size="small" startIcon={<UploadFileOutlinedIcon />} onClick={() => escolherPdf(alvo, 'anexar')} aria-label={`Anexar PDF ao ${rotuloItem}`}>
                               Anexar PDF
                             </Button>
-                          ) : <Typography variant="body2" color="text.secondary">Sem PDF</Typography>}
+                          ) : null}
                         </TableCell>
-                        <TableCell><ChipStatus status={item.status} /></TableCell>
+                        <TableCell><ResumoEtapas itens={[item]} /></TableCell>
                         <TableCell align="center">
-                          <BotaoRevisoes
-                            quantidade={item.pdfs.length}
-                            rotulo={`Revisões do ${rotuloItem}`}
-                            onClick={() => setHistorico({ lote: lote.chave, itens: [item.id], titulo: item.tipo || 'pré-fabricado sem tipo' })}
-                          />
+                          {(acoesPdf || item.pdfs.length > 0) && (
+                            <BotaoRevisoes
+                              quantidade={item.pdfs.length}
+                              rotulo={`Revisões do ${rotuloItem}`}
+                              onClick={() => setHistorico({ lote: lote.chave, itens: [item.id], titulo: item.tipo || 'pré-fabricado sem tipo' })}
+                            />
+                          )}
                         </TableCell>
                       </TableRow>
                     );
