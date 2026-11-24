@@ -18,6 +18,7 @@ import { gravarAnexo } from './fridayAnexosMonday.js';
 import { criarItem, gravarValorDoItem, lerItem, novoContexto, subquadroDe, vincularSeOficial } from './fridayAutomacoes.js';
 import { dataLocal, novoId } from './fridayMondayConverter.js';
 import { conteudoDoArquivo, FERRAMENTAS, responderMcp } from './fridayMcp.js';
+import { colunasQueVe, comValoresRestritos, valoresRestritos } from './fridayRestritas.js';
 import {
   anexoLegivel, avisoDeMencao, casaBusca, colunaDoPedido, destinatariosDaMencao, EntradaInvalida, entradaDaCelula, formatoChave, hashChave, LIMITE_ENVIO, mencoesDoTexto,
   nomeDoEnvio, palavrasDaBusca, pessoaDaChave, podeVerQuadro, textoCelula, valorDaEntrada, valoresPorTitulo,
@@ -118,6 +119,9 @@ async function comOficiais(itens: AnyRecord[]): Promise<Map<number, AnyRecord>> 
 /** Itens em texto legível: { id, nome, grupo, valores: { "Título da coluna": texto } }. */
 async function itensLegiveis(itens: AnyRecord[], colunas: AnyRecord[], grupos: Map<number, string>, l: Leitor) {
   const valores = await comOficiais(itens);
+  // Colunas restritas que a pessoa vê (as outras já saíram de `colunas`): valores de fora do item.
+  const restritos = await valoresRestritos(colunas as never);
+  if (restritos.size) for (const [id, v] of valores) valores.set(id, comValoresRestritos(v, id, restritos));
   const cols = [...colunas].sort(porPosicao);
   await l.carregarNomes(cols.filter(c => c.tipo === 'pessoa').flatMap(c => itens.flatMap(i => {
     const v = valores.get(Number(i.id))?.[String(c.id)];
@@ -152,6 +156,8 @@ async function itensLegiveis(itens: AnyRecord[], colunas: AnyRecord[], grupos: M
 }
 
 const doQuadro = async (r: string, quadroId: number) => (await colecao(r).where('quadro_id', '==', quadroId).get()).docs.map(d => d.data());
+/** Colunas do quadro que a pessoa da chave vê: sem as restritas fora da lista dela (e as fórmulas que dependem delas). */
+const colunasPara = async (p: Pessoa, quadroId: number) => colunasQueVe(await doQuadro('colunas', quadroId) as { id: number }[], p.uid, p.adm2) as AnyRecord[];
 
 // ---------------------------------------------------------------- rotas
 /** GET /eu: de quem é a chave. */
@@ -183,7 +189,7 @@ async function lerQuadro(p: Pessoa, id: number) {
   const l = leitor(p);
   const q = await l.quadro(id);
   if (!q || !podeVerQuadro(q, p) || q.tipo === 'subitens') throw new Recusa(404, 'Quadro não encontrado.');
-  const [colunas, grupos, itens] = await Promise.all([doQuadro('colunas', id), doQuadro('grupos', id), doQuadro('itens', id)]);
+  const [colunas, grupos, itens] = await Promise.all([colunasPara(p, id), doQuadro('grupos', id), doQuadro('itens', id)]);
   const gruposVis = grupos.filter(visivel).sort(porPosicao);
   const nomeGrupo = new Map(gruposVis.map(g => [Number(g.id), String(g.nome ?? '')]));
   const principais = itens.filter(i => visivel(i) && i.item_pai_id == null && nomeGrupo.has(Number(i.grupo_id))).sort(porPosicao);
@@ -192,7 +198,7 @@ async function lerQuadro(p: Pessoa, id: number) {
   const subquadro = (await colecao('quadros').where('quadro_pai_id', '==', id).get()).docs.map(d => d.data()).find(x => x.tipo === 'subitens' && visivel(x));
   const subPorPai = new Map<number, unknown[]>();
   if (subquadro) {
-    const [subColunas, subItens] = await Promise.all([doQuadro('colunas', Number(subquadro.id)), doQuadro('itens', Number(subquadro.id))]);
+    const [subColunas, subItens] = await Promise.all([colunasPara(p, Number(subquadro.id)), doQuadro('itens', Number(subquadro.id))]);
     const lista = subItens.filter(i => visivel(i) && i.item_pai_id != null).sort(porPosicao);
     const subLegiveis = await itensLegiveis(lista, subColunas.filter(c => !c.excluido_em), new Map(), l);
     lista.forEach((i, k) => subPorPai.set(Number(i.item_pai_id), [...(subPorPai.get(Number(i.item_pai_id)) ?? []), { ...subLegiveis[k], grupo: undefined }]));
@@ -234,7 +240,7 @@ async function buscar(p: Pessoa, consulta: AnyRecord) {
     // Subitem: o quadro de subitens segue o quadro principal; o resultado mostra o quadro e o item pai.
     const principal = q.tipo === 'subitens' ? await l.quadro(Number(q.quadro_pai_id)) : q;
     if (!principal || !podeVerQuadro(principal, p)) continue;
-    const [colunas, grupos] = await Promise.all([doQuadro('colunas', qid), doQuadro('grupos', qid)]);
+    const [colunas, grupos] = await Promise.all([colunasPara(p, qid), doQuadro('grupos', qid)]);
     const gruposVis = grupos.filter(visivel);
     const nomeGrupo = new Map(gruposVis.map(g => [Number(g.id), String(g.nome ?? '')]));
     const deGrupoVisivel = lista.filter(i => i.item_pai_id != null || nomeGrupo.has(Number(i.grupo_id)));
@@ -324,7 +330,7 @@ async function gravarValores(e: Escrita, itemId: number, colunas: AnyRecord[], m
 /** POST /itens/{id}/valor { coluna, valor, simular? }: grava uma célula (coluna pelo título ou id). */
 async function escreverValor(e: Escrita, itemId: number, corpo: AnyRecord) {
   const item = await itemParaEscrever(e.pessoa, itemId);
-  const colunas = (await doQuadro('colunas', Number(item.quadro_id))).filter(c => !c.excluido_em);
+  const colunas = (await colunasPara(e.pessoa, Number(item.quadro_id))).filter(c => !c.excluido_em);
   if (!('coluna' in corpo)) throw new Recusa(400, 'Informe coluna e valor.');
   const [m] = await valoresDoPedido(colunas, { [String(corpo.coluna)]: corpo.valor });
   if (corpo.simular === true) return { simulado: true, item: itemId, coluna: m.coluna.titulo, gravaria: m.valor ?? null };
@@ -339,7 +345,7 @@ async function criarItemPeloPedido(e: Escrita, quadroId: number, corpo: AnyRecor
   if (q.tipo !== 'quadro' && q.tipo != null) throw new Recusa(400, 'Itens só em quadros (não em painel nem no quadro interno de subitens).');
   const nome = String(corpo.nome ?? '').trim().slice(0, 500);
   if (!nome) throw new Recusa(400, 'Informe nome.');
-  const [colunas, grupos] = await Promise.all([doQuadro('colunas', quadroId), doQuadro('grupos', quadroId)]);
+  const [colunas, grupos] = await Promise.all([colunasPara(e.pessoa, quadroId), doQuadro('grupos', quadroId)]);
   const gruposVis = grupos.filter(visivel).sort(porPosicao);
   const grupo = corpo.grupo == null ? gruposVis[0]
     : gruposVis.find(g => String(g.id) === String(corpo.grupo)) ?? gruposVis.find(g => palavrasDaBusca(g.nome).join(' ') === palavrasDaBusca(corpo.grupo).join(' '));
@@ -367,14 +373,14 @@ async function criarSubitemPeloPedido(e: Escrita, paiId: number, corpo: AnyRecor
   if (corpo.simular === true) {
     const sub = (await colecao('quadros').where('quadro_pai_id', '==', Number(quadro.id)).where('tipo', '==', 'subitens').get()).docs.map(d => d.data())
       .sort(porPosicao)[0];
-    const valores = sub ? await valoresDoPedido((await doQuadro('colunas', Number(sub.id))).filter(c => !c.excluido_em), corpo.valores) : [];
+    const valores = sub ? await valoresDoPedido((await colunasPara(e.pessoa, Number(sub.id))).filter(c => !c.excluido_em), corpo.valores) : [];
     return {
       simulado: true, item: paiId, nome, valores: Object.fromEntries(valores.map(v => [v.coluna.titulo, v.valor ?? null])),
       ...(sub ? {} : { aviso: 'O quadro ainda não tem subitens: o quadro de subitens será criado (colunas Responsável, Status e Data) e os valores, conferidos nele.' }),
     };
   }
   const { quadroId: subId, grupoId } = await subquadroDe(quadro);
-  const colunas = (await doQuadro('colunas', subId)).filter(c => !c.excluido_em);
+  const colunas = (await colunasPara(e.pessoa, subId)).filter(c => !c.excluido_em);
   const valores = await valoresDoPedido(colunas, corpo.valores);
   const novo = await criarItem({ quadro_id: subId, grupo_id: grupoId, item_pai_id: paiId, nome, criado_por: e.pessoa.uid });
   await registrar(e, { quadro_id: subId, item_id: novo.id, item_nome: nome, acao: 'criou' });
@@ -387,7 +393,7 @@ async function criarSubitemPeloPedido(e: Escrita, paiId: number, corpo: AnyRecor
 /** GET /itens/{id}/arquivos: arquivos do item (colunas de arquivos, atualizações e aba Arquivos), com o link de download. */
 async function listarArquivos(p: Pessoa, itemId: number) {
   const item = await itemParaEscrever(p, itemId);
-  const [anexos, colunas] = await Promise.all([colecao('anexos').where('item_id', '==', itemId).get(), doQuadro('colunas', Number(item.quadro_id))]);
+  const [anexos, colunas] = await Promise.all([colecao('anexos').where('item_id', '==', itemId).get(), colunasPara(p, Number(item.quadro_id))]);
   const titulo = new Map(colunas.map(c => [Number(c.id), String(c.titulo ?? '')]));
   return {
     item: itemId,
@@ -414,7 +420,7 @@ async function enviarArquivo(e: Escrita, itemId: number, consulta: AnyRecord, da
   const nome = nomeDoEnvio(consulta.nome);
   if (!dados?.length) throw new Recusa(400, 'Mande o conteúdo do arquivo no corpo do pedido.');
   if (dados.length > LIMITE_ENVIO) throw new Recusa(413, 'Arquivo maior que 25 MB.');
-  const colunas = (await doQuadro('colunas', Number(item.quadro_id))).filter(c => !c.excluido_em);
+  const colunas = (await colunasPara(e.pessoa, Number(item.quadro_id))).filter(c => !c.excluido_em);
   let coluna: AnyRecord | null = null;
   if (consulta.coluna != null && String(consulta.coluna).trim()) {
     coluna = colunaDoPedido(colunas.map(c => ({ ...c, id: Number(c.id), titulo: String(c.titulo ?? '') })), consulta.coluna);

@@ -216,6 +216,13 @@ async function seed() {
     await setDoc(doc(db, 'friday-itens', '200'), { id: 200, quadro_id: 100, nome: 'Sigiloso', valores: {}, pessoas: ['uid-escritorio', 'uid-escritorio-fora'], arquivado_em: '2026-11-06 10:00:00', vinculo: null });
     await setDoc(doc(db, 'friday-itens', '201'), { id: 201, quadro_id: 101, item_pai_id: 200, nome: 'Subitem sigiloso', valores: {}, vinculo: null });
     await setDoc(doc(db, 'friday-colunas', '210'), { id: 210, quadro_id: 100, titulo: 'Status', tipo: 'status' });
+    // Colunas restritas (2026-11-23): 220 no quadro aberto 10, vista só por uid-escritorio; 221 no quadro restrito 100,
+    // com uid-escritorio-fora na lista mas sem acesso ao quadro.
+    await setDoc(doc(db, 'friday-colunas', '220'), { id: 220, quadro_id: 10, titulo: 'Valor do Contrato', tipo: 'numero', restrita: { ver: ['uid-escritorio'] } });
+    await setDoc(doc(db, 'friday-colunas', '221'), { id: 221, quadro_id: 100, titulo: 'Salário', tipo: 'numero', restrita: { ver: ['uid-escritorio-fora'] } });
+    await setDoc(doc(db, 'friday-colunas', '222'), { id: 222, quadro_id: 10, titulo: 'Livre', tipo: 'texto' });
+    await setDoc(doc(db, 'friday-restritos', '220'), { valores: { 20: 1000 } });
+    await setDoc(doc(db, 'friday-restritos', '221'), { valores: { 200: 5000 } });
     await setDoc(doc(db, 'friday-execucoes', '220'), { id: 220, quadro_id: 100, criado_em: '2026-11-06 10:00:00' });
     await setDoc(doc(db, 'friday-anexos', '230'), { id: 230, item_id: 200, quadro_id: 100, arquivo: 'friday/100/200/230-rh.pdf' });
     await setDoc(doc(db, 'friday-atividades', '240'), { id: 240, quadro_id: 100, item_id: 200, acao: 'criou' });
@@ -1148,6 +1155,32 @@ test('[firestore] Friday: favorites are one document per person, read and writte
   await assertFails(setDoc(doc(db, 'friday-favoritos', 'uid-adm2'), { quadros: [] }));
   await assertFails(getDocs(collection(db, 'friday-favoritos')));
   await assertFails(setDoc(doc(dbAs('canonicalUser'), 'friday-favoritos', 'uid-canonical-user'), { quadros: [] }));
+});
+test('[firestore] Friday: restricted column values are read and written only by the people on the list (or adm2)', async () => {
+  const esc = dbAs('escritorio'), fora = dbAs('escritorioFora'), adm = dbAs('canonicalAdm2');
+  await assertSucceeds(getDoc(doc(esc, 'friday-restritos', '220')));
+  await assertSucceeds(setDoc(doc(esc, 'friday-restritos', '220'), { valores: { 20: 1500 } }, { merge: true }));
+  await assertFails(setDoc(doc(esc, 'friday-restritos', '220'), { valores: { 20: 1 }, outro: 1 }));
+  await assertFails(getDoc(doc(fora, 'friday-restritos', '220')));
+  await assertFails(setDoc(doc(fora, 'friday-restritos', '220'), { valores: { 20: 1 } }, { merge: true }));
+  await assertFails(getDoc(doc(fora, 'friday-restritos', '221'))); // na lista, mas sem acesso ao quadro
+  await assertFails(getDocs(collection(esc, 'friday-restritos')));
+  await assertFails(deleteDoc(doc(esc, 'friday-restritos', '220')));
+  await assertSucceeds(getDoc(doc(adm, 'friday-restritos', '221')));
+  await assertSucceeds(setDoc(doc(adm, 'friday-restritos', '222'), { valores: {} })); // adm2 cria antes de marcar a coluna
+  await assertFails(getDoc(doc(esc, 'friday-restritos', '222'))); // coluna 222 não é restrita
+  await assertFails(getDoc(doc(dbAs('canonicalUser'), 'friday-restritos', '220')));
+});
+test('[firestore] Friday: only adm2 turns a column restricted, changes its list or deletes a restricted column', async () => {
+  const esc = dbAs('escritorio'), adm = dbAs('canonicalAdm2');
+  await assertSucceeds(updateDoc(doc(esc, 'friday-colunas', '220'), { titulo: 'Valor' }));
+  await assertFails(updateDoc(doc(esc, 'friday-colunas', '220'), { restrita: { ver: ['uid-escritorio', 'uid-escritorio-fora'] } }));
+  await assertFails(updateDoc(doc(esc, 'friday-colunas', '222'), { restrita: { ver: ['uid-escritorio'] } }));
+  await assertFails(deleteDoc(doc(esc, 'friday-colunas', '220')));
+  await assertFails(setDoc(doc(esc, 'friday-colunas', '223'), { id: 223, quadro_id: 10, titulo: 'X', tipo: 'numero', restrita: { ver: [] } }));
+  await assertSucceeds(setDoc(doc(esc, 'friday-colunas', '224'), { id: 224, quadro_id: 10, titulo: 'Y', tipo: 'numero' }));
+  await assertSucceeds(updateDoc(doc(adm, 'friday-colunas', '222'), { restrita: { ver: ['uid-escritorio'] } }));
+  await assertSucceeds(deleteDoc(doc(adm, 'friday-colunas', '221')));
 });
 test('[firestore] Friday: official registries are readable, never writable by clients', async () => {
   const db = dbAs('escritorio');

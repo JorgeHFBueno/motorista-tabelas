@@ -16,6 +16,8 @@ import { TabelaSubitens, type OpsItens } from './Subitens.tsx';
 import { alvosPara } from './mudarTipo.ts';
 import { MudarTipoDialogo } from './MudarTipo.tsx';
 import { CampoOficialDialogo, TIPOS_OFICIAIS } from './TornarOficial.tsx';
+import { ColunaRestritaDialogo } from './ColunaRestrita.tsx';
+import { itemRestrita, textoRestrita } from './restritasMenu.tsx';
 import { aceitaReais, ehPrazo, emReais, infoColuna, infoTipo, somaFormula, textoFormula, type Coluna, type Grupo, type Item, type Ordenacao, type Rotulo, type Sub } from './tipos.ts';
 import { fmtDuracao, totalSegundos } from './tempo.ts';
 import { colunaNoTipo, tipoDoItem, type TiposItem } from './tiposSubitem.ts';
@@ -423,6 +425,7 @@ function CabecalhoColuna({ coluna, acoes, confirmar, ordenacao, setOrdenacao, or
   const [tipos, setTipos] = useState(false);
   const [campoOficial, setCampoOficial] = useState<'adicionar' | 'descontinuar' | null>(null);
   const [mudarTipo, setMudarTipo] = useState(false);
+  const [restringir, setRestringir] = useState(false);
   const adm2 = useAuth().authorizationProfile?.adm2 === true;
   const Icone = infoColuna(coluna).icone;
   const trocar = (outra?: Coluna) => {
@@ -449,6 +452,7 @@ function CabecalhoColuna({ coluna, acoes, confirmar, ordenacao, setOrdenacao, or
         {coluna.oficial && <span className="col-oficial" title={coluna.oficial.somente_leitura
           ? `Só leitura: o valor vem do cadastro “${coluna.oficial.nome}” (${coluna.oficial.chave}).`
           : `Campo oficial do cadastro “${coluna.oficial.nome}” (${coluna.oficial.chave}). Pode renomear; não pode excluir.`}><Lock size={12} /></span>}
+        {coluna.restrita && <span className="col-oficial col-restrita" title={textoRestrita(coluna)}><EyeOff size={12} /></span>}
         <button ref={menu.ref} className="btn-icone col-menu" aria-label={`Menu da coluna ${coluna.titulo}`} onClick={menu.alternar}><MoreHorizontal size={15} /></button>
       </div>
       <span className="redim" title="Arraste para ajustar; clique duas vezes para caber o conteúdo"
@@ -464,7 +468,7 @@ function CabecalhoColuna({ coluna, acoes, confirmar, ordenacao, setOrdenacao, or
                 ...(coluna.tipo === 'formula' ? [{ rotulo: 'Editar fórmula', icone: <Sigma size={15} />, onClick: () => onFormula(coluna) }] : []),
                 { rotulo: 'Renomear', icone: <Pencil size={15} />, onClick: () => setRenomear(true) },
                 // Campo oficial não muda de tipo; só aparece quando há um tipo compatível para converter.
-                ...(alvosPara(coluna).length ? [{ rotulo: 'Mudar tipo…', icone: <Shuffle size={15} />, onClick: () => setMudarTipo(true) }] : []),
+                ...(alvosPara(coluna).length && !coluna.restrita ? [{ rotulo: 'Mudar tipo…', icone: <Shuffle size={15} />, onClick: () => setMudarTipo(true) }] : []),
                 { rotulo: 'Ordenar crescente', icone: <ArrowDownAZ size={15} />, onClick: () => setOrdenacao([{ colunaId: coluna.id, dir: 1 }]) },
                 { rotulo: 'Ordenar decrescente', icone: <ArrowUpAZ size={15} />, onClick: () => setOrdenacao([{ colunaId: coluna.id, dir: -1 }]) },
                 ...(coluna.tipo === 'data' ? [
@@ -482,8 +486,9 @@ function CabecalhoColuna({ coluna, acoes, confirmar, ordenacao, setOrdenacao, or
                 ...(AGRUPAVEIS.has(coluna.tipo) ? [{ rotulo: 'Agrupar por esta coluna', icone: <Group size={15} />, onClick: onAgrupar }] : []),
                 { rotulo: 'Ocultar coluna', icone: <EyeOff size={15} />, onClick: onOcultar },
                 ...itensCampoOficial(adm2 && !!acoes.oficial && acoes.oficial.modo !== 'existente', coluna, setCampoOficial),
-                // Campo oficial não pode ser excluído (os dados vivem no cadastro oficial).
-                ...(coluna.oficial ? [] : ['separador' as const,
+                ...itemRestrita(adm2, coluna, () => setRestringir(true)),
+                // Campo oficial não pode ser excluído (os dados vivem no cadastro oficial); coluna restrita, só adm2.
+                ...(coluna.oficial || (coluna.restrita && !adm2) ? [] : ['separador' as const,
                   { rotulo: 'Excluir coluna', icone: <Trash2 size={15} />, perigo: true, onClick: async () => { if (await confirmar(`Excluir a coluna “${coluna.titulo}” e todos os valores dela?`)) acoes.excluirColuna(coluna.id); } }]),
               ]} />
             </>
@@ -493,6 +498,7 @@ function CabecalhoColuna({ coluna, acoes, confirmar, ordenacao, setOrdenacao, or
       {campoOficial && acoes.oficial && <CampoOficialDialogo quadroId={acoes.oficial.quadroId} coluna={coluna} modo={campoOficial}
         onFechar={() => setCampoOficial(null)} onPronto={() => { setCampoOficial(null); acoes.recarregar(); }} />}
       {mudarTipo && <MudarTipoDialogo coluna={coluna} onFechar={() => setMudarTipo(false)} onPronto={() => { setMudarTipo(false); acoes.recarregar(); }} />}
+      {restringir && <ColunaRestritaDialogo coluna={coluna} onFechar={() => setRestringir(false)} onPronto={() => { setRestringir(false); acoes.recarregar(); }} />}
     </th>
   );
 }

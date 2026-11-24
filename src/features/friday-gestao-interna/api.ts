@@ -1,5 +1,5 @@
 import {
-  arrayRemove, arrayUnion, collection, deleteField, doc, documentId, FieldPath, getDoc, getDocs, limit, onSnapshot, orderBy, query, runTransaction, serverTimestamp, setDoc, updateDoc, where, writeBatch,
+  arrayRemove, arrayUnion, collection, deleteDoc, deleteField, doc, documentId, FieldPath, getDoc, getDocs, limit, onSnapshot, orderBy, query, runTransaction, serverTimestamp, setDoc, updateDoc, where, writeBatch,
   type DocumentData, type DocumentReference, type QueryConstraint,
 } from 'firebase/firestore';
 import { httpsCallable } from 'firebase/functions';
@@ -11,6 +11,7 @@ import { entraNoFriday } from './acesso.ts';
 import { functions } from './funcoes.ts';
 import { CORES, fmtNumeroColuna, NOME_TRAVADO, nomeEspelhado } from './util.ts';
 import { converterColuna, nomeDoAlvo, type Alvo } from './quadro/mudarTipo.ts';
+import { colunasQueVe, TIPOS_RESTRINGIVEIS, valoresComRestritas } from './quadro/restritas.ts';
 import type { Coluna } from './quadro/tipos.ts';
 import { ErroTempo, fmtDuracao, lerTempo, operarTempo, sessaoAberta, semSessaoAberta, totalSegundos, type OpTempo } from './quadro/tempo.ts';
 import { avisoDeMencao, destinatariosDaMencao } from './avisos.ts';
@@ -361,6 +362,79 @@ async function comOficiais(item: Row): Promise<Row> {
   if (s?.situacao !== 'ativo') return item;
   return mesclarOficial(item, camposAtivos(s), d?.[s.chave]?.[String(item.vinculo.sub)]);
 }
+// ------------------------------------------------------------------ colunas restritas (quadro/restritas.ts)
+// Valores fora do item, em friday-restritos/{coluna}; só quem está na lista da coluna (e adm2) lê e grava (Rules).
+const refRestritos = (colunaId: number) => doc(db, 'friday-restritos', String(colunaId));
+/** Colunas que eu vejo: sem as restritas de que não faço parte nem as fórmulas que dependem delas. */
+async function colunasVisiveis(colunas: Row[]): Promise<Row[]> {
+  if (!colunas.some(c => c.restrita)) return colunas;
+  return colunasQueVe(colunas as never[], meuUid(), await souAdm2()) as unknown as Row[];
+}
+/** Valores das colunas restritas (que eu vejo): coluna → { itemId: valor }. */
+async function valoresRestritos(colunas: Row[]): Promise<Map<number, Record<string, unknown> | null>> {
+  const m = new Map<number, Record<string, unknown> | null>();
+  await Promise.all(colunas.filter(c => c.restrita).map(async c => {
+    const s = await getDoc(refRestritos(c.id)).catch(e => { console.warn('[friday] coluna restrita', c.id, e); return null; });
+    m.set(c.id, (s?.data()?.valores ?? null) as Record<string, unknown> | null);
+  }));
+  return m;
+}
+/** Item avulso com os valores das colunas restritas que eu vejo (as demais saem). */
+async function comRestritas(item: Row): Promise<Row> {
+  const todas = await consultar('colunas', { quadro_id: item.quadro_id });
+  if (!todas.some(c => c.restrita)) return item;
+  const vejo = await colunasVisiveis(todas);
+  const ocultas = todas.filter(c => !vejo.includes(c)).map(c => String(c.id));
+  const valores = valoresComRestritas(item.valores, item.id, await valoresRestritos(vejo));
+  for (const k of ocultas) delete valores[k];
+  return { ...item, valores };
+}
+/** Célula de coluna restrita: o valor vai para friday-restritos; o histórico registra a mudança sem os valores. */
+async function gravarRestrito(item: Row, coluna: Row, valor: unknown) {
+  if (!TIPOS_RESTRINGIVEIS.has(String(coluna.tipo))) throw new Error(`“${coluna.titulo}” é restrita e não aceita este tipo de valor.`);
+  const chave = String(item.id);
+  const antes = ((await getDoc(refRestritos(coluna.id))).data()?.valores ?? {})[chave];
+  await setDoc(refRestritos(coluna.id), { valores: { [chave]: vazio(valor) ? deleteField() : semUndefined(valor) } }, { merge: true });
+  const atualizado_em = agora();
+  await updateDoc(ref('itens', item.id), { atualizado_em });
+  if (JSON.stringify(antes ?? null) !== JSON.stringify(vazio(valor) ? null : valor)) {
+    await registrar({ quadro_id: item.quadro_id, item_id: item.id, item_nome: item.nome, acao: 'alterou', coluna_id: coluna.id, coluna_titulo: coluna.titulo, de: null, para: 'valor restrito' });
+  }
+  const valores = { ...(item.valores ?? {}) };
+  if (vazio(valor)) delete valores[String(coluna.id)]; else valores[String(coluna.id)] = valor;
+  return { ...item, valores, atualizado_em };
+}
+/**
+ * Liga, muda ou desliga a restrição de uma coluna (só adm2). Ligar leva os valores dos itens (inclusive arquivados e na
+ * lixeira) para friday-restritos/{coluna} e os tira dos itens; desligar devolve aos itens e apaga o documento.
+ */
+export const restringirColuna = emPortugues(async function restringirColuna(colunaId: number, ver: string[] | null) {
+  if (!(await souAdm2())) throw new Error('Só adm2 restringe colunas.');
+  const coluna = await buscar('colunas', colunaId);
+  if (!coluna) throw new Error('coluna não encontrada');
+  if (await campoOficialDa(coluna)) throw new Error(`“${coluna.titulo}” é um campo oficial: o valor fica no cadastro, que todos leem.`);
+  if (ver && !TIPOS_RESTRINGIVEIS.has(String(coluna.tipo))) throw new Error('Colunas deste tipo (tempo, pessoa, arquivos, conexão ou fórmula) ainda não podem ser restritas.');
+  const chave = String(coluna.id);
+  const lista = [...new Set(ver ?? [])];
+  const itens = ver && coluna.restrita ? [] : await consultar('itens', { quadro_id: coluna.quadro_id });
+  if (ver && coluna.restrita) {
+    await updateDoc(ref('colunas', colunaId), { restrita: { ver: lista } });
+  } else if (ver) {
+    const valores = Object.fromEntries(itens.filter(i => !vazio(i.valores?.[chave])).map(i => [String(i.id), i.valores[chave]]));
+    await setDoc(refRestritos(colunaId), { valores });
+    await updateDoc(ref('colunas', colunaId), { restrita: { ver: lista } });
+    await emLotes(itens.filter(i => i.valores && chave in i.valores).map(i => lote => lote.update(ref('itens', i.id), new FieldPath('valores', chave), deleteField())));
+  } else if (coluna.restrita) {
+    const valores = ((await getDoc(refRestritos(colunaId))).data()?.valores ?? {}) as Record<string, unknown>;
+    const existem = new Set(itens.map(i => String(i.id)));
+    await emLotes(Object.entries(valores).filter(([id]) => existem.has(id)).map(([id, v]) => lote => lote.update(ref('itens', Number(id)), new FieldPath('valores', chave), v)));
+    await updateDoc(ref('colunas', colunaId), { restrita: deleteField() });
+    await deleteDoc(refRestritos(colunaId));
+  } else return;
+  await registrar({ quadro_id: coluna.quadro_id, acao: 'alterou', coluna_id: colunaId, coluna_titulo: coluna.titulo,
+    de: coluna.restrita ? 'coluna restrita' : 'coluna livre', para: ver ? `coluna restrita (${lista.length} pessoa${lista.length === 1 ? '' : 's'} e adm2)` : 'coluna livre' });
+});
+
 const chamarGravacaoOficial = httpsCallable<{ itemId: number; op: string; colunaId?: number; valor?: unknown }, unknown>(functions, 'fridayCadastroGravar');
 async function gravarOficial(itemId: number, op: 'valor' | 'nome' | 'situacao' | 'vincular' | 'grupo', extra: { colunaId?: number; valor?: unknown } = {}) {
   try { await chamarGravacaoOficial({ itemId, op, ...extra }); } catch (e) { throw new Error(`Cadastro oficial: ${(e as Error).message}`); }
@@ -642,6 +716,9 @@ export const completo = emPortugues(async function completo(id: number) {
     consultar('atualizacoes', { quadro_id: id }), consultar('anexos', { quadro_id: id }), consultar('automacoes', { quadro_id: id, ativa: 1 }), subquadroDe(id),
     lerLeituras().catch(e => { console.warn('[friday] leituras das atualizações indisponíveis', e); return null; }),
   ]);
+  // Colunas restritas: só as que eu vejo, com os valores de fora do item (quadro/restritas.ts).
+  const colunasVis = await colunasVisiveis(colunas);
+  const restr = await valoresRestritos(colunasVis);
   // Quadro oficial: registro do cadastro e documentos oficiais dos itens (uma consulta).
   const registro = quadro.cadastro ? await registroDe(quadro.cadastro, true) : undefined;
   const subOf = sub ? subOficial(registro, sub.id) : undefined;
@@ -680,14 +757,17 @@ export const completo = emPortugues(async function completo(id: number) {
       consultar('atualizacoes', { quadro_id: sub.id }), consultar('anexos', { quadro_id: sub.id }), grupoDoSubquadro(sub.id),
     ]);
     const nAt = contar(subAtualizacoes), nAn = contar(subAnexos), novas = novidades(subAtualizacoes, leituras);
+    const subColunasVis = await colunasVisiveis(subColunas);
+    const subRestr = await valoresRestritos(subColunasVis);
     const subItens = ordenar('itens', subItensTodos.filter(s => visivel(s) && idsItens.has(Number(s.item_pai_id))))
       .map(s => {
-        const base = subOf && s.vinculo?.sub != null
+        const oficial = subOf && s.vinculo?.sub != null
           ? mesclarOficial(s, camposAtivos(subOf), (oficiais.get(String(s.vinculo.id))?.[subOf.chave] as Record<string, Record<string, unknown>> | undefined)?.[String(s.vinculo.sub)]) : s;
+        const base = subRestr.size ? { ...oficial, valores: valoresComRestritas(oficial.valores, oficial.id, subRestr) } : oficial;
         return { ...base, n_atualizacoes: nAt.get(s.id) ?? 0, atualizacoes_novas: novas.has(s.id), n_anexos: nAn.get(s.id) ?? 0 } as Row;
       });
     for (const s of subItens) nSub.set(Number(s.item_pai_id), (nSub.get(Number(s.item_pai_id)) ?? 0) + 1);
-    subDados = { quadro_id: sub.id, grupo_id: subGrupo, nome_item: sub.nome_item ?? 'Subitem', config: sub.config ?? {}, colunas: ordenar('colunas', subColunas).map(c => marcar(c, camposAtivos(subOf))), itens: subItens };
+    subDados = { quadro_id: sub.id, grupo_id: subGrupo, nome_item: sub.nome_item ?? 'Subitem', config: sub.config ?? {}, colunas: ordenar('colunas', subColunasVis).map(c => marcar(c, camposAtivos(subOf))), itens: subItens };
   }
   const nAt = contar(atualizacoes), nAn = contar(anexos), novas = novidades(atualizacoes, leituras);
   return {
@@ -700,10 +780,11 @@ export const completo = emPortugues(async function completo(id: number) {
       } : null,
     },
     grupos: gruposVisiveis, visoes: ordenar('visoes', visoes),
-    colunas: ordenar('colunas', colunas).map(c => marcar(c, camposAtivos(registro))),
+    colunas: ordenar('colunas', colunasVis).map(c => marcar(c, camposAtivos(registro))),
     itens: itensVisiveis.map(i => {
       const oficial = registro && i.vinculo ? oficiais.get(String(i.vinculo.id)) : undefined;
-      const base = registro && i.vinculo ? comNomeEspelhado(mesclarOficial(i, camposAtivos(registro), oficial), registro, oficial) : i;
+      const comOficial = registro && i.vinculo ? comNomeEspelhado(mesclarOficial(i, camposAtivos(registro), oficial), registro, oficial) : i;
+      const base = restr.size ? { ...comOficial, valores: valoresComRestritas(comOficial.valores, comOficial.id, restr) } : comOficial;
       return { ...base, n_atualizacoes: nAt.get(i.id) ?? 0, atualizacoes_novas: novas.has(i.id), n_subitens: nSub.get(i.id) ?? 0, n_anexos: nAn.get(i.id) ?? 0 };
     }),
     sub: subDados,
@@ -735,6 +816,18 @@ export const importarItens = emPortugues(async function importarItens(quadroId: 
   const novos: Row[] = [];
   const pessoasQuadro = await colunasPessoaDe(quadroId);
   let pessoasSub = new Set<string>();
+  // Colunas restritas: o valor não entra no item; vai para friday-restritos depois de criar os itens.
+  const restritasDe = async (qid: number) => new Set((await consultar('colunas', { quadro_id: qid })).filter(c => c.restrita).map(c => String(c.id)));
+  const restritasQuadro = await restritasDe(quadroId);
+  let restritasSub = new Set<string>();
+  const paraRestritos = new Map<string, Record<string, unknown>>();
+  const separar = (itemId: number, valores: Record<string, unknown>, restritas: Set<string>) => {
+    for (const k of Object.keys(valores)) if (restritas.has(k)) {
+      if (!vazio(valores[k])) paraRestritos.set(k, { ...(paraRestritos.get(k) ?? {}), [String(itemId)]: valores[k] });
+      delete valores[k];
+    }
+    return valores;
+  };
   for (const it of lista) {
     let gid = it.grupo_id ?? null;
     if (!gid) {
@@ -749,17 +842,22 @@ export const importarItens = emPortugues(async function importarItens(quadroId: 
     const posicao = (ultima.get(gid) ?? 0) + 1;
     ultima.set(gid, posicao);
     const nomeItem = String(it.nome || 'Sem nome').slice(0, 500), valoresItem = semUndefined(it.valores ?? {});
-    const item = { ...padrao('itens'), id: novoId(), quadro_id: quadroId, grupo_id: gid, nome: nomeItem, posicao, valores: valoresItem, criado_por: meuUid(), busca: prefixosBusca(nomeItem), pessoas: pessoasDosValores(valoresItem, pessoasQuadro) } as Row;
+    const idItem = novoId();
+    separar(idItem, valoresItem, restritasQuadro);
+    const item = { ...padrao('itens'), id: idItem, quadro_id: quadroId, grupo_id: gid, nome: nomeItem, posicao, valores: valoresItem, criado_por: meuUid(), busca: prefixosBusca(nomeItem), pessoas: pessoasDosValores(valoresItem, pessoasQuadro) } as Row;
     novos.push(item);
     criados++;
     for (const [k, s] of (it.subitens ?? []).entries()) {
-      if (!subquadro) { subquadro = await garantirSubquadro(quadro); subGrupo = await grupoDoSubquadro(subquadro); pessoasSub = await colunasPessoaDe(subquadro); }
+      if (!subquadro) { subquadro = await garantirSubquadro(quadro); subGrupo = await grupoDoSubquadro(subquadro); pessoasSub = await colunasPessoaDe(subquadro); restritasSub = await restritasDe(subquadro); }
       const nomeSub = String(s.nome || 'Sem nome').slice(0, 500), valoresSub = semUndefined(s.valores ?? {});
-      novos.push({ ...padrao('itens'), id: novoId(), quadro_id: subquadro, grupo_id: subGrupo, item_pai_id: item.id, nome: nomeSub, posicao: k + 1, valores: valoresSub, criado_por: meuUid(), busca: prefixosBusca(nomeSub), pessoas: pessoasDosValores(valoresSub, pessoasSub) } as Row);
+      const idSub = novoId();
+      separar(idSub, valoresSub, restritasSub);
+      novos.push({ ...padrao('itens'), id: idSub, quadro_id: subquadro, grupo_id: subGrupo, item_pai_id: item.id, nome: nomeSub, posicao: k + 1, valores: valoresSub, criado_por: meuUid(), busca: prefixosBusca(nomeSub), pessoas: pessoasDosValores(valoresSub, pessoasSub) } as Row);
       subCriados++;
     }
   }
   await emLotes(novos.map(n => lote => lote.set(ref('itens', n.id), n)));
+  for (const [colunaId, valores] of paraRestritos) await setDoc(refRestritos(Number(colunaId)), { valores }, { merge: true });
   await registrar({ quadro_id: quadroId, acao: 'importou', para: `${criados} itens${subCriados ? ` e ${subCriados} subitens` : ''}` });
   return { criados, subitens: subCriados, grupos: gruposCriados };
 });
@@ -870,6 +968,7 @@ export async function salvarFiltroGeralDoPainel(painelId: number, geral: unknown
 export async function mudarTipoColuna(colunaId: number, alvo: Alvo, aplicar = false) {
   const coluna = await buscar('colunas', colunaId);
   if (!coluna) throw new Error('coluna não encontrada');
+  if (coluna.restrita) throw new Error(`“${coluna.titulo}” é restrita: tire a restrição antes de mudar o tipo.`);
   const oficial = await campoOficialDa(coluna);
   if (oficial && !(coluna.tipo === 'numero' && !coluna.config?.x10 && alvo.tipo === 'numero' && !alvo.x10)) {
     throw new Error(`“${coluna.titulo}” é um campo oficial: só o separador de milhar pode mudar.`);
@@ -890,6 +989,7 @@ export const gravarValor = emPortugues(async function gravarValor(itemId: number
   const [item, coluna] = await Promise.all([buscar('itens', itemId), buscar('colunas', coluna_id)]);
   if (!item || !coluna) throw new Error('item ou coluna não encontrado');
   if (coluna.quadro_id !== item.quadro_id) throw new Error('a coluna não pertence ao quadro do item');
+  if (coluna.restrita) return gravarRestrito(item, coluna, recebido);
   // Controle de tempo pela rota genérica (ex.: importação): só sessões válidas. Iniciar e parar usam a rota /tempo.
   const valor = coluna.tipo === 'tempo' ? (lerTempo(recebido).sessoes.length ? lerTempo(recebido) : null) : recebido;
   const chave = String(coluna.id);
@@ -1117,7 +1217,7 @@ export const meuTrabalho = emPortugues(async function meuTrabalho() {
 async function montarMeuTrabalho(uid: string, itens: Row[], c: Consulta) {
   const out = [];
   for (const bruto of itens) {
-    const i = bruto.vinculo ? await comOficiais(bruto) : bruto;
+    const i = await comRestritas(bruto.vinculo ? await comOficiais(bruto) : bruto);
     const cs = (await c.colunas(i.quadro_id)).filter(x => ['pessoa', 'data', 'periodo', 'status'].includes(x.tipo));
     const v = i.valores ?? {};
     if (!cs.some(x => x.tipo === 'pessoa' && Array.isArray(v[String(x.id)]) && v[String(x.id)].includes(uid))) continue;
@@ -1254,6 +1354,7 @@ export const listar = emPortugues(async function listar(r: Recurso, q: Record<st
     else if (e !== 'todos') rows = rows.filter(visivel);
   }
   if (r === 'quadros') rows = await Promise.all(rows.map(comFavorito));
+  if (r === 'colunas') rows = await colunasVisiveis(rows);
   return ordenar(r, rows).slice(0, Math.min(Number(q._limite) || 2000, 10000));
 });
 
@@ -1360,6 +1461,7 @@ export const excluir = emPortugues(async function excluir(r: Recurso, id: number
     if (r === 'itens' && antes.vinculo && !antes.excluido_em) { await updateDoc(ref(r, id), { excluido_em: agora() }); await gravarOficial(id, 'situacao'); }
     await apagarDeVez(r, antes);
     if (r === 'anexos' && antes.coluna_id != null) await tirarDaColuna(antes);
+    if (r === 'colunas' && antes.restrita) await deleteDoc(refRestritos(id)).catch(e => console.warn('[friday] valores da coluna restrita', e));
   }
   if (r === 'itens') await registrar({ quadro_id: antes.quadro_id, item_id: id, item_nome: antes.nome, acao: 'excluiu' });
 });

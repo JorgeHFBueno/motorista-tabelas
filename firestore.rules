@@ -1380,14 +1380,38 @@ service cloud.firestore {
     }
 
     // Grupos, colunas, visões, atualizações e automações: seguem o quadro (mudar de quadro exige os dois).
+    // Coluna restrita (restrita = { ver: [uids] }): só adm2 liga, muda a lista ou desliga, e só adm2 exclui a coluna.
     match /{colecao}/{registroId} {
-      allow read, delete: if colecao.matches('^friday-(grupos|colunas|visoes|atualizacoes|automacoes)$')
+      allow read: if colecao.matches('^friday-(grupos|colunas|visoes|atualizacoes|automacoes)$')
         && fridayPodeQuadro(resource.data.quadro_id);
+      allow delete: if colecao.matches('^friday-(grupos|colunas|visoes|atualizacoes|automacoes)$')
+        && fridayPodeQuadro(resource.data.quadro_id)
+        && (colecao != 'friday-colunas' || isAdm2() || resource.data.get('restrita', null) == null);
       allow create: if colecao.matches('^friday-(grupos|colunas|visoes|atualizacoes|automacoes)$')
-        && fridayPodeQuadro(request.resource.data.quadro_id);
+        && fridayPodeQuadro(request.resource.data.quadro_id)
+        && (colecao != 'friday-colunas' || isAdm2() || request.resource.data.get('restrita', null) == null);
       allow update: if colecao.matches('^friday-(grupos|colunas|visoes|atualizacoes|automacoes)$')
         && fridayPodeQuadro(resource.data.quadro_id)
-        && fridayPodeQuadro(request.resource.data.quadro_id);
+        && fridayPodeQuadro(request.resource.data.quadro_id)
+        && (colecao != 'friday-colunas' || isAdm2() || didNotChange(['restrita']));
+    }
+
+    // Valores das colunas restritas (2026-11-23): fora do item, um documento por coluna ({ valores: { itemId: valor } }).
+    // Lê e grava quem está em friday-colunas/{id}.restrita.ver (e vê o quadro) ou adm2; ninguém lista. A Admin SDK
+    // (API por chave e automações) passa por fora das Rules e confere a lista à parte (functions/fridayRestritas.ts).
+    function fridayVeRestrita(colunaId) {
+      let c = get(/databases/$(database)/documents/friday-colunas/$(colunaId)).data;
+      return fridayAccess()
+        && (isAdm2() || (c.get('restrita', null) != null && request.auth.uid in c.restrita.get('ver', [])
+          && fridayPodeQuadro(c.quadro_id)));
+    }
+    match /friday-restritos/{colunaId} {
+      allow get: if fridayVeRestrita(colunaId);
+      allow create, update: if fridayVeRestrita(colunaId)
+        && request.resource.data.keys().hasOnly(['valores'])
+        && request.resource.data.valores is map;
+      allow delete: if isAdm2();
+      allow list: if false;
     }
 
     // Anexos: registro de um arquivo enviado ao Storage (friday/<quadro>/<item>/...). Quem anexa grava o próprio uid; não há

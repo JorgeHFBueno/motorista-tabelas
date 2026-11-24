@@ -17,6 +17,7 @@ import { indicePessoas, valorDoOficial, type CampoOficial } from './fridayCadast
 import { lerCaminho } from './fridayCadastrosExistentes.js';
 import { dataLocal, novoId, permissoesDoQuadro, pessoasDosValores, prefixosBusca } from './fridayMondayConverter.js';
 import { operarTempo } from './fridayTempo.js';
+import { comValoresRestritos, ehRestrita, gravarRestrito, valoresRestritos } from './fridayRestritas.js';
 import {
   ACOES_SUPORTADAS, chaveDaData, chaveDoEvento, comNome, condicoesValem, diaDoGatilhoData, gatilhoDispara, textoDoValor, valorDefinido,
   type Acao, type Automacao, type Coluna, type ItemVisto,
@@ -48,8 +49,16 @@ function camposDoItem(registro: AnyRecord | undefined, item: AnyRecord): CampoOf
   return (campos as (CampoOficial & { secundario?: boolean })[]).filter(c => c.situacao === 'ativo' && !c.secundario);
 }
 export type Lido = { visto: ItemVisto; registro?: AnyRecord; campos: CampoOficial[]; oficial?: AnyRecord };
-/** O item como a tela vê: os valores oficiais (que vivem no cadastro) encaixados nas colunas. */
+/** O item como a tela vê: os valores oficiais (que vivem no cadastro) e os das colunas restritas encaixados nas colunas. */
 export async function lerItem(ctx: Contexto, item: AnyRecord, oficialPronto?: AnyRecord): Promise<Lido> {
+  const lido = await lerItemSemRestritas(ctx, item, oficialPronto);
+  // Colunas restritas (fridayRestritas.ts): o servidor vê todas; quem lê pela API recebe só as colunas da pessoa da chave.
+  if (ctx.colunas.some(c => ehRestrita(c as AnyRecord))) {
+    lido.visto.valores = comValoresRestritos(lido.visto.valores, Number(item.id), await valoresRestritos(ctx.colunas as AnyRecord[] as never));
+  }
+  return lido;
+}
+async function lerItemSemRestritas(ctx: Contexto, item: AnyRecord, oficialPronto?: AnyRecord): Promise<Lido> {
   const valores = { ...(item.valores ?? {}) };
   const base = { id: Number(item.id), nome: item.nome, grupo_id: item.grupo_id ?? null, criado_por: item.criado_por ?? null };
   if (!item.vinculo?.cadastro) return { visto: { ...base, valores }, campos: [] };
@@ -156,6 +165,12 @@ export async function gravarValorDoItem(ctx: Contexto, item: AnyRecord, lido: Li
   const ref = colecao('itens').doc(String(item.id));
   const antes = lido.visto.valores[String(coluna.id)];
   if (JSON.stringify(antes ?? null) === JSON.stringify(valor ?? null)) return null;
+  // Coluna restrita: o valor fica fora do item (friday-restritos); o histórico registra a mudança sem os valores.
+  if (ehRestrita(coluna as AnyRecord)) {
+    await gravarRestrito(coluna.id, item.id, valor ?? undefined);
+    await ref.update({ atualizado_em: dataLocal() });
+    return { de: '', para: 'valor restrito' };
+  }
   const campo = lido.campos.find(c => c.coluna_id === coluna.id);
   if (campo) {
     if ((campo as CampoOficial & { somente_leitura?: boolean }).somente_leitura) throw new Error(`“${coluna.titulo}” é só leitura (vem do cadastro)`);
