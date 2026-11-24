@@ -1,6 +1,7 @@
 // Quadros do corvo, o mascote da WEB (aprovado pelo responsável em 2026-11-24), em pixels. Cada animação é uma
 // cena de largura × altura; cada quadro, as linhas da cena, um caractere por pixel ('.' vazio; as cores em Corvo.tsx).
-// De perfil (bico curvo, rabo baixo e longo): cabeça inclinada (tabelas vazias), grito (acesso negado: enche o peito,
+// De perfil (bico curvo, rabo baixo e longo): cabeça (tabelas vazias: procura, bica, estica o pescoço com "?", olha
+// para trás, cisca e encolhe a asa), grito (acesso negado: enche o peito,
 // grita duas vezes com ondas de som, tremendo, e perde uma pena) e teclando
 // (carregamento: pula nas teclas de um notebook). De frente (cabeça pontuda, asas de capa): placa (página não
 // encontrada: tira uma placa com "?" das costas, mostra, dá de ombros, esconde e assobia).
@@ -16,7 +17,7 @@ export type Cena = {
 };
 
 export const CENAS: Record<Animacao, Cena> = {
-  cabeca: { largura: 21, altura: 16, quadros: 12, ms: 260, parado: 0 },
+  cabeca: { largura: 30, altura: 20, quadros: 23, ms: 200, parado: 10 },
   grito: { largura: 34, altura: 19, quadros: 20, ms: 170, parado: 5 },
   teclando: { largura: 44, altura: 24, quadros: 96, ms: 150, parado: 0 },
   placa: { largura: 34, altura: 36, quadros: 30, ms: 180, parado: 12 },
@@ -32,7 +33,7 @@ const colar = (g: Grade, spr: Grade, x0: number, y0: number) =>
 const sprite = (linhas: string[], largura = 26): Grade => linhas.map((l) => l.padEnd(largura, '.').split(''));
 const pintar = (g: Grade, y: number, xs: number[], c: string) => xs.forEach((x) => { g[y][x] = c; });
 
-// ---- De perfil ('#' corpo, 'w' asa, 'o' olho, 'b' bico e pés, 'M' boca aberta, 's' som) ----
+// ---- De perfil ('#' corpo, 'w' asa, 'o' olho, 'b' bico e pés, 'M' boca aberta, 's' som e "?", 'p' poeira) ----
 
 const RABO: [number, number[]][] = [[9, [6, 7]], [10, [5, 6, 7, 8]], [11, [4, 5, 6, 7]], [12, [3, 4, 5]], [13, [2, 3]]];
 const CORPO = [
@@ -143,12 +144,86 @@ function grito(i: number): Grade {
   return g;
 }
 
-/** Cabeça inclinada: pisca no quadro 3 e adianta a cabeça do 6º ao 8º. */
+/** Bicando: agachado, com a cabeça 3 pixels abaixo e 2 à frente (o pescoço preenche o espaço). */
+function bicando(olho: 'o' | '#'): Grade {
+  const r = agachado(olho).map((l) => l.slice());
+  const cabeca = r.slice(1, 6).map((l) => l.slice());
+  for (let y = 1; y <= 5; y++) for (let x = 12; x < 26; x++) if (y < 5 || x >= 17) r[y][x] = '.';
+  cabeca.forEach((l, k) => l.forEach((c, x) => { if (x >= 12 && c !== '.' && x + 2 < 26) r[k + 4][x + 2] = c; }));
+  for (let y = 2; y <= 6; y++) for (let x = 13; x <= 16; x++) if (r[y][x] === '.') r[y][x] = '#';
+  return r;
+}
+
+/** Pescoço esticado 1 pixel (15 linhas: a cabeça sobe, os pés ficam). */
+function pescocoEsticado(olho: 'o' | '#'): Grade {
+  const p = perfil(olho);
+  const pescoco = p[4].slice();
+  pescoco[19] = '.';
+  return [p[0], p[1], p[2], p[3], p[4], pescoco, ...p.slice(5)];
+}
+
+/** Virado para trás (espelhado). */
+const virado = (olho: 'o' | '#'): Grade => perfil(olho).map((l) => l.slice().reverse());
+
+/** Ciscando: a pata de trás vai para trás. */
+function ciscando(olho: 'o' | '#'): Grade {
+  const g = perfil(olho);
+  for (let y = 11; y <= 13; y++) for (let x = 8; x <= 14; x++) if (g[y][x] === 'b') g[y][x] = '.';
+  ([[11, [13]], [12, [13]], [13, [12, 13]], [11, [10]], [12, [9]], [13, [7, 8]]] as [number, number[]][]).forEach(([y, xs]) => pintar(g, y, xs, 'b'));
+  return g;
+}
+
+/** Encolhendo a asa ("não tem nada aqui"): a asa sobe 1 pixel. */
+function encolhendo(olho: 'o' | '#'): Grade {
+  const g = perfil(olho);
+  for (let y = 6; y <= 8; y++) for (let x = 0; x < 26; x++) if (g[y][x] === 'w') g[y][x] = '#';
+  ([[5, [11, 12, 13]], [6, [10, 11, 12, 13]], [7, [10, 11, 12]]] as [number, number[]][]).forEach(([y, xs]) => pintar(g, y, xs, 'w'));
+  return g;
+}
+
+const DUVIDA = ['sss', '..s', '.s.', '...', '.s.'];
+type PassoCabeca = {
+  pose: 'parado' | 'olhando' | 'bicando' | 'pescoco' | 'virado' | 'ciscando' | 'encolhendo';
+  olho?: 'o' | '#';
+  /** "?" acima da cabeça (deslocamento vertical) */
+  duvida?: number;
+  /** poeira: na frente (bicada) ou atrás (ciscada) */
+  poeira?: 'frente' | 'tras';
+};
+/** Tabela vazia: o corvo procura. Olha, bica, estica o pescoço com "?", olha para trás, cisca e encolhe a asa. */
+const CABECA: PassoCabeca[] = [
+  { pose: 'parado' }, { pose: 'parado', olho: '#' }, { pose: 'parado' },
+  { pose: 'olhando' }, { pose: 'olhando' }, { pose: 'parado' },
+  { pose: 'bicando' }, { pose: 'olhando' }, { pose: 'bicando', poeira: 'frente' }, { pose: 'parado' },
+  { pose: 'pescoco', duvida: 0 }, { pose: 'pescoco', duvida: -1 }, { pose: 'pescoco', duvida: 0 },
+  { pose: 'virado', duvida: 0 }, { pose: 'virado', olho: '#', duvida: 0 }, { pose: 'parado' },
+  { pose: 'ciscando', poeira: 'tras' }, { pose: 'parado' }, { pose: 'ciscando', poeira: 'tras' },
+  { pose: 'encolhendo' }, { pose: 'encolhendo', olho: '#' }, { pose: 'parado' }, { pose: 'parado' },
+];
+
 function cabeca(i: number): Grade {
+  const p = CABECA[i];
+  const olho = p.olho ?? 'o';
   const g = novaCena(CENAS.cabeca);
-  let corvo = perfil(i === 3 ? '#' : 'o');
-  if (i >= 6 && i <= 8) corvo = cabecaAdiantada(corvo);
-  colar(g, corvo, 0, 2);
+  const x = 4;
+  const y = 5;
+  const corvo = {
+    parado: () => perfil(olho),
+    olhando: () => cabecaAdiantada(perfil(olho)),
+    bicando: () => bicando(olho),
+    pescoco: () => pescocoEsticado(olho),
+    virado: () => virado(olho),
+    ciscando: () => ciscando(olho),
+    encolhendo: () => encolhendo(olho),
+  }[p.pose]();
+  // espelhado, os pés ficam no mesmo lugar 3 pixels à esquerda; com o pescoço esticado, a cena sobe 1 para os pés ficarem
+  colar(g, corvo, x + (p.pose === 'virado' ? -3 : 0), y + (p.pose === 'pescoco' ? -1 : 0));
+  if (p.poeira === 'frente') { pix(g, x + 22, y + 13, 'p'); pix(g, x + 23, y + 12, 'p'); pix(g, x + 21, y + 12, 'p'); }
+  if (p.poeira === 'tras') { pix(g, x + 5, y + 13, 'p'); pix(g, x + 4, y + 12, 'p'); pix(g, x + 6, y + 11, 'p'); }
+  if (p.duvida !== undefined) {
+    const dx = p.pose === 'virado' ? 4 : 19;
+    DUVIDA.forEach((l, yy) => [...l].forEach((c, xx) => { if (c === 's') pix(g, x + dx + xx, y - 5 + yy + p.duvida!, 's'); }));
+  }
   return g;
 }
 
@@ -373,4 +448,4 @@ export function caminhos(linhas: string[]): Record<string, string> {
   return d;
 }
 
-export { PLACA as PASSOS_DA_PLACA, GRITO as PASSOS_DO_GRITO };
+export { PLACA as PASSOS_DA_PLACA, GRITO as PASSOS_DO_GRITO, CABECA as PASSOS_DA_CABECA };

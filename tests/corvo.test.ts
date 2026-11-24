@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { CENAS, PASSOS_DA_PLACA, PASSOS_DO_GRITO, caminhos, quadro, type Animacao } from '../src/components/corvo/quadros';
+import { CENAS, PASSOS_DA_CABECA, PASSOS_DA_PLACA, PASSOS_DO_GRITO, caminhos, quadro, type Animacao } from '../src/components/corvo/quadros';
 
 const ANIMACOES = Object.keys(CENAS) as Animacao[];
 /** Posições "x,y" dos pixels de uma cor no quadro. */
@@ -9,7 +9,6 @@ function pixels(a: Animacao, i: number, cor: string) {
   quadro(a, i).forEach((l, y) => [...l].forEach((c, x) => { if (c === cor) lista.push(`${x},${y}`); }));
   return lista;
 }
-const pes = (a: Animacao, i: number) => pixels(a, i, 'b').filter((p) => Number(p.split(',')[1]) >= CENAS[a].altura - 3);
 
 test('Corvo: todo quadro tem o tamanho da cena e só cores conhecidas', () => {
   for (const a of ANIMACOES) {
@@ -19,19 +18,32 @@ test('Corvo: todo quadro tem o tamanho da cena e só cores conhecidas', () => {
       const linhas = quadro(a, i);
       assert.equal(linhas.length, altura, `${a} ${i}`);
       linhas.forEach((l) => assert.equal(l.length, largura, `${a} ${i}`));
-      assert.match(linhas.join(''), /^[.#wWAfcobsMFEXCKPDmnqh]+$/, `${a} ${i}`);
+      assert.match(linhas.join(''), /^[.#wWAfcobsMpFEXCKPDmnqh]+$/, `${a} ${i}`);
     }
   }
   assert.equal(PASSOS_DA_PLACA.length, CENAS.placa.quadros);
   assert.equal(PASSOS_DO_GRITO.length, CENAS.grito.quadros);
+  assert.equal(PASSOS_DA_CABECA.length, CENAS.cabeca.quadros);
 });
 
-test('Corvo cabeça: pisca no quadro 3 e não tira os pés do chão', () => {
-  assert.equal(pixels('cabeca', 3, 'o').length, 0);
-  for (let i = 0; i < CENAS.cabeca.quadros; i++) {
-    assert.deepEqual(pes('cabeca', i), pes('cabeca', 0), `cabeca ${i}: os pés mudaram`);
-    assert.equal(pixels('cabeca', i, 's').length, 0);
-  }
+test('Corvo cabeça: procura sem tirar os pés do lugar; "?" no pescoço esticado e ao olhar para trás; poeira na bicada e na ciscada', () => {
+  assert.equal(pixels('cabeca', 1, 'o').length, 0);
+  PASSOS_DA_CABECA.forEach((p, i) => {
+    assert.equal(pixels('cabeca', i, 's').length > 0, p.duvida !== undefined, `cabeca ${i}: "?"`);
+    assert.equal(pixels('cabeca', i, 'p').length > 0, !!p.poeira, `cabeca ${i}: poeira`);
+    // os pés ficam: a linha mais baixa do corvo é sempre a mesma
+    const fundo = Math.max(...pixels('cabeca', i, 'b').map((x) => Number(x.split(',')[1])));
+    assert.equal(fundo, 18, `cabeca ${i}: os pés saíram do chão`);
+  });
+  // olhando para trás, o olho fica à esquerda do corpo; parado, à direita
+  const olhoX = (i: number) => Number(pixels('cabeca', i, 'o')[0].split(',')[0]);
+  const virado = PASSOS_DA_CABECA.findIndex((p) => p.pose === 'virado' && !p.olho);
+  assert.ok(olhoX(virado) < olhoX(0));
+  // bicando, a cabeça desce
+  const bicando = PASSOS_DA_CABECA.findIndex((p) => p.pose === 'bicando');
+  const olhoY = (i: number) => Number(pixels('cabeca', i, 'o')[0].split(',')[1]);
+  assert.ok(olhoY(bicando) > olhoY(0));
+  assert.equal(PASSOS_DA_CABECA[CENAS.cabeca.parado].duvida, 0);
 });
 
 test('Corvo grito: pisca, enche o peito, grita com o bico aberto e as ondas, e perde uma pena', () => {
