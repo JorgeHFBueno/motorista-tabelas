@@ -4,7 +4,7 @@ import { CENAS, caminhos, quadro, type Animacao } from './quadros';
 // O corvo, mascote da WEB: carregando (teclando), tabelas vazias (cabeça inclinada), página não encontrada (placa) e
 // acesso negado ou erro (grito). Com movimento reduzido pedido pelo sistema, fica parado num quadro da animação.
 const CORES: Record<string, string> = {
-  '#': '#2f3742', w: '#4f5b6d', W: '#454f5e', A: '#4f5b6d', f: '#7a8596', c: '#aab1bb', o: '#f2a33a', b: '#7d8794', s: '#c9781e',
+  '#': '#2f3742', w: '#4f5b6d', W: '#454f5e', A: '#4f5b6d', f: '#7a8596', c: '#aab1bb', o: '#f2a33a', b: '#7d8794', s: '#c9781e', M: '#151a20',
   // notebook
   F: '#5b6472', E: '#12293B', X: '#9cc7e8', C: '#f2a33a', K: '#9aa3ae', P: '#f2a33a', D: '#6b7480',
   // placa

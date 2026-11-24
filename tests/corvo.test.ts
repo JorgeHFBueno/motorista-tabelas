@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { CENAS, PASSOS_DA_PLACA, caminhos, quadro, type Animacao } from '../src/components/corvo/quadros';
+import { CENAS, PASSOS_DA_PLACA, PASSOS_DO_GRITO, caminhos, quadro, type Animacao } from '../src/components/corvo/quadros';
 
 const ANIMACOES = Object.keys(CENAS) as Animacao[];
 /** Posições "x,y" dos pixels de uma cor no quadro. */
@@ -19,20 +19,36 @@ test('Corvo: todo quadro tem o tamanho da cena e só cores conhecidas', () => {
       const linhas = quadro(a, i);
       assert.equal(linhas.length, altura, `${a} ${i}`);
       linhas.forEach((l) => assert.equal(l.length, largura, `${a} ${i}`));
-      assert.match(linhas.join(''), /^[.#wWAfcobsFEXCKPDmnqh]+$/, `${a} ${i}`);
+      assert.match(linhas.join(''), /^[.#wWAfcobsMFEXCKPDmnqh]+$/, `${a} ${i}`);
     }
   }
   assert.equal(PASSOS_DA_PLACA.length, CENAS.placa.quadros);
+  assert.equal(PASSOS_DO_GRITO.length, CENAS.grito.quadros);
 });
 
-test('Corvo: cabeça e grito piscam no quadro 3 e não tiram os pés do chão; o som só no grito', () => {
-  for (const a of ['cabeca', 'grito'] as Animacao[]) {
-    assert.equal(pixels(a, 3, 'o').length, 0, `${a} não pisca`);
-    for (let i = 0; i < CENAS[a].quadros; i++) assert.deepEqual(pes(a, i), pes(a, 0), `${a} ${i}: os pés mudaram`);
+test('Corvo cabeça: pisca no quadro 3 e não tira os pés do chão', () => {
+  assert.equal(pixels('cabeca', 3, 'o').length, 0);
+  for (let i = 0; i < CENAS.cabeca.quadros; i++) {
+    assert.deepEqual(pes('cabeca', i), pes('cabeca', 0), `cabeca ${i}: os pés mudaram`);
+    assert.equal(pixels('cabeca', i, 's').length, 0);
   }
-  assert.ok(pixels('grito', 6, 's').length > 0);
-  assert.equal(pixels('grito', 7, 's').length, 0);
-  for (let i = 0; i < CENAS.cabeca.quadros; i++) assert.equal(pixels('cabeca', i, 's').length, 0);
+});
+
+test('Corvo grito: pisca, enche o peito, grita com o bico aberto e as ondas, e perde uma pena', () => {
+  assert.equal(pixels('grito', 1, 'o').length, 0);
+  PASSOS_DO_GRITO.forEach((p, i) => {
+    const gritando = p.pose === 'gritando';
+    assert.equal(pixels('grito', i, 'M').length > 0, gritando, `grito ${i}: boca`);
+    assert.equal(pixels('grito', i, 's').length > 0, gritando, `grito ${i}: ondas`);
+  });
+  // as ondas se afastam: a mais distante (2) só aparece depois da mais perto (0)
+  const maisLonge = (i: number) => Math.max(...pixels('grito', i, 's').map((p) => Number(p.split(',')[0])));
+  assert.ok(maisLonge(7) > maisLonge(5));
+  // a pena cai: aparece depois do segundo grito e desce
+  const comPena = PASSOS_DO_GRITO.map((p, i) => (p.pena ? i : -1)).filter((i) => i >= 0);
+  assert.ok(comPena.length >= 3);
+  assert.ok(PASSOS_DO_GRITO[comPena[comPena.length - 1]].pena![1] > PASSOS_DO_GRITO[comPena[0]].pena![1]);
+  assert.equal(PASSOS_DO_GRITO[CENAS.grito.parado].pose, 'gritando');
 });
 
 test('Corvo teclando: a tecla acende no pouso, o texto cresce a cada pouso e o corpo sai do chão no pulo', () => {

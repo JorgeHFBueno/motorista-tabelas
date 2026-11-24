@@ -1,6 +1,7 @@
 // Quadros do corvo, o mascote da WEB (aprovado pelo responsável em 2026-11-24), em pixels. Cada animação é uma
 // cena de largura × altura; cada quadro, as linhas da cena, um caractere por pixel ('.' vazio; as cores em Corvo.tsx).
-// De perfil (bico curvo, rabo baixo e longo): cabeça inclinada (tabelas vazias), grito (acesso negado) e teclando
+// De perfil (bico curvo, rabo baixo e longo): cabeça inclinada (tabelas vazias), grito (acesso negado: enche o peito,
+// grita duas vezes com ondas de som, tremendo, e perde uma pena) e teclando
 // (carregamento: pula nas teclas de um notebook). De frente (cabeça pontuda, asas de capa): placa (página não
 // encontrada: tira uma placa com "?" das costas, mostra, dá de ombros, esconde e assobia).
 
@@ -16,7 +17,7 @@ export type Cena = {
 
 export const CENAS: Record<Animacao, Cena> = {
   cabeca: { largura: 21, altura: 16, quadros: 12, ms: 260, parado: 0 },
-  grito: { largura: 26, altura: 16, quadros: 12, ms: 260, parado: 0 },
+  grito: { largura: 34, altura: 19, quadros: 20, ms: 170, parado: 5 },
   teclando: { largura: 44, altura: 24, quadros: 96, ms: 150, parado: 0 },
   placa: { largura: 34, altura: 36, quadros: 30, ms: 180, parado: 12 },
 };
@@ -31,7 +32,7 @@ const colar = (g: Grade, spr: Grade, x0: number, y0: number) =>
 const sprite = (linhas: string[], largura = 26): Grade => linhas.map((l) => l.padEnd(largura, '.').split(''));
 const pintar = (g: Grade, y: number, xs: number[], c: string) => xs.forEach((x) => { g[y][x] = c; });
 
-// ---- De perfil ('#' corpo, 'w' asa, 'o' olho, 'b' bico e pés, 's' som) ----
+// ---- De perfil ('#' corpo, 'w' asa, 'o' olho, 'b' bico e pés, 'M' boca aberta, 's' som) ----
 
 const RABO: [number, number[]][] = [[9, [6, 7]], [10, [5, 6, 7, 8]], [11, [4, 5, 6, 7]], [12, [3, 4, 5]], [13, [2, 3]]];
 const CORPO = [
@@ -73,33 +74,80 @@ function cabecaAdiantada(g: Grade): Grade {
   return n;
 }
 
-/** Grito (16 linhas): cabeça erguida e inclinada para trás, bico aberto em "<" (o de baixo reto) e o som à frente. */
-function gritando(som: boolean): Grade {
+/** Enchendo o peito: agachado, com a cabeça puxada 1 pixel para trás. */
+function puxado(olho: 'o' | '#'): Grade {
+  const r = agachado(olho).map((l) => l.slice());
+  for (let y = 1; y <= 4; y++) for (let x = 12; x < 25; x++) r[y][x] = r[y][x + 1];
+  return r;
+}
+
+/** Gritando (16 linhas): cabeça erguida e inclinada para trás, bico aberto em "<" (o de baixo reto); com `asaErguida`,
+ * a asa sobe nas costas. */
+function gritando(asaErguida: boolean): Grade {
   const g = sprite(['.............###', '............#####', '...........##o##', '...........#####', '...........######', '...........######', ...CORPO]);
   pintar(g, 2, [16, 17], 'b');
   pintar(g, 1, [17, 18], 'b');
   pintar(g, 0, [18, 19], 'b');
   pintar(g, 4, [17, 18, 19, 20], 'b');
+  pintar(g, 3, [16, 17], 'M');
   RABO.forEach(([y, xs]) => pintar(g, y + 2, xs, '#'));
-  if (som) {
-    pintar(g, 1, [22], 's');
-    pintar(g, 0, [23], 's');
-    pintar(g, 3, [22, 23, 24], 's');
-    pintar(g, 5, [22], 's');
-    pintar(g, 6, [23], 's');
+  if (asaErguida) {
+    ([[8, [10, 11, 12, 13]], [9, [9, 10, 11, 12]], [10, [9, 10, 11]]] as [number, number[]][])
+      .forEach(([y, xs]) => xs.forEach((x) => { if (g[y][x] === 'w') g[y][x] = '#'; }));
+    ([[4, [7, 8]], [5, [6, 7, 8, 9]], [6, [5, 6, 7, 8, 9, 10]], [7, [6, 7, 8, 9, 10]]] as [number, number[]][])
+      .forEach(([y, xs]) => pintar(g, y, xs, 'w'));
   }
   return g;
 }
 
-/** Pisca no quadro 3, faz o movimento do 6º ao 9º. */
-function cabecaOuGrito(animacao: 'cabeca' | 'grito', i: number): Grade {
-  const g = novaCena(CENAS[animacao]);
-  if (animacao === 'grito' && i >= 6 && i <= 9) {
-    colar(g, gritando(i % 2 === 0), 0, 0);
-    return g;
+/** Ondas de som em ")" (ou "(" com lado -1), a 2, 4 e 6 pixels do bico, cada uma mais alta. */
+function aneis(g: Grade, cx: number, cy: number, quais: number[], lado: 1 | -1) {
+  quais.forEach((k) => {
+    const d = 2 + k * 2;
+    const h = 1 + k;
+    pix(g, cx + lado * d, cy - h - 1, 's');
+    for (let y = cy - h; y <= cy + h; y++) pix(g, cx + lado * (d + 1), y, 's');
+    pix(g, cx + lado * d, cy + h + 1, 's');
+  });
+}
+
+const pena = (g: Grade, x: number, y: number, c: string) => { pix(g, x, y, c); pix(g, x + 1, y, c); pix(g, x + 2, y + 1, c); };
+
+type PassoGrito = { pose: 'parado' | 'puxado' | 'agachado' | 'gritando'; olho?: 'o' | '#'; aneis?: number[]; asa?: boolean; dx?: number; dy?: number; pena?: [number, number] };
+/** Pisca, enche o peito, grita (pulo, ondas, tremendo, asa batendo), toma fôlego, grita de novo e perde uma pena. */
+const GRITO: PassoGrito[] = [
+  { pose: 'parado' }, { pose: 'parado', olho: '#' }, { pose: 'parado' },
+  { pose: 'puxado' }, { pose: 'puxado' },
+  { pose: 'gritando', aneis: [0], dy: -1, asa: true }, { pose: 'gritando', aneis: [0, 1], dx: 1 },
+  { pose: 'gritando', aneis: [1, 2], dx: -1, asa: true }, { pose: 'gritando', aneis: [2], dx: 1 },
+  { pose: 'agachado' },
+  { pose: 'gritando', aneis: [0], dy: -1, asa: true }, { pose: 'gritando', aneis: [0, 1], dx: 1 },
+  { pose: 'gritando', aneis: [1, 2], dx: -1, asa: true }, { pose: 'gritando', aneis: [2], pena: [12, 1] },
+  { pose: 'parado', pena: [11, 3] }, { pose: 'agachado', olho: '#', pena: [12, 5] }, { pose: 'parado', pena: [11, 7] },
+  { pose: 'parado', olho: '#' }, { pose: 'parado' }, { pose: 'parado' },
+];
+
+function grito(i: number): Grade {
+  const p = GRITO[i];
+  const g = novaCena(CENAS.grito);
+  const x = 2 + (p.dx ?? 0);
+  const y = 3 + (p.dy ?? 0);
+  const olho = p.olho ?? 'o';
+  if (p.pose === 'gritando') {
+    colar(g, gritando(!!p.asa), x, y - 2);
+    aneis(g, x + 22, y + 1, p.aneis ?? [], 1);
+  } else {
+    colar(g, p.pose === 'puxado' ? puxado(olho) : p.pose === 'agachado' ? agachado(olho) : perfil(olho), x, y);
   }
+  if (p.pena) pena(g, p.pena[0], p.pena[1], 'w');
+  return g;
+}
+
+/** Cabeça inclinada: pisca no quadro 3 e adianta a cabeça do 6º ao 8º. */
+function cabeca(i: number): Grade {
+  const g = novaCena(CENAS.cabeca);
   let corvo = perfil(i === 3 ? '#' : 'o');
-  if (animacao === 'cabeca' && i >= 6 && i <= 8) corvo = cabecaAdiantada(corvo);
+  if (i >= 6 && i <= 8) corvo = cabecaAdiantada(corvo);
   colar(g, corvo, 0, 2);
   return g;
 }
@@ -310,7 +358,7 @@ function comPlaca(i: number): Grade {
 
 /** O quadro `i` (0 a quadros - 1) da animação, como linhas da cena. */
 export function quadro(animacao: Animacao, i: number): string[] {
-  const g = animacao === 'teclando' ? teclando(i) : animacao === 'placa' ? comPlaca(i) : cabecaOuGrito(animacao, i);
+  const g = animacao === 'teclando' ? teclando(i) : animacao === 'placa' ? comPlaca(i) : animacao === 'grito' ? grito(i) : cabeca(i);
   return g.map((l) => l.join(''));
 }
 
@@ -325,4 +373,4 @@ export function caminhos(linhas: string[]): Record<string, string> {
   return d;
 }
 
-export { PLACA as PASSOS_DA_PLACA };
+export { PLACA as PASSOS_DA_PLACA, GRITO as PASSOS_DO_GRITO };
