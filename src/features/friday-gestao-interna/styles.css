@@ -260,6 +260,10 @@ body.redimensionando .friday-root, body.redimensionando .friday-root * { cursor:
 .friday-root .tq thead th.alvo-dir { box-shadow: inset -3px 0 0 var(--primaria); }
 .friday-root .coluna-fantasma { position: fixed; z-index: 1000; display: flex; align-items: center; justify-content: center; padding: 0 10px; background: var(--superficie); border: 1px solid var(--primaria); border-radius: 4px; box-shadow: var(--sombra); color: var(--texto); font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; pointer-events: none; }
 body.arrastando-coluna .friday-root, body.arrastando-coluna .friday-root * { cursor: grabbing !important; user-select: none; }
+/* arrastar o cabeçalho do grupo muda o grupo de lugar: todos aparecem recolhidos e a vaga tracejada (do tamanho da tela) marca o destino */
+.friday-root .grupo-vaga { position: sticky; left: 0; width: calc(100cqw - 56px); outline: 1px dashed var(--texto-3); outline-offset: 2px; border-radius: 4px; }
+.friday-root .grupo-vaga > * { visibility: hidden; }
+.friday-root .grupo-fantasma { justify-content: flex-start; padding: 0 16px 0 12px; border: 1px solid; border-left-width: 6px; font-size: 18px; font-weight: 600; min-width: 220px; max-width: 480px; }
 .friday-root .tq-mais { text-align: center; }
 .friday-root .nome-item { display: flex; align-items: center; gap: 4px; height: 36px; padding-right: 6px; }
 .friday-root .nome-item .nome-texto { flex: 1; min-width: 0; }

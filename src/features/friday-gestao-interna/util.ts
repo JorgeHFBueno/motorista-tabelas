@@ -121,39 +121,46 @@ export function arrastarBorda(x0: number, w0: number, min: number, max: number, 
   document.addEventListener('mouseup', soltar);
 }
 
-// Arrastar o cabeçalho de uma coluna para outro lugar (como no monday). Só começa depois de 5 px, então um clique
-// continua sendo clique (renomear, menu). Uma cópia do cabeçalho segue o mouse; com `esquerda` (onde termina a parte
-// parada da tabela), chegar perto da borda rola a tabela para o lado. aoMover recebe o x do mouse; aoFim(true) ao
-// soltar, aoFim(false) com Esc. O clique que o navegador dispara ao soltar é descartado.
-export function arrastarCabecalho(e: MouseEvent, th: HTMLElement, rotulo: string, esquerda: number | null, aoMover: (x: number) => void, aoFim: (soltou: boolean) => void) {
+// Primeiro elemento acima de `el` que rola (para o lado ou, com vertical, para baixo).
+export function areaQueRola(el: HTMLElement, vertical = false) {
+  for (let p = el.parentElement; p; p = p.parentElement) if (/(auto|scroll)/.test(getComputedStyle(p)[vertical ? 'overflowY' : 'overflowX'])) return p;
+  return null;
+}
+
+// Arrastar o cabeçalho de uma coluna (para o lado) ou de um grupo (vertical) para outro lugar (como no monday). Só
+// começa depois de 5 px, então um clique continua sendo clique (renomear, menu). Uma cópia do cabeçalho segue o mouse;
+// com `esquerda` (onde termina a parte parada da tabela; no vertical, 0), chegar perto da borda rola a tabela. aoMover
+// recebe o x do mouse (no vertical, o y); aoFim(true) ao soltar, aoFim(false) com Esc. O clique que o navegador
+// dispara ao soltar é descartado. `cor`: a cópia do grupo leva a cor dele.
+export function arrastarCabecalho(e: MouseEvent, th: HTMLElement, rotulo: string, esquerda: number | null, aoMover: (x: number) => void, aoFim: (soltou: boolean) => void,
+  { vertical = false, cor }: { vertical?: boolean; cor?: string } = {}) {
   const x0 = e.clientX, y0 = e.clientY;
-  let rolagem: HTMLElement | null = null;
-  for (let el = th.parentElement; el && !rolagem; el = el.parentElement) if (/(auto|scroll)/.test(getComputedStyle(el).overflowX)) rolagem = el;
+  const rolagem = areaQueRola(th, vertical);
   let copia: HTMLElement | null = null;
-  let x = x0;
+  let x = vertical ? y0 : x0;
   let quadro = 0;
   const rolar = () => {
     const caixa = rolagem!.getBoundingClientRect();
-    const passo = x < esquerda! + 40 ? -14 : x > caixa.right - 40 ? 14 : 0;
-    if (passo) { rolagem!.scrollLeft += passo; aoMover(x); }
+    const passo = x < Math.max(esquerda!, vertical ? caixa.top : caixa.left) + 40 ? -14 : x > (vertical ? caixa.bottom : caixa.right) - 40 ? 14 : 0;
+    if (passo) { if (vertical) rolagem!.scrollTop += passo; else rolagem!.scrollLeft += passo; aoMover(x); }
     quadro = requestAnimationFrame(rolar);
   };
   const mover = (ev: MouseEvent) => {
-    x = ev.clientX;
+    x = vertical ? ev.clientY : ev.clientX;
     if (!copia) {
-      if (Math.abs(x - x0) < 5 && Math.abs(ev.clientY - y0) < 5) return;
+      if (Math.abs(ev.clientX - x0) < 5 && Math.abs(ev.clientY - y0) < 5) return;
       const r = th.getBoundingClientRect();
       copia = document.createElement('div');
-      copia.className = 'coluna-fantasma';
+      copia.className = vertical ? 'coluna-fantasma grupo-fantasma' : 'coluna-fantasma';
       copia.textContent = rotulo;
-      Object.assign(copia.style, { top: `${r.top}px`, width: `${r.width}px`, height: `${r.height}px` });
-      copia.dataset.dx = String(x0 - r.left);
+      Object.assign(copia.style, vertical ? { left: `${r.left}px`, height: `${r.height}px`, color: cor ?? '' } : { top: `${r.top}px`, width: `${r.width}px`, height: `${r.height}px` });
+      copia.dataset.dx = String(vertical ? y0 - r.top : x0 - r.left);
       (th.closest('.friday-root') ?? document.body).appendChild(copia);
       document.body.classList.add('arrastando-coluna');
       window.getSelection()?.removeAllRanges();
       if (rolagem && esquerda != null) quadro = requestAnimationFrame(rolar);
     }
-    copia.style.left = `${x - Number(copia.dataset.dx)}px`;
+    copia.style[vertical ? 'top' : 'left'] = `${x - Number(copia.dataset.dx)}px`;
     aoMover(x);
   };
   const fim = (soltou: boolean) => {
