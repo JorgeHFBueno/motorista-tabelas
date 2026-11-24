@@ -34,6 +34,7 @@ export { combustivelDivergencia } from './combustivelDivergencia.js';
 export { logisticaLocal } from './logisticaLocal.js';
 export { plannixPreFabricados } from './plannixPreFabricados.js';
 export { funcionariosImportarFriday } from './funcionariosImportarFriday.js';
+export { rastreadorBuscarPlaca, rastreadorViagens } from './rastreador.js';
 
 export const api = onRequest(app);
 export const adminApi = onRequest(adminApp);
