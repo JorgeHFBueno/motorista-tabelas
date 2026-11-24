@@ -162,6 +162,25 @@ export function createPlannixService(store: PlannixStore) {
   };
 }
 
+/** Obra do cadastro do Plannix (cada LOTE nosso é uma), para escolher o Código Plannix do LOTE na tela. */
+export type ObraPlannix = { codigo: number; sigla: string; nome: string; inicio: string | null; fim: string | null };
+
+export function obrasDoCadastro(bruto: unknown): ObraPlannix[] {
+  return lista(bruto)
+    .map((o) => ({ codigo: Number(o.codObra), sigla: texto(o.siglaObra), nome: texto(o.nomeObra), inicio: texto(o.dataInicial) || null, fim: texto(o.dataFinal) || null }))
+    .filter((o) => Number.isInteger(o.codigo) && o.codigo > 0)
+    .sort((a, b) => b.codigo - a.codigo);
+}
+
+/** Cadastro de obras do Plannix (para a coluna Código Plannix do detalhe da obra): quem vê a área Engenharia. */
+export function createPlannixObrasService(store: PlannixStore) {
+  return async (uid: string | undefined): Promise<{ obras: ObraPlannix[] }> => {
+    if (!uid) throw new HttpsError('unauthenticated', 'Autenticação obrigatória.');
+    if (!veArea(await store.getEmployee(uid), 'engenharia')) throw new HttpsError('permission-denied', 'Acesso não autorizado.');
+    return { obras: obrasDoCadastro(await store.get('obras', { dataInicial: '2000-01-01', dataFinal: '2100-12-31' })) };
+  };
+}
+
 async function getPlannix(rota: string, parametros: Record<string, string> = {}): Promise<unknown> {
   const consulta = new URLSearchParams(parametros).toString();
   const resposta = await fetch(`${BASE}/${rota}${consulta ? `?${consulta}` : ''}`, {
@@ -176,15 +195,22 @@ async function getPlannix(rota: string, parametros: Record<string, string> = {})
   return corpo ? JSON.parse(corpo) : null;
 }
 
-const service = createPlannixService({
+const store: PlannixStore = {
   async getEmployee(uid) {
     const snapshot = await db.collection('funcionarios').doc(uid).get();
     return snapshot.exists ? snapshot.data() : undefined;
   },
   get: getPlannix,
-});
+};
+const service = createPlannixService(store);
+const servicoObras = createPlannixObrasService(store);
 
 export const plannixPreFabricados = onCall(
   { region: 'southamerica-east1', secrets: [plannixApiKey], timeoutSeconds: 300, memory: '512MiB' },
   (request) => service(request.auth?.uid, request.data),
+);
+
+export const plannixObras = onCall(
+  { region: 'southamerica-east1', secrets: [plannixApiKey], timeoutSeconds: 60 },
+  (request) => servicoObras(request.auth?.uid),
 );

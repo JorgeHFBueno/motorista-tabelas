@@ -758,21 +758,23 @@ service cloud.firestore {
       allow create, update, delete: if isAdm2();
     }
 
-    // CronoObra "Próxima a iniciar": one write changes only `lotes.{id}.prioridade` (number) of one existing LOTE.
-    // Rules cannot take the changed key out of a set, so each LOTE is checked by position (up to 40 per contract).
-    function loteSoPrioridade(antes, depois, chave) {
-      return depois[chave] == antes[chave]
-        || (
-          depois[chave].diff(antes[chave]).affectedKeys().hasOnly(['prioridade'])
-          && depois[chave].prioridade is number
-        );
+    // One write changes only one field of one existing LOTE: `lotes.{id}.prioridade` (number; CronoObra "Próxima a
+    // iniciar") or `lotes.{id}.plannix` (código da obra do LOTE no Plannix, inteiro positivo ou null; detalhe da obra,
+    // 2026-11-24). Rules cannot take the changed key out of a set, so each LOTE is checked by position (up to 40).
+    // A LOTE unchanged, or with only `prioridade` (number) or only `plannix` (positive integer or null) changed.
+    function loteSoUmCampo(antes, depois, chave) {
+      let mudou = depois[chave] == antes[chave] ? [] : depois[chave].diff(antes[chave]).affectedKeys();
+      return mudou.size() == 0
+        || (mudou.hasOnly(['prioridade']) && depois[chave].prioridade is number)
+        || (mudou.hasOnly(['plannix'])
+          && (depois[chave].get('plannix', null) == null || (depois[chave].plannix is int && depois[chave].plannix > 0)));
     }
 
     function loteNaPosicao(antes, depois, chaves, i) {
-      return chaves.size() <= i || loteSoPrioridade(antes, depois, chaves[i]);
+      return chaves.size() <= i || loteSoUmCampo(antes, depois, chaves[i]);
     }
 
-    function prioridadeDeUmLote() {
+    function umCampoDeUmLote() {
       let antes = resource.data.get('lotes', {});
       let depois = request.resource.data.get('lotes', {});
       let mudou = depois.diff(antes);
@@ -799,9 +801,10 @@ service cloud.firestore {
       allow read: if isAuthorized();
       allow create, delete: if isAdm2();
       // The registration belongs to Friday; in /engenharia/obras Engenharia only fills in the work site (`local`,
-      // required) and the synonym (`siglaObra`, may be empty); in /engenharia/cronograma, a LOTE's `prioridade`.
+      // required) and the synonym (`siglaObra`, may be empty) and a LOTE's Plannix code (`plannix`); in
+      // /engenharia/cronograma, a LOTE's `prioridade`.
       allow update: if isAdm2()
-        || (editaArea('engenharia') && prioridadeDeUmLote())
+        || (editaArea('engenharia') && umCampoDeUmLote())
         || (
           editaArea('engenharia')
           && changedOnly(['local', 'siglaObra'])

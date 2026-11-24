@@ -128,8 +128,6 @@ const OBRAS_V2: CadastroExistente = {
     campos: [
       { caminho: 'status', titulo: 'Status do LOTE', tipo: 'texto', obrigatorio: false, nulo: true },
       { caminho: 'coordenada', titulo: 'Coordenada do LOTE', tipo: 'coordenada', obrigatorio: false, nulo: true },
-      // Código da obra no Plannix: lá, cada LOTE é uma obra própria (pré-fabricados do LOTE, plannixPreFabricados).
-      { caminho: 'plannix', titulo: 'Código Plannix do LOTE', tipo: 'numero', obrigatorio: false, nulo: true, inteiro: true },
     ],
   },
   situacao_por_formula: { caminho: 'situacao', status: { caminho: 'status', quando: 'Obra Finalizada', sim: 'FINALIZADA', nao: 'CONTRATADA' } },

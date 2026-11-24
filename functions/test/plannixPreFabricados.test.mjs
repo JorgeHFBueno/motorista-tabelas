@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { codigosValidos, createPlannixService, etapaPelasDatas, itensDasPecas, itensDoLancamento } from '../lib/plannixPreFabricados.js';
+import { codigosValidos, createPlannixObrasService, createPlannixService, etapaPelasDatas, itensDasPecas, itensDoLancamento, obrasDoCadastro } from '../lib/plannixPreFabricados.js';
 
 // Formato das rotas do Plannix (mesmos campos na API antiga /api/bi e na nova /public/v1/bi), com dados inventados.
 const OBRAS = [
@@ -84,3 +84,17 @@ test('serviço: exige a área Engenharia; junta cadastro, peças, etapas, Lança
   // Uma consulta de peças e de etapas por sigla, não por LOTE.
   assert.equal(chamadas.filter((c) => c.startsWith('informacaoGlobalPeca')).length, 2);
 });
+
+test('obras do Plannix: código, sigla e nome, do código maior ao menor; exige a área Engenharia', async () => {
+  assert.deepEqual(obrasDoCadastro([...OBRAS, { codObra: 0, siglaObra: 'X', nomeObra: 'Y' }, null]).map((o) => [o.codigo, o.sigla, o.nome]), [
+    [200, 'PM NOVA', 'GALERIA 2,00X2,00M'], [117, 'PM IBARAMA', 'PONTE 5,00X25,00M (LAJ. GRINGA)'], [113, 'PM IBARAMA', 'PONTE 5,00X30,00M (CABRITOS)'],
+  ]);
+  const servico = createPlannixObrasService({
+    async getEmployee(uid) { return uid === 'eng' ? { ativo: true, perfis: {}, areas: { engenharia: 'ver' } } : { ativo: true, perfis: {}, areas: {} }; },
+    async get(rota) { assert.equal(rota, 'obras'); return OBRAS; },
+  });
+  await assert.rejects(servico(undefined), (e) => e.code === 'unauthenticated');
+  await assert.rejects(servico('outro'), (e) => e.code === 'permission-denied');
+  assert.equal((await servico('eng')).obras.length, 3);
+});
+

@@ -1,6 +1,7 @@
 import { Fragment, useRef, useState } from 'react';
 import {
   Alert,
+  Autocomplete,
   Badge,
   Box,
   Button,
@@ -22,8 +23,10 @@ import {
   TableHead,
   TableRow,
   Tooltip,
+  TextField,
   Typography,
 } from '@mui/material';
+import EditOutlinedIcon from '@mui/icons-material/EditOutlined';
 import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
 import HistoryIcon from '@mui/icons-material/History';
 import KeyboardArrowDownIcon from '@mui/icons-material/KeyboardArrowDown';
@@ -33,6 +36,7 @@ import PlaceOutlinedIcon from '@mui/icons-material/PlaceOutlined';
 import UploadFileOutlinedIcon from '@mui/icons-material/UploadFileOutlined';
 import { coordenadaCurta, linkDoMapa } from '../cronograma-logistica/domain/local';
 import type { LoteObra } from './obrasDomain';
+import { rotuloObraPlannix, type ObraPlannix } from './codigoPlannix';
 import {
   agruparPorTipo,
   comPdf,
@@ -125,7 +129,91 @@ function ChipLote({ lote }: { lote: LoteObra }) {
   ) : <Chip label={rotulo} variant="outlined" />;
 }
 
-export default function ListaLotes({ lotes, acoesPdf }: { lotes: LoteComPreFabricados[]; acoesPdf?: AcoesPdf }) {
+/**
+ * Coluna Código Plannix: a obra do Plannix do LOTE. Sem código, a sugestão (município, dimensão e nome do lugar) com
+ * "Usar"; "Escolher" (ou o lápis) abre a busca no cadastro do Plannix. Sem `gravar` (área em "ver"), só mostra.
+ */
+export type CodigoPlannixProps = {
+  obras: ObraPlannix[] | null;
+  sugestoes: Record<string, ObraPlannix>;
+  gravar?: (lote: string, codigo: number | null) => Promise<boolean>;
+};
+
+function CelulaPlannix({ lote, origem, props }: { lote: LoteObra; origem?: string; props?: CodigoPlannixProps }) {
+  const [editando, setEditando] = useState(false);
+  const [escolha, setEscolha] = useState<ObraPlannix | null>(null);
+  const [salvando, setSalvando] = useState(false);
+  const obra = lote.plannix == null ? undefined : props?.obras?.find((o) => o.codigo === lote.plannix);
+  const sugestao = lote.plannix == null ? props?.sugestoes[lote.chave] : undefined;
+  const gravar = props?.gravar;
+  async function salvar(codigo: number | null) {
+    if (!gravar) return;
+    setSalvando(true);
+    const ok = await gravar(lote.chave, codigo);
+    setSalvando(false);
+    if (ok) setEditando(false);
+  }
+  if (editando && gravar) {
+    return (
+      <Stack spacing={1} sx={{ minWidth: 260 }}>
+        <Autocomplete
+          size="small"
+          options={props?.obras ?? []}
+          loading={!props?.obras}
+          value={escolha}
+          onChange={(_, valor) => setEscolha(valor)}
+          getOptionLabel={rotuloObraPlannix}
+          isOptionEqualToValue={(a, b) => a.codigo === b.codigo}
+          noOptionsText="Nenhuma obra do Plannix"
+          renderInput={(params) => <TextField {...params} autoFocus label="Obra do Plannix" placeholder="Código, sigla ou nome" />}
+        />
+        <Stack direction="row" spacing={1}>
+          <Button size="small" variant="contained" disabled={!escolha || salvando} onClick={() => escolha && salvar(escolha.codigo)}>Salvar</Button>
+          <Button size="small" disabled={salvando} onClick={() => setEditando(false)}>Cancelar</Button>
+          {lote.plannix != null && <Button size="small" color="error" disabled={salvando} onClick={() => salvar(null)}>Tirar</Button>}
+        </Stack>
+      </Stack>
+    );
+  }
+  if (lote.plannix != null) {
+    return (
+      <Stack direction="row" spacing={0.5} alignItems="flex-start">
+        <Box>
+          <Typography sx={{ fontWeight: 700 }}>{lote.plannix}</Typography>
+          <Typography variant="caption" color="text.secondary">
+            {obra ? `${obra.sigla} · ${obra.nome}` : origem?.replace(/^Plannix \d+ · /, '') ?? ''}
+          </Typography>
+        </Box>
+        {gravar && (
+          <Tooltip title="Trocar a obra do Plannix">
+            <IconButton size="small" onClick={() => { setEscolha(obra ?? null); setEditando(true); }} aria-label={`Trocar o código Plannix do ${lote.nome}`}>
+              <EditOutlinedIcon fontSize="small" />
+            </IconButton>
+          </Tooltip>
+        )}
+      </Stack>
+    );
+  }
+  if (!gravar) return <Typography variant="body2" color="text.secondary">—</Typography>;
+  return (
+    <Stack spacing={0.5} alignItems="flex-start">
+      {sugestao ? (
+        <>
+          <Typography variant="caption" color="text.secondary">Sugestão</Typography>
+          <Typography variant="body2" sx={{ fontWeight: 600 }}>{rotuloObraPlannix(sugestao)}</Typography>
+          <Stack direction="row" spacing={1}>
+            <Button size="small" variant="outlined" disabled={salvando} onClick={() => salvar(sugestao.codigo)}>Usar</Button>
+            <Button size="small" onClick={() => { setEscolha(null); setEditando(true); }}>Escolher outra</Button>
+          </Stack>
+        </>
+      ) : (
+        <Button size="small" variant="outlined" onClick={() => { setEscolha(null); setEditando(true); }}>Escolher obra</Button>
+      )}
+    </Stack>
+  );
+}
+
+export default function ListaLotes({ lotes, acoesPdf, codigoPlannix }: { lotes: LoteComPreFabricados[]; acoesPdf?: AcoesPdf; codigoPlannix?: CodigoPlannixProps }) {
   const [historico, setHistorico] = useState<AlvoRevisoes | null>(null);
   const [excluir, setExcluir] = useState<PdfPreFabricado | null>(null);
   const [aviso, setAviso] = useState<string | null>(null);
@@ -169,6 +257,7 @@ export default function ListaLotes({ lotes, acoesPdf }: { lotes: LoteComPreFabri
           <TableHead>
             <TableRow>
               <TableCell rowSpan={2}>LOTE</TableCell>
+              <TableCell rowSpan={2}>Código Plannix</TableCell>
               <TableCell colSpan={4} align="center" className="obra-lotes__grupo">Pré-Fabricados</TableCell>
             </TableRow>
             <TableRow>
@@ -197,10 +286,12 @@ export default function ListaLotes({ lotes, acoesPdf }: { lotes: LoteComPreFabri
                 ];
               });
               const celulaLote = (
-                <TableCell rowSpan={Math.max(linhas.length, 1)} className="obra-lotes__lote">
-                  <ChipLote lote={lote} />
-                  {lote.origem && <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.75 }}>{lote.origem}</Typography>}
-                </TableCell>
+                <>
+                  <TableCell rowSpan={Math.max(linhas.length, 1)} className="obra-lotes__lote"><ChipLote lote={lote} /></TableCell>
+                  <TableCell rowSpan={Math.max(linhas.length, 1)} className="obra-lotes__plannix">
+                    <CelulaPlannix key={`${lote.chave}:${lote.plannix}`} lote={lote} origem={lote.origem} props={codigoPlannix} />
+                  </TableCell>
+                </>
               );
               if (!linhas.length) {
                 return (
