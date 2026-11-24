@@ -162,7 +162,54 @@
 .erp-elevor .lista-itens.estreita .grade td { border-bottom: 0; padding: 6px 10px; }
 .erp-elevor .lista-itens .campo { height: 30px; }
 
+/* ---------------- relatórios e fichas simples (Estoques: RL_Estoques, RL_Kardex, CL_Volumes, CD_Volumes) ---------------- */
+.erp-elevor .form-linha { display: grid; grid-template-columns: 180px minmax(0, 1fr); gap: 10px 30px; align-items: center; margin-bottom: 10px; }
+.erp-elevor .form-rotulo { color: var(--texto); }
+.erp-elevor .form-controle { display: flex; align-items: center; gap: 6px; min-width: 0; flex-wrap: wrap; min-height: 34px; }
+.erp-elevor .campo.mini { width: 80px; }
+.erp-elevor .campo.num { text-align: right; }
+/* formulário de relatório: rótulo normal à esquerda (160 px), no centro da tela */
+.erp-elevor .relatorio-elevor { width: fit-content; min-width: min(640px, 100%); max-width: 1200px; margin: 12px auto 18px; }
+.erp-elevor .relatorio-elevor .form-linha { grid-template-columns: 160px minmax(0, 1fr); gap: 10px 8px; }
+.erp-elevor .relatorio-elevor .form-controle { max-width: 1000px; }
+.erp-elevor .relatorio-elevor .campo.cheio { flex: none; width: 450px; max-width: 100%; }
+.erp-elevor .relatorio-elevor .botoes { margin: 20px 0 8px; }
+.erp-elevor .relatorio-elevor .rel-ajuda-campo { margin-left: 6px; align-self: center; }
+/* » do Elevor (escolher vários): só aparece, parado */
+.erp-elevor .relatorio-elevor .btn.rel-varios { width: 30px; height: 30px; padding: 0; justify-content: center; margin-left: 4px; flex: none; }
+/* Conferência de Estoques: grade "DESCRIÇÃO / FILTRO" das colunas (Configuração de colunas da RL_Estoques) */
+.erp-elevor .conf-colunas { width: min(640px, 100%); margin: 14px auto 8px; border-collapse: collapse; }
+.erp-elevor .conf-colunas th { text-align: left; font-weight: 700; font-size: 12px; padding: 4px 0; }
+.erp-elevor .conf-colunas th.filtro, .erp-elevor .conf-colunas td.filtro { width: 160px; }
+.erp-elevor .conf-colunas td { padding: 3px 0; vertical-align: middle; }
+.erp-elevor .conf-colunas td .opcao { font-weight: 700; }
+.erp-elevor .conf-colunas td.filtro .campo { width: 150px; }
+.erp-elevor .conf-colunas tr.conf-secao td { padding-top: 8px; }
+.erp-elevor .relatorio-elevor .conf-ordem { display: grid; grid-template-columns: repeat(4, max-content); gap: 4px 18px; }
+/* ficha simples: rótulo normal à esquerda (145 px), coluna estreita no centro */
+.erp-elevor .ficha-elevor { max-width: 620px; margin: 24px auto 0; }
+.erp-elevor .ficha-elevor .form-linha { grid-template-columns: 145px minmax(0, 1fr); gap: 10px 8px; }
+.erp-elevor .ficha-elevor .campo.curto { width: 150px; }
+.erp-elevor .ficha-elevor .campo.medio { width: 300px; }
+.erp-elevor .ficha-elevor .grade { margin-top: 8px; }
+/* totais acima da grade, quebra por grupo e saldo negativo */
+.erp-elevor .resumo-linha { display: flex; gap: 28px; flex-wrap: wrap; margin: 12px 0 0; color: var(--texto-2); }
+.erp-elevor .resumo-linha b { color: var(--texto-forte); font-weight: 700; }
+.erp-elevor .negativo, .erp-elevor .resumo-linha b.negativo { color: var(--ledur-destructive); }
+.erp-elevor .grade .linha-quebra td { background: var(--grade-hover); color: var(--texto-forte); font-weight: 700; padding: 8px 10px; }
+.erp-elevor .grade .marcar { width: 34px; vertical-align: middle; }
+.erp-elevor .grade-titulo { font-weight: 700; color: var(--texto-forte); margin: 22px 0 0; }
+/* Tipo do produto */
+.erp-elevor .etiqueta { display: inline-block; font-size: 11px; padding: 1px 8px; border-radius: 10px; border: 1px solid var(--secundario-borda); color: var(--texto); white-space: nowrap; }
+.erp-elevor .etiqueta.peca { border-color: var(--ledur-secondary); color: var(--ledur-secondary); }
+.erp-elevor .etiqueta.insumo { border-color: var(--ledur-warning); color: #8a5a10; }
+.erp-elevor .etiqueta.servico { border-color: var(--ledur-success); color: var(--ledur-success); }
+.erp-elevor .etiqueta.uso_consumo { color: var(--texto-2); }
+
 @media (max-width: 900px) {
+  .erp-elevor .form-linha, .erp-elevor .relatorio-elevor .form-linha, .erp-elevor .ficha-elevor .form-linha { grid-template-columns: 1fr; gap: 4px; }
+  .erp-elevor .relatorio-elevor { width: auto; min-width: 0; }
+  .erp-elevor .relatorio-elevor .conf-ordem { grid-template-columns: repeat(2, max-content); }
   .erp-elevor { padding: 12px; }
   .erp-elevor .consulta-pessoas { grid-template-columns: 1fr; justify-content: stretch; }
   .erp-elevor .consulta-pessoas .cp-rot { text-align: left; }

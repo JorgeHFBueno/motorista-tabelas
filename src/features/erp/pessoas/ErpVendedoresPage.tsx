@@ -3,7 +3,7 @@ import AddCircleOutlineIcon from '@mui/icons-material/AddCircleOutline';
 import SearchIcon from '@mui/icons-material/Search';
 import { useTituloPagina } from '../../../components/cabecalhoPagina';
 import '../erpElevor.css';
-import Paginacao from './Paginacao';
+import Paginacao from '../Paginacao';
 import { AVISO_DEMONSTRACAO, VENDEDORES_EXEMPLO } from './pessoasExemplo';
 
 // /erp/vendedores: Consulta de Vendedores e a ficha (Cadastro de Vendedores) no layout do Elevor, como o cadastro simples

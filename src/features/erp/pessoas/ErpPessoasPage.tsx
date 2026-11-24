@@ -9,7 +9,7 @@ import PrintOutlinedIcon from '@mui/icons-material/PrintOutlined';
 import SearchIcon from '@mui/icons-material/Search';
 import { formatarDocumento } from '../../portal-cliente/portalDominio';
 import '../erpElevor.css';
-import Paginacao from './Paginacao';
+import Paginacao from '../Paginacao';
 import {
   AVISO_DEMONSTRACAO, CATEGORIAS, PAPEIS, PESSOAS_EXEMPLO, REGIMES, UFS, VENDEDORES_EXEMPLO, type Papel, type PessoaExemplo,
 } from './pessoasExemplo';

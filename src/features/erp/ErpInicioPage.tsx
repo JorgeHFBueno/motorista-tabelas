@@ -17,7 +17,8 @@ import Corvo from '../../components/corvo/Corvo';
 
 // /erp (2026-11-24): início do ERP próprio, com o mosaico de atalhos da tela inicial do Elevor (ERP360), que inspirou o
 // ERP próprio: mesmos blocos, posições e tamanhos, nas cores da Ledur (o roxo do Elevor virou azul-marinho). Bloco com
-// `para` abre a tela (Clientes e Fornecedores, em demonstração); os outros abrem o aviso "Estamos trabalhando nisso".
+// `para` abre a tela (Clientes e Fornecedores e Conferência de Estoques, em demonstração); os outros abrem o aviso
+// "Estamos trabalhando nisso".
 // The Manuscript, 03_APLICACAO_WEB/01_ROTAS_E_NAVEGACAO.md#erp.
 
 // Cores do src/theme/ledurTheme.ts; texto escuro onde o fundo é claro.
@@ -39,7 +40,7 @@ const BLOCOS: Bloco[] = [
   { rotulo: 'Lançamento de Títulos', icone: <AttachMoneyOutlinedIcon />, cor: 'financeiro', coluna: 1, linha: 2 },
   { rotulo: 'Consulta Títulos', icone: <AttachMoneyOutlinedIcon />, cor: 'financeiro', coluna: 1, linha: 3 },
   { rotulo: 'Conciliação Bancária', icone: <PaidOutlinedIcon />, cor: 'financeiro', coluna: 1, linha: 4 },
-  { rotulo: 'Conferência de Estoques', icone: <AssignmentOutlinedIcon />, cor: 'estoque', coluna: 1, linha: 5 },
+  { rotulo: 'Conferência de Estoques', icone: <AssignmentOutlinedIcon />, cor: 'estoque', coluna: 1, linha: 5, para: '/erp/estoques' },
   { rotulo: 'Painel de Estoques', icone: <AreaChartOutlinedIcon />, cor: 'painel', coluna: 2, linha: 1 },
   { rotulo: 'Relatório Despesas e Receitas', icone: <AssignmentOutlinedIcon />, cor: 'painel', coluna: 2, linha: 2, alto: true },
   { rotulo: 'DRE Financeiro', icone: <TrendingUpOutlinedIcon />, cor: 'painel', coluna: 2, linha: 4 },
