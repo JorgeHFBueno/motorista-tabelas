@@ -1,4 +1,5 @@
 import { useState, type ReactNode } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Box, Button, ButtonBase, Dialog, DialogActions, DialogContent, Stack, Typography } from '@mui/material';
 import PaidOutlinedIcon from '@mui/icons-material/PaidOutlined';
 import AttachMoneyOutlinedIcon from '@mui/icons-material/AttachMoneyOutlined';
@@ -15,8 +16,8 @@ import MailOutlineOutlinedIcon from '@mui/icons-material/MailOutlineOutlined';
 import Corvo from '../../components/corvo/Corvo';
 
 // /erp (2026-11-24): início do ERP próprio, com o mosaico de atalhos da tela inicial do Elevor (ERP360), que inspirou o
-// ERP próprio: mesmos blocos, posições e tamanhos, nas cores da Ledur (o roxo do Elevor virou azul-marinho). Os módulos
-// ainda não chegaram: cada bloco abre o aviso "Estamos trabalhando nisso".
+// ERP próprio: mesmos blocos, posições e tamanhos, nas cores da Ledur (o roxo do Elevor virou azul-marinho). Bloco com
+// `para` abre a tela (Clientes e Fornecedores, em demonstração); os outros abrem o aviso "Estamos trabalhando nisso".
 // The Manuscript, 03_APLICACAO_WEB/01_ROTAS_E_NAVEGACAO.md#erp.
 
 // Cores do src/theme/ledurTheme.ts; texto escuro onde o fundo é claro.
@@ -31,7 +32,7 @@ const CORES = {
 } as const;
 
 // Posição na grade de 5 colunas (coluna, linha, a partir de 1); `alto` ocupa duas linhas. Na ordem do Elevor, coluna a coluna.
-type Bloco = { rotulo: string; icone: ReactNode; cor: keyof typeof CORES; coluna: number; linha: number; alto?: true };
+type Bloco = { rotulo: string; icone: ReactNode; cor: keyof typeof CORES; coluna: number; linha: number; alto?: true; para?: string };
 
 const BLOCOS: Bloco[] = [
   { rotulo: 'Bancos/Caixa', icone: <PaidOutlinedIcon />, cor: 'financeiro', coluna: 1, linha: 1 },
@@ -47,7 +48,7 @@ const BLOCOS: Bloco[] = [
   { rotulo: 'Entrada de Fornecedor', icone: <DescriptionOutlinedIcon />, cor: 'comercial', coluna: 3, linha: 2 },
   { rotulo: 'Painel Financeiro', icone: <AreaChartOutlinedIcon />, cor: 'painel', coluna: 3, linha: 3, alto: true },
   { rotulo: 'Consulta de Pedidos', icone: <AssignmentOutlinedIcon />, cor: 'comercial', coluna: 4, linha: 1, alto: true },
-  { rotulo: 'Consulta de Clientes e Fornecedores', icone: <PersonOutlineOutlinedIcon />, cor: 'cadastro', coluna: 4, linha: 3, alto: true },
+  { rotulo: 'Consulta de Clientes e Fornecedores', icone: <PersonOutlineOutlinedIcon />, cor: 'cadastro', coluna: 4, linha: 3, alto: true, para: '/erp/pessoas' },
   { rotulo: 'Painel de Pedidos', icone: <AssignmentOutlinedIcon />, cor: 'comercial', coluna: 5, linha: 1, alto: true },
   { rotulo: 'Relatório Financeiro', icone: <AssignmentOutlinedIcon />, cor: 'relatorio', coluna: 5, linha: 3, alto: true },
 ];
@@ -86,6 +87,7 @@ function BotaoBloco({ rotulo, icone, cor, posicao, onClick }: Pick<Bloco, 'rotul
 }
 
 export default function ErpInicioPage() {
+  const navigate = useNavigate();
   const [aviso, setAviso] = useState({ aberto: false, rotulo: '' });
   const abrir = (rotulo: string) => () => setAviso({ aberto: true, rotulo });
 
@@ -101,12 +103,12 @@ export default function ErpInicioPage() {
 
       <Stack direction={{ xs: 'column', md: 'row' }} justifyContent="space-between" spacing={{ xs: '4px', md: 2 }}>
         <Box sx={gradeSx}>
-          {BLOCOS.map((b) => (
+          {BLOCOS.map(({ para, ...b }) => (
             <BotaoBloco
               key={b.rotulo}
               {...b}
               posicao={{ gridColumn: { sm: `${b.coluna}` }, gridRow: { sm: `${b.linha} / span ${b.alto ? 2 : 1}` } }}
-              onClick={abrir(b.rotulo)}
+              onClick={para ? () => navigate(para) : abrir(b.rotulo)}
             />
           ))}
         </Box>

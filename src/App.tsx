@@ -46,6 +46,9 @@ const NegociosPage = lazy(() => import('./features/comercial/NegociosPage'));
 const ContatosPage = lazy(() => import('./features/comercial/ContatosPage'));
 const ObraDetalhesPage = lazy(() => import('./features/obras/ObraDetalhesPage'));
 const ErpInicioPage = lazy(() => import('./features/erp/ErpInicioPage'));
+const ErpPessoasPage = lazy(() => import('./features/erp/pessoas/ErpPessoasPage'));
+const ErpPessoaFichaPage = lazy(() => import('./features/erp/pessoas/ErpPessoaFichaPage'));
+const ErpVendedoresPage = lazy(() => import('./features/erp/pessoas/ErpVendedoresPage'));
 const TheManuscriptPage = lazy(() => import('./pages/TheManuscriptPage'));
 const ManuscriptMapaPage = lazy(() => import('./pages/ManuscriptMapaPage'));
 const MeuPerfilPage = lazy(() => import('./pages/MeuPerfilPage'));
@@ -154,10 +157,13 @@ export default function App() {
               <Route path="cadastros/apis" element={<CadastroApisPage />} />
               <Route path="cadastros/uso" element={<UsoDoSistemaPage />} />
             </Route>
-            {/* ERP próprio (2026-11-24): por enquanto só a página "Estamos trabalhando nisso", só o adm2. The Manuscript,
-                01_ROTAS_E_NAVEGACAO.md#erp. */}
+            {/* ERP próprio (2026-11-24): o início com o mosaico e Clientes e Fornecedores em demonstração (sem gravação), só o
+                adm2. The Manuscript, 01_ROTAS_E_NAVEGACAO.md#erp. */}
             <Route element={<PrivateRoute permite={(p) => temCredencial(p, 'adm2')} />}>
               <Route path="erp" element={<ErpInicioPage />} />
+              <Route path="erp/pessoas" element={<ErpPessoasPage />} />
+              <Route path="erp/pessoas/:codigo" element={<ErpPessoaFichaPage />} />
+              <Route path="erp/vendedores" element={<ErpVendedoresPage />} />
             </Route>
             {/* Mecânica e Logística são grupos, como Engenharia: /mecanica e /logistica não têm página própria (2026-11-19:
                 Frota virou Mecânica; Combustível e o KPI entraram na Logística). */}
