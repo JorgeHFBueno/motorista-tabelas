@@ -52,7 +52,33 @@ export function codigosValidos(dados: unknown): number[] {
   return codigos;
 }
 
-/** Peças da obra (informacaoGlobalPeca, filtrada pelo nome da obra) com a etapa atual (exportaStatusProducao). */
+/** "24/11/2026 09:36:00" (informacaoGlobalPeca) → "2026-11-24T09:36:00"; null quando não é data. */
+const dataBr = (v: unknown) => {
+  const m = texto(v).match(/^(\d{2})\/(\d{2})\/(\d{4})(?: (\d{2}):(\d{2})(?::(\d{2}))?)?$/);
+  return m ? `${m[3]}-${m[2]}-${m[1]}T${m[4] ?? '00'}:${m[5] ?? '00'}:${m[6] ?? '00'}` : null;
+};
+
+/**
+ * Etapa pelas datas da visão completa da peça, para a peça que não aparece em exportaStatusProducao (lá faltam, por
+ * exemplo, as já expedidas de obras antigas): o último evento que tem data, da montagem para trás. Conferido em
+ * 2026-11-24 nas peças que aparecem nas duas rotas: a etapa é a mesma.
+ */
+const EVENTOS: [string, string][] = [
+  ['dataMontada', 'MONTADA'], ['data_Expedicao', 'EXPEDIDA'], ['data_Acabamento', 'ACABADA'], ['data_Concretagem', 'CONCRETAGEM'],
+  ['data_Armacao', 'ARMAÇÃO'], ['data_FormaArmacao', 'ARMAÇÃO'], ['data_Forma', 'FORMA'], ['data_CorteDobra', 'CORTE DOBRA'],
+  ['data_Programacao_Fabrica', 'PROGRAMADA'], ['data_Projeto', 'PROJETADA'],
+];
+export function etapaPelasDatas(peca: AnyRecord): { etapa: string; data: string | null } {
+  if (peca.montada === true) return { etapa: 'MONTADA', data: dataBr(peca.dataMontada) };
+  if (texto(peca.status_Logistica).toUpperCase() === 'EXPEDIDA' && !texto(peca.data_Expedicao)) return { etapa: 'EXPEDIDA', data: null };
+  for (const [campo, etapa] of EVENTOS) if (texto(peca[campo])) return { etapa, data: dataBr(peca[campo]) };
+  return { etapa: '', data: null };
+}
+
+/**
+ * Peças da obra (informacaoGlobalPeca, filtrada pelo nome da obra) com a etapa atual: a de exportaStatusProducao e,
+ * quando a peça não está lá, a das datas da própria peça.
+ */
 export function itensDasPecas(pecas: AnyRecord[], status: AnyRecord[], nomeObra: string): ItemPlannix[] {
   const etapas = new Map(status.map((s) => [texto(s.codigoControle), { etapa: texto(s.processo), data: texto(s.data) || null }]));
   const itens = new Map<string, ItemPlannix>();
@@ -65,7 +91,8 @@ export function itensDasPecas(pecas: AnyRecord[], status: AnyRecord[], nomeObra:
     const chave = `${produto}\u0000${nome}`;
     if (!itens.has(chave)) itens.set(chave, { produto, nome, secao: texto(p.secao), pecas: [], quantidade: 0, desenhos: [] });
     const item = itens.get(chave)!;
-    item.pecas.push({ codigo, etapa: etapas.get(codigo)?.etapa ?? '', data: etapas.get(codigo)?.data ?? null });
+    const atual = etapas.get(codigo) ?? etapaPelasDatas(p);
+    item.pecas.push({ codigo, etapa: atual.etapa, data: atual.data });
     item.quantidade = item.pecas.length;
   }
   for (const item of itens.values()) item.pecas.sort((a, b) => comparar(a.codigo, b.codigo));

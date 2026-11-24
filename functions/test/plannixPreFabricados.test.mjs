@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { codigosValidos, createPlannixService, itensDasPecas, itensDoLancamento } from '../lib/plannixPreFabricados.js';
+import { codigosValidos, createPlannixService, etapaPelasDatas, itensDasPecas, itensDoLancamento } from '../lib/plannixPreFabricados.js';
 
 // Formato das rotas do Plannix (mesmos campos na API antiga /api/bi e na nova /public/v1/bi), com dados inventados.
 const OBRAS = [
@@ -10,7 +10,7 @@ const OBRAS = [
 ];
 const peca = (codigoControle, nomeObra, produto, nomePeca, secao = '25X40') => ({ codigoControle, nomeObra, produto, nomePeca, secao, sigla: 'PM IBARAMA' });
 const PECAS = [
-  peca('1003', 'PONTE 5,00X25,00M (LAJ. GRINGA)', 'PILAR', 'P01'),
+  { ...peca('1003', 'PONTE 5,00X25,00M (LAJ. GRINGA)', 'PILAR', 'P01'), data_Projeto: '13/07/2026 00:00:00', data_CorteDobra: '28/07/2026 16:35:00', data_Acabamento: '11/09/2026 14:52:00', status_Logistica: 'EXPEDIDA', data_Expedicao: '14/09/2026 16:30:00' },
   peca('1001', 'PONTE 5,00X25,00M (LAJ. GRINGA)', 'PILAR', 'P01'),
   peca('1002', 'PONTE 5,00X25,00M (LAJ. GRINGA)', 'PILAR', 'P01'),
   peca('1010', 'PONTE 5,00X25,00M (LAJ. GRINGA)', 'VIGA', 'VL - 25X70X1250', '25X70'),
@@ -39,8 +39,17 @@ test('peças: só as da obra, agrupadas pelo nome da peça, com a etapa atual de
   assert.deepEqual(itens[0].pecas, [
     { codigo: '1001', etapa: 'CORTE DOBRA', data: '2026-11-24T09:36:00' },
     { codigo: '1002', etapa: 'ACABADA', data: '2026-11-20T10:00:00' },
-    { codigo: '1003', etapa: '', data: null },
+    // Fora de exportaStatusProducao: a etapa sai das datas da própria peça.
+    { codigo: '1003', etapa: 'EXPEDIDA', data: '2026-09-14T16:30:00' },
   ]);
+});
+
+test('etapa pelas datas: o último evento com data, da montagem para trás', () => {
+  assert.deepEqual(etapaPelasDatas({ data_Projeto: '24/11/2026 00:00:00', data_CorteDobra: '24/11/2026 09:36:00' }), { etapa: 'CORTE DOBRA', data: '2026-11-24T09:36:00' });
+  assert.deepEqual(etapaPelasDatas({ data_Projeto: '13/07/2026 00:00:00', data_Concretagem: '28/07/2026 16:35:00', data_Acabamento: '11/09/2026 14:52:00' }), { etapa: 'ACABADA', data: '2026-09-11T14:52:00' });
+  assert.deepEqual(etapaPelasDatas({ data_Expedicao: '14/09/2026 16:30:00', montada: true, dataMontada: '20/09/2026 08:00:00' }), { etapa: 'MONTADA', data: '2026-09-20T08:00:00' });
+  assert.deepEqual(etapaPelasDatas({ status_Logistica: 'EXPEDIDA' }), { etapa: 'EXPEDIDA', data: null });
+  assert.deepEqual(etapaPelasDatas({ data_Projeto: null }), { etapa: '', data: null });
 });
 
 test('sem projeto: as linhas do Lançamento Final (só a fase Final) com a quantidade prevista', () => {
