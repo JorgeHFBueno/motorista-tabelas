@@ -413,7 +413,7 @@ export const restringirColuna = emPortugues(async function restringirColuna(colu
   const coluna = await buscar('colunas', colunaId);
   if (!coluna) throw new Error('coluna não encontrada');
   if (await campoOficialDa(coluna)) throw new Error(`“${coluna.titulo}” é um campo oficial: o valor fica no cadastro, que todos leem.`);
-  if (ver && !TIPOS_RESTRINGIVEIS.has(String(coluna.tipo))) throw new Error('Colunas deste tipo (tempo, pessoa, arquivos, conexão ou fórmula) ainda não podem ser restritas.');
+  if (ver && !TIPOS_RESTRINGIVEIS.has(String(coluna.tipo))) throw new Error('Colunas deste tipo (tempo, pessoa, arquivos ou conexão) ainda não podem ser restritas.');
   const chave = String(coluna.id);
   const lista = [...new Set(ver ?? [])];
   const itens = ver && coluna.restrita ? [] : await consultar('itens', { quadro_id: coluna.quadro_id });

@@ -6,8 +6,17 @@
 
 export type ColunaComRestricao = { id: number; tipo: string; config?: Record<string, unknown> | null; restrita?: { ver?: string[] } | null };
 
-/** Tipos que podem ser restritos: os valores passam todos pela gravação de célula (não tempo, pessoa, arquivos, conexão, fórmula). */
-export const TIPOS_RESTRINGIVEIS = new Set(['texto', 'texto_longo', 'numero', 'status', 'lista', 'data', 'periodo', 'link', 'caixa', 'telefone', 'email', 'avaliacao']);
+/**
+ * Tipos que podem ser restritos: os valores passam todos pela gravação de célula (não tempo, pessoa, arquivos, conexão).
+ * Fórmula não guarda valor (é calculada na tela): restringir só a esconde de quem não está na lista.
+ */
+export const TIPOS_RESTRINGIVEIS = new Set(['texto', 'texto_longo', 'numero', 'status', 'lista', 'data', 'periodo', 'link', 'caixa', 'telefone', 'email', 'avaliacao', 'formula']);
+
+/** Colunas livres (não restritas) usadas por uma fórmula: quem as vê consegue chegar ao resultado. */
+export function entradasLivres<C extends ColunaComRestricao>(formula: C, colunas: C[]): C[] {
+  const ids = new Set(refsDaFormula(formula.config?.formula));
+  return colunas.filter(c => ids.has(c.id) && !c.restrita);
+}
 
 export const ehRestrita = (c: Pick<ColunaComRestricao, 'restrita'> | undefined) => !!c?.restrita;
 export const podeVerColuna = (c: ColunaComRestricao, uid: string, adm2: boolean) => !c.restrita || adm2 || (c.restrita.ver ?? []).includes(uid);

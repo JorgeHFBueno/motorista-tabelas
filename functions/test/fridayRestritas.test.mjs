@@ -31,3 +31,9 @@ test('valores restritos encaixados no item; sem valor, a coluna sai', () => {
   assert.equal(r.ehRestrita(colunas[4]), false);
   assert.equal(r.podeVerColuna(colunas[0], 'beto', false), false);
 });
+
+test('fórmula restrita (sem valor guardado) some para quem não está na lista dela, mesmo vendo as entradas', () => {
+  const cols = [{ id: 1, tipo: 'numero' }, { id: 2, tipo: 'numero' }, { id: 3, tipo: 'formula', config: { formula: '{@1} - {@2}' }, restrita: { ver: ['ana'] } }];
+  assert.deepEqual(ids(r.colunasQueVe(cols, 'ana', false)), [1, 2, 3]);
+  assert.deepEqual(ids(r.colunasQueVe(cols, 'beto', false)), [1, 2]);
+});
