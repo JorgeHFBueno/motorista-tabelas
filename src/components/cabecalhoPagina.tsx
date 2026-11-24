@@ -50,9 +50,10 @@ const TITULOS: Array<{ padrao: string } & TituloPagina> = [
   { padrao: '/comercial/negocios', titulo: 'Negócios' },
   { padrao: '/comercial/contatos', titulo: 'Contatos comerciais' },
   { padrao: '/erp', titulo: 'ERP' },
-  { padrao: '/erp/pessoas', titulo: 'Clientes e Fornecedores' },
-  { padrao: '/erp/pessoas/:codigo', titulo: 'Cliente/Fornecedor' },
-  { padrao: '/erp/vendedores', titulo: 'Vendedores' },
+  // Títulos das telas do Elevor.
+  { padrao: '/erp/pessoas', titulo: 'Consulta de Clientes e Fornecedores' },
+  { padrao: '/erp/pessoas/:codigo', titulo: 'Cadastro de Clientes e Fornecedores' },
+  { padrao: '/erp/vendedores', titulo: 'Consulta de Vendedores' },
   { padrao: '/portal-cliente/clientes', titulo: 'Clientes do portal' },
   { padrao: '/portal-cliente/contratos', titulo: 'Contratos no portal' },
   { padrao: '/portal-cliente/contratos/:id', titulo: 'Contrato no portal' },

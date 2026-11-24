@@ -1,63 +1,60 @@
 import { useState } from 'react';
-import {
-  Box, Button, IconButton, MenuItem, Paper, Stack, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, TextField, Typography,
-} from '@mui/material';
-import AddIcon from '@mui/icons-material/Add';
+import AddCircleOutlineIcon from '@mui/icons-material/AddCircleOutline';
 import DeleteOutlineIcon from '@mui/icons-material/DeleteOutlined';
+import EditOutlinedIcon from '@mui/icons-material/EditOutlined';
 
-// Lista editável da ficha (telefones, e-mails, contatos, sócios...), como as listas do ERP: uma linha por item, um campo por
-// coluna. Demonstração: as linhas ficam só na tela.
-export type ColunaItem = { rotulo: string; opcoes?: string[]; data?: true; largura?: number };
+// Lista da ficha (telefones, e-mails, contatos, sócios...) como as do ERP/Elevor: "Adicionar" no alto, a linha mostra os
+// valores, o lápis abre a edição e a lixeira tira. `estreita` (Telefone(s), E-mail(s)): botão no centro, sem cabeçalho.
+// Demonstração: as linhas ficam só na tela.
+export type ColunaItem = { rotulo: string; opcoes?: string[]; data?: true };
 
-export default function ListaItens({ titulo, colunas, inicial = [], botao = 'Adicionar' }: {
-  titulo: string; colunas: ColunaItem[]; inicial?: string[][]; botao?: string;
+const dataBr = (v: string) => (/^\d{4}-\d{2}-\d{2}$/.test(v) ? v.split('-').reverse().join('/') : v);
+
+export default function ListaItens({ colunas, inicial = [], botao = 'Adicionar', estreita = false }: {
+  colunas: ColunaItem[]; inicial?: string[][]; botao?: string; estreita?: boolean;
 }) {
   const [linhas, setLinhas] = useState(inicial);
+  const [editando, setEditando] = useState<number | null>(null);
   const mudar = (i: number, j: number, valor: string) =>
     setLinhas((ls) => ls.map((l, k) => (k === i ? colunas.map((_, m) => (m === j ? valor : l[m] ?? '')) : l)));
 
   return (
-    <Box>
-      <Stack direction="row" justifyContent="space-between" alignItems="center" mb={1}>
-        <Typography variant="subtitle2" fontWeight={700}>{titulo}</Typography>
-        <Button size="small" startIcon={<AddIcon />} onClick={() => setLinhas((ls) => [...ls, colunas.map(() => '')])}>{botao}</Button>
-      </Stack>
-      <TableContainer component={Paper} variant="outlined">
-        <Table size="small">
-          <TableHead>
-            <TableRow>
-              {colunas.map((c) => <TableCell key={c.rotulo} sx={{ fontWeight: 700 }}>{c.rotulo}</TableCell>)}
-              <TableCell padding="checkbox" />
-            </TableRow>
-          </TableHead>
-          <TableBody>
-            {linhas.map((linha, i) => (
-              <TableRow key={i}>
-                {colunas.map((c, j) => (
-                  <TableCell key={c.rotulo} sx={{ minWidth: c.largura ?? 140 }}>
-                    <TextField
-                      variant="standard" fullWidth select={Boolean(c.opcoes)} type={c.data ? 'date' : 'text'} value={linha[j] ?? ''}
-                      onChange={(e) => mudar(i, j, e.target.value)} slotProps={{ htmlInput: { 'aria-label': c.rotulo } }}
-                    >
-                      {c.opcoes?.map((o) => <MenuItem key={o} value={o}>{o}</MenuItem>)}
-                    </TextField>
-                  </TableCell>
-                ))}
-                <TableCell padding="checkbox">
-                  <IconButton size="small" aria-label="Tirar a linha" onClick={() => setLinhas((ls) => ls.filter((_, k) => k !== i))}>
-                    <DeleteOutlineIcon fontSize="small" />
-                  </IconButton>
-                </TableCell>
-              </TableRow>
-            ))}
-            {!linhas.length && (
-              <TableRow>
-                <TableCell colSpan={colunas.length + 1}><Typography variant="body2" color="text.secondary">Nenhum item.</Typography></TableCell>
-              </TableRow>
-            )}
-          </TableBody>
-        </Table>
-      </TableContainer>
-    </Box>
+    <div className={`lista-itens${estreita ? ' estreita' : ''}`}>
+      <div className={estreita ? 'botoes-centro' : 'botoes-direita'}>
+        <button type="button" className="btn" onClick={() => { setLinhas((ls) => [...ls, colunas.map(() => '')]); setEditando(linhas.length); }}>
+          <AddCircleOutlineIcon /> {botao}
+        </button>
+      </div>
+      <table className="grade compacta">
+        {!estreita && colunas.length > 1 && (
+          <thead><tr>{colunas.map((c) => <th key={c.rotulo}>{c.rotulo}</th>)}<th /></tr></thead>
+        )}
+        <tbody>
+          {linhas.map((linha, i) => (
+            <tr key={i}>
+              {colunas.map((c, j) => (
+                <td key={c.rotulo}>
+                  {editando !== i ? (c.data ? dataBr(linha[j] ?? '') : linha[j]) : c.opcoes ? (
+                    <select className="campo curto" aria-label={c.rotulo} value={linha[j] ?? ''} onChange={(e) => mudar(i, j, e.target.value)}>
+                      <option value="" />
+                      {c.opcoes.map((o) => <option key={o} value={o}>{o}</option>)}
+                    </select>
+                  ) : (
+                    <input className={`campo ${c.data ? '' : 'medio'}`} type={c.data ? 'date' : 'text'} aria-label={c.rotulo} value={linha[j] ?? ''}
+                      autoFocus={j === 0} onChange={(e) => mudar(i, j, e.target.value)} />
+                  )}
+                </td>
+              ))}
+              <td className="acoes-linha">
+                <button type="button" className="link-botao" title="Editar" aria-label="Editar" onClick={() => setEditando(editando === i ? null : i)}><EditOutlinedIcon /></button>
+                <button type="button" className="link-botao" title="Tirar" aria-label="Tirar"
+                  onClick={() => { setLinhas((ls) => ls.filter((_, k) => k !== i)); setEditando(null); }}><DeleteOutlineIcon /></button>
+              </td>
+            </tr>
+          ))}
+          {!linhas.length && <tr><td colSpan={colunas.length + 1} className="vazio">Nenhum item.</td></tr>}
+        </tbody>
+      </table>
+    </div>
   );
 }

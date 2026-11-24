@@ -1,0 +1,181 @@
+/* Telas do ERP no layout do Elevor360 (tema escuro), a pedido da administração (2026-11-24): cores, medidas e classes
+   copiadas do ERP do Samuel (erp-ledur, web/src/styles.css), que foi comparado print a print com o Elevor. Tudo fica
+   dentro de .erp-elevor; o cabeçalho e o menu do painel continuam os nossos. Sem roxo: o Elevor escuro não usa. */
+
+html:has(.erp-elevor), body:has(.erp-elevor) { background: #353c48; }
+
+.erp-elevor {
+  --fundo: #353c48;
+  --menu: #3c4452;
+  --divisoria: #6d737d;
+  --texto: #ced4da;
+  --texto-forte: #f1f3f5;
+  --texto-2: #9aa3b0;
+  --campo-fundo: #353c48;
+  --campo-borda: #6d737d;
+  --foco: #66afe9;
+  --link: #0080c8;
+  --link-hover: #2a9be0;
+  --primario: #00669f;
+  --primario-borda: #004d79;
+  --primario-hover: #0077b8;
+  --secundario: #303641;
+  --secundario-borda: #4f5467;
+  --grade-linha: #4f5467;
+  --grade-hover: #3c4452;
+  --aba-linha: #dee2e6;
+  --aba-ativa: #00456c;
+  font-family: 'Century Gothic', 'Questrial', 'Segoe UI', sans-serif;
+  font-size: 14px;
+  line-height: normal;
+  color: var(--texto);
+  background: var(--fundo);
+  padding: 16px 24px 40px;
+}
+.erp-elevor a { color: var(--link); text-decoration: none; font-weight: inherit; }
+/* Só nos controles do ERP: os blocos do mosaico (MUI) mantêm a cor própria. */
+.erp-elevor :where(.btn, .aba, .link-botao, .pg, .campo) { font: inherit; }
+.erp-elevor .muted { color: var(--texto-2); }
+.erp-elevor .small { font-size: 12px; }
+.erp-elevor .btn svg, .erp-elevor .link-botao svg, .erp-elevor .fc-ajuda svg { width: 16px; height: 16px; }
+
+/* Aviso de demonstração (não existe no Elevor) */
+.erp-elevor .erp-aviso { border: 1px solid var(--secundario-borda); background: var(--secundario); border-radius: 4px; padding: 10px 14px; margin: 0 0 12px; }
+
+/* ---------------- campos, caixas e botões ---------------- */
+.erp-elevor .campo { height: 34px; border: 1px solid var(--campo-borda); border-radius: 4px; background: var(--campo-fundo); padding: 0 12px; color: var(--texto); min-width: 0; outline: none; }
+.erp-elevor .campo:focus { border-color: var(--foco); box-shadow: 0 0 0 3px rgba(102, 175, 233, 0.25); }
+.erp-elevor .campo:disabled, .erp-elevor .campo[readonly] { opacity: 0.85; cursor: default; }
+.erp-elevor select.campo { appearance: none; padding-right: 30px; background-image: linear-gradient(45deg, transparent 50%, var(--texto) 50%), linear-gradient(135deg, var(--texto) 50%, transparent 50%); background-position: calc(100% - 15px) 15px, calc(100% - 10px) 15px; background-size: 5px 5px; background-repeat: no-repeat; }
+.erp-elevor select.campo option { background: var(--fundo); }
+.erp-elevor .campo.area { height: auto; padding: 8px 12px; resize: vertical; width: 100%; }
+.erp-elevor .campo[type=date] { width: 160px; flex: none; color-scheme: dark; }
+.erp-elevor .campo.cheio { flex: 1; width: 100%; }
+.erp-elevor .campo.medio { width: 300px; }
+.erp-elevor .campo.curto { width: 150px; }
+.erp-elevor .com-sufixo { display: inline-flex; align-items: center; gap: 6px; }
+
+.erp-elevor .opcoes { display: flex; gap: 22px; flex-wrap: wrap; }
+.erp-elevor .opcao { display: inline-flex; align-items: center; gap: 8px; cursor: pointer; white-space: nowrap; }
+.erp-elevor .opcao:has(input:disabled) { opacity: 0.6; cursor: not-allowed; }
+.erp-elevor input[type=checkbox], .erp-elevor input[type=radio] { appearance: none; flex-shrink: 0; margin: 0; background: transparent; cursor: pointer; vertical-align: middle; }
+.erp-elevor input[type=checkbox] { width: 20px; height: 20px; border: 1px solid var(--campo-borda); border-radius: 4px; }
+.erp-elevor input[type=checkbox]:checked { background: var(--primario) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20'%3E%3Cpath d='M5 10.5l3.2 3.2L15 7' fill='none' stroke='%23fff' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") center / 100% no-repeat; border-color: var(--primario); }
+.erp-elevor input[type=radio] { width: 16px; height: 16px; border: 1px solid #626873; border-radius: 50%; }
+.erp-elevor input[type=radio]:checked { border-color: var(--primario); background: radial-gradient(circle, var(--primario) 0 5px, transparent 5.5px); }
+.erp-elevor input[type=checkbox]:focus-visible, .erp-elevor input[type=radio]:focus-visible { outline: 0; box-shadow: 0 0 0 3px rgba(102, 175, 233, 0.35); }
+.erp-elevor input[type=checkbox]:disabled, .erp-elevor input[type=radio]:disabled { opacity: 0.55; cursor: default; }
+
+.erp-elevor .botoes { display: flex; gap: 6px; justify-content: center; margin: 22px 0 12px; flex-wrap: wrap; }
+.erp-elevor .btn { height: 34px; padding: 0 12px; border: 1px solid var(--secundario-borda); border-radius: 3px; background: var(--secundario); color: var(--texto); cursor: pointer; display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
+.erp-elevor .btn:hover:not(:disabled) { background: #3a414e; }
+.erp-elevor .btn:disabled { opacity: 0.55; cursor: not-allowed; }
+.erp-elevor .btn.primario { background: var(--primario); border-color: var(--primario-borda); color: #fff; }
+.erp-elevor .btn.primario:hover:not(:disabled) { background: var(--primario-hover); }
+.erp-elevor .btn-icone { width: 34px; justify-content: center; padding: 0; }
+.erp-elevor .link-botao { border: 0; background: transparent; color: var(--link); cursor: pointer; padding: 0; display: inline-flex; align-items: center; gap: 4px; }
+.erp-elevor .mensagem { border: 1px solid var(--secundario-borda); background: var(--secundario); padding: 10px 12px; border-radius: 4px; margin: 10px 0; text-align: center; }
+
+/* ---------------- abas ---------------- */
+.erp-elevor .abas { display: flex; flex-wrap: wrap; border-bottom: 1px solid var(--aba-linha); margin: 4px 0 0; }
+.erp-elevor .aba { border: 0; background: transparent; color: var(--link); font-size: 15px; padding: 10px 16px 8px; cursor: pointer; white-space: nowrap; border-bottom: 2px solid transparent; }
+.erp-elevor .aba:hover { color: var(--link-hover); }
+.erp-elevor .aba.ativa { color: #2e6d93; border-bottom-color: var(--aba-ativa); cursor: default; }
+
+/* ---------------- grade ---------------- */
+.erp-elevor .grade { width: 100%; border-collapse: collapse; margin-top: 14px; }
+.erp-elevor .grade th { text-align: left; font-weight: 700; padding: 10px; border-bottom: 1px solid var(--grade-linha); color: var(--texto); }
+.erp-elevor .grade td { padding: 12px 10px; border-bottom: 1px solid var(--grade-linha); vertical-align: top; }
+.erp-elevor .grade tbody tr:hover { background: var(--grade-hover); }
+.erp-elevor .grade .num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.erp-elevor .grade .icone-linha { width: 44px; color: var(--link); vertical-align: middle; }
+.erp-elevor .grade .icone-linha svg { width: 24px; height: 24px; }
+.erp-elevor .grade .vazio { text-align: center; color: var(--texto-2); padding: 30px; }
+.erp-elevor .grade.compacta td, .erp-elevor .grade.compacta th { padding: 8px 10px; }
+.erp-elevor .grade a.linha-link { color: var(--texto); cursor: pointer; }
+.erp-elevor .grade a.linha-link:hover { color: var(--link-hover); }
+.erp-elevor .grade .acoes-linha { width: 60px; white-space: nowrap; }
+.erp-elevor .grade .acoes-linha .link-botao + .link-botao { margin-left: 10px; }
+.erp-elevor .paginacao { display: flex; align-items: center; gap: 20px; margin-top: 40px; padding: 10px 0 0 20px; border-top: 1px solid var(--grade-linha); flex-wrap: wrap; }
+.erp-elevor .paginacao .campo { height: 30px; width: 84px; }
+.erp-elevor .paginacao .paginas { display: flex; margin-left: auto; }
+.erp-elevor .paginacao .pg { min-width: 29px; height: 30px; border: 1px solid var(--link); margin-left: -1px; background: transparent; color: var(--link); padding: 0 8px; cursor: pointer; }
+.erp-elevor .paginacao .pg:first-child { border-radius: 4px 0 0 4px; margin-left: 0; }
+.erp-elevor .paginacao .pg:last-child { border-radius: 0 4px 4px 0; }
+.erp-elevor .paginacao .pg:only-child { border-radius: 4px; }
+.erp-elevor .paginacao .pg.atual { color: #fff; background: var(--primario); cursor: default; }
+
+/* ---------------- Consulta de Clientes e Fornecedores (CL_Clientes) ---------------- */
+.erp-elevor .consulta-cad { max-width: 980px; margin: 0 auto; }
+.erp-elevor .consulta-cad.largo { max-width: 1400px; }
+.erp-elevor .consulta-pessoas { display: grid; grid-template-columns: max-content 877px; gap: 8px 17px; align-items: center; justify-content: center; margin: 4px 0 8px; }
+.erp-elevor .consulta-pessoas .cp-rot { font-weight: 700; text-align: right; white-space: nowrap; color: var(--texto); }
+.erp-elevor .consulta-pessoas .cp-ctl { display: flex; align-items: center; gap: 6px; min-width: 0; min-height: 34px; }
+.erp-elevor .consulta-pessoas .campo.cp-pesquisa { width: 503px; flex: none; }
+.erp-elevor .consulta-pessoas .campo.cp-cheio { width: 100%; flex: 1; }
+.erp-elevor .consulta-pessoas .cp-meia, .erp-elevor .consulta-pessoas .campo.cp-meia { width: 359px; flex: none; }
+.erp-elevor .consulta-pessoas .cp-meio { flex: 1; min-width: 0; font-weight: 700; text-align: right; color: var(--texto); padding-right: 11px; }
+.erp-elevor .consulta-pessoas .cp-datas { display: flex; align-items: center; gap: 6px; }
+.erp-elevor .consulta-pessoas .cp-datas .campo[type=date] { width: 150px; }
+.erp-elevor .consulta-pessoas .campo.cp-uf { width: 163px; flex: none; }
+.erp-elevor .consulta-pessoas .campo.cp-cidade { flex: 1; min-width: 0; }
+.erp-elevor .consulta-pessoas .campo.cp-nasc { width: 140px; flex: none; }
+.erp-elevor .consulta-pessoas .cp-marcas { gap: 14px; }
+.erp-elevor .consulta-pessoas .cp-marcas .opcao { font-weight: 700; }
+
+/* Consulta simples (Vendedores) */
+.erp-elevor .consulta-cad-filtros { display: grid; grid-template-columns: max-content minmax(0, 280px) auto; gap: 10px 14px; align-items: center; margin: 4px 0 6px; justify-content: center; }
+.erp-elevor .consulta-cad-filtros .cc-rotulo { font-weight: 700; color: var(--texto); text-align: right; white-space: nowrap; }
+.erp-elevor .consulta-cad-filtros .cc-controle { display: flex; align-items: center; gap: 6px; min-width: 0; min-height: 34px; }
+.erp-elevor .consulta-cad-filtros .cc-botoes { display: flex; gap: 6px; }
+
+/* ---------------- fichas (rótulo à esquerda, campo à direita) ---------------- */
+.erp-elevor .ficha-titulo { font-size: 18px; font-weight: 700; color: var(--texto-forte); margin: 0 0 8px 12px; }
+.erp-elevor .ficha-cad { display: grid; gap: 10px 8px; align-items: center; width: fit-content; max-width: 100%; margin: 28px auto 0; grid-template-columns: max-content max-content max-content max-content; }
+.erp-elevor .ficha-cad .fc-linha, .erp-elevor .ficha-cad .fc-aba { display: contents; }
+.erp-elevor .ficha-cad .fc-aba[hidden] { display: none; }
+.erp-elevor .ficha-cad .fc-rotulo { color: var(--texto); padding-right: 8px; max-width: 215px; }
+.erp-elevor .ficha-cad .fc-rotulo.par { padding-left: 36px; }
+.erp-elevor .ficha-cad .fc-controle { display: flex; align-items: center; gap: 6px; min-width: 0; flex-wrap: wrap; min-height: 34px; }
+.erp-elevor .ficha-cad .fc-controle.largo { grid-column: 2 / -1; }
+.erp-elevor .ficha-cad .fc-anexo { margin-left: 4px; }
+.erp-elevor .ficha-cad > .botoes, .erp-elevor .ficha-cad > .mensagem { grid-column: 1 / -1; justify-content: center; }
+.erp-elevor .ficha-cad > .botoes { margin-top: 14px; }
+.erp-elevor .ficha-cad .campo.curto { width: 110px; }
+.erp-elevor .ficha-cad .campo.medio { width: 300px; }
+.erp-elevor .ficha-cad .campo.cheio { width: 450px; flex: none; }
+.erp-elevor .ficha-cad .campo.area { flex: 1 1 0; width: auto; }
+.erp-elevor .ficha-cad .fc-secao { grid-column: 1 / -1; font-weight: 700; color: var(--texto-forte); border-bottom: 1px solid var(--divisoria); padding: 14px 0 6px; margin-bottom: 4px; }
+/* Fichas de rótulo em negrito e largura toda (Clientes e Fornecedores, CD_Clientes) */
+.erp-elevor .ficha-cad.negrito { width: 100%; max-width: 1430px; margin: 10px 0 0; grid-template-columns: 270px minmax(0, 1fr) max-content minmax(0, 1fr); }
+.erp-elevor .ficha-cad.negrito .fc-rotulo { font-weight: 700; text-align: right; max-width: none; }
+.erp-elevor .ficha-cad.negrito .fc-rotulo.par { white-space: nowrap; }
+.erp-elevor .ficha-cad.negrito .fc-controle > .opcao { font-weight: 700; }
+.erp-elevor .ficha-cad.negrito .campo.cheio { width: auto; flex: 1 1 0; min-width: 0; }
+.erp-elevor .ficha-cad.negrito .campo.medio { width: 350px; flex: none; }
+.erp-elevor .ficha-cad.negrito .campo.codigo { width: 270px; flex: none; }
+.erp-elevor .fc-ajuda { color: var(--link); display: inline-flex; cursor: help; }
+.erp-elevor .erro-campo { color: #ffb3bd; }
+/* Listas dentro da ficha: título como seção, "Adicionar" à direita; Telefone(s) e E-mail(s) estreitos no centro */
+.erp-elevor .ficha-cad .fc-lista { grid-column: 1 / -1; width: 100%; min-width: min(640px, 100%); max-width: 760px; margin: 4px auto 8px; }
+.erp-elevor .ficha-cad .fc-lista:has(.lista-itens.estreita) { max-width: none; }
+.erp-elevor .ficha-cad .fc-lista .grade { margin-top: 6px; }
+.erp-elevor .lista-itens .botoes-direita { display: flex; justify-content: flex-end; }
+.erp-elevor .lista-itens .botoes-centro { display: flex; justify-content: center; margin: 4px 0 2px; }
+.erp-elevor .lista-itens.estreita { max-width: 460px; margin: 0 auto; }
+.erp-elevor .lista-itens.estreita .grade td { border-bottom: 0; padding: 6px 10px; }
+.erp-elevor .lista-itens .campo { height: 30px; }
+
+@media (max-width: 900px) {
+  .erp-elevor { padding: 12px; }
+  .erp-elevor .consulta-pessoas { grid-template-columns: 1fr; justify-content: stretch; }
+  .erp-elevor .consulta-pessoas .cp-rot { text-align: left; }
+  .erp-elevor .consulta-pessoas .cp-ctl { flex-wrap: wrap; }
+  .erp-elevor .consulta-pessoas .campo.cp-pesquisa, .erp-elevor .consulta-pessoas .cp-meia, .erp-elevor .consulta-pessoas .campo.cp-meia { width: 100%; }
+  .erp-elevor .consulta-cad-filtros { grid-template-columns: 1fr; }
+  .erp-elevor .ficha-cad, .erp-elevor .ficha-cad.negrito { grid-template-columns: 1fr; width: auto; }
+  .erp-elevor .ficha-cad .fc-controle.largo { grid-column: auto; }
+  .erp-elevor .ficha-cad .fc-rotulo, .erp-elevor .ficha-cad.negrito .fc-rotulo { text-align: left; padding-left: 0; }
+  .erp-elevor .ficha-cad .campo.cheio, .erp-elevor .ficha-cad .campo.medio, .erp-elevor .ficha-cad.negrito .campo.medio { width: 100%; }
+  .erp-elevor .grade { display: block; overflow-x: auto; }
+}
