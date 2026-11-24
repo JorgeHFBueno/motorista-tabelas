@@ -179,6 +179,18 @@ test('serviço: criar com senha = 6 primeiros dígitos do CPF; liga quem já é 
   await assert.rejects(createImportarFridayService(store).criar('esc', { ids: ['999'] }), { code: 'not-found' });
 });
 
+test('serviço: nome do item todo em maiúsculas entra com só a primeira letra de cada palavra maiúscula', async () => {
+  const gravados = [];
+  const { store, log } = loja({
+    async itensDoQuadro() { return [item(1, 'ANA DA SOUZA', '51999990001', CPF_A), item(3, 'Caio de Lima', '51999990003', CPF_B)]; },
+    async criarFuncionario(uid, dados) { gravados.push([uid, dados.nome]); },
+  });
+  const { resultados } = await createImportarFridayService(store).criar('esc', { ids: ['1', '3'] });
+  assert.deepEqual(resultados.map(r => [r.nome, r.resultado]), [['ANA DA SOUZA', 'criado'], ['Caio de Lima', 'criado']]);
+  assert.deepEqual(log.filter(l => l[0] === 'criarConta' || l[0] === 'reaproveitar').map(l => l[3]), ['Ana da Souza', 'Caio de Lima']);
+  assert.deepEqual(gravados, [['novo-uid', 'Ana da Souza'], ['solta', 'Caio de Lima']]);
+});
+
 test('serviço: falha ao gravar o funcionário apaga a conta criada agora', async () => {
   const { store, log } = loja({ async criarFuncionario() { throw new Error('falhou'); } });
   const { resultados } = await createImportarFridayService(store).criar('esc', { ids: ['1', '3'] });

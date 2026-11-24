@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import test from 'node:test';
 import { nomeACorrigir, nomeCapitalizado } from '../tools/nomes-funcionarios/regra';
 
@@ -27,4 +28,12 @@ test('only names all in uppercase or all in lowercase change', () => {
   assert.equal(nomeACorrigir('51999999999'), null);
   assert.equal(nomeACorrigir(undefined), null);
   assert.equal(nomeACorrigir(42), null);
+});
+
+// functions/nomeFuncionario.ts é cópia da regra (as Functions de cadastro gravam o nome já corrigido). Caminhos a partir da
+// raiz do projeto (os scripts npm rodam de lá).
+test('the Functions copy is the same as the rule (below the marker)', () => {
+  const ler = (p: string) => readFileSync(p, 'utf8').replace(/\r\n/g, '\n');
+  const servidor = ler('functions/nomeFuncionario.ts').split('// ---- início da cópia ----\n')[1];
+  assert.equal(servidor, ler('tools/nomes-funcionarios/regra.ts'), 'functions/nomeFuncionario.ts divergiu de tools/nomes-funcionarios/regra.ts: copie de novo');
 });

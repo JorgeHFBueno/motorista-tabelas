@@ -6,6 +6,7 @@ import { adminAuth, db } from './firebaseAdmin.js';
 import { mondayApiToken } from './mondayClient.js';
 import { CREDENCIAIS, lerAreas, lerCredenciais, type Areas, type Credenciais } from './credenciais.js';
 import { exigirAdm2, gql } from './fridayMondayImport.js';
+import { nomeACorrigir } from './nomeFuncionario.js';
 
 // Pessoas do monday → funcionários do sistema (só adm2). O monday só é lido.
 // - "listar": cada usuário do monday com a situação dele aqui (novo, já funcionário, já ligado ou fora).
@@ -155,20 +156,22 @@ export async function criarPessoas(pessoas: PessoaMonday[], credenciais: Credenc
         out.push({ id: p.id, nome: p.nome, resultado: 'vinculado' });
         continue;
       }
+      // O nome do monday, todo em maiúsculas ou minúsculas, entra com só a primeira letra de cada palavra maiúscula.
+      const nome = nomeACorrigir(p.nome) ?? p.nome;
       let uid = p.uid;
       let criada: string | null = null;
       if (uid) {
         // Conta solta (sem funcionário, ex.: antigo cadastro aberto): quem a criou pode saber a senha. Ela é
         // trocada por uma que ninguém conhece e as sessões abertas caem; a pessoa define a dela pelo e-mail.
-        await adminAuth.updateUser(uid, { displayName: p.nome || undefined, password: randomBytes(24).toString('base64url'), disabled: false });
+        await adminAuth.updateUser(uid, { displayName: nome || undefined, password: randomBytes(24).toString('base64url'), disabled: false });
         await adminAuth.revokeRefreshTokens(uid);
       } else {
-        const u = await adminAuth.createUser({ email: p.email, displayName: p.nome || undefined });
+        const u = await adminAuth.createUser({ email: p.email, displayName: nome || undefined });
         uid = criada = u.uid;
       }
       try {
         await db.collection('funcionarios').doc(uid).create({
-          nome: p.nome || p.email, email: p.email, ativo: true, perfis: credenciais, areas,
+          nome: nome || p.email, email: p.email, ativo: true, perfis: credenciais, areas,
           mondayId: p.id, createdAt: FieldValue.serverTimestamp(), updatedAt: FieldValue.serverTimestamp(),
         });
       } catch (e) {

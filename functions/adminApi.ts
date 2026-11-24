@@ -12,6 +12,7 @@ import {
 } from './credenciais.js';
 import { lerNovoCliente } from './portalClientes.js';
 import { listarAdminUsers, montarAdminUser, type DadosFuncionario } from './adminUsersList.js';
+import { nomeACorrigir } from './nomeFuncionario.js';
 
 // Users administration of the WEB (Cadastros). Contract: Manuscript funcionarios.md ("Credenciais",
 // "Usuários na WEB"). Users are born here or, without a password, in the Friday import of monday people
@@ -81,7 +82,9 @@ adminApp.get('/api/admin/users', async (_req, res) => {
 adminApp.post('/api/admin/users/register', async (req: AdminRequest, res) => {
   const { nome, email, password, credenciais, celular } = req.body ?? {};
   const areas = areasDoPedido(req.body?.areas);
-  const normalizedNome = typeof nome === 'string' ? nome.trim() : '';
+  const nomeDigitado = typeof nome === 'string' ? nome.trim() : '';
+  // Todo em maiúsculas ou minúsculas, grava com só a primeira letra de cada palavra maiúscula (como a correção de 2026-11-24).
+  const normalizedNome = nomeACorrigir(nomeDigitado) ?? nomeDigitado;
   const normalizedEmail = normalizeAuthorizedEmail(email, celular);
   const passwordValue = typeof password === 'string' ? password.trim() : '';
   const perfis = lerCredenciais(credenciais);

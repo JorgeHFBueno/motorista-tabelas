@@ -6,6 +6,7 @@ import { credenciaisDe, editaArea } from './credenciais.js';
 import { novoId } from './fridayMondayConverter.js';
 import { nomesBatem } from './fridayMondayPessoas.js';
 import { QUADRO_FUNCIONARIOS } from './logisticaPessoas.js';
+import { nomeACorrigir } from './nomeFuncionario.js';
 
 // Importar do quadro FUNCIONARIOS do Friday para Cadastros → Usuários (quem edita Cadastros). Do quadro, só são
 // gravadas as colunas Telefone, CPF e UID quando faltam, e a coluna UID: espelho do vínculo real (funcionarios.fridayItemId),
@@ -260,12 +261,14 @@ export function createImportarFridayService(store: ImportarFridayStore) {
       return r('vinculado');
     }
     const senha = senhaDoCpf(p.cpf!);
+    // O nome do item, todo em maiúsculas ou minúsculas, entra com só a primeira letra de cada palavra maiúscula.
+    const nome = nomeACorrigir(p.nome) ?? p.nome;
     let uid = p.uid;
     let criada: string | null = null;
-    if (uid) await store.reaproveitarConta(uid, senha, p.nome);
-    else uid = criada = await store.criarConta(loginDoCelular(p.celular!), senha, p.nome);
+    if (uid) await store.reaproveitarConta(uid, senha, nome);
+    else uid = criada = await store.criarConta(loginDoCelular(p.celular!), senha, nome);
     try {
-      await store.criarFuncionario(uid, novoFuncionario({ nome: p.nome, celular: p.celular!, id: p.id }));
+      await store.criarFuncionario(uid, novoFuncionario({ nome, celular: p.celular!, id: p.id }));
     } catch (e) {
       if (criada) await store.apagarConta(criada).catch(() => undefined);
       throw e;
