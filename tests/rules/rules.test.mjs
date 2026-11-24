@@ -2233,33 +2233,16 @@ test('[firestore] areas: Logística reads the KPI sources (atividades, manutenco
   await assertSucceeds(updateDoc(doc(dbAs('frotaEditar'), 'manutencoes', 'kpi-m1'), { valor: 12 }));
 });
 
-test('[firestore] atividades-rastreador: a Mecânica lê; quem edita só atribui o motorista à mão (ativo, assinado); nada mais muda', async () => {
+test('[firestore] atividades-rastreador: rastreador aposentado em 2026-11-24; o cliente não lê nem grava as duas coleções', async () => {
   await env.withSecurityRulesDisabled(async (ctx) => {
     const db = ctx.firestore();
-    await setDoc(doc(db, 'atividades-rastreador', 'v1_1'), { schemaVersion: 1, item_frota_id: 'v1', situacao: 'concluida', motorista: null, motoristaOrigem: null, kmRodado: 100 });
+    await setDoc(doc(db, 'atividades-rastreador', 'v1_1'), { schemaVersion: 1, item_frota_id: 'v1', situacao: 'concluida' });
     await setDoc(doc(db, 'atividades-rastreador-veiculos', 'v1'), { schemaVersion: 1, item_frota_id: 'v1' });
   });
-  await assertSucceeds(getDocs(collection(dbAs('mecVer'), 'atividades-rastreador')));
-  await assertSucceeds(getDoc(doc(dbAs('mecVer'), 'atividades-rastreador-veiculos', 'v1')));
-  await assertFails(getDocs(collection(dbAs('logVer'), 'atividades-rastreador')));
-  await assertFails(getDocs(collection(dbAs('user'), 'atividades-rastreador')));
-  await assertFails(getDoc(doc(dbAs('engenharia'), 'atividades-rastreador-veiculos', 'v1')));
-
-  const atribuir = (quem, uid, extra = {}) => updateDoc(doc(dbAs(quem), 'atividades-rastreador', 'v1_1'), {
-    motorista: { uid, nome: 'User' }, motoristaOrigem: 'manual',
-    motoristaAtribuidoPor: { uid: identities[quem].uid, nome: 'Quem' }, motoristaAtribuidoEm: serverTimestamp(), ...extra,
-  });
-  await assertFails(atribuir('mecVer', 'uid-user'));
-  await assertFails(atribuir('frotaEditar', 'uid-nao-existe'));
-  await assertFails(atribuir('frotaEditar', 'uid-inactive'));
-  await assertFails(atribuir('frotaEditar', 'uid-user', { kmRodado: 1 }));
-  await assertFails(atribuir('frotaEditar', 'uid-user', { motoristaOrigem: 'programacao' }));
-  await assertFails(atribuir('frotaEditar', 'uid-user', { motoristaAtribuidoPor: { uid: 'uid-adm2', nome: 'Outro' } }));
-  await assertFails(atribuir('frotaEditar', 'uid-user', { motoristaAtribuidoEm: Timestamp.fromMillis(1) }));
-  await assertSucceeds(atribuir('frotaEditar', 'uid-user'));
-  await assertSucceeds(atribuir('adm2', 'uid-user'));
-
-  await assertFails(setDoc(doc(dbAs('adm2'), 'atividades-rastreador', 'nova'), { schemaVersion: 1 }));
-  await assertFails(deleteDoc(doc(dbAs('adm2'), 'atividades-rastreador', 'v1_1')));
-  await assertFails(updateDoc(doc(dbAs('adm2'), 'atividades-rastreador-veiculos', 'v1'), { schemaVersion: 2 }));
+  for (const quem of ['adm2', 'mecVer', 'frotaEditar']) {
+    await assertFails(getDocs(collection(dbAs(quem), 'atividades-rastreador')));
+    await assertFails(getDoc(doc(dbAs(quem), 'atividades-rastreador-veiculos', 'v1')));
+  }
+  await assertFails(updateDoc(doc(dbAs('adm2'), 'atividades-rastreador', 'v1_1'), { motoristaOrigem: 'manual' }));
+  await assertFails(setDoc(doc(dbAs('adm2'), 'atividades-rastreador-veiculos', 'v2'), { schemaVersion: 1 }));
 });

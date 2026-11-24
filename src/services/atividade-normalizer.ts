@@ -18,7 +18,7 @@ export type AtividadeV2 = {
   obraId?: string | null;
   motivo?: string;
   km?: number | null;
-  /** `rastreador`: gravado pela Function do rastreador (campo `origem`); os demais vieram do App ou da WEB. */
+  /** `rastreador`: as 3 Chegadas gravadas pela Function do rastreador em 2026-11-23 (aposentado em 2026-11-24); os demais vieram do App ou da WEB. */
   origem?: 'app' | 'rastreador';
 };
 
