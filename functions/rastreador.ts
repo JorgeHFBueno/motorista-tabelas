@@ -59,16 +59,28 @@ const comparavel = (v: unknown): unknown => (v instanceof Timestamp ? v.toMillis
   : Array.isArray(v) ? v.map(comparavel) : v && typeof v === 'object' ? Object.fromEntries(Object.entries(v as AnyRecord).sort(([a], [b]) => a.localeCompare(b)).map(([k, x]) => [k, comparavel(x)])) : v);
 const mudou = (antes: AnyRecord | undefined, campos: AnyRecord) => !antes || Object.entries(campos).some(([k, v]) => JSON.stringify(comparavel(antes[k])) !== JSON.stringify(comparavel(v)));
 
-/** Grava a viagem preservando o motorista atribuído à mão (motoristaOrigem 'manual'); devolve o motorista que ficou. */
-async function gravarViagem(id: string, campos: ReturnType<typeof documentoViagem>) {
+/** O que a gravação deixa na viagem: o motorista atribuído à mão (motoristaOrigem 'manual') fica. */
+function viagemComMotorista(antes: AnyRecord | undefined, campos: ReturnType<typeof documentoViagem>) {
+  const manual = antes?.motoristaOrigem === 'manual';
+  const motorista = manual ? {} : { motorista: campos.motoristaProgramacao, motoristaOrigem: campos.motoristaProgramacao ? 'programacao' : null };
+  return { novo: { ...campos, ...motorista }, ficou: (manual ? antes?.motorista : campos.motoristaProgramacao) ?? null };
+}
+
+/**
+ * Grava a viagem preservando o motorista atribuído à mão; devolve se gravou e o motorista que ficou. Com o documento
+ * recém-lido (`lido`) e nada a mudar, nem abre a transação: cada uma custa uma leitura e um commit, e a rodada passa
+ * por todas as viagens dos últimos 15 dias a cada 30 minutos.
+ */
+async function gravarViagem(id: string, campos: ReturnType<typeof documentoViagem>, lido?: AnyRecord) {
+  if (lido) {
+    const { novo, ficou } = viagemComMotorista(lido, campos);
+    if (!mudou(lido, novo)) return { gravou: false, motorista: ficou };
+  }
   const ref = db.collection(VIAGENS).doc(id);
   return db.runTransaction(async (tx) => {
     const atual = await tx.get(ref);
     const antes = atual.exists ? atual.data() : undefined;
-    const manual = antes?.motoristaOrigem === 'manual';
-    const motorista = manual ? {} : { motorista: campos.motoristaProgramacao, motoristaOrigem: campos.motoristaProgramacao ? 'programacao' : null };
-    const novo = { ...campos, ...motorista };
-    const ficou = (manual ? antes?.motorista : campos.motoristaProgramacao) ?? null;
+    const { novo, ficou } = viagemComMotorista(antes, campos);
     if (!mudou(antes, novo)) return { gravou: false, motorista: ficou };
     tx.set(ref, { ...novo, ...(antes ? {} : { criadoEm: FieldValue.serverTimestamp() }), atualizadoEm: FieldValue.serverTimestamp() }, { merge: true });
     return { gravou: true, motorista: ficou };
@@ -155,16 +167,18 @@ export async function processarRastreador(chaves: Chaves, agora = Date.now()) {
         const { estado: novo, fechadas, aberta } = processarPontos(estado, pontos);
         for (const v of [...fechadas, ...(aberta ? [aberta] : [])]) {
           const campos = documentoViagem({ itemFrotaId: itemId, veiculo, rastreador: r, viagem: v, ...contexto });
-          if (await gravarViagem(idViagem(itemId, v.saida.t), campos)) resumo.viagensGravadas += 1;
+          if ((await gravarViagem(idViagem(itemId, v.saida.t), campos)).gravou) resumo.viagensGravadas += 1;
         }
         const ultimo = pontos[pontos.length - 1];
-        await ref.set({
+        const estadoNovo = {
           schemaVersion: 1, item_frota_id: itemId, identificador: ident,
           rastreador: { fornecedor: 'fulltrack', veiculoId: r.veiculoId, placa: r.placa, nome: r.nome, outros: r.outros },
           ultimaComunicacao: r.ultimaComunicacao ? new Date(r.ultimaComunicacao) : null,
           ...(ultimo ? { ultimoPonto: { data: new Date(ultimo.t), lat: ultimo.lat, lng: ultimo.lng, km: ultimo.km == null ? null : Math.round(ultimo.km) } } : {}),
-          leitura: novo, erro: null, atualizadoEm: FieldValue.serverTimestamp(),
-        }, { merge: true });
+          leitura: novo, erro: null,
+        };
+        // Veículo parado e sem comunicação nova: nada a gravar (a tela escuta a coleção e pagaria a releitura).
+        if (mudou(antes, estadoNovo)) await ref.set({ ...estadoNovo, atualizadoEm: FieldValue.serverTimestamp() }, { merge: true });
       } catch (error) {
         const mensagem = String((error as Error)?.message ?? error).slice(0, 500);
         resumo.erros.push(`${ident}: ${mensagem}`);
@@ -237,7 +251,7 @@ export async function processarRastreador(chaves: Chaves, agora = Date.now()) {
     let motorista = dados.motorista ?? null, visita = dados.visitaObra ?? null;
     if (dados.situacao === 'concluida') {
       const campos = documentoViagem({ itemFrotaId: dados.item_frota_id, veiculo, rastreador: dados.rastreador, viagem, ...contexto });
-      const r = await gravarViagem(d.id, campos);
+      const r = await gravarViagem(d.id, campos, dados);
       if (r.gravou) resumo.viagensGravadas += 1;
       motorista = r.motorista;
       visita = campos.visitaObra;

@@ -517,8 +517,21 @@ const corDaPessoa = (uid: string) => CORES[hashDoUid(uid) % 16];
 // Pessoas em memória (nomes no registro de atividade).
 let usuarios: Pessoa[] = [];
 const nomeUsuario = (id: unknown) => usuarios.find(u => u.id === String(id))?.nome ?? '?';
+// A lateral recarrega a navegação a cada mudança (pasta, quadro, favorito); as pessoas mudam pouco e a coleção inteira
+// custa uma leitura por funcionário. Ficam em memória por alguns minutos, por pessoa logada; `recarregar` força.
+const VALIDADE_PESSOAS = 5 * 60_000;
+let pessoasLidas: { uid: string; em: number; lista: Promise<Pessoa[]> } | null = null;
 /** Todos os funcionários (ativos e inativos, para os nomes em itens antigos), por nome. */
-export async function listarPessoas(): Promise<Pessoa[]> {
+export async function listarPessoas(recarregar = false): Promise<Pessoa[]> {
+  const uid = meuUid();
+  if (recarregar || !pessoasLidas || pessoasLidas.uid !== uid || Date.now() - pessoasLidas.em > VALIDADE_PESSOAS) {
+    const lista = lerPessoas();
+    pessoasLidas = { uid, em: Date.now(), lista };
+    lista.catch(() => { if (pessoasLidas?.lista === lista) pessoasLidas = null; });
+  }
+  return pessoasLidas.lista;
+}
+async function lerPessoas(): Promise<Pessoa[]> {
   const snap = await getDocs(collection(db, 'funcionarios'));
   usuarios = snap.docs.map(d => {
     const f = d.data();

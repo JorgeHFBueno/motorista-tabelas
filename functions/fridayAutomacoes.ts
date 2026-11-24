@@ -325,7 +325,9 @@ export const fridayAutomacoesEvento = onDocumentCreated({ document: 'friday-ativ
 
 /** A cada 10 minutos: automações "quando uma data chegar" dos itens cujo dia (data ± dias) é hoje. */
 export const fridayAutomacoesDatas = onSchedule({ schedule: 'every 10 minutes', timeZone: 'America/Sao_Paulo', region: REGIAO }, async () => {
-  const todas = (await colecao('automacoes').where('ativa', '==', 1).get()).docs.map(d => d.data() as Automacao).filter(a => a.gatilho?.tipo === 'data_chega');
+  // Só as "quando uma data chegar": sem nenhuma, a rodada custa uma leitura, não uma por automação ativa (144 rodadas
+  // por dia). Duas igualdades usam os índices simples, sem índice composto.
+  const todas = (await colecao('automacoes').where('ativa', '==', 1).where('gatilho.tipo', '==', 'data_chega').get()).docs.map(d => d.data() as Automacao);
   const hoje = hojeLocal();
   const porQuadro = new Map<number, Automacao[]>();
   for (const a of todas) porQuadro.set(Number(a.quadro_id), [...(porQuadro.get(Number(a.quadro_id)) ?? []), a]);

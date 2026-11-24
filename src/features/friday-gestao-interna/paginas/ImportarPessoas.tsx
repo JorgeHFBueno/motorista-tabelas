@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { httpsCallable } from 'firebase/functions';
 import { Link2, RefreshCw, Search, UserRound, UserPlus } from 'lucide-react';
 import { functions } from '../funcoes.ts';
+import { listarPessoas } from '../api.ts';
 import { useNav } from '../nav.tsx';
 import { CREDENCIAIS, semCredenciais, type Credencial } from '../../../services/credenciais';
 import { AREAS, type Areas } from '../../../services/areasWeb';
@@ -71,7 +72,7 @@ export default function ImportarPessoas() {
       const { data } = await criar({ modo: 'criar', ids: [...marcados], credenciais, areas });
       setResultados(data.resultados);
       setMarcados(new Set());
-      await Promise.all([carregar(), nav.recarregar()]);
+      await Promise.all([carregar(), listarPessoas(true).then(() => nav.recarregar())]);
     } catch (e) { setErro(mensagemDe(e)); }
     setRodando(false);
   };
@@ -84,7 +85,7 @@ export default function ImportarPessoas() {
       setResultados([data.resultado]);
       setLigando(null);
       setMarcados(m => { const n = new Set(m); n.delete(p.id); return n; });
-      await Promise.all([carregar(), nav.recarregar()]);
+      await Promise.all([carregar(), listarPessoas(true).then(() => nav.recarregar())]);
     } catch (e) { setResultados([{ id: p.id, nome: p.nome, resultado: 'erro', mensagem: mensagemDe(e) }]); }
     setRodando(false);
   };
