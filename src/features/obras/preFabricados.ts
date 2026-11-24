@@ -78,17 +78,32 @@ export const revisoes = (pdfs: PdfPreFabricado[]) => [...pdfs]
   .map((item, revisao) => ({ item, revisao }))
   .reverse();
 
-/** "PILAR" → "Pilar": o nome do grupo na tela. */
-const nomeDoGrupo = (grupo: string) => (grupo.trim() ? grupo.trim().charAt(0).toUpperCase() + grupo.trim().slice(1).toLowerCase() : 'Sem produto');
+/**
+ * Grupos com nome próprio na tela e um PDF só para todos os itens, em vez de um por item: o PDF é gravado com `item` =
+ * `pdf` (pedido do responsável, 2026-11-24: as vigotas e os guarda-rodas têm um projeto só).
+ */
+const GRUPOS_COM_PDF_UNICO = [
+  { nome: 'Vigotes e Guarda Roda', produtos: /^(VIGOTAS?|VIGOTES?|GUARDA[\s-]*RODAS?)$/, pdf: 'GRUPO|VIGOTES E GUARDA RODA' },
+];
+/** A chave gravada no PDF é a de um grupo com PDF único (e não a de um item)? */
+export const ehPdfDeGrupo = (chave: string) => GRUPOS_COM_PDF_UNICO.some((grupo) => grupo.pdf === chave);
 
-/** Itens agrupados pelo produto, na ordem em que aparecem. */
-export function agruparPorTipo(itens: PreFabricado[]): { nome: string; itens: PreFabricado[] }[] {
-  const grupos = new Map<string, PreFabricado[]>();
+/** "PILAR" → "Pilar": o nome do grupo na tela; VIGOTA e GUARDA RODA → "Vigotes e Guarda Roda". */
+function grupoDoProduto(produto: string): { nome: string; pdf?: string } {
+  const junto = GRUPOS_COM_PDF_UNICO.find((grupo) => grupo.produtos.test(normalizar(produto)));
+  if (junto) return { nome: junto.nome, pdf: junto.pdf };
+  return { nome: produto.trim() ? produto.trim().charAt(0).toUpperCase() + produto.trim().slice(1).toLowerCase() : 'Sem produto' };
+}
+
+/** Itens agrupados pelo produto, na ordem em que aparecem; `pdf`: a chave do PDF único do grupo, quando ele tem um. */
+export function agruparPorTipo(itens: PreFabricado[]): { nome: string; pdf?: string; itens: PreFabricado[] }[] {
+  const grupos = new Map<string, { nome: string; pdf?: string; itens: PreFabricado[] }>();
   for (const item of itens) {
-    const nome = nomeDoGrupo(item.grupo);
-    grupos.set(nome, [...(grupos.get(nome) ?? []), item]);
+    const grupo = grupoDoProduto(item.grupo);
+    const atual = grupos.get(grupo.nome) ?? { ...grupo, itens: [] };
+    grupos.set(grupo.nome, { ...atual, itens: [...atual.itens, item] });
   }
-  return [...grupos].map(([nome, doGrupo]) => ({ nome, itens: doGrupo }));
+  return [...grupos.values()];
 }
 
 /** Resposta da Function plannixPreFabricados (mesmo formato de functions/plannixPreFabricados.ts). */
@@ -112,6 +127,13 @@ export type PdfGravado = PdfPreFabricado & { caminho: string; lote: string; plan
 /** Põe em cada item os PDFs gravados do mesmo LOTE e item (chave "produto|nome"). */
 export function comPdfsGravados(lote: string, itens: PreFabricado[], pdfs: PdfGravado[]): PreFabricado[] {
   return itens.map((item) => ({ ...item, pdfs: pdfs.filter((pdf) => pdf.lote === lote && pdf.item === item.chave) }));
+}
+
+/** PDFs únicos dos grupos (Vigotes e Guarda Roda) do LOTE, pela chave do grupo. */
+export function pdfsDosGrupos(lote: string, pdfs: PdfGravado[]): Record<string, PdfPreFabricado[]> {
+  const porGrupo: Record<string, PdfPreFabricado[]> = {};
+  for (const pdf of pdfs) if (pdf.lote === lote && ehPdfDeGrupo(pdf.item)) (porGrupo[pdf.item] ??= []).push(pdf);
+  return porGrupo;
 }
 
 export const SEM_PEDIDO = 'Sem Nº Pedido: preencha a coluna "Nº Pedido/Cód. Auxiliar" deste LOTE no Friday (GESTÃO DE OBRAS).';

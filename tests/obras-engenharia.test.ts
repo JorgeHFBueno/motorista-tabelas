@@ -17,7 +17,7 @@ import {
 } from '../src/features/obras/obrasDomain';
 import { createObraRelatorioPdf, nomeArquivoRelatorioObra } from '../src/features/obras/obraRelatorioPdf';
 import { LOCAIS_SUGERIDOS } from '../src/features/obras/locaisSugeridos';
-import { agruparPorTipo, comPdf, comPdfsGravados, preFabricadosDoPlannix, resumoEtapas, revisoes, semProjeto, totalPdfs, type PdfGravado, type PreFabricado } from '../src/features/obras/preFabricados';
+import { agruparPorTipo, comPdf, comPdfsGravados, ehPdfDeGrupo, pdfsDosGrupos, preFabricadosDoPlannix, resumoEtapas, revisoes, semProjeto, totalPdfs, type PdfGravado, type PreFabricado } from '../src/features/obras/preFabricados';
 import { coordenadaDoLote, lotesDaObra, obraFromV2 } from '../src/utils/cadastrosV2';
 
 const contrato = {
@@ -199,6 +199,19 @@ const preFabricado = (id: string, grupo: string, etapas: string[], pdfs = 0, qua
 test('pré-fabricados: agrupa pelo produto do Plannix (PILAR → Pilar), na ordem em que aparece', () => {
   const grupos = agruparPorTipo([preFabricado('P01', 'PILAR', []), preFabricado('VL', 'VIGA', []), preFabricado('P02', 'PILAR', []), preFabricado('X', '', [])]);
   assert.deepEqual(grupos.map((g) => [g.nome, g.itens.map((i) => i.id)]), [['Pilar', ['P01', 'P02']], ['Viga', ['VL']], ['Sem produto', ['X']]]);
+});
+
+test('pré-fabricados: VIGOTA e GUARDA RODA viram um grupo só, "Vigotes e Guarda Roda", com um PDF único', () => {
+  const grupos = agruparPorTipo([preFabricado('V1', 'VIGOTA', []), preFabricado('VL', 'VIGA', []), preFabricado('GR', 'Guarda-Roda', []), preFabricado('V2', 'VIGOTA', [])]);
+  assert.deepEqual(grupos.map((g) => [g.nome, g.pdf ?? null, g.itens.map((i) => i.id)]), [
+    ['Vigotes e Guarda Roda', 'GRUPO|VIGOTES E GUARDA RODA', ['V1', 'GR', 'V2']],
+    ['Viga', null, ['VL']],
+  ]);
+  assert.ok(ehPdfDeGrupo('GRUPO|VIGOTES E GUARDA RODA'));
+  assert.ok(!ehPdfDeGrupo('VIGOTA|TR16745 L = 1,43M 20PC'));
+  const gravado = (id: string, lote: string, item: string): PdfGravado => ({ ...pdfItem(id, '2026-11-24T10:00:00-03:00'), caminho: `obras/pre-fabricados/o1/${id}.pdf`, lote, plannix: 141, item });
+  const r = pdfsDosGrupos('l1', [gravado('a', 'l1', 'GRUPO|VIGOTES E GUARDA RODA'), gravado('b', 'l2', 'GRUPO|VIGOTES E GUARDA RODA'), gravado('c', 'l1', 'VIGOTA|TR16')]);
+  assert.deepEqual(Object.fromEntries(Object.entries(r).map(([k, v]) => [k, v.map((p) => p.id)])), { 'GRUPO|VIGOTES E GUARDA RODA': ['a'] });
 });
 
 test('pré-fabricados: resumo das etapas na ordem da produção, sem acento e etapa desconhecida no fim', () => {

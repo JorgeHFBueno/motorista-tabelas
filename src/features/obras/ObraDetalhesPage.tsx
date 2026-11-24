@@ -37,7 +37,7 @@ import {
 } from './obrasData';
 import CampoEditavel from './CampoEditavelObra';
 import ListaLotes, { type AcoesPdf } from './ListaLotes';
-import { comPdfsGravados, maisRecente, type PdfGravado, type PreFabricadosDoLote } from './preFabricados';
+import { comPdfsGravados, ehPdfDeGrupo, maisRecente, pdfsDosGrupos, type PdfGravado, type PreFabricadosDoLote } from './preFabricados';
 import { useAuth } from '../../contexts/AuthContext';
 import { editaArea } from '../../services/credenciais';
 import {
@@ -211,15 +211,16 @@ export default function ObraDetalhesPage() {
       anexar: ({ lote, item }, modo, arquivo) => {
         const dados = preFabricados.status === 'ok' ? preFabricados.data[lote] : undefined;
         const doLote = dados && 'itens' in dados ? dados : undefined;
-        const alvo = doLote?.itens.find((i) => i.id === item);
-        if (!doLote || !alvo?.chave) return;
-        const atual = maisRecente(pdfs.filter((pdf) => pdf.lote === lote && pdf.item === alvo.chave));
+        // `item`: o id do item ou, no grupo com PDF único (Vigotes e Guarda Roda), a chave do grupo.
+        const chave = ehPdfDeGrupo(item) ? item : doLote?.itens.find((i) => i.id === item)?.chave;
+        if (!doLote || !chave) return;
+        const atual = maisRecente(pdfs.filter((pdf) => pdf.lote === lote && pdf.item === chave));
         const gravadoAtual = atual ? gravados(atual.id) : undefined;
         if (modo === 'substituir' && gravadoAtual) {
           void comPdf(() => substituirPdfPreFabricado(obra.id, gravadoAtual, arquivo, autor), `PDF substituído por ${arquivo.name}.`);
           return;
         }
-        void comPdf(() => anexarPdfPreFabricado({ obraId: obra.id, lote, plannix: doLote.plannix, item: alvo.chave! }, arquivo, autor),
+        void comPdf(() => anexarPdfPreFabricado({ obraId: obra.id, lote, plannix: doLote.plannix, item: chave }, arquivo, autor),
           modo === 'revisao' ? `${arquivo.name} anexado como nova revisão.` : `${arquivo.name} anexado.`);
       },
       excluir: (pdf) => {
@@ -331,7 +332,7 @@ export default function ObraDetalhesPage() {
               if (preFabricados.status === 'erro') return { ...lote, itens: null, aviso: 'Não foi possível ler o Plannix. Recarregue a página para tentar de novo.' };
               const doLote = preFabricados.data[lote.chave];
               return doLote && 'itens' in doLote
-                ? { ...lote, itens: comPdfsGravados(lote.chave, doLote.itens, pdfs), origem: doLote.origem }
+                ? { ...lote, itens: comPdfsGravados(lote.chave, doLote.itens, pdfs), pdfsDosGrupos: pdfsDosGrupos(lote.chave, pdfs), origem: doLote.origem }
                 : { ...lote, itens: null, aviso: doLote?.aviso };
             })}
             acoesPdf={acoesPdf}

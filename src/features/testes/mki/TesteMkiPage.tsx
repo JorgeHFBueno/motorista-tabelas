@@ -19,7 +19,7 @@ import {
 import ScienceRounded from '@mui/icons-material/ScienceRounded';
 import CampoEditavel from '../../obras/CampoEditavelObra';
 import ListaLotes, { type AcoesPdf, type LoteComPreFabricados } from '../../obras/ListaLotes';
-import { maisRecente, SEM_PEDIDO, type PdfPreFabricado, type PreFabricado } from '../../obras/preFabricados';
+import { ehPdfDeGrupo, maisRecente, SEM_PEDIDO, type PdfPreFabricado, type PreFabricado } from '../../obras/preFabricados';
 import { useAuth } from '../../../contexts/AuthContext';
 import './mki.css';
 
@@ -146,11 +146,19 @@ export default function TesteMkiPage() {
       const url = URL.createObjectURL(arquivo);
       urls.current.push(url);
       const novo: PdfPreFabricado = { id: `${Date.now()}`, nome: arquivo.name, tamanho: arquivo.size, anexadoEm: new Date(), anexadoPor: usuario, url };
-      alterarItem(lote, item, (atual) => {
-        const recente = maisRecente(atual.pdfs);
-        if (modo === 'substituir' && recente) return { ...atual, pdfs: atual.pdfs.map((existente) => (existente.id === recente.id ? novo : existente)) };
-        return { ...atual, pdfs: [...atual.pdfs, novo] };
-      });
+      const comNovo = (pdfs: PdfPreFabricado[]) => {
+        const recente = maisRecente(pdfs);
+        return modo === 'substituir' && recente ? pdfs.map((existente) => (existente.id === recente.id ? novo : existente)) : [...pdfs, novo];
+      };
+      // Grupo com PDF único (Vigotes e Guarda Roda): `item` é a chave do grupo.
+      if (ehPdfDeGrupo(item)) {
+        setLotes((atuais) => atuais.map((atual) => (atual.chave !== lote ? atual : {
+          ...atual,
+          pdfsDosGrupos: { ...atual.pdfsDosGrupos, [item]: comNovo(atual.pdfsDosGrupos?.[item] ?? []) },
+        })));
+      } else {
+        alterarItem(lote, item, (atual) => ({ ...atual, pdfs: comNovo(atual.pdfs) }));
+      }
       setAviso(modo === 'substituir' ? `PDF substituído por ${arquivo.name}.` : modo === 'revisao' ? `${arquivo.name} anexado como nova revisão.` : `${arquivo.name} anexado.`);
     },
     abrir(item) {
@@ -161,6 +169,7 @@ export default function TesteMkiPage() {
       setLotes((atuais) => atuais.map((lote) => ({
         ...lote,
         itens: (lote.itens ?? []).map((existente) => ({ ...existente, pdfs: existente.pdfs.filter((pdfItem) => pdfItem.id !== item.id) })),
+        pdfsDosGrupos: Object.fromEntries(Object.entries(lote.pdfsDosGrupos ?? {}).map(([chave, pdfs]) => [chave, pdfs.filter((pdfItem) => pdfItem.id !== item.id)])),
       })));
       setAviso(`${item.nome} excluído.`);
     },
