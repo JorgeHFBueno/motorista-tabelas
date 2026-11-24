@@ -1,4 +1,6 @@
 import { createTheme, type Shadows } from '@mui/material/styles';
+import type {} from '@mui/x-data-grid/themeAugmentation';
+import { SemLinhas, SemResultados } from '../components/corvo/ListaVazia';
 import LinkRoteador from './LinkRoteador';
 
 const primary = '#12293B';
@@ -72,6 +74,12 @@ export const ledurTheme = createTheme({
     MuiButtonBase: {
       defaultProps: {
         LinkComponent: LinkRoteador,
+      },
+    },
+    // Tabela vazia: o corvo (mascote da WEB) sobre a mensagem da tabela.
+    MuiDataGrid: {
+      defaultProps: {
+        slots: { noRowsOverlay: SemLinhas, noResultsOverlay: SemResultados },
       },
     },
     MuiCssBaseline: {

@@ -42,6 +42,7 @@
     "test:portal-cliente-progresso": "esbuild tests/portal-cliente-progresso.test.ts --bundle --platform=node --format=esm --outfile=.tmp-portal-cliente-progresso.test.mjs && node --test .tmp-portal-cliente-progresso.test.mjs",
     "test:portal-cliente-parcelas": "esbuild tests/portal-cliente-parcelas.test.ts --bundle --platform=node --format=esm --outfile=.tmp-portal-cliente-parcelas.test.mjs && node --test .tmp-portal-cliente-parcelas.test.mjs",
     "test:cabecalho": "esbuild tests/cabecalho-voltar.test.ts --bundle --jsx=automatic --platform=node --format=esm --outfile=.tmp-cabecalho-voltar.test.mjs && node --test .tmp-cabecalho-voltar.test.mjs",
+    "test:corvo": "esbuild tests/corvo.test.ts --bundle --platform=node --format=esm --outfile=.tmp-corvo.test.mjs && node --test .tmp-corvo.test.mjs",
     "test:dev-toys": "esbuild tests/dev-toys.test.ts --bundle --platform=node --format=esm --outfile=.tmp-dev-toys.test.mjs && node --test .tmp-dev-toys.test.mjs",
     "test:uso-web": "esbuild tests/uso-web.test.ts --bundle --platform=node --format=esm --outfile=.tmp-uso-web.test.mjs && node --test .tmp-uso-web.test.mjs",
     "test:nova-guia": "esbuild tests/nova-guia.test.ts --bundle --platform=node --format=esm --outfile=.tmp-nova-guia.test.mjs && node --test .tmp-nova-guia.test.mjs",
