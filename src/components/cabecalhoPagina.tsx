@@ -49,6 +49,7 @@ const TITULOS: Array<{ padrao: string } & TituloPagina> = [
   { padrao: '/comercial', titulo: 'Painel comercial' },
   { padrao: '/comercial/negocios', titulo: 'Negócios' },
   { padrao: '/comercial/contatos', titulo: 'Contatos comerciais' },
+  { padrao: '/erp', titulo: 'ERP' },
   { padrao: '/portal-cliente/clientes', titulo: 'Clientes do portal' },
   { padrao: '/portal-cliente/contratos', titulo: 'Contratos no portal' },
   { padrao: '/portal-cliente/contratos/:id', titulo: 'Contrato no portal' },

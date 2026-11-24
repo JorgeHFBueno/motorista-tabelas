@@ -25,8 +25,8 @@ import './mki.css';
 
 /**
  * /testes/mki: mock do detalhe da obra (/engenharia/obras/:id) com os LOTEs em lista (ListaLotes, a mesma da página
- * real). Aqui os pré-fabricados já vêm preenchidos e os PDFs são anexados, substituídos e excluídos: obra, LOTEs e
- * pré-fabricados fictícios em memória; nada vai para o Firestore nem para o Storage.
+ * real). Aqui os pré-fabricados imitam o Plannix (peças com códigos e etapas) e os PDFs são anexados, substituídos e
+ * excluídos: obra, LOTEs e pré-fabricados fictícios em memória; nada vai para o Firestore nem para o Storage.
  */
 
 const pdf = (id: string, nome: string, kb: number, quando: string, por: string): PdfPreFabricado =>
@@ -50,31 +50,42 @@ const OBRA = {
   ano: '2026',
 };
 
+/** Peças fictícias: `n` códigos a partir de `inicio`, cada um na etapa da lista (repetida até o fim). */
+const pecas = (inicio: number, n: number, etapas: string[]) =>
+  Array.from({ length: n }, (_, i) => ({ codigo: String(inicio + i), etapa: etapas[i % etapas.length], data: `2026-11-${String(10 + (i % 14)).padStart(2, '0')}T09:30:00-03:00` }));
+const item = (id: string, grupo: string, tipo: string, lista: ReturnType<typeof pecas>, extra: Partial<PreFabricado> = {}): PreFabricado =>
+  ({ id, grupo, tipo, quantidade: lista.length, pecas: lista, desenhos: [], pdfs: [], ...extra });
+
 const LOTES_INICIAIS: LoteComPreFabricados[] = [
   {
-    chave: 'l1', nome: 'LOTE 1 - LINHA SÃO JOSÉ - (6,00X10,00M) - PONTE', status: 'Concluído', coordenada: { lat: -29.3359, lng: -53.0532 },
+    chave: 'l1', plannix: 301, nome: 'LOTE 1 - LINHA SÃO JOSÉ - (6,00X10,00M) - PONTE', status: 'Em execução', coordenada: { lat: -29.3359, lng: -53.0532 },
+    origem: 'Plannix 301 · PM ARROIO DO TIGRE · PONTE 6,00X10,00M',
     itens: [
-      { id: 'f1', tipo: 'Pilar 1', status: 'Concluído', pdfs: [
-        pdf('p1', 'LF_LOTE1_pilar1_rev0.pdf', 412, '2026-10-21T14:12:00-03:00', 'Mariana Kern'),
-        pdf('p2', 'LF_LOTE1_pilar1_rev1.pdf', 436, '2026-10-28T09:47:00-03:00', 'Mariana Kern'),
-      ] },
-      { id: 'f2', tipo: 'Pilar 2', status: 'Concluído', pdfs: [pdf('p3', 'LF_LOTE1_pilar2.pdf', 398, '2026-10-29T11:05:00-03:00', 'Mariana Kern')] },
-      { id: 'f7', tipo: 'Pilar 3', status: 'Em análise', pdfs: [pdf('p6', 'LF_LOTE1_pilar3.pdf', 405, '2026-11-17T10:02:00-03:00', 'Mariana Kern')] },
-      { id: 'f3', tipo: 'Vão 1', status: 'Em análise', pdfs: [pdf('p4', 'LF_LOTE1_vao1.pdf', 1210, '2026-11-12T16:30:00-03:00', 'Rafael Dornelles')] },
+      item('f1', 'PILAR', 'P01', pecas(1376222, 10, ['CORTE DOBRA', 'CORTE DOBRA', 'CORTE DOBRA', 'ACABADA', 'ACABADA', 'ACABADA', 'ACABADA', 'EXPEDIDA', 'EXPEDIDA', 'EXPEDIDA']), {
+        desenhos: ['P01-pilar-rev1.pdf'],
+        pdfs: [
+          pdf('p1', 'LF_LOTE1_P01_rev0.pdf', 412, '2026-10-21T14:12:00-03:00', 'Mariana Kern'),
+          pdf('p2', 'LF_LOTE1_P01_rev1.pdf', 436, '2026-10-28T09:47:00-03:00', 'Mariana Kern'),
+        ],
+      }),
+      item('f2', 'PILAR', 'P02', pecas(1376240, 2, ['EXPEDIDA']), { pdfs: [pdf('p3', 'LF_LOTE1_P02.pdf', 398, '2026-10-29T11:05:00-03:00', 'Mariana Kern')] }),
+      item('f3', 'VIGA', 'VL - 25X70X1000', pecas(1376300, 4, ['CONCRETAGEM', 'ARMAÇÃO']), { pdfs: [pdf('p4', 'LF_LOTE1_VL.pdf', 1210, '2026-11-12T16:30:00-03:00', 'Rafael Dornelles')] }),
     ],
   },
   {
-    chave: 'l2', nome: 'LOTE 2 - SÍTIO ALTO - BUEIRO CELULAR 2,00X2,00M', status: 'Em execução', coordenada: { lat: -29.3051, lng: -53.0917 },
-    itens: [
-      { id: 'f4', tipo: 'Cabeceira 1', status: 'Revisar', pdfs: [pdf('p5', 'LF_LOTE2_cabeceira1.pdf', 845, '2026-11-04T08:20:00-03:00', 'Rafael Dornelles')] },
-      { id: 'f5', tipo: 'Cabeceira 2', status: 'Pendente', pdfs: [] },
-    ],
+    chave: 'l2', plannix: 302, nome: 'LOTE 2 - SÍTIO ALTO - BUEIRO CELULAR 2,00X2,00M', status: 'Em execução', coordenada: { lat: -29.3051, lng: -53.0917 },
+    origem: 'Plannix 302 · PM ARROIO DO TIGRE · GALERIA 2,00X2,00M',
+    itens: [item('f4', 'GALERIA', 'GAL 2,00X2,00', pecas(1376400, 8, ['PROJETADA', 'PROGRAMADA']), { pdfs: [pdf('p5', 'LF_LOTE2_galeria.pdf', 845, '2026-11-04T08:20:00-03:00', 'Rafael Dornelles')] })],
   },
   {
-    chave: 'l3', nome: 'LOTE 3 - CORREDEIRA - (7,60X12,00M) - PONTE', status: 'Revisar escopo', coordenada: { lat: -29.3712, lng: -53.0204 },
-    itens: [{ id: 'f6', tipo: 'Pilar 1', status: 'Pendente', pdfs: [] }],
+    chave: 'l3', plannix: 303, nome: 'LOTE 3 - CORREDEIRA - (7,60X12,00M) - PONTE', status: 'Revisar escopo', coordenada: { lat: -29.3712, lng: -53.0204 },
+    origem: 'Plannix 303 · PM ARROIO DO TIGRE · PONTE 7,60X12,00M (sem projeto: Lançamento Final)',
+    itens: [
+      { id: 'f6', grupo: 'VIGA', tipo: 'RETANGULAR · 25X70 · 12 m', quantidade: 4, pecas: [], desenhos: [], pdfs: [] },
+      { id: 'f7', grupo: 'VIGOTA', tipo: 'TRELICADA · TR16 - 20CM · 1,35 m', quantidade: 24, pecas: [], desenhos: [], pdfs: [] },
+    ],
   },
-  { chave: 'l4', nome: 'LOTE 4 - ACESSO CENTRO - PAVIMENTAÇÃO', status: '', coordenada: null, itens: [] },
+  { chave: 'l4', plannix: null, nome: 'LOTE 4 - ACESSO CENTRO - PAVIMENTAÇÃO', status: '', coordenada: null, itens: null, aviso: 'Sem código Plannix: preencha a coluna Código Plannix deste LOTE no Friday (GESTÃO DE OBRAS).' },
 ];
 
 function Campo({ rotulo, valor }: { rotulo: string; valor: ReactNode }) {
@@ -199,7 +210,7 @@ export default function TesteMkiPage() {
           <ListaLotes lotes={lotes} acoesPdf={acoesPdf} />
 
           <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 2 }}>
-            O cadastro da obra é feito no Friday (quadro GESTÃO DE OBRAS); aqui só o local e o sinônimo podem ser editados.
+            O cadastro da obra é feito no Friday (quadro GESTÃO DE OBRAS); aqui se editam só o local, o sinônimo, o Código Plannix dos LOTEs e os PDFs dos pré-fabricados.
           </Typography>
         </Paper>
 

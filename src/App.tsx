@@ -45,6 +45,7 @@ const ComercialPainelPage = lazy(() => import('./features/comercial/ComercialPai
 const NegociosPage = lazy(() => import('./features/comercial/NegociosPage'));
 const ContatosPage = lazy(() => import('./features/comercial/ContatosPage'));
 const ObraDetalhesPage = lazy(() => import('./features/obras/ObraDetalhesPage'));
+const ErpInicioPage = lazy(() => import('./features/erp/ErpInicioPage'));
 const TheManuscriptPage = lazy(() => import('./pages/TheManuscriptPage'));
 const ManuscriptMapaPage = lazy(() => import('./pages/ManuscriptMapaPage'));
 const MeuPerfilPage = lazy(() => import('./pages/MeuPerfilPage'));
@@ -62,6 +63,7 @@ const RevisaoInicioPage = lazy(() => import('./features/revisao/RevisaoInicioPag
 const RevisaoRegistroPage = lazy(() => import('./features/revisao/RevisaoRegistroPage'));
 const RevisaoHistoricoPage = lazy(() => import('./features/revisao/RevisaoHistoricoPage'));
 const RevisaoDetalhePage = lazy(() => import('./features/revisao/RevisaoDetalhePage'));
+const PaginaNaoEncontradaPage = lazy(() => import('./pages/PaginaNaoEncontradaPage'));
 
 console.log('[build]', import.meta.env.MODE, '__BUILD__', '1122');
 
@@ -85,6 +87,8 @@ export default function App() {
             <Route element={<PrivateRoute permite={() => true} />}>
               <Route index element={<HomeDashboard />} />
               <Route path="perfil" element={<MeuPerfilPage />} />
+              {/* Endereço que não existe: a página do corvo (antes, tela em branco). */}
+              <Route path="*" element={<PaginaNaoEncontradaPage />} />
             </Route>
             {/* /motorista (2026-11-18): Saída e Chegada (src/features/saida-chegada; credencial motorista) e, desde 2026-11-19,
                 o Checklist e a Revisão do mecânico (src/features/checklist-mecanico e src/features/revisao; credencial
@@ -149,6 +153,11 @@ export default function App() {
             <Route element={<PrivateRoute permite={(p) => temCredencial(p, 'adm2')} />}>
               <Route path="cadastros/apis" element={<CadastroApisPage />} />
               <Route path="cadastros/uso" element={<UsoDoSistemaPage />} />
+            </Route>
+            {/* ERP próprio (2026-11-24): por enquanto só a página "Estamos trabalhando nisso", só o adm2. The Manuscript,
+                01_ROTAS_E_NAVEGACAO.md#erp. */}
+            <Route element={<PrivateRoute permite={(p) => temCredencial(p, 'adm2')} />}>
+              <Route path="erp" element={<ErpInicioPage />} />
             </Route>
             {/* Mecânica e Logística são grupos, como Engenharia: /mecanica e /logistica não têm página própria (2026-11-19:
                 Frota virou Mecânica; Combustível e o KPI entraram na Logística). */}

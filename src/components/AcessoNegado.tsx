@@ -2,6 +2,7 @@ import { Box, Button, Paper, Stack, Typography } from '@mui/material';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { ehAppMotorista } from '../features/saida-chegada/appMotorista';
+import Corvo from './corvo/Corvo';
 
 export type MotivoAcessoNegado = 'firestore-error' | 'missing-funcionario' | 'inactive' | 'sem-credencial' | 'sem-acesso-area';
 
@@ -23,7 +24,7 @@ const mensagens: Record<MotivoAcessoNegado, { titulo: string; texto: string }> =
 };
 
 // Shown by PrivateRoute at the address the person opened, without changing the URL:
-// reloading the page checks the access again.
+// reloading the page checks the access again. The raven (the WEB mascot) shouts.
 export default function AcessoNegado({ motivo }: { motivo: MotivoAcessoNegado }) {
   const navigate = useNavigate();
   const { signOut } = useAuth();
@@ -40,6 +41,7 @@ export default function AcessoNegado({ motivo }: { motivo: MotivoAcessoNegado })
     <Box sx={{ minHeight: 'calc(100vh - 72px)', display: 'grid', placeItems: 'center', p: 2 }}>
       <Paper sx={{ p: 3, maxWidth: 560, width: '100%' }} elevation={3}>
         <Stack spacing={2}>
+          <Corvo animacao="grito" />
           <Typography variant="h5" fontWeight={700}>{titulo}</Typography>
           <Typography variant="body1">{texto}</Typography>
           <Stack direction="row" spacing={1} justifyContent="flex-end">

@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Archive, Copy, ListTree, Lock, Maximize2, Shuffle, MessageCircle, MessageCirclePlus, MoreHorizontal, Pencil, Plus, Trash2 } from 'lucide-react';
+import { Archive, Copy, EyeOff, ListTree, Lock, Maximize2, Shuffle, MessageCircle, MessageCirclePlus, MoreHorizontal, Pencil, Plus, Trash2 } from 'lucide-react';
 import { useAuth } from '../../../contexts/AuthContext';
 import type { Pessoa } from '../api.ts';
 import { Editavel, Menu, Popover, useConfirmar, usePopover } from '../ui/base.tsx';
@@ -7,6 +7,8 @@ import { Celula } from './Celula.tsx';
 import { MenuTipos } from './MenuTipos.tsx';
 import { arrastarBorda, larguraDoConteudo } from '../util.ts';
 import { itensCampoOficial, itensReais } from './Tabela.tsx';
+import { itemRestrita, textoRestrita } from './restritasMenu.tsx';
+import { ColunaRestritaDialogo } from './ColunaRestrita.tsx';
 import { alvosPara } from './mudarTipo.ts';
 import { MudarTipoDialogo } from './MudarTipo.tsx';
 import { CampoOficialDialogo } from './TornarOficial.tsx';
@@ -181,6 +183,7 @@ function CabecalhoSub({ coluna, acoes, confirmar, onResize, onAjustar }: {
   const [renomear, setRenomear] = useState(false);
   const [campoOficial, setCampoOficial] = useState<'adicionar' | 'descontinuar' | null>(null);
   const [mudarTipo, setMudarTipo] = useState(false);
+  const [restringir, setRestringir] = useState(false);
   const adm2 = useAuth().authorizationProfile?.adm2 === true;
   const Ic = infoColuna(coluna).icone;
   return (
@@ -189,6 +192,7 @@ function CabecalhoSub({ coluna, acoes, confirmar, onResize, onAjustar }: {
         <Editavel key={renomear ? 'r' : 'n'} iniciarEditando={renomear} valor={coluna.titulo} className="col-titulo"
           onSalvar={v => { setRenomear(false); if (v) acoes.atualizarColuna(coluna.id, { titulo: v }); }} />
         {coluna.oficial && <span className="col-oficial" title={`Campo oficial dos subitens do cadastro “${coluna.oficial.nome}” (${coluna.oficial.chave}). Pode renomear; não pode excluir.`}><Lock size={12} /></span>}
+        {coluna.restrita && <span className="col-oficial col-restrita" title={textoRestrita(coluna)}><EyeOff size={12} /></span>}
         <button ref={pop.ref} className="btn-icone col-menu" aria-label={`Menu da coluna ${coluna.titulo}`} onClick={pop.alternar}><MoreHorizontal size={14} /></button>
       </div>
       {onResize && (
@@ -200,11 +204,12 @@ function CabecalhoSub({ coluna, acoes, confirmar, onResize, onAjustar }: {
           <div className="menu-titulo"><Ic size={14} /> {infoColuna(coluna).rotulo} (subitens)</div>
           <Menu onEscolher={pop.fechar} itens={[
             { rotulo: 'Renomear', icone: <Pencil size={15} />, onClick: () => setRenomear(true) },
-            ...(alvosPara(coluna).length ? [{ rotulo: 'Mudar tipo…', icone: <Shuffle size={15} />, onClick: () => setMudarTipo(true) }] : []),
+            ...(alvosPara(coluna).length && !coluna.restrita ? [{ rotulo: 'Mudar tipo…', icone: <Shuffle size={15} />, onClick: () => setMudarTipo(true) }] : []),
             ...itensReais(coluna, acoes),
             ...itensCampoOficial(adm2 && acoes.oficial?.subitens === 'ativo', coluna, setCampoOficial),
-            // Campo oficial não pode ser excluído (os dados vivem no cadastro oficial).
-            ...(coluna.oficial ? [] : ['separador' as const,
+            ...itemRestrita(adm2, coluna, () => setRestringir(true)),
+            // Campo oficial não pode ser excluído (os dados vivem no cadastro oficial); coluna restrita, só adm2.
+            ...(coluna.oficial || (coluna.restrita && !adm2) ? [] : ['separador' as const,
               { rotulo: 'Excluir coluna', icone: <Trash2 size={15} />, perigo: true, onClick: async () => { if (await confirmar(`Excluir a coluna “${coluna.titulo}” dos subitens, com todos os valores?`)) acoes.excluirColuna(coluna.id); } }]),
           ]} />
         </Popover>
@@ -212,6 +217,7 @@ function CabecalhoSub({ coluna, acoes, confirmar, onResize, onAjustar }: {
       {campoOficial && acoes.oficial && <CampoOficialDialogo quadroId={acoes.oficial.quadroId} coluna={coluna} modo={campoOficial}
         onFechar={() => setCampoOficial(null)} onPronto={() => { setCampoOficial(null); acoes.recarregar(); }} />}
       {mudarTipo && <MudarTipoDialogo coluna={coluna} onFechar={() => setMudarTipo(false)} onPronto={() => { setMudarTipo(false); acoes.recarregar(); }} />}
+      {restringir && <ColunaRestritaDialogo coluna={coluna} onFechar={() => setRestringir(false)} onPronto={() => { setRestringir(false); acoes.recarregar(); }} />}
     </th>
   );
 }

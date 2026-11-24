@@ -17,7 +17,8 @@ import {
 } from '../src/features/obras/obrasDomain';
 import { createObraRelatorioPdf, nomeArquivoRelatorioObra } from '../src/features/obras/obraRelatorioPdf';
 import { LOCAIS_SUGERIDOS } from '../src/features/obras/locaisSugeridos';
-import { agruparPorTipo, comPdf, revisoes, statusDoGrupo, totalPdfs, type PreFabricado } from '../src/features/obras/preFabricados';
+import { dimensoes, sugerirCodigos, type ObraPlannix } from '../src/features/obras/codigoPlannix';
+import { agruparPorTipo, comPdf, comPdfsGravados, preFabricadosDoPlannix, resumoEtapas, revisoes, semProjeto, totalPdfs, type PdfGravado, type PreFabricado } from '../src/features/obras/preFabricados';
 import { coordenadaDoLote, lotesDaObra, obraFromV2 } from '../src/utils/cadastrosV2';
 
 const contrato = {
@@ -167,12 +168,15 @@ test('LOTE: coordenada da coluna Coordenada do subitem ({ lat, lng }) ou null; o
   }
   const lotes = lotesDaObra({
     b: { nome: 'LOTE 2', ordem: 1 },
-    a: { nome: 'LOTE 1', status: 'Em andamento', ordem: 0, coordenada: { lat: -29.5, lng: -53.1 } },
+    a: { nome: 'LOTE 1', status: 'Em andamento', ordem: 0, coordenada: { lat: -29.5, lng: -53.1 }, plannix: 117 },
+    c: { nome: 'LOTE 3', ordem: 3, plannix: 12.5 },
     z: { nome: 'LOTE VELHO', ordem: 2, situacao: 'arquivado', coordenada: { lat: -1, lng: -1 } },
   });
   assert.deepEqual(lotes, [
-    { chave: 'a', nome: 'LOTE 1', status: 'Em andamento', coordenada: { lat: -29.5, lng: -53.1 } },
-    { chave: 'b', nome: 'LOTE 2', status: '', coordenada: null },
+    { chave: 'a', nome: 'LOTE 1', status: 'Em andamento', coordenada: { lat: -29.5, lng: -53.1 }, plannix: 117 },
+    { chave: 'b', nome: 'LOTE 2', status: '', coordenada: null, plannix: null },
+    // Código Plannix só inteiro positivo; o resto fica sem código.
+    { chave: 'c', nome: 'LOTE 3', status: '', coordenada: null, plannix: null },
   ]);
   const detalhe = obraDetalheFromV2('c1', { ...contrato, lotes: { a: { nome: 'LOTE 1', ordem: 0, coordenada: { lat: -29.5, lng: -53.1 } } } })!;
   assert.deepEqual(detalhe.lotes[0].coordenada, { lat: -29.5, lng: -53.1 });
@@ -189,24 +193,98 @@ test('Local pela coordenada do LOTE: a grafia da lista de sugestões, sem difere
 });
 
 const pdfItem = (id: string, quando: string) => ({ id, nome: `${id}.pdf`, tamanho: 1024, anexadoEm: new Date(quando), anexadoPor: 'Teste', url: null });
-const preFabricado = (id: string, tipo: string, status: string, pdfs = 0): PreFabricado =>
-  ({ id, tipo, status, pdfs: Array.from({ length: pdfs }, (_, i) => pdfItem(`${id}-${i}`, `2026-11-0${i + 1}T10:00:00-03:00`)) });
-
-test('pré-fabricados: agrupa pelo Tipo sem o número do fim, na ordem em que aparecem', () => {
-  const grupos = agruparPorTipo([preFabricado('a', 'Pilar 1', ''), preFabricado('b', 'Vão 1', ''), preFabricado('c', 'Pilar 2', ''), preFabricado('d', '', '')]);
-  assert.deepEqual(grupos.map((g) => [g.nome, g.itens.map((i) => i.id)]), [['Pilar', ['a', 'c']], ['Vão', ['b']], ['Sem tipo', ['d']]]);
+const preFabricado = (id: string, grupo: string, etapas: string[], pdfs = 0, quantidade = etapas.length): PreFabricado => ({
+  id, grupo, tipo: id, quantidade, desenhos: [],
+  pecas: etapas.map((etapa, i) => ({ codigo: `${id}-${i}`, etapa, data: null })),
+  pdfs: Array.from({ length: pdfs }, (_, i) => pdfItem(`${id}-${i}`, `2026-11-0${i + 1}T10:00:00-03:00`)),
 });
 
-test('pré-fabricados: status do grupo é o mais frequente fora os concluídos; empate vai ao mais urgente', () => {
-  assert.equal(statusDoGrupo([preFabricado('a', 'Pilar 1', 'Concluído'), preFabricado('b', 'Pilar 2', 'Concluído'), preFabricado('c', 'Pilar 3', 'Em análise')]), 'Em análise');
-  assert.equal(statusDoGrupo([preFabricado('a', 'Cab 1', 'Pendente'), preFabricado('b', 'Cab 2', 'revisar')]), 'revisar');
-  assert.equal(statusDoGrupo([preFabricado('a', 'Pilar 1', 'Concluído'), preFabricado('b', 'Pilar 2', 'concluido')]), 'Concluído');
-  assert.equal(statusDoGrupo([preFabricado('a', 'Pilar 1', 'Concluído'), preFabricado('b', 'Pilar 2', '')]), '');
+test('pré-fabricados: agrupa pelo produto do Plannix (PILAR → Pilar), na ordem em que aparece', () => {
+  const grupos = agruparPorTipo([preFabricado('P01', 'PILAR', []), preFabricado('VL', 'VIGA', []), preFabricado('P02', 'PILAR', []), preFabricado('X', '', [])]);
+  assert.deepEqual(grupos.map((g) => [g.nome, g.itens.map((i) => i.id)]), [['Pilar', ['P01', 'P02']], ['Viga', ['VL']], ['Sem produto', ['X']]]);
+});
+
+test('pré-fabricados: resumo das etapas na ordem da produção, sem acento e etapa desconhecida no fim', () => {
+  const itens = [preFabricado('P01', 'PILAR', ['EXPEDIDA', 'CORTE DOBRA', 'ACABADA', 'CORTE DOBRA', 'ARMAÇÃO']), preFabricado('P02', 'PILAR', ['ACABADA', 'NOVA ETAPA'])];
+  assert.deepEqual(resumoEtapas(itens).map((e) => `${e.quantidade} ${e.rotulo}`), ['2 Corte e dobra', '1 Armação', '2 Acabada', '1 Expedida', '1 NOVA ETAPA']);
+  assert.equal(semProjeto([preFabricado('LF', 'VIGA', [], 0, 8), ...itens]), 8);
 });
 
 test('pré-fabricados: "N de M com PDF", total de PDFs e revisões da mais nova (Rev. N) à mais antiga (Rev. 0)', () => {
-  const itens = [preFabricado('a', 'Pilar 1', '', 2), preFabricado('b', 'Pilar 2', '', 0), preFabricado('c', 'Pilar 3', '', 1)];
+  const itens = [preFabricado('a', 'PILAR', [], 2), preFabricado('b', 'PILAR', [], 0), preFabricado('c', 'PILAR', [], 1)];
   assert.equal(comPdf(itens), 2);
   assert.equal(totalPdfs(itens), 3);
   assert.deepEqual(revisoes(itens[0].pdfs).map((r) => [r.item.id, r.revisao]), [['a-1', 1], ['a-0', 0]]);
 });
+
+test('pré-fabricados: resposta do Plannix ligada aos LOTEs pelo Código Plannix; sem código ou não achado vira aviso', () => {
+  const r = preFabricadosDoPlannix(
+    [{ chave: 'l1', plannix: 117 }, { chave: 'l2', plannix: null }, { chave: 'l3', plannix: 999 }, { chave: 'l4', plannix: 200 }],
+    [
+      { codigo: 117, sigla: 'PM IBARAMA', nome: 'PONTE 5,00X25,00M (LAJ. GRINGA)', projeto: true, itens: [{ produto: 'PILAR', nome: 'P01', secao: '25X40', quantidade: 1, desenhos: ['p01.pdf'], pecas: [{ codigo: '1001', etapa: 'ACABADA', data: null }] }] },
+      { codigo: 999, erro: 'nao-encontrada' },
+      { codigo: 200, sigla: 'PM NOVA', nome: 'GALERIA', projeto: false, itens: [] },
+    ],
+  );
+  const l1 = r.l1 as { itens: PreFabricado[]; origem: string };
+  assert.equal(l1.origem, 'Plannix 117 · PM IBARAMA · PONTE 5,00X25,00M (LAJ. GRINGA)');
+  assert.deepEqual([l1.itens[0].grupo, l1.itens[0].tipo, l1.itens[0].pecas.length, l1.itens[0].desenhos], ['PILAR', 'P01', 1, ['p01.pdf']]);
+  assert.deepEqual([l1.itens[0].id, l1.itens[0].chave], ['117|PILAR|P01', 'PILAR|P01']);
+  assert.match((r.l2 as { aviso: string }).aviso, /Sem código Plannix/);
+  assert.match((r.l3 as { aviso: string }).aviso, /999 não foi encontrado/);
+  assert.equal((r.l4 as { origem: string }).origem, 'Plannix 200 · PM NOVA · GALERIA (sem projeto: Lançamento Final)');
+});
+
+test('pré-fabricados: PDFs gravados vão para o item do mesmo LOTE e chave "produto|nome"', () => {
+  const gravado = (id: string, lote: string, item: string): PdfGravado => ({ ...pdfItem(id, '2026-11-24T10:00:00-03:00'), caminho: `obras/pre-fabricados/o1/${id}.pdf`, lote, plannix: 112, item });
+  const itens = [{ ...preFabricado('P01', 'PILAR', ['ACABADA']), chave: 'PILAR|P01' }, { ...preFabricado('VL', 'VIGA', []), chave: 'VIGA|VL' }];
+  const r = comPdfsGravados('l1', itens, [gravado('a', 'l1', 'PILAR|P01'), gravado('b', 'l2', 'PILAR|P01'), gravado('c', 'l1', 'VIGA|VL'), gravado('d', 'l1', 'PILAR|P01')]);
+  assert.deepEqual(r.map((i) => i.pdfs.map((p) => p.id)), [['a', 'd'], ['c']]);
+});
+
+const plannix = (codigo: number, sigla: string, nome: string): ObraPlannix => ({ codigo, sigla, nome, inicio: null, fim: null });
+const OBRAS_PLANNIX = [
+  plannix(116, 'PM CARLOS GOMES ', 'PONTE 6,00X6,00M (RIO ACIMA)'),
+  plannix(115, 'PM IBARAMA', 'PONTE 5,00X25,00M (ARROIO GRANDE)'),
+  plannix(117, 'PM IBARAMA', 'PONTE 5,00X25,00M (LAJ. GRINGA)'),
+  plannix(106, 'PM PASSA SETE', 'PONTE 5,00X21,00 (TEXA)'),
+  plannix(108, 'PM PASSA SETE', 'PONTE 5,00X21,00 (DARI)'),
+  plannix(112, 'PM LAGOA BS', 'PONTE 5,00X10,00M'),
+  plannix(44, 'PM LAGOA BONITA', 'PONTE 6,00 X 10,00 M '),
+];
+const lote = (chave: string, nome: string, codigo: number | null = null) => ({ chave, nome, plannix: codigo });
+
+test('código Plannix: dimensões com vírgula, espaço e três medidas', () => {
+  assert.deepEqual(dimensoes('PONTE 6,00 X 10,00 M'), ['6X10']);
+  assert.deepEqual(dimensoes('LOTE 1 - BARRA - (2,00X2,00X10,00M)'), ['2X2X10']);
+});
+
+test('código Plannix: sugere pelo município e pela dimensão; o nome do lugar desempata', () => {
+  assert.deepEqual(Object.fromEntries(Object.entries(sugerirCodigos('IBARAMA 048/2025', [
+    lote('a', 'LOTE 1 - ARROIO GRANDE - LINHA ARROIO GRANDE - (5,00X25,00M) - PONTE'),
+    lote('b', 'LOTE 3 - LAJEADO DA GRINGA - DISTRITO LAJEADO DA GRINGA (PONTE 1) - (5,00X25,00M) - PONTE'),
+  ], OBRAS_PLANNIX)).map(([k, v]) => [k, v.codigo])), { a: 115, b: 117 });
+  // LAGOA BONITA DO SUL: só a ponte 5,00X10,00 (a 6,00X10,00 é outra).
+  assert.equal(sugerirCodigos('LAGOA BONITA DO SUL 16/2026', [lote('l1', 'LOTE 1 - ARROIO SEM DENOMINAÇÃO - (5,00X10,00M) - PONTE')], OBRAS_PLANNIX).l1?.codigo, 112);
+});
+
+test('código Plannix: cada obra para um LOTE só; empate e obra já usada não viram sugestão', () => {
+  // CARLOS GOMES: a obra RIO ACIMA vai para o LOTE do Rio Acima, não para o do Lajeado Bonito (mesma dimensão).
+  const carlos = sugerirCodigos('CARLOS GOMES 181/2026', [
+    lote('l2', 'LOTE 2 - LINHA LAJEADO BONITO - (6,00X6,00M) - PONTE'),
+    lote('l1', 'LOTE 1 - LINHA RIO ACIMA - (6,00X6,00M) - PONTE'),
+  ], OBRAS_PLANNIX);
+  assert.deepEqual(Object.fromEntries(Object.entries(carlos).map(([k, v]) => [k, v.codigo])), { l1: 116 });
+  // PASSA SETE: TEXA e DARI pelos nomes; o terceiro LOTE de mesma dimensão fica sem sugestão.
+  const passaSete = sugerirCodigos('PASSA SETE 059/2025', [
+    lote('m2', 'LOTE 2 - META 2 - PONTE VARDINHO LOPES - (5,00X21,00M) - PONTE'),
+    lote('m4', 'LOTE 1 - META 4 - PONTE TEXA - BAIXO PASSA SETE - (5,00X21,00M) - PONTE'),
+    lote('m3', 'LOTE 2 - META 3 - PONTE DARI - LAJEADO SOBRADINHO - (5,00X21,00M) - PONTE'),
+  ], OBRAS_PLANNIX);
+  assert.deepEqual(Object.fromEntries(Object.entries(passaSete).map(([k, v]) => [k, v.codigo])), { m4: 106, m3: 108 });
+  // Só os dois de mesma dimensão, sem nome: empate, nenhuma sugestão.
+  assert.deepEqual(sugerirCodigos('PASSA SETE 059/2025', [lote('x', 'LOTE 9 - OUTRA - (5,00X21,00M) - PONTE')], OBRAS_PLANNIX), {});
+  // Código já usado em outro LOTE do contrato não é sugerido.
+  assert.deepEqual(sugerirCodigos('LAGOA BONITA DO SUL 16/2026', [lote('l1', 'LOTE 1 - (5,00X10,00M) - PONTE', 112), lote('l2', 'LOTE 2 - (5,00X10,00M) - PONTE')], OBRAS_PLANNIX), {});
+});
+

@@ -194,6 +194,19 @@ service firebase.storage {
       allow update: if false;
     }
 
+    // Detalhe da obra (/engenharia/obras/:id): PDFs dos pré-fabricados dos LOTEs, obras/pre-fabricados/{obraId}/{arquivo}
+    // (2026-11-24). Área engenharia (ver lê, editar envia e apaga; o mesmo de obras-pre-fabricados-pdfs no Firestore),
+    // só PDF, até 25 MB, sem sobrescrever (substituir envia um arquivo novo e apaga o antigo).
+    match /obras/pre-fabricados/{obraId}/{arquivo} {
+      allow read: if veArea('engenharia');
+      allow delete: if editaArea('engenharia');
+      allow create: if editaArea('engenharia')
+        && isNewObject()
+        && request.resource.size <= 25 * 1024 * 1024
+        && request.resource.contentType == 'application/pdf';
+      allow update: if false;
+    }
+
     // ================================================================ client portal (Manuscript portal.md)
 
     // Portal clients live in users/{uid} (not funcionarios) and see the files of the contracts of their CNPJ/CPF.

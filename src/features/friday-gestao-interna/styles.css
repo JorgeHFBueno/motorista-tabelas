@@ -1062,3 +1062,7 @@ body.arrastando-coluna .friday-root, body.arrastando-coluna .friday-root * { cur
 .friday-root .ts-nova { background: var(--primaria-clara); color: var(--primaria); border-radius: 4px; padding: 0 6px; font-weight: 600; }
 .friday-root .tq-cel.fora-do-tipo { background: repeating-linear-gradient(135deg, var(--superficie-2), var(--superficie-2) 6px, var(--borda-suave) 6px, var(--borda-suave) 7px); cursor: not-allowed; }
 .friday-root .ts-combo { display: inline-flex; align-items: center; gap: 3px; white-space: nowrap; }
+.friday-root .col-restrita { color: #b54708; }
+.friday-root .cr-lista { display: flex; flex-direction: column; gap: 6px; max-height: 320px; overflow-y: auto; margin-top: 8px; }
+.friday-root .cr-pessoa { display: flex; align-items: center; gap: 8px; }
+.friday-root .cr-pessoa small { margin-left: auto; }
