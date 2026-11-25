@@ -5,18 +5,23 @@ import {
   Button,
   Chip,
   CircularProgress,
+  Collapse,
   Container,
   Paper,
   Snackbar,
   Stack,
+  Tab,
   Table,
   TableBody,
   TableCell,
   TableContainer,
   TableHead,
   TableRow,
+  Tabs,
   Typography,
 } from '@mui/material';
+import KeyboardArrowDownIcon from '@mui/icons-material/KeyboardArrowDown';
+import KeyboardArrowUpIcon from '@mui/icons-material/KeyboardArrowUp';
 import { useParams } from 'react-router-dom';
 import {
   carregarAlocacoesDaObra,
@@ -60,7 +65,18 @@ import {
 import { createObraRelatorioPdf, nomeArquivoRelatorioObra, type Parte } from './obraRelatorioPdf';
 
 // Detalhe da obra (obras-v2): todos os dados do contrato, só leitura, menos o local e o sinônimo (`siglaObra`),
-// que engenharia e adm2 gravam.
+// que engenharia e adm2 gravam. Layout (pedido do responsável, 2026-11-25): nome com o local e o sinônimo ao lado; abaixo
+// do nome, "Detalhes" (abre os dados do contrato, que começam ocultos) e o status; depois as abas LOTEs | Mestres |
+// Logística | Em breve, cada uma com os seus subitens. Nenhuma aba começa aberta: a área abaixo fica vazia até escolher.
+
+type AbaObra = 'lotes' | 'mestres' | 'logistica';
+/** Subitens de Mestres e Logística; os de LOTEs são "Todos" e cada LOTE. "Em breve" aparece desabilitado. */
+const SUBITENS: Record<Exclude<AbaObra, 'lotes'>, { valor: string; rotulo: string }[]> = {
+  mestres: [{ valor: 'lista', rotulo: 'Lista' }, { valor: 'calendarios', rotulo: 'Calendários' }, { valor: 'atividades', rotulo: 'Atividades' }],
+  logistica: [{ valor: 'todos', rotulo: 'Todos' }, { valor: 'deslocamentos', rotulo: 'Deslocamentos' }, { valor: 'combustivel', rotulo: 'Combustível' }],
+};
+/** "LOTE 1 - LINHA RESTINGA SECA - …" vira "LOTE 1" no subitem; o nome inteiro fica no tooltip. */
+const nomeCurtoDoLote = (nome: string) => nome.split(' - ')[0].trim() || nome;
 
 type Estado<T> = { status: 'carregando' } | Parte<T>;
 const CARREGANDO = { status: 'carregando' } as const;
@@ -85,16 +101,17 @@ function Campo({ rotulo, valor }: { rotulo: string; valor: ReactNode }) {
   );
 }
 
-function Secao<T>({ titulo, estado, erro, children }: { titulo: string; estado: Estado<T>; erro: string; children: (data: T) => ReactNode }) {
+/** Conteúdo de um subitem: carregando, erro ou os dados; com `titulo`, o nome em cima (em "Todos", com mais de uma parte). */
+function Secao<T>({ titulo, estado, erro, children }: { titulo?: string; estado: Estado<T>; erro: string; children: (data: T) => ReactNode }) {
   return (
-    <Paper variant="outlined" sx={{ mt: 3, p: { xs: 2, sm: 3 } }}>
-      <Typography variant="h6" sx={{ mb: 1.5 }}>{titulo}</Typography>
+    <Box sx={{ '& + &': { mt: 3 } }}>
+      {titulo && <Typography variant="h6" sx={{ mb: 1.5 }}>{titulo}</Typography>}
       {estado.status === 'carregando' ? (
         <Box display="flex" justifyContent="center" py={2}><CircularProgress size={24} /></Box>
       ) : estado.status === 'erro' ? (
         <Alert severity="error">{erro}</Alert>
       ) : children(estado.data)}
-    </Paper>
+    </Box>
   );
 }
 
@@ -133,6 +150,9 @@ export default function ObraDetalhesPage() {
   const [pdfs, setPdfs] = useState<PdfGravado[]>([]);
   const [salvandoCampo, setSalvandoCampo] = useState(false);
   const [gerando, setGerando] = useState(false);
+  const [detalhes, setDetalhes] = useState(false);
+  const [aba, setAba] = useState<AbaObra | false>(false);
+  const [subitem, setSubitem] = useState('todos');
   const [snackbar, setSnackbar] = useState<{ open: boolean; severity: 'success' | 'error'; message: string }>({ open: false, severity: 'success', message: '' });
 
   useEffect(() => {
@@ -271,6 +291,95 @@ export default function ObraDetalhesPage() {
   }
 
   const semLocal = localPendente(obra.local);
+  const escolherAba = (valor: AbaObra) => { setAba(valor); setSubitem(valor === 'mestres' ? 'lista' : 'todos'); };
+  const subitens: { valor: string; rotulo: string; titulo?: string }[] = aba === 'lotes'
+    ? [{ valor: 'todos', rotulo: 'Todos' }, ...obra.lotes.map((lote) => ({ valor: lote.chave, rotulo: nomeCurtoDoLote(lote.nome), titulo: lote.nome }))]
+    : aba ? SUBITENS[aba] : [];
+
+  const lotes = (
+    obra.lotes.length ? (
+      // Pré-fabricados de cada LOTE, do Plannix pelo Nº Pedido do LOTE no Friday (carregarPreFabricados).
+      <ListaLotes
+        lotes={obra.lotes.filter((lote) => subitem === 'todos' || lote.chave === subitem).map((lote) => {
+          if (preFabricados.status === 'carregando') return { ...lote, itens: null, aviso: 'Carregando os pré-fabricados do Plannix…' };
+          if (preFabricados.status === 'erro') return { ...lote, itens: null, aviso: 'Não foi possível ler o Plannix. Recarregue a página para tentar de novo.' };
+          const doLote = preFabricados.data[lote.chave];
+          return doLote && 'itens' in doLote
+            ? { ...lote, itens: comPdfsGravados(lote.chave, doLote.itens, pdfs), pdfsDosGrupos: pdfsDosGrupos(lote.chave, pdfs), origem: doLote.origem }
+            : { ...lote, itens: null, aviso: doLote?.aviso };
+        })}
+        acoesPdf={acoesPdf}
+      />
+    ) : <Vazio>Sem LOTEs cadastrados.</Vazio>
+  );
+
+  const secaoMestres = (
+    <Secao estado={mestres} erro="Não foi possível carregar as alocações do CronoObra.">
+      {({ periodos, apoios }) => periodos.length || apoios.length ? (
+        <>
+          {periodos.length > 0 && (
+            <Tabela
+              cabecalho={['Mestre', 'LOTE', 'Início', 'Fim', 'Dias']}
+              direita={[4]}
+              linhas={periodos.map((item) => [item.mestre, item.lote, dataCivilTexto(item.inicio), dataCivilTexto(item.fim), item.diasTexto])}
+            />
+          )}
+          {apoios.length > 0 && (
+            <Box component="ul" sx={{ m: 0, mt: periodos.length ? 1.5 : 0, pl: 2.5, color: 'text.secondary', fontSize: 14 }} aria-label="Apoios">
+              {apoios.map((linha) => <li key={linha}>{linha}</li>)}
+            </Box>
+          )}
+        </>
+      ) : <Vazio>Nenhum mestre alocado no CronoObra.</Vazio>}
+    </Secao>
+  );
+
+  const secaoDeslocamentos = (titulo?: string) => (
+    <Secao titulo={titulo} estado={veiculos} erro="Não foi possível carregar as atividades.">
+      {(itens) => itens.length ? (
+        <Tabela
+          cabecalho={['Veículo', 'Atividades', 'Primeira', 'Última', 'Motoristas']}
+          direita={[1]}
+          linhas={itens.map((item) => [[item.placa, item.nome].filter(Boolean).join(' — '), item.atividades, dataTexto(item.primeira), dataTexto(item.ultima), item.motoristas.join(', ')])}
+        />
+      ) : <Vazio>Nenhuma atividade registrada para esta obra.</Vazio>}
+    </Secao>
+  );
+
+  const secaoCombustivel = (titulo?: string) => (
+    <Secao titulo={titulo} estado={combustivel} erro="Não foi possível carregar o combustível.">
+      {(resumo) => resumo.abastecimentos ? (
+        <>
+          <Box sx={{ display: 'grid', gap: 2, gridTemplateColumns: { xs: '1fr 1fr', md: 'repeat(3, minmax(0, 1fr))' }, mb: 2 }}>
+            <Campo rotulo="Abastecimentos" valor={String(resumo.abastecimentos)} />
+            <Campo rotulo="Litros" valor={litrosTexto(resumo.litros)} />
+            <Campo rotulo="Valor" valor={dinheiro.format(resumo.valor)} />
+          </Box>
+          <Tabela
+            cabecalho={['Veículo', 'Abastecimentos', 'Litros', 'Valor']}
+            direita={[1, 2, 3]}
+            linhas={resumo.porVeiculo.map((item) => [item.veiculo, item.abastecimentos, litrosTexto(item.litros), dinheiro.format(item.valor)])}
+          />
+          <Typography variant="body2" color="text.secondary" sx={{ mt: 2.5, mb: 1 }}>Abastecimentos</Typography>
+          <Tabela
+            maxHeight={360}
+            cabecalho={['Data', 'Veículo', 'Litros', 'Valor', 'Para quem']}
+            direita={[2, 3]}
+            linhas={resumo.itens.map((item) => [dataTexto(item.data), item.veiculo, litrosTexto(item.litros), dinheiro.format(item.valor), item.paraQuem || '—'])}
+          />
+        </>
+      ) : <Vazio>Nenhum abastecimento registrado para esta obra.</Vazio>}
+    </Secao>
+  );
+
+  let conteudo: ReactNode = null;
+  if (aba === 'lotes') conteudo = lotes;
+  else if (aba === 'mestres') conteudo = subitem === 'lista' ? secaoMestres : <Vazio>Em breve.</Vazio>;
+  else if (aba === 'logistica') {
+    conteudo = subitem === 'deslocamentos' ? secaoDeslocamentos()
+      : subitem === 'combustivel' ? secaoCombustivel()
+        : <>{secaoDeslocamentos('Deslocamentos')}{secaoCombustivel('Combustível')}</>;
+  }
 
   return (
     <Container sx={{ py: 4 }}>
@@ -283,120 +392,89 @@ export default function ObraDetalhesPage() {
       </Stack>
 
       <Paper variant="outlined" sx={{ mt: 3, p: { xs: 2, sm: 3 } }}>
-        <Stack direction="row" spacing={1.5} alignItems="center" flexWrap="wrap" useFlexGap>
+        <Stack direction={{ xs: 'column', md: 'row' }} spacing={{ xs: 1.5, md: 4 }} alignItems={{ md: 'center' }}>
           <Typography sx={{ fontSize: { xs: 24, sm: 30 }, fontWeight: 700 }}>{obra.nomeObra}</Typography>
+          <Stack direction={{ xs: 'column', sm: 'row' }} spacing={{ xs: 1.5, sm: 4 }} sx={{ flex: 1, minWidth: 0 }}>
+            <CampoEditavel
+              campo="local"
+              valor={obra.local}
+              vazio={semLocal ? { texto: 'Local a corrigir', botao: 'Cadastrar local' } : null}
+              salvando={salvandoCampo}
+              somenteLeitura={!podeEditar}
+              onSalvar={(valor) => salvarCampo('local', valor)}
+              sugestoesDoLote={obra.lotes.some((lote) => lote.coordenada) ? () => locaisDosLotes(obra.lotes) : undefined}
+            />
+            <CampoEditavel
+              campo="siglaObra"
+              valor={obra.siglaObra}
+              vazio={obra.siglaObra ? null : { texto: 'Sem sinônimo', botao: 'Cadastrar sinônimo' }}
+              salvando={salvandoCampo}
+              somenteLeitura={!podeEditar}
+              onSalvar={(valor) => salvarCampo('siglaObra', valor)}
+            />
+          </Stack>
+        </Stack>
+
+        <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" useFlexGap sx={{ mt: 1 }}>
+          <Button
+            size="small"
+            variant="outlined"
+            onClick={() => setDetalhes((aberto) => !aberto)}
+            startIcon={detalhes ? <KeyboardArrowUpIcon /> : <KeyboardArrowDownIcon />}
+            aria-expanded={detalhes}
+          >
+            Detalhes
+          </Button>
           {obra.situacao && <Chip label={obra.situacao} size="small" variant="outlined" />}
           {obraFinalizada(obra) && <Chip label="Finalizada" size="small" />}
         </Stack>
 
-        <Stack spacing={2} sx={{ mt: 2 }}>
-          <CampoEditavel
-            campo="local"
-            valor={obra.local}
-            vazio={semLocal ? { texto: 'Local a corrigir', botao: 'Cadastrar local' } : null}
-            destaque
-            salvando={salvandoCampo}
-            somenteLeitura={!podeEditar}
-            onSalvar={(valor) => salvarCampo('local', valor)}
-            sugestoesDoLote={obra.lotes.some((lote) => lote.coordenada) ? () => locaisDosLotes(obra.lotes) : undefined}
-          />
-          <CampoEditavel
-            campo="siglaObra"
-            valor={obra.siglaObra}
-            vazio={obra.siglaObra ? null : { texto: 'Sem sinônimo', botao: 'Cadastrar sinônimo' }}
-            salvando={salvandoCampo}
-            somenteLeitura={!podeEditar}
-            onSalvar={(valor) => salvarCampo('siglaObra', valor)}
-          />
-        </Stack>
+        <Collapse in={detalhes}>
+          <Box sx={{ mt: 2.5, display: 'grid', gap: 2, gridTemplateColumns: { xs: '1fr 1fr', md: 'repeat(4, minmax(0, 1fr))' } }}>
+            <Campo rotulo="Contrato" valor={contratoTexto(obra)} />
+            <Campo rotulo="Empresa" valor={obra.empresa} />
+            <Campo rotulo="Tipo de obra" valor={obra.tipoObra} />
+            <Campo rotulo="Status no sistema" valor={obra.status} />
+            <Campo rotulo="Início do contrato" valor={dataCivilTexto(obra.dataInicial)} />
+            <Campo rotulo="Fim do contrato" valor={dataCivilTexto(obra.dataFinal)} />
+            <Campo rotulo="Ordem de início" valor={obra.ordemInicio} />
+            <Campo rotulo="Confirmação de recurso" valor={obra.confirmacaoRecurso} />
+            <Campo rotulo="Subcentro ERP" valor={obra.subcentroErp} />
+            <Campo rotulo="Código" valor={obra.codObra ? String(obra.codObra) : ''} />
+            <Campo rotulo="Ano" valor={obra.ano ? String(obra.ano) : ''} />
+          </Box>
+        </Collapse>
 
-        <Box sx={{ mt: 2.5, display: 'grid', gap: 2, gridTemplateColumns: { xs: '1fr 1fr', md: 'repeat(4, minmax(0, 1fr))' } }}>
-          <Campo rotulo="Contrato" valor={contratoTexto(obra)} />
-          <Campo rotulo="Empresa" valor={obra.empresa} />
-          <Campo rotulo="Tipo de obra" valor={obra.tipoObra} />
-          <Campo rotulo="Status no sistema" valor={obra.status} />
-          <Campo rotulo="Início do contrato" valor={dataCivilTexto(obra.dataInicial)} />
-          <Campo rotulo="Fim do contrato" valor={dataCivilTexto(obra.dataFinal)} />
-          <Campo rotulo="Ordem de início" valor={obra.ordemInicio} />
-          <Campo rotulo="Confirmação de recurso" valor={obra.confirmacaoRecurso} />
-          <Campo rotulo="Subcentro ERP" valor={obra.subcentroErp} />
-          <Campo rotulo="Código" valor={obra.codObra ? String(obra.codObra) : ''} />
-          <Campo rotulo="Ano" valor={obra.ano ? String(obra.ano) : ''} />
+        <Box sx={{ mt: 3, border: 1, borderColor: 'divider', borderRadius: 2, overflow: 'hidden' }}>
+          <Tabs value={aba} onChange={(_event, valor: AbaObra) => escolherAba(valor)} variant="scrollable" scrollButtons="auto" aria-label="Partes da obra">
+            <Tab value="lotes" label="LOTEs" />
+            <Tab value="mestres" label="Mestres" />
+            <Tab value="logistica" label="Logística" />
+            <Tab label="Em breve" disabled />
+          </Tabs>
+          {aba && (
+            <Tabs
+              value={subitem}
+              onChange={(_event, valor: string) => setSubitem(valor)}
+              variant="scrollable"
+              scrollButtons="auto"
+              aria-label="Subitens"
+              sx={{ minHeight: 36, pl: { xs: 1, sm: 3 }, borderTop: 1, borderColor: 'divider', bgcolor: 'action.hover', '& .MuiTab-root': { minHeight: 36, py: 0.5, fontSize: 13 } }}
+            >
+              {subitens.map((item) => (
+                <Tab key={item.valor} value={item.valor} label={item.rotulo} title={item.titulo} />
+              ))}
+              {aba !== 'lotes' && <Tab label="Em breve" disabled />}
+            </Tabs>
+          )}
         </Box>
 
-        <Typography variant="body2" color="text.secondary" sx={{ mt: 2.5, mb: 1 }}>LOTEs</Typography>
-        {obra.lotes.length ? (
-          // Pré-fabricados de cada LOTE, do Plannix pelo Nº Pedido do LOTE no Friday (carregarPreFabricados).
-          <ListaLotes
-            lotes={obra.lotes.map((lote) => {
-              if (preFabricados.status === 'carregando') return { ...lote, itens: null, aviso: 'Carregando os pré-fabricados do Plannix…' };
-              if (preFabricados.status === 'erro') return { ...lote, itens: null, aviso: 'Não foi possível ler o Plannix. Recarregue a página para tentar de novo.' };
-              const doLote = preFabricados.data[lote.chave];
-              return doLote && 'itens' in doLote
-                ? { ...lote, itens: comPdfsGravados(lote.chave, doLote.itens, pdfs), pdfsDosGrupos: pdfsDosGrupos(lote.chave, pdfs), origem: doLote.origem }
-                : { ...lote, itens: null, aviso: doLote?.aviso };
-            })}
-            acoesPdf={acoesPdf}
-          />
-        ) : <Vazio>Sem LOTEs cadastrados.</Vazio>}
+        {conteudo && <Box sx={{ mt: 2.5 }}>{conteudo}</Box>}
 
         <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 2 }}>
           O cadastro da obra é feito no Friday (quadro GESTÃO DE OBRAS); aqui se editam só o local, o sinônimo e os PDFs dos pré-fabricados.
         </Typography>
       </Paper>
-
-      <Secao titulo="Mestres alocados" estado={mestres} erro="Não foi possível carregar as alocações do CronoObra.">
-        {({ periodos, apoios }) => periodos.length || apoios.length ? (
-          <>
-            {periodos.length > 0 && (
-              <Tabela
-                cabecalho={['Mestre', 'LOTE', 'Início', 'Fim', 'Dias']}
-                direita={[4]}
-                linhas={periodos.map((item) => [item.mestre, item.lote, dataCivilTexto(item.inicio), dataCivilTexto(item.fim), item.diasTexto])}
-              />
-            )}
-            {apoios.length > 0 && (
-              <Box component="ul" sx={{ m: 0, mt: periodos.length ? 1.5 : 0, pl: 2.5, color: 'text.secondary', fontSize: 14 }} aria-label="Apoios">
-                {apoios.map((linha) => <li key={linha}>{linha}</li>)}
-              </Box>
-            )}
-          </>
-        ) : <Vazio>Nenhum mestre alocado no CronoObra.</Vazio>}
-      </Secao>
-
-      <Secao titulo="Veículos que foram para a obra" estado={veiculos} erro="Não foi possível carregar as atividades.">
-        {(itens) => itens.length ? (
-          <Tabela
-            cabecalho={['Veículo', 'Atividades', 'Primeira', 'Última', 'Motoristas']}
-            direita={[1]}
-            linhas={itens.map((item) => [[item.placa, item.nome].filter(Boolean).join(' — '), item.atividades, dataTexto(item.primeira), dataTexto(item.ultima), item.motoristas.join(', ')])}
-          />
-        ) : <Vazio>Nenhuma atividade registrada para esta obra.</Vazio>}
-      </Secao>
-
-      <Secao titulo="Combustível" estado={combustivel} erro="Não foi possível carregar o combustível.">
-        {(resumo) => resumo.abastecimentos ? (
-          <>
-            <Box sx={{ display: 'grid', gap: 2, gridTemplateColumns: { xs: '1fr 1fr', md: 'repeat(3, minmax(0, 1fr))' }, mb: 2 }}>
-              <Campo rotulo="Abastecimentos" valor={String(resumo.abastecimentos)} />
-              <Campo rotulo="Litros" valor={litrosTexto(resumo.litros)} />
-              <Campo rotulo="Valor" valor={dinheiro.format(resumo.valor)} />
-            </Box>
-            <Tabela
-              cabecalho={['Veículo', 'Abastecimentos', 'Litros', 'Valor']}
-              direita={[1, 2, 3]}
-              linhas={resumo.porVeiculo.map((item) => [item.veiculo, item.abastecimentos, litrosTexto(item.litros), dinheiro.format(item.valor)])}
-            />
-            <Typography variant="body2" color="text.secondary" sx={{ mt: 2.5, mb: 1 }}>Abastecimentos</Typography>
-            <Tabela
-              maxHeight={360}
-              cabecalho={['Data', 'Veículo', 'Litros', 'Valor', 'Para quem']}
-              direita={[2, 3]}
-              linhas={resumo.itens.map((item) => [dataTexto(item.data), item.veiculo, litrosTexto(item.litros), dinheiro.format(item.valor), item.paraQuem || '—'])}
-            />
-          </>
-        ) : <Vazio>Nenhum abastecimento registrado para esta obra.</Vazio>}
-      </Secao>
 
       <Snackbar
         open={snackbar.open}
