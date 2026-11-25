@@ -2,6 +2,8 @@
 .obra-lotes { border: 1px solid #DDE3E8; border-radius: 10px; }
 .obra-lotes th { background: #f8fafc; font-weight: 700; white-space: nowrap; }
 .obra-lotes td { vertical-align: middle; }
+/* Textos e itens centralizados nas colunas (pedido do responsável, 2026-11-25). */
+.obra-lotes th, .obra-lotes td { text-align: center; }
 .obra-lotes th.obra-lotes__grupo { background: #E8EEF3; color: #12293B; }
 .obra-lotes tr.obra-lotes__tipo td { background: #f8fafc; padding-bottom: 2px; padding-top: 2px; }
 /* Linha mais forte entre um LOTE e o seguinte; entre os itens do mesmo LOTE, a linha fina. */
