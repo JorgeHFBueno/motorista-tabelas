@@ -31,7 +31,8 @@ const COLUNAS: Coluna[] = [
   { chave: 'categoria', rotulo: 'Categoria', valor: (s) => s.produto.categoria },
   { chave: 'grupo', rotulo: 'Grupo', valor: (s) => s.produto.grupo },
   { chave: 'marca', rotulo: 'Marca', valor: (s) => s.produto.marca },
-  { chave: 'descricao', rotulo: 'Descrição do Produto', cabeca: 'Produto', filtro: 'texto', valor: (s) => s.produto.descricao },
+  { chave: 'descricao', rotulo: 'Descrição do Produto', cabeca: 'Produto', filtro: 'texto',
+    valor: (s) => <Link className="linha-link" to={`/erp/produtos/${s.produto.codigo}`}>{s.produto.descricao}</Link> },
   { chave: 'descricao_reduzida', rotulo: 'Descrição Reduzida do Produto', cabeca: 'Descrição Reduzida', filtro: 'texto', valor: (s) => s.produto.reduzida },
   { chave: 'unidade', rotulo: 'Unidade de Venda', cabeca: 'UN', valor: (s) => s.produto.unidade },
   { chave: 'unidade_compra', rotulo: 'Unidade Compra', cabeca: 'UN Compra', valor: (s) => s.produto.unidadeCompra },
@@ -99,7 +100,7 @@ function filtrar(f: Filtros): SaldoExemplo[] {
     if (f.fornecedor && p.fornecedor !== f.fornecedor) return false;
     if (f.qualquer.trim() && ![p.codigo, p.descricao, p.reduzida, p.referencia, p.ncm, p.grupo, p.marca].some((v) => contem(v, f.qualquer))) return false;
     if (f.similaridade.trim() && !contem(p.similaridade, f.similaridade)) return false;
-    if (f.componente.trim() && !(p.componentes ?? []).some((c) => contem(c, f.componente) || contem(produtoExemplo(c)?.descricao ?? '', f.componente))) return false;
+    if (f.componente.trim() && !(p.componentes ?? []).some(([c]) => contem(c, f.componente) || contem(produtoExemplo(c)?.descricao ?? '', f.componente))) return false;
     if (textos.some((k) => f[k].trim() && !contem(campoTexto[k](s), f[k]))) return false;
     if (f.saldo === 'positivo' && !(s.saldo > 0)) return false;
     if (f.saldo === 'negativo' && !(s.saldo < 0)) return false;

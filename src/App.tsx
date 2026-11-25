@@ -45,6 +45,7 @@ const ComercialPainelPage = lazy(() => import('./features/comercial/ComercialPai
 const NegociosPage = lazy(() => import('./features/comercial/NegociosPage'));
 const ContatosPage = lazy(() => import('./features/comercial/ContatosPage'));
 const ObraDetalhesPage = lazy(() => import('./features/obras/ObraDetalhesPage'));
+const ErpLayout = lazy(() => import('./features/erp/ErpLayout'));
 const ErpInicioPage = lazy(() => import('./features/erp/ErpInicioPage'));
 const ErpPessoasPage = lazy(() => import('./features/erp/pessoas/ErpPessoasPage'));
 const ErpPessoaFichaPage = lazy(() => import('./features/erp/pessoas/ErpPessoaFichaPage'));
@@ -54,6 +55,8 @@ const ErpKardexPage = lazy(() => import('./features/erp/estoques/ErpKardexPage')
 const ErpContagensPage = lazy(() => import('./features/erp/estoques/ErpContagensPage'));
 const ErpContagemFichaPage = lazy(() => import('./features/erp/estoques/ErpContagemFichaPage'));
 const ErpAcertoEstoquePage = lazy(() => import('./features/erp/estoques/ErpAcertoEstoquePage'));
+const ErpProdutosPage = lazy(() => import('./features/erp/produtos/ErpProdutosPage'));
+const ErpProdutoFichaPage = lazy(() => import('./features/erp/produtos/ErpProdutoFichaPage'));
 const TheManuscriptPage = lazy(() => import('./pages/TheManuscriptPage'));
 const ManuscriptMapaPage = lazy(() => import('./pages/ManuscriptMapaPage'));
 const MeuPerfilPage = lazy(() => import('./pages/MeuPerfilPage'));
@@ -162,18 +165,22 @@ export default function App() {
               <Route path="cadastros/apis" element={<CadastroApisPage />} />
               <Route path="cadastros/uso" element={<UsoDoSistemaPage />} />
             </Route>
-            {/* ERP próprio (2026-11-24): o início com o mosaico, Clientes e Fornecedores e Estoques em demonstração (sem gravação), área
-                ERP (o adm2 sempre). The Manuscript, 01_ROTAS_E_NAVEGACAO.md#erp. */}
+            {/* ERP próprio (2026-11-24): o início com o mosaico, Clientes e Fornecedores, Produtos e Estoques em demonstração (sem
+                gravação), com o menu lateral do ERP (ErpLayout); área ERP (o adm2 sempre). The Manuscript, 01_ROTAS_E_NAVEGACAO.md#erp. */}
             <Route element={<PrivateRoute permite={(p) => veArea(p, 'erp')} />}>
-              <Route path="erp" element={<ErpInicioPage />} />
-              <Route path="erp/pessoas" element={<ErpPessoasPage />} />
-              <Route path="erp/pessoas/:codigo" element={<ErpPessoaFichaPage />} />
-              <Route path="erp/vendedores" element={<ErpVendedoresPage />} />
-              <Route path="erp/estoques" element={<ErpConferenciaEstoquesPage />} />
-              <Route path="erp/estoques/kardex" element={<ErpKardexPage />} />
-              <Route path="erp/estoques/contagens" element={<ErpContagensPage />} />
-              <Route path="erp/estoques/contagens/:codigo" element={<ErpContagemFichaPage />} />
-              <Route path="erp/estoques/acerto" element={<ErpAcertoEstoquePage />} />
+              <Route element={<ErpLayout />}>
+                <Route path="erp" element={<ErpInicioPage />} />
+                <Route path="erp/pessoas" element={<ErpPessoasPage />} />
+                <Route path="erp/pessoas/:codigo" element={<ErpPessoaFichaPage />} />
+                <Route path="erp/vendedores" element={<ErpVendedoresPage />} />
+                <Route path="erp/produtos" element={<ErpProdutosPage />} />
+                <Route path="erp/produtos/:codigo" element={<ErpProdutoFichaPage />} />
+                <Route path="erp/estoques" element={<ErpConferenciaEstoquesPage />} />
+                <Route path="erp/estoques/kardex" element={<ErpKardexPage />} />
+                <Route path="erp/estoques/contagens" element={<ErpContagensPage />} />
+                <Route path="erp/estoques/contagens/:codigo" element={<ErpContagemFichaPage />} />
+                <Route path="erp/estoques/acerto" element={<ErpAcertoEstoquePage />} />
+              </Route>
             </Route>
             {/* Mecânica e Logística são grupos, como Engenharia: /mecanica e /logistica não têm página própria (2026-11-19:
                 Frota virou Mecânica; Combustível e o KPI entraram na Logística). */}

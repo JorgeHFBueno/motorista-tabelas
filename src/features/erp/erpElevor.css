@@ -162,6 +162,39 @@
 .erp-elevor .lista-itens.estreita .grade td { border-bottom: 0; padding: 6px 10px; }
 .erp-elevor .lista-itens .campo { height: 30px; }
 
+/* Último par da linha vai até o fim; a aba Detalhes do Produto tem três pares por linha (CD_Produtos) */
+.erp-elevor .ficha-cad .fc-controle.resto { grid-column: var(--inicio) / -1; }
+.erp-elevor .ficha-cad.negrito.tres { grid-template-columns: 220px minmax(0, 1fr) max-content minmax(0, 1fr) max-content minmax(0, 1fr); }
+.erp-elevor .ficha-cad.negrito.tres .fc-controle .campo:not(.area):not([type=date]) { width: 100%; max-width: 300px; flex: 1 1 auto; min-width: 0; }
+/* Abas com tela própria dentro da ficha (Preços, Estoques, Indicadores, Componentes/Formulações do Produto) */
+.erp-elevor .ficha-cad .fc-propria { grid-column: 1 / -1; min-width: 0; }
+.erp-elevor .fc-propria .grade { width: 100%; }
+.erp-elevor .fc-propria-linha { display: flex; align-items: center; gap: 8px; margin: 6px 0; flex-wrap: wrap; }
+.erp-elevor .fc-propria-linha > b { min-width: 200px; text-align: right; }
+.erp-elevor .fc-propria-linha.texto { margin: 14px 0; }
+.erp-elevor .fc-propria-linha .campo.medio { width: 300px; flex: none; }
+.erp-elevor .fc-propria-linha .campo.curto { width: 150px; }
+.erp-elevor .fc-propria .botoes-direita { display: flex; justify-content: flex-end; flex-wrap: wrap; gap: 8px; margin: 6px 0; }
+.erp-elevor .botoes-coluna { display: flex; flex-direction: column; align-items: flex-start; gap: 8px; margin: 10px 0; }
+.erp-elevor .precos-produto, .erp-elevor .formulacoes-produto { max-width: 520px; margin: 0 auto; }
+.erp-elevor .estoques-produto { max-width: 760px; margin: 0 auto; }
+.erp-elevor .indicadores-produto .fc-propria-linha > b { min-width: 300px; }
+.erp-elevor .grade.quadro-indicadores { width: auto; margin: 0 auto; }
+.erp-elevor .btn.replicar { min-width: 280px; justify-content: center; }
+.erp-elevor .etiqueta.inativo { color: var(--texto-2); }
+
+/* ---------------- Consulta de Produtos (CL_Produtos): grade de filtros nas larguras do Elevor ---------------- */
+.erp-elevor .filtros-produtos { display: grid; grid-template-columns: max-content 359px max-content 229px auto; gap: 10px 14px; align-items: center;
+  justify-content: center; margin: 4px 0 8px; }
+.erp-elevor .filtros-produtos .fp-rotulo { font-weight: 700; text-align: right; white-space: nowrap; }
+.erp-elevor .filtros-produtos .campo { width: 229px; justify-self: start; }
+.erp-elevor .filtros-produtos .campo.fp-w359 { width: 359px; }
+.erp-elevor .filtros-produtos .fp-877 { grid-column: span 4; width: 877px; max-width: 100%; justify-self: start; }
+.erp-elevor .filtros-produtos .campo.fp-largo { grid-column: span 3; width: 100%; }
+.erp-elevor .filtros-produtos .fp-resto { grid-column: span 4; }
+.erp-elevor .filtros-produtos .fp-botoes { display: flex; gap: 6px; }
+.erp-elevor .filtros-produtos > .opcao { font-weight: 700; }
+
 /* ---------------- relatórios e fichas simples (Estoques: RL_Estoques, RL_Kardex, CL_Volumes, CD_Volumes) ---------------- */
 .erp-elevor .form-linha { display: grid; grid-template-columns: 180px minmax(0, 1fr); gap: 10px 30px; align-items: center; margin-bottom: 10px; }
 .erp-elevor .form-rotulo { color: var(--texto); }
@@ -210,6 +243,12 @@
   .erp-elevor .form-linha, .erp-elevor .relatorio-elevor .form-linha, .erp-elevor .ficha-elevor .form-linha { grid-template-columns: 1fr; gap: 4px; }
   .erp-elevor .relatorio-elevor { width: auto; min-width: 0; }
   .erp-elevor .relatorio-elevor .conf-ordem { grid-template-columns: repeat(2, max-content); }
+  .erp-elevor .filtros-produtos { grid-template-columns: 1fr; }
+  .erp-elevor .filtros-produtos .fp-rotulo { text-align: left; }
+  .erp-elevor .filtros-produtos .campo, .erp-elevor .filtros-produtos .campo.fp-w359, .erp-elevor .filtros-produtos .fp-877 { width: 100%; }
+  .erp-elevor .filtros-produtos .fp-877, .erp-elevor .filtros-produtos .campo.fp-largo, .erp-elevor .filtros-produtos .fp-resto { grid-column: auto; }
+  .erp-elevor .ficha-cad.negrito.tres { grid-template-columns: 1fr; }
+  .erp-elevor .ficha-cad .fc-controle.resto { grid-column: auto; }
   .erp-elevor { padding: 12px; }
   .erp-elevor .consulta-pessoas { grid-template-columns: 1fr; justify-content: stretch; }
   .erp-elevor .consulta-pessoas .cp-rot { text-align: left; }

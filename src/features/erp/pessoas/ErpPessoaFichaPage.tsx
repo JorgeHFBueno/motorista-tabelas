@@ -3,13 +3,13 @@ import { useNavigate, useParams } from 'react-router-dom';
 import CloseIcon from '@mui/icons-material/Close';
 import DescriptionOutlinedIcon from '@mui/icons-material/DescriptionOutlined';
 import EditOutlinedIcon from '@mui/icons-material/EditOutlined';
-import HelpOutlineIcon from '@mui/icons-material/HelpOutline';
 import OpenInNewIcon from '@mui/icons-material/OpenInNew';
 import PhotoCameraOutlinedIcon from '@mui/icons-material/PhotoCameraOutlined';
 import SearchIcon from '@mui/icons-material/Search';
 import { formatarDocumento, normalizarDocumento } from '../../portal-cliente/portalDominio';
 import '../erpElevor.css';
-import ListaItens, { type ColunaItem } from './ListaItens';
+import { LinhaFicha, ListaFicha } from '../FichaCampos';
+import { cols, ehLista, montar, type Item, type Lista } from '../camposFicha';
 import {
   AVISO_DEMONSTRACAO, CATEGORIAS, PAPEIS, REGIMES, TIPOS_EMAIL, UFS, VENDEDORES_EXEMPLO, pessoaExemplo, type PessoaExemplo,
 } from './pessoasExemplo';
@@ -19,32 +19,6 @@ import {
 // negrito à esquerda, pares lado a lado, larguras medidas no Elevor e os botões Gravar, Novo, Excluir, Consultar e
 // Impressão embaixo. Demonstração: tudo se edita na tela e nada é gravado.
 
-type Tipo = 'texto' | 'data' | 'opcoes' | 'radio' | 'caixa' | 'longo' | 'numero' | 'moeda' | 'percentual';
-type Campo = {
-  rotulo: string;
-  tipo?: Tipo;
-  opcoes?: string[];
-  /** px medidos no Elevor ou o tamanho padrão do ERP. */
-  largura?: number | 'curto' | 'medio' | 'cheio';
-  /** Vai na coluna da direita da linha anterior. */
-  junto?: true;
-  /** Vai na mesma célula do campo anterior, depois deste texto (Nº:, UF:). */
-  anexo?: string;
-  secao?: string;
-  /** Só na pessoa Física ou só na Jurídica. */
-  so?: 'F' | 'J';
-  /** Botões ao lado do campo (desligados na demonstração). */
-  botoes?: ReactNode[];
-  ajuda?: string;
-  /** Campo com controle próprio da ficha (CPF/CNPJ, Cidade). */
-  especial?: 'documento' | 'cidade';
-};
-type Lista = { lista: string; colunas: ColunaItem[]; estreita?: true; botao?: string; inicial?: 'telefones' | 'emails' | 'contatos' };
-type Item = Campo | Lista;
-type Linha = Campo[][];
-
-const ehLista = (i: Item | Linha): i is Lista => !Array.isArray(i) && 'lista' in i;
-const cols = (...rotulos: string[]): ColunaItem[] => rotulos.map((rotulo) => ({ rotulo, data: rotulo.startsWith('Data') || rotulo === 'Validade' ? true : undefined }));
 const desligado = (rotulo: string, icone?: ReactNode) => (
   <button key={rotulo} className="btn" type="button" disabled title="Na demonstração, sem esta ação">{icone}{rotulo}</button>
 );
@@ -158,87 +132,6 @@ const ABAS: Array<[string, Item[]]> = [
   ['Campos Específicos', []],
 ];
 
-/** Linhas da aba: `junto` vai à direita da linha anterior, `anexo` na mesma célula; o que não é do tipo de pessoa sai. */
-function montar(itens: Item[], tipo: 'F' | 'J'): Array<Linha | Lista> {
-  const linhas: Array<Linha | Lista> = [];
-  for (const item of itens) {
-    if (ehLista(item)) { linhas.push(item); continue; }
-    if (item.so && item.so !== tipo) continue;
-    const ultima = linhas[linhas.length - 1];
-    const linha = ultima && !ehLista(ultima) ? ultima : null;
-    if (item.anexo !== undefined && linha) linha[linha.length - 1].push(item);
-    else if (item.junto && linha && linha.length < 2) linha.push([item]);
-    else linhas.push([[item]]);
-  }
-  return linhas;
-}
-
-const classeLargura = (c: Campo) => {
-  const l = c.largura ?? (['data', 'numero', 'moeda', 'percentual'].includes(c.tipo ?? '') ? 'curto' : 'medio');
-  return typeof l === 'number' ? { className: 'campo', style: { width: l, maxWidth: '100%', flex: 'none' } } : { className: `campo ${l}` };
-};
-
-function Controle({ c, valor, especiais }: { c: Campo; valor: string; especiais: Record<string, ReactNode> }) {
-  if (c.especial) return <>{especiais[c.especial]}</>;
-  const larg = classeLargura(c);
-  switch (c.tipo) {
-    case 'caixa':
-      return <label className="opcao"><input type="checkbox" defaultChecked={valor === 'Sim'} /> {c.rotulo}</label>;
-    case 'radio':
-      return (
-        <div className="opcoes">
-          {c.opcoes?.map((o) => <label key={o} className="opcao"><input type="radio" name={c.rotulo} defaultChecked={valor === o} /> {o}</label>)}
-        </div>
-      );
-    case 'opcoes':
-      return (
-        <select {...larg} aria-label={c.rotulo} defaultValue={valor}>
-          <option value="" />
-          {c.opcoes?.map((o) => <option key={o} value={o}>{o}</option>)}
-        </select>
-      );
-    case 'longo':
-      return <textarea className="campo area" rows={3} aria-label={c.rotulo} defaultValue={valor} />;
-    case 'data':
-      return <input className="campo" type="date" aria-label={c.rotulo} defaultValue={valor} />;
-    case 'numero': case 'moeda': case 'percentual':
-      return (
-        <span className="com-sufixo">
-          <input {...larg} inputMode="decimal" aria-label={c.rotulo} defaultValue={valor} />
-          {c.tipo === 'percentual' && <span className="muted">%</span>}
-        </span>
-      );
-    default:
-      return <input {...larg} aria-label={c.rotulo} defaultValue={valor} />;
-  }
-}
-
-function LinhaFicha({ linha, valores, especiais }: { linha: Linha; valores: Record<string, string>; especiais: Record<string, ReactNode> }) {
-  const rotulo = (c: Campo, par = false) => (
-    <div className={`fc-rotulo${par ? ' par' : ''}`}>{c.tipo === 'caixa' ? '' : c.especial === 'documento' ? especiais['rotulo-documento'] : `${c.rotulo}:`}</div>
-  );
-  const celula = (grupo: Campo[], largo: boolean) => (
-    <div className={`fc-controle${largo ? ' largo' : ''}`}>
-      {grupo.map((c) => (
-        <Fragment key={c.rotulo}>
-          {c.anexo && <span className="fc-anexo">{c.anexo}</span>}
-          <Controle c={c} valor={valores[c.rotulo] ?? ''} especiais={especiais} />
-          {c.botoes}
-          {c.ajuda && <span className="fc-ajuda" title={c.ajuda}><HelpOutlineIcon /></span>}
-        </Fragment>
-      ))}
-    </div>
-  );
-  const [a, b] = linha;
-  return (
-    <div className="fc-linha">
-      {a[0].secao && <div className="fc-secao">{a[0].secao}</div>}
-      {rotulo(a[0])}{celula(a, !b)}
-      {b && <>{rotulo(b[0], true)}{celula(b, false)}</>}
-    </div>
-  );
-}
-
 function Indicadores({ pessoa }: { pessoa: PessoaExemplo | null }) {
   const titulos = pessoa?.titulos ?? [];
   return (
@@ -276,7 +169,6 @@ function Ficha({ pessoa: p }: { pessoa: PessoaExemplo | null }) {
     CEP: p.cep, Endereço: p.endereco, 'Nº': p.numero, Complemento: p.complemento, Categoria: p.categoria,
   } : {};
   const especiais: Record<string, ReactNode> = {
-    'rotulo-documento': `${nomeDocumento}:`,
     documento: <>
       <input className="campo" style={{ width: 359, maxWidth: '100%', flex: 'none' }} aria-label={nomeDocumento} inputMode="numeric" value={documento}
         onChange={(e) => setDocumento(e.target.value)} onBlur={() => { if (valido && !invalido) setDocumento(formatarDocumento(valido)); }} />
@@ -289,7 +181,8 @@ function Ficha({ pessoa: p }: { pessoa: PessoaExemplo | null }) {
       <button className="btn btn-icone" type="button" title="Limpar" aria-label="Limpar a cidade" onClick={() => setCidade('')}><CloseIcon /></button>
     </>,
   };
-  const listaInicial = (l: Lista) => (l.inicial && p ? p[l.inicial] : undefined);
+  const iniciais: Record<string, string[][] | undefined> = p ? { telefones: p.telefones, emails: p.emails, contatos: p.contatos } : {};
+  const listaInicial = (l: Lista) => (l.inicial ? iniciais[l.inicial] : undefined);
 
   return (
     <div className="erp-elevor">
@@ -326,12 +219,7 @@ function Ficha({ pessoa: p }: { pessoa: PessoaExemplo | null }) {
             </>}
             {montar(itens, tipo).map((linha, n) => {
               if (ehLista(linha)) return (
-                <Fragment key={linha.lista}>
-                  <div className="fc-secao">{linha.lista}</div>
-                  <div className="fc-lista">
-                    <ListaItens colunas={linha.colunas} estreita={linha.estreita} botao={linha.botao} inicial={listaInicial(linha)} />
-                  </div>
-                </Fragment>
+                <ListaFicha key={linha.lista} lista={linha} inicial={listaInicial(linha)} />
               );
               return (
                 <Fragment key={linha[0][0].rotulo + n}>
@@ -348,7 +236,7 @@ function Ficha({ pessoa: p }: { pessoa: PessoaExemplo | null }) {
                       </div>
                     </div>
                   )}
-                  <LinhaFicha linha={linha} valores={valores} especiais={especiais} />
+                  <LinhaFicha linha={linha} valores={valores} especiais={especiais} rotulos={{ documento: `${nomeDocumento}:` }} />
                 </Fragment>
               );
             })}

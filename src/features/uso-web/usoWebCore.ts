@@ -61,6 +61,8 @@ export const TELAS: readonly Tela[] = [
   { rota: 'erp/pessoas', rotulo: 'Clientes e Fornecedores', grupo: 'erp' },
   { rota: 'erp/pessoas/:codigo', rotulo: 'Cliente/Fornecedor: ficha', grupo: 'erp' },
   { rota: 'erp/vendedores', rotulo: 'Vendedores', grupo: 'erp' },
+  { rota: 'erp/produtos', rotulo: 'Produtos', grupo: 'erp' },
+  { rota: 'erp/produtos/:codigo', rotulo: 'Produto: ficha', grupo: 'erp' },
   { rota: 'erp/estoques', rotulo: 'Conferência de Estoques', grupo: 'erp' },
   { rota: 'erp/estoques/kardex', rotulo: 'Kardex', grupo: 'erp' },
   { rota: 'erp/estoques/contagens', rotulo: 'Contagens de produtos', grupo: 'erp' },

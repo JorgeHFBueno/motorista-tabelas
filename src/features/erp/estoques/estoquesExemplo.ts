@@ -52,8 +52,11 @@ export type ProdutoExemplo = {
   pesoBruto?: number;
   pesoLiquido?: number;
   fornecedor: string;
-  /** Peças: insumos da fórmula (filtro "Componente" da Conferência). */
-  componentes?: number[];
+  /** Peças: a fórmula padrão, [código do insumo, quantidade por peça] (filtro "Componente" e aba Componentes/Formulações). */
+  componentes?: Array<[number, number]>;
+  /** Peças: medidas (m) e aço (kg), da aba Detalhes. */
+  medidas?: { largura: number; altura: number; comprimento: number; acoFrouxo: number; acoProtendido: number };
+  codigoBarras?: string;
   minimo?: number;
   maximo?: number;
   aEntregar?: number;
@@ -79,7 +82,7 @@ const LEDUR_E_ARTEBASE = [1, 2];
 export const PRODUTOS_EXEMPLO: ProdutoExemplo[] = [
   { codigo: 1001, descricao: 'CIMENTO CP V ARI', reduzida: 'CIMENTO CPV', referencia: 'CPV-ARI', categoria: 'MP', grupo: INSUMOS, marca: 'DIVERSAS', similaridade: '',
     unidade: 'KG', unidadeCompra: 'SC', quantidadeCompra: 50, ncm: '25232910', tipo: 'insumo', ativo: true, custo: 0.85, pesoBruto: 1, pesoLiquido: 1,
-    fornecedor: CONCRETO, minimo: 12000, maximo: 60000, aReceber: 20000, base: 30000, ritmo: 1, empresas: LEDUR_E_ARTEBASE },
+    fornecedor: CONCRETO, codigoBarras: '7890000000017', minimo: 12000, maximo: 60000, aReceber: 20000, base: 30000, ritmo: 1, empresas: LEDUR_E_ARTEBASE },
   { codigo: 1002, descricao: 'AREIA MÉDIA LAVADA', reduzida: 'AREIA MÉDIA', referencia: 'AR-MED', categoria: 'MP', grupo: INSUMOS, marca: 'DIVERSAS', similaridade: '',
     unidade: 'M3', unidadeCompra: 'M3', quantidadeCompra: 1, ncm: '25059000', tipo: 'insumo', ativo: true, custo: 120, fornecedor: AREIAL,
     minimo: 32, maximo: 160, base: 80, ritmo: 1.2, empresas: LEDUR_E_ARTEBASE },
@@ -106,13 +109,16 @@ export const PRODUTOS_EXEMPLO: ProdutoExemplo[] = [
     minimo: 100, maximo: 500, base: 250, ritmo: 1, empresas: [1] },
   { codigo: 2001, descricao: 'PILAR 30X30 - 6M', reduzida: 'PILAR 30X30', referencia: 'P3030-6', categoria: 'PA', grupo: PECAS, marca: 'LEDUR', similaridade: 'PILARES',
     unidade: 'UN', unidadeCompra: 'UN', quantidadeCompra: 1, ncm: '68109100', tipo: 'peca', ativo: true, custo: 1850, pesoBruto: 1350, pesoLiquido: 1350,
-    fornecedor: '', componentes: [1001, 1002, 1003, 1010], aEntregar: 8, emProducao: 6, base: 20, ritmo: 1.2, empresas: [1] },
+    fornecedor: '', componentes: [[1001, 380], [1002, 0.45], [1003, 0.65], [1010, 60]],
+    medidas: { largura: 0.3, altura: 0.3, comprimento: 6, acoFrouxo: 60, acoProtendido: 0 }, aEntregar: 8, emProducao: 6, base: 20, ritmo: 1.2, empresas: [1] },
   { codigo: 2002, descricao: 'VIGA PROTENDIDA 20X50 - 8M', reduzida: 'VIGA 20X50', referencia: 'V2050-8', categoria: 'PA', grupo: PECAS, marca: 'LEDUR', similaridade: 'VIGAS',
     unidade: 'UN', unidadeCompra: 'UN', quantidadeCompra: 1, ncm: '68109100', tipo: 'peca', ativo: true, custo: 3400, pesoBruto: 2000, pesoLiquido: 2000,
-    fornecedor: '', componentes: [1001, 1002, 1003, 1010, 1012], aEntregar: 4, emProducao: 2, base: 12, ritmo: 1.9, empresas: [1] },
+    fornecedor: '', componentes: [[1001, 420], [1002, 0.5], [1003, 0.7], [1010, 40], [1012, 45]],
+    medidas: { largura: 0.2, altura: 0.5, comprimento: 8, acoFrouxo: 40, acoProtendido: 45 }, aEntregar: 4, emProducao: 2, base: 12, ritmo: 1.9, empresas: [1] },
   { codigo: 2003, descricao: 'LAJE ALVEOLAR LA20 - 1,25X10M', reduzida: 'LAJE LA20', referencia: 'LA20-10', categoria: 'PA', grupo: PECAS, marca: 'LEDUR', similaridade: 'LAJES',
     unidade: 'UN', unidadeCompra: 'UN', quantidadeCompra: 1, ncm: '68109100', tipo: 'peca', ativo: true, custo: 3950, pesoBruto: 3300, pesoLiquido: 3300,
-    fornecedor: '', componentes: [1001, 1002, 1003, 1012], aEntregar: 12, emProducao: 10, base: 30, ritmo: 1, empresas: [1] },
+    fornecedor: '', componentes: [[1001, 420], [1002, 0.6], [1003, 0.9], [1012, 55]],
+    medidas: { largura: 1.25, altura: 0.2, comprimento: 10, acoFrouxo: 0, acoProtendido: 55 }, aEntregar: 12, emProducao: 10, base: 30, ritmo: 1, empresas: [1] },
   { codigo: 3001, descricao: 'DISCO DE CORTE 7"', reduzida: 'DISCO CORTE 7', referencia: 'DC-7', categoria: 'UC', grupo: 'Ferramentas e consumíveis', marca: 'DIVERSAS', similaridade: '',
     unidade: 'UN', unidadeCompra: 'CX', quantidadeCompra: 10, ncm: '68042211', tipo: 'uso_consumo', ativo: true, custo: 18.5, fornecedor: FERRAGENS,
     minimo: 20, maximo: 100, base: 50, ritmo: 1, empresas: LEDUR_E_ARTEBASE },
@@ -130,6 +136,23 @@ export const PRODUTOS_EXEMPLO: ProdutoExemplo[] = [
     base: 100, ritmo: 1, empresas: [1] },
 ];
 export const produtoExemplo = (codigo: number) => PRODUTOS_EXEMPLO.find((p) => p.codigo === codigo);
+/** Formulações em que o produto entra como componente: [peça, quantidade por peça]. */
+export const usadoEm = (codigo: number) => PRODUTOS_EXEMPLO.flatMap((p) => (p.componentes ?? []).filter(([c]) => c === codigo).map(([, q]) => [p, q] as const));
+
+// Tabelas de preço de exemplo: o preço de cada produto é o custo do cadastro mais o percentual da tabela.
+export const TABELAS_PRECO = [{ codigo: 1, descricao: 'TABELA OBRAS', percentual: 35 }, { codigo: 2, descricao: 'TABELA BALCÃO', percentual: 50 }];
+export const precoNaTabela = (p: ProdutoExemplo, tabela: number) => {
+  const t = TABELAS_PRECO.find((x) => x.codigo === tabela);
+  return t ? Math.round(p.custo * (1 + t.percentual / 100) * 100) / 100 : undefined;
+};
+// Dados fiscais de exemplo, por tipo de produto (no ERP vêm do cadastro).
+export const CATEGORIAS_FISCAIS = ['DIFERIDO', 'ISENTO', 'OUTROS', 'ST', 'TRIBUTADO'];
+export const ORIGENS = ['0 - Nacional, exceto as indicadas nos códigos 3, 4, 5 e 8', '1 - Estrangeira - Importação direta, exceto a indicada no código 6',
+  '2 - Estrangeira - Adquirida no mercado interno, exceto a indicada no código 7', '3 - Nacional, conteúdo de importação superior a 40% e inferior ou igual a 70%',
+  '4 - Nacional, produção conforme processos produtivos básicos', '5 - Nacional, conteúdo de importação inferior ou igual a 40%',
+  '6 - Estrangeira - Importação direta, sem similar nacional (lista CAMEX) e gás natural',
+  '7 - Estrangeira - Adquirida no mercado interno, sem similar nacional (lista CAMEX) e gás natural', '8 - Nacional, conteúdo de importação superior a 70%'];
+export const UNIDADES = ['BD', 'BR', 'CX', 'JG', 'KG', 'L', 'M', 'M3', 'PR', 'RL', 'SC', 'TON', 'UN'];
 export const GRUPOS = [...new Set(PRODUTOS_EXEMPLO.map((p) => p.grupo))].sort();
 export const CATEGORIAS = [...new Set(PRODUTOS_EXEMPLO.map((p) => p.categoria))].sort();
 export const MARCAS = [...new Set(PRODUTOS_EXEMPLO.map((p) => p.marca))].sort();
