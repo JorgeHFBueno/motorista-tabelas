@@ -3,7 +3,8 @@
 // De perfil (bico curvo, rabo baixo e longo): cabeça (tabelas vazias: procura, bica, estica o pescoço com "?", olha
 // para trás, cisca e encolhe a asa), grito (acesso negado: enche o peito,
 // grita duas vezes com ondas de som, tremendo, e perde uma pena) e teclando
-// (carregamento: pula nas teclas de um notebook). De frente (cabeça pontuda, asas de capa): placa (página não
+// (carregamento: pula nas teclas de um notebook escrevendo, dá um pulo alto no Enter, a barra de progresso enche, e
+// ele olha a tela). De frente (cabeça pontuda, asas de capa): placa (página não
 // encontrada: tira uma placa com "?" das costas, mostra, dá de ombros, esconde e assobia).
 
 export type Animacao = 'cabeca' | 'grito' | 'teclando' | 'placa';
@@ -22,7 +23,7 @@ export const MARGEM_ENFEITE = 2;
 export const CENAS: Record<Animacao, Cena> = {
   cabeca: { largura: 30, altura: 20 + MARGEM_ENFEITE, quadros: 23, ms: 200, parado: 10 },
   grito: { largura: 34, altura: 19 + MARGEM_ENFEITE, quadros: 20, ms: 170, parado: 5 },
-  teclando: { largura: 44, altura: 24 + MARGEM_ENFEITE, quadros: 96, ms: 150, parado: 0 },
+  teclando: { largura: 44, altura: 26 + MARGEM_ENFEITE, quadros: 220, ms: 130, parado: 44 },
   placa: { largura: 34, altura: 36 + MARGEM_ENFEITE, quadros: 30, ms: 180, parado: 12 },
 };
 
@@ -231,47 +232,121 @@ function cabeca(i: number): Grade {
   return g;
 }
 
-// ---- Teclando: notebook ('F' moldura, 'E' tela, 'X' texto, 'C' cursor, 'K' tecla, 'P' tecla apertada, 'D' base) ----
+// ---- Teclando: notebook ('F' moldura, 'E' tela, 'X' texto, 'C' cursor e progresso, 'G' fundo da barra, 'K' tecla,
+// 'P' tecla apertada, 'D' base, 's' tac) ----
 
+/** Tudo do teclando desce 2 linhas: no pulo do Enter a cabeça sobe 6 e o gorro ainda precisa caber. */
+const Y = 2;
 const TECLAS: number[] = [];
-for (let x = 3; x <= 40; x += 3) TECLAS.push(x);
-/** Os pontos do teclado onde ele pousa, em volta. */
-const ALVOS = [0, 4, 8, 4];
-/** Cada pulo: agacha, sobe, desce, pousa (agachado, a tecla aperta), fica de pé, espera. */
-const QUADROS_POR_PULO = 6;
+for (let x = 3; x <= 37; x += 3) TECLAS.push(x);
+/** O Enter em "L": x 39 a 41 na linha do teclado e o 41 uma linha acima. */
+const ENTER = 40;
+/** Os pontos do teclado onde ele pousa, em volta; depois do último, o pulo alto do Enter. */
+const ALVOS = [0, 4, 8, 4, 0, 4];
+const NO_ENTER = 9;
 const LETRAS_POR_POUSO = 3;
-const LETRAS_NA_TELA = 48;
+const LETRAS_POR_LINHA = 12;
+const PROGRESSO_MAX = 12;
 
-function notebook(g: Grade, apertada: number, letras: number, cursor: boolean) {
-  for (let x = 26; x <= 41; x++) { pix(g, x, 2, 'F'); pix(g, x, 15, 'F'); }
-  for (let y = 2; y <= 15; y++) { pix(g, 26, y, 'F'); pix(g, 41, y, 'F'); }
-  for (let y = 3; y <= 14; y++) for (let x = 27; x <= 40; x++) pix(g, x, y, 'E');
-  for (let x = 31; x <= 36; x++) { pix(g, x, 16, 'F'); pix(g, x, 17, 'F'); }
-  for (let x = 1; x <= 42; x++) { pix(g, x, 19, 'D'); pix(g, x, 20, 'D'); }
-  TECLAS.forEach((x) => { const c = x === apertada ? 'P' : 'K'; pix(g, x, 18, c); pix(g, x + 1, 18, c); });
-  // o texto: 4 linhas de 12, em palavras de 4 letras
-  let n = letras;
-  for (let l = 0; l < 4 && n > 0; l++) {
-    for (let x = 28; x <= 39 && n > 0; x++, n--) if ((x - 28) % 5 !== 4) pix(g, x, 5 + l * 2, 'X');
+type PassoTeclando = {
+  x: number;
+  /** altura no pulo (negativo sobe) */
+  dy?: number;
+  pose: 'agachado' | 'ar' | 'pe' | 'olha';
+  /** no ar, a asa sobe nas costas */
+  asa?: boolean;
+  /** a tecla apertada (x da tecla, ou ENTER) */
+  tecla?: number;
+  /** os "tac" ao lado dos pés: 1 no pouso, 2 no segundo quadro do Enter */
+  tac?: 1 | 2;
+  forte?: boolean;
+  piscando?: boolean;
+  /** letras em cada linha da tela (as 4 últimas) e a barra de progresso */
+  linhas: number[];
+  progresso: number;
+};
+
+/**
+ * Quatro rodadas: cinco pulos pelas teclas (cada pouso escreve 3 letras), um pulo alto no Enter (linha nova e a barra
+ * enche 3), olha a tela piscando e volta pulando. No fim a tela e a barra recomeçam vazias.
+ */
+function montarTeclando(): PassoTeclando[] {
+  const passos: PassoTeclando[] = [];
+  const linhas = [0];
+  let progresso = 0;
+  const anota = (p: Omit<PassoTeclando, 'linhas' | 'progresso'>) => passos.push({ ...p, linhas: linhas.slice(-4), progresso });
+  const pulo = (de: number, para: number, enter: boolean) => {
+    anota({ x: de, pose: 'agachado' });
+    const alturas = enter ? [-3, -5, -6, -4] : [-2, -3, -2];
+    alturas.forEach((dy, k) => anota({ x: Math.round(de + ((para - de) * (k + 1)) / (alturas.length + 1)), dy, pose: 'ar', asa: k % 2 === 0 }));
+    const pes = para + 11;
+    const tecla = enter ? ENTER : TECLAS.reduce((a, b) => (Math.abs(b - pes) < Math.abs(a - pes) ? b : a));
+    if (enter) {
+      linhas.push(0);
+      progresso = Math.min(PROGRESSO_MAX, progresso + 3);
+    } else {
+      linhas[linhas.length - 1] = Math.min(LETRAS_POR_LINHA, linhas[linhas.length - 1] + LETRAS_POR_POUSO);
+    }
+    anota({ x: para, pose: 'agachado', tecla, tac: 1, forte: enter });
+    if (enter) anota({ x: para, pose: 'agachado', tecla, tac: 2, forte: true });
+    anota({ x: para, pose: 'pe', tecla });
+    anota({ x: para, pose: 'pe' });
+  };
+  for (let rodada = 0; rodada < 4; rodada++) {
+    for (let k = 1; k < ALVOS.length; k++) pulo(ALVOS[k - 1], ALVOS[k], false);
+    pulo(ALVOS[ALVOS.length - 1], NO_ENTER, true);
+    [false, false, true, false].forEach((piscando) => anota({ x: NO_ENTER, pose: 'olha', piscando }));
+    pulo(NO_ENTER, ALVOS[0], false);
   }
-  if (cursor && letras < LETRAS_NA_TELA) pix(g, 28 + (letras % 12), 5 + Math.floor(letras / 12) * 2, 'C');
+  return passos;
+}
+const TECLANDO = montarTeclando();
+
+/** No ar: a asa sai do flanco e sobe nas costas. */
+function asaAlta(g: Grade): Grade {
+  for (let y = 6; y <= 8; y++) for (let x = 0; x < 26; x++) if (g[y][x] === 'w') g[y][x] = '#';
+  ([[3, [9, 10]], [4, [8, 9, 10, 11]], [5, [7, 8, 9, 10, 11, 12]], [6, [8, 9, 10, 11, 12]]] as [number, number[]][])
+    .forEach(([y, xs]) => pintar(g, y, xs, 'w'));
+  return g;
+}
+
+function notebook(g: Grade, p: PassoTeclando, cursor: boolean) {
+  for (let x = 26; x <= 41; x++) { pix(g, x, Y + 2, 'F'); pix(g, x, Y + 15, 'F'); }
+  for (let y = Y + 2; y <= Y + 15; y++) { pix(g, 26, y, 'F'); pix(g, 41, y, 'F'); }
+  for (let y = Y + 3; y <= Y + 14; y++) for (let x = 27; x <= 40; x++) pix(g, x, y, 'E');
+  for (let x = 31; x <= 36; x++) { pix(g, x, Y + 16, 'F'); pix(g, x, Y + 17, 'F'); }
+  for (let x = 1; x <= 42; x++) { pix(g, x, Y + 19, 'D'); pix(g, x, Y + 20, 'D'); }
+  // a tecla apertada desce 1 pixel e acende
+  const tecla = (xs: number[], dy: number, apertada: boolean) =>
+    xs.forEach((x) => pix(g, x, Y + 18 + dy + (apertada ? 1 : 0), apertada ? 'P' : 'K'));
+  TECLAS.forEach((x) => tecla([x, x + 1], 0, p.tecla === x));
+  tecla([ENTER - 1, ENTER, ENTER + 1], 0, p.tecla === ENTER);
+  tecla([ENTER + 1], -1, p.tecla === ENTER);
+  // o texto: as 4 últimas linhas, em palavras de 4 letras; o cursor no fim da última
+  p.linhas.forEach((n, l) => { for (let x = 0; x < n; x++) if (x % 5 !== 4) pix(g, 28 + x, Y + 5 + l * 2, 'X'); });
+  const ultima = p.linhas.length - 1;
+  if (cursor && p.linhas[ultima] < LETRAS_POR_LINHA) pix(g, 28 + p.linhas[ultima], Y + 5 + ultima * 2, 'C');
+  // a barra de progresso
+  for (let x = 0; x < LETRAS_POR_LINHA; x++) pix(g, 28 + x, Y + 13, x < p.progresso ? 'C' : 'G');
 }
 
 function teclando(i: number): Grade {
+  const p = TECLANDO[i];
   const g = novaCena(CENAS.teclando);
-  const pulo = Math.floor(i / QUADROS_POR_PULO);
-  const fase = i % QUADROS_POR_PULO;
-  const para = ALVOS[pulo % ALVOS.length];
-  const de = ALVOS[(pulo + ALVOS.length - 1) % ALVOS.length];
-  const x = fase === 0 ? de : fase === 1 ? Math.round(de + (para - de) / 3) : fase === 2 ? Math.round(de + (2 * (para - de)) / 3) : para;
-  const noAr = fase === 1 || fase === 2;
-  const pousos = pulo + (fase >= 3 ? 1 : 0);
-  const letras = (pousos * LETRAS_POR_POUSO) % (LETRAS_NA_TELA + 1);
-  const pes = x + 11;
-  const apertada = fase === 3 || fase === 4 ? TECLAS.reduce((a, b) => (Math.abs(b - pes) < Math.abs(a - pes) ? b : a)) : -1;
-  notebook(g, apertada, letras, Math.floor(i / 3) % 2 === 0);
-  const olho = i % 23 === 11 ? '#' : 'o';
-  colar(g, fase === 0 || fase === 3 ? agachado(olho) : perfil(olho), x, 4 + (noAr ? -3 : 0));
+  notebook(g, p, Math.floor(i / 3) % 2 === 0);
+  const olho = p.piscando || i % 29 === 13 ? '#' : 'o';
+  let s = p.pose === 'agachado' ? agachado(olho) : perfil(olho);
+  if (p.pose === 'ar' && p.asa) s = asaAlta(s);
+  if (p.pose === 'olha') s = cabecaAdiantada(s);
+  colar(g, s, p.x, Y + 4 + (p.dy ?? 0));
+  if (p.tac) {
+    const fx = p.x + 11;
+    const fy = Y + 17;
+    const d = p.forte ? (p.tac === 1 ? 2 : 3) : 1;
+    pix(g, fx - 2 - d, fy - 1, 's');
+    pix(g, fx + 4 + d, fy - 1, 's');
+    if (p.forte) { pix(g, fx - 3 - d, fy - 2, 's'); pix(g, fx + 5 + d, fy - 2, 's'); }
+  }
   return g;
 }
 
@@ -453,4 +528,4 @@ export function caminhos(linhas: string[]): Record<string, string> {
   return d;
 }
 
-export { PLACA as PASSOS_DA_PLACA, GRITO as PASSOS_DO_GRITO, CABECA as PASSOS_DA_CABECA };
+export { PLACA as PASSOS_DA_PLACA, GRITO as PASSOS_DO_GRITO, CABECA as PASSOS_DA_CABECA, TECLANDO as PASSOS_DO_TECLANDO, ENTER as TECLA_ENTER };

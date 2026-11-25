@@ -8,7 +8,7 @@ import { CENAS, caminhos, quadro, type Animacao } from './quadros';
 const CORES: Record<string, string> = {
   '#': '#2f3742', w: '#4f5b6d', W: '#454f5e', A: '#4f5b6d', f: '#7a8596', c: '#aab1bb', o: '#f2a33a', b: '#7d8794', s: '#c9781e', M: '#151a20', p: '#b9b2a3',
   // notebook
-  F: '#5b6472', E: '#12293B', X: '#9cc7e8', C: '#f2a33a', K: '#9aa3ae', P: '#f2a33a', D: '#6b7480',
+  F: '#5b6472', E: '#12293B', X: '#9cc7e8', C: '#f2a33a', K: '#9aa3ae', P: '#f2a33a', D: '#6b7480', G: '#3d4a5c',
   // placa
   m: '#6e4a26', n: '#d9b77e', q: '#2f3742', h: '#6e4a26',
   // enfeites das festas

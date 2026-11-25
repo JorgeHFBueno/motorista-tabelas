@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { enfeitar, festaDoDia } from '../src/components/corvo/festas';
-import { CENAS, MARGEM_ENFEITE, PASSOS_DA_CABECA, PASSOS_DA_PLACA, PASSOS_DO_GRITO, caminhos, quadro, type Animacao } from '../src/components/corvo/quadros';
+import { CENAS, MARGEM_ENFEITE, PASSOS_DA_CABECA, PASSOS_DA_PLACA, PASSOS_DO_GRITO, PASSOS_DO_TECLANDO, TECLA_ENTER, caminhos, quadro, type Animacao } from '../src/components/corvo/quadros';
 
 const ANIMACOES = Object.keys(CENAS) as Animacao[];
 /** Posições "x,y" dos pixels de uma cor no quadro. */
@@ -19,12 +19,13 @@ test('Corvo: todo quadro tem o tamanho da cena e só cores conhecidas', () => {
       const linhas = quadro(a, i);
       assert.equal(linhas.length, altura, `${a} ${i}`);
       linhas.forEach((l) => assert.equal(l.length, largura, `${a} ${i}`));
-      assert.match(linhas.join(''), /^[.#wWAfcobsMpFEXCKPDmnqh]+$/, `${a} ${i}`);
+      assert.match(linhas.join(''), /^[.#wWAfcobsMpFEXCKPDGmnqh]+$/, `${a} ${i}`);
     }
   }
   assert.equal(PASSOS_DA_PLACA.length, CENAS.placa.quadros);
   assert.equal(PASSOS_DO_GRITO.length, CENAS.grito.quadros);
   assert.equal(PASSOS_DA_CABECA.length, CENAS.cabeca.quadros);
+  assert.equal(PASSOS_DO_TECLANDO.length, CENAS.teclando.quadros);
 });
 
 test('Corvo cabeça: procura sem tirar os pés do lugar; "?" no pescoço esticado e ao olhar para trás; poeira na bicada e na ciscada', () => {
@@ -64,21 +65,40 @@ test('Corvo grito: pisca, enche o peito, grita com o bico aberto e as ondas, e p
   assert.equal(PASSOS_DO_GRITO[CENAS.grito.parado].pose, 'gritando');
 });
 
-test('Corvo teclando: a tecla acende no pouso, o texto cresce a cada pouso e o corpo sai do chão no pulo', () => {
-  // pulo 0: agacha (0), no ar (1, 2), pousa e aperta (3, 4), espera (5)
-  assert.equal(pixels('teclando', 0, 'P').length, 0);
-  assert.equal(pixels('teclando', 1, 'P').length, 0);
-  assert.equal(pixels('teclando', 3, 'P').length, 2);
-  assert.equal(pixels('teclando', 4, 'P').length, 2);
-  assert.equal(pixels('teclando', 5, 'P').length, 0);
-  const letras = (i: number) => pixels('teclando', i, 'X').length;
-  assert.equal(letras(0), 0);
-  assert.ok(letras(3) > letras(2));
-  assert.ok(letras(9) > letras(5));
-  // no ar, os pés estão acima da linha do teclado
+test('Corvo teclando: pula nas teclas com "tac", pula alto no Enter, a barra enche, olha a tela e recomeça', () => {
+  const CHAO = 19 + MARGEM_ENFEITE;
+  const BARRA = 15 + MARGEM_ENFEITE; // Y + 13
   const alturaDosPes = (i: number) => Math.max(...pixels('teclando', i, 'b').map((p) => Number(p.split(',')[1])));
-  assert.equal(alturaDosPes(0), 17 + MARGEM_ENFEITE);
-  assert.ok(alturaDosPes(1) < 17 + MARGEM_ENFEITE);
+  const letras = (i: number) => pixels('teclando', i, 'X').length;
+  const barra = (i: number) => pixels('teclando', i, 'C').filter((p) => Number(p.split(',')[1]) === BARRA).length;
+  // pulo 0: agacha (0), no ar (1 a 3), pousa apertando a tecla com "tac" (4), de pé apertando (5), espera (6)
+  assert.equal(PASSOS_DO_TECLANDO[0].pose, 'agachado');
+  assert.equal(alturaDosPes(0), CHAO);
+  for (const i of [1, 2, 3]) assert.ok(alturaDosPes(i) < CHAO, `teclando ${i}: no ar`);
+  assert.equal(pixels('teclando', 0, 'P').length, 0);
+  assert.equal(pixels('teclando', 4, 'P').length, 2);
+  assert.ok(pixels('teclando', 4, 's').length > 0);
+  assert.equal(pixels('teclando', 6, 's').length, 0);
+  assert.equal(letras(0), 0);
+  assert.ok(letras(4) > letras(3));
+  // o Enter: 4 pixels acesos, "tac" mais forte, pulo mais alto, uma linha nova e a barra enche
+  const enter = PASSOS_DO_TECLANDO.findIndex((p) => p.tecla === TECLA_ENTER);
+  assert.ok(enter > 0);
+  assert.equal(pixels('teclando', enter, 'P').length, 4);
+  assert.ok(pixels('teclando', enter, 's').length > pixels('teclando', 4, 's').length);
+  assert.ok(Math.min(...PASSOS_DO_TECLANDO.slice(enter - 4, enter).map((p) => p.dy ?? 0)) < -3);
+  assert.equal(barra(enter - 1), 0);
+  assert.equal(barra(enter), 3);
+  assert.equal(PASSOS_DO_TECLANDO[enter].linhas.length, 2);
+  // depois do Enter ele olha a tela, piscando uma vez
+  const olhando = PASSOS_DO_TECLANDO.map((p, i) => (p.pose === 'olha' ? i : -1)).filter((i) => i >= 0 && i < enter + 10);
+  assert.equal(olhando.length, 4);
+  assert.ok(olhando.some((i) => pixels('teclando', i, 'o').length === 0));
+  // a barra só enche, até o fim; o laço recomeça vazio
+  const ultimo = CENAS.teclando.quadros - 1;
+  for (let i = 1; i <= ultimo; i++) assert.ok(PASSOS_DO_TECLANDO[i].progresso >= PASSOS_DO_TECLANDO[i - 1].progresso);
+  assert.equal(barra(ultimo), 12);
+  assert.equal(PASSOS_DO_TECLANDO[CENAS.teclando.parado].pose, 'olha');
 });
 
 test('Corvo placa: sem placa no começo e no fim, com a placa no meio; a interrogação some num quadro', () => {
