@@ -30,6 +30,7 @@ import KeyboardArrowDownIcon from '@mui/icons-material/KeyboardArrowDown';
 import KeyboardArrowUpIcon from '@mui/icons-material/KeyboardArrowUp';
 import PictureAsPdfOutlinedIcon from '@mui/icons-material/PictureAsPdfOutlined';
 import PlaceOutlinedIcon from '@mui/icons-material/PlaceOutlined';
+import SyncIcon from '@mui/icons-material/Sync';
 import UploadFileOutlinedIcon from '@mui/icons-material/UploadFileOutlined';
 import { coordenadaCurta, linkDoMapa } from '../cronograma-logistica/domain/local';
 import type { LoteObra } from './obrasDomain';
@@ -51,6 +52,7 @@ import {
   type PdfPreFabricado,
   type PreFabricado,
 } from './preFabricados';
+import { podeCancelar, podePedir, STATUS_DA_SINCRONIZACAO, type SincronizacaoPlannix } from './sincronizacaoPlannix';
 import './listaLotes.css';
 
 /**
@@ -67,6 +69,8 @@ import './listaLotes.css';
  * grupo, um para todos os itens, e os itens não têm PDF.
  * Console: o segundo PDF do item, com revisões próprias; Revisão e Substituição de um mantêm o outro. Arrastar: ao
  * arrastar um arquivo sobre a página, cada célula de PDF que aceita PDF vira uma área de soltar.
+ * Sincronizar com o Plannix (2026-11-25, com `sincronizar`): no LOTE ligado ao Plannix, o status da fila do robô, "Sincronizar"
+ * (pede; quem edita), "Ver prévia" (o que o robô vai gravar, com Aprovar e gravar) e Cancelar (antes de gravar).
  * `itens: null` = sem pré-fabricados para mostrar; `aviso` diz o motivo (carregando, sem Nº Pedido, pedido sem obra no Plannix, erro).
  */
 
@@ -76,6 +80,15 @@ export type LoteComPreFabricados = LoteObra & {
   origem?: string;
   /** PDFs únicos dos grupos (pdfsDosGrupos), pela chave do grupo. */
   pdfsDosGrupos?: Record<string, PdfPreFabricado[]>;
+  /** A sincronização com o Plannix do LOTE (a última pedida). */
+  sincronizacao?: SincronizacaoPlannix;
+};
+export type AcoesSincronizar = {
+  /** Sem `podeEditar` (área em "ver"), só o status e a prévia. */
+  podeEditar: boolean;
+  pedir: (lote: string) => void;
+  aprovar: (sincronizacao: SincronizacaoPlannix) => void;
+  cancelar: (sincronizacao: SincronizacaoPlannix) => void;
 };
 export type { ModoPdf };
 /** Onde gravar: o LOTE, o item (ou a chave do grupo com PDF único) e a parte do PDF. */
@@ -128,6 +141,16 @@ const dataPlannix = (data: string | null) => {
 };
 
 /** Coluna LOTE: status do Friday no rótulo; com coordenada (coluna Coordenada do subitem), abre o Google Maps com o pino. */
+/** Quem pediu e quando, e a mensagem do robô (o tooltip do status). */
+function detalheDaSincronizacao(s: SincronizacaoPlannix) {
+  return [
+    s.pedidoEm && `Pedida por ${s.pedidoPor} em ${dataHora(s.pedidoEm)}`,
+    s.aprovadoPor && `Aprovada por ${s.aprovadoPor}`,
+    s.atualizadoEm && `Atualizada em ${dataHora(s.atualizadoEm)}`,
+    s.mensagem,
+  ].filter(Boolean).join(' · ');
+}
+
 function ChipLote({ lote }: { lote: LoteObra }) {
   const rotulo = lote.status ? `${lote.nome} · ${lote.status}` : lote.nome;
   return lote.coordenada ? (
@@ -147,8 +170,10 @@ function ChipLote({ lote }: { lote: LoteObra }) {
   ) : <Chip label={rotulo} variant="outlined" />;
 }
 
-export default function ListaLotes({ lotes, acoesPdf }: { lotes: LoteComPreFabricados[]; acoesPdf?: AcoesPdf }) {
+export default function ListaLotes({ lotes, acoesPdf, sincronizar }: { lotes: LoteComPreFabricados[]; acoesPdf?: AcoesPdf; sincronizar?: AcoesSincronizar }) {
   const [historico, setHistorico] = useState<AlvoRevisoes | null>(null);
+  // LOTE (chave) com a janela da prévia aberta; a sincronização é lida a cada render (muda ao vivo).
+  const [previaDe, setPreviaDe] = useState<string | null>(null);
   const [excluir, setExcluir] = useState<PdfPreFabricado | null>(null);
   const [aviso, setAviso] = useState<string | null>(null);
   // Grupos recolhidos ("lote:grupo"; começam abertos) e itens abertos ("lote:item"; começam fechados, com as peças).
@@ -308,6 +333,39 @@ export default function ListaLotes({ lotes, acoesPdf }: { lotes: LoteComPreFabri
     );
   }
 
+  /** Status da fila do robô e os botões do LOTE ligado ao Plannix. */
+  function blocoSincronizar(lote: LoteComPreFabricados) {
+    const s = lote.sincronizacao;
+    const status = s ? STATUS_DA_SINCRONIZACAO[s.status] : null;
+    const editar = Boolean(sincronizar?.podeEditar);
+    return (
+      <Stack spacing={0.75} alignItems="center" sx={{ mt: 1.25 }}>
+        {s && status && (
+          // Tooltip em cima: embaixo ficam os botões.
+          <Tooltip title={detalheDaSincronizacao(s)} placement="top">
+            <Chip size="small" icon={<SyncIcon />} label={status.rotulo} color={status.cor} variant={status.cor === 'default' ? 'outlined' : 'filled'} />
+          </Tooltip>
+        )}
+        {s?.status === 'erro' && s.mensagem && <Typography variant="caption" color="error" sx={{ overflowWrap: 'anywhere' }}>{s.mensagem}</Typography>}
+        <Stack direction="row" spacing={0.5} flexWrap="wrap" useFlexGap justifyContent="center">
+          {s?.previa && <Button size="small" onClick={() => setPreviaDe(lote.chave)}>Ver prévia</Button>}
+          {editar && podePedir(s) && (
+            <Tooltip title="Pede ao robô que leve os PDFs deste LOTE ao Plannix: ele simula, mostra a prévia e só grava depois da aprovação">
+              <Button size="small" variant="outlined" startIcon={<SyncIcon />} onClick={() => sincronizar?.pedir(lote.chave)} aria-label={`Sincronizar o ${lote.nome} com o Plannix`}>
+                Sincronizar
+              </Button>
+            </Tooltip>
+          )}
+          {editar && s && podeCancelar(s) && (
+            <Button size="small" color="inherit" onClick={() => sincronizar?.cancelar(s)} aria-label={`Cancelar a sincronização do ${lote.nome}`}>Cancelar</Button>
+          )}
+        </Stack>
+      </Stack>
+    );
+  }
+  const lotePrevia = previaDe ? lotes.find((lote) => lote.chave === previaDe) : undefined;
+  const sincronizacaoPrevia = lotePrevia?.sincronizacao;
+
   return (
     <>
       <TableContainer className="obra-lotes">
@@ -346,6 +404,7 @@ export default function ListaLotes({ lotes, acoesPdf }: { lotes: LoteComPreFabri
                 <TableCell rowSpan={Math.max(linhas.length, 1)} className="obra-lotes__lote">
                   <ChipLote lote={lote} />
                   {lote.origem && <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.75 }}>{lote.origem}</Typography>}
+                  {sincronizar && lote.itens && blocoSincronizar(lote)}
                 </TableCell>
               );
               if (!linhas.length) {
@@ -547,6 +606,26 @@ export default function ListaLotes({ lotes, acoesPdf }: { lotes: LoteComPreFabri
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setHistorico(null)}>Fechar</Button>
+        </DialogActions>
+      </Dialog>
+
+      <Dialog open={Boolean(sincronizacaoPrevia?.previa)} onClose={() => setPreviaDe(null)} fullWidth maxWidth="md">
+        <DialogTitle>Prévia da sincronização com o Plannix</DialogTitle>
+        <DialogContent dividers>
+          <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5 }}>
+            {lotePrevia?.nome}
+            {sincronizacaoPrevia && ` · ${STATUS_DA_SINCRONIZACAO[sincronizacaoPrevia.status].rotulo} · ${detalheDaSincronizacao(sincronizacaoPrevia)}`}
+          </Typography>
+          <Box component="pre" sx={{ m: 0, whiteSpace: 'pre-wrap', overflowWrap: 'anywhere', fontFamily: 'monospace', fontSize: 13 }}>{sincronizacaoPrevia?.previa}</Box>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setPreviaDe(null)}>Fechar</Button>
+          {sincronizar?.podeEditar && sincronizacaoPrevia?.status === 'previa' && (
+            <>
+              <Button color="inherit" onClick={() => { sincronizar.cancelar(sincronizacaoPrevia); setPreviaDe(null); }}>Cancelar sincronização</Button>
+              <Button variant="contained" onClick={() => { sincronizar.aprovar(sincronizacaoPrevia); setPreviaDe(null); }}>Aprovar e gravar no Plannix</Button>
+            </>
+          )}
         </DialogActions>
       </Dialog>
 

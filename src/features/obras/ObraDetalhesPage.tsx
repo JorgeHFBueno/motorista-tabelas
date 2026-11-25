@@ -32,6 +32,10 @@ import {
   carregarNomesMestres,
   carregarObra,
   anexarPdfPreFabricado,
+  aprovarSincronizacao,
+  cancelarSincronizacao,
+  ouvirSincronizacoes,
+  pedirSincronizacao,
   carregarPdfsPreFabricados,
   carregarPreFabricados,
   enderecoDoPdf,
@@ -41,7 +45,8 @@ import {
   locaisDosLotes,
 } from './obrasData';
 import CampoEditavel from './CampoEditavelObra';
-import ListaLotes, { type AcoesPdf } from './ListaLotes';
+import ListaLotes, { type AcoesPdf, type AcoesSincronizar } from './ListaLotes';
+import type { SincronizacaoPlannix } from './sincronizacaoPlannix';
 import { comPdfsGravados, ehPdfDeGrupo, maisRecente, parteDoPdf, pdfsDosGrupos, type PdfGravado, type PreFabricadosDoLote } from './preFabricados';
 import { useAuth } from '../../contexts/AuthContext';
 import { editaArea } from '../../services/credenciais';
@@ -148,6 +153,8 @@ export default function ObraDetalhesPage() {
   const [preFabricados, setPreFabricados] = useState<Estado<Record<string, PreFabricadosDoLote>>>(CARREGANDO);
   // PDFs anexados aos pré-fabricados (obras-pre-fabricados-pdfs); recarregados depois de anexar, substituir ou excluir.
   const [pdfs, setPdfs] = useState<PdfGravado[]>([]);
+  // Sincronizar com o Plannix: a fila do robô, ao vivo, pela chave do LOTE.
+  const [sincronizacoes, setSincronizacoes] = useState<Record<string, SincronizacaoPlannix>>({});
   const [salvandoCampo, setSalvandoCampo] = useState(false);
   const [gerando, setGerando] = useState(false);
   const [detalhes, setDetalhes] = useState(false);
@@ -185,6 +192,11 @@ export default function ObraDetalhesPage() {
       .finally(() => { if (active) setLoading(false); });
     return () => { active = false; };
   }, [id]);
+
+  useEffect(() => {
+    if (!obra?.id) return undefined;
+    return ouvirSincronizacoes(obra.id, setSincronizacoes, (err) => console.error('Erro ao ler as sincronizações com o Plannix', err));
+  }, [obra?.id]);
 
   async function salvarCampo(campo: CampoEditavelObra, valor: string): Promise<boolean> {
     if (!obra) return false;
@@ -251,6 +263,27 @@ export default function ObraDetalhesPage() {
     } : {}),
   };
 
+  /** Pedir, aprovar e cancelar a sincronização (área Engenharia em "editar"; as Rules conferem de novo). */
+  async function naFila(acao: () => Promise<void>, sucesso: string) {
+    try {
+      await acao();
+      setSnackbar({ open: true, severity: 'success', message: sucesso });
+    } catch (err) {
+      console.error('Erro na sincronização com o Plannix', err);
+      setSnackbar({ open: true, severity: 'error', message: 'Não foi possível gravar a sincronização. Recarregue a página e tente de novo.' });
+    }
+  }
+  const sincronizar: AcoesSincronizar = {
+    podeEditar,
+    pedir: (lote) => {
+      const dados = preFabricados.status === 'ok' ? preFabricados.data[lote] : undefined;
+      if (!obra || !dados || !('itens' in dados)) return;
+      void naFila(() => pedirSincronizacao({ obraId: obra.id, lote, pedido: dados.pedido, plannix: dados.plannix }, autor), 'Sincronização pedida: o robô simula e mostra a prévia aqui.');
+    },
+    aprovar: (s) => void naFila(() => aprovarSincronizacao(s.id, autor), 'Prévia aprovada: o robô grava no Plannix.'),
+    cancelar: (s) => void naFila(() => cancelarSincronizacao(s.id, autor), 'Sincronização cancelada.'),
+  };
+
   const partes = [mestres, veiculos, combustivel];
   const carregandoPartes = partes.some((item) => item.status === 'carregando');
 
@@ -305,10 +338,11 @@ export default function ObraDetalhesPage() {
           if (preFabricados.status === 'erro') return { ...lote, itens: null, aviso: 'Não foi possível ler o Plannix. Recarregue a página para tentar de novo.' };
           const doLote = preFabricados.data[lote.chave];
           return doLote && 'itens' in doLote
-            ? { ...lote, itens: comPdfsGravados(lote.chave, doLote.itens, pdfs), pdfsDosGrupos: pdfsDosGrupos(lote.chave, pdfs), origem: doLote.origem }
+            ? { ...lote, itens: comPdfsGravados(lote.chave, doLote.itens, pdfs), pdfsDosGrupos: pdfsDosGrupos(lote.chave, pdfs), origem: doLote.origem, sincronizacao: sincronizacoes[lote.chave] }
             : { ...lote, itens: null, aviso: doLote?.aviso };
         })}
         acoesPdf={acoesPdf}
+        sincronizar={sincronizar}
       />
     ) : <Vazio>Sem LOTEs cadastrados.</Vazio>
   );

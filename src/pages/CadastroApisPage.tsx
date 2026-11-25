@@ -63,7 +63,7 @@ function ComoUsar({ api }: { api: ApiDeArea }) {
   if (api.id === 'prefabricados') {
     return (
       <Stack spacing={1}>
-        <Typography color="text.secondary">Mande a chave no cabeçalho <Codigo>{api.cabecalho}</Codigo>. Só consulta (GET):</Typography>
+        <Typography color="text.secondary">Mande a chave no cabeçalho <Codigo>{api.cabecalho}</Codigo>. Consulta (GET):</Typography>
         <Box component="ul" sx={{ m: 0, pl: 3, color: 'text.secondary', display: 'grid', gap: 0.5 }}>
           <li><Codigo>{e}/eu</Codigo>: de quem é a chave.</li>
           <li>
@@ -71,7 +71,16 @@ function ComoUsar({ api }: { api: ApiDeArea }) {
             PDF atual de cada item, com <Codigo>pdfId</Codigo>, a revisão e o nome do arquivo.
           </li>
           <li><Codigo>{e}/pdfs/&lt;pdfId&gt;</Codigo>: baixa o PDF (o próprio arquivo, não JSON).</li>
+          <li>
+            <Codigo>{e}/sincronizacoes</Codigo>: as sincronizações com o Plannix que esperam o robô (pedidas no botão Sincronizar ou
+            aprovadas); <Codigo>{e}/sincronizacoes/&lt;id&gt;</Codigo>: uma delas.
+          </li>
         </Box>
+        <Typography color="text.secondary">
+          O robô avança a sincronização com POST em <Codigo>{e}/sincronizacoes/&lt;id&gt;</Codigo> e o JSON <Codigo>{'{ "status", "previa", "mensagem" }'}</Codigo>:
+          pedido → simulando → previa (com o texto da prévia); depois da aprovação na tela, aprovado → gravando → concluido; erro (com a
+          mensagem) em qualquer passo. Só com chave de quem edita a área Engenharia.
+        </Typography>
       </Stack>
     );
   }

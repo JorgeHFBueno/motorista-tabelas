@@ -146,10 +146,10 @@ export type LotePlannix =
   | { lote: string; pedido: string; erro: 'nao-encontrada' }
   | { lote: string; pedido: string; erro: 'duplicada'; codigos: number[] };
 /**
- * O que a lista mostra em cada LOTE: os itens, de onde vieram e o código da obra no Plannix (gravado com os PDFs), ou o
- * aviso de por que não há itens.
+ * O que a lista mostra em cada LOTE: os itens, de onde vieram, o código da obra no Plannix (gravado com os PDFs) e o Nº
+ * Pedido (gravado no Sincronizar), ou o aviso de por que não há itens.
  */
-export type PreFabricadosDoLote = { itens: PreFabricado[]; origem: string; plannix: number } | { aviso: string };
+export type PreFabricadosDoLote = { itens: PreFabricado[]; origem: string; plannix: number; pedido: string } | { aviso: string };
 
 /** Chave do item do Plannix gravada com o PDF. */
 export const chaveDoItem = (produto: string, nome: string) => `${produto}|${nome}`;
@@ -193,6 +193,6 @@ export function preFabricadosDoPlannix(lotes: { chave: string }[], resposta: Lot
       vistos.add(chave);
       return { id, chave, grupo: item.produto, tipo: item.nome, quantidade: item.quantidade, pecas: item.pecas, desenhos: item.desenhos, pdfs: [] };
     });
-    return [lote.chave, { itens, origem, plannix: doPlannix.codigo }];
+    return [lote.chave, { itens, origem, plannix: doPlannix.codigo, pedido: doPlannix.pedido }];
   }));
 }

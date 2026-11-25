@@ -19,6 +19,7 @@ import { createObraRelatorioPdf, nomeArquivoRelatorioObra } from '../src/feature
 import { LOCAIS_SUGERIDOS } from '../src/features/obras/locaisSugeridos';
 import { agruparPorTipo, comPdf, comPdfsGravados, daParte, ehPdfDeGrupo, etapaPlannix, opcoesAoSoltar, parteDoPdf, pdfsDosGrupos, preFabricadosDoPlannix, resumoEtapas, revisoes, semProjeto, totalPdfs, type PdfGravado, type PreFabricado } from '../src/features/obras/preFabricados';
 import { coordenadaDoLote, lotesDaObra, obraFromV2 } from '../src/utils/cadastrosV2';
+import { idDaSincronizacao, podeCancelar, podePedir, sincronizacaoDoDocumento } from '../src/features/obras/sincronizacaoPlannix';
 
 const contrato = {
   nomeObra: 'LAGOA BONITA DO SUL 16/2026', siglaObra: '', codObra: 0, local: 'CORRIGIR', status: 'CONTRATADA',
@@ -273,4 +274,20 @@ test('pré-fabricados: PDFs gravados vão para o item do mesmo LOTE e chave "pro
   const itens = [{ ...preFabricado('P01', 'PILAR', ['ACABADA']), chave: 'PILAR|P01' }, { ...preFabricado('VL', 'VIGA', []), chave: 'VIGA|VL' }];
   const r = comPdfsGravados('l1', itens, [gravado('a', 'l1', 'PILAR|P01'), gravado('b', 'l2', 'PILAR|P01'), gravado('c', 'l1', 'VIGA|VL'), gravado('d', 'l1', 'PILAR|P01')]);
   assert.deepEqual(r.map((i) => i.pdfs.map((p) => p.id)), [['a', 'd'], ['c']]);
+});
+
+test('sincronizar Plannix: id por LOTE, documento para a tela e quando pedir ou cancelar', () => {
+  assert.equal(idDaSincronizacao('Eq8D8', '1795'), 'Eq8D8__1795');
+  const quando = { toDate: () => new Date('2026-11-25T18:00:00Z') };
+  const s = sincronizacaoDoDocumento('o1__l1', { lote: 'l1', status: 'previa', pedidoPor: { uid: 'u', nome: 'Brayan' }, pedidoEm: quando, previa: '2 peças', atualizadoEm: quando });
+  assert.deepEqual(s, {
+    id: 'o1__l1', lote: 'l1', status: 'previa', pedidoPor: 'Brayan', pedidoEm: new Date('2026-11-25T18:00:00Z'), aprovadoPor: '',
+    previa: '2 peças', mensagem: '', atualizadoEm: new Date('2026-11-25T18:00:00Z'),
+  });
+  assert.equal(sincronizacaoDoDocumento('x', { status: 'voando' }), null);
+  const com = (status: string) => sincronizacaoDoDocumento('x', { status })!;
+  assert.equal(podePedir(undefined), true);
+  assert.deepEqual(['pedido', 'simulando', 'previa', 'aprovado', 'gravando', 'concluido', 'erro', 'cancelado'].map((st) => [podePedir(com(st)), podeCancelar(com(st))]), [
+    [false, true], [false, true], [false, true], [false, false], [false, false], [true, false], [true, false], [true, false],
+  ]);
 });

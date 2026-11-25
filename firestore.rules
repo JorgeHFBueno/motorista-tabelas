@@ -847,6 +847,48 @@ service cloud.firestore {
       allow delete: if editaArea('engenharia');
     }
 
+    // Sincronizar com o Plannix (2026-11-25): a fila do robô do Samuel, um documento por LOTE ({obraId}__{lote}). A tela
+    // pede (status 'pedido'), aprova a prévia e cancela; o robô avança o resto pela preFabricadosApi (Admin SDK).
+    function validSincronizacaoPedida(id, d) {
+      return d.keys().hasOnly(['schemaVersion', 'obraId', 'lote', 'pedido', 'plannix', 'status', 'pedidoPor', 'pedidoEm', 'atualizadoEm'])
+        && d.schemaVersion == 1
+        && d.obraId is string && d.obraId.matches('[A-Za-z0-9_-]{1,100}')
+        && d.lote is string && d.lote.matches('[A-Za-z0-9_-]{1,100}')
+        && id == d.obraId + '__' + d.lote
+        && d.pedido is string && d.pedido.matches('[A-Za-z0-9._-]{1,40}')
+        && d.plannix is int && d.plannix > 0
+        && d.status == 'pedido'
+        && d.pedidoPor is map && d.pedidoPor.keys().hasOnly(['uid', 'nome']) && d.pedidoPor.uid == request.auth.uid
+        && d.pedidoPor.nome is string && d.pedidoPor.nome.size() <= 200
+        && d.pedidoEm == request.time && d.atualizadoEm == request.time
+        && exists(/databases/$(database)/documents/obras-v2/$(d.obraId));
+    }
+
+    function porMim(quem) {
+      return quem is map && quem.keys().hasOnly(['uid', 'nome']) && quem.uid == request.auth.uid
+        && quem.nome is string && quem.nome.size() <= 200;
+    }
+
+    match /plannix-sincronizacoes/{sincronizacaoId} {
+      allow read: if veArea('engenharia');
+      allow create: if editaArea('engenharia') && validSincronizacaoPedida(sincronizacaoId, request.resource.data);
+      allow update: if editaArea('engenharia') && (
+        // De novo, depois de terminada: o documento volta inteiro a 'pedido'.
+        (resource.data.status in ['concluido', 'erro', 'cancelado'] && validSincronizacaoPedida(sincronizacaoId, request.resource.data))
+        // Aprovar a prévia: o robô grava no Plannix.
+        || (resource.data.status == 'previa' && request.resource.data.status == 'aprovado'
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'aprovadoPor', 'aprovadoEm', 'atualizadoEm'])
+          && porMim(request.resource.data.aprovadoPor)
+          && request.resource.data.aprovadoEm == request.time && request.resource.data.atualizadoEm == request.time)
+        // Cancelar antes de gravar.
+        || (resource.data.status in ['pedido', 'simulando', 'previa'] && request.resource.data.status == 'cancelado'
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'canceladoPor', 'canceladoEm', 'atualizadoEm'])
+          && porMim(request.resource.data.canceladoPor)
+          && request.resource.data.canceladoEm == request.time && request.resource.data.atualizadoEm == request.time)
+      );
+      allow delete: if false;
+    }
+
     match /motivos/{motivoId} {
       allow read: if isAuthorized();
       allow write: if false;

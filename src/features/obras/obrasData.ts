@@ -1,4 +1,4 @@
-import { addDoc, collection, deleteDoc, doc, getDoc, getDocs, query, serverTimestamp, Timestamp, updateDoc, where } from 'firebase/firestore';
+import { addDoc, collection, deleteDoc, doc, getDoc, getDocs, onSnapshot, query, serverTimestamp, setDoc, Timestamp, updateDoc, where } from 'firebase/firestore';
 import { deleteObject, getDownloadURL, ref as refArquivo, uploadBytes } from 'firebase/storage';
 import { db, storage } from '../../firebase';
 import { normalizarAtividade, type AtividadeV2 } from '../../services/atividade-normalizer';
@@ -13,6 +13,7 @@ import { httpsCallable } from 'firebase/functions';
 import { functions } from '../../firebase';
 import { preFabricadosDoPlannix, type LotePlannix, type PdfGravado, type PreFabricadosDoLote } from './preFabricados';
 import { localDoMaps } from '../cronograma-logistica/data/logisticaFirestore';
+import { idDaSincronizacao, sincronizacaoDoDocumento, type SincronizacaoPlannix } from './sincronizacaoPlannix';
 import { linkDoMapa } from '../cronograma-logistica/domain/local';
 
 const OBRAS_V2 = 'obras-v2';
@@ -98,6 +99,34 @@ export async function excluirPdfPreFabricado(pdf: PdfGravado): Promise<void> {
 }
 
 export const enderecoDoPdf = (caminho: string) => getDownloadURL(refArquivo(storage, caminho));
+
+// Sincronizar com o Plannix (sincronizacaoPlannix.ts): a fila do robô, um documento por LOTE.
+const SINCRONIZACOES = 'plannix-sincronizacoes';
+
+/** As sincronizações dos LOTEs da obra, ao vivo (pela chave do LOTE); devolve o cancelamento da escuta. */
+export function ouvirSincronizacoes(obraId: string, aoMudar: (porLote: Record<string, SincronizacaoPlannix>) => void, aoFalhar: (err: unknown) => void) {
+  return onSnapshot(query(collection(db, SINCRONIZACOES), where('obraId', '==', obraId)), (snapshot) => {
+    const porLote: Record<string, SincronizacaoPlannix> = {};
+    for (const item of snapshot.docs) {
+      const s = sincronizacaoDoDocumento(item.id, item.data());
+      if (s) porLote[s.lote] = s;
+    }
+    aoMudar(porLote);
+  }, aoFalhar);
+}
+
+/** Pede (ou pede de novo, depois de terminada): o documento volta inteiro a 'pedido'. */
+export function pedirSincronizacao(alvo: { obraId: string; lote: string; pedido: string; plannix: number }, autor: Autor) {
+  return setDoc(doc(db, SINCRONIZACOES, idDaSincronizacao(alvo.obraId, alvo.lote)), {
+    schemaVersion: 1, ...alvo, status: 'pedido', pedidoPor: autor, pedidoEm: serverTimestamp(), atualizadoEm: serverTimestamp(),
+  });
+}
+
+export const aprovarSincronizacao = (id: string, autor: Autor) =>
+  updateDoc(doc(db, SINCRONIZACOES, id), { status: 'aprovado', aprovadoPor: autor, aprovadoEm: serverTimestamp(), atualizadoEm: serverTimestamp() });
+
+export const cancelarSincronizacao = (id: string, autor: Autor) =>
+  updateDoc(doc(db, SINCRONIZACOES, id), { status: 'cancelado', canceladoPor: autor, canceladoEm: serverTimestamp(), atualizadoEm: serverTimestamp() });
 
 export async function listarObras(): Promise<ObraDetalhe[]> {
   const snapshot = await getDocs(collection(db, OBRAS_V2));

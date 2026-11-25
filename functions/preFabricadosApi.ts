@@ -1,21 +1,26 @@
-// API dos Pré-Fabricados (área Engenharia) para robôs: só consulta dos PDFs dos pré-fabricados anexados no detalhe da obra
-// (/engenharia/obras/:id), achados pelo Nº Pedido do LOTE (o mesmo número do Cód. Auxiliar da obra no Plannix). Primeiro
-// uso: a automação do Samuel que baixa o PDF e o lança no Plannix. Cada chave pertence a uma pessoa
+// API dos Pré-Fabricados (área Engenharia) para robôs: consulta dos PDFs dos pré-fabricados anexados no detalhe da obra
+// (/engenharia/obras/:id), achados pelo Nº Pedido do LOTE (o mesmo número do Cód. Auxiliar da obra no Plannix), e a fila
+// do botão Sincronizar (plannix-sincronizacoes, 2026-11-25). Primeiro uso: a automação do Samuel que baixa o PDF e o
+// lança no Plannix. Cada chave pertence a uma pessoa
 // (prefabricados-chaves-api/{sha256 da chave}: uid, nome, revogada_em), criada e revogada pelo adm2 em Cadastros → APIs;
 // o banco guarda só o hash. Cabeçalho: `X-PreFabricados-Chave: enpf_...` (não usa Authorization: o Cloud Run tentaria
 // validá-lo como token do Google). A pessoa da chave precisa ver a área Engenharia (ou ser adm2). O Admin SDK não passa
 // pelas Rules: a permissão é conferida aqui.
-// Rotas (GET): /eu, /pedidos/{pedido}/pdfs e /pdfs/{id} (o próprio PDF).
+// Rotas (GET): /eu, /pedidos/{pedido}/pdfs, /pdfs/{id} (o próprio PDF), /sincronizacoes (as que esperam o robô) e
+// /sincronizacoes/{id}. A única que grava: POST /sincronizacoes/{id} ({ status, previa?, mensagem? }), o passo do robô,
+// só com chave de quem edita a área Engenharia (ou adm2).
 // Contrato: The Manuscript, 01_FIRESTORE/COLECOES/prefabricados-chaves-api.md e 02_APIS_FUNCTIONS/10_APIS_POR_AREA.md.
 import { onRequest } from 'firebase-functions/v2/https';
 import * as logger from 'firebase-functions/logger';
-import { FieldPath } from 'firebase-admin/firestore';
+import { FieldPath, FieldValue } from 'firebase-admin/firestore';
 import { getStorage } from 'firebase-admin/storage';
 import { db } from './firebaseAdmin.js';
+import { editaArea } from './credenciais.js';
 import { dataLocal } from './fridayMondayConverter.js';
 import { COLUNA_PEDIDO, pedidoDaCelula } from './plannixPreFabricados.js';
 import {
-  EntradaInvalida, formatoChavePreFabricados, hashChavePreFabricados, pdfIdValido, pdfsAtuaisDoLote, pedidoDaRota, pessoaDaChavePreFabricados,
+  ESPERANDO_O_ROBO, EntradaInvalida, StatusFora, formatoChavePreFabricados, hashChavePreFabricados, passoDoRobo, pdfIdValido, pdfsAtuaisDoLote,
+  pedidoDaRota, pessoaDaChavePreFabricados, sincronizacaoIdValido, sincronizacaoParaRobo,
 } from './preFabricadosApiDominio.js';
 
 type AnyRecord = Record<string, any>;
@@ -25,8 +30,11 @@ class Recusa extends Error {
   constructor(readonly status: number, mensagem: string) { super(mensagem); }
 }
 
-/** Pessoa da chave do cabeçalho; sem chave válida, 401 sem detalhes. Marca o último uso no máximo uma vez por hora. */
-async function pessoaDoPedido(chave: unknown): Promise<{ pessoa: Pessoa; chaveId: string }> {
+/**
+ * Pessoa da chave do cabeçalho; sem chave válida, 401 sem detalhes. `edita`: edita a área Engenharia (ou é adm2), para
+ * gravar o passo do robô. Marca o último uso no máximo uma vez por hora.
+ */
+async function pessoaDoPedido(chave: unknown): Promise<{ pessoa: Pessoa; chaveId: string; edita: boolean }> {
   if (!formatoChavePreFabricados(chave)) throw new Recusa(401, 'Não autorizado.');
   const hash = hashChavePreFabricados(chave);
   const ref = db.collection('prefabricados-chaves-api').doc(hash);
@@ -36,7 +44,7 @@ async function pessoaDoPedido(chave: unknown): Promise<{ pessoa: Pessoa; chaveId
   if (!pessoa) throw new Recusa(401, 'Não autorizado.');
   const agora = dataLocal();
   if (String(registro!.ultimo_uso ?? '').slice(0, 13) !== agora.slice(0, 13)) await ref.update({ ultimo_uso: agora }).catch(() => undefined);
-  return { pessoa, chaveId: hash.slice(0, 12) };
+  return { pessoa, chaveId: hash.slice(0, 12), edita: editaArea(funcionario, 'engenharia') };
 }
 
 /** GET /eu: de quem é a chave. */
@@ -99,14 +107,72 @@ async function baixarPdf(id: string) {
   return { dados, nome: String(d.nome ?? `${id}.pdf`) };
 }
 
-const statusDoErro = (e: unknown) => e instanceof Recusa ? e.status : e instanceof EntradaInvalida ? 400 : 500;
+const SINCRONIZACOES = 'plannix-sincronizacoes';
+
+/** Nomes da obra e dos LOTEs para as sincronizações listadas (uma leitura por obra). */
+async function nomesDasObras(obraIds: string[]) {
+  const docs = await Promise.all([...new Set(obraIds)].map((id) => db.collection('obras-v2').doc(id).get()));
+  return new Map(docs.map((d) => [d.id, d.data() ?? {}]));
+}
+const nomes = (obras: Map<string, AnyRecord>, d: AnyRecord) => {
+  const obra = obras.get(String(d.obraId));
+  return { obra: String(obra?.nomeObra ?? ''), lote: String(obra?.lotes?.[String(d.lote)]?.nome ?? '') };
+};
+
+/** GET /sincronizacoes: as que esperam o robô (pedidas, para simular; aprovadas, para gravar), das mais antigas. */
+async function sincronizacoesEsperando() {
+  const docs = (await db.collection(SINCRONIZACOES).where('status', 'in', ESPERANDO_O_ROBO).get()).docs;
+  const obras = await nomesDasObras(docs.map((d) => String(d.get('obraId'))));
+  return docs
+    .map((d) => sincronizacaoParaRobo(d.id, d.data(), nomes(obras, d.data())))
+    .sort((a, b) => String(a.atualizadoEm).localeCompare(String(b.atualizadoEm)));
+}
+
+/** GET /sincronizacoes/{id}: uma sincronização, em qualquer status (o robô confere se não foi cancelada). */
+async function sincronizacao(id: string) {
+  if (!sincronizacaoIdValido(id)) throw new Recusa(404, 'Sincronização não encontrada.');
+  const d = (await db.collection(SINCRONIZACOES).doc(id).get()).data();
+  if (!d) throw new Recusa(404, 'Sincronização não encontrada.');
+  return sincronizacaoParaRobo(id, d, nomes(await nomesDasObras([String(d.obraId)]), d));
+}
+
+/** POST /sincronizacoes/{id}: o passo do robô, numa transação (o status confere com o que está gravado). */
+async function avancarSincronizacao(id: string, corpo: unknown, pessoa: Pessoa) {
+  if (!sincronizacaoIdValido(id)) throw new Recusa(404, 'Sincronização não encontrada.');
+  const ref = db.collection(SINCRONIZACOES).doc(id);
+  await db.runTransaction(async (t) => {
+    const atual = (await t.get(ref)).data();
+    if (!atual) throw new Recusa(404, 'Sincronização não encontrada.');
+    const passo = passoDoRobo(atual.status, corpo);
+    t.update(ref, {
+      status: passo.status,
+      ...(passo.previa ? { previa: passo.previa } : {}),
+      mensagem: passo.mensagem ?? FieldValue.delete(),
+      robo: { uid: pessoa.uid, nome: pessoa.nome },
+      atualizadoEm: FieldValue.serverTimestamp(),
+    });
+  });
+  return sincronizacao(id);
+}
+
+const statusDoErro = (e: unknown) => e instanceof Recusa ? e.status : e instanceof EntradaInvalida ? 400 : e instanceof StatusFora ? 409 : 500;
 
 export const preFabricadosApi = onRequest({ region: 'southamerica-east1', timeoutSeconds: 60, memory: '256MiB', maxInstances: 2, invoker: 'public' }, async (req, res) => {
   try {
-    if (req.method !== 'GET') throw new Recusa(405, 'Use GET (só consulta).');
     const partes = req.path.split('/').filter(Boolean);
-    const { pessoa, chaveId } = await pessoaDoPedido(req.get('x-prefabricados-chave'));
+    const passoDoRoboNaRota = partes.length === 2 && partes[0] === 'sincronizacoes';
+    if (req.method !== 'GET' && !(req.method === 'POST' && passoDoRoboNaRota)) {
+      throw new Recusa(405, 'Use GET (consulta); só POST /sincronizacoes/{id} grava.');
+    }
+    const { pessoa, chaveId, edita } = await pessoaDoPedido(req.get('x-prefabricados-chave'));
     logger.info('prefabricados-api', { uid: pessoa.uid, chave: chaveId, metodo: req.method, rota: req.path });
+    if (req.method === 'POST') {
+      if (!edita) throw new Recusa(403, 'A chave precisa ser de quem edita a área Engenharia.');
+      res.status(200).json(await avancarSincronizacao(partes[1], req.body, pessoa));
+      return;
+    }
+    if (partes.length === 1 && partes[0] === 'sincronizacoes') { res.status(200).json(await sincronizacoesEsperando()); return; }
+    if (passoDoRoboNaRota) { res.status(200).json(await sincronizacao(partes[1])); return; }
     if (partes.length === 1 && partes[0] === 'eu') { res.status(200).json(eu(pessoa)); return; }
     if (partes.length === 3 && partes[0] === 'pedidos' && partes[2] === 'pdfs') { res.status(200).json(await pdfsDoPedido(pedidoDaRota(partes[1]))); return; }
     if (partes.length === 2 && partes[0] === 'pdfs') {
@@ -114,7 +180,7 @@ export const preFabricadosApi = onRequest({ region: 'southamerica-east1', timeou
       res.status(200).set({ 'Content-Type': 'application/pdf', 'Content-Disposition': `attachment; filename*=UTF-8''${encodeURIComponent(pdf.nome)}` }).send(pdf.dados);
       return;
     }
-    throw new Recusa(404, 'Rota desconhecida. Consulta (GET): /eu, /pedidos/{pedido}/pdfs, /pdfs/{id}.');
+    throw new Recusa(404, 'Rota desconhecida. GET: /eu, /pedidos/{pedido}/pdfs, /pdfs/{id}, /sincronizacoes, /sincronizacoes/{id}. POST: /sincronizacoes/{id}.');
   } catch (e) {
     const status = statusDoErro(e);
     const mensagem = e instanceof Error ? e.message : String(e);

@@ -74,3 +74,63 @@ export function pdfsAtuaisDoLote(docs: { id: string; data: AnyRecord | undefined
     };
   }).sort((a, b) => comparar(a.produto, b.produto) || comparar(a.nome, b.nome) || Number(a.parte === 'console') - Number(b.parte === 'console'));
 }
+
+/**
+ * Sincronizar com o Plannix (2026-11-25): a fila do robô em plannix-sincronizacoes, um documento por LOTE
+ * ({obraId}__{lote}). A tela pede, aprova a prévia e cancela (Rules); o robô avança o resto por POST /sincronizacoes/{id}:
+ * pedido → simulando → previa (com o texto da prévia) e, depois da aprovação, aprovado → gravando → concluido; qualquer
+ * passo do robô pode terminar em erro (com a mensagem).
+ */
+export const STATUS_SINCRONIZACAO = ['pedido', 'simulando', 'previa', 'aprovado', 'gravando', 'concluido', 'erro', 'cancelado'] as const;
+export type StatusSincronizacao = typeof STATUS_SINCRONIZACAO[number];
+/** Status em que a sincronização espera o robô: GET /sincronizacoes lista só estes. */
+export const ESPERANDO_O_ROBO: StatusSincronizacao[] = ['pedido', 'aprovado'];
+const PASSOS_DO_ROBO: Partial<Record<StatusSincronizacao, StatusSincronizacao[]>> = {
+  pedido: ['simulando', 'erro'],
+  simulando: ['previa', 'erro'],
+  aprovado: ['gravando', 'erro'],
+  gravando: ['concluido', 'erro'],
+};
+export const LIMITE_PREVIA = 20000;
+export const LIMITE_MENSAGEM = 2000;
+
+/** Id do documento em plannix-sincronizacoes: {obraId}__{lote}. */
+export const sincronizacaoIdValido = (id: string) => /^[A-Za-z0-9_-]{1,100}__[A-Za-z0-9_-]{1,100}$/.test(id);
+
+/** O status atual não permite o passo pedido (vira 409). */
+export class StatusFora extends Error {}
+
+/**
+ * O que o robô grava no POST: o status seguinte (só os passos de PASSOS_DO_ROBO), a prévia (obrigatória em 'previa', só
+ * nele) e a mensagem (obrigatória em 'erro'; opcional nos outros).
+ */
+export function passoDoRobo(atual: unknown, corpo: unknown): { status: StatusSincronizacao; previa?: string; mensagem?: string } {
+  if (!corpo || typeof corpo !== 'object' || Array.isArray(corpo)) throw new EntradaInvalida('Envie um JSON com "status".');
+  const { status, previa, mensagem, ...resto } = corpo as AnyRecord;
+  if (Object.keys(resto).length) throw new EntradaInvalida(`Campos desconhecidos: ${Object.keys(resto).join(', ')}.`);
+  if (!STATUS_SINCRONIZACAO.includes(status)) throw new EntradaInvalida(`"status" deve ser um de: ${STATUS_SINCRONIZACAO.join(', ')}.`);
+  if (previa !== undefined && (status !== 'previa' || typeof previa !== 'string')) throw new EntradaInvalida('"previa" só vai, como texto, com o status "previa".');
+  if (mensagem !== undefined && typeof mensagem !== 'string') throw new EntradaInvalida('"mensagem" deve ser texto.');
+  const textoPrevia = texto(previa);
+  const textoMensagem = texto(mensagem);
+  if (status === 'previa' && !textoPrevia) throw new EntradaInvalida('O status "previa" precisa do texto da prévia em "previa".');
+  if (status === 'erro' && !textoMensagem) throw new EntradaInvalida('O status "erro" precisa do motivo em "mensagem".');
+  if (textoPrevia.length > LIMITE_PREVIA) throw new EntradaInvalida(`A prévia passa de ${LIMITE_PREVIA} caracteres.`);
+  if (textoMensagem.length > LIMITE_MENSAGEM) throw new EntradaInvalida(`A mensagem passa de ${LIMITE_MENSAGEM} caracteres.`);
+  const possiveis = PASSOS_DO_ROBO[atual as StatusSincronizacao] ?? [];
+  if (!possiveis.includes(status)) {
+    throw new StatusFora(`A sincronização está em "${String(atual)}": o robô ${possiveis.length ? `só pode passar para ${possiveis.join(' ou ')}` : 'não muda mais nada nela'}.`);
+  }
+  return { status, ...(textoPrevia ? { previa: textoPrevia } : {}), ...(textoMensagem ? { mensagem: textoMensagem } : {}) };
+}
+
+/** A sincronização como o robô a recebe: datas em ISO, pessoas pelo nome. */
+export function sincronizacaoParaRobo(id: string, d: AnyRecord, nomes: { obra?: string; lote?: string } = {}) {
+  return {
+    id, obraId: texto(d.obraId), obra: nomes.obra ?? '', lote: texto(d.lote), loteNome: nomes.lote ?? '', pedido: texto(d.pedido),
+    plannix: Number(d.plannix) || null, status: texto(d.status),
+    pedidoPor: texto(d.pedidoPor?.nome), pedidoEm: dataIso(d.pedidoEm),
+    aprovadoPor: texto(d.aprovadoPor?.nome) || null, aprovadoEm: dataIso(d.aprovadoEm),
+    previa: texto(d.previa) || null, mensagem: texto(d.mensagem) || null, atualizadoEm: dataIso(d.atualizadoEm),
+  };
+}

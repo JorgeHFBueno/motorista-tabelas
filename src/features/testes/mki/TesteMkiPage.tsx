@@ -18,7 +18,8 @@ import {
 } from '@mui/material';
 import ScienceRounded from '@mui/icons-material/ScienceRounded';
 import CampoEditavel from '../../obras/CampoEditavelObra';
-import ListaLotes, { type AcoesPdf, type LoteComPreFabricados } from '../../obras/ListaLotes';
+import ListaLotes, { type AcoesPdf, type AcoesSincronizar, type LoteComPreFabricados } from '../../obras/ListaLotes';
+import type { SincronizacaoPlannix, StatusSincronizacao } from '../../obras/sincronizacaoPlannix';
 import { ehPdfDeGrupo, maisRecente, parteDoPdf, SEM_PEDIDO, type PdfPreFabricado, type PreFabricado } from '../../obras/preFabricados';
 import { useAuth } from '../../../contexts/AuthContext';
 import './mki.css';
@@ -27,7 +28,15 @@ import './mki.css';
  * /testes/mki: mock do detalhe da obra (/engenharia/obras/:id) com os LOTEs em lista (ListaLotes, a mesma da página
  * real). Aqui os pré-fabricados imitam o Plannix (peças com códigos e etapas) e os PDFs são anexados, substituídos e
  * excluídos: obra, LOTEs e pré-fabricados fictícios em memória; nada vai para o Firestore nem para o Storage.
+ * Sincronizar: um robô de mentira anda a fila sozinho (simula em segundos, mostra a prévia e, aprovada, "grava").
  */
+const PREVIA_FICTICIA = [
+  'Obra 141 (PM ALEGRIA) · etapa GERAL',
+  'P01  volume 0,9375 m³  comprimento 7,50 m  classe 30MPa',
+  '     aço: 1 CA-50 Ø10 2×745 cm · 2 CA-60 Ø5 53×180 cm · total 112,66 kg (tela: 112,66 kg)',
+  'P02  já registrada no Plannix: fica como está',
+  'Nada foi gravado: aprove para o robô registrar.',
+].join('\n');
 
 const pdf = (id: string, nome: string, kb: number, quando: string, por: string): PdfPreFabricado =>
   ({ id, nome, tamanho: kb * 1024, anexadoEm: new Date(quando), anexadoPor: por, url: null });
@@ -132,8 +141,12 @@ export default function TesteMkiPage() {
   const [lotes, setLotes] = useState(LOTES_INICIAIS);
   const [aviso, setAviso] = useState<string | null>(null);
   const urls = useRef<string[]>([]);
+  const relogios = useRef<number[]>([]);
 
-  useEffect(() => () => urls.current.forEach((url) => URL.revokeObjectURL(url)), []);
+  useEffect(() => () => {
+    urls.current.forEach((url) => URL.revokeObjectURL(url));
+    relogios.current.forEach((relogio) => window.clearTimeout(relogio));
+  }, []);
 
   const alterarItem = (lote: string, item: string, alterar: (atual: PreFabricado) => PreFabricado) =>
     setLotes((atuais) => atuais.map((atual) => (atual.chave !== lote ? atual : {
@@ -173,6 +186,34 @@ export default function TesteMkiPage() {
         pdfsDosGrupos: Object.fromEntries(Object.entries(lote.pdfsDosGrupos ?? {}).map(([chave, pdfs]) => [chave, pdfs.filter((pdfItem) => pdfItem.id !== item.id)])),
       })));
       setAviso(`${item.nome} excluído.`);
+    },
+  };
+
+  /** O robô de mentira: muda o status do LOTE e, se ainda estiver no esperado, segue o próximo passo depois de um tempo. */
+  const mudarSincronizacao = (lote: string, status: StatusSincronizacao, extra: Partial<SincronizacaoPlannix> = {}, se?: StatusSincronizacao) =>
+    setLotes((atuais) => atuais.map((atual) => {
+      if (atual.chave !== lote || (se && atual.sincronizacao?.status !== se)) return atual;
+      const anterior = atual.sincronizacao;
+      return { ...atual, sincronizacao: { id: lote, lote, pedidoPor: usuario, pedidoEm: new Date(), aprovadoPor: '', previa: '', mensagem: '', ...anterior, ...extra, status, atualizadoEm: new Date() } };
+    }));
+  const depois = (ms: number, passo: () => void) => { relogios.current.push(window.setTimeout(passo, ms)); };
+  const sincronizar: AcoesSincronizar = {
+    podeEditar: true,
+    pedir(lote) {
+      mudarSincronizacao(lote, 'pedido', { pedidoPor: usuario, pedidoEm: new Date(), aprovadoPor: '', previa: '', mensagem: '' });
+      depois(1500, () => mudarSincronizacao(lote, 'simulando', {}, 'pedido'));
+      depois(4000, () => mudarSincronizacao(lote, 'previa', { previa: PREVIA_FICTICIA }, 'simulando'));
+      setAviso('Sincronização pedida: o robô simula e mostra a prévia aqui.');
+    },
+    aprovar(s) {
+      mudarSincronizacao(s.lote, 'aprovado', { aprovadoPor: usuario });
+      depois(1500, () => mudarSincronizacao(s.lote, 'gravando', {}, 'aprovado'));
+      depois(4000, () => mudarSincronizacao(s.lote, 'concluido', { mensagem: 'P01 registrada no Plannix.' }, 'gravando'));
+      setAviso('Prévia aprovada: o robô grava no Plannix.');
+    },
+    cancelar(s) {
+      mudarSincronizacao(s.lote, 'cancelado');
+      setAviso('Sincronização cancelada.');
     },
   };
 
@@ -217,7 +258,7 @@ export default function TesteMkiPage() {
           </Box>
 
           <Typography variant="body2" color="text.secondary" sx={{ mt: 2.5, mb: 1 }}>LOTEs</Typography>
-          <ListaLotes lotes={lotes} acoesPdf={acoesPdf} />
+          <ListaLotes lotes={lotes} acoesPdf={acoesPdf} sincronizar={sincronizar} />
 
           <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 2 }}>
             O cadastro da obra é feito no Friday (quadro GESTÃO DE OBRAS); aqui se editam só o local, o sinônimo e os PDFs dos pré-fabricados.
