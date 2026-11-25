@@ -92,6 +92,8 @@ type AlvoRevisoes = { lote: string; itens: string[]; titulo: string };
 const dataHora = (data: Date) => data.toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short', timeZone: 'America/Sao_Paulo' });
 const ehPdf = (arquivo: File) => arquivo.type === 'application/pdf' || arquivo.name.toLowerCase().endsWith('.pdf');
 const temArquivo = (event: { dataTransfer: DataTransfer | null }) => Array.from(event.dataTransfer?.types ?? []).includes('Files');
+/** Nome do desenho do Plannix na célula: as 5 primeiras letras, como o "Rev. N" do PDF; o nome inteiro no tooltip e nas Revisões. */
+const nomeCurto = (nome: string) => (nome.length > 5 ? `${nome.slice(0, 5)}…` : nome);
 const tamanhoTexto = (bytes: number) => (bytes >= 1024 * 1024 ? `${(bytes / 1024 / 1024).toFixed(1)} MB` : `${Math.round(bytes / 1024)} KB`);
 
 function BotaoRevisoes({ quantidade, rotulo, onClick }: { quantidade: number; rotulo: string; onClick: () => void }) {
@@ -267,8 +269,8 @@ export default function ListaLotes({ lotes, acoesPdf }: { lotes: LoteComPreFabri
           {desenhos.length > 0 && (
             <Stack direction="row" spacing={0.5} flexWrap="wrap" useFlexGap justifyContent="center" sx={{ mb: 0.5 }}>
               {desenhos.map((nome) => (
-                <Tooltip key={nome} title="Desenho no Plannix (a API só informa o nome)">
-                  <Chip size="small" icon={<PictureAsPdfOutlinedIcon />} label={nome} variant="outlined" sx={{ maxWidth: 230 }} />
+                <Tooltip key={nome} title={`Desenho no Plannix (a API só informa o nome): ${nome}`}>
+                  <Chip size="small" icon={<PictureAsPdfOutlinedIcon />} label={nomeCurto(nome)} variant="outlined" aria-label={`Desenho no Plannix: ${nome}`} />
                 </Tooltip>
               ))}
             </Stack>
