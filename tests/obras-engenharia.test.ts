@@ -17,7 +17,7 @@ import {
 } from '../src/features/obras/obrasDomain';
 import { createObraRelatorioPdf, nomeArquivoRelatorioObra } from '../src/features/obras/obraRelatorioPdf';
 import { LOCAIS_SUGERIDOS } from '../src/features/obras/locaisSugeridos';
-import { agruparPorTipo, comPdf, comPdfsGravados, daParte, ehPdfDeGrupo, opcoesAoSoltar, parteDoPdf, pdfsDosGrupos, preFabricadosDoPlannix, resumoEtapas, revisoes, semProjeto, totalPdfs, type PdfGravado, type PreFabricado } from '../src/features/obras/preFabricados';
+import { agruparPorTipo, comPdf, comPdfsGravados, daParte, ehPdfDeGrupo, etapaPlannix, opcoesAoSoltar, parteDoPdf, pdfsDosGrupos, preFabricadosDoPlannix, resumoEtapas, revisoes, semProjeto, totalPdfs, type PdfGravado, type PreFabricado } from '../src/features/obras/preFabricados';
 import { coordenadaDoLote, lotesDaObra, obraFromV2 } from '../src/utils/cadastrosV2';
 
 const contrato = {
@@ -232,6 +232,12 @@ test('pré-fabricados: resumo das etapas na ordem da produção, sem acento e et
   const itens = [preFabricado('P01', 'PILAR', ['EXPEDIDA', 'CORTE DOBRA', 'ACABADA', 'CORTE DOBRA', 'ARMAÇÃO']), preFabricado('P02', 'PILAR', ['ACABADA', 'NOVA ETAPA'])];
   assert.deepEqual(resumoEtapas(itens).map((e) => `${e.quantidade} ${e.rotulo}`), ['2 Corte e dobra', '1 Armação', '2 Acabada', '1 Expedida', '1 NOVA ETAPA']);
   assert.equal(semProjeto([preFabricado('LF', 'VIGA', [], 0, 8), ...itens]), 8);
+});
+
+test('pré-fabricados: peça sem etapa é "Não Projetado", em vermelho e antes das etapas', () => {
+  assert.deepEqual(etapaPlannix('  '), { rotulo: 'Não Projetado', cor: 'error', ordem: -1 });
+  const etapas = resumoEtapas([preFabricado('P01', 'PILAR', ['PROJETADA', '', ''])]);
+  assert.deepEqual(etapas.map((e) => `${e.quantidade} ${e.rotulo}`), ['2 Não Projetado', '1 Projetada']);
 });
 
 test('pré-fabricados: "N de M com PDF", total de PDFs e revisões da mais nova (Rev. N) à mais antiga (Rev. 0)', () => {

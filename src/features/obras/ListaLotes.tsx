@@ -59,12 +59,13 @@ import './listaLotes.css';
  * - item: a peça do projeto (ex.: P01 com 10 peças), com o resumo das etapas (ex.: 3 Corte e dobra · 4 Acabada);
  *   abre para mostrar os códigos de controle, cada um com a etapa e a data;
  * - sem projeto no Plannix, o item é a linha do Lançamento Final ("aguardando projeto").
- * PDF: os nomes dos desenhos no Plannix e os PDFs anexados (Revisões: quem anexou e quando). Com `acoesPdf.anexar`
+ * PDF: o PDF atual de cada parte (só o ícone e a revisão; o nome fica nas Revisões, com os nomes dos desenhos no
+ * Plannix e quem anexou e quando). Com `acoesPdf.anexar`
  * (quem edita), "Anexar PDF"; com PDF, "Substituir", que troca o atual sem nova revisão, e "Revisão", que anexa uma
  * nova; com `acoesPdf.excluir`, excluir nas Revisões. Item sem projeto no Plannix não recebe PDF (o item muda de nome
  * quando o projeto é cadastrado). Grupo com PDF único (Vigotes e Guarda Roda): o PDF e as Revisões ficam na linha do
  * grupo, um para todos os itens, e os itens não têm PDF.
- * Console (2026-11-25): com o PDF principal, o botão "Console" anexa o segundo PDF do item, com revisões próprias;
+ * Console (2026-11-25): com o PDF principal, o botão do Console (só o ícone) anexa o segundo PDF do item, com revisões próprias;
  * Substituir e Revisão de cada um mantêm o outro. Arrastar: ao arrastar um arquivo sobre a página, cada célula de PDF que
  * aceita PDF vira uma área de soltar; solto onde não há PDF, anexa; onde há, pergunta: Revisão, Substituição ou Console.
  * `itens: null` = sem pré-fabricados para mostrar; `aviso` diz o motivo (carregando, sem Nº Pedido, pedido sem obra no Plannix, erro).
@@ -235,18 +236,22 @@ export default function ListaLotes({ lotes, acoesPdf }: { lotes: LoteComPreFabri
 
   const loteHistorico = historico ? lotes.find((lote) => lote.chave === historico.lote) : undefined;
   // Seções da janela: o PDF único do grupo (chave do grupo) ou cada item, com os PDFs de cada um.
+  // Os desenhos do Plannix do grupo com PDF único são os de todos os itens dele.
   const itensHistorico = (historico?.itens ?? []).flatMap((id) => {
-    if (ehPdfDeGrupo(id)) return [{ id, tipo: historico?.titulo ?? '', pdfs: loteHistorico?.pdfsDosGrupos?.[id] ?? [] }];
+    if (ehPdfDeGrupo(id)) {
+      const itensDoGrupo = agruparPorTipo(loteHistorico?.itens ?? []).find((grupo) => grupo.pdf === id)?.itens ?? [];
+      return [{ id, tipo: historico?.titulo ?? '', pdfs: loteHistorico?.pdfsDosGrupos?.[id] ?? [], desenhos: [...new Set(itensDoGrupo.flatMap((item) => item.desenhos))] }];
+    }
     const item = loteHistorico?.itens?.find((existente) => existente.id === id);
-    return item ? [{ id, tipo: item.tipo, pdfs: item.pdfs }] : [];
+    return item ? [{ id, tipo: item.tipo, pdfs: item.pdfs, desenhos: item.desenhos }] : [];
   });
 
   /**
-   * PDF de um item ou do grupo com PDF único: os desenhos do Plannix e, de cada parte com PDF (principal e Console), o
-   * atual com Substituir e Revisão; "Anexar PDF" sem PDF e "Console" enquanto o console não tem. Com um arquivo sendo
-   * arrastado, a célula vira área de soltar.
+   * PDF de um item ou do grupo com PDF único: de cada parte com PDF (principal e Console), o atual (ícone e revisão; o
+   * nome no tooltip e nas Revisões) com Substituir e Revisão; "Anexar PDF" sem PDF e o ícone do Console enquanto o
+   * console não tem. Com um arquivo sendo arrastado, a célula vira área de soltar.
    */
-  function celulaPdf(alvo: Omit<AlvoPdf, 'parte'>, pdfs: PdfPreFabricado[], rotulo: string, aceita: boolean, desenhos: string[] = []) {
+  function celulaPdf(alvo: Omit<AlvoPdf, 'parte'>, pdfs: PdfPreFabricado[], rotulo: string, aceita: boolean) {
     const editar = Boolean(acoesPdf?.anexar) && aceita;
     const chave = `${alvo.lote}:${alvo.item}`;
     const comPdf = PARTES_DO_PDF.map((parte) => ({ ...parte, pdfs: daParte(pdfs, parte.parte) })).filter((parte) => parte.pdfs.length > 0);
@@ -262,15 +267,6 @@ export default function ListaLotes({ lotes, acoesPdf }: { lotes: LoteComPreFabri
         onDrop={editar ? (event) => soltarPdf(event, alvo, pdfs, rotulo) : undefined}
       >
         <Box className={editar && arrastando ? `obra-lotes__soltar${sobre === chave ? ' obra-lotes__soltar--sobre' : ''}` : undefined}>
-          {desenhos.length > 0 && (
-            <Stack direction="row" spacing={0.5} flexWrap="wrap" useFlexGap sx={{ mb: 0.5 }}>
-              {desenhos.map((nome) => (
-                <Tooltip key={nome} title="Desenho no Plannix (a API só informa o nome)">
-                  <Chip size="small" icon={<PictureAsPdfOutlinedIcon />} label={nome} variant="outlined" sx={{ maxWidth: 230 }} />
-                </Tooltip>
-              ))}
-            </Stack>
-          )}
           <Stack spacing={0.5}>
             {comPdf.map(({ parte, rotulo: nomeParte, pdfs: daParteAtual }) => {
               const atual = maisRecente(daParteAtual)!;
@@ -282,11 +278,11 @@ export default function ListaLotes({ lotes, acoesPdf }: { lotes: LoteComPreFabri
                     <Chip
                       size="small"
                       icon={<PictureAsPdfOutlinedIcon />}
-                      label={daParteAtual.length > 1 ? `${atual.nome} · Rev. ${daParteAtual.length - 1}` : atual.nome}
+                      label={`Rev. ${daParteAtual.length - 1}`}
                       onClick={acoesPdf ? () => acoesPdf.abrir(atual) : undefined}
+                      aria-label={`Abrir ${atual.nome}`}
                       variant="outlined"
                       color="error"
-                      sx={{ maxWidth: 230 }}
                     />
                   </Tooltip>
                   {acoesPdf?.anexar && (
@@ -309,10 +305,10 @@ export default function ListaLotes({ lotes, acoesPdf }: { lotes: LoteComPreFabri
                     Anexar PDF
                   </Button>
                 ) : (
-                  <Tooltip title="Anexar o PDF do console (um segundo PDF, com revisões próprias)">
-                    <Button size="small" startIcon={<UploadFileOutlinedIcon />} onClick={() => escolherPdf({ ...alvo, parte: 'console' }, 'anexar')} aria-label={`Anexar o PDF do Console ao ${rotulo}`}>
-                      Console
-                    </Button>
+                  <Tooltip title="Anexar o PDF do Console (um segundo PDF, com revisões próprias)">
+                    <IconButton size="small" color="primary" onClick={() => escolherPdf({ ...alvo, parte: 'console' }, 'anexar')} aria-label={`Anexar o PDF do Console ao ${rotulo}`}>
+                      <UploadFileOutlinedIcon fontSize="small" />
+                    </IconButton>
                   </Tooltip>
                 )}
               </Box>
@@ -402,7 +398,7 @@ export default function ListaLotes({ lotes, acoesPdf }: { lotes: LoteComPreFabri
                               {celulaPdf({ lote: lote.chave, item: linha.pdf }, lote.pdfsDosGrupos?.[linha.pdf] ?? [], `${linha.nome} do ${lote.nome}`, true)}
                               <TableCell>{!linha.aberto && <ResumoEtapas itens={linha.itens} />}</TableCell>
                               <TableCell align="center">
-                                {(acoesPdf?.anexar || (lote.pdfsDosGrupos?.[linha.pdf]?.length ?? 0) > 0) && (
+                                {(acoesPdf?.anexar || (lote.pdfsDosGrupos?.[linha.pdf]?.length ?? 0) > 0 || linha.itens.some((item) => item.desenhos.length > 0)) && (
                                   <BotaoRevisoes
                                     quantidade={lote.pdfsDosGrupos?.[linha.pdf]?.length ?? 0}
                                     rotulo={`Revisões de ${linha.nome} do ${lote.nome}`}
@@ -419,7 +415,7 @@ export default function ListaLotes({ lotes, acoesPdf }: { lotes: LoteComPreFabri
                               </TableCell>
                               <TableCell><ResumoEtapas itens={linha.itens} /></TableCell>
                               <TableCell align="center">
-                                {(acoesPdf?.anexar || totalPdfs(linha.itens) > 0) && (
+                                {(acoesPdf?.anexar || totalPdfs(linha.itens) > 0 || linha.itens.some((item) => item.desenhos.length > 0)) && (
                                   <BotaoRevisoes
                                     quantidade={totalPdfs(linha.itens)}
                                     rotulo={`Revisões de ${linha.nome} do ${lote.nome}`}
@@ -476,10 +472,10 @@ export default function ListaLotes({ lotes, acoesPdf }: { lotes: LoteComPreFabri
                             </Typography>
                           )}
                         </TableCell>
-                        {linha.pdfNoGrupo ? <TableCell /> : celulaPdf(alvo, item.pdfs, rotuloItem, item.pecas.length > 0, item.desenhos)}
+                        {linha.pdfNoGrupo ? <TableCell /> : celulaPdf(alvo, item.pdfs, rotuloItem, item.pecas.length > 0)}
                         <TableCell><ResumoEtapas itens={[item]} /></TableCell>
                         <TableCell align="center">
-                          {!linha.pdfNoGrupo && ((acoesPdf?.anexar && item.pecas.length > 0) || item.pdfs.length > 0) && (
+                          {!linha.pdfNoGrupo && ((acoesPdf?.anexar && item.pecas.length > 0) || item.pdfs.length > 0 || item.desenhos.length > 0) && (
                             <BotaoRevisoes
                               quantidade={item.pdfs.length}
                               rotulo={`Revisões do ${rotuloItem}`}
@@ -508,10 +504,24 @@ export default function ListaLotes({ lotes, acoesPdf }: { lotes: LoteComPreFabri
             <Box key={item.id} sx={{ mb: 1 }}>
               {/* Grupo recolhido: uma seção por item, com o Tipo de cada um. */}
               {itensHistorico.length > 1 && <Typography sx={{ fontWeight: 700, mt: 1.5 }}>{item.tipo || 'Sem tipo'}</Typography>}
+              {item.desenhos.length > 0 && (
+                <>
+                  <Typography variant="body2" sx={{ fontWeight: 700, mt: 1 }}>Desenho no Plannix</Typography>
+                  <Typography variant="caption" color="text.secondary">A API só informa o nome.</Typography>
+                  <List dense disablePadding>
+                    {item.desenhos.map((nome) => (
+                      <ListItem key={nome} divider>
+                        <PictureAsPdfOutlinedIcon color="action" fontSize="small" sx={{ mr: 1.5 }} />
+                        <ListItemText primary={nome} primaryTypographyProps={{ sx: { overflowWrap: 'anywhere' } }} />
+                      </ListItem>
+                    ))}
+                  </List>
+                </>
+              )}
               {/* Com Console, as revisões de cada parte à parte (cada uma com a sua Rev. 0 e a sua "Atual"). */}
               {item.pdfs.length ? PARTES_DO_PDF.filter(({ parte }) => daParte(item.pdfs, parte).length > 0).map(({ parte, rotulo }, _, partes) => (
                 <Fragment key={parte}>
-                {(partes.length > 1 || parte === 'console') && <Typography variant="body2" sx={{ fontWeight: 700, mt: 1 }}>{rotulo}</Typography>}
+                {(partes.length > 1 || parte === 'console' || item.desenhos.length > 0) && <Typography variant="body2" sx={{ fontWeight: 700, mt: 1 }}>{rotulo}</Typography>}
                 <List dense disablePadding>
                   {revisoes(daParte(item.pdfs, parte)).map(({ item: pdf, revisao }, index) => (
                     <ListItem

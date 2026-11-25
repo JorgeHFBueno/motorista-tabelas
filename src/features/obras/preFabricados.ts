@@ -44,11 +44,13 @@ export const ETAPAS_PLANNIX: { nome: string; rotulo: string; cor: 'default' | 'i
 ];
 
 const normalizar = (texto: string) => texto.normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/\s+/g, ' ').trim().toUpperCase();
-export function etapaPlannix(etapa: string) {
+/** Peça sem etapa no Plannix: "Não Projetado", em vermelho e antes das etapas (pedido do responsável, 2026-11-25). */
+export function etapaPlannix(etapa: string): { rotulo: string; cor: 'default' | 'info' | 'primary' | 'success' | 'error'; ordem: number } {
+  if (!etapa.trim()) return { rotulo: 'Não Projetado', cor: 'error', ordem: -1 };
   const conhecida = ETAPAS_PLANNIX.find((item) => item.nome === normalizar(etapa));
   return {
-    rotulo: conhecida?.rotulo ?? (etapa.trim() || 'Sem etapa'),
-    cor: conhecida?.cor ?? 'default' as const,
+    rotulo: conhecida?.rotulo ?? etapa.trim(),
+    cor: conhecida?.cor ?? 'default',
     ordem: conhecida ? ETAPAS_PLANNIX.indexOf(conhecida) : ETAPAS_PLANNIX.length,
   };
 }
