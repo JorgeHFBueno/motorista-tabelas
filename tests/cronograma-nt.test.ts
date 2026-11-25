@@ -150,3 +150,20 @@ test("apoio: read from Firestore, out of the mestre's load and of the obra's mes
   assert.equal(periodoCurto("2026-11-24", 1), "24/11");
   assert.equal(periodoCurto("2026-11-24", 3), "24/11 a 26/11");
 });
+
+test("NT on an edge of a period with no neighbour there: its handle grows the period, the new days are NT (2026-11-25 bug)", () => {
+  // 12..22 with NT 19..22 at the end, nothing after: stretching the NT end to the 24th grows the period to the 24th.
+  const a = { inicio: "2026-11-12", tempoPlanejado: 11, naoTrabalhados: [{ inicio: "2026-11-19", dias: 4 }] };
+  assert.deepEqual(planoRedimensionarNT(a, { inicio: "2026-11-19", dias: 4 }, "end", "2026-11-24"), {
+    periodo: { inicio: "2026-11-12", tempoPlanejado: 13, naoTrabalhados: [{ inicio: "2026-11-19", dias: 6 }] },
+  });
+  // NT at the start, nothing before: stretching the start back to the 10th grows the period back.
+  const b = { inicio: "2026-11-12", tempoPlanejado: 11, naoTrabalhados: [{ inicio: "2026-11-12", dias: 2 }] };
+  assert.deepEqual(planoRedimensionarNT(b, { inicio: "2026-11-12", dias: 2 }, "start", "2026-11-10"), {
+    periodo: { inicio: "2026-11-10", tempoPlanejado: 13, naoTrabalhados: [{ inicio: "2026-11-10", dias: 4 }] },
+  });
+  // With a period of the same mestre ending the day before, the start does not grow over it.
+  assert.deepEqual(planoRedimensionarNT(b, { inicio: "2026-11-12", dias: 2 }, "start", "2026-11-10", undefined, true), {
+    periodo: { inicio: "2026-11-12", tempoPlanejado: 11, naoTrabalhados: [{ inicio: "2026-11-12", dias: 2 }] },
+  });
+});

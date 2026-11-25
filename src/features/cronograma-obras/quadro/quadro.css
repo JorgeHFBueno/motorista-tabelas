@@ -72,8 +72,10 @@
 .qg-borda { background: transparent; border: 0; bottom: 0; cursor: ew-resize; padding: 0; position: absolute; top: 0; width: 8px; z-index: 3; }
 .qg-borda.is-ini { left: 0; } .qg-borda.is-fim { right: 0; }
 .qg-borda:hover { background: rgba(255, 255, 255, .35); }
-.qg-nt { align-items: center; background: repeating-linear-gradient(135deg, rgba(255, 255, 255, .85) 0 4px, rgba(255, 255, 255, .5) 4px 8px); bottom: 0; color: #0f172a; display: flex; font-size: 9px; font-weight: 800; justify-content: center; position: absolute; top: 0; z-index: 1; }
-.qg-nt-borda { background: transparent; border: 0; bottom: 0; cursor: ew-resize; padding: 0; position: absolute; top: 0; width: 6px; z-index: 4; }
+.qg-nt { align-items: center; background: repeating-linear-gradient(135deg, rgba(255, 255, 255, .85) 0 4px, rgba(255, 255, 255, .5) 4px 8px); bottom: 0; color: #0f172a; display: flex; font-size: 9px; font-weight: 800; justify-content: center; position: absolute; top: 0; }
+/* No z-index on .qg-nt: its edge handles (z 4) sit above the bar's (z 3), so an NT at the end or start of the bar is
+   grabbed by its own handle, not by the period's (2026-11-25 bug: the period stretched instead of the NT). */
+.qg-nt-borda { background: transparent; border: 0; bottom: 0; cursor: ew-resize; padding: 0; position: absolute; top: 0; width: 8px; z-index: 4; }
 .qg-nt-borda.is-ini { left: 0; } .qg-nt-borda.is-fim { right: 0; }
 .qg-nt:hover .qg-nt-borda { background: rgba(15, 23, 42, .35); }
 .qg-vazio { color: #64748b; padding: 24px; }

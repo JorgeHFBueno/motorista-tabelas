@@ -401,13 +401,16 @@ function Barra({ obra, mestre, geo, topo, mostrarNome, podeNT: podeNTNoZoom, foc
     let draft = mestre;
     // NT edge: the next period of the same mestre in this LOTE, starting the day after this one ends.
     const fimPeriodo = addDays(mestre.inicio, mestre.tempoPlanejado - 1);
-    const sucessor = trecho ? obra.mestresPlanejados.find((item) => item.localId !== mestre.localId && (item.mestreId ?? item.nome) === (mestre.mestreId ?? mestre.nome) && item.inicio === addDays(fimPeriodo, 1)) : undefined;
+    const mesmoMestre = (item: MestrePlanejado) => item.localId !== mestre.localId && !item.apoio && (item.mestreId ?? item.nome) === (mestre.mestreId ?? mestre.nome);
+    const sucessor = trecho ? obra.mestresPlanejados.find((item) => mesmoMestre(item) && item.inicio === addDays(fimPeriodo, 1)) : undefined;
+    // A period of the same mestre ending the day before: the NT at the start does not grow the period over it.
+    const antecessorColado = Boolean(trecho && obra.mestresPlanejados.some((item) => mesmoMestre(item) && addDays(item.inicio, item.tempoPlanejado) === mestre.inicio));
     let plano: PlanoNT | null = null;
     const mover = (e: globalThis.PointerEvent) => {
       const i = Math.min(geo.dias.length - 1, Math.max(0, Math.floor((e.clientX - trilho.getBoundingClientRect().left) / geo.dw)));
       const data = geo.dias[i];
       if (trecho) {
-        plano = planoRedimensionarNT(mestre, trecho, edge, data, sucessor);
+        plano = planoRedimensionarNT(mestre, trecho, edge, data, sucessor, antecessorColado);
         draft = { ...mestre, ...plano.periodo, naoTrabalhados: plano.periodo.naoTrabalhados };
         onPreview(draft);
         if (sucessor) {

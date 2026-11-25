@@ -138,11 +138,23 @@ export function planoMarcarNT(periodo: Periodo, dia: string): PlanoNT {
  * - NT no fim do período e `sucessor` logo em seguida (mesmo mestre e LOTE, começando no dia seguinte): a ponta final
  *   move a divisa entre os dois. Esticar avança sobre o começo do sucessor, que encolhe; encolher devolve dias a ele.
  *   O sucessor fica com pelo menos 1 dia, e o NT com pelo menos 1.
+ * - NT numa ponta do período sem vizinho encostado daquele lado: a ponta do NT passa da ponta do período e o período
+ *   cresce junto, com os dias novos em NT (2026-11-25: a alça do NT, por cima da do período, faz o que ela fazia).
+ *   `antecessorColado`: há um período do mesmo mestre e LOTE terminando no dia anterior (o começo não cresce sobre ele).
  * - Nos outros casos, o NT muda dentro do período (como antes) e, se ficou no meio, o período é dividido.
  */
-export function planoRedimensionarNT(periodo: Periodo, trecho: NaoTrabalhado, edge: "start" | "end", dataAlvo: string, sucessor?: Periodo): PlanoNT {
+export function planoRedimensionarNT(periodo: Periodo, trecho: NaoTrabalhado, edge: "start" | "end", dataAlvo: string, sucessor?: Periodo, antecessorColado = false): PlanoNT {
   const fimPeriodo = calculatedEnd(periodo.inicio, periodo.tempoPlanejado);
   const fimTrecho = calculatedEnd(trecho.inicio, trecho.dias);
+  const sucessorColado = Boolean(sucessor && sucessor.inicio === addDays(fimPeriodo, 1));
+  if (edge === "end" && fimTrecho === fimPeriodo && !sucessorColado && dataAlvo > fimPeriodo) {
+    const outros = desmarcarNaoTrabalhado(periodo, trecho) ?? [];
+    return { periodo: recorte({ ...periodo, naoTrabalhados: [...outros, { inicio: trecho.inicio, dias: inclusiveCivilDays(trecho.inicio, dataAlvo)! }] }, periodo.inicio, dataAlvo) };
+  }
+  if (edge === "start" && trecho.inicio === periodo.inicio && !antecessorColado && dataAlvo < periodo.inicio) {
+    const outros = desmarcarNaoTrabalhado(periodo, trecho) ?? [];
+    return { periodo: recorte({ ...periodo, naoTrabalhados: [...outros, { inicio: dataAlvo, dias: inclusiveCivilDays(dataAlvo, fimTrecho)! }] }, dataAlvo, fimPeriodo) };
+  }
   if (edge === "end" && fimTrecho === fimPeriodo && sucessor && sucessor.inicio === addDays(fimPeriodo, 1)) {
     const fimSucessor = calculatedEnd(sucessor.inicio, sucessor.tempoPlanejado);
     const ultimoPossivel = addDays(fimSucessor, -1);
