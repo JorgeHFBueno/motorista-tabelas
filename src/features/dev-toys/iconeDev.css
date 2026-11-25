@@ -13,7 +13,7 @@
   line-height: 0;
 }
 
-/* só a raposa: âmbar com brilho de fósforo e flicker */
+/* só o crânio: âmbar com brilho de fósforo e flicker */
 .dev-crt-icone > svg {
   color: #ffb000;
   filter: drop-shadow(0 0 1.5px #ffb000) drop-shadow(0 0 4px #ffb00099);
@@ -63,7 +63,7 @@
     repeating-linear-gradient(rgb(0 0 0 / 0.4) 0 1px, transparent 1px 3px);
 }
 
-/* dentro do card, o vidro é o próprio card: a raposa fica sem a moldura e maior */
+/* dentro do card, o vidro é o próprio card: o crânio fica sem a moldura e maior */
 .dev-crt-card .dev-crt-icone {
   padding: 0;
   background: none;
