@@ -32,7 +32,8 @@ export async function carregarPreFabricados(obra: Pick<ObraDetalhe, 'id' | 'lote
 const PDFS_PRE_FABRICADOS = 'obras-pre-fabricados-pdfs';
 const LIMITE_PDF = 25 * 1024 * 1024;
 type Autor = { uid: string; nome: string };
-type AlvoPdf = { obraId: string; lote: string; plannix: number; item: string };
+/** `parte`: 'console' no PDF do console; sem o campo, o PDF principal. */
+type AlvoPdf = { obraId: string; lote: string; plannix: number; item: string; parte?: 'console' };
 
 export async function carregarPdfsPreFabricados(obraId: string): Promise<PdfGravado[]> {
   const snapshot = await getDocs(query(collection(db, PDFS_PRE_FABRICADOS), where('obraId', '==', obraId)));
@@ -49,6 +50,7 @@ export async function carregarPdfsPreFabricados(obraId: string): Promise<PdfGrav
       lote: String(d.lote ?? ''),
       plannix: Number(d.plannix) || 0,
       item: String(d.item ?? ''),
+      ...(d.parte === 'console' ? { parte: 'console' as const } : {}),
     };
   });
 }

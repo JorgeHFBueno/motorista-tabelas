@@ -9,6 +9,7 @@ import {
   Timestamp,
   collection,
   deleteDoc,
+  deleteField,
   doc,
   getDocs,
   query,
@@ -89,6 +90,17 @@ test('[firestore] pré-fabricados: editar anexa assinado por si, na hora do serv
   await assertFails(setDoc(doc(col('editar'), 'p4'), pdfDoc('editar', { plannix: 0 })));
   await assertFails(setDoc(doc(col('editar'), 'p4'), pdfDoc('editar', { tamanho: 25 * 1024 * 1024 + 1 })));
   await assertFails(setDoc(doc(col('editar'), 'p4'), pdfDoc('editar', { extra: true })));
+});
+
+test('[firestore] pré-fabricados: o PDF do Console é o mesmo esquema com parte "console"; outra parte não', async () => {
+  const col = collection(dbAs('editar'), 'obras-pre-fabricados-pdfs');
+  await assertSucceeds(setDoc(doc(col, 'c1'), pdfDoc('editar', { parte: 'console', nome: 'P01Console.pdf' })));
+  await assertFails(setDoc(doc(col, 'c2'), pdfDoc('editar', { parte: 'principal' })));
+  await assertFails(setDoc(doc(col, 'c2'), pdfDoc('editar', { parte: '' })));
+  const novo = { nome: 'P01Console-rev1.pdf', tamanho: 4096, caminho: 'obras/pre-fabricados/o1/3-console.pdf', anexadoPor: pessoa('editar'), anexadoEm: serverTimestamp() };
+  await assertSucceeds(updateDoc(doc(col, 'c1'), novo));
+  await assertFails(updateDoc(doc(col, 'c1'), { ...novo, parte: deleteField() }));
+  await assertFails(updateDoc(doc(dbAs('editar'), 'obras-pre-fabricados-pdfs', 'p1'), { ...novo, parte: 'console' }));
 });
 
 test('[firestore] pré-fabricados: substituir troca o arquivo do mesmo documento, sem mudar obra, LOTE nem item', async () => {

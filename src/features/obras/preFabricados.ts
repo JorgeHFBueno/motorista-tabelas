@@ -3,8 +3,11 @@
 // produção de cada uma; sem projeto, as linhas do Lançamento Final. O LOTE se liga à obra do Plannix pelo Nº Pedido do
 // Friday (= Cód. Auxiliar no Plannix). The Manuscript, 03_APLICACAO_WEB/07_ENGENHARIA_E_CRONOOBRA.md#obras.
 
-/** `caminho`: o arquivo no Storage (PDFs gravados); `url`: o endereço já pronto (PDFs do /testes/mki, em memória). */
-export type PdfPreFabricado = { id: string; nome: string; tamanho: number; anexadoEm: Date; anexadoPor: string; url: string | null; caminho?: string };
+/**
+ * `caminho`: o arquivo no Storage (PDFs gravados); `url`: o endereço já pronto (PDFs do /testes/mki, em memória);
+ * `parte`: 'console' no segundo PDF do item (o do console), sem o campo no PDF principal.
+ */
+export type PdfPreFabricado = { id: string; nome: string; tamanho: number; anexadoEm: Date; anexadoPor: string; url: string | null; caminho?: string; parte?: 'console' };
 /** Uma peça (código de controle do Plannix) e a etapa de produção em que está. */
 export type PecaPreFabricado = { codigo: string; etapa: string; data: string | null };
 export type PreFabricado = {
@@ -71,6 +74,34 @@ export const comPdf = (itens: PreFabricado[]) => itens.filter((item) => item.pdf
 
 export const maisRecente = (pdfs: PdfPreFabricado[]) =>
   pdfs.reduce<PdfPreFabricado | null>((atual, item) => (!atual || item.anexadoEm > atual.anexadoEm ? item : atual), null);
+
+/**
+ * Partes do PDF de um item (pedido do responsável, 2026-11-25): o PDF principal e o do console, cada um com as suas
+ * revisões; Substituir e Revisão valem para uma parte e mantêm a outra.
+ */
+export type ParteDoPdf = 'principal' | 'console';
+export const PARTES_DO_PDF: { parte: ParteDoPdf; rotulo: string }[] = [{ parte: 'principal', rotulo: 'PDF' }, { parte: 'console', rotulo: 'Console' }];
+export const parteDoPdf = (pdf: { parte?: string }): ParteDoPdf => (pdf.parte === 'console' ? 'console' : 'principal');
+export const daParte = <T extends { parte?: string }>(pdfs: T[], parte: ParteDoPdf) => pdfs.filter((pdf) => parteDoPdf(pdf) === parte);
+
+export type ModoPdf = 'anexar' | 'substituir' | 'revisao';
+/**
+ * O que fazer com um PDF solto (arrastado) sobre um item: sem PDF, anexa direto; com PDF, Revisão e Substituição de
+ * cada parte que já tem PDF (com o nome da parte quando há as duas) e "Console" enquanto o console não tem.
+ */
+export function opcoesAoSoltar(pdfs: { parte?: string }[]): { modo: ModoPdf; parte: ParteDoPdf; rotulo: string }[] {
+  if (!pdfs.length) return [{ modo: 'anexar', parte: 'principal', rotulo: 'Anexar' }];
+  const comPdf = PARTES_DO_PDF.filter(({ parte }) => daParte(pdfs, parte).length > 0);
+  const sufixo = (rotulo: string) => (comPdf.length > 1 ? ` do ${rotulo}` : '');
+  return [
+    ...comPdf.flatMap(({ parte, rotulo }) => [
+      { modo: 'revisao' as const, parte, rotulo: `Revisão${sufixo(rotulo)}` },
+      { modo: 'substituir' as const, parte, rotulo: `Substituição${sufixo(rotulo)}` },
+    ]),
+    ...PARTES_DO_PDF.filter(({ parte }) => !daParte(pdfs, parte).length)
+      .map(({ parte }) => ({ modo: 'anexar' as const, parte, rotulo: parte === 'console' ? 'Console' : 'PDF principal' })),
+  ];
+}
 
 /** Revisões do mais novo para o mais antigo; a mais antiga é a Rev. 0. */
 export const revisoes = (pdfs: PdfPreFabricado[]) => [...pdfs]

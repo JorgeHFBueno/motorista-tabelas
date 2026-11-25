@@ -821,12 +821,14 @@ service cloud.firestore {
     // Plannix no LOTE de código `plannix`. Área engenharia: 'ver' lê; 'editar' anexa, substitui (troca o arquivo do
     // mesmo documento, sem nova revisão) e exclui. Quem grava assina anexadoPor, com a hora do servidor.
     function validPdfPreFabricado(d) {
-      return d.keys().hasOnly(['schemaVersion', 'obraId', 'lote', 'plannix', 'item', 'nome', 'tamanho', 'caminho', 'anexadoPor', 'anexadoEm'])
+      // parte: só 'console' (o segundo PDF do item, com revisões próprias); sem o campo, é o PDF principal.
+      return d.keys().hasOnly(['schemaVersion', 'obraId', 'lote', 'plannix', 'item', 'parte', 'nome', 'tamanho', 'caminho', 'anexadoPor', 'anexadoEm'])
         && d.schemaVersion == 1
         && d.obraId is string && d.obraId.size() > 0 && d.obraId.size() <= 100
         && d.lote is string && d.lote.size() > 0 && d.lote.size() <= 100
         && d.plannix is int && d.plannix > 0
         && d.item is string && d.item.size() > 0 && d.item.size() <= 300
+        && (!d.keys().hasAny(['parte']) || d.parte == 'console')
         && d.nome is string && d.nome.size() > 0 && d.nome.size() <= 200
         && d.tamanho is int && d.tamanho > 0 && d.tamanho <= 25 * 1024 * 1024
         && d.caminho is string && d.caminho.size() <= 400
@@ -841,7 +843,7 @@ service cloud.firestore {
       allow read: if veArea('engenharia');
       allow create: if editaArea('engenharia') && validPdfPreFabricado(request.resource.data);
       allow update: if editaArea('engenharia') && validPdfPreFabricado(request.resource.data)
-        && didNotChange(['schemaVersion', 'obraId', 'lote', 'plannix', 'item']);
+        && didNotChange(['schemaVersion', 'obraId', 'lote', 'plannix', 'item', 'parte']);
       allow delete: if editaArea('engenharia');
     }
 

@@ -14,3 +14,7 @@
 
 .obra-lotes__link { cursor: pointer; overflow-wrap: anywhere; }
 .obra-lotes__link:hover { text-decoration: underline; }
+
+/* Arrastar um PDF: cada célula de PDF que aceita vira área de soltar (verde da identidade, success #2E9D6F). */
+.obra-lotes__soltar { border: 2px dashed #2E9D6F; border-radius: 6px; padding: 4px 6px; min-height: 34px; }
+.obra-lotes__soltar--sobre { background: rgba(46, 157, 111, 0.12); border-style: solid; }

@@ -1,4 +1,4 @@
-import { Fragment, useRef, useState } from 'react';
+import { Fragment, useEffect, useRef, useState, type DragEvent as DragEventReact } from 'react';
 import {
   Alert,
   Badge,
@@ -36,13 +36,18 @@ import type { LoteObra } from './obrasDomain';
 import {
   agruparPorTipo,
   comPdf,
+  daParte,
   ehPdfDeGrupo,
   etapaPlannix,
   maisRecente,
+  opcoesAoSoltar,
+  PARTES_DO_PDF,
   resumoEtapas,
   revisoes,
   semProjeto,
   totalPdfs,
+  type ModoPdf,
+  type ParteDoPdf,
   type PdfPreFabricado,
   type PreFabricado,
 } from './preFabricados';
@@ -59,6 +64,9 @@ import './listaLotes.css';
  * nova; com `acoesPdf.excluir`, excluir nas Revisões. Item sem projeto no Plannix não recebe PDF (o item muda de nome
  * quando o projeto é cadastrado). Grupo com PDF único (Vigotes e Guarda Roda): o PDF e as Revisões ficam na linha do
  * grupo, um para todos os itens, e os itens não têm PDF.
+ * Console (2026-11-25): com o PDF principal, o botão "Console" anexa o segundo PDF do item, com revisões próprias;
+ * Substituir e Revisão de cada um mantêm o outro. Arrastar: ao arrastar um arquivo sobre a página, cada célula de PDF que
+ * aceita PDF vira uma área de soltar; solto onde não há PDF, anexa; onde há, pergunta: Revisão, Substituição ou Console.
  * `itens: null` = sem pré-fabricados para mostrar; `aviso` diz o motivo (carregando, sem Nº Pedido, pedido sem obra no Plannix, erro).
  */
 
@@ -69,17 +77,21 @@ export type LoteComPreFabricados = LoteObra & {
   /** PDFs únicos dos grupos (pdfsDosGrupos), pela chave do grupo. */
   pdfsDosGrupos?: Record<string, PdfPreFabricado[]>;
 };
-export type ModoPdf = 'anexar' | 'substituir' | 'revisao';
+export type { ModoPdf };
+/** Onde gravar: o LOTE, o item (ou a chave do grupo com PDF único) e a parte do PDF. */
+export type AlvoPdf = { lote: string; item: string; parte: ParteDoPdf };
 export type AcoesPdf = {
   abrir: (pdf: PdfPreFabricado) => void;
   /** Sem anexar/excluir (área em "ver"), só abre e mostra as Revisões. */
-  anexar?: (alvo: { lote: string; item: string }, modo: ModoPdf, arquivo: File) => void;
+  anexar?: (alvo: AlvoPdf, modo: ModoPdf, arquivo: File) => void;
   excluir?: (pdf: PdfPreFabricado) => void;
 };
 /** O que a janela de Revisões mostra: um item, todos os itens de um grupo de Tipo recolhido ou o PDF único do grupo. */
 type AlvoRevisoes = { lote: string; itens: string[]; titulo: string };
 
 const dataHora = (data: Date) => data.toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short', timeZone: 'America/Sao_Paulo' });
+const ehPdf = (arquivo: File) => arquivo.type === 'application/pdf' || arquivo.name.toLowerCase().endsWith('.pdf');
+const temArquivo = (event: { dataTransfer: DataTransfer | null }) => Array.from(event.dataTransfer?.types ?? []).includes('Files');
 const tamanhoTexto = (bytes: number) => (bytes >= 1024 * 1024 ? `${(bytes / 1024 / 1024).toFixed(1)} MB` : `${Math.round(bytes / 1024)} KB`);
 
 function BotaoRevisoes({ quantidade, rotulo, onClick }: { quantidade: number; rotulo: string; onClick: () => void }) {
@@ -141,7 +153,48 @@ export default function ListaLotes({ lotes, acoesPdf }: { lotes: LoteComPreFabri
   const [recolhidos, setRecolhidos] = useState<Set<string>>(() => new Set());
   const [itensAbertos, setItensAbertos] = useState<Set<string>>(() => new Set());
   const entrada = useRef<HTMLInputElement>(null);
-  const anexarEm = useRef<{ alvo: { lote: string; item: string }; modo: ModoPdf } | null>(null);
+  const anexarEm = useRef<{ alvo: AlvoPdf; modo: ModoPdf } | null>(null);
+  // Arrastar e soltar: há um arquivo sendo arrastado sobre a página; a célula sob ele; o PDF solto sobre um item com PDF.
+  const [arrastando, setArrastando] = useState(false);
+  const [sobre, setSobre] = useState<string | null>(null);
+  const [solto, setSolto] = useState<{ alvo: Omit<AlvoPdf, 'parte'>; arquivo: File; rotulo: string; pdfs: PdfPreFabricado[] } | null>(null);
+  const podeAnexar = Boolean(acoesPdf?.anexar);
+
+  // Na página toda: liga as áreas de soltar enquanto um arquivo é arrastado e impede que o navegador abra o arquivo
+  // solto fora delas.
+  useEffect(() => {
+    if (!podeAnexar) return undefined;
+    let dentro = 0;
+    const entrar = (event: DragEvent) => { if (temArquivo(event)) { dentro += 1; setArrastando(true); } };
+    const sair = (event: DragEvent) => {
+      if (!temArquivo(event)) return;
+      dentro = Math.max(0, dentro - 1);
+      if (!dentro) { setArrastando(false); setSobre(null); }
+    };
+    const passar = (event: DragEvent) => {
+      if (!temArquivo(event) || event.defaultPrevented) return;
+      event.preventDefault();
+      if (event.dataTransfer) event.dataTransfer.dropEffect = 'none';
+    };
+    const terminar = (event: DragEvent) => {
+      if (temArquivo(event)) event.preventDefault();
+      dentro = 0;
+      setArrastando(false);
+      setSobre(null);
+    };
+    window.addEventListener('dragenter', entrar);
+    window.addEventListener('dragleave', sair);
+    window.addEventListener('dragover', passar);
+    window.addEventListener('drop', terminar);
+    window.addEventListener('dragend', terminar);
+    return () => {
+      window.removeEventListener('dragenter', entrar);
+      window.removeEventListener('dragleave', sair);
+      window.removeEventListener('dragover', passar);
+      window.removeEventListener('drop', terminar);
+      window.removeEventListener('dragend', terminar);
+    };
+  }, [podeAnexar]);
 
   const alternar = (set: typeof setRecolhidos) => (chave: string) => set((atuais) => {
     const proximos = new Set(atuais);
@@ -151,7 +204,7 @@ export default function ListaLotes({ lotes, acoesPdf }: { lotes: LoteComPreFabri
   const alternarGrupo = alternar(setRecolhidos);
   const alternarItem = alternar(setItensAbertos);
 
-  function escolherPdf(alvo: { lote: string; item: string }, modo: ModoPdf) {
+  function escolherPdf(alvo: AlvoPdf, modo: ModoPdf) {
     anexarEm.current = { alvo, modo };
     entrada.current?.click();
   }
@@ -160,11 +213,24 @@ export default function ListaLotes({ lotes, acoesPdf }: { lotes: LoteComPreFabri
     const escolha = anexarEm.current;
     if (entrada.current) entrada.current.value = '';
     if (!arquivo || !escolha || !acoesPdf?.anexar) return;
-    if (arquivo.type !== 'application/pdf' && !arquivo.name.toLowerCase().endsWith('.pdf')) {
+    if (!ehPdf(arquivo)) {
       setAviso('Só arquivos PDF.');
       return;
     }
     acoesPdf.anexar(escolha.alvo, escolha.modo, arquivo);
+  }
+
+  /** PDF solto numa célula: sem PDF, anexa; com PDF, abre a pergunta (Revisão, Substituição ou Console). */
+  function soltarPdf(event: DragEventReact<HTMLElement>, alvo: Omit<AlvoPdf, 'parte'>, pdfs: PdfPreFabricado[], rotulo: string) {
+    event.preventDefault();
+    setSobre(null);
+    const arquivos = Array.from(event.dataTransfer.files);
+    const arquivo = arquivos[0];
+    if (!arquivo || !acoesPdf?.anexar) return;
+    if (arquivos.length > 1) { setAviso('Solte um PDF por vez.'); return; }
+    if (!ehPdf(arquivo)) { setAviso('Só arquivos PDF.'); return; }
+    if (!pdfs.length) { acoesPdf.anexar({ ...alvo, parte: 'principal' }, 'anexar', arquivo); return; }
+    setSolto({ alvo, arquivo, rotulo, pdfs });
   }
 
   const loteHistorico = historico ? lotes.find((lote) => lote.chave === historico.lote) : undefined;
@@ -175,49 +241,84 @@ export default function ListaLotes({ lotes, acoesPdf }: { lotes: LoteComPreFabri
     return item ? [{ id, tipo: item.tipo, pdfs: item.pdfs }] : [];
   });
 
-  /** PDF de um item ou do grupo com PDF único: o atual (com Substituir e Revisão) ou "Anexar PDF". */
-  function celulaPdf(alvo: { lote: string; item: string }, pdfs: PdfPreFabricado[], rotulo: string, podeAnexar: boolean, desenhos: string[] = []) {
-    const atual = maisRecente(pdfs);
+  /**
+   * PDF de um item ou do grupo com PDF único: os desenhos do Plannix e, de cada parte com PDF (principal e Console), o
+   * atual com Substituir e Revisão; "Anexar PDF" sem PDF e "Console" enquanto o console não tem. Com um arquivo sendo
+   * arrastado, a célula vira área de soltar.
+   */
+  function celulaPdf(alvo: Omit<AlvoPdf, 'parte'>, pdfs: PdfPreFabricado[], rotulo: string, aceita: boolean, desenhos: string[] = []) {
+    const editar = Boolean(acoesPdf?.anexar) && aceita;
+    const chave = `${alvo.lote}:${alvo.item}`;
+    const comPdf = PARTES_DO_PDF.map((parte) => ({ ...parte, pdfs: daParte(pdfs, parte.parte) })).filter((parte) => parte.pdfs.length > 0);
+    const semConsole = !daParte(pdfs, 'console').length;
     return (
-      <TableCell>
-        {desenhos.length > 0 && (
-          <Stack direction="row" spacing={0.5} flexWrap="wrap" useFlexGap sx={{ mb: 0.5 }}>
-            {desenhos.map((nome) => (
-              <Tooltip key={nome} title="Desenho no Plannix (a API só informa o nome)">
-                <Chip size="small" icon={<PictureAsPdfOutlinedIcon />} label={nome} variant="outlined" sx={{ maxWidth: 230 }} />
-              </Tooltip>
-            ))}
-          </Stack>
-        )}
-        {atual ? (
-          <Stack direction="row" spacing={0.5} alignItems="center">
-            <Tooltip title={`${atual.nome} · ${dataHora(atual.anexadoEm)} · ${atual.anexadoPor}`}>
-              <Chip
-                size="small"
-                icon={<PictureAsPdfOutlinedIcon />}
-                label={pdfs.length > 1 ? `${atual.nome} · Rev. ${pdfs.length - 1}` : atual.nome}
-                onClick={acoesPdf ? () => acoesPdf.abrir(atual) : undefined}
-                variant="outlined"
-                color="error"
-                sx={{ maxWidth: 230 }}
-              />
-            </Tooltip>
-            {acoesPdf?.anexar && (
-              <>
-                <Tooltip title="Trocar o PDF atual por outro (não cria revisão)">
-                  <Button size="small" onClick={() => escolherPdf(alvo, 'substituir')} aria-label={`Substituir o PDF do ${rotulo}`}>Substituir</Button>
+      <TableCell
+        onDragOver={editar ? (event) => {
+          if (!temArquivo(event)) return;
+          event.preventDefault();
+          event.dataTransfer.dropEffect = 'copy';
+          if (sobre !== chave) setSobre(chave);
+        } : undefined}
+        onDrop={editar ? (event) => soltarPdf(event, alvo, pdfs, rotulo) : undefined}
+      >
+        <Box className={editar && arrastando ? `obra-lotes__soltar${sobre === chave ? ' obra-lotes__soltar--sobre' : ''}` : undefined}>
+          {desenhos.length > 0 && (
+            <Stack direction="row" spacing={0.5} flexWrap="wrap" useFlexGap sx={{ mb: 0.5 }}>
+              {desenhos.map((nome) => (
+                <Tooltip key={nome} title="Desenho no Plannix (a API só informa o nome)">
+                  <Chip size="small" icon={<PictureAsPdfOutlinedIcon />} label={nome} variant="outlined" sx={{ maxWidth: 230 }} />
                 </Tooltip>
-                <Tooltip title="Anexar uma nova revisão do PDF">
-                  <Button size="small" onClick={() => escolherPdf(alvo, 'revisao')} aria-label={`Nova revisão do PDF do ${rotulo}`}>Revisão</Button>
-                </Tooltip>
-              </>
+              ))}
+            </Stack>
+          )}
+          <Stack spacing={0.5}>
+            {comPdf.map(({ parte, rotulo: nomeParte, pdfs: daParteAtual }) => {
+              const atual = maisRecente(daParteAtual)!;
+              const doQue = parte === 'console' ? `do Console do ${rotulo}` : `do ${rotulo}`;
+              return (
+                <Stack key={parte} direction="row" spacing={0.5} alignItems="center" sx={{ whiteSpace: 'nowrap' }}>
+                  {parte === 'console' && <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 700 }}>{nomeParte}</Typography>}
+                  <Tooltip title={`${parte === 'console' ? 'Console · ' : ''}${atual.nome} · ${dataHora(atual.anexadoEm)} · ${atual.anexadoPor}`}>
+                    <Chip
+                      size="small"
+                      icon={<PictureAsPdfOutlinedIcon />}
+                      label={daParteAtual.length > 1 ? `${atual.nome} · Rev. ${daParteAtual.length - 1}` : atual.nome}
+                      onClick={acoesPdf ? () => acoesPdf.abrir(atual) : undefined}
+                      variant="outlined"
+                      color="error"
+                      sx={{ maxWidth: 230 }}
+                    />
+                  </Tooltip>
+                  {acoesPdf?.anexar && (
+                    <>
+                      <Tooltip title="Trocar o PDF atual por outro (não cria revisão)">
+                        <Button size="small" onClick={() => escolherPdf({ ...alvo, parte }, 'substituir')} aria-label={`Substituir o PDF ${doQue}`}>Substituir</Button>
+                      </Tooltip>
+                      <Tooltip title="Anexar uma nova revisão do PDF">
+                        <Button size="small" onClick={() => escolherPdf({ ...alvo, parte }, 'revisao')} aria-label={`Nova revisão do PDF ${doQue}`}>Revisão</Button>
+                      </Tooltip>
+                    </>
+                  )}
+                </Stack>
+              );
+            })}
+            {editar && (!pdfs.length || semConsole) && (
+              <Box>
+                {!pdfs.length ? (
+                  <Button size="small" startIcon={<UploadFileOutlinedIcon />} onClick={() => escolherPdf({ ...alvo, parte: 'principal' }, 'anexar')} aria-label={`Anexar PDF ao ${rotulo}`}>
+                    Anexar PDF
+                  </Button>
+                ) : (
+                  <Tooltip title="Anexar o PDF do console (um segundo PDF, com revisões próprias)">
+                    <Button size="small" startIcon={<UploadFileOutlinedIcon />} onClick={() => escolherPdf({ ...alvo, parte: 'console' }, 'anexar')} aria-label={`Anexar o PDF do Console ao ${rotulo}`}>
+                      Console
+                    </Button>
+                  </Tooltip>
+                )}
+              </Box>
             )}
           </Stack>
-        ) : acoesPdf?.anexar && podeAnexar ? (
-          <Button size="small" startIcon={<UploadFileOutlinedIcon />} onClick={() => escolherPdf(alvo, 'anexar')} aria-label={`Anexar PDF ao ${rotulo}`}>
-            Anexar PDF
-          </Button>
-        ) : null}
+        </Box>
       </TableCell>
     );
   }
@@ -407,9 +508,12 @@ export default function ListaLotes({ lotes, acoesPdf }: { lotes: LoteComPreFabri
             <Box key={item.id} sx={{ mb: 1 }}>
               {/* Grupo recolhido: uma seção por item, com o Tipo de cada um. */}
               {itensHistorico.length > 1 && <Typography sx={{ fontWeight: 700, mt: 1.5 }}>{item.tipo || 'Sem tipo'}</Typography>}
-              {item.pdfs.length ? (
+              {/* Com Console, as revisões de cada parte à parte (cada uma com a sua Rev. 0 e a sua "Atual"). */}
+              {item.pdfs.length ? PARTES_DO_PDF.filter(({ parte }) => daParte(item.pdfs, parte).length > 0).map(({ parte, rotulo }, _, partes) => (
+                <Fragment key={parte}>
+                {(partes.length > 1 || parte === 'console') && <Typography variant="body2" sx={{ fontWeight: 700, mt: 1 }}>{rotulo}</Typography>}
                 <List dense disablePadding>
-                  {revisoes(item.pdfs).map(({ item: pdf, revisao }, index) => (
+                  {revisoes(daParte(item.pdfs, parte)).map(({ item: pdf, revisao }, index) => (
                     <ListItem
                       key={pdf.id}
                       divider
@@ -437,12 +541,39 @@ export default function ListaLotes({ lotes, acoesPdf }: { lotes: LoteComPreFabri
                     </ListItem>
                   ))}
                 </List>
-              ) : <Typography variant="body2" color="text.secondary">Nenhum PDF anexado.</Typography>}
+                </Fragment>
+              )) : <Typography variant="body2" color="text.secondary">Nenhum PDF anexado.</Typography>}
             </Box>
           ))}
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setHistorico(null)}>Fechar</Button>
+        </DialogActions>
+      </Dialog>
+
+      <Dialog open={Boolean(solto)} onClose={() => setSolto(null)} fullWidth maxWidth="xs">
+        <DialogTitle>O que é este PDF?</DialogTitle>
+        <DialogContent>
+          <Typography variant="body2" color="text.secondary" sx={{ mb: 2, overflowWrap: 'anywhere' }}>
+            {solto?.arquivo.name} · {solto?.rotulo}
+          </Typography>
+          <Stack spacing={1}>
+            {solto && opcoesAoSoltar(solto.pdfs).map((opcao) => (
+              <Button
+                key={`${opcao.modo}:${opcao.parte}`}
+                variant="outlined"
+                onClick={() => {
+                  acoesPdf?.anexar?.({ ...solto.alvo, parte: opcao.parte }, opcao.modo, solto.arquivo);
+                  setSolto(null);
+                }}
+              >
+                {opcao.rotulo}
+              </Button>
+            ))}
+          </Stack>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setSolto(null)}>Cancelar</Button>
         </DialogActions>
       </Dialog>
 

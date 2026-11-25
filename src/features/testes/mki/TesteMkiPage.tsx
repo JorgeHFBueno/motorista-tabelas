@@ -19,7 +19,7 @@ import {
 import ScienceRounded from '@mui/icons-material/ScienceRounded';
 import CampoEditavel from '../../obras/CampoEditavelObra';
 import ListaLotes, { type AcoesPdf, type LoteComPreFabricados } from '../../obras/ListaLotes';
-import { ehPdfDeGrupo, maisRecente, SEM_PEDIDO, type PdfPreFabricado, type PreFabricado } from '../../obras/preFabricados';
+import { ehPdfDeGrupo, maisRecente, parteDoPdf, SEM_PEDIDO, type PdfPreFabricado, type PreFabricado } from '../../obras/preFabricados';
 import { useAuth } from '../../../contexts/AuthContext';
 import './mki.css';
 
@@ -66,6 +66,7 @@ const LOTES_INICIAIS: LoteComPreFabricados[] = [
         pdfs: [
           pdf('p1', 'LF_LOTE1_P01_rev0.pdf', 412, '2026-10-21T14:12:00-03:00', 'Mariana Kern'),
           pdf('p2', 'LF_LOTE1_P01_rev1.pdf', 436, '2026-10-28T09:47:00-03:00', 'Mariana Kern'),
+          { ...pdf('p1c', 'LF_LOTE1_P01Console.pdf', 288, '2026-10-28T10:02:00-03:00', 'Mariana Kern'), parte: 'console' },
         ],
       }),
       item('f2', 'PILAR', 'P02', pecas(1376240, 2, ['EXPEDIDA']), { pdfs: [pdf('p3', 'LF_LOTE1_P02.pdf', 398, '2026-10-29T11:05:00-03:00', 'Mariana Kern')] }),
@@ -142,12 +143,12 @@ export default function TesteMkiPage() {
 
   /** Anexar (sem PDF) e Revisão acrescentam uma revisão; Substituir troca o PDF atual, sem nova revisão. */
   const acoesPdf: AcoesPdf = {
-    anexar({ lote, item }, modo, arquivo) {
+    anexar({ lote, item, parte }, modo, arquivo) {
       const url = URL.createObjectURL(arquivo);
       urls.current.push(url);
-      const novo: PdfPreFabricado = { id: `${Date.now()}`, nome: arquivo.name, tamanho: arquivo.size, anexadoEm: new Date(), anexadoPor: usuario, url };
+      const novo: PdfPreFabricado = { id: `${Date.now()}`, nome: arquivo.name, tamanho: arquivo.size, anexadoEm: new Date(), anexadoPor: usuario, url, ...(parte === 'console' ? { parte } : {}) };
       const comNovo = (pdfs: PdfPreFabricado[]) => {
-        const recente = maisRecente(pdfs);
+        const recente = maisRecente(pdfs.filter((pdf) => parteDoPdf(pdf) === parte));
         return modo === 'substituir' && recente ? pdfs.map((existente) => (existente.id === recente.id ? novo : existente)) : [...pdfs, novo];
       };
       // Grupo com PDF único (Vigotes e Guarda Roda): `item` é a chave do grupo.

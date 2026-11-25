@@ -37,7 +37,7 @@ import {
 } from './obrasData';
 import CampoEditavel from './CampoEditavelObra';
 import ListaLotes, { type AcoesPdf } from './ListaLotes';
-import { comPdfsGravados, ehPdfDeGrupo, maisRecente, pdfsDosGrupos, type PdfGravado, type PreFabricadosDoLote } from './preFabricados';
+import { comPdfsGravados, ehPdfDeGrupo, maisRecente, parteDoPdf, pdfsDosGrupos, type PdfGravado, type PreFabricadosDoLote } from './preFabricados';
 import { useAuth } from '../../contexts/AuthContext';
 import { editaArea } from '../../services/credenciais';
 import {
@@ -208,19 +208,20 @@ export default function ObraDetalhesPage() {
         .catch(() => setSnackbar({ open: true, severity: 'error', message: 'Não foi possível abrir o PDF.' }));
     },
     ...(podeEditar && obra ? {
-      anexar: ({ lote, item }, modo, arquivo) => {
+      anexar: ({ lote, item, parte }, modo, arquivo) => {
         const dados = preFabricados.status === 'ok' ? preFabricados.data[lote] : undefined;
         const doLote = dados && 'itens' in dados ? dados : undefined;
         // `item`: o id do item ou, no grupo com PDF único (Vigotes e Guarda Roda), a chave do grupo.
         const chave = ehPdfDeGrupo(item) ? item : doLote?.itens.find((i) => i.id === item)?.chave;
         if (!doLote || !chave) return;
-        const atual = maisRecente(pdfs.filter((pdf) => pdf.lote === lote && pdf.item === chave));
+        // Substituir troca o PDF mais novo da mesma parte (principal ou Console) e mantém a outra.
+        const atual = maisRecente(pdfs.filter((pdf) => pdf.lote === lote && pdf.item === chave && parteDoPdf(pdf) === parte));
         const gravadoAtual = atual ? gravados(atual.id) : undefined;
         if (modo === 'substituir' && gravadoAtual) {
           void comPdf(() => substituirPdfPreFabricado(obra.id, gravadoAtual, arquivo, autor), `PDF substituído por ${arquivo.name}.`);
           return;
         }
-        void comPdf(() => anexarPdfPreFabricado({ obraId: obra.id, lote, plannix: doLote.plannix, item: chave }, arquivo, autor),
+        void comPdf(() => anexarPdfPreFabricado({ obraId: obra.id, lote, plannix: doLote.plannix, item: chave, ...(parte === 'console' ? { parte } : {}) }, arquivo, autor),
           modo === 'revisao' ? `${arquivo.name} anexado como nova revisão.` : `${arquivo.name} anexado.`);
       },
       excluir: (pdf) => {

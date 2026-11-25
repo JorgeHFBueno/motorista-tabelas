@@ -45,13 +45,16 @@ test('current PDF per item of the LOTE, revision numbered like the screen (Rev. 
     pdf('v0', 'l1', 'VIGA|VL - 25X50X750', '2026-11-20T10:00:00Z'),
     pdf('v2', 'l1', 'VIGA|VL - 25X50X750', '2026-11-24T10:00:00Z'),
     pdf('v1', 'l1', 'VIGA|VL - 25X50X750', '2026-11-22T10:00:00Z'),
+    pdf('c1', 'l1', 'VIGA|VL - 25X50X750', '2026-11-25T10:00:00Z', { parte: 'console' }),
+    pdf('c0', 'l1', 'VIGA|VL - 25X50X750', '2026-11-21T10:00:00Z', { parte: 'console' }),
     pdf('t0', 'l1', 'VIGOTA|TR16745 L = 1,43M 20PC', '2026-11-21T10:00:00Z'),
     pdf('outro-lote', 'l2', 'VIGA|VL - 25X50X750', '2026-11-25T10:00:00Z'),
     { id: 'vazio', data: undefined },
   ], 'l1');
-  assert.deepEqual(itens.map((i) => [i.produto, i.nome, i.pdfId, i.revisao, i.revisoes]), [
-    ['VIGA', 'VL - 25X50X750', 'v2', 2, 3],
-    ['VIGOTA', 'TR16745 L = 1,43M 20PC', 't0', 0, 1],
+  assert.deepEqual(itens.map((i) => [i.produto, i.nome, i.parte, i.pdfId, i.revisao, i.revisoes]), [
+    ['VIGA', 'VL - 25X50X750', 'principal', 'v2', 2, 3],
+    ['VIGA', 'VL - 25X50X750', 'console', 'c1', 1, 2],
+    ['VIGOTA', 'TR16745 L = 1,43M 20PC', 'principal', 't0', 0, 1],
   ]);
   assert.deepEqual([itens[0].arquivo, itens[0].tamanho, itens[0].anexadoEm, itens[0].anexadoPor], ['v2.pdf', 100, '2026-11-24T10:00:00.000Z', 'Ana']);
   assert.deepEqual(pdfsAtuaisDoLote([], 'l1'), []);

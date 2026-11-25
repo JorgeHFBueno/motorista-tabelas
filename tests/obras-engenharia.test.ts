@@ -17,7 +17,7 @@ import {
 } from '../src/features/obras/obrasDomain';
 import { createObraRelatorioPdf, nomeArquivoRelatorioObra } from '../src/features/obras/obraRelatorioPdf';
 import { LOCAIS_SUGERIDOS } from '../src/features/obras/locaisSugeridos';
-import { agruparPorTipo, comPdf, comPdfsGravados, ehPdfDeGrupo, pdfsDosGrupos, preFabricadosDoPlannix, resumoEtapas, revisoes, semProjeto, totalPdfs, type PdfGravado, type PreFabricado } from '../src/features/obras/preFabricados';
+import { agruparPorTipo, comPdf, comPdfsGravados, daParte, ehPdfDeGrupo, opcoesAoSoltar, parteDoPdf, pdfsDosGrupos, preFabricadosDoPlannix, resumoEtapas, revisoes, semProjeto, totalPdfs, type PdfGravado, type PreFabricado } from '../src/features/obras/preFabricados';
 import { coordenadaDoLote, lotesDaObra, obraFromV2 } from '../src/utils/cadastrosV2';
 
 const contrato = {
@@ -212,6 +212,20 @@ test('pré-fabricados: VIGOTA e GUARDA RODA viram um grupo só, "Vigotes e Guard
   const gravado = (id: string, lote: string, item: string): PdfGravado => ({ ...pdfItem(id, '2026-11-24T10:00:00-03:00'), caminho: `obras/pre-fabricados/o1/${id}.pdf`, lote, plannix: 141, item });
   const r = pdfsDosGrupos('l1', [gravado('a', 'l1', 'GRUPO|VIGOTES E GUARDA RODA'), gravado('b', 'l2', 'GRUPO|VIGOTES E GUARDA RODA'), gravado('c', 'l1', 'VIGOTA|TR16')]);
   assert.deepEqual(Object.fromEntries(Object.entries(r).map(([k, v]) => [k, v.map((p) => p.id)])), { 'GRUPO|VIGOTES E GUARDA RODA': ['a'] });
+});
+
+test('pré-fabricados: PDF principal e Console; ao soltar um PDF, as opções conforme o que o item já tem', () => {
+  const principal = pdfItem('a', '2026-11-25T08:00:00-03:00');
+  const console1 = { ...pdfItem('c', '2026-11-25T09:00:00-03:00'), parte: 'console' as const };
+  assert.deepEqual([parteDoPdf(principal), parteDoPdf(console1)], ['principal', 'console']);
+  assert.deepEqual(daParte([principal, console1], 'console').map((p) => p.id), ['c']);
+  const rotulos = (pdfs: { parte?: string }[]) => opcoesAoSoltar(pdfs).map((o) => `${o.modo}:${o.parte}:${o.rotulo}`);
+  assert.deepEqual(rotulos([]), ['anexar:principal:Anexar']);
+  assert.deepEqual(rotulos([principal]), ['revisao:principal:Revisão', 'substituir:principal:Substituição', 'anexar:console:Console']);
+  assert.deepEqual(rotulos([principal, console1]), [
+    'revisao:principal:Revisão do PDF', 'substituir:principal:Substituição do PDF',
+    'revisao:console:Revisão do Console', 'substituir:console:Substituição do Console',
+  ]);
 });
 
 test('pré-fabricados: resumo das etapas na ordem da produção, sem acento e etapa desconhecida no fim', () => {

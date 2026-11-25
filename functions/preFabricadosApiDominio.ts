@@ -43,28 +43,34 @@ const comparar = new Intl.Collator('pt-BR', { numeric: true, sensitivity: 'base'
 
 export type PdfDoItem = {
   item: string; produto: string; nome: string;
+  /** 'console': o segundo PDF do item (o do console), com revisões próprias; 'principal': o PDF do item. */
+  parte: 'principal' | 'console';
   /** PDF atual do item: o anexado por último. Rev. 0 é o primeiro; cada revisão soma um. */
   pdfId: string; revisao: number; revisoes: number; arquivo: string; tamanho: number; anexadoEm: string | null; anexadoPor: string;
 };
 
 /**
- * PDFs atuais dos itens do LOTE (documentos de obras-pre-fabricados-pdfs da obra): um por item ("produto|nome"), o mais
- * recente, com o número da revisão como na tela (Rev. 0 é o mais antigo). Ordem: produto e nome.
+ * PDFs atuais dos itens do LOTE (documentos de obras-pre-fabricados-pdfs da obra): um por item ("produto|nome") e parte
+ * (principal e Console), o mais recente, com o número da revisão como na tela (Rev. 0 é o mais antigo). Ordem: produto,
+ * nome e parte (o principal antes do Console).
  */
 export function pdfsAtuaisDoLote(docs: { id: string; data: AnyRecord | undefined }[], loteId: string): PdfDoItem[] {
-  const porItem = new Map<string, { id: string; data: AnyRecord }[]>();
+  const porItem = new Map<string, { item: string; parte: PdfDoItem['parte']; lista: { id: string; data: AnyRecord }[] }>();
   for (const { id, data } of docs) {
     if (!data || data.lote !== loteId || !texto(data.item)) continue;
-    porItem.set(data.item, [...(porItem.get(data.item) ?? []), { id, data }]);
+    const parte = data.parte === 'console' ? 'console' : 'principal';
+    const chave = `${data.item}\u0000${parte}`;
+    const atual = porItem.get(chave) ?? { item: data.item, parte, lista: [] };
+    porItem.set(chave, { ...atual, lista: [...atual.lista, { id, data }] });
   }
-  return [...porItem].map(([item, lista]) => {
+  return [...porItem.values()].map(({ item, parte, lista }) => {
     const ordem = [...lista].sort((a, b) => tempo(a.data.anexadoEm) - tempo(b.data.anexadoEm) || a.id.localeCompare(b.id));
     const atual = ordem[ordem.length - 1];
     const [produto, ...resto] = item.split('|');
     return {
-      item, produto, nome: resto.join('|'),
+      item, produto, nome: resto.join('|'), parte,
       pdfId: atual.id, revisao: ordem.length - 1, revisoes: ordem.length, arquivo: texto(atual.data.nome), tamanho: Number(atual.data.tamanho) || 0,
       anexadoEm: dataIso(atual.data.anexadoEm), anexadoPor: texto(atual.data.anexadoPor?.nome),
     };
-  }).sort((a, b) => comparar(a.produto, b.produto) || comparar(a.nome, b.nome));
+  }).sort((a, b) => comparar(a.produto, b.produto) || comparar(a.nome, b.nome) || Number(a.parte === 'console') - Number(b.parte === 'console'));
 }
