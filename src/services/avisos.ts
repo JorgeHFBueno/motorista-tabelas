@@ -2,7 +2,8 @@
 // (Friday, portal, ...), com a rota da tela que o aviso abre; aqui só se lê e marca como lido.
 // As Rules deixam cada pessoa ler e marcar como lidos só os próprios avisos.
 import { collection, doc, getDocs, limit, onSnapshot, orderBy, query, updateDoc, where, writeBatch } from 'firebase/firestore';
-import { db } from '../firebase';
+import { httpsCallable } from 'firebase/functions';
+import { db, functions } from '../firebase';
 import { lerAviso, type Aviso } from './avisosCore';
 
 const meus = (uid: string) => collection(db, 'avisos', uid, 'itens');
@@ -17,6 +18,11 @@ export function observarAvisos(uid: string, aoMudar: (lista: Aviso[]) => void): 
 }
 
 export const marcarAvisoComoLido = (uid: string, id: string) => updateDoc(doc(meus(uid), id), { lida: true });
+export const marcarAvisoComoNaoLido = (uid: string, id: string) => updateDoc(doc(meus(uid), id), { lida: false });
+
+const chamarReagir = httpsCallable<{ avisoId: string; emoji: string | null }, { ok: boolean }>(functions, 'avisosReagir');
+/** Reage ao aviso (emoji null tira a reação). A Function grava em todas as cópias e, na primeira vez, avisa os envolvidos. */
+export const reagirAoAviso = (avisoId: string, emoji: string | null) => chamarReagir({ avisoId, emoji });
 
 export async function marcarTodosComoLidos(uid: string) {
   const snap = await getDocs(query(meus(uid), where('lida', '==', false)));

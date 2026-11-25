@@ -9,6 +9,7 @@ import { onDocumentWritten } from 'firebase-functions/v2/firestore';
 import * as logger from 'firebase-functions/logger';
 import { FieldValue } from 'firebase-admin/firestore';
 import { db } from './firebaseAdmin.js';
+import { comGrupo } from './avisosGrupo.js';
 import {
   avisoListaMateriais, avisoNotaAnexada, avisoPedidoNota, destinatariosPedidoNota, entrouEmAgNf, entrouEmListaMateriais,
   idAvisoListaMateriais, idAvisoNotaAnexada, idAvisoPedidoNota, idsAgNf, idsListaMateriais, recebeuNota, uidsDoPapel,
@@ -46,11 +47,15 @@ export const logisticaPedidoNota = onDocumentWritten(
     const uids = [...new Set(avisos.flatMap(a => uidsDoPapel(a.lista)))];
     const snaps = await db.getAll(...uids.map(u => db.collection('funcionarios').doc(u)));
     const funcionarios = new Map(snaps.map(s => [s.id, s.data()]));
-    const gravacoes = avisos.flatMap(({ aviso, idDoAviso, lista, area }) =>
-      destinatariosPedidoNota(lista, depois.atualizadoPorUid, funcionarios, area).map(uid =>
+    const gravacoes = avisos.flatMap(({ aviso, idDoAviso, lista, area }) => {
+      const para = destinatariosPedidoNota(lista, depois.atualizadoPorUid, funcionarios, area);
+      // Grupo do acontecimento (reações): quem recebe e quem mudou a linha.
+      const doGrupo = comGrupo(aviso, `${aviso.tipo}:${event.id}`, [depois.atualizadoPorUid, ...para]);
+      return para.map(uid =>
         db.collection('avisos').doc(uid).collection('itens').doc(idDoAviso(event.id, uid))
-          .create({ ...aviso, criadoEm: FieldValue.serverTimestamp() })
-          .then(() => true, e => { if (jaExiste(e)) return false; throw e; })));
+          .create({ ...doGrupo, criadoEm: FieldValue.serverTimestamp() })
+          .then(() => true, e => { if (jaExiste(e)) return false; throw e; }));
+    });
     if (!gravacoes.length) return;
     const gravados = await Promise.all(gravacoes);
     logger.info('logisticaPedidoNota: avisos gravados', {

@@ -30,6 +30,8 @@ export { preFabricadosApi } from './preFabricadosApi.js';
 export { logisticaPessoasFriday } from './logisticaPessoas.js';
 export { logisticaPedidoNota } from './logisticaPedidoNota.js';
 export { avisosPush } from './avisosPush.js';
+export { avisosReagir } from './avisosReagir.js';
+export { devAvisar, devPessoas } from './devAvisos.js';
 export { combustivelDivergencia } from './combustivelDivergencia.js';
 export { logisticaLocal } from './logisticaLocal.js';
 export { plannixPreFabricados } from './plannixPreFabricados.js';

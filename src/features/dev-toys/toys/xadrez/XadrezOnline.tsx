@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { anotar } from '../fichas/historico';
 import { useOpcoesTeclado } from '../fichas/hooks';
+import { BotaoJogue } from '../online/convite';
 import { PainelSala } from '../online/PainelSala';
 import { anotarUmaVez } from '../online/sala';
 import { useSalas } from '../online/useSalas';
@@ -126,6 +127,7 @@ export default function XadrezOnline({ onVoltar }: { onVoltar: () => void }) {
                 )}
               </div>
               {minhaVez && oferecer && <p className="dt-jogo-legenda">A OFERTA VAI JUNTO COM O LANCE</p>}
+              {emJogo && !minhaVez && !s.ocupado && <BotaoJogue sala={sala} />}
             </>
           )}
         </div>

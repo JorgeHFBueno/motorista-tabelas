@@ -1,3 +1,4 @@
+import { Convidar } from './convite';
 import type { Salas } from './useSalas';
 
 // Antes da partida online: a lista de salas abertas (entrar ou criar) e, dentro de uma sala aberta, quem já está
@@ -23,6 +24,7 @@ export function PainelSala({ s, minimo, onComecar, onVoltar }: { s: Salas; minim
             {criei ? '[Fechar sala]' : '[Sair da sala]'}
           </button>
         </div>
+        {sala.jogadores.length < sala.max && <Convidar sala={sala} />}
       </>
     );
   }

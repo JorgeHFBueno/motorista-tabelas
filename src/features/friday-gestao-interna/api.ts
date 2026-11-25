@@ -634,7 +634,10 @@ async function avisarMencoes(atualizacao: Row, antes?: unknown) {
     ...onde, atualizacaoId: atualizacao.id, texto: String(atualizacao.texto ?? ''), deUid: de,
     deNome: typeof autor.data()?.nome === 'string' ? autor.data()?.nome : '', nome: uid => usuarios.find(p => p.id === uid)?.nome,
   });
-  for (const uid of para) await setDoc(doc(collection(db, 'avisos', uid, 'itens')), { ...aviso, criadoEm: serverTimestamp() });
+  // Grupo da menção (reações): quem escreveu e quem foi marcado; as Rules conferem que quem grava está na lista.
+  const grupo = `mencao:${atualizacao.id}:${Date.now()}`;
+  const envolvidos = [...new Set([de, ...para])];
+  for (const uid of para) await setDoc(doc(collection(db, 'avisos', uid, 'itens')), { ...aviso, grupo, envolvidos, criadoEm: serverTimestamp() });
 }
 
 // Item e quadro onde o aviso abre, com os nomes (subitem aparece no quadro principal, dentro do item pai).

@@ -1,11 +1,11 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { agruparAvisos, filtrarAvisos, lerAviso, periodoDoAviso, rotaSegura, tempoRelativo } from '../src/services/avisosCore.ts';
+import { agruparAvisos, filtrarAvisos, lerAviso, lerReacoes, periodoDoAviso, resumoReacoes, rotaSegura, tempoRelativo } from '../src/services/avisosCore.ts';
 
 test('documento vira aviso: textos aparados, lida só com true, data do Timestamp; título padrão', () => {
   const quando = new Date(2026, 10, 13, 9, 0, 0);
   assert.deepEqual(lerAviso('a1', { area: 'friday', tipo: 'mencao', titulo: ' mencionou você ', mensagem: ' oi ', rota: '/friday/quadros/1', local: 'TAREFAS', deNome: 'Ana', lida: true, criadoEm: { toDate: () => quando } }), {
-    id: 'a1', area: 'friday', tipo: 'mencao', titulo: 'mencionou você', mensagem: 'oi', rota: '/friday/quadros/1', local: 'TAREFAS', deNome: 'Ana', lida: true, criadoEm: quando,
+    id: 'a1', area: 'friday', tipo: 'mencao', titulo: 'mencionou você', mensagem: 'oi', rota: '/friday/quadros/1', local: 'TAREFAS', deNome: 'Ana', lida: true, criadoEm: quando, grupo: null, reacoes: [],
   });
   const vazio = lerAviso('a2', { lida: 1, criadoEm: '2026-11-13' });
   assert.deepEqual([vazio.titulo, vazio.lida, vazio.criadoEm, vazio.deNome, vazio.local, vazio.rota], ['Aviso', false, null, null, null, null]);
@@ -55,4 +55,18 @@ test('tempo relativo: agora, minutos, horas, ontem e data', () => {
   assert.match(tempoRelativo(new Date(2026, 10, 12, 14, 30, 0), agora), /^ontem 14:30$/);
   assert.match(tempoRelativo(new Date(2026, 10, 1, 9, 5, 0), agora), /^1 (de )?nov 09:05$/);
   assert.equal(tempoRelativo(null, agora), '');
+});
+
+test('reações: uma por pessoa, da mais antiga para a mais nova; sem horário (ainda gravando) no fim', () => {
+  const em = (ms: number) => ({ toMillis: () => ms });
+  const lista = lerReacoes({
+    jorge: { emoji: '👍', nome: 'Jorge B', em: em(20) },
+    'SAMUEL_M.N': { emoji: '❤️', nome: 'Samuel', em: em(10) },
+    ana: { emoji: '👍', nome: ' Ana ', em: null },
+    ruim: { nome: 'sem emoji' },
+  });
+  assert.deepEqual(lista.map(r => [r.uid, r.emoji, r.nome]), [['SAMUEL_M.N', '❤️', 'Samuel'], ['jorge', '👍', 'Jorge B'], ['ana', '👍', 'Ana']]);
+  assert.deepEqual(resumoReacoes(lista), [{ emoji: '❤️', nomes: ['Samuel'] }, { emoji: '👍', nomes: ['Jorge B', 'Ana'] }]);
+  assert.deepEqual(lerReacoes(null), []);
+  assert.equal(lerAviso('a', { grupo: ' g1 ', reacoes: { ana: { emoji: '🫡', nome: 'Ana', em: em(1) } } }).grupo, 'g1');
 });

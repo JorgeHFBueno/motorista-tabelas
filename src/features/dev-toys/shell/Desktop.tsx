@@ -1,5 +1,6 @@
-import { Suspense, useCallback, useEffect, useState, type PointerEvent } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Suspense, useCallback, useEffect, useRef, useState, type PointerEvent } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
+import { pedirOnline } from '../toys/online/pedidoOnline';
 import { INTENSIDADES, type IntensidadeCrt } from '../crt/parametros';
 import type { PrefsDev } from '../prefs';
 import { ESCALA } from '../escala';
@@ -66,6 +67,26 @@ export default function Desktop({ ligando, prefs, onPrefs, onReiniciar }: Props)
     window.addEventListener('ledur:dev-abrir', pedir);
     return () => window.removeEventListener('ledur:dev-abrir', pedir);
   }, [abrir]);
+
+  // Aviso de convite ou "JOGUE" (/dev?jogo=xadrez&sala=<id>): abre o jogo, online, já na sala; os parâmetros saem do
+  // endereço (o ?aviso= é do sino, que marca como lido e tira o dele).
+  const local = useLocation();
+  const pedidoFeito = useRef('');
+  useEffect(() => {
+    const params = new URLSearchParams(local.search);
+    const jogo = params.get('jogo');
+    if (jogo !== 'xadrez' && jogo !== 'neo') return;
+    const chave = `${jogo}|${params.get('sala') ?? ''}`;
+    if (pedidoFeito.current !== chave) {
+      pedidoFeito.current = chave;
+      pedirOnline(jogo, params.get('sala'));
+      abrir(jogo);
+    }
+    params.delete('jogo');
+    params.delete('sala');
+    const resto = params.toString();
+    navigate({ pathname: local.pathname, search: resto ? `?${resto}` : '', hash: local.hash }, { replace: true });
+  }, [local.search, local.pathname, local.hash, abrir, navigate]);
   const abrirRegras = (aba: string) => {
     setPedidoRegras((r) => ({ aba, n: r.n + 1 }));
     abrir('regras');

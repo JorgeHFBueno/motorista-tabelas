@@ -10,6 +10,7 @@ import { gravarPlacar, lerPlacar, registrarJogada, type PlacarJogo } from '../fi
 import { NOMES_BOT } from '../poker/bots';
 import { MesaNeo } from './MesaNeo';
 import NeoOnline from './NeoOnline';
+import { useOnline } from '../online/pedidoOnline';
 import { PREMIO, agir, decidirBot, jogaveis, naipeVermelho, novaPartida, ordemNaMao, retornoNeo, type CartaNeo, type Jogada, type Partida } from './regras';
 
 // NEO contra 3 bots, na mesa do poker: você embaixo, os bots à esquerda, em cima e à direita (a ordem da vez, no
@@ -30,7 +31,7 @@ function nomesDosBots(rng: () => number) {
 }
 
 export default function NeoToy() {
-  const [online, setOnline] = useState(false);
+  const [online, setOnline] = useOnline('neo');
   return online ? <NeoOnline onVoltar={() => setOnline(false)} /> : <NeoContraBot onOnline={() => setOnline(true)} />;
 }
 

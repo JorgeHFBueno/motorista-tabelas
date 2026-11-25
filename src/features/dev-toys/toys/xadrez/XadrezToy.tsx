@@ -9,6 +9,7 @@ import { ALEATORIA, NIVEIS, escolherLance, retornoDe, sortearNivel } from './bot
 import { PecaView } from './PecaView';
 import { FRASE_FIM, INICIAL, aplicar, chave, deFen, emXeque, fimDe, legais, perdidas, type Fim, type Lance, type Posicao } from './regras';
 import { TabuleiroXadrez } from './TabuleiroXadrez';
+import { useOnline } from '../online/pedidoOnline';
 import XadrezOnline from './XadrezOnline';
 
 // Xadrez contra o bot, com as fichas da carteira: você joga de brancas. Cada nível tem a sua aposta (FACIL 10,
@@ -27,7 +28,7 @@ const I_ALEATORIA = NIVEIS.length;
 const nomeDaPartida = (pt: Partida) => `${NIVEIS[pt.nivel].nome}${pt.aleatoria ? ' (ALEATORIA)' : ''}`;
 
 export default function XadrezToy() {
-  const [online, setOnline] = useState(false);
+  const [online, setOnline] = useOnline('xadrez');
   return online ? <XadrezOnline onVoltar={() => setOnline(false)} /> : <XadrezContraBot onOnline={() => setOnline(true)} />;
 }
 

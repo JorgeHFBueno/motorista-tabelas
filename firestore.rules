@@ -383,8 +383,8 @@ service cloud.firestore {
     // person. Only that person reads them and marks them as read; nobody deletes. Functions write any kind (Admin SDK);
     // from a screen, only a Friday mention, in the author's own name (as in funcionarios), unread, for someone else,
     // opening a Friday route, with the server time.
-    function avisoDeMencaoDoFriday(d) {
-      return d.keys().hasOnly(['area', 'tipo', 'titulo', 'mensagem', 'rota', 'local', 'deUid', 'deNome', 'origem', 'lida', 'criadoEm'])
+    function avisoDeMencaoDoFriday(d, uid) {
+      return d.keys().hasOnly(['area', 'tipo', 'titulo', 'mensagem', 'rota', 'local', 'deUid', 'deNome', 'origem', 'grupo', 'envolvidos', 'lida', 'criadoEm'])
         && d.keys().hasAll(['area', 'tipo', 'titulo', 'mensagem', 'rota', 'deUid', 'deNome', 'lida', 'criadoEm'])
         && d.area == 'friday'
         && d.tipo == 'mencao'
@@ -395,6 +395,10 @@ service cloud.firestore {
         && d.rota is string && d.rota.size() <= 200 && d.rota.matches('/friday/.*')
         && (d.get('local', null) == null || (d.local is string && d.local.size() <= 200))
         && (d.get('origem', null) == null || (d.origem is map && d.origem.keys().hasOnly(['colecao', 'id'])))
+        // group of the mention (reactions): optional; when present, the author and the recipient are in it
+        && (d.get('grupo', null) == null || (d.grupo is string && d.grupo.size() <= 200
+          && d.envolvidos is list && d.envolvidos.size() <= 50
+          && request.auth.uid in d.envolvidos && uid in d.envolvidos))
         && d.lida == false
         && d.criadoEm == request.time;
     }
@@ -407,7 +411,7 @@ service cloud.firestore {
         && request.resource.data.lida is bool;
       allow create: if fridayAccess()
         && uid != request.auth.uid
-        && avisoDeMencaoDoFriday(request.resource.data);
+        && avisoDeMencaoDoFriday(request.resource.data, uid);
       allow delete: if false;
     }
 

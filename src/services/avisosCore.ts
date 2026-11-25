@@ -13,7 +13,34 @@ export type Aviso = {
   deNome: string | null;
   lida: boolean;
   criadoEm: Date | null;
+  /** Grupo do acontecimento: sem ele (avisos antigos, portal), o aviso não aceita reação. */
+  grupo: string | null;
+  /** Reações de quem esteve no aviso, uma por pessoa (a mais recente), da mais antiga para a mais nova. */
+  reacoes: Reacao[];
 };
+
+export type Reacao = { uid: string; emoji: string; nome: string; em: number };
+
+/** Os emojis da fileira do menu "Reagir" (os mesmos de functions/avisosReagirDominio.ts). */
+export const EMOJIS_REACAO = ['👍', '👀', '✅', '❤️', '🙏', '😂', '❌', '😡', '🫡'] as const;
+
+/** reacoes {uid: {emoji, nome, em}} do documento → lista, da mais antiga para a mais nova (sem horário, no fim). */
+export function lerReacoes(v: unknown): Reacao[] {
+  if (!v || typeof v !== 'object') return [];
+  return Object.entries(v as Record<string, unknown>).flatMap(([uid, r]) => {
+    const x = r as { emoji?: unknown; nome?: unknown; em?: { toMillis?: () => number } } | null;
+    if (!x || typeof x.emoji !== 'string' || !x.emoji) return [];
+    const em = typeof x.em?.toMillis === 'function' ? x.em.toMillis() : Number.MAX_SAFE_INTEGER;
+    return [{ uid, emoji: x.emoji, nome: typeof x.nome === 'string' ? x.nome.trim() : '', em }];
+  }).sort((a, b) => a.em - b.em);
+}
+
+/** "👍 Jorge, Ana · ❤️ Bia": as reações por emoji, na ordem em que apareceram. */
+export function resumoReacoes(reacoes: Reacao[]): { emoji: string; nomes: string[] }[] {
+  const grupos = new Map<string, string[]>();
+  for (const r of reacoes) grupos.set(r.emoji, [...(grupos.get(r.emoji) ?? []), r.nome || 'Alguém']);
+  return [...grupos].map(([emoji, nomes]) => ({ emoji, nomes }));
+}
 
 const texto = (v: unknown) => (typeof v === 'string' ? v.trim() : '');
 
@@ -32,6 +59,8 @@ export function lerAviso(id: string, d: Record<string, unknown>): Aviso {
     deNome: texto(d.deNome) || null,
     lida: d.lida === true,
     criadoEm,
+    grupo: texto(d.grupo) || null,
+    reacoes: lerReacoes(d.reacoes),
   };
 }
 

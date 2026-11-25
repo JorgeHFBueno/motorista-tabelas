@@ -11,6 +11,7 @@ import * as logger from 'firebase-functions/logger';
 import { FieldValue } from 'firebase-admin/firestore';
 import { getStorage } from 'firebase-admin/storage';
 import { db } from './firebaseAdmin.js';
+import { comGrupo } from './avisosGrupo.js';
 import { valorDoOficial, type CampoOficial } from './fridayCadastroConverter.js';
 import { lerCaminho } from './fridayCadastrosExistentes.js';
 import { calcular, type Coluna as ColunaFormula } from './fridayFormula.js';
@@ -479,7 +480,9 @@ async function avisarMencoes(e: Escrita, item: AnyRecord, atualizacaoId: number,
     atualizacaoId, texto, deUid: autor, deNome: String(funcionarios.get(autor)?.nome ?? ''), nome: uid => funcionarios.get(uid)?.nome,
   });
   const lote = db.batch();
-  for (const uid of para) lote.set(db.collection('avisos').doc(uid).collection('itens').doc(), { ...aviso, criadoEm: FieldValue.serverTimestamp() });
+  // Grupo da menção (reações): quem escreveu e quem foi marcado.
+  const doGrupo = comGrupo(aviso, `mencao:${atualizacaoId}:${novoId()}`, [autor, ...para]);
+  for (const uid of para) lote.set(db.collection('avisos').doc(uid).collection('itens').doc(), { ...doGrupo, criadoEm: FieldValue.serverTimestamp() });
   await lote.commit();
 }
 

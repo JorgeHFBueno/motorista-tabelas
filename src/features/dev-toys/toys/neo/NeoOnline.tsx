@@ -4,6 +4,7 @@ import { NaipeSvg } from '../cartas/CartaView';
 import { rngDe } from '../crawler/sim';
 import { anotar } from '../fichas/historico';
 import { useOpcoesTeclado } from '../fichas/hooks';
+import { BotaoJogue } from '../online/convite';
 import { PainelSala } from '../online/PainelSala';
 import { anotarUmaVez } from '../online/sala';
 import { useSalas } from '../online/useSalas';
@@ -142,6 +143,7 @@ export default function NeoOnline({ onVoltar }: { onVoltar: () => void }) {
                 <button type="button" data-principal onClick={() => s.deixar(sala)}>[Sair]</button>
               )}
             </div>
+            {emJogo && !minhaVez && !s.ocupado && <BotaoJogue sala={sala} />}
           </>
         )}
       </div>

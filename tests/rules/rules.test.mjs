@@ -1336,6 +1336,13 @@ test('[firestore] avisos: a Friday mention is created only in the author name, u
   const em = (db, uid, id) => doc(db, 'avisos', uid, 'itens', id);
   await assertSucceeds(setDoc(em(autor, 'uid-escritorio-fora', 'm1'), aviso()));
   await assertSucceeds(setDoc(em(autor, 'uid-escritorio-fora', 'm1b'), aviso({ local: null, origem: null })));
+  // group of the mention (reactions): optional; when present, the author and the recipient are in it
+  await assertSucceeds(setDoc(em(autor, 'uid-escritorio-fora', 'm1c'), aviso({ grupo: 'mencao:30:1', envolvidos: ['uid-escritorio', 'uid-escritorio-fora'] })));
+  await assertFails(setDoc(em(autor, 'uid-escritorio-fora', 'm1d'), aviso({ grupo: 'mencao:30:1', envolvidos: ['uid-escritorio'] })));
+  await assertFails(setDoc(em(autor, 'uid-escritorio-fora', 'm1e'), aviso({ grupo: 'mencao:30:1', envolvidos: ['uid-escritorio-fora'] })));
+  await assertFails(setDoc(em(autor, 'uid-escritorio-fora', 'm1f'), aviso({ grupo: 'mencao:30:1' })));
+  // reactions are written only by the Function
+  await assertFails(updateDoc(em(destino, 'uid-escritorio-fora', 'm1c'), { reacoes: { 'uid-escritorio-fora': { emoji: '👍', nome: 'x' } } }));
   await assertFails(setDoc(em(autor, 'uid-escritorio-fora', 'm2'), aviso({ deUid: 'uid-escritorio-fora' })));
   await assertFails(setDoc(em(autor, 'uid-escritorio-fora', 'm3'), aviso({ deNome: 'Diretor' })));
   await assertFails(setDoc(em(autor, 'uid-escritorio', 'm4'), aviso()));

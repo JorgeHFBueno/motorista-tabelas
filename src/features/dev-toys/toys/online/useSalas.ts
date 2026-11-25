@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { addDoc, collection, deleteDoc, doc, onSnapshot, query, runTransaction, serverTimestamp, where } from 'firebase/firestore';
 import { useAuth } from '../../../../contexts/AuthContext';
 import { db } from '../../../../firebase';
+import { tomarSalaPedida } from './pedidoOnline';
 import { MAX_JOGADORES, lerMarcas, lerSala, marcar, minhaSala, nomeDev, salasLivres, type JogoOnline, type Sala } from './sala';
 
 // Salas online no Firestore (dev-salas): a lista ao vivo das salas do jogo, a sala em que estou e as gravações. Toda
@@ -92,6 +93,20 @@ export function useSalas(jogo: JogoOnline) {
     setSala(null);
     void deleteDoc(doc(db, 'dev-salas', s.id)).catch(() => { /* outro jogador já apagou */ });
   };
+
+  // Veio de um convite (/dev?jogo=...&sala=...): com a lista carregada e fora de sala, entra na sala do convite.
+  useEffect(() => {
+    if (!salas || sala) return;
+    const id = tomarSalaPedida(jogo);
+    if (!id) return;
+    const alvo = salas.find((x) => x.id === id);
+    if (!alvo) setErro('O CONVITE EXPIROU: A SALA FOI FECHADA');
+    else if (!alvo.jogadores.includes(uid)) {
+      if (alvo.estado === 'aberta' && alvo.jogadores.length < alvo.max) void entrar(alvo);
+      else setErro('A SALA JA COMECOU OU ESTA CHEIA');
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- uma vez por lista nova; entrar muda a cada render
+  }, [salas, sala, jogo, uid]);
 
   return {
     uid,
