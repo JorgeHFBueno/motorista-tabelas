@@ -101,20 +101,35 @@ test('Corvo teclando: pula nas teclas com "tac", pula alto no Enter, a barra enc
   assert.equal(PASSOS_DO_TECLANDO[CENAS.teclando.parado].pose, 'olha');
 });
 
-test('Corvo placa: sem placa no começo e no fim, com a placa no meio; a interrogação some num quadro', () => {
+test('Corvo placa: confuso — tira a placa em branco, vira e aparece o "?", guarda e coça a cabeça com "?" no ar', () => {
   const comPlaca = (i: number) => pixels('placa', i, 'm').length > 0;
   assert.ok(!comPlaca(0));
   assert.ok(comPlaca(CENAS.placa.parado));
   assert.ok(!comPlaca(CENAS.placa.quadros - 1));
-  const semQ = PASSOS_DA_PLACA.findIndex((p) => p.semInterrogacao);
-  assert.ok(semQ > 0);
-  assert.equal(pixels('placa', semQ, 'q').length, 0);
-  assert.ok(pixels('placa', semQ - 1, 'q').length > 0);
+  // a placa sai em branco; vira (fica estreita) e só então aparece o "?"
+  const primeira = PASSOS_DA_PLACA.findIndex((p) => p.placa);
+  assert.ok(PASSOS_DA_PLACA[primeira].semInterrogacao);
+  assert.equal(pixels('placa', primeira, 'q').length, 0);
+  const deLado = PASSOS_DA_PLACA.findIndex((p) => p.largura === 1);
+  assert.ok(deLado > primeira);
+  assert.equal(pixels('placa', deLado, 'n').length, 0);
+  assert.ok(PASSOS_DA_PLACA.slice(primeira, deLado).every((p) => p.semInterrogacao));
+  assert.ok(pixels('placa', CENAS.placa.parado, 'q').length > 0);
   // a asa-braço só aparece quando ele mexe a asa
   assert.equal(pixels('placa', 0, 'A').length, 0);
   assert.ok(pixels('placa', CENAS.placa.parado, 'A').length > 0);
   const d = caminhos(quadro('placa', CENAS.placa.parado));
   assert.match(d.o, /^M\d+ \d+h1v1h-1zM\d+ \d+h1v1h-1z$/);
+  // o corpo não muda de altura: os pés ficam sempre na mesma linha
+  const pes = (i: number) => Math.max(...pixels('placa', i, 'b').map((p) => Number(p.split(',')[1])));
+  PASSOS_DA_PLACA.forEach((_, i) => assert.equal(pes(i), pes(0), `placa ${i}: mudou de altura`));
+  // coçando a cabeça: a asa de capa daquele lado some (vira braço) e os "?" sobem
+  const cocando = PASSOS_DA_PLACA.map((p, i) => (p.coca !== undefined ? i : -1)).filter((i) => i >= 0);
+  assert.ok(cocando.length >= 4);
+  const capaEsquerda = (i: number) => pixels('placa', i, 'W').filter((p) => Number(p.split(',')[0]) < 13).length;
+  assert.ok(capaEsquerda(0) > 0);
+  cocando.forEach((i) => assert.equal(capaEsquerda(i), 0, `placa ${i}: sobra da asa`));
+  assert.ok(cocando.some((i) => pixels('placa', i, 's').length > 2));
 });
 
 test('Festas: Natal de 24/11 a 06/01, em Brasília', () => {

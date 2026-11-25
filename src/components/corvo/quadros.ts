@@ -5,7 +5,7 @@
 // grita duas vezes com ondas de som, tremendo, e perde uma pena) e teclando
 // (carregamento: pula nas teclas de um notebook escrevendo, dá um pulo alto no Enter, a barra de progresso enche, e
 // ele olha a tela). De frente (cabeça pontuda, asas de capa): placa (página não
-// encontrada: tira uma placa com "?" das costas, mostra, dá de ombros, esconde e assobia).
+// encontrada, confuso: tira das costas uma placa em branco, vira e aparece o "?", dá de ombros, guarda e coça a cabeça).
 
 export type Animacao = 'cabeca' | 'grito' | 'teclando' | 'placa';
 export type Cena = {
@@ -24,7 +24,7 @@ export const CENAS: Record<Animacao, Cena> = {
   cabeca: { largura: 30, altura: 20 + MARGEM_ENFEITE, quadros: 23, ms: 200, parado: 10 },
   grito: { largura: 34, altura: 19 + MARGEM_ENFEITE, quadros: 20, ms: 170, parado: 5 },
   teclando: { largura: 44, altura: 26 + MARGEM_ENFEITE, quadros: 220, ms: 130, parado: 44 },
-  placa: { largura: 34, altura: 36 + MARGEM_ENFEITE, quadros: 30, ms: 180, parado: 12 },
+  placa: { largura: 34, altura: 36 + MARGEM_ENFEITE, quadros: 44, ms: 190, parado: 20 },
 };
 
 type Grade = string[][];
@@ -351,7 +351,7 @@ function teclando(i: number): Grade {
 }
 
 // ---- Placa, de frente ('#' corpo, 'W' asa de capa, 'A' asa-braço, 'f' pena, 'c' peito, 'o' olho, 'b' bico e pés,
-// 'm' moldura e 'n' fundo da placa, 'q' interrogação, 'h' cabo, 's' estalo e notas) ----
+// 'm' moldura e 'n' fundo da placa, 'q' interrogação, 'h' cabo, 's' coçada e "?") ----
 
 const FRENTE = [
   '........##........',
@@ -377,26 +377,34 @@ const FRENTE = [
   '......b....b......',
   '.....bbb..bbb.....',
 ];
-type Olhar = 'centro' | 'esq' | 'dir' | 'cima' | 'fechado';
-const DESVIO: Record<Exclude<Olhar, 'fechado'>, [number, number]> = { centro: [0, 0], esq: [0, -1], dir: [0, 1], cima: [-1, 0] };
+type Olhar = 'centro' | 'esq' | 'dir' | 'cima' | 'placa' | 'confuso' | 'fechado';
+/** Os pixels [linha, coluna] dos olhos; "placa" olha para cima e para a direita, "confuso" tem um olho arregalado. */
+const OLHOS: Record<Exclude<Olhar, 'fechado'>, [number, number][]> = {
+  centro: [[5, 6], [5, 11]],
+  esq: [[5, 5], [5, 10]],
+  dir: [[5, 7], [5, 12]],
+  cima: [[4, 6], [4, 11]],
+  placa: [[4, 7], [4, 12]],
+  confuso: [[4, 6], [5, 6], [5, 11]],
+};
 
-/** De frente; sem uma das asas de capa quando ela vira braço. */
-function frente(olhar: Olhar, semEsquerda: boolean, semDireita: boolean): Grade {
+/** De frente; sem uma das asas de capa quando ela vira braço; `inclina` desliza a cabeça inteira 1 pixel para o lado. */
+function frente(olhar: Olhar, semEsquerda: boolean, semDireita: boolean, inclina = 0): Grade {
   const r = sprite(FRENTE, 18);
-  if (olhar !== 'fechado') {
-    const [dy, dx] = DESVIO[olhar];
-    r[5 + dy][6 + dx] = 'o';
-    r[5 + dy][11 + dx] = 'o';
-  }
+  if (olhar !== 'fechado') OLHOS[olhar].forEach(([y, x]) => { r[y][x] = 'o'; });
   r.forEach((l) => l.forEach((c, x) => { if (c === 'W' && ((semDireita && x >= 13) || (semEsquerda && x <= 4))) l[x] = '.'; }));
+  if (inclina) for (let y = 0; y <= 10; y++) r[y] = inclina > 0 ? ['.', ...r[y].slice(0, -1)] : [...r[y].slice(1), '.'];
   return r;
 }
 
 const INTERROGACAO = ['.qqq.', 'q...q', '...q.', '..q..', '.....', '..q..'];
-function placa(semInterrogacao: boolean): Grade {
+/** A placa; virando, fica mais estreita (5, depois 1 de largura: de lado) e só mostra o "?" de frente. */
+function placa(semInterrogacao: boolean, largura = 11): Grade {
   const g: Grade = [];
-  for (let y = 0; y < 9; y++) g.push(Array.from({ length: 11 }, (_, x) => (y === 0 || y === 8 || x === 0 || x === 10 ? 'm' : 'n')));
-  if (!semInterrogacao) INTERROGACAO.forEach((l, y) => [...l].forEach((c, x) => { if (c === 'q') g[y + 1][x + 3] = 'q'; }));
+  for (let y = 0; y < 9; y++) {
+    g.push(Array.from({ length: largura }, (_, x) => (largura === 1 || y === 0 || y === 8 || x === 0 || x === largura - 1 ? 'm' : 'n')));
+  }
+  if (!semInterrogacao && largura === 11) INTERROGACAO.forEach((l, y) => [...l].forEach((c, x) => { if (c === 'q') g[y + 1][x + 3] = 'q'; }));
   return g;
 }
 
@@ -432,18 +440,15 @@ function asa(g: Grade, sx: number, sy: number, hx: number, hy: number) {
   pix(g, hx + lado * 2, hy + 1, '#');
 }
 
-function placaNaMao(g: Grade, hx: number, hy: number, semInterrogacao = false) {
-  colar(g, placa(semInterrogacao), hx - 5, hy - 15);
+function placaNaMao(g: Grade, hx: number, hy: number, semInterrogacao = false, largura = 11) {
+  colar(g, placa(semInterrogacao, largura), hx - Math.floor(largura / 2), hy - 15);
   for (let y = hy - 6; y <= hy + 2; y++) pix(g, hx, y, 'h');
 }
 const caboAcimaDaMao = (g: Grade, hx: number, hy: number) => { for (let y = hy - 6; y <= hy - 2; y++) pix(g, hx, y, 'h'); };
-function estalo(g: Grade, hx: number, hy: number) {
-  const x0 = hx - 5;
-  const y0 = hy - 15;
-  [[x0 - 2, y0 - 1], [x0 - 3, y0 + 4], [x0 - 2, y0 + 9], [x0 + 12, y0 - 1], [x0 + 13, y0 + 4], [x0 + 12, y0 + 9]].forEach(([x, y]) => pix(g, x, y, 's'));
-}
-const nota = (g: Grade, x: number, y: number) =>
-  [[1, 0], [2, 0], [1, 1], [0, 2], [1, 2], [0, 3], [1, 3]].forEach(([a, b]) => pix(g, x + a, y + b, 's'));
+/** Risquinhos da coçada, ao lado da mão. */
+const cocada = (g: Grade, hx: number, hy: number, k: number) => { pix(g, hx - 3, hy - 2 + k, 's'); pix(g, hx - 4, hy + k, 's'); };
+const duvidaEm = (g: Grade, x: number, y: number) =>
+  DUVIDA.forEach((l, yy) => [...l].forEach((c, xx) => { if (c === 's') pix(g, x + xx, y + yy, 's'); }));
 
 const X0 = 8;
 const Y0 = 13;
@@ -451,6 +456,9 @@ const OMBRO_D: [number, number] = [X0 + 14, Y0 + 14];
 const OMBRO_E: [number, number] = [X0 + 3, Y0 + 14];
 const MAO: [number, number] = [28, 20];
 const DE_OMBROS: [number, number] = [OMBRO_E[0] - 5, OMBRO_E[1] - 6];
+/** Onde sobem os "?" enquanto ele coça a cabeça: à esquerda e à direita da cabeça. */
+const DUVIDA_E: [number, number] = [3, Y0 - 3];
+const DUVIDA_D: [number, number] = [24, Y0 - 3];
 
 type Passo = {
   o: Olhar;
@@ -461,52 +469,75 @@ type Passo = {
   placaTras?: boolean;
   placa?: boolean;
   semInterrogacao?: boolean;
-  estalo?: boolean;
+  /** a placa virando: 5 ou 1 de largura */
+  largura?: number;
   /** mão da asa esquerda (dar de ombros) */
   e?: [number, number];
-  dy?: number;
-  nota?: [number, number];
+  inclina?: number;
+  /** coçando a cabeça com a asa esquerda: 0 ou 1 (a mão desce 1 pixel) */
+  coca?: 0 | 1;
+  /** "?" no ar: posição de cada um */
+  duvidas?: [number, number][];
 };
 const [MX, MY] = MAO;
+const comPlacaNaMao = (o: Olhar, extra: Partial<Passo> = {}): Passo => ({ o, d: [MX, MY], placa: true, ...extra });
+const sobe = ([x, y]: [number, number], k: number): [number, number] => [x, y - k];
+/**
+ * Confuso: olha em volta, procura nas costas e tira a placa em branco; olha para ela, para quem vê e para ela de novo;
+ * vira a placa e aparece o "?"; mostra sem jeito, dá de ombros devagar, guarda a placa e coça a cabeça com "?" subindo.
+ * Ajustado quadro a quadro pelo responsável em 2026-11-25.
+ */
 const PLACA: Passo[] = [
   { o: 'centro' }, { o: 'centro' }, { o: 'fechado' }, { o: 'centro' },
   { o: 'esq' }, { o: 'esq' }, { o: 'dir' }, { o: 'dir' }, { o: 'centro' },
-  { o: 'centro', d: [OMBRO_D[0] - 2, OMBRO_D[1] - 1], tras: true },
-  { o: 'centro', d: [OMBRO_D[0] - 3, OMBRO_D[1] - 2], tras: true },
-  { o: 'cima', d: [MX, MY], placa: true, estalo: true, dy: -1 },
-  { o: 'cima', d: [MX, MY], placa: true },
-  { o: 'centro', d: [MX, MY - 1], placa: true },
-  { o: 'centro', d: [MX, MY + 1], placa: true },
-  { o: 'centro', d: [MX, MY - 1], placa: true, semInterrogacao: true },
-  { o: 'centro', d: [MX, MY + 1], placa: true },
-  { o: 'centro', d: [MX, MY], placa: true, e: DE_OMBROS, dy: 1 },
-  { o: 'centro', d: [MX, MY], placa: true, e: [DE_OMBROS[0], DE_OMBROS[1] - 1], dy: 1 },
-  { o: 'fechado', d: [MX, MY], placa: true, e: DE_OMBROS, dy: 1 },
-  { o: 'centro', d: [MX, MY], placa: true },
+  { o: 'cima', d: [OMBRO_D[0] - 2, OMBRO_D[1] - 1], tras: true },
+  { o: 'cima', d: [OMBRO_D[0] - 4, OMBRO_D[1] - 3], tras: true },
+  comPlacaNaMao('placa', { semInterrogacao: true }), comPlacaNaMao('placa', { semInterrogacao: true }),
+  comPlacaNaMao('centro', { semInterrogacao: true }), comPlacaNaMao('centro', { semInterrogacao: true }),
+  comPlacaNaMao('fechado', { semInterrogacao: true }), comPlacaNaMao('placa', { semInterrogacao: true }),
+  comPlacaNaMao('placa', { semInterrogacao: true, largura: 5 }), comPlacaNaMao('placa', { semInterrogacao: true, largura: 1 }),
+  comPlacaNaMao('placa', { largura: 5 }), comPlacaNaMao('placa'), comPlacaNaMao('placa'),
+  comPlacaNaMao('centro', { d: [MX, MY - 1], inclina: -1 }), comPlacaNaMao('centro', { inclina: -1 }),
+  comPlacaNaMao('centro', { d: [MX, MY - 1], inclina: -1 }), comPlacaNaMao('centro', { inclina: -1 }),
+  comPlacaNaMao('centro', { e: DE_OMBROS }), comPlacaNaMao('centro', { e: sobe(DE_OMBROS, 1) }),
+  comPlacaNaMao('fechado', { e: sobe(DE_OMBROS, 1) }), comPlacaNaMao('centro', { e: DE_OMBROS }),
+  comPlacaNaMao('esq'),
   { o: 'esq', d: [OMBRO_D[0] + 2, OMBRO_D[1] - 5], placaTras: true },
   { o: 'esq', d: [OMBRO_D[0] - 1, OMBRO_D[1] - 2], placaTras: true },
-  { o: 'cima', nota: [MX - 4, Y0 - 4] },
-  { o: 'cima', nota: [MX - 3, Y0 - 6] },
-  { o: 'cima', nota: [MX - 2, Y0 - 8] },
-  { o: 'fechado' }, { o: 'centro' }, { o: 'centro' }, { o: 'centro' },
+  { o: 'confuso', coca: 0, inclina: 1 },
+  { o: 'confuso', coca: 1, inclina: 1, duvidas: [DUVIDA_E] },
+  { o: 'confuso', coca: 0, inclina: 1, duvidas: [sobe(DUVIDA_E, 1)] },
+  { o: 'cima', coca: 1, inclina: 1, duvidas: [sobe(DUVIDA_E, 2)] },
+  { o: 'cima', coca: 0, inclina: 1, duvidas: [sobe(DUVIDA_E, 3), sobe(DUVIDA_D, -1)] },
+  { o: 'confuso', coca: 1, inclina: 1, duvidas: [DUVIDA_D] },
+  { o: 'confuso', inclina: 1, duvidas: [sobe(DUVIDA_D, 1)] },
+  { o: 'centro' }, { o: 'fechado' }, { o: 'centro' }, { o: 'centro' },
 ];
 
 function comPlaca(i: number): Grade {
   const p = PLACA[i];
   const g = novaCena(CENAS.placa);
-  const dy = p.dy ?? 0;
+  const inclina = p.inclina ?? 0;
+  const cocando = p.coca !== undefined;
   if (p.placaTras && p.d) placaNaMao(g, p.d[0], p.d[1]);
-  if ((p.tras || p.placaTras) && p.d) asa(g, OMBRO_D[0], OMBRO_D[1] + dy, p.d[0], p.d[1]);
-  colar(g, frente(p.o, !!p.e, !!p.d), X0, Y0 + dy);
+  if ((p.tras || p.placaTras) && p.d) asa(g, OMBRO_D[0], OMBRO_D[1], p.d[0], p.d[1]);
+  // a asa que vira braço (dar de ombros, coçar) deixa de ser asa de capa daquele lado
+  colar(g, frente(p.o, !!p.e || cocando, !!p.d, inclina), X0, Y0);
   if (p.placa && p.d) {
-    const y = p.d[1] + Math.min(dy, 0);
-    placaNaMao(g, p.d[0], y, p.semInterrogacao);
-    asa(g, OMBRO_D[0], OMBRO_D[1] + dy, p.d[0], y);
-    caboAcimaDaMao(g, p.d[0], y);
-    if (p.estalo) estalo(g, p.d[0], y);
+    placaNaMao(g, p.d[0], p.d[1], p.semInterrogacao, p.largura);
+    asa(g, OMBRO_D[0], OMBRO_D[1], p.d[0], p.d[1]);
+    caboAcimaDaMao(g, p.d[0], p.d[1]);
   }
-  if (p.e) asa(g, OMBRO_E[0], OMBRO_E[1] + dy, p.e[0], p.e[1]);
-  if (p.nota) nota(g, p.nota[0], p.nota[1]);
+  if (cocando) {
+    // a mão acompanha a cabeça inclinada
+    const hx = X0 + 3 + inclina;
+    const hy = Y0 + 5 + p.coca!;
+    asa(g, OMBRO_E[0], OMBRO_E[1], hx, hy);
+    cocada(g, hx, hy, p.coca!);
+  } else if (p.e) {
+    asa(g, OMBRO_E[0], OMBRO_E[1], p.e[0], p.e[1]);
+  }
+  p.duvidas?.forEach(([x, y]) => duvidaEm(g, x, y));
   return g;
 }
 
