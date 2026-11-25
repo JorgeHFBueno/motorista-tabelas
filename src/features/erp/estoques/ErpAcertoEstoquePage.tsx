@@ -79,6 +79,7 @@ export default function ErpAcertoEstoquePage() {
         {mensagem && <div className="mensagem">{mensagem}</div>}
         <div className="botoes">
           <button className="btn primario" type="submit" disabled={!produto}>Gravar acerto</button>
+          <Link className="btn" to="/erp/estoques/relatorios/acertos">Relação de Acertos</Link>
         </div>
       </form>
     </div>

@@ -1,41 +1,52 @@
 /* Menu lateral do ERP (ErpLayout.tsx, 2026-11-25): disposição do menu do Elevor como o ERP do Samuel fez (faixa recolhida
-   de 30 px, aberto com 280 px por cima da tela, grupos que abrem e fecham, "em breve" no que não tem tela), nas cores do
-   menu lateral do painel: fundo branco e o item da tela atual em azul técnico. */
+   de 30 px, aberto com 280 px por cima da tela, grupos que abrem e fecham, "em breve" no que não tem tela). Cores do menu
+   lateral do painel (MenuLateral.tsx): fundo azul-marinho, texto branco, a tela atual em azul técnico e a seta que vira
+   para cima no grupo aberto; uma linha guia mostra o que é de cada grupo. */
 
 .erp-casca { display: flex; flex: 1; min-width: 0; }
 .erp-casca-area { flex: 1; min-width: 0; }
 
-.erp-menu-faixa { width: 30px; flex-shrink: 0; background: var(--ledur-muted); border-right: 1px solid var(--ledur-border); }
+.erp-menu-faixa { width: 30px; flex-shrink: 0; background: var(--ledur-primary); }
 .erp-menu-faixa .erp-menu-botao { position: sticky; top: 0; margin: 6px auto 0; }
 .erp-menu-botao { display: flex; align-items: center; justify-content: center; width: 26px; height: 26px; padding: 0; border: 0; border-radius: 4px;
-  background: transparent; color: var(--ledur-secondary); cursor: pointer; }
-.erp-menu-botao:hover { background: var(--ledur-border); }
+  background: transparent; color: rgb(255 255 255 / 0.8); cursor: pointer; }
+.erp-menu-botao:hover, .erp-menu-botao:focus-visible { color: #fff; background: rgb(255 255 255 / 0.12); outline: none; }
 .erp-menu-botao svg { width: 20px; height: 20px; }
 
 /* Aberto: por cima da tela, da altura da janela; o fundo transparente fecha ao clicar fora. */
 .erp-menu-fundo { position: fixed; inset: 0; z-index: 1290; }
 .erp-menu { position: fixed; top: 0; left: 0; bottom: 0; z-index: 1300; width: min(280px, 85vw); display: flex; flex-direction: column;
-  background: var(--ledur-card); border-right: 1px solid var(--ledur-border); box-shadow: var(--ledur-shadow-lg); font-size: 14px; }
-.erp-menu-topo { display: flex; align-items: center; justify-content: space-between; padding: 10px 8px 10px 14px; }
-.erp-menu-inicio { font-weight: 700; font-size: 16px; color: var(--ledur-primary); text-decoration: none; }
+  background: var(--ledur-primary); color: #fff; box-shadow: var(--ledur-shadow-lg); font-size: 14px; }
+.erp-menu-topo { display: flex; align-items: center; justify-content: space-between; padding: 14px 12px 12px 18px;
+  border-bottom: 1px solid rgb(255 255 255 / 0.1); }
+.erp-menu-inicio { font-weight: 700; font-size: 18px; letter-spacing: 0.5px; color: #fff; text-decoration: none; }
 .erp-menu-conteudo { display: flex; flex-direction: column; flex: 1; min-height: 0; }
-.erp-menu-busca { margin: 0 12px 12px; height: 34px; border: 1px solid var(--ledur-input); border-radius: 4px; padding: 0 12px; font: inherit;
-  color: var(--ledur-foreground); background: var(--ledur-card); outline: none; }
-.erp-menu-busca:focus { border-color: var(--ledur-secondary); box-shadow: 0 0 0 3px rgb(47 107 152 / 0.2); }
-.erp-menu-arvore { flex: 1; overflow-y: auto; padding-bottom: 20px; }
+.erp-menu-busca { margin: 12px 12px 8px; height: 34px; border: 1px solid rgb(255 255 255 / 0.2); border-radius: 8px; padding: 0 12px; font: inherit;
+  color: #fff; background: rgb(255 255 255 / 0.08); outline: none; }
+.erp-menu-busca::placeholder { color: rgb(255 255 255 / 0.55); }
+.erp-menu-busca:focus { border-color: rgb(255 255 255 / 0.5); }
+.erp-menu-arvore { flex: 1; overflow-y: auto; padding: 4px 10px 20px; }
 
-.erp-menu-no { display: flex; align-items: center; gap: 10px; width: 100%; border: 0; background: transparent; color: var(--ledur-foreground);
-  text-align: left; cursor: pointer; padding: 10px 12px; font: inherit; line-height: 1.25; text-decoration: none; box-sizing: border-box; }
-.erp-menu-no:hover { background: var(--ledur-muted); }
-.erp-menu-no .icone { width: 18px; height: 18px; color: var(--ledur-secondary); flex-shrink: 0; }
-.erp-menu-no.modulo { font-size: 15px; font-weight: 600; color: var(--ledur-primary); }
-.erp-menu-no.aberto { background: var(--ledur-muted); }
-.erp-menu-no.nivel-1 { padding-left: 28px; }
-.erp-menu-no.nivel-2 { padding-left: 56px; }
-.erp-menu-no.folha.ativa { color: var(--ledur-secondary); font-weight: 600; background: rgb(47 107 152 / 0.1); }
-.erp-menu-no.sem-tela { color: var(--ledur-muted-foreground); cursor: default; }
-.erp-menu-no.sem-tela:hover { background: transparent; }
-.erp-menu-no .em-breve { margin-left: auto; font-size: 10px; color: var(--ledur-muted-foreground); border: 1px solid var(--ledur-border); border-radius: 8px;
-  padding: 0 5px; white-space: nowrap; }
+/* Itens: módulo (forte, com ícone), grupo (com ícone e seta) e tela (folha). */
+.erp-menu-no { display: flex; align-items: center; gap: 10px; width: 100%; border: 0; border-radius: 8px; background: transparent;
+  color: rgb(255 255 255 / 0.7); text-align: left; cursor: pointer; padding: 8px 10px; margin: 1px 0; font: inherit; line-height: 1.25;
+  text-decoration: none; box-sizing: border-box; transition: background 0.15s, color 0.15s; }
+.erp-menu-no:hover, .erp-menu-no:focus-visible { color: #fff; background: rgb(255 255 255 / 0.1); outline: none; }
+.erp-menu-no .icone { width: 18px; height: 18px; color: inherit; flex-shrink: 0; }
+.erp-menu-no > span:first-of-type { flex: 1; min-width: 0; }
+.erp-menu-no .seta { width: 18px; height: 18px; flex-shrink: 0; transition: transform 0.2s ease; }
+.erp-menu-no .seta.aberta { transform: rotate(180deg); }
+.erp-menu-no.modulo { min-height: 42px; font-size: 15px; font-weight: 600; color: rgb(255 255 255 / 0.85); }
+.erp-menu-no.modulo .icone { width: 20px; height: 20px; }
+.erp-menu-no.aberto { color: #fff; }
+.erp-menu-no.modulo.aberto { background: rgb(255 255 255 / 0.08); }
+.erp-menu-no.folha { font-size: 13.5px; }
+.erp-menu-no.folha.ativa, .erp-menu-no.folha.ativa:hover { color: #fff; background: var(--ledur-secondary); font-weight: 500; }
+.erp-menu-no.sem-tela, .erp-menu-no.sem-tela:hover { color: rgb(255 255 255 / 0.45); background: transparent; cursor: default; }
+.erp-menu-no .em-breve { font-size: 10px; color: rgb(255 255 255 / 0.55); border: 1px solid rgb(255 255 255 / 0.25); border-radius: 8px;
+  padding: 0 6px; white-space: nowrap; }
+
+/* O que é de cada grupo fica recuado, com a linha guia à esquerda. */
+.erp-menu-filhos { margin: 2px 0 6px 19px; padding-left: 8px; border-left: 1px solid rgb(255 255 255 / 0.18); }
 
 @media print { .erp-menu-faixa, .erp-menu, .erp-menu-fundo { display: none; } }

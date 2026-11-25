@@ -195,6 +195,21 @@
 .erp-elevor .filtros-produtos .fp-botoes { display: flex; gap: 6px; }
 .erp-elevor .filtros-produtos > .opcao { font-weight: 700; }
 
+/* ---------------- relatórios (RL_AcertoEstoque, RL_GiroEstoque, RL_ProdutosSemGiro, RL_CurvaABC) ---------------- */
+.erp-elevor .relatorio-elevor .mais-opcoes { margin: 2px 0 8px; }
+.erp-elevor .btn-dividido { position: relative; display: inline-flex; }
+.erp-elevor .btn-dividido > .btn:first-child { border-radius: 3px 0 0 3px; }
+.erp-elevor .btn-dividido > .btn.seta { border-radius: 0 3px 3px 0; padding: 0 6px; border-left: 1px solid rgb(255 255 255 / 0.35); }
+.erp-elevor .menu-gerar { position: absolute; top: calc(100% + 2px); left: 0; z-index: 20; min-width: 170px; background: var(--campo-fundo);
+  border: 1px solid var(--campo-borda); border-radius: 4px; box-shadow: var(--ledur-shadow-md); padding: 4px 0; }
+.erp-elevor .menu-gerar button { display: flex; align-items: center; gap: 6px; width: 100%; padding: 7px 12px; color: var(--texto); background: none;
+  border: 0; cursor: pointer; font: inherit; text-align: left; white-space: nowrap; }
+.erp-elevor .menu-gerar button:hover:not(:disabled) { background: var(--grade-hover); }
+.erp-elevor .menu-gerar button:disabled { opacity: 0.5; cursor: default; }
+.erp-elevor .menu-gerar svg { width: 16px; height: 16px; }
+.erp-elevor .grade .linha-total td { font-weight: 700; border-top: 2px solid var(--divisoria); background: var(--grade-hover); }
+@media print { .erp-elevor .erp-aviso, .erp-elevor .relatorio-elevor { display: none; } }
+
 /* ---------------- relatórios e fichas simples (Estoques: RL_Estoques, RL_Kardex, CL_Volumes, CD_Volumes) ---------------- */
 .erp-elevor .form-linha { display: grid; grid-template-columns: 180px minmax(0, 1fr); gap: 10px 30px; align-items: center; margin-bottom: 10px; }
 .erp-elevor .form-rotulo { color: var(--texto); }

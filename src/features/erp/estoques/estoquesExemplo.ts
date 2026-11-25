@@ -130,10 +130,10 @@ export const PRODUTOS_EXEMPLO: ProdutoExemplo[] = [
     minimo: 80, maximo: 400, base: 200, ritmo: 1.2, empresas: [1] },
   { codigo: 3004, descricao: 'FILTRO DE ÓLEO DO MOTOR', reduzida: 'FILTRO ÓLEO', referencia: 'FO-MOT', categoria: 'UC', grupo: 'Peças de manutenção', marca: 'DIVERSAS', similaridade: '',
     unidade: 'UN', unidadeCompra: 'UN', quantidadeCompra: 1, ncm: '84212300', tipo: 'uso_consumo', ativo: true, custo: 48, fornecedor: JOAO,
-    minimo: 10, maximo: 48, base: 24, ritmo: 1, empresas: [1] },
+    minimo: 10, maximo: 60, base: 24, ritmo: 0, empresas: [1] },
   { codigo: 3005, descricao: 'LONA PLÁSTICA PRETA 4M', reduzida: 'LONA PRETA 4M', referencia: 'LN-4', categoria: 'UC', grupo: 'Ferramentas e consumíveis', marca: 'DIVERSAS', similaridade: '',
     unidade: 'M', unidadeCompra: 'RL', quantidadeCompra: 100, ncm: '39201099', tipo: 'uso_consumo', ativo: false, custo: 4.6, fornecedor: JOAO,
-    base: 100, ritmo: 1, empresas: [1] },
+    base: 100, ritmo: 0, empresas: [1] },
 ];
 export const produtoExemplo = (codigo: number) => PRODUTOS_EXEMPLO.find((p) => p.codigo === codigo);
 /** Formulações em que o produto entra como componente: [peça, quantidade por peça]. */
@@ -173,6 +173,8 @@ export type Movimento = {
   custoUnitario?: number;
   origem: string;
   pessoa: string;
+  /** Quem lançou o acerto (os outros movimentos vêm de nota, OP ou expedição). */
+  usuario: string;
   saldoApos: number;
   custoMedioApos: number;
 };
@@ -193,7 +195,7 @@ const CONTAGEM_ATUALIZADA = { codigo: 12, data: '2026-11-13', produtos: [1001, 1
 const arredonda = (v: number, unidade: string) => (['UN', 'PR'].includes(unidade) ? Math.round(v) : Math.round(v * 10) / 10);
 
 function gerarMovimentos(): Movimento[] {
-  type Bruto = Omit<Movimento, 'seq' | 'origem' | 'pessoa' | 'saldoApos' | 'custoMedioApos'>;
+  type Bruto = Omit<Movimento, 'seq' | 'origem' | 'pessoa' | 'usuario' | 'saldoApos' | 'custoMedioApos'>;
   const brutos: Bruto[] = [];
   for (const p of PRODUTOS_EXEMPLO) {
     for (const empresa of p.empresas) {
@@ -232,6 +234,7 @@ function gerarMovimentos(): Movimento[] {
     else if (m.tipo === 'saida') { pessoa = CLIENTES[0]; origem = `Nota ${documento('nota', `${dia}|remessa`)} (remessa para obra)`; }
     else if (m.data === CONTAGEM_ATUALIZADA.data && m.empresa === 1 && CONTAGEM_ATUALIZADA.produtos.includes(m.produto)) origem = `Contagem ${CONTAGEM_ATUALIZADA.codigo}`;
     else origem = `Acerto: ${m.quantidade > 0 ? 'Inventário / contagem' : 'Perda ou quebra'}`;
+    const usuario = m.tipo !== 'acerto' ? '' : m.quantidade > 0 ? 'FINANCEIRO' : 'ALMOXARIFADO';
 
     // Custo médio ponderado, recalculado só em entrada com custo; saldo negativo não entra na conta (regra do ERP).
     const chave = `${m.empresa}|${m.tipoEstoque}|${m.produto}`;
@@ -244,7 +247,7 @@ function gerarMovimentos(): Movimento[] {
     }
     const saldo = Math.round((atual.saldo + delta) * 10000) / 10000;
     saldos.set(chave, { saldo, medio });
-    return { ...m, seq, origem, pessoa, saldoApos: saldo, custoMedioApos: medio };
+    return { ...m, seq, origem, pessoa, usuario, saldoApos: saldo, custoMedioApos: medio };
   });
 }
 

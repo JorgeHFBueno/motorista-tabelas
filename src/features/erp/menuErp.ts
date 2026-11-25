@@ -79,9 +79,12 @@ export const MENU_ERP: ModuloErp[] = [
       { rotulo: 'Relatórios', icone: AssignmentOutlined, filhos: [
         { rotulo: 'Relação de Notas' },
         { rotulo: 'Conferência de Estoques', para: '/erp/estoques' },
-        { rotulo: 'Posição de Estoque (valor)' },
+        { rotulo: 'Posição de Estoque (valor)', para: '/erp/estoques/relatorios/posicao' },
         { rotulo: 'Kardex', para: '/erp/estoques/kardex' },
-        ...em('Curva ABC', 'Giro de Estoque', 'Relatório de Produtos sem Giro', 'Relação de Acertos'),
+        { rotulo: 'Curva ABC', para: '/erp/estoques/relatorios/curva-abc' },
+        { rotulo: 'Giro de Estoque', para: '/erp/estoques/relatorios/giro' },
+        { rotulo: 'Relatório de Produtos sem Giro', para: '/erp/estoques/relatorios/sem-giro' },
+        { rotulo: 'Relação de Acertos', para: '/erp/estoques/relatorios/acertos' },
       ] },
       { rotulo: 'Contagem', icone: RadioButtonCheckedOutlined, filhos: [
         { rotulo: 'Consulta Contagem de Produtos/Volumes', para: '/erp/estoques/contagens' },

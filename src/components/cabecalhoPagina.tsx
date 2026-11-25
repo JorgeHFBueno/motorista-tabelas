@@ -61,6 +61,7 @@ const TITULOS: Array<{ padrao: string } & TituloPagina> = [
   { padrao: '/erp/estoques/contagens', titulo: 'Consulta Contagem de Produtos/Volumes' },
   { padrao: '/erp/estoques/contagens/:codigo', titulo: 'Nova Contagem Produtos/Volumes' },
   { padrao: '/erp/estoques/acerto', titulo: 'Acerto de Estoque' },
+  { padrao: '/erp/estoques/relatorios/:relatorio', titulo: 'Relatórios de Estoque' },
   { padrao: '/portal-cliente/clientes', titulo: 'Clientes do portal' },
   { padrao: '/portal-cliente/contratos', titulo: 'Contratos no portal' },
   { padrao: '/portal-cliente/contratos/:id', titulo: 'Contrato no portal' },

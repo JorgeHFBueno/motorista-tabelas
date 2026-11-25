@@ -1,5 +1,6 @@
 import { Suspense, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { Link, Outlet, useLocation } from 'react-router-dom';
+import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import MenuIcon from '@mui/icons-material/Menu';
 import MenuOpenIcon from '@mui/icons-material/MenuOpen';
 import LoadingFallback from '../../components/LoadingFallback';
@@ -8,10 +9,13 @@ import { caminhoDaTela, combinaBusca, MENU_ERP, type ItemMenuErp } from './menuE
 
 // Moldura das telas do ERP (/erp/*), com o menu lateral do Elevor como o ERP do Samuel o fez (web/src/layout/Shell.tsx):
 // começa recolhido numa faixa à esquerda e, aberto, fica por cima da tela (não empurra a página); fecha ao clicar fora,
-// com Esc ou ao abrir outra tela. Pesquisa no alto; abre já no caminho da tela atual. Cores do painel.
+// com Esc ou ao abrir outra tela. Pesquisa no alto; abre já no caminho da tela atual. Cores e seta de abrir/fechar do
+// menu lateral do painel (MenuLateral.tsx); uma linha guia separa os níveis.
 // The Manuscript, 03_APLICACAO_WEB/01_ROTAS_E_NAVEGACAO.md#erp.
 
 const chaveDe = (caminho: string[]) => caminho.join('›');
+// Seta do grupo: para baixo fechado, para cima aberto.
+const Seta = ({ aberto }: { aberto: boolean }) => <ExpandMoreIcon className={`seta${aberto ? ' aberta' : ''}`} aria-hidden />;
 
 function MenuErp({ caminhoAtual }: { caminhoAtual: string[] }) {
   const [busca, setBusca] = useState('');
@@ -30,10 +34,10 @@ function MenuErp({ caminhoAtual }: { caminhoAtual: string[] }) {
       const aberto = Boolean(filtro) || abertos.has(chave);
       return (
         <div key={chave}>
-          <button type="button" className={`erp-menu-no nivel-${nivel}${aberto ? ' aberto' : ''}`} aria-expanded={aberto} onClick={() => alternar(chave)}>
-            {Icone && <Icone className="icone" />}<span>{i.rotulo}</span>
+          <button type="button" className={`erp-menu-no grupo nivel-${nivel}${aberto ? ' aberto' : ''}`} aria-expanded={aberto} onClick={() => alternar(chave)}>
+            {Icone && <Icone className="icone" />}<span>{i.rotulo}</span><Seta aberto={aberto} />
           </button>
-          {aberto && itens(i.filhos, caminho, nivel + 1)}
+          {aberto && <div className="erp-menu-filhos">{itens(i.filhos, caminho, nivel + 1)}</div>}
         </div>
       );
     }
@@ -59,9 +63,9 @@ function MenuErp({ caminhoAtual }: { caminhoAtual: string[] }) {
           return (
             <div key={m.rotulo}>
               <button type="button" className={`erp-menu-no modulo${aberto ? ' aberto' : ''}`} aria-expanded={aberto} onClick={() => alternar(m.rotulo)}>
-                <Icone className="icone" /><span>{m.rotulo}</span>
+                <Icone className="icone" /><span>{m.rotulo}</span><Seta aberto={aberto} />
               </button>
-              {aberto && itens(m.filhos, [m.rotulo], 1)}
+              {aberto && <div className="erp-menu-filhos">{itens(m.filhos, [m.rotulo], 1)}</div>}
             </div>
           );
         })}

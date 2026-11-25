@@ -55,6 +55,7 @@ const ErpKardexPage = lazy(() => import('./features/erp/estoques/ErpKardexPage')
 const ErpContagensPage = lazy(() => import('./features/erp/estoques/ErpContagensPage'));
 const ErpContagemFichaPage = lazy(() => import('./features/erp/estoques/ErpContagemFichaPage'));
 const ErpAcertoEstoquePage = lazy(() => import('./features/erp/estoques/ErpAcertoEstoquePage'));
+const ErpRelatorioEstoquePage = lazy(() => import('./features/erp/estoques/ErpRelatorioEstoquePage'));
 const ErpProdutosPage = lazy(() => import('./features/erp/produtos/ErpProdutosPage'));
 const ErpProdutoFichaPage = lazy(() => import('./features/erp/produtos/ErpProdutoFichaPage'));
 const TheManuscriptPage = lazy(() => import('./pages/TheManuscriptPage'));
@@ -180,6 +181,7 @@ export default function App() {
                 <Route path="erp/estoques/contagens" element={<ErpContagensPage />} />
                 <Route path="erp/estoques/contagens/:codigo" element={<ErpContagemFichaPage />} />
                 <Route path="erp/estoques/acerto" element={<ErpAcertoEstoquePage />} />
+                <Route path="erp/estoques/relatorios/:relatorio" element={<ErpRelatorioEstoquePage />} />
               </Route>
             </Route>
             {/* Mecânica e Logística são grupos, como Engenharia: /mecanica e /logistica não têm página própria (2026-11-19:
