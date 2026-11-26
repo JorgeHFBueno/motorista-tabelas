@@ -1,0 +1,335 @@
+{
+  "indexes": [
+    {
+      "collectionGroup": "00-chamados",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "data",
+          "order": "DESCENDING"
+        },
+        {
+          "fieldPath": "status",
+          "order": "DESCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "00-chamados",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "lido",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "data",
+          "order": "DESCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "00-chamados",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "status",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "data",
+          "order": "DESCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "00-chamados",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "status",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "tipo",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "data",
+          "order": "ASCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "00-chamados",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "status",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "tipo",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "data",
+          "order": "DESCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "00-chamados",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "titulo",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "status",
+          "order": "ASCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "00-chamados",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "userId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "data",
+          "order": "ASCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "03-combustivel",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "item_frota_id",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "data",
+          "order": "DESCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "03-combustivel",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "motorista",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "data",
+          "order": "DESCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "03-combustivel",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "userId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "data",
+          "order": "DESCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "atividades",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "item_frota_id",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "data",
+          "order": "DESCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "atividades",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "motorista",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "data",
+          "order": "DESCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "atividades",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "placa",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "data",
+          "order": "DESCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "atividades",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "tipo",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "data",
+          "order": "DESCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "checklists-v2",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "criadoPorUid",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "concluidoEm",
+          "order": "DESCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "checklists-v2",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "item_frota_id",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "concluidoEm",
+          "order": "DESCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "chegadas",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "motorista",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "data",
+          "order": "DESCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "chegadas",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "placa",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "data",
+          "order": "DESCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "manutencoes-v2",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "item_frota_id",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "abertaEm",
+          "order": "DESCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "manutencoes",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "identificador",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "data",
+          "order": "ASCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "manutencoes",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "identificador",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "data",
+          "order": "DESCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "saidas",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "motorista",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "data",
+          "order": "DESCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "veiculos",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "categoria",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "identificador",
+          "order": "ASCENDING"
+        }
+      ]
+    }
+  ],
+  "fieldOverrides": []
+}
