@@ -7,8 +7,8 @@
 // validá-lo como token do Google). A pessoa da chave precisa ver a área Engenharia (ou ser adm2). O Admin SDK não passa
 // pelas Rules: a permissão é conferida aqui.
 // Rotas (GET): /eu, /pedidos/{pedido}/pdfs, /pdfs/{id} (o próprio PDF), /sincronizacoes (as que esperam o robô) e
-// /sincronizacoes/{id}. A única que grava: POST /sincronizacoes/{id} ({ status, previa?, mensagem? }), o passo do robô,
-// só com chave de quem edita a área Engenharia (ou adm2).
+// /sincronizacoes/{id}. A única que grava: POST /sincronizacoes/{id} ({ status, previa?, mensagem? }), o passo do robô
+// (ou, sem status, um recado em simulando e gravando), só com chave de quem edita a área Engenharia (ou adm2).
 // Contrato: The Manuscript, 01_FIRESTORE/COLECOES/prefabricados-chaves-api.md e 02_APIS_FUNCTIONS/10_APIS_POR_AREA.md.
 import { onRequest } from 'firebase-functions/v2/https';
 import * as logger from 'firebase-functions/logger';
@@ -19,7 +19,7 @@ import { editaArea } from './credenciais.js';
 import { dataLocal } from './fridayMondayConverter.js';
 import { COLUNA_PEDIDO, pedidoDaCelula } from './plannixPreFabricados.js';
 import {
-  ESPERANDO_O_ROBO, EntradaInvalida, StatusFora, formatoChavePreFabricados, hashChavePreFabricados, passoDoRobo, pdfIdValido, pdfsAtuaisDoLote,
+  COM_O_ROBO, EntradaInvalida, StatusFora, formatoChavePreFabricados, hashChavePreFabricados, passoDoRobo, pdfIdValido, pdfsAtuaisDoLote,
   pedidoDaRota, pessoaDaChavePreFabricados, sincronizacaoIdValido, sincronizacaoParaRobo,
 } from './preFabricadosApiDominio.js';
 
@@ -119,9 +119,12 @@ const nomes = (obras: Map<string, AnyRecord>, d: AnyRecord) => {
   return { obra: String(obra?.nomeObra ?? ''), lote: String(obra?.lotes?.[String(d.lote)]?.nome ?? '') };
 };
 
-/** GET /sincronizacoes: as que esperam o robô (pedidas, para simular; aprovadas, para gravar), das mais antigas. */
+/**
+ * GET /sincronizacoes: as que esperam o robô (pedidas, para simular; aprovadas, para gravar) e as que estão com ele
+ * (simulando, gravando: o robô que reinicia acha o que ficou pela metade), das atualizadas há mais tempo.
+ */
 async function sincronizacoesEsperando() {
-  const docs = (await db.collection(SINCRONIZACOES).where('status', 'in', ESPERANDO_O_ROBO).get()).docs;
+  const docs = (await db.collection(SINCRONIZACOES).where('status', 'in', COM_O_ROBO).get()).docs;
   const obras = await nomesDasObras(docs.map((d) => String(d.get('obraId'))));
   return docs
     .map((d) => sincronizacaoParaRobo(d.id, d.data(), nomes(obras, d.data())))

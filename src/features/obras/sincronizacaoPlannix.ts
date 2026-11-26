@@ -35,6 +35,15 @@ export const podePedir = (s: SincronizacaoPlannix | undefined) => !s || ['conclu
 /** Cancelar só antes de gravar (as Rules recusam depois). */
 export const podeCancelar = (s: SincronizacaoPlannix | undefined) => Boolean(s && ['pedido', 'simulando', 'previa'].includes(s.status));
 
+/** Com o robô (simulando ou gravando), há quantos minutos ele não dá notícia; fora disso, null. */
+export function minutosSemNoticia(s: SincronizacaoPlannix | undefined, agora: Date): number | null {
+  if (!s || !['simulando', 'gravando'].includes(s.status) || !s.atualizadoEm) return null;
+  return Math.floor((agora.getTime() - s.atualizadoEm.getTime()) / 60000);
+}
+/** Minutos sem notícia do robô a partir dos quais o adm2 pode marcar como erro (as Rules conferem pela hora do servidor). */
+export const MINUTOS_PARA_DESTRAVAR = 30;
+export const podeDestravar = (s: SincronizacaoPlannix | undefined, agora: Date) => (minutosSemNoticia(s, agora) ?? 0) > MINUTOS_PARA_DESTRAVAR;
+
 const STATUS = Object.keys(STATUS_DA_SINCRONIZACAO);
 const texto = (v: unknown) => (typeof v === 'string' ? v : '');
 const data = (v: unknown) => (v && typeof (v as { toDate?: unknown }).toDate === 'function' ? (v as { toDate: () => Date }).toDate() : null);

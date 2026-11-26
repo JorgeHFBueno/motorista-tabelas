@@ -98,3 +98,15 @@ test('Sincronizar: document id {obraId}__{lote} and the shape the robot receives
     previa: '2 peças', mensagem: null, atualizadoEm: '2026-11-25T18:00:00.000Z',
   });
 });
+
+test('Sincronizar: a note (only "mensagem") keeps the step, in simulando and gravando only', () => {
+  assert.deepEqual(passoDoRobo('simulando', { mensagem: ' baixando os PDFs ' }), { status: 'simulando', mensagem: 'baixando os PDFs' });
+  assert.deepEqual(passoDoRobo('gravando', { status: 'gravando', mensagem: 'registrando P01 de 5' }), { status: 'gravando', mensagem: 'registrando P01 de 5' });
+  for (const atual of ['pedido', 'previa', 'aprovado', 'concluido', 'erro', 'cancelado']) {
+    assert.throws(() => passoDoRobo(atual, { mensagem: 'oi' }), StatusFora, atual);
+  }
+  assert.throws(() => passoDoRobo('simulando', {}), EntradaInvalida, 'recado sem texto');
+  assert.throws(() => passoDoRobo('simulando', { mensagem: '   ' }), EntradaInvalida);
+  assert.throws(() => passoDoRobo('simulando', { previa: 'x' }), EntradaInvalida, 'prévia sem trocar de passo');
+  assert.throws(() => passoDoRobo('gravando', { mensagem: 'x'.repeat(2001) }), EntradaInvalida);
+});

@@ -73,13 +73,14 @@ function ComoUsar({ api }: { api: ApiDeArea }) {
           <li><Codigo>{e}/pdfs/&lt;pdfId&gt;</Codigo>: baixa o PDF (o próprio arquivo, não JSON).</li>
           <li>
             <Codigo>{e}/sincronizacoes</Codigo>: as sincronizações com o Plannix que esperam o robô (pedidas no botão Sincronizar ou
-            aprovadas); <Codigo>{e}/sincronizacoes/&lt;id&gt;</Codigo>: uma delas.
+            aprovadas) e as que estão com ele (simulando, gravando); <Codigo>{e}/sincronizacoes/&lt;id&gt;</Codigo>: uma delas.
           </li>
         </Box>
         <Typography color="text.secondary">
           O robô avança a sincronização com POST em <Codigo>{e}/sincronizacoes/&lt;id&gt;</Codigo> e o JSON <Codigo>{'{ "status", "previa", "mensagem" }'}</Codigo>:
           pedido → simulando → previa (com o texto da prévia); depois da aprovação na tela, aprovado → gravando → concluido; erro (com a
-          mensagem) em qualquer passo. Só com chave de quem edita a área Engenharia.
+          mensagem) em qualquer passo. Em simulando e gravando, só <Codigo>{'{ "mensagem" }'}</Codigo> manda um recado sem trocar de passo. Só
+          com chave de quem edita a área Engenharia.
         </Typography>
       </Stack>
     );

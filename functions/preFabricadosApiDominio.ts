@@ -79,12 +79,18 @@ export function pdfsAtuaisDoLote(docs: { id: string; data: AnyRecord | undefined
  * Sincronizar com o Plannix (2026-11-25): a fila do robô em plannix-sincronizacoes, um documento por LOTE
  * ({obraId}__{lote}). A tela pede, aprova a prévia e cancela (Rules); o robô avança o resto por POST /sincronizacoes/{id}:
  * pedido → simulando → previa (com o texto da prévia) e, depois da aprovação, aprovado → gravando → concluido; qualquer
- * passo do robô pode terminar em erro (com a mensagem).
+ * passo do robô pode terminar em erro (com a mensagem). Em simulando e gravando, o robô também manda recados (só
+ * `mensagem`, sem trocar de passo; 2026-11-26).
  */
 export const STATUS_SINCRONIZACAO = ['pedido', 'simulando', 'previa', 'aprovado', 'gravando', 'concluido', 'erro', 'cancelado'] as const;
 export type StatusSincronizacao = typeof STATUS_SINCRONIZACAO[number];
-/** Status em que a sincronização espera o robô: GET /sincronizacoes lista só estes. */
-export const ESPERANDO_O_ROBO: StatusSincronizacao[] = ['pedido', 'aprovado'];
+/**
+ * Status que GET /sincronizacoes lista: os que esperam o robô (pedido, aprovado) e os que estão com ele (simulando,
+ * gravando), para o robô que reinicia achar o que ficou pela metade (2026-11-26).
+ */
+export const COM_O_ROBO: StatusSincronizacao[] = ['pedido', 'simulando', 'aprovado', 'gravando'];
+/** Passos em que o robô manda recado sem trocar de status. */
+const ACEITAM_RECADO: StatusSincronizacao[] = ['simulando', 'gravando'];
 const PASSOS_DO_ROBO: Partial<Record<StatusSincronizacao, StatusSincronizacao[]>> = {
   pedido: ['simulando', 'erro'],
   simulando: ['previa', 'erro'],
@@ -102,12 +108,23 @@ export class StatusFora extends Error {}
 
 /**
  * O que o robô grava no POST: o status seguinte (só os passos de PASSOS_DO_ROBO), a prévia (obrigatória em 'previa', só
- * nele) e a mensagem (obrigatória em 'erro'; opcional nos outros).
+ * nele) e a mensagem (obrigatória em 'erro'; opcional nos outros). Recado: sem `status` (ou com o atual), só a
+ * `mensagem`, em simulando e gravando; o status fica.
  */
 export function passoDoRobo(atual: unknown, corpo: unknown): { status: StatusSincronizacao; previa?: string; mensagem?: string } {
-  if (!corpo || typeof corpo !== 'object' || Array.isArray(corpo)) throw new EntradaInvalida('Envie um JSON com "status".');
-  const { status, previa, mensagem, ...resto } = corpo as AnyRecord;
+  if (!corpo || typeof corpo !== 'object' || Array.isArray(corpo)) throw new EntradaInvalida('Envie um JSON com "status" ou "mensagem".');
+  const { status: pedido, previa, mensagem, ...resto } = corpo as AnyRecord;
   if (Object.keys(resto).length) throw new EntradaInvalida(`Campos desconhecidos: ${Object.keys(resto).join(', ')}.`);
+  if (pedido === undefined || pedido === atual) {
+    if (previa !== undefined) throw new EntradaInvalida('"previa" só vai, como texto, com o status "previa".');
+    if (typeof mensagem !== 'string' || !texto(mensagem)) throw new EntradaInvalida('O recado precisa do texto em "mensagem".');
+    if (texto(mensagem).length > LIMITE_MENSAGEM) throw new EntradaInvalida(`A mensagem passa de ${LIMITE_MENSAGEM} caracteres.`);
+    if (!ACEITAM_RECADO.includes(atual as StatusSincronizacao)) {
+      throw new StatusFora(`A sincronização está em "${String(atual)}": recado só em ${ACEITAM_RECADO.join(' e ')}.`);
+    }
+    return { status: atual as StatusSincronizacao, mensagem: texto(mensagem) };
+  }
+  const status = pedido;
   if (!STATUS_SINCRONIZACAO.includes(status)) throw new EntradaInvalida(`"status" deve ser um de: ${STATUS_SINCRONIZACAO.join(', ')}.`);
   if (previa !== undefined && (status !== 'previa' || typeof previa !== 'string')) throw new EntradaInvalida('"previa" só vai, como texto, com o status "previa".');
   if (mensagem !== undefined && typeof mensagem !== 'string') throw new EntradaInvalida('"mensagem" deve ser texto.');

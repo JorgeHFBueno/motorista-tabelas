@@ -19,7 +19,7 @@ import { createObraRelatorioPdf, nomeArquivoRelatorioObra } from '../src/feature
 import { LOCAIS_SUGERIDOS } from '../src/features/obras/locaisSugeridos';
 import { agruparPorTipo, comPdf, comPdfsGravados, daParte, ehPdfDeGrupo, etapaPlannix, opcoesAoSoltar, parteDoPdf, pdfsDosGrupos, preFabricadosDoPlannix, resumoEtapas, revisoes, semProjeto, totalPdfs, type PdfGravado, type PreFabricado } from '../src/features/obras/preFabricados';
 import { coordenadaDoLote, lotesDaObra, obraFromV2 } from '../src/utils/cadastrosV2';
-import { idDaSincronizacao, podeCancelar, podePedir, sincronizacaoDoDocumento } from '../src/features/obras/sincronizacaoPlannix';
+import { idDaSincronizacao, minutosSemNoticia, podeCancelar, podeDestravar, podePedir, sincronizacaoDoDocumento } from '../src/features/obras/sincronizacaoPlannix';
 import { atividadePorId, chavePeca, completude, conflitosDoMestre, dentroDaAlocacao, diasDoPeriodo, lotesDoPacote, marcarPeca, montadasNosPacotes, pecasAgendadas, pecasDaAtividade, periodoValido, somarDias, type Pacote } from '../src/features/testes/mki/pacotesTrabalho';
 
 const contrato = {
@@ -351,4 +351,16 @@ test('pacotes de trabalho (/testes/mki): Agendada → Montada à mão, desfazer,
   assert.deepEqual(lotesDoPacote(pacote), ['l1', 'l2']);
   const servico: Pacote = { id: 's', atividade: 'estacas', mestre: 'Ivo', inicio: '2026-12-01', fim: '2026-12-01', pecas: [], lotes: ['l3'], observacao: '6 estacas no encontro A' };
   assert.deepEqual(lotesDoPacote(servico), ['l3']);
+});
+
+test('sincronizar Plannix: minutos sem notícia do robô e quando o adm2 pode marcar como erro (mais de 30)', () => {
+  const agora = new Date('2026-11-26T12:00:00Z');
+  const com = (status: string, minutos: number) => sincronizacaoDoDocumento('x', { status, atualizadoEm: { toDate: () => new Date(agora.getTime() - minutos * 60000) } })!;
+  assert.equal(minutosSemNoticia(com('gravando', 45), agora), 45);
+  assert.equal(minutosSemNoticia(com('previa', 45), agora), null, 'esperando gente, não o robô');
+  assert.equal(minutosSemNoticia(undefined, agora), null);
+  assert.equal(podeDestravar(com('gravando', 31), agora), true);
+  assert.equal(podeDestravar(com('simulando', 31), agora), true);
+  assert.equal(podeDestravar(com('gravando', 30), agora), false);
+  assert.equal(podeDestravar(com('aprovado', 90), agora), false);
 });

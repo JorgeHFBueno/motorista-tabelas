@@ -34,6 +34,7 @@ import {
   anexarPdfPreFabricado,
   aprovarSincronizacao,
   cancelarSincronizacao,
+  destravarSincronizacao,
   ouvirSincronizacoes,
   pedirSincronizacao,
   carregarPdfsPreFabricados,
@@ -46,10 +47,10 @@ import {
 } from './obrasData';
 import CampoEditavel from './CampoEditavelObra';
 import ListaLotes, { type AcoesPdf, type AcoesSincronizar } from './ListaLotes';
-import type { SincronizacaoPlannix } from './sincronizacaoPlannix';
+import { STATUS_DA_SINCRONIZACAO, type SincronizacaoPlannix } from './sincronizacaoPlannix';
 import { comPdfsGravados, ehPdfDeGrupo, maisRecente, parteDoPdf, pdfsDosGrupos, type PdfGravado, type PreFabricadosDoLote } from './preFabricados';
 import { useAuth } from '../../contexts/AuthContext';
-import { editaArea } from '../../services/credenciais';
+import { editaArea, temCredencial } from '../../services/credenciais';
 import {
   contratoTexto,
   dataCivilTexto,
@@ -282,6 +283,14 @@ export default function ObraDetalhesPage() {
     },
     aprovar: (s) => void naFila(() => aprovarSincronizacao(s.id, autor), 'Prévia aprovada: o robô grava no Plannix.'),
     cancelar: (s) => void naFila(() => cancelarSincronizacao(s.id, autor), 'Sincronização cancelada.'),
+    // Só o adm2 (as Rules conferem os 30 minutos pela hora do servidor).
+    ...(temCredencial(authorizationProfile, 'adm2') ? {
+      destravar: (s: SincronizacaoPlannix) => void naFila(() => destravarSincronizacao(
+        s.id,
+        `Marcada como erro por ${autor.nome}: o robô ficou mais de 30 minutos sem notícia em "${STATUS_DA_SINCRONIZACAO[s.status].rotulo}". Confira no Plannix o que já foi gravado.`,
+        autor,
+      ), 'Sincronização marcada como erro: o LOTE pode ser sincronizado de novo.'),
+    } : {}),
   };
 
   const partes = [mestres, veiculos, combustivel];

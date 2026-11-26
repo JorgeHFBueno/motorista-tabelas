@@ -134,3 +134,27 @@ test('[firestore] sincronizar Plannix: cancelar antes de gravar; aprovada ou gra
   await assertFails(updateDoc(ref('o1__robo'), { status: 'simulando', atualizadoEm: serverTimestamp() }));
   await assertSucceeds(getDoc(doc(dbAs('ver'), 'plannix-sincronizacoes', 'o1__robo')));
 });
+
+test('[firestore] sincronizar Plannix: o adm2 marca como erro a parada há mais de 30 minutos em simulando ou gravando', async () => {
+  const ref = (name, id) => doc(dbAs(name), 'plannix-sincronizacoes', id);
+  const destravar = (name, extra = {}) => ({
+    status: 'erro', mensagem: 'Marcada como erro: o robô sumiu.', destravadoPor: pessoa(name), destravadoEm: serverTimestamp(), atualizadoEm: serverTimestamp(), ...extra,
+  });
+  const ha = (min) => Timestamp.fromMillis(Date.now() - min * 60 * 1000);
+  for (const status of ['simulando', 'gravando']) {
+    await comoRobo(`o1__parada-${status}`, { status, lote: `parada-${status}`, atualizadoEm: ha(31) });
+    await assertFails(updateDoc(ref('editar', `o1__parada-${status}`), destravar('editar')));
+    await assertFails(updateDoc(ref('adm2', `o1__parada-${status}`), destravar('editar')));
+    await assertFails(updateDoc(ref('adm2', `o1__parada-${status}`), destravar('adm2', { mensagem: '' })));
+    await assertFails(updateDoc(ref('adm2', `o1__parada-${status}`), destravar('adm2', { previa: 'outra' })));
+    await assertSucceeds(updateDoc(ref('adm2', `o1__parada-${status}`), destravar('adm2')));
+  }
+  await comoRobo('o1__recente', { status: 'gravando', lote: 'recente', atualizadoEm: ha(5) });
+  await assertFails(updateDoc(ref('adm2', 'o1__recente'), destravar('adm2')));
+  for (const status of ['pedido', 'previa', 'aprovado']) {
+    await comoRobo(`o1__nao-destrava-${status}`, { status, lote: `nao-destrava-${status}`, atualizadoEm: ha(60) });
+    await assertFails(updateDoc(ref('adm2', `o1__nao-destrava-${status}`), destravar('adm2')));
+  }
+  // Destravada, pede de novo (o documento volta inteiro a 'pedido').
+  await assertSucceeds(setDoc(ref('adm2', 'o1__parada-gravando'), pedido('adm2', { lote: 'parada-gravando' })));
+});

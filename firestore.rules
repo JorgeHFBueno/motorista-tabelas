@@ -885,6 +885,14 @@ service cloud.firestore {
           && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'canceladoPor', 'canceladoEm', 'atualizadoEm'])
           && porMim(request.resource.data.canceladoPor)
           && request.resource.data.canceladoEm == request.time && request.resource.data.atualizadoEm == request.time)
+        // Destravar (2026-11-26): o adm2 marca como erro a que ficou mais de 30 minutos sem notícia do robô em
+        // simulando ou gravando (o robô sumiu); depois dá para pedir de novo.
+        || (isAdm2() && resource.data.status in ['simulando', 'gravando'] && request.resource.data.status == 'erro'
+          && request.time > resource.data.atualizadoEm + duration.value(30, 'm')
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'mensagem', 'destravadoPor', 'destravadoEm', 'atualizadoEm'])
+          && request.resource.data.mensagem is string && request.resource.data.mensagem.size() > 0 && request.resource.data.mensagem.size() <= 2000
+          && porMim(request.resource.data.destravadoPor)
+          && request.resource.data.destravadoEm == request.time && request.resource.data.atualizadoEm == request.time)
       );
       allow delete: if false;
     }

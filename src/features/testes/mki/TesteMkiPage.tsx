@@ -113,6 +113,11 @@ const LOTES_INICIAIS: LoteComPreFabricados[] = [
   {
     chave: 'l2', nome: 'LOTE 2 - SÍTIO ALTO - BUEIRO CELULAR 2,00X2,00M', status: 'Em execução', coordenada: { lat: -29.3051, lng: -53.0917 },
     origem: 'Pedido 952 · Plannix 302 · PM ARROIO DO TIGRE · GALERIA 2,00X2,00M',
+    // Robô "sumido" há 45 minutos no meio da gravação: mostra o aviso e o "Marcar como erro" do adm2.
+    sincronizacao: {
+      id: 'l2', lote: 'l2', status: 'gravando', pedidoPor: 'Rafael Dornelles', pedidoEm: new Date(Date.now() - 60 * 60000), aprovadoPor: 'Rafael Dornelles',
+      previa: 'GAL 2,00X2,00: 8 peças, volume 1,20 m³ cada', mensagem: 'registrando a peça 3 de 8', atualizadoEm: new Date(Date.now() - 45 * 60000),
+    },
     itens: [item('f4', 'GALERIA', 'GAL 2,00X2,00', pecas(1376400, 8, ['PROJETADA', 'PROGRAMADA']), { pdfs: [pdf('p5', 'LF_LOTE2_galeria.pdf', 845, '2026-11-04T08:20:00-03:00', 'Rafael Dornelles')] })],
   },
   {
@@ -240,19 +245,24 @@ export default function TesteMkiPage() {
     podeEditar: true,
     pedir(lote) {
       mudarSincronizacao(lote, 'pedido', { pedidoPor: usuario, pedidoEm: new Date(), aprovadoPor: '', previa: '', mensagem: '' });
-      depois(1500, () => mudarSincronizacao(lote, 'simulando', {}, 'pedido'));
-      depois(4000, () => mudarSincronizacao(lote, 'previa', { previa: PREVIA_FICTICIA }, 'simulando'));
+      depois(1500, () => mudarSincronizacao(lote, 'simulando', { mensagem: 'baixando os PDFs' }, 'pedido'));
+      depois(2800, () => mudarSincronizacao(lote, 'simulando', { mensagem: 'lendo a tabela de aço' }, 'simulando'));
+      depois(4000, () => mudarSincronizacao(lote, 'previa', { previa: PREVIA_FICTICIA, mensagem: '' }, 'simulando'));
       setAviso('Sincronização pedida: o robô simula e mostra a prévia aqui.');
     },
     aprovar(s) {
       mudarSincronizacao(s.lote, 'aprovado', { aprovadoPor: usuario });
-      depois(1500, () => mudarSincronizacao(s.lote, 'gravando', {}, 'aprovado'));
+      depois(1500, () => mudarSincronizacao(s.lote, 'gravando', { mensagem: 'registrando P01 de 1' }, 'aprovado'));
       depois(4000, () => mudarSincronizacao(s.lote, 'concluido', { mensagem: 'P01 registrada no Plannix.' }, 'gravando'));
       setAviso('Prévia aprovada: o robô grava no Plannix.');
     },
     cancelar(s) {
       mudarSincronizacao(s.lote, 'cancelado');
       setAviso('Sincronização cancelada.');
+    },
+    destravar(s) {
+      mudarSincronizacao(s.lote, 'erro', { mensagem: `Marcada como erro por ${usuario}: o robô ficou mais de 30 minutos sem notícia. Confira no Plannix o que já foi gravado.` });
+      setAviso('Sincronização marcada como erro: o LOTE pode ser sincronizado de novo.');
     },
   };
 

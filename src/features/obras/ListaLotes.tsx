@@ -52,7 +52,7 @@ import {
   type PdfPreFabricado,
   type PreFabricado,
 } from './preFabricados';
-import { podeCancelar, podePedir, STATUS_DA_SINCRONIZACAO, type SincronizacaoPlannix } from './sincronizacaoPlannix';
+import { minutosSemNoticia, podeCancelar, podeDestravar, podePedir, STATUS_DA_SINCRONIZACAO, type SincronizacaoPlannix } from './sincronizacaoPlannix';
 import './listaLotes.css';
 
 /**
@@ -70,7 +70,8 @@ import './listaLotes.css';
  * Console: o segundo PDF do item, com revisões próprias; Revisão e Substituição de um mantêm o outro. Arrastar: ao
  * arrastar um arquivo sobre a página, cada célula de PDF que aceita PDF vira uma área de soltar.
  * Sincronizar com o Plannix (2026-11-25, com `sincronizar`): no LOTE ligado ao Plannix, o status da fila do robô, "Sincronizar"
- * (pede; quem edita), "Ver prévia" (o que o robô vai gravar, com Aprovar e gravar) e Cancelar (antes de gravar).
+ * (pede; quem edita), "Ver prévia" (o que o robô vai gravar, com Aprovar e gravar) e Cancelar (antes de gravar). Com o
+ * robô, o recado dele aparece abaixo; mais de 30 minutos sem notícia, o aviso e, para o adm2, "Marcar como erro".
  * `itens: null` = sem pré-fabricados para mostrar; `aviso` diz o motivo (carregando, sem Nº Pedido, pedido sem obra no Plannix, erro).
  */
 
@@ -89,6 +90,8 @@ export type AcoesSincronizar = {
   pedir: (lote: string) => void;
   aprovar: (sincronizacao: SincronizacaoPlannix) => void;
   cancelar: (sincronizacao: SincronizacaoPlannix) => void;
+  /** Só o adm2: marcar como erro a que ficou mais de 30 minutos sem notícia do robô. */
+  destravar?: (sincronizacao: SincronizacaoPlannix) => void;
 };
 export type { ModoPdf };
 /** Onde gravar: o LOTE, o item (ou a chave do grupo com PDF único) e a parte do PDF. */
@@ -174,6 +177,15 @@ export default function ListaLotes({ lotes, acoesPdf, sincronizar }: { lotes: Lo
   const [historico, setHistorico] = useState<AlvoRevisoes | null>(null);
   // LOTE (chave) com a janela da prévia aberta; a sincronização é lida a cada render (muda ao vivo).
   const [previaDe, setPreviaDe] = useState<string | null>(null);
+  const [destravarDe, setDestravarDe] = useState<SincronizacaoPlannix | null>(null);
+  // Relógio do aviso "sem notícia do robô": anda a cada minuto enquanto algum LOTE está com o robô.
+  const [agora, setAgora] = useState(() => new Date());
+  const comORobo = lotes.some((lote) => minutosSemNoticia(lote.sincronizacao, new Date()) !== null);
+  useEffect(() => {
+    if (!comORobo) return undefined;
+    const relogio = window.setInterval(() => setAgora(new Date()), 60_000);
+    return () => window.clearInterval(relogio);
+  }, [comORobo]);
   const [excluir, setExcluir] = useState<PdfPreFabricado | null>(null);
   const [aviso, setAviso] = useState<string | null>(null);
   // Grupos recolhidos ("lote:grupo"; começam abertos) e itens abertos ("lote:item"; começam fechados, com as peças).
@@ -346,7 +358,12 @@ export default function ListaLotes({ lotes, acoesPdf, sincronizar }: { lotes: Lo
             <Chip size="small" icon={<SyncIcon />} label={status.rotulo} color={status.cor} variant={status.cor === 'default' ? 'outlined' : 'filled'} />
           </Tooltip>
         )}
-        {s?.status === 'erro' && s.mensagem && <Typography variant="caption" color="error" sx={{ overflowWrap: 'anywhere' }}>{s.mensagem}</Typography>}
+        {s?.mensagem && ['erro', 'simulando', 'gravando'].includes(s.status) && (
+          <Typography variant="caption" color={s.status === 'erro' ? 'error' : 'text.secondary'} sx={{ overflowWrap: 'anywhere' }}>{s.mensagem}</Typography>
+        )}
+        {s && podeDestravar(s, agora) && (
+          <Typography variant="caption" color="warning.dark">{`Sem notícia do robô há ${minutosSemNoticia(s, agora)} min`}</Typography>
+        )}
         <Stack direction="row" spacing={0.5} flexWrap="wrap" useFlexGap justifyContent="center">
           {s?.previa && <Button size="small" onClick={() => setPreviaDe(lote.chave)}>Ver prévia</Button>}
           {editar && podePedir(s) && (
@@ -358,6 +375,9 @@ export default function ListaLotes({ lotes, acoesPdf, sincronizar }: { lotes: Lo
           )}
           {editar && s && podeCancelar(s) && (
             <Button size="small" color="inherit" onClick={() => sincronizar?.cancelar(s)} aria-label={`Cancelar a sincronização do ${lote.nome}`}>Cancelar</Button>
+          )}
+          {sincronizar?.destravar && s && podeDestravar(s, agora) && (
+            <Button size="small" color="error" onClick={() => setDestravarDe(s)} aria-label={`Marcar como erro a sincronização do ${lote.nome}`}>Marcar como erro</Button>
           )}
         </Stack>
       </Stack>
@@ -626,6 +646,29 @@ export default function ListaLotes({ lotes, acoesPdf, sincronizar }: { lotes: Lo
               <Button variant="contained" onClick={() => { sincronizar.aprovar(sincronizacaoPrevia); setPreviaDe(null); }}>Aprovar e gravar no Plannix</Button>
             </>
           )}
+        </DialogActions>
+      </Dialog>
+
+      <Dialog open={Boolean(destravarDe)} onClose={() => setDestravarDe(null)} maxWidth="xs">
+        <DialogTitle>Marcar como erro?</DialogTitle>
+        <DialogContent>
+          <Typography>
+            O robô está há mais de 30 minutos sem dar notícia em "{destravarDe ? STATUS_DA_SINCRONIZACAO[destravarDe.status].rotulo : ''}". A sincronização
+            termina com erro e o LOTE pode ser sincronizado de novo. Se o robô estava gravando, parte pode já estar no Plannix: confira lá antes.
+          </Typography>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setDestravarDe(null)}>Voltar</Button>
+          <Button
+            color="error"
+            variant="contained"
+            onClick={() => {
+              if (destravarDe) sincronizar?.destravar?.(destravarDe);
+              setDestravarDe(null);
+            }}
+          >
+            Marcar como erro
+          </Button>
         </DialogActions>
       </Dialog>
 

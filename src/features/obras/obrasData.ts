@@ -128,6 +128,10 @@ export const aprovarSincronizacao = (id: string, autor: Autor) =>
 export const cancelarSincronizacao = (id: string, autor: Autor) =>
   updateDoc(doc(db, SINCRONIZACOES, id), { status: 'cancelado', canceladoPor: autor, canceladoEm: serverTimestamp(), atualizadoEm: serverTimestamp() });
 
+/** Destravar (só adm2): marca como erro a que ficou mais de 30 minutos sem notícia do robô em simulando ou gravando. */
+export const destravarSincronizacao = (id: string, mensagem: string, autor: Autor) =>
+  updateDoc(doc(db, SINCRONIZACOES, id), { status: 'erro', mensagem: mensagem.slice(0, 2000), destravadoPor: autor, destravadoEm: serverTimestamp(), atualizadoEm: serverTimestamp() });
+
 export async function listarObras(): Promise<ObraDetalhe[]> {
   const snapshot = await getDocs(collection(db, OBRAS_V2));
   return snapshot.docs
