@@ -20,6 +20,7 @@ import { LOCAIS_SUGERIDOS } from '../src/features/obras/locaisSugeridos';
 import { agruparPorTipo, comPdf, comPdfsGravados, daParte, ehPdfDeGrupo, etapaPlannix, opcoesAoSoltar, parteDoPdf, pdfsDosGrupos, preFabricadosDoPlannix, resumoEtapas, revisoes, semProjeto, totalPdfs, type PdfGravado, type PreFabricado } from '../src/features/obras/preFabricados';
 import { coordenadaDoLote, lotesDaObra, obraFromV2 } from '../src/utils/cadastrosV2';
 import { idDaSincronizacao, minutosSemNoticia, podeCancelar, podeDestravar, podePedir, sincronizacaoDoDocumento } from '../src/features/obras/sincronizacaoPlannix';
+import { avisoDasPecas as avisoDasPecasDaObra, gruposDaCategoria as gruposDaBiblioteca, itensCalculados, listaDeMateriais, obrasDoModelo, tirarItemDosModelos, tirarModelo, type Pacote as PacoteMkii, type ServicoDaObra, type ServicoModelo } from '../src/features/testes/mkii/composicoes';
 import { adicionarItem, alterarQuantidade, avisoDasPecas, gruposDaCategoria, pecasLivres, pecasNoPacote, pecasUsadas, preFabricadosDosLotes, removerItem, tirarItem, tirarServico, usosDoItem, type ItemCadastro, type Pacote, type Servico } from '../src/features/testes/mki/pacotesTrabalho';
 
 const contrato = {
@@ -353,4 +354,25 @@ test('sincronizar Plannix: minutos sem notícia do robô e quando o adm2 pode ma
   assert.equal(podeDestravar(com('simulando', 31), agora), true);
   assert.equal(podeDestravar(com('gravando', 30), agora), false);
   assert.equal(podeDestravar(com('aprovado', 90), agora), false);
+});
+
+test('serviço-modelo (/testes/mkii): itens = coeficiente × quantidade; lista de materiais somada; um modelo em várias obras', () => {
+  const modelos: ServicoModelo[] = [
+    { id: 'sapata', nome: 'Sapata', unidade: 'm³', descricao: '', itens: [{ item: 'concreto', coeficiente: 1.05, unidade: 'm³' }, { item: 'aco', coeficiente: 80, unidade: 'kg' }] },
+    { id: 'longarina', nome: 'Longarina', unidade: 'peça', descricao: '', itens: [{ item: 'guindaste', coeficiente: 0.25, unidade: 'diária' }, { item: 'aco', coeficiente: 2, unidade: 'kg' }] },
+  ];
+  const servico = (id: string, obra: string, modelo: string, quantidade: number, pecas: ServicoDaObra['pecas'] = []): ServicoDaObra => ({ id, obra, modelo, quantidade, lote: 'l1', pecas, observacao: '' });
+  const servicos = [servico('a', 'o1', 'sapata', 6), servico('b', 'o1', 'longarina', 4, [{ preFabricado: 'vl', quantidade: 4 }]), servico('c', 'o2', 'longarina', 6)];
+  assert.deepEqual(itensCalculados(servicos[0], modelos).map((i) => [i.item, Number(i.quantidade.toFixed(3)), i.unidade]), [['concreto', 6.3, 'm³'], ['aco', 480, 'kg']]);
+  assert.deepEqual(itensCalculados(servico('x', 'o1', 'sumiu', 3), modelos), []);
+  assert.deepEqual(listaDeMateriais(servicos.slice(0, 2), modelos).map((i) => [i.item, Number(i.quantidade.toFixed(3))]), [['concreto', 6.3], ['aco', 488], ['guindaste', 1]]);
+  assert.deepEqual(obrasDoModelo('longarina', servicos), ['o1', 'o2']);
+  const vl = { id: 'vl', lote: 'l1', tipo: 'VL', quantidade: 4, expedidas: 2 };
+  assert.equal(avisoDasPecasDaObra(servicos, vl), null);
+  assert.equal(avisoDasPecasDaObra([...servicos, servico('d', 'o1', 'longarina', 1, [{ preFabricado: 'vl', quantidade: 1 }])], vl), 'Os serviços da obra usam 5 de 4 peças de VL.');
+  const pacotes: PacoteMkii[] = [{ id: 'p', obra: 'o1', nome: 'P', servicos: ['a', 'b'], alocacao: '' }];
+  const sem = tirarModelo('longarina', servicos, pacotes);
+  assert.deepEqual([sem.servicos.map((s) => s.id), sem.pacotes[0].servicos], [['a'], ['a']]);
+  assert.deepEqual(tirarItemDosModelos('aco', modelos).map((m) => m.itens.map((i) => i.item)), [['concreto'], ['guindaste']]);
+  assert.deepEqual(gruposDaBiblioteca([{ id: '1', categoria: 'insumos', descricao: 'Areia', grupo: 'Agregados' }, { id: '2', categoria: 'insumos', descricao: 'Brita', grupo: 'agregados' }], 'insumos'), ['Agregados']);
 });

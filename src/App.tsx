@@ -64,6 +64,7 @@ const MeuPerfilPage = lazy(() => import('./pages/MeuPerfilPage'));
 const FridayApp = lazy(() => import('./features/friday-gestao-interna/App'));
 const DevToysPage = lazy(() => import('./features/dev-toys/DevToysPage'));
 const TesteMkiPage = lazy(() => import('./features/testes/mki/TesteMkiPage'));
+const TesteMkiiPage = lazy(() => import('./features/testes/mkii/TesteMkiiPage'));
 const SaidaChegadaPage = lazy(() => import('./features/saida-chegada/SaidaChegadaPage'));
 const HistoricoMotoristaPage = lazy(() => import('./features/saida-chegada/HistoricoMotoristaPage'));
 const ComoUsarPage = lazy(() => import('./features/saida-chegada/ComoUsarPage'));
@@ -142,9 +143,10 @@ export default function App() {
             </Route>
             {/* /testes: provas de conceito e de interface com dados fictícios (nada grava no Firestore). O MKIII foi para a
                 produção (/engenharia/cronograma) em 2026-11-17. O MKI é o mock do detalhe da obra com os LOTEs em lista
-                (2026-11-19). Aberto a quem vê a Engenharia. */}
+                (2026-11-19). O MKII (2026-11-26) testa os serviços como modelo para várias obras. Aberto a quem vê a Engenharia. */}
             <Route element={<PrivateRoute permite={(p) => veArea(p, 'engenharia')} />}>
               <Route path="testes/mki" element={<TesteMkiPage />} />
+              <Route path="testes/mkii" element={<TesteMkiiPage />} />
             </Route>
             {/* Área DEV: só a credencial retr0, nem o adm2 entra sem ela. */}
             <Route element={<PrivateRoute permite={(p) => temCredencial(p, 'retr0')} />}>

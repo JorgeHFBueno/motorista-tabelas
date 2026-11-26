@@ -82,6 +82,7 @@ export const TELAS: readonly Tela[] = [
   { rota: 'the-manuscript/mapa', rotulo: 'Mapa do Manuscript', grupo: 'manuscript' },
   { rota: 'the-manuscript/*', rotulo: 'Leitor do Manuscript', grupo: 'manuscript' },
   { rota: 'testes/mki', rotulo: 'Teste MKI', grupo: 'outros' },
+  { rota: 'testes/mkii', rotulo: 'Teste MKII', grupo: 'outros' },
   { rota: 'dev', rotulo: 'DEV', grupo: 'outros' },
 ];
 

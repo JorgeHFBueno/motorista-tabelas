@@ -1,0 +1,5 @@
+/* /testes/mkii: faixa de aviso do teste. */
+/* Cores da identidade Ledur (src/theme/ledurTheme.ts): azul-marinho #12293B, borda #DDE3E8. */
+.teste-aviso { align-items: center; background: #12293B; color: #DDE3E8; display: flex; flex-wrap: wrap; font-size: 13px; gap: 6px 10px; padding: 8px 28px; }
+.teste-aviso strong { color: #fff; font-weight: 700; }
+.teste-aviso svg { color: #fff; }
