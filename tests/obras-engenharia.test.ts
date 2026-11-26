@@ -20,6 +20,7 @@ import { LOCAIS_SUGERIDOS } from '../src/features/obras/locaisSugeridos';
 import { agruparPorTipo, comPdf, comPdfsGravados, daParte, ehPdfDeGrupo, etapaPlannix, opcoesAoSoltar, parteDoPdf, pdfsDosGrupos, preFabricadosDoPlannix, resumoEtapas, revisoes, semProjeto, totalPdfs, type PdfGravado, type PreFabricado } from '../src/features/obras/preFabricados';
 import { coordenadaDoLote, lotesDaObra, obraFromV2 } from '../src/utils/cadastrosV2';
 import { idDaSincronizacao, podeCancelar, podePedir, sincronizacaoDoDocumento } from '../src/features/obras/sincronizacaoPlannix';
+import { atividadePorId, chavePeca, completude, conflitosDoMestre, dentroDaAlocacao, diasDoPeriodo, lotesDoPacote, marcarPeca, montadasNosPacotes, pecasAgendadas, pecasDaAtividade, periodoValido, somarDias, type Pacote } from '../src/features/testes/mki/pacotesTrabalho';
 
 const contrato = {
   nomeObra: 'LAGOA BONITA DO SUL 16/2026', siglaObra: '', codObra: 0, local: 'CORRIGIR', status: 'CONTRATADA',
@@ -290,4 +291,64 @@ test('sincronizar Plannix: id por LOTE, documento para a tela e quando pedir ou 
   assert.deepEqual(['pedido', 'simulando', 'previa', 'aprovado', 'gravando', 'concluido', 'erro', 'cancelado'].map((st) => [podePedir(com(st)), podeCancelar(com(st))]), [
     [false, true], [false, true], [false, true], [false, false], [false, false], [true, false], [true, false], [true, false],
   ]);
+});
+
+test('pacotes de trabalho (/testes/mki): completude pela etapa, de Não Projetado (0) a Expedida (1)', () => {
+  assert.equal(completude(''), 0);
+  assert.equal(completude('PROJETADA'), 0);
+  assert.equal(completude('EXPEDIDA'), 1);
+  assert.equal(completude('MONTADA'), 1);
+  assert.equal(completude('ETAPA NOVA'), 0);
+  assert.ok(completude('ACABADA') > completude('CONCRETAGEM') && completude('CONCRETAGEM') > completude('ARMAÇÃO'));
+});
+
+test('pacotes de trabalho (/testes/mki): peças da atividade por LOTE, das mais completas às menos, e as montadas no fim', () => {
+  const peca = (codigo: string, etapa: string) => ({ codigo, etapa, data: null });
+  const vl = (id: string, pecas: ReturnType<typeof peca>[], quantidade = pecas.length): PreFabricado => ({ id, grupo: 'VIGA', tipo: id, quantidade, pecas, desenhos: [], pdfs: [] });
+  const lotes = [
+    { chave: 'l1', nome: 'LOTE 1', itens: [vl('VL - A', [peca('1', 'ARMAÇÃO'), peca('2', 'EXPEDIDA'), peca('3', 'MONTADA')]), { ...vl('P01', [peca('9', 'EXPEDIDA')]), grupo: 'PILAR' }] },
+    { chave: 'l2', nome: 'LOTE 2', itens: [vl('VL - B', [peca('5', 'EXPEDIDA'), peca('6', 'ACABADA')])] },
+    { chave: 'l3', nome: 'LOTE 3', itens: [vl('VL - C', [], 4)] },
+    { chave: 'l4', nome: 'LOTE 4', itens: null },
+  ];
+  const r = pecasDaAtividade(lotes, atividadePorId('longarinas')!);
+  assert.deepEqual(r.map((l) => [l.lote, l.pecas.map((p) => `${p.codigo}${p.montada ? ' montada' : ''}`), l.pendentes, l.aguardandoProjeto]), [
+    ['l2', ['5', '6'], 2, 0], ['l1', ['2', '1', '3 montada'], 2, 0], ['l3', [], 0, 4],
+  ]);
+  // Montadas aqui (no pacote): vão para o fim; o LOTE sem pendente vai para o fim dos LOTEs.
+  const aqui = new Set([chavePeca('l2', '5'), chavePeca('l2', '6')]);
+  assert.deepEqual(pecasDaAtividade(lotes, atividadePorId('longarinas')!, aqui).map((l) => [l.lote, l.pecas.filter((p) => p.montada).length]), [['l1', 1], ['l2', 2], ['l3', 0]]);
+  assert.deepEqual(pecasDaAtividade(lotes, atividadePorId('pilares-centrais')!).map((l) => l.pecas.map((p) => p.codigo)), [['9']]);
+  // Fundação é serviço na obra: sem peças do Plannix.
+  assert.deepEqual(pecasDaAtividade(lotes, atividadePorId('estacas')!), []);
+  assert.equal(atividadePorId('estacas')!.filtro, undefined);
+});
+
+test('pacotes de trabalho (/testes/mki): peça num pacote só, conflito do mestre, alocação do CronoObra e dias', () => {
+  const pacote: Pacote = { id: 'a', atividade: 'longarinas', mestre: 'Paulo', inicio: '2026-12-01', fim: '2026-12-03', pecas: [{ lote: 'l1', codigo: '2', tipo: 'VL' }] };
+  assert.equal(pecasAgendadas([pacote]).get(chavePeca('l1', '2')), pacote);
+  assert.deepEqual(conflitosDoMestre([pacote], 'Paulo', { inicio: '2026-12-03', fim: '2026-12-05' }), [pacote]);
+  assert.deepEqual(conflitosDoMestre([pacote], 'Paulo', { inicio: '2026-12-04', fim: '2026-12-05' }), []);
+  assert.deepEqual(conflitosDoMestre([pacote], 'Ivo', { inicio: '2026-12-01', fim: '2026-12-01' }), []);
+  const alocacoes = [{ mestre: 'Paulo', lote: 'l1', inicio: '2026-11-16', fim: '2027-01-15' }];
+  assert.equal(dentroDaAlocacao(alocacoes, 'Paulo', { inicio: '2026-12-01', fim: '2026-12-03' }), true);
+  assert.equal(dentroDaAlocacao(alocacoes, 'Paulo', { inicio: '2027-01-10', fim: '2027-01-20' }), false);
+  assert.equal(dentroDaAlocacao(alocacoes, 'Ivo', { inicio: '2026-12-01', fim: '2026-12-03' }), false);
+  assert.equal(diasDoPeriodo({ inicio: '2026-12-30', fim: '2027-01-02' }), 4);
+  assert.equal(somarDias('2026-11-26', 7), '2026-12-03');
+  assert.equal(periodoValido({ inicio: '2026-12-03', fim: '2026-12-01' }), false);
+});
+
+test('pacotes de trabalho (/testes/mki): Agendada → Montada à mão, desfazer, ou de volta a Expedida (sai do pacote)', () => {
+  const pacote: Pacote = { id: 'a', atividade: 'longarinas', mestre: 'Paulo', inicio: '2026-12-01', fim: '2026-12-03', pecas: [{ lote: 'l1', codigo: '1', tipo: 'VL' }, { lote: 'l2', codigo: '2', tipo: 'VL' }] };
+  const montou = marcarPeca([pacote], 'a', chavePeca('l1', '1'), 'montada');
+  assert.deepEqual([...montadasNosPacotes(montou)], ['l1:1']);
+  assert.deepEqual([...montadasNosPacotes(marcarPeca(montou, 'a', 'l1:1', 'agendada'))], []);
+  const voltou = marcarPeca([pacote], 'a', 'l2:2', 'expedida');
+  assert.deepEqual(voltou[0].pecas.map((p) => p.codigo), ['1']);
+  assert.equal(pecasAgendadas(voltou).has('l2:2'), false);
+  assert.deepEqual(marcarPeca(voltou, 'a', 'l1:1', 'expedida'), [], 'sem peças, o pacote de montagem sai');
+  assert.deepEqual(lotesDoPacote(pacote), ['l1', 'l2']);
+  const servico: Pacote = { id: 's', atividade: 'estacas', mestre: 'Ivo', inicio: '2026-12-01', fim: '2026-12-01', pecas: [], lotes: ['l3'], observacao: '6 estacas no encontro A' };
+  assert.deepEqual(lotesDoPacote(servico), ['l3']);
 });
