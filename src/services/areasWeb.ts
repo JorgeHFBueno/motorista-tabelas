@@ -6,7 +6,7 @@ export const AREAS = [
   { chave: 'mecanica', rotulo: 'Mecânica', ver: 'Veículos, Registros e Checklists', editar: 'renomear, KM inicial, normalizar KM e manutenções' },
   { chave: 'engenharia', rotulo: 'Engenharia', ver: 'Cronograma, Prazos e Obras', editar: 'Status do LOTE e medições' },
   { chave: 'comercial', rotulo: 'Comercial', ver: 'Painel, Negócios e Contatos', editar: 'criar e editar negócios e contatos, mover no funil e arquivos' },
-  { chave: 'erp', rotulo: 'ERP', ver: 'Clientes, Fornecedores e Vendedores (demonstração, sem gravação)', editar: 'cadastrar e editar no ERP (quando houver gravação)' },
+  { chave: 'erp', rotulo: 'ERP', ver: 'telas do ERP em demonstração (sem gravação) e a aprovação de cada página', editar: 'aprovar ou não cada página do ERP; cadastrar e editar quando houver gravação' },
   { chave: 'portal', rotulo: 'Portal do cliente', ver: 'Clientes, Contratos, Atendimento e Notícias', editar: 'logins, contratos, atendimento e notícias' },
   { chave: 'cadastros', rotulo: 'Cadastros', ver: 'lista de usuários', editar: 'criar e editar pessoas, credenciais do app e Kiosk' },
   { chave: 'manuscript', rotulo: 'The Manuscript', ver: 'leitor', editar: 'leitor e chat' },

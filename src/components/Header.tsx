@@ -5,7 +5,7 @@ import LogoutRoundedIcon from '@mui/icons-material/LogoutRounded';
 import ExpandMoreRoundedIcon from '@mui/icons-material/ExpandMoreRounded';
 import ArrowBackRoundedIcon from '@mui/icons-material/ArrowBackRounded';
 import { Link, useLocation } from 'react-router-dom';
-import { useState } from 'react';
+import { lazy, Suspense, useState } from 'react';
 import MenuLateral from './MenuLateral';
 import BotaoAvisos from './BotaoAvisos';
 import BotaoFerramentas from './BotaoFerramentas';
@@ -13,6 +13,9 @@ import { useAuth } from '../contexts/AuthContext';
 import { veArea } from '../services/credenciais';
 import { rotaAnterior, useCabecalhoPagina } from './cabecalhoPagina';
 import { ehAppMotorista, ehRotaMotorista } from '../features/saida-chegada/appMotorista';
+
+// Aprovar página: só nas telas do ERP, carregada só lá.
+const AprovarPagina = lazy(() => import('../features/erp/AprovarPagina'));
 
 // Header in the client portal's model: menu button, back button, page title and subtitle, notices and the signed-in user.
 // Back goes up the URL to the nearest page, until the Home (rotaAnterior); the pages have no back buttons of their own.
@@ -40,6 +43,7 @@ export default function Header() {
   const comVoltar = Boolean(currentUser) && anterior !== null && location.pathname !== '/login'
     && (!appMotorista || ehRotaMotorista(anterior));
   const nome = authorizationProfile?.nome || currentUser?.displayName || currentUser?.email || '';
+  const naErp = location.pathname === '/erp' || location.pathname.startsWith('/erp/');
 
   return (
     <>
@@ -87,6 +91,10 @@ export default function Header() {
 
           {currentUser ? (
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+              {/* Aprovar página (2026-11-26): nas telas do ERP, quem edita o ERP aprova ou não cada página (erp-aprovacoes). */}
+              {naErp && veArea(authorizationProfile, 'erp') && (
+                <Suspense fallback={null}><AprovarPagina titulo={pagina?.titulo ?? ''} botaoSx={botaoClaroSx} /></Suspense>
+              )}
               {/* Ferramentas de tela (Canvas): área Tools (2026-11-19; o adm2 sempre vê). */}
               {veArea(authorizationProfile, 'tools') && <BotaoFerramentas botaoSx={botaoClaroSx} />}
               {/* The system's notices, from every area (avisos/{uid}/itens). */}

@@ -40,7 +40,7 @@ service cloud.firestore {
     }
 
     // WEB areas (Manuscript funcionarios.md, 2026-11-16): funcionarios/{uid}.areas = { area: 'ver' | 'editar' }.
-    // Areas: logistica, mecanica, engenharia, comercial, portal, cadastros, manuscript, friday and tools (one level, 'editar').
+    // Areas: logistica, mecanica, engenharia, comercial, portal, cadastros, manuscript, erp, friday and tools (one level, 'editar').
     // A missing area (or a document without `areas`) = no access; adm2 edits every area. One read of the profile;
     // '' = no access.
     function nivelArea(a) {
@@ -1980,6 +1980,31 @@ service cloud.firestore {
       allow delete: if false;
     }
 
+
+    // ERP, Aprovar página (Manuscript 01_FIRESTORE/COLECOES/erp-aprovacoes.md, 2026-11-26): a última decisão do
+    // financeiro sobre cada página do /erp; id = a página com pontos no lugar das barras (erp.pessoas.:codigo). Quem vê o
+    // ERP lê; quem edita o ERP grava a decisão inteira, assinada com o próprio uid e a hora do servidor. Sem aprovar, a
+    // descrição é obrigatória. Ninguém apaga.
+    function validErpAprovacao(paginaId, d) {
+      return d.keys().hasOnly(['schemaVersion', 'pagina', 'titulo', 'situacao', 'descricao', 'decididoPor', 'decididoEm'])
+        && d.keys().hasAll(['schemaVersion', 'pagina', 'titulo', 'situacao', 'descricao', 'decididoPor', 'decididoEm'])
+        && d.schemaVersion == 1
+        && d.pagina is string && d.pagina.matches('^erp(/:?[a-z0-9-]+)*$') && d.pagina.size() <= 200
+        && paginaId == d.pagina.replace('/', '.')
+        && d.titulo is string && d.titulo.size() > 0 && d.titulo.size() <= 200
+        && d.situacao in ['aprovada', 'reprovada']
+        && (d.descricao == null || (d.descricao is string && d.descricao.trim().size() > 0 && d.descricao.size() <= 2000))
+        && (d.situacao == 'aprovada' || d.descricao != null)
+        && d.decididoPor is map && d.decididoPor.keys().hasOnly(['uid', 'nome'])
+        && d.decididoPor.uid == request.auth.uid && d.decididoPor.nome is string && d.decididoPor.nome.size() <= 200
+        && d.decididoEm == request.time;
+    }
+
+    match /erp-aprovacoes/{paginaId} {
+      allow read: if veArea('erp');
+      allow create, update: if editaArea('erp') && validErpAprovacao(paginaId, request.resource.data);
+      allow delete: if false;
+    }
 
     // Default deny for every undeclared collection and subcollection.
     match /{document=**} {
