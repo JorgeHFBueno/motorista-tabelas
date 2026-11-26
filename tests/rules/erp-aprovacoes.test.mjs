@@ -2,9 +2,11 @@ import { after, before, test } from 'node:test';
 import { readFile } from 'node:fs/promises';
 import { assertFails, assertSucceeds, initializeTestEnvironment } from '@firebase/rules-unit-testing';
 import { Timestamp, collection, deleteDoc, doc, getDoc, getDocs, serverTimestamp, setDoc } from 'firebase/firestore';
+import { deleteObject, getBytes, ref, uploadBytes } from 'firebase/storage';
 
 // ERP, Aprovar página (Manuscript 01_FIRESTORE/COLECOES/erp-aprovacoes.md): erp-aprovacoes/{página com pontos}. Área
-// erp: 'ver' lê, 'editar' grava a decisão assinada por si; sem aprovar, a descrição é obrigatória; ninguém apaga.
+// erp: 'ver' lê, 'editar' grava a decisão assinada por si; sem aprovar, a descrição é obrigatória; ninguém apaga. As imagens
+// da decisão ficam no Storage em erp/aprovacoes/{página}/ (só imagem, até 10 MB, sem sobrescrever).
 const projectId = 'demo-firebase-rules';
 let env;
 
@@ -17,6 +19,7 @@ const identities = {
 };
 
 const dbAs = (name) => env.authenticatedContext(identities[name]).firestore();
+const storageAs = (name) => env.authenticatedContext(identities[name]).storage();
 
 const decisao = (autor, extra = {}) => ({
   schemaVersion: 1, pagina: 'erp/pessoas/:codigo', titulo: 'Cadastro de Clientes e Fornecedores', situacao: 'aprovada',
@@ -24,7 +27,9 @@ const decisao = (autor, extra = {}) => ({
 });
 
 before(async () => {
-  env = await initializeTestEnvironment({ projectId, firestore: { rules: await readFile('firestore.rules', 'utf8') } });
+  const config = { projectId, firestore: { rules: await readFile('firestore.rules', 'utf8') } };
+  if (process.env.FIREBASE_STORAGE_EMULATOR_HOST) config.storage = { rules: await readFile('storage.rules', 'utf8') };
+  env = await initializeTestEnvironment(config);
   await env.withSecurityRulesDisabled(async (context) => {
     const db = context.firestore();
     const funcionario = (uid, perfis, areas = {}, ativo = true) => setDoc(doc(db, 'funcionarios', uid), {
@@ -77,7 +82,34 @@ test('[firestore] erp-aprovacoes: invalid decisions fail', async () => {
   await assertFails(grava('logistica.kpi', decisao('editar', { pagina: 'logistica/kpi' })));
 });
 
+test('[firestore] erp-aprovacoes: up to 20 images in the decision', async () => {
+  const imagem = (n) => ({ path: `erp/aprovacoes/erp.pessoas/${n}.png`, url: `https://exemplo.test/${n}.png`, bytes: 1000 });
+  const id = 'erp.pessoas';
+  const base = { pagina: 'erp/pessoas', titulo: 'Consulta de Clientes e Fornecedores', situacao: 'reprovada', descricao: 'Ver o rabisco.' };
+  await assertSucceeds(setDoc(doc(dbAs('editar'), 'erp-aprovacoes', id), decisao('editar', { ...base, imagens: [imagem(1), imagem(2)] })));
+  await assertSucceeds(setDoc(doc(dbAs('editar'), 'erp-aprovacoes', id), decisao('editar', { ...base, imagens: Array.from({ length: 20 }, (_, n) => imagem(n)) })));
+  await assertFails(setDoc(doc(dbAs('editar'), 'erp-aprovacoes', id), decisao('editar', { ...base, imagens: Array.from({ length: 21 }, (_, n) => imagem(n)) })));
+  await assertFails(setDoc(doc(dbAs('editar'), 'erp-aprovacoes', id), decisao('editar', { ...base, imagens: 'uma' })));
+});
+
 test('[firestore] erp-aprovacoes: nobody deletes a decision', async () => {
   await assertFails(deleteDoc(doc(dbAs('adm2'), 'erp-aprovacoes', 'erp.estoques')));
   await assertFails(deleteDoc(doc(dbAs('editar'), 'erp-aprovacoes', 'erp.estoques')));
+});
+
+const storageTest = (name, fn) => test(name, { skip: !process.env.FIREBASE_STORAGE_EMULATOR_HOST }, fn);
+const png = new Uint8Array([137, 80, 78, 71]);
+
+storageTest('[storage] erp-aprovacoes: images by the erp area (ver reads, editar sends and deletes, images only, no overwrite)', async () => {
+  const caminho = 'erp/aprovacoes/erp.pessoas.:codigo/1-rabisco.png';
+  await assertFails(uploadBytes(ref(storageAs('ver'), caminho), png, { contentType: 'image/png' }));
+  await assertFails(uploadBytes(ref(storageAs('comercial'), caminho), png, { contentType: 'image/png' }));
+  await assertFails(uploadBytes(ref(storageAs('editar'), 'erp/aprovacoes/erp.pessoas/2-nota.pdf'), png, { contentType: 'application/pdf' }));
+  await assertSucceeds(uploadBytes(ref(storageAs('editar'), caminho), png, { contentType: 'image/png' }));
+  await assertFails(uploadBytes(ref(storageAs('editar'), caminho), png, { contentType: 'image/png' }));
+  await assertSucceeds(getBytes(ref(storageAs('ver'), caminho)));
+  await assertFails(getBytes(ref(storageAs('comercial'), caminho)));
+  await assertFails(uploadBytes(ref(storageAs('editar'), 'erp/aprovacoes/erp.pessoas/3-grande.png'), new Uint8Array(10 * 1024 * 1024 + 1), { contentType: 'image/png' }));
+  await assertFails(deleteObject(ref(storageAs('ver'), caminho)));
+  await assertSucceeds(deleteObject(ref(storageAs('editar'), caminho)));
 });

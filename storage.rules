@@ -169,6 +169,19 @@ service firebase.storage {
       allow update: if false;
     }
 
+    // ERP, Aprovar página (2026-11-26): imagens da decisão de cada página (rabiscos do Canvas, prints),
+    // erp/aprovacoes/{paginaId}/{arquivo}. Área erp (ver lê, editar envia e apaga; o mesmo de erp-aprovacoes no Firestore),
+    // só imagem, até 10 MB, sem sobrescrever.
+    match /erp/aprovacoes/{paginaId}/{arquivo} {
+      allow read: if veArea('erp');
+      allow delete: if editaArea('erp');
+      allow create: if editaArea('erp')
+        && isNewObject()
+        && request.resource.contentType.matches('image/.*')
+        && request.resource.size <= 10 * 1024 * 1024;
+      allow update: if false;
+    }
+
     // Cronograma Logístico: arquivos das observações, logistica/observacoes/{observacaoId}/{arquivo}. Logística area
     // (ver reads, editar sends and deletes; the same as logistica-observacoes in Firestore), up to 25 MB, never
     // overwritten; deleted together with the observation or the programação.

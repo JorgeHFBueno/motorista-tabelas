@@ -1984,9 +1984,10 @@ service cloud.firestore {
     // ERP, Aprovar página (Manuscript 01_FIRESTORE/COLECOES/erp-aprovacoes.md, 2026-11-26): a última decisão do
     // financeiro sobre cada página do /erp; id = a página com pontos no lugar das barras (erp.pessoas.:codigo). Quem vê o
     // ERP lê; quem edita o ERP grava a decisão inteira, assinada com o próprio uid e a hora do servidor. Sem aprovar, a
-    // descrição é obrigatória. Ninguém apaga.
+    // descrição é obrigatória. Ninguém apaga. `imagens` (desde 2026-11-26): até 20 { path, url, bytes } dos rabiscos do Canvas
+    // e prints, guardados no Storage em erp/aprovacoes/{paginaId}/.
     function validErpAprovacao(paginaId, d) {
-      return d.keys().hasOnly(['schemaVersion', 'pagina', 'titulo', 'situacao', 'descricao', 'decididoPor', 'decididoEm'])
+      return d.keys().hasOnly(['schemaVersion', 'pagina', 'titulo', 'situacao', 'descricao', 'decididoPor', 'decididoEm', 'imagens'])
         && d.keys().hasAll(['schemaVersion', 'pagina', 'titulo', 'situacao', 'descricao', 'decididoPor', 'decididoEm'])
         && d.schemaVersion == 1
         && d.pagina is string && d.pagina.matches('^erp(/:?[a-z0-9-]+)*$') && d.pagina.size() <= 200
@@ -1997,7 +1998,8 @@ service cloud.firestore {
         && (d.situacao == 'aprovada' || d.descricao != null)
         && d.decididoPor is map && d.decididoPor.keys().hasOnly(['uid', 'nome'])
         && d.decididoPor.uid == request.auth.uid && d.decididoPor.nome is string && d.decididoPor.nome.size() <= 200
-        && d.decididoEm == request.time;
+        && d.decididoEm == request.time
+        && d.get('imagens', []) is list && d.get('imagens', []).size() <= 20;
     }
 
     match /erp-aprovacoes/{paginaId} {

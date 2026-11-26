@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react';
 import { Box, IconButton, Tooltip } from '@mui/material';
-import { ArrowUpRight, Brush, Circle, Copy, GripVertical, Highlighter, Minus, Pin, Redo2, Square, Trash2, Type, Undo2, X } from 'lucide-react';
+import { ArrowUpRight, Brush, Circle, Copy, GripVertical, Highlighter, ImageUp, Minus, Pin, Redo2, Square, Trash2, Type, Undo2, X } from 'lucide-react';
+import { mandarImagemParaAprovacao, temQuemRecebaImagem } from '../features/erp/imagemParaAprovacao';
 
 // Canvas (Ferramentas, só adm2): uma camada sobre a tela inteira para desenhar ao revisar uma tela com a equipe ou numa
 // apresentação, como o Lightshot: pincel livre, marca-texto, linha, seta, retângulo, elipse e texto, com cor e espessura.
@@ -8,7 +9,9 @@ import { ArrowUpRight, Brush, Circle, Copy, GripVertical, Highlighter, Minus, Pi
 // página ou a caixa com rolagem, como uma tabela), em vez de ficar parado na tela. "Copiar a tela" captura a aba
 // (o navegador pede para compartilhar a aba) e põe a imagem, com o desenho, na área de transferência; se o navegador
 // recusar, baixa o PNG. Nada é salvo: o desenho some ao fechar. Atalhos: Ctrl+Z desfaz, Ctrl+Y ou Ctrl+Shift+Z refaz,
-// Ctrl+C copia a tela, Esc fecha. No texto, Enter confirma, Shift+Enter quebra a linha e Esc desiste.
+// Ctrl+C copia a tela, Esc fecha. No texto, Enter confirma, Shift+Enter quebra a linha e Esc desiste. Nas telas do ERP, para
+// quem aprova páginas, "Mandar para Aprovar página" (2026-11-26) captura a tela do mesmo jeito, entrega a imagem à caixa
+// Aprovar página (features/erp/imagemParaAprovacao.ts) e fecha o Canvas.
 
 type Ponto = { x: number; y: number };
 type Ferramenta = 'pincel' | 'marcador' | 'linha' | 'seta' | 'retangulo' | 'elipse' | 'texto';
@@ -274,17 +277,20 @@ export default function CanvasTela({ onFechar }: { onFechar: () => void }) {
     try { localStorage.setItem(CHAVE_FIXAR, novo ? '1' : '0'); } catch { /* só a preferência deste navegador */ }
   };
 
-  const copiarTela = async () => {
+  const [paraAprovacao] = useState(temQuemRecebaImagem);
+
+  /** Captura a aba com o desenho (o navegador pede para compartilhar a aba); null se a pessoa cancelou ou falhou. */
+  const capturarTela = async (): Promise<Blob | null> => {
     confirmarTexto();
-    if (!navigator.mediaDevices?.getDisplayMedia) { setAviso('Este navegador não captura a tela.'); return; }
+    if (!navigator.mediaDevices?.getDisplayMedia) { setAviso('Este navegador não captura a tela.'); return null; }
     let stream: MediaStream;
     try {
       // preferCurrentTab e selfBrowserSurface: o Chrome e o Edge já oferecem esta aba (ainda fora dos tipos do TS).
       const opcoes = { video: { displaySurface: 'browser' }, audio: false, preferCurrentTab: true, selfBrowserSurface: 'include' };
       stream = await navigator.mediaDevices.getDisplayMedia(opcoes as DisplayMediaStreamOptions);
     } catch {
-      setAviso('Cópia cancelada.');
-      return;
+      setAviso('Captura cancelada.');
+      return null;
     }
     setCapturando(true);
     try {
@@ -301,24 +307,38 @@ export default function CanvasTela({ onFechar }: { onFechar: () => void }) {
       stream.getTracks().forEach(t => t.stop());
       const blob = await new Promise<Blob | null>(r => foto.toBlob(r, 'image/png'));
       if (!blob) throw new Error('imagem vazia');
-      try {
-        await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })]);
-        setAviso('Tela copiada. Cole com Ctrl+V.');
-      } catch {
-        const a = document.createElement('a');
-        a.href = URL.createObjectURL(blob);
-        a.download = `tela-${new Date().toISOString().slice(0, 19).replace(/[T:]/g, '-')}.png`;
-        a.click();
-        setTimeout(() => URL.revokeObjectURL(a.href), 1000);
-        setAviso('O navegador não deixou copiar; a imagem foi baixada.');
-      }
+      return blob;
     } catch (e) {
-      console.warn('[canvas] tela não copiada', e);
-      setAviso('Não foi possível copiar a tela.');
+      console.warn('[canvas] tela não capturada', e);
+      setAviso('Não foi possível capturar a tela.');
+      return null;
     } finally {
       stream.getTracks().forEach(t => t.stop());
       setCapturando(false);
     }
+  };
+
+  const copiarTela = async () => {
+    const blob = await capturarTela();
+    if (!blob) return;
+    try {
+      await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })]);
+      setAviso('Tela copiada. Cole com Ctrl+V.');
+    } catch {
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = `tela-${new Date().toISOString().slice(0, 19).replace(/[T:]/g, '-')}.png`;
+      a.click();
+      setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+      setAviso('O navegador não deixou copiar; a imagem foi baixada.');
+    }
+  };
+
+  const mandarParaAprovacao = async () => {
+    const blob = await capturarTela();
+    if (!blob) return;
+    mandarImagemParaAprovacao(blob);
+    onFechar();
   };
   const copiarRef = useRef(copiarTela);
   useEffect(() => { copiarRef.current = copiarTela; });
@@ -479,6 +499,11 @@ export default function CanvasTela({ onFechar }: { onFechar: () => void }) {
           <Tooltip title="Copiar a tela com o desenho (Ctrl+C)" {...dicaSx}>
             <IconButton aria-label="Copiar a tela" onClick={() => void copiarTela()} sx={botao(false)}><Copy size={18} /></IconButton>
           </Tooltip>
+          {paraAprovacao && (
+            <Tooltip title="Mandar para Aprovar página: captura a tela com o desenho e põe a imagem na aprovação desta página" {...dicaSx}>
+              <IconButton aria-label="Mandar para Aprovar página" onClick={() => void mandarParaAprovacao()} sx={botao(false)}><ImageUp size={18} /></IconButton>
+            </Tooltip>
+          )}
           {separador}
           <Tooltip title="Desfazer (Ctrl+Z)" {...dicaSx}>
             <span><IconButton aria-label="Desfazer" disabled={!tracos.length} onClick={desfazer} sx={botao(false)}><Undo2 size={18} /></IconButton></span>

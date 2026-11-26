@@ -32,4 +32,7 @@ test('problemaDaDecisao: a choice is required; not approving requires a descript
   assert.match(problemaDaDecisao('reprovada', '  ') ?? '', /Descreva/);
   assert.equal(problemaDaDecisao('reprovada', 'Falta o filtro por obra.'), null);
   assert.match(problemaDaDecisao('reprovada', 'x'.repeat(2001)) ?? '', /2000/);
+  assert.equal(problemaDaDecisao('reprovada', 'Ver o rabisco.', [{ bytes: 1000 }]), null);
+  assert.match(problemaDaDecisao('aprovada', '', Array.from({ length: 21 }, () => ({ bytes: 1 }))) ?? '', /20 imagens/);
+  assert.match(problemaDaDecisao('aprovada', '', [{ bytes: 10 * 1024 * 1024 + 1 }]) ?? '', /10 MB/);
 });

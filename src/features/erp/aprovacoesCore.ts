@@ -5,6 +5,8 @@ import { telaDaRota } from '../uso-web/usoWebCore';
 // Uma decisão por página em erp-aprovacoes (aprovacoes.ts). The Manuscript, 01_FIRESTORE/COLECOES/erp-aprovacoes.md.
 
 export type SituacaoAprovacao = 'aprovada' | 'reprovada';
+/** Imagem da decisão (o rabisco do Canvas ou um print), em erp/aprovacoes/{id da página}/ no Storage. */
+export type ImagemAprovacao = { path: string; url: string; bytes: number };
 export type AprovacaoPagina = {
   pagina: string;
   titulo: string;
@@ -12,9 +14,12 @@ export type AprovacaoPagina = {
   descricao: string | null;
   decididoPor: { uid: string; nome: string } | null;
   decididoEm: Date | null;
+  imagens: ImagemAprovacao[];
 };
 
 export const LIMITE_DESCRICAO = 2000;
+export const LIMITE_IMAGENS = 20;
+export const LIMITE_IMAGEM = 10 * 1024 * 1024;
 
 /**
  * A página do ERP de um caminho, no padrão da rota do Uso do sistema ('/erp/pessoas/1021' e '/erp/pessoas/novo' →
@@ -32,9 +37,11 @@ export function paginaErp(pathname: string): string | null {
 export const idDaPagina = (pagina: string) => pagina.replace(/\//g, '.');
 
 /** Confere a decisão antes de gravar: sem aprovar, a descrição é obrigatória. Devolve o problema ou null. */
-export function problemaDaDecisao(situacao: SituacaoAprovacao | '', descricao: string): string | null {
+export function problemaDaDecisao(situacao: SituacaoAprovacao | '', descricao: string, imagens: Array<{ bytes: number }> = []): string | null {
   if (!situacao) return 'Escolha se aprova ou não a página.';
   if (situacao === 'reprovada' && !descricao.trim()) return 'Descreva o que falta ou está errado na página.';
   if (descricao.trim().length > LIMITE_DESCRICAO) return `A descrição passa de ${LIMITE_DESCRICAO} caracteres.`;
+  if (imagens.length > LIMITE_IMAGENS) return `São no máximo ${LIMITE_IMAGENS} imagens por página.`;
+  if (imagens.some((i) => i.bytes > LIMITE_IMAGEM)) return 'Cada imagem pode ter até 10 MB.';
   return null;
 }
