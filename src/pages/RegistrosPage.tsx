@@ -17,7 +17,7 @@ import {
 } from '@mui/material';
 import { useSearchParams } from 'react-router-dom';
 import { DataGrid, type GridColDef } from '@mui/x-data-grid';
-import useAtividade from '../hooks/useAtividade';
+import useAtividade, { DIAS_PADRAO } from '../hooks/useAtividade';
 import useOnlineStatus from '../hooks/useOnlineStatus';
 import {
   FILTROS_VAZIOS,
@@ -144,8 +144,9 @@ export default function RegistrosPage() {
   const { isOnline } = useOnlineStatus();
   const [searchParams, setSearchParams] = useSearchParams();
   const [tab, setTab] = useState<TabKey>(() => getValidTab(searchParams.get('tab')));
-  const { data: atividade, loading: loadingAtividade } = useAtividade();
   const [filtros, setFiltros] = useState<FiltrosAtividade>(FILTROS_VAZIOS);
+  // Atividades lidas pelo período: desde a data inicial do filtro ou, sem ela, os 90 dias até a data final (ou hoje).
+  const { data: atividade, loading: loadingAtividade } = useAtividade(filtros.dataInicial, filtros.dataFinal);
   const [paginationModel, setPaginationModel] = useState({ page: 0, pageSize: 100 });
 
   const rowsAtividade = useMemo<AtividadeComData[]>(
@@ -199,10 +200,12 @@ export default function RegistrosPage() {
     filtros.tipo !== 'todos' ||
     FILTROS_LISTA.some(({ key }) => filtros[key].length > 0);
 
-  const periodoLabel =
-    filtros.dataInicial || filtros.dataFinal
-      ? `${filtros.dataInicial ? formatDateLabel(filtros.dataInicial) : 'início'} a ${filtros.dataFinal ? formatDateLabel(filtros.dataFinal) : 'hoje'}`
-      : 'todo o período';
+  // Sem data inicial, cada aba lê o seu padrão: Geral, os 90 dias até a data final (ou hoje); Rastreador, os 7 dias até hoje.
+  const periodoLabel = filtros.dataInicial
+    ? `${formatDateLabel(filtros.dataInicial)} a ${filtros.dataFinal ? formatDateLabel(filtros.dataFinal) : 'hoje'}`
+    : naAbaRastreador
+      ? `últimos 7 dias${filtros.dataFinal ? ` (até ${formatDateLabel(filtros.dataFinal)})` : ''}`
+      : `${DIAS_PADRAO} dias até ${filtros.dataFinal ? formatDateLabel(filtros.dataFinal) : 'hoje'}`;
 
   const dateFmt = useMemo(
     () =>

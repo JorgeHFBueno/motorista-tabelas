@@ -1,4 +1,4 @@
-import { collection, getDocs } from 'firebase/firestore';
+import { collection, getDocs, query, where } from 'firebase/firestore';
 import { httpsCallable } from 'firebase/functions';
 import { db, functions } from '../firebase';
 import { normalizarMovimentoCombustivel } from './combustivel-normalizer';
@@ -47,10 +47,24 @@ export async function fetchVehicleErpRows(placa: string, dataInicial: string, da
   const result = await httpsCallable<any, any>(functions, 'getVehicleErpCosts')({ placa, dataInicial, dataFinal });
   return filterVehicleReportPeriod(result.data?.query47 ?? [], dataInicial, dataFinal, (r: any) => r.data_emissao);
 }
+/**
+ * Abastecimentos de um veículo, sem ler a coleção inteira: os do item_frota_id e, para os antigos sem ele, os da placa
+ * do snapshot. Quem chama aplica a mesma regra de antes (item_frota_id do veículo, ou sem item_frota_id e a mesma placa).
+ */
+export async function lerCombustivelDoVeiculo(itemId: string, placa: string): Promise<Array<Record<string, unknown> & { id: string }>> {
+  const colecao = collection(db, '03-combustivel');
+  const [porItem, porPlaca] = await Promise.all([
+    getDocs(query(colecao, where('item_frota_id', '==', itemId))),
+    placa ? getDocs(query(colecao, where('item_frota_snapshot.identificador', '==', placa))) : Promise.resolve(null),
+  ]);
+  const docs = new Map<string, Record<string, unknown> & { id: string }>();
+  for (const doc of [...porItem.docs, ...(porPlaca?.docs ?? [])]) docs.set(doc.id, { ...doc.data(), id: doc.id });
+  return [...docs.values()];
+}
 export async function buildVehicleReport(input: BuildInput) {
   const settled = await Promise.allSettled([
-    getDocs(collection(db, '03-combustivel')).then((snap) => snap.docs.map((doc) => ({ id: doc.id, ...doc.data() }))),
-    getDocs(collection(db, 'manutencoes')).then((snap) => snap.docs.map((doc) => ({ id: doc.id, ...doc.data() }))),
+    lerCombustivelDoVeiculo(input.vehicleId, input.placa),
+    getDocs(query(collection(db, 'manutencoes'), where('item_frota_id', '==', input.vehicleId))).then((snap) => snap.docs.map((doc) => ({ id: doc.id, ...doc.data() }))),
     httpsCallable<any, any>(functions, 'getVehicleErpCosts')({ placa: input.placa, dataInicial: input.dataInicial, dataFinal: input.dataFinal }).then((result) => result.data),
   ]);
   return composeVehicleReport(input, { fuel: sourceResult('fuel', settled[0]), maintenance: sourceResult('maintenance', settled[1]), erp: sourceResult('erp', settled[2]) });

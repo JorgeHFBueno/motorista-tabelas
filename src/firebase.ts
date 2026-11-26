@@ -1,7 +1,7 @@
 import { initializeApp } from "firebase/app";
 import { getAnalytics } from "firebase/analytics";
 import { connectAuthEmulator, getAuth } from 'firebase/auth';
-import { connectFirestoreEmulator, getFirestore, enableIndexedDbPersistence } from 'firebase/firestore';
+import { connectFirestoreEmulator, initializeFirestore, persistentLocalCache, persistentMultipleTabManager } from 'firebase/firestore';
 import { connectStorageEmulator, getStorage } from 'firebase/storage';
 import { getFunctions } from 'firebase/functions';
 
@@ -17,7 +17,10 @@ const firebaseConfig = {
 };
 
 export const app = initializeApp(firebaseConfig);
-export const db = getFirestore(app);
+// Cache local do Firestore em todas as abas e no PWA, compartilhado entre elas: com ele, reabrir uma consulta em até
+// 30 minutos cobra só os documentos que mudaram. O enableIndexedDbPersistence de antes só ligava o cache na primeira
+// aba; as outras (e o PWA aberto junto do navegador) liam tudo de novo a cada abertura.
+export const db = initializeFirestore(app, { localCache: persistentLocalCache({ tabManager: persistentMultipleTabManager() }) });
 export const storage = getStorage(app);
 export const functions = getFunctions(app, 'southamerica-east1');
 const useFirebaseEmulators = import.meta.env.VITE_USE_FIREBASE_EMULATORS === 'true';
@@ -29,5 +32,3 @@ if (useFirebaseEmulators) {
 }
 
 export const analytics = useFirebaseEmulators ? null : getAnalytics(app);
-
-enableIndexedDbPersistence(db).catch(console.error);

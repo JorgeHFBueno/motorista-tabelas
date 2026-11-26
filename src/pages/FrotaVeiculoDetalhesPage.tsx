@@ -65,7 +65,7 @@ import { db } from '../firebase';
 import { normalizeFornecedorNumero } from '../services/fornecedores.service';
 import { normalizarMovimentoCombustivel } from '../services/combustivel-normalizer';
 import { normalizarAtividade } from '../services/atividade-normalizer';
-import { buildVehicleReport, fetchVehicleErpRows } from '../services/vehicle-report.service';
+import { buildVehicleReport, fetchVehicleErpRows, lerCombustivelDoVeiculo } from '../services/vehicle-report.service';
 import { createVehicleReportPdf } from '../services/vehicle-report-pdf';
 import { custoPorAbastecimento, describeErpCallError, extractCnpj, fuelReportSupplier, normalizeCalendarDate, resolveVehicleReportPeriod, type VehicleReportPeriod } from '../services/vehicle-report-core';
 import { listFuncionariosAtivos } from '../services/funcionarios-selecao.service';
@@ -722,13 +722,14 @@ export default function FrotaVeiculoDetalhesPage() {
             setCombustivelError(null);
 
             try {
-                const snapshot = await getDocs(collection(db, '03-combustivel'));
+                // Só os abastecimentos deste veículo (antes, a coleção inteira a cada abertura).
+                const docs = await lerCombustivelDoVeiculo(itemId, identificador);
 
                 if (!active) return;
 
-                const data: LinhaEvento[] = snapshot.docs.map(
+                const data: LinhaEvento[] = docs.map(
                     (docSnap): LinhaEvento => {
-                        const registro = normalizarMovimentoCombustivel(docSnap.data(), docSnap.id) as Combustivel;
+                        const registro = normalizarMovimentoCombustivel(docSnap, docSnap.id) as Combustivel;
                         const matches = registro.itemFrotaUid === itemId || (!registro.itemFrotaUid && registro.identificadorSnapshot === identificador);
                         if (!matches || registro.isFuelOutput === false) return null as unknown as LinhaEvento;
                         const categoria = registro.motivo ? registro.motivo : 'ABASTECIMENTO';
