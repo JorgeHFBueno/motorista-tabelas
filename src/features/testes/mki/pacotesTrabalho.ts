@@ -1,153 +1,67 @@
-// Pacotes de Trabalho do /testes/mki (pedido do responsável, 2026-11-26): na aba Mestres do detalhe da obra, agendar o
-// que vai (ou pode) ser montado, juntando o CronoObra (mestres e períodos) e os LOTEs (peças do Plannix). Fluxo: categoria
-// → atividade (ex.: Super Estrutura → Montagem Longarinas) → as peças da atividade por LOTE, das mais completas às menos
-// completas → as escolhidas → um mestre → um período. Só teste: dados fictícios em memória; o mapa atividade → peças
-// ainda é uma proposta (por produto e nome no Plannix).
-// Ajustes do responsável (2026-11-26): a peça montada fica no fim da lista, como Montada, marcada à mão aqui na sequência
-// Expedida (Plannix) → Agendada (no pacote) → Montada, ou de volta a Expedida (sai do pacote); a Fundação é serviço na
-// obra, sem peças do Plannix: o pacote marca o que o mestre foi fazer em quais LOTEs; poucas travas, com avisos.
-import { ETAPAS_PLANNIX, etapaPlannix, type PreFabricado } from '../../obras/preFabricados';
+// Aba Atividade do /testes/mki (pedido do responsável, 2026-11-26, substitui o agendamento por mestre e período da
+// manhã): Cadastros são os itens que a obra usa ou faz, por categoria (Insumos, Pré-fabricados, Concreto, Ferramentas,
+// Máquinas e Tarefas), cada um com descrição e quantidade; os Pré-fabricados são as peças do Plannix dos LOTEs e não se
+// criam aqui. Pacotes são a "receita": o usuário leva itens dos cadastros para o pacote, com a quantidade que o pacote
+// usa. Por enquanto o pacote não tem mestre nem data (virão depois). Poucas travas, com avisos: usar mais do que o
+// cadastrado ou a mesma peça em dois pacotes só avisa. Só teste: dados fictícios em memória.
+import type { PreFabricado } from '../../obras/preFabricados';
 
-/** `filtro`: os itens do Plannix da atividade; sem filtro, é serviço na obra (o pacote leva LOTEs, sem peças). */
-export type Atividade = { id: string; nome: string; categoria: string; filtro?: (item: Pick<PreFabricado, 'grupo' | 'tipo'>) => boolean };
-
-const produto = (...nomes: string[]) => (item: Pick<PreFabricado, 'grupo'>) => nomes.includes(item.grupo.trim().toUpperCase());
-const viga = (prefixo: string) => (item: Pick<PreFabricado, 'grupo' | 'tipo'>) => item.grupo.trim().toUpperCase() === 'VIGA' && item.tipo.trim().toUpperCase().startsWith(prefixo);
-
-/** Lista parcial de atividades (2026-11-26), por categoria; cada uma diz quais itens do Plannix entram (a Fundação, nenhum). */
-export const CATEGORIAS: { nome: string; atividades: Atividade[] }[] = [
-  {
-    nome: 'Fundação',
-    atividades: [
-      { id: 'sapata-corrida', nome: 'Sapata Corrida', categoria: 'Fundação' },
-      { id: 'sapata-isolada', nome: 'Sapata Isolada', categoria: 'Fundação' },
-      { id: 'bloco-estacas', nome: 'Bloco de Estacas', categoria: 'Fundação' },
-      { id: 'estacas', nome: 'Estacas', categoria: 'Fundação' },
-    ],
-  },
-  {
-    nome: 'Super Estrutura',
-    atividades: [
-      { id: 'longarinas', nome: 'Montagem Longarinas', categoria: 'Super Estrutura', filtro: viga('VL') },
-      { id: 'vigas', nome: 'Montagem Vigas', categoria: 'Super Estrutura', filtro: viga('VT') },
-      { id: 'guarda-rodas', nome: 'Montagem Guarda Rodas', categoria: 'Super Estrutura', filtro: produto('GUARDA RODA') },
-      { id: 'guarda-corpo', nome: 'Montagem Guarda Corpo', categoria: 'Super Estrutura', filtro: produto('GUARDA CORPO') },
-    ],
-  },
-  {
-    nome: 'Mesoestruturas',
-    atividades: [
-      { id: 'meso-vigas', nome: 'Vigas', categoria: 'Mesoestruturas', filtro: viga('VM') },
-      { id: 'pilares-centrais', nome: 'Pilares Centrais', categoria: 'Mesoestruturas', filtro: produto('PILAR') },
-      { id: 'cortinas', nome: 'Lances de Cortinas', categoria: 'Mesoestruturas', filtro: produto('CORTINA') },
-    ],
-  },
+export type CategoriaCadastro = 'insumos' | 'prefabricados' | 'concreto' | 'ferramentas' | 'maquinas' | 'tarefas';
+export const CATEGORIAS_CADASTRO: { id: CategoriaCadastro; nome: string }[] = [
+  { id: 'insumos', nome: 'Insumos' },
+  { id: 'prefabricados', nome: 'Pré-fabricados' },
+  { id: 'concreto', nome: 'Concreto' },
+  { id: 'ferramentas', nome: 'Ferramentas' },
+  { id: 'maquinas', nome: 'Máquinas' },
+  { id: 'tarefas', nome: 'Tarefas' },
 ];
-export const ATIVIDADES = CATEGORIAS.flatMap((categoria) => categoria.atividades);
-export const atividadePorId = (id: string) => ATIVIDADES.find((atividade) => atividade.id === id);
+export const nomeDaCategoria = (id: CategoriaCadastro) => CATEGORIAS_CADASTRO.find((categoria) => categoria.id === id)?.nome ?? id;
 
-const EXPEDIDA = ETAPAS_PLANNIX.findIndex((etapa) => etapa.nome === 'EXPEDIDA');
-const MONTADA = ETAPAS_PLANNIX.findIndex((etapa) => etapa.nome === 'MONTADA');
+/** Item dos cadastros. Pré-fabricado: uma peça do Plannix (`lote`, `etapa`), quantidade 1, ou um item ainda sem projeto. */
+export type ItemCadastro = { id: string; categoria: CategoriaCadastro; descricao: string; quantidade: number; unidade: string; lote?: string; etapa?: string };
+/** Item no pacote: o do cadastro e quanto o pacote usa dele. */
+export type ItemDoPacote = { item: string; quantidade: number };
+export type Pacote = { id: string; nome: string; itens: ItemDoPacote[] };
 
-/**
- * Quanto a peça está pronta para montar, de 0 (Não Projetado, Projetada ou etapa desconhecida) a 1 (Expedida), pela
- * ordem das etapas do Plannix. Montada também é 1 (e vai para o fim da lista).
- */
-export function completude(etapa: string): number {
-  const { ordem } = etapaPlannix(etapa);
-  if (ordem < 0) return 0;
-  if (ordem >= ETAPAS_PLANNIX.length) return 0;
-  return Math.min(ordem, EXPEDIDA) / EXPEDIDA;
-}
-export const montada = (etapa: string) => etapaPlannix(etapa).ordem === MONTADA;
-
-/** `montada`: Montada no Plannix ou marcada aqui num pacote. */
-export type PecaDaAtividade = { lote: string; item: string; tipo: string; codigo: string; etapa: string; completude: number; montada: boolean };
-/** `completude`: a média das peças ainda não montadas; `pendentes`: quantas são. */
-export type LoteDaAtividade = { lote: string; nome: string; completude: number; pendentes: number; pecas: PecaDaAtividade[]; aguardandoProjeto: number };
-
-const comparar = new Intl.Collator('pt-BR', { numeric: true }).compare;
-
-/**
- * As peças da atividade por LOTE: as não montadas das mais completas às menos completas (empate: item e código) e, no
- * fim, as montadas (no Plannix ou aqui, `montadasAqui`). Os LOTEs vão do mais completo ao menos, pela média das peças
- * não montadas; LOTE sem peça pendente vai para o fim. Itens sem projeto no Plannix (sem códigos) contam em
- * `aguardandoProjeto`; LOTE sem nenhuma peça da atividade fica fora. Atividade de serviço (sem filtro): nenhuma peça.
- */
-export function pecasDaAtividade(
-  lotes: { chave: string; nome: string; itens: PreFabricado[] | null }[],
-  atividade: Pick<Atividade, 'filtro'>,
-  montadasAqui: ReadonlySet<string> = new Set(),
-): LoteDaAtividade[] {
-  const { filtro } = atividade;
-  if (!filtro) return [];
-  return lotes.flatMap((lote) => {
-    const itens = (lote.itens ?? []).filter(filtro);
-    const pecas = itens
-      .flatMap((item) => item.pecas.map((peca) => ({
-        lote: lote.chave, item: item.id, tipo: item.tipo, codigo: peca.codigo, etapa: peca.etapa, completude: completude(peca.etapa),
-        montada: montada(peca.etapa) || montadasAqui.has(chavePeca(lote.chave, peca.codigo)),
-      })))
-      .sort((a, b) => Number(a.montada) - Number(b.montada) || b.completude - a.completude || comparar(a.tipo, b.tipo) || comparar(a.codigo, b.codigo));
-    const aguardandoProjeto = itens.filter((item) => !item.pecas.length).reduce((total, item) => total + item.quantidade, 0);
-    if (!pecas.length && !aguardandoProjeto) return [];
-    const pendentes = pecas.filter((peca) => !peca.montada);
-    const media = pendentes.length ? pendentes.reduce((total, peca) => total + peca.completude, 0) / pendentes.length : 0;
-    return [{ lote: lote.chave, nome: lote.nome, completude: media, pendentes: pendentes.length, pecas, aguardandoProjeto }];
-  }).sort((a, b) => Number(!a.pendentes) - Number(!b.pendentes) || b.completude - a.completude || comparar(a.nome, b.nome));
+/** As peças do Plannix como itens de Pré-fabricados: uma por código; item sem projeto (sem códigos) entra inteiro. */
+export function preFabricadosDosLotes(lotes: { chave: string; itens: PreFabricado[] | null }[]): ItemCadastro[] {
+  return lotes.flatMap((lote) => (lote.itens ?? []).flatMap((item): ItemCadastro[] => (item.pecas.length
+    ? item.pecas.map((peca) => ({ id: `pf:${lote.chave}:${peca.codigo}`, categoria: 'prefabricados', descricao: `${item.tipo} · ${peca.codigo}`, quantidade: 1, unidade: 'peça', lote: lote.chave, etapa: peca.etapa }))
+    : [{ id: `pf:${lote.chave}:${item.id}`, categoria: 'prefabricados', descricao: item.tipo, quantidade: item.quantidade, unidade: 'peças', lote: lote.chave, etapa: '' }])));
 }
 
-/** Período em dias civis, `AAAA-MM-DD` (início e fim inclusive). */
-export type Periodo = { inicio: string; fim: string };
-/** Peça no pacote: Agendada até ser marcada Montada (ou voltar a Expedida, saindo do pacote). */
-export type PecaDoPacote = { lote: string; codigo: string; tipo: string; montada?: boolean };
-/**
- * Pacote de trabalho. Montagem: as peças. Serviço (Fundação): `lotes`, sem peças, e `concluido` quando o mestre fez.
- * `observacao`: o que vai ser feito, livre.
- */
-export type Pacote = Periodo & { id: string; atividade: string; mestre: string; pecas: PecaDoPacote[]; lotes?: string[]; observacao?: string; concluido?: boolean };
-/** Alocação do mestre na obra no CronoObra (o LOTE e o período). */
-export type Alocacao = Periodo & { mestre: string; lote: string };
-
-export const chavePeca = (lote: string, codigo: string) => `${lote}:${codigo}`;
-/** Peça → pacote em que já está agendada (uma peça entra num pacote só). */
-export const pecasAgendadas = (pacotes: Pacote[]) =>
-  new Map(pacotes.flatMap((pacote) => pacote.pecas.map((peca) => [chavePeca(peca.lote, peca.codigo), pacote] as const)));
-
-/** Peças marcadas Montada aqui (em algum pacote). */
-export const montadasNosPacotes = (pacotes: Pacote[]) =>
-  new Set(pacotes.flatMap((pacote) => pacote.pecas.filter((peca) => peca.montada).map((peca) => chavePeca(peca.lote, peca.codigo))));
-/** LOTEs do pacote: os das peças e, no serviço, os escolhidos. */
-export const lotesDoPacote = (pacote: Pacote) => [...new Set([...pacote.pecas.map((peca) => peca.lote), ...(pacote.lotes ?? [])])];
+/** Quanto do item os pacotes usam (menos o pacote `exceto`, quando dado). */
+export const usoDoItem = (pacotes: Pacote[], item: string, exceto?: string) =>
+  pacotes.filter((pacote) => pacote.id !== exceto).reduce((total, pacote) => total + pacote.itens.filter((i) => i.item === item).reduce((soma, i) => soma + i.quantidade, 0), 0);
+/** Quanto do item ainda não está em pacote nenhum (nunca negativo). */
+export const livreDoItem = (item: ItemCadastro, pacotes: Pacote[]) => Math.max(0, item.quantidade - usoDoItem(pacotes, item.id));
+/** Os outros pacotes que já usam o item. */
+export const outrosPacotesDoItem = (pacotes: Pacote[], item: string, exceto: string) =>
+  pacotes.filter((pacote) => pacote.id !== exceto && pacote.itens.some((i) => i.item === item));
 
 /**
- * Marca à mão uma peça do pacote: 'montada' (Agendada → Montada), 'agendada' (desfaz a Montada) ou 'expedida' (não foi
- * montada: sai do pacote e fica livre de novo). Pacote de montagem que fica sem peças sai junto.
+ * Leva o item ao pacote com o que ainda está livre (1 se não sobrou nada: avisa, não trava). Item que já está no pacote
+ * fica como está.
  */
-export function marcarPeca(pacotes: Pacote[], pacoteId: string, chave: string, para: 'montada' | 'agendada' | 'expedida'): Pacote[] {
-  return pacotes.flatMap((pacote) => {
-    if (pacote.id !== pacoteId) return [pacote];
-    const daPeca = (peca: PecaDoPacote) => chavePeca(peca.lote, peca.codigo) === chave;
-    if (para === 'expedida') {
-      const pecas = pacote.pecas.filter((peca) => !daPeca(peca));
-      return pecas.length || pacote.lotes?.length ? [{ ...pacote, pecas }] : [];
-    }
-    return [{ ...pacote, pecas: pacote.pecas.map((peca) => (daPeca(peca) ? { ...peca, montada: para === 'montada' } : peca)) }];
-  });
+export function adicionarAoPacote(pacotes: Pacote[], pacoteId: string, item: ItemCadastro): Pacote[] {
+  const quantidade = livreDoItem(item, pacotes) || 1;
+  return pacotes.map((pacote) => (pacote.id !== pacoteId || pacote.itens.some((i) => i.item === item.id) ? pacote : { ...pacote, itens: [...pacote.itens, { item: item.id, quantidade }] }));
+}
+export const alterarQuantidade = (pacotes: Pacote[], pacoteId: string, item: string, quantidade: number) =>
+  pacotes.map((pacote) => (pacote.id !== pacoteId ? pacote : { ...pacote, itens: pacote.itens.map((i) => (i.item === item ? { ...i, quantidade } : i)) }));
+export const removerDoPacote = (pacotes: Pacote[], pacoteId: string, item: string) =>
+  pacotes.map((pacote) => (pacote.id !== pacoteId ? pacote : { ...pacote, itens: pacote.itens.filter((i) => i.item !== item) }));
+/** Item excluído dos cadastros sai também dos pacotes. */
+export const tirarDosPacotes = (pacotes: Pacote[], item: string) =>
+  pacotes.map((pacote) => ({ ...pacote, itens: pacote.itens.filter((i) => i.item !== item) }));
+
+/** Aviso do item no pacote quando os pacotes usam mais do que o cadastrado (a peça do Plannix: está em outro pacote). */
+export function avisoDoItem(pacotes: Pacote[], pacoteId: string, item: ItemCadastro): string | null {
+  const total = usoDoItem(pacotes, item.id);
+  if (total <= item.quantidade) return null;
+  const outros = outrosPacotesDoItem(pacotes, item.id, pacoteId).map((pacote) => pacote.nome).join(', ');
+  if (item.unidade === 'peça' && outros) return `A peça também está em ${outros}.`;
+  return `Os pacotes usam ${formatarQuantidade(total)} de ${formatarQuantidade(item.quantidade)} ${item.unidade} do cadastro${outros ? ` (também em ${outros})` : ''}.`;
 }
 
-export const periodoValido = (p: Periodo) => /^\d{4}-\d{2}-\d{2}$/.test(p.inicio) && /^\d{4}-\d{2}-\d{2}$/.test(p.fim) && p.inicio <= p.fim;
-export const sobrepoe = (a: Periodo, b: Periodo) => a.inicio <= b.fim && b.inicio <= a.fim;
-/** Pacotes do mesmo mestre que cruzam o período (o mestre estaria em dois lugares). */
-export const conflitosDoMestre = (pacotes: Pacote[], mestre: string, periodo: Periodo) =>
-  pacotes.filter((pacote) => pacote.mestre === mestre && sobrepoe(pacote, periodo));
-/** O período cabe inteiro numa alocação do mestre nesta obra no CronoObra? */
-export const dentroDaAlocacao = (alocacoes: Alocacao[], mestre: string, periodo: Periodo) =>
-  alocacoes.some((alocacao) => alocacao.mestre === mestre && alocacao.inicio <= periodo.inicio && periodo.fim <= alocacao.fim);
-
-const dia = (data: string) => Date.UTC(Number(data.slice(0, 4)), Number(data.slice(5, 7)) - 1, Number(data.slice(8, 10)));
-/** Dias do período, contando o início e o fim. */
-export const diasDoPeriodo = (p: Periodo) => Math.round((dia(p.fim) - dia(p.inicio)) / 86_400_000) + 1;
-/** `AAAA-MM-DD` somado de `n` dias. */
-export const somarDias = (data: string, n: number) => new Date(dia(data) + n * 86_400_000).toISOString().slice(0, 10);
-export const dataCurta = (data: string) => `${data.slice(8, 10)}/${data.slice(5, 7)}`;
+export const formatarQuantidade = (valor: number) => valor.toLocaleString('pt-BR', { maximumFractionDigits: 2 });

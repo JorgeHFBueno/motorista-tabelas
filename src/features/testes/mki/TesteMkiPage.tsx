@@ -27,8 +27,8 @@ import ListaLotes, { type AcoesPdf, type AcoesSincronizar, type LoteComPreFabric
 import type { SincronizacaoPlannix, StatusSincronizacao } from '../../obras/sincronizacaoPlannix';
 import { ehPdfDeGrupo, maisRecente, parteDoPdf, SEM_PEDIDO, type PdfPreFabricado, type PreFabricado } from '../../obras/preFabricados';
 import { useAuth } from '../../../contexts/AuthContext';
-import { AgendarPacote, CalendarioMestres, ListaMestres } from './MestresMki';
-import { atividadePorId, dataCurta, marcarPeca, type Alocacao, type Pacote } from './pacotesTrabalho';
+import { Cadastros, Pacotes } from './AtividadeMki';
+import { preFabricadosDosLotes, tirarDosPacotes, type ItemCadastro, type Pacote } from './pacotesTrabalho';
 import './mki.css';
 
 /**
@@ -36,8 +36,8 @@ import './mki.css';
  * real). Aqui os pré-fabricados imitam o Plannix (peças com códigos e etapas) e os PDFs são anexados, substituídos e
  * excluídos: obra, LOTEs e pré-fabricados fictícios em memória; nada vai para o Firestore nem para o Storage.
  * Sincronizar: um robô de mentira anda a fila sozinho (simula em segundos, mostra a prévia e, aprovada, "grava").
- * Layout igual ao da página real (2026-11-25: Detalhes recolhível e abas LOTEs | Mestres | Logística | Em breve). Mestres
- * (2026-11-26): os Pacotes de Trabalho (MestresMki.tsx), que agendam a montagem das peças por atividade, mestre e período.
+ * Layout da página real (2026-11-25: Detalhes recolhível e abas), com as abas do teste (2026-11-26): LOTEs | Atividade
+ * (Cadastros e Pacotes, AtividadeMki.tsx) | Logística (Deslocamentos, Combustível e os Mestres alocados no CronoObra).
  */
 const PREVIA_FICTICIA = [
   'Obra 141 (PM ALEGRIA) · etapa GERAL',
@@ -78,15 +78,34 @@ const item = (id: string, grupo: string, tipo: string, lista: ReturnType<typeof 
 const HOJE = new Date(Date.now() - 3 * 3600e3).toISOString().slice(0, 10);
 const dias = (n: number) => new Date(Date.parse(`${HOJE}T00:00:00Z`) + n * 86_400_000).toISOString().slice(0, 10);
 
-const MESTRES = ['Paulo Schneider', 'Ivo Hammes', 'Darci Wolf', 'Leandro Mallmann'];
-/** Alocações fictícias no CronoObra, em torno de hoje. */
-const ALOCACOES: Alocacao[] = [
+const dataBr = (data: string) => `${data.slice(8, 10)}/${data.slice(5, 7)}/${data.slice(0, 4)}`;
+const diasEntre = (inicio: string, fim: string) => Math.round((Date.parse(fim) - Date.parse(inicio)) / 86_400_000) + 1;
+/** Alocações fictícias dos mestres no CronoObra, em torno de hoje. */
+const ALOCACOES = [
   { mestre: 'Paulo Schneider', lote: 'l1', inicio: dias(-20), fim: dias(40) },
   { mestre: 'Ivo Hammes', lote: 'l2', inicio: dias(-35), fim: dias(14) },
   { mestre: 'Darci Wolf', lote: 'l5', inicio: dias(5), fim: dias(60) },
 ];
+
+const cadastro = (categoria: ItemCadastro['categoria'], lista: [string, number, string][]): ItemCadastro[] =>
+  lista.map(([descricao, quantidade, unidade], index) => ({ id: `${categoria}-${index + 1}`, categoria, descricao, quantidade, unidade }));
+/** Cadastros fictícios da obra (os Pré-fabricados vêm dos LOTEs). As Tarefas são a lista de atividades da Engenharia. */
+const CADASTROS_INICIAIS: ItemCadastro[] = [
+  ...cadastro('insumos', [['Cimento CP-II 50 kg', 40, 'sacos'], ['Areia média', 12, 'm³'], ['Brita 1', 10, 'm³'], ['Aço CA-50 Ø10', 320, 'kg'], ['Desmoldante', 20, 'L']]),
+  ...cadastro('concreto', [['Concreto fck 30 MPa bombeado', 24, 'm³'], ['Concreto fck 25 MPa', 8, 'm³']]),
+  ...cadastro('ferramentas', [['Vibrador de imersão', 2, 'un'], ['Kit de escoramento metálico', 30, 'un'], ['Nível a laser', 1, 'un']]),
+  ...cadastro('maquinas', [['Guindaste 50 t', 3, 'diárias'], ['Caminhão Munck', 4, 'diárias'], ['Escavadeira 320', 5, 'diárias']]),
+  ...cadastro('tarefas', [
+    ['Fundação · Sapata Corrida', 1, 'un'], ['Fundação · Sapata Isolada', 4, 'un'], ['Fundação · Bloco de Estacas', 2, 'un'], ['Fundação · Estacas', 12, 'un'],
+    ['Super Estrutura · Montagem Longarinas', 1, 'un'], ['Super Estrutura · Montagem Vigas', 1, 'un'], ['Super Estrutura · Montagem Guarda Rodas', 1, 'un'], ['Super Estrutura · Montagem Guarda Corpo', 1, 'un'],
+    ['Mesoestruturas · Vigas', 1, 'un'], ['Mesoestruturas · Pilares Centrais', 1, 'un'], ['Mesoestruturas · Lances de Cortinas', 1, 'un'],
+  ]),
+];
 const PACOTES_INICIAIS: Pacote[] = [
-  { id: 'pk1', atividade: 'longarinas', mestre: 'Paulo Schneider', inicio: dias(5), fim: dias(7), pecas: [{ lote: 'l1', codigo: '1376300', tipo: 'VL - 25X70X1000' }, { lote: 'l1', codigo: '1376302', tipo: 'VL - 25X70X1000' }] },
+  {
+    id: 'pk1', nome: 'Longarinas do LOTE 1',
+    itens: [{ item: 'tarefas-5', quantidade: 1 }, { item: 'pf:l1:1376300', quantidade: 1 }, { item: 'pf:l1:1376302', quantidade: 1 }, { item: 'maquinas-1', quantidade: 1 }, { item: 'maquinas-2', quantidade: 1 }],
+  },
 ];
 
 const LOTES_INICIAIS: LoteComPreFabricados[] = [
@@ -142,8 +161,8 @@ const LOTES_INICIAIS: LoteComPreFabricados[] = [
 
 const SUBITENS = {
   lotes: [{ valor: 'todos', rotulo: 'Todos' }],
-  mestres: [{ valor: 'lista', rotulo: 'Lista' }, { valor: 'calendarios', rotulo: 'Calendários' }, { valor: 'atividades', rotulo: 'Atividades' }],
-  logistica: [{ valor: 'todos', rotulo: 'Todos' }, { valor: 'deslocamentos', rotulo: 'Deslocamentos' }, { valor: 'combustivel', rotulo: 'Combustível' }],
+  atividade: [{ valor: 'cadastros', rotulo: 'Cadastros' }, { valor: 'pacotes', rotulo: 'Pacotes' }],
+  logistica: [{ valor: 'todos', rotulo: 'Todos' }, { valor: 'deslocamentos', rotulo: 'Deslocamentos' }, { valor: 'combustivel', rotulo: 'Combustível' }, { valor: 'mestres', rotulo: 'Mestres' }],
 };
 
 function Campo({ rotulo, valor }: { rotulo: string; valor: ReactNode }) {
@@ -178,10 +197,11 @@ export default function TesteMkiPage() {
   const [local, setLocal] = useState(OBRA.local);
   const [sigla, setSigla] = useState(OBRA.siglaObra);
   const [lotes, setLotes] = useState(LOTES_INICIAIS);
+  const [cadastros, setCadastros] = useState(CADASTROS_INICIAIS);
   const [pacotes, setPacotes] = useState(PACOTES_INICIAIS);
   const [detalhes, setDetalhes] = useState(false);
   // Abas como na página real: nenhuma aberta ao entrar; a aba abre no primeiro subitem.
-  const [aba, setAba] = useState<'lotes' | 'mestres' | 'logistica' | false>(false);
+  const [aba, setAba] = useState<'lotes' | 'atividade' | 'logistica' | false>(false);
   const [subitem, setSubitem] = useState('todos');
   const [aviso, setAviso] = useState<string | null>(null);
   const urls = useRef<string[]>([]);
@@ -266,22 +286,17 @@ export default function TesteMkiPage() {
     },
   };
 
-  const agendarPacote = (pacote: Pacote) => {
-    setPacotes((atuais) => [...atuais, pacote]);
-    const oQue = pacote.pecas.length
-      ? `${pacote.pecas.length} ${pacote.pecas.length === 1 ? 'peça agendada' : 'peças agendadas'}`
-      : `serviço agendado em ${pacote.lotes?.length ?? 0} ${pacote.lotes?.length === 1 ? 'LOTE' : 'LOTEs'}`;
-    setAviso(`${atividadePorId(pacote.atividade)?.nome}: ${oQue} com ${pacote.mestre}, ${dataCurta(pacote.inicio)} a ${dataCurta(pacote.fim)}.`);
+  const itens = [...cadastros, ...preFabricadosDosLotes(lotes)];
+  const nomeDoLote = (chave: string) => lotes.find((lote) => lote.chave === chave)?.nome.split(' - ')[0] ?? chave;
+  const salvarCadastro = (item: ItemCadastro) => {
+    setCadastros((atuais) => (atuais.some((atual) => atual.id === item.id) ? atuais.map((atual) => (atual.id === item.id ? item : atual)) : [...atuais, item]));
+    setAviso(`${item.descricao} salvo.`);
   };
-  const marcarPecaDoPacote = (pacoteId: string, chave: string, para: 'montada' | 'agendada' | 'expedida') => {
-    setPacotes((atuais) => marcarPeca(atuais, pacoteId, chave, para));
-    setAviso(para === 'montada' ? 'Peça marcada como Montada.' : para === 'agendada' ? 'Peça de volta a Agendada.' : 'Peça de volta a Expedida: saiu do pacote.');
-  };
-  const concluirServico = (pacote: Pacote, concluido: boolean) =>
-    setPacotes((atuais) => atuais.map((p) => (p.id === pacote.id ? { ...p, concluido } : p)));
-  const excluirPacote = (pacote: Pacote) => {
-    setPacotes((atuais) => atuais.filter((p) => p.id !== pacote.id));
-    setAviso('Pacote excluído: as peças voltaram a ficar livres.');
+  const excluirCadastro = (item: ItemCadastro) => {
+    const emQuantos = pacotes.filter((pacote) => pacote.itens.some((i) => i.item === item.id)).length;
+    setCadastros((atuais) => atuais.filter((atual) => atual.id !== item.id));
+    setPacotes((atuais) => tirarDosPacotes(atuais, item.id));
+    setAviso(emQuantos ? `${item.descricao} excluído: saiu também de ${emQuantos} ${emQuantos === 1 ? 'pacote' : 'pacotes'}.` : `${item.descricao} excluído.`);
   };
 
   const salvar = (set: (valor: string) => void) => async (valor: string) => { set(valor.trim()); return true; };
@@ -291,7 +306,7 @@ export default function TesteMkiPage() {
       <div className="teste-aviso" role="note">
         <ScienceRounded fontSize="small" />
         <strong>Teste de interface · MKI</strong>
-        <span>Detalhe da obra com as abas LOTEs, Mestres (Pacotes de Trabalho) e Logística. Dados fictícios em memória: nada é salvo, e recarregar a página volta ao início.</span>
+        <span>Detalhe da obra com as abas LOTEs, Atividade (Cadastros e Pacotes) e Logística. Dados fictícios em memória: nada é salvo, e recarregar a página volta ao início.</span>
       </div>
 
       <Container sx={{ py: 4 }}>
@@ -332,9 +347,9 @@ export default function TesteMkiPage() {
           </Collapse>
 
           <Box sx={{ mt: 3, border: 1, borderColor: 'divider', borderRadius: 2, overflow: 'hidden' }}>
-            <Tabs value={aba} onChange={(_event, valor: 'lotes' | 'mestres' | 'logistica') => { setAba(valor); setSubitem(SUBITENS[valor][0].valor); }} variant="scrollable" scrollButtons="auto" aria-label="Partes da obra">
+            <Tabs value={aba} onChange={(_event, valor: 'lotes' | 'atividade' | 'logistica') => { setAba(valor); setSubitem(SUBITENS[valor][0].valor); }} variant="scrollable" scrollButtons="auto" aria-label="Partes da obra">
               <Tab value="lotes" label="LOTEs" />
-              <Tab value="mestres" label="Mestres" />
+              <Tab value="atividade" label="Atividade" />
               <Tab value="logistica" label="Logística" />
               <Tab label="Em breve" disabled />
             </Tabs>
@@ -358,10 +373,9 @@ export default function TesteMkiPage() {
           {aba && (
             <Box sx={{ mt: 2.5 }}>
               {aba === 'lotes' && <ListaLotes lotes={lotes.filter((lote) => subitem === 'todos' || lote.chave === subitem)} acoesPdf={acoesPdf} sincronizar={sincronizar} />}
-              {aba === 'mestres' && subitem === 'lista' && <ListaMestres lotes={lotes} alocacoes={ALOCACOES} pacotes={pacotes} onExcluir={excluirPacote} onMarcarPeca={marcarPecaDoPacote} onConcluir={concluirServico} />}
-              {aba === 'mestres' && subitem === 'calendarios' && <CalendarioMestres lotes={lotes} mestres={MESTRES} alocacoes={ALOCACOES} pacotes={pacotes} hoje={HOJE} />}
-              {aba === 'mestres' && subitem === 'atividades' && <AgendarPacote lotes={lotes} pacotes={pacotes} alocacoes={ALOCACOES} mestres={MESTRES} hoje={HOJE} onAgendar={agendarPacote} />}
-              {aba === 'logistica' && subitem !== 'combustivel' && (
+              {aba === 'atividade' && subitem === 'cadastros' && <Cadastros itens={itens} pacotes={pacotes} nomeDoLote={nomeDoLote} onSalvar={salvarCadastro} onExcluir={excluirCadastro} />}
+              {aba === 'atividade' && subitem === 'pacotes' && <Pacotes itens={itens} pacotes={pacotes} nomeDoLote={nomeDoLote} onMudar={setPacotes} onAvisar={setAviso} />}
+              {aba === 'logistica' && (subitem === 'todos' || subitem === 'deslocamentos') && (
                 <Box sx={{ mb: 3 }}>
                   {subitem === 'todos' && <Typography variant="h6" sx={{ mb: 1.5 }}>Deslocamentos</Typography>}
                   <Tabela
@@ -374,14 +388,24 @@ export default function TesteMkiPage() {
                   />
                 </Box>
               )}
-              {aba === 'logistica' && subitem !== 'deslocamentos' && (
-                <Box>
+              {aba === 'logistica' && (subitem === 'todos' || subitem === 'combustivel') && (
+                <Box sx={{ mb: 3 }}>
                   {subitem === 'todos' && <Typography variant="h6" sx={{ mb: 1.5 }}>Combustível</Typography>}
                   <Box sx={{ display: 'grid', gap: 2, gridTemplateColumns: { xs: '1fr 1fr', md: 'repeat(3, minmax(0, 1fr))' } }}>
                     <Campo rotulo="Abastecimentos" valor="12" />
                     <Campo rotulo="Litros" valor="2.140,0 L" />
                     <Campo rotulo="Valor" valor="R$ 13.268,00" />
                   </Box>
+                </Box>
+              )}
+              {aba === 'logistica' && (subitem === 'todos' || subitem === 'mestres') && (
+                <Box>
+                  <Typography variant="h6" sx={{ mb: 1.5 }}>Alocados no CronoObra</Typography>
+                  <Tabela
+                    cabecalho={['Mestre', 'LOTE', 'Início', 'Fim', 'Dias']}
+                    direita={[4]}
+                    linhas={ALOCACOES.map((a) => [a.mestre, nomeDoLote(a.lote), dataBr(a.inicio), dataBr(a.fim), `${diasEntre(a.inicio, a.fim)} dias`])}
+                  />
                 </Box>
               )}
             </Box>
