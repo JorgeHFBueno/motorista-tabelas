@@ -3,6 +3,7 @@ import { Link, useNavigate, useParams } from 'react-router-dom';
 import { useTituloPagina } from '../../../components/cabecalhoPagina';
 import '../erpElevor.css';
 import { data, moeda, num, produtoExemplo } from '../estoques/estoquesExemplo';
+import { titulosDaNota } from '../financeiro/titulosExemplo';
 import { AVISO_NOTAS, naturezaExemplo, nomeEmpresaNota, notaExemplo } from './notasExemplo';
 
 // /erp/notas/:numero: a nota (CL_NotasDetalhe do Elevor), como o detalhe do ERP do Samuel (web/src/erp/fiscal/Notas.tsx):
@@ -84,12 +85,16 @@ export default function ErpNotaPage() {
         <span className="total-geral">Total: <b>{moeda(n.totais.total)}</b></span>
       </div>
       <div className="secao-titulo">Títulos</div>
-      {n.duplicatas.length === 0 ? <p className="muted">A nota não gerou títulos.</p> : (
+      {titulosDaNota(n.numero).length === 0 ? <p className="muted">A nota não gerou títulos.</p> : (
         <table className="grade compacta titulos-nota">
           <thead><tr><th>Título</th><th>Vencimento</th><th className="num">Valor</th><th className="num">Saldo</th></tr></thead>
           <tbody>
-            {n.duplicatas.map((d, k) => (
-              <tr key={d.numero}><td>{n.numero}/{k + 1}</td><td>{data(d.vencimento)}</td><td className="num">{moeda(d.valor)}</td><td className="num">{moeda(d.valor)}</td></tr>
+            {/* Os títulos a pagar da nota (Contas a Pagar, 2026-11-26): abrem o Lançamento de Títulos. */}
+            {titulosDaNota(n.numero).map((t) => (
+              <tr key={t.id}>
+                <td><Link className="linha-link" to={`/erp/titulos/${t.id}`}>{t.numero}/{t.sequencia}</Link></td><td>{data(t.vencimento)}</td>
+                <td className="num">{moeda(t.valor)}</td><td className="num">{moeda(t.saldo)}</td>
+              </tr>
             ))}
           </tbody>
         </table>

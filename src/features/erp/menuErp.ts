@@ -99,8 +99,12 @@ export const MENU_ERP: ModuloErp[] = [
   },
   {
     rotulo: 'Financeiro', icone: PaymentsOutlined, filhos: [
-      { rotulo: 'Contas a Pagar/Receber', icone: AttachMoneyOutlined, filhos: em('Consulta Títulos', 'Lançamento de Títulos', 'Baixa de Títulos',
-        'Relatórios de Contas a Pagar/Receber', 'Pagamentos e Recebimentos', 'Exclusão de Baixas') },
+      { rotulo: 'Contas a Pagar/Receber', icone: AttachMoneyOutlined, filhos: [
+        { rotulo: 'Consulta Títulos', para: '/erp/titulos' },
+        { rotulo: 'Lançamento de Títulos', para: '/erp/titulos/novo' },
+        { rotulo: 'Baixa de Títulos', para: '/erp/baixa' },
+        ...em('Relatórios de Contas a Pagar/Receber', 'Pagamentos e Recebimentos', 'Exclusão de Baixas'),
+      ] },
       { rotulo: 'Bancos/Caixa', icone: MonetizationOnOutlined, filhos: em('Bancos/Caixa', 'Conciliação Bancária', 'Regras de Lançamento Automático', 'Saldos',
         'Pendências de Conciliação') },
       { rotulo: 'Cheques', icone: AccountBalanceWalletOutlined, filhos: em('Inclusão Cheques', 'Consulta de Cheques', 'Status de Cheques') },

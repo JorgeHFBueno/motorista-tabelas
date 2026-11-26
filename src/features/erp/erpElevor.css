@@ -305,7 +305,68 @@
 .erp-elevor .totais .total-geral { color: var(--texto-forte); font-size: 15px; }
 .erp-elevor .titulos-nota { width: auto; min-width: 420px; }
 
+/* ---------------- Contas a Pagar/Receber (FN_LancamentosConsulta, FN_Lancamentos, baixa), medidas do ERP do Samuel ---------------- */
+.erp-elevor .consulta-titulos { margin: 8px 0 18px; }
+.erp-elevor .consulta-titulos .ct-topo { display: grid; grid-template-columns: minmax(0, 839px) auto; align-items: center; }
+.erp-elevor .consulta-titulos .ct-linha { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
+.erp-elevor .consulta-titulos .ct-rotulo { width: 70px; flex-shrink: 0; }
+.erp-elevor .consulta-titulos .link-botao { margin: 4px 0 0; }
+.erp-elevor .consulta-titulos .ct-mais { display: grid; grid-template-columns: 180px 452px max-content minmax(0, 1fr); gap: 10px 6px; align-items: center; margin-top: 12px; max-width: 1400px; }
+.erp-elevor .consulta-titulos .ct-rot { white-space: nowrap; }
+.erp-elevor .consulta-titulos .ct-ctl { display: flex; align-items: center; gap: 6px; min-width: 0; }
+.erp-elevor .consulta-titulos .ct-resto { grid-column: span 3; }
+.erp-elevor .consulta-titulos .ct-span2 { grid-column: span 2; }
+.erp-elevor .consulta-titulos .campo.ct-w450 { width: 450px; max-width: 100%; }
+.erp-elevor .consulta-titulos .campo.ct-w448 { width: 448px; max-width: 100%; }
+.erp-elevor .consulta-titulos .campo.ct-w400 { width: 400px; }
+.erp-elevor .consulta-titulos .campo.ct-w348 { width: 348px; }
+.erp-elevor .consulta-titulos .campo.ct-w298 { width: 298px; }
+.erp-elevor .consulta-titulos .campo.ct-w150 { width: 150px; }
+.erp-elevor .consulta-titulos .campo.ct-w100 { width: 100px; }
+.erp-elevor .consulta-titulos .campo.ct-w80 { width: 80px; }
+.erp-elevor .consulta-titulos .campo.ct-w46 { width: 46px; padding: 0 4px; background-image: none; }
+.erp-elevor .grade.titulos-elevor td { vertical-align: middle; padding: 10px 8px; }
+.erp-elevor .grade.titulos-elevor th { padding: 10px 8px; }
+.erp-elevor .grade.titulos-elevor td.emp { min-width: 110px; max-width: 160px; font-size: 12px; }
+.erp-elevor .grade.titulos-elevor td.ver-pgtos { width: 40px; text-align: center; line-height: 1.3; }
+.erp-elevor .grade.titulos-elevor td.icone-hist svg { width: 16px; height: 16px; color: var(--link); }
+.erp-elevor .grade tr.cancelado td { color: var(--texto-2); text-decoration: line-through; }
+.erp-elevor .grade tr.cancelado td .etiqueta, .erp-elevor .grade tr.cancelado td a { text-decoration: none; }
+.erp-elevor .etiqueta.cancelada { border-color: var(--ledur-destructive); color: var(--ledur-destructive); }
+.erp-elevor .ct-acoes { display: flex; align-items: center; gap: 6px; margin: 14px 0 8px; }
+.erp-elevor .ct-acoes .ct-sep { color: var(--link); }
+/* ficha do título e baixa: rótulo à esquerda (145 px), duas colunas na linha dupla, seções recolhidas */
+.erp-elevor .ficha-elevor.largo { max-width: 760px; }
+.erp-elevor .ficha-elevor .form-linha.dupla { grid-template-columns: 145px minmax(0, 1fr) 200px minmax(0, 1fr); }
+.erp-elevor .ficha-elevor .campo.mini { width: 70px; }
+.erp-elevor .ficha-elevor .campo.cheio { flex: 1 1 0; width: auto; }
+.erp-elevor .campo.destaque { font-weight: 700; }
+.erp-elevor .ficha-elevor .campo.curto-medio { width: 220px; }
+.erp-elevor .lanc-titulo .campo.lt-linha { width: 453px; max-width: 100%; }
+.erp-elevor .lanc-titulo .campo.lt-curto { width: 120px; }
+.erp-elevor .lanc-titulo .campo.lt-plano { width: 446px; max-width: 100%; }
+.erp-elevor .lanc-titulo .campo.lt-historico { width: 446px; max-width: 100%; }
+.erp-elevor .lanc-titulo .campo.lt-ref-numero { width: 100px; }
+.erp-elevor .lanc-titulo .lt-pessoa { display: flex; align-items: center; gap: 6px; flex: 1; min-width: 0; }
+.erp-elevor .lanc-titulo .campo.lt-pessoa-cod { width: 75px; flex: none; }
+.erp-elevor .lanc-titulo .campo.lt-pessoa-nome { flex: 1 1 0; min-width: 0; max-width: 360px; }
+.erp-elevor .lanc-titulo .lt-arquivos { margin: 0 0 10px 153px; }
+.erp-elevor .secao-recolhida { margin: 6px 0 10px; }
+.erp-elevor .secao-recolhida .link-botao { padding-left: 0; display: inline-flex; align-items: center; gap: 2px; }
+.erp-elevor .ficha-elevor-corpo { max-width: 760px; margin: 0 auto; }
+.erp-elevor .ficha-elevor-corpo > .grade, .erp-elevor .ficha-elevor-corpo > .secao-titulo { max-width: 620px; }
+.erp-elevor .ficha-elevor-corpo .botoes { justify-content: center; }
+.erp-elevor .linha-entrada { display: flex; align-items: center; gap: 12px; margin: 10px 0 0; }
+.erp-elevor .total-centros { display: flex; flex-direction: column; gap: 4px; margin: 14px 0 0; width: fit-content; text-align: right; }
+.erp-elevor .divisoria { border: 0; border-top: 1px solid var(--divisoria); margin: 12px 0; }
+.erp-elevor .baixa-titulos + .grade { margin: 8px auto 0; max-width: 1100px; }
+
 @media (max-width: 900px) {
+  .erp-elevor .consulta-titulos .ct-topo, .erp-elevor .consulta-titulos .ct-mais { grid-template-columns: minmax(0, 1fr); }
+  .erp-elevor .consulta-titulos .ct-resto, .erp-elevor .consulta-titulos .ct-span2 { grid-column: auto; }
+  .erp-elevor .consulta-titulos .ct-linha { flex-wrap: wrap; }
+  .erp-elevor .ficha-elevor .form-linha.dupla { grid-template-columns: 1fr; gap: 4px; }
+  .erp-elevor .lanc-titulo .lt-arquivos { margin-left: 0; }
   .erp-elevor .entrada-nota .form-linha, .erp-elevor .entrada-nota .form-linha.dupla, .erp-elevor .consulta-notas .form-linha,
   .erp-elevor .consulta-notas .form-linha.dupla, .erp-elevor .duas-colunas .form-linha { grid-template-columns: 1fr; gap: 4px; }
   .erp-elevor .duas-colunas { grid-template-columns: 1fr; }
