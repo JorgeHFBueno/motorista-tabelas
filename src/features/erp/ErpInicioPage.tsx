@@ -17,7 +17,7 @@ import Corvo from '../../components/corvo/Corvo';
 
 // /erp (2026-11-24): início do ERP próprio, com o mosaico de atalhos da tela inicial do Elevor (ERP360), que inspirou o
 // ERP próprio: mesmos blocos, posições e tamanhos, nas cores da Ledur (o roxo do Elevor virou azul-marinho). Bloco com
-// `para` abre a tela (Clientes e Fornecedores e Conferência de Estoques, em demonstração); os outros abrem o aviso
+// `para` abre a tela (Clientes e Fornecedores, Conferência de Estoques e Entrada de Fornecedor, em demonstração); os outros abrem o aviso
 // "Estamos trabalhando nisso".
 // The Manuscript, 03_APLICACAO_WEB/01_ROTAS_E_NAVEGACAO.md#erp.
 
@@ -46,7 +46,7 @@ const BLOCOS: Bloco[] = [
   { rotulo: 'DRE Financeiro', icone: <TrendingUpOutlinedIcon />, cor: 'painel', coluna: 2, linha: 4 },
   { rotulo: 'Manutenção de Produtos', icone: <WidgetsOutlinedIcon />, cor: 'cadastro', coluna: 2, linha: 5 },
   { rotulo: 'Expedições', icone: <Inventory2OutlinedIcon />, cor: 'comercial', coluna: 3, linha: 1 },
-  { rotulo: 'Entrada de Fornecedor', icone: <DescriptionOutlinedIcon />, cor: 'comercial', coluna: 3, linha: 2 },
+  { rotulo: 'Entrada de Fornecedor', icone: <DescriptionOutlinedIcon />, cor: 'comercial', coluna: 3, linha: 2, para: '/erp/notas/entrada' },
   { rotulo: 'Painel Financeiro', icone: <AreaChartOutlinedIcon />, cor: 'painel', coluna: 3, linha: 3, alto: true },
   { rotulo: 'Consulta de Pedidos', icone: <AssignmentOutlinedIcon />, cor: 'comercial', coluna: 4, linha: 1, alto: true },
   { rotulo: 'Consulta de Clientes e Fornecedores', icone: <PersonOutlineOutlinedIcon />, cor: 'cadastro', coluna: 4, linha: 3, alto: true, para: '/erp/pessoas' },

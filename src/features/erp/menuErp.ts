@@ -65,8 +65,12 @@ export const MENU_ERP: ModuloErp[] = [
   },
   {
     rotulo: 'Comercial', icone: HandshakeOutlined, filhos: [
-      { rotulo: 'Notas', icone: DescriptionOutlined, filhos: em('Emissão de Nota Fiscal', 'Entrada de Fornecedor', 'Consulta de Notas',
-        'Controle de Entregas', 'Notas em Trânsito', 'Relação de Canhotos') },
+      { rotulo: 'Notas', icone: DescriptionOutlined, filhos: [
+        { rotulo: 'Emissão de Nota Fiscal' },
+        { rotulo: 'Entrada de Fornecedor', para: '/erp/notas/entrada' },
+        { rotulo: 'Consulta de Notas', para: '/erp/notas' },
+        ...em('Controle de Entregas', 'Notas em Trânsito', 'Relação de Canhotos'),
+      ] },
       { rotulo: 'Pedidos', icone: AssignmentOutlined, filhos: em('Novo Pedido', 'Consulta de Pedidos', 'Relatórios de Pedidos', 'Painel de Pedidos',
         'Configurador de Status', 'Carteira a Entregar') },
       { rotulo: 'Preços', icone: AttachMoneyOutlined, filhos: em('Tabelas de Preços') },
@@ -77,7 +81,7 @@ export const MENU_ERP: ModuloErp[] = [
   {
     rotulo: 'Estoques', icone: Inventory2Outlined, filhos: [
       { rotulo: 'Relatórios', icone: AssignmentOutlined, filhos: [
-        { rotulo: 'Relação de Notas' },
+        { rotulo: 'Relação de Notas', para: '/erp/estoques/relatorios/notas' },
         { rotulo: 'Conferência de Estoques', para: '/erp/estoques' },
         { rotulo: 'Posição de Estoque (valor)', para: '/erp/estoques/relatorios/posicao' },
         { rotulo: 'Kardex', para: '/erp/estoques/kardex' },

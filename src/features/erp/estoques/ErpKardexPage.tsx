@@ -1,5 +1,5 @@
 import { Fragment, useMemo, useState } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import SearchIcon from '@mui/icons-material/Search';
 import '../erpElevor.css';
 import Paginacao from '../Paginacao';
@@ -124,7 +124,8 @@ export default function ErpKardexPage() {
                       <td className="num">{m.tipo === 'saida' ? '−' : m.tipo === 'entrada' ? '+' : ''}{num(m.quantidade)}</td>
                       <td className={`num${m.saldoApos < 0 ? ' negativo' : ''}`}>{num(m.saldoApos)}</td>
                       <td className="num">{moeda(m.custoMedioApos)}</td>
-                      <td>{m.origem}</td>
+                      {/* A nota abre o detalhe (Notas, 2026-11-26). */}
+                      <td>{/^Nota \d+/.test(m.origem) ? <Link className="linha-link" to={`/erp/notas/${m.origem.match(/^Nota (\d+)/)![1]}`}>{m.origem}</Link> : m.origem}</td>
                       <td>{m.pessoa}</td>
                     </tr>
                   </Fragment>

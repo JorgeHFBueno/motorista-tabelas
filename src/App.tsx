@@ -58,6 +58,9 @@ const ErpAcertoEstoquePage = lazy(() => import('./features/erp/estoques/ErpAcert
 const ErpRelatorioEstoquePage = lazy(() => import('./features/erp/estoques/ErpRelatorioEstoquePage'));
 const ErpProdutosPage = lazy(() => import('./features/erp/produtos/ErpProdutosPage'));
 const ErpProdutoFichaPage = lazy(() => import('./features/erp/produtos/ErpProdutoFichaPage'));
+const ErpNotasPage = lazy(() => import('./features/erp/notas/ErpNotasPage'));
+const ErpNotaPage = lazy(() => import('./features/erp/notas/ErpNotaPage'));
+const ErpEntradaFornecedorPage = lazy(() => import('./features/erp/notas/ErpEntradaFornecedorPage'));
 const TheManuscriptPage = lazy(() => import('./pages/TheManuscriptPage'));
 const ManuscriptMapaPage = lazy(() => import('./pages/ManuscriptMapaPage'));
 const MeuPerfilPage = lazy(() => import('./pages/MeuPerfilPage'));
@@ -168,8 +171,8 @@ export default function App() {
               <Route path="cadastros/apis" element={<CadastroApisPage />} />
               <Route path="cadastros/uso" element={<UsoDoSistemaPage />} />
             </Route>
-            {/* ERP próprio (2026-11-24): o início com o mosaico, Clientes e Fornecedores, Produtos e Estoques em demonstração (sem
-                gravação), com o menu lateral do ERP (ErpLayout); área ERP (o adm2 sempre). The Manuscript, 01_ROTAS_E_NAVEGACAO.md#erp. */}
+            {/* ERP próprio (2026-11-24): o início com o mosaico, Clientes e Fornecedores, Produtos, Estoques e Notas em demonstração
+                (sem gravação), com o menu lateral do ERP (ErpLayout); área ERP (o adm2 sempre). The Manuscript, 01_ROTAS_E_NAVEGACAO.md#erp. */}
             <Route element={<PrivateRoute permite={(p) => veArea(p, 'erp')} />}>
               <Route element={<ErpLayout />}>
                 <Route path="erp" element={<ErpInicioPage />} />
@@ -184,6 +187,9 @@ export default function App() {
                 <Route path="erp/estoques/contagens/:codigo" element={<ErpContagemFichaPage />} />
                 <Route path="erp/estoques/acerto" element={<ErpAcertoEstoquePage />} />
                 <Route path="erp/estoques/relatorios/:relatorio" element={<ErpRelatorioEstoquePage />} />
+                <Route path="erp/notas" element={<ErpNotasPage />} />
+                <Route path="erp/notas/entrada" element={<ErpEntradaFornecedorPage />} />
+                <Route path="erp/notas/:numero" element={<ErpNotaPage />} />
               </Route>
             </Route>
             {/* Mecânica e Logística são grupos, como Engenharia: /mecanica e /logistica não têm página própria (2026-11-19:

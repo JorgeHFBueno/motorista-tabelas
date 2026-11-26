@@ -47,6 +47,7 @@
     "test:corvo": "esbuild tests/corvo.test.ts --bundle --platform=node --format=esm --outfile=.tmp-corvo.test.mjs && node --test .tmp-corvo.test.mjs",
     "test:dev-toys": "esbuild tests/dev-toys.test.ts --bundle --platform=node --format=esm --outfile=.tmp-dev-toys.test.mjs && node --test .tmp-dev-toys.test.mjs",
     "test:uso-web": "esbuild tests/uso-web.test.ts --bundle --platform=node --format=esm --outfile=.tmp-uso-web.test.mjs && node --test .tmp-uso-web.test.mjs",
+    "test:erp-notas": "esbuild tests/erp-notas.test.ts --bundle --platform=node --format=esm --outfile=.tmp-erp-notas.test.mjs && node --test .tmp-erp-notas.test.mjs",
     "test:erp-aprovacoes": "esbuild tests/erp-aprovacoes.test.ts --bundle --platform=node --format=esm --outfile=.tmp-erp-aprovacoes.test.mjs && node --test .tmp-erp-aprovacoes.test.mjs",
     "test:nova-guia": "esbuild tests/nova-guia.test.ts --bundle --platform=node --format=esm --outfile=.tmp-nova-guia.test.mjs && node --test .tmp-nova-guia.test.mjs",
     "manuscript:check": "esbuild tools/manuscript-check.ts --bundle --platform=node --format=esm --outfile=.tmp-manuscript-check.mjs && node .tmp-manuscript-check.mjs",

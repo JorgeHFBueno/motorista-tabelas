@@ -254,7 +254,63 @@
 .erp-elevor .etiqueta.servico { border-color: var(--ledur-success); color: var(--ledur-success); }
 .erp-elevor .etiqueta.uso_consumo { color: var(--texto-2); }
 
+/* ---------------- notas (Entrada de Fornecedor, CL_Notas, CL_NotasDetalhe), medidas do ERP do Samuel ---------------- */
+.erp-elevor .secao-titulo { font-weight: 700; font-size: 15px; color: var(--texto-forte); border-bottom: 1px solid var(--aba-linha); padding-bottom: 4px; margin: 26px 0 14px; }
+.erp-elevor .mensagem.erro { border-color: var(--ledur-destructive); color: var(--ledur-destructive); }
+.erp-elevor .etiqueta.ok { border-color: var(--ledur-success); color: var(--ledur-success); }
+.erp-elevor.ficha-entrada { max-width: 1260px; margin: 0 auto; }
+.erp-elevor.ficha-entrada > .botoes { justify-content: center; margin-top: 18px; }
+.erp-elevor .entrada-nota { max-width: 1180px; margin: 12px auto 0; }
+.erp-elevor .entrada-nota .form-linha { grid-template-columns: 200px minmax(0, 1fr); gap: 10px 12px; }
+.erp-elevor .entrada-nota .form-linha.dupla { grid-template-columns: 200px minmax(0, 1fr) 170px minmax(0, 1fr); }
+.erp-elevor .entrada-nota .campo.medio { width: 300px; }
+.erp-elevor .entrada-nota .campo.curto { width: 140px; }
+.erp-elevor .entrada-nota .campo.ef-chave { width: 390px; }
+.erp-elevor .entrada-nota .campo.ef-numero { width: 200px; }
+.erp-elevor .entrada-nota .campo.ef-especie { width: 50px; }
+.erp-elevor .entrada-nota .campo.ef-modelo { width: 448px; max-width: 100%; }
+.erp-elevor .entrada-nota .campo.ef-valor { width: 100px; }
+.erp-elevor .entrada-nota .campo.ef-mensagem { flex: none; width: 450px; max-width: 100%; height: 50px; }
+.erp-elevor .entrada-nota > p { margin: 0 0 16px; }
+.erp-elevor .entrada-produtos .item-entrada { margin: 4px 0 12px; }
+.erp-elevor .entrada-produtos .item-linha { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 8px; margin-bottom: 8px; }
+.erp-elevor .entrada-produtos .item-campo { display: flex; flex-direction: column; gap: 3px; font-weight: 700; font-size: 13px; color: var(--texto-forte); }
+.erp-elevor .entrada-produtos .item-campo .campo.curto { width: 110px; }
+.erp-elevor .entrada-produtos .item-campo .campo.descricao { width: 340px; }
+.erp-elevor .entrada-produtos .totais-produtos { width: auto; margin: 10px 0 0; }
+.erp-elevor .entrada-produtos .campo.ligar-produto { width: 280px; height: 30px; }
+.erp-elevor .entrada-produtos .campo.mini { width: 70px; height: 30px; }
+.erp-elevor .grade tr.clicavel { cursor: pointer; }
+.erp-elevor .grade tr.selecionada td { background: var(--grade-hover); }
+.erp-elevor .parcelas-entrada { width: auto; min-width: 420px; margin-top: 8px; }
+/* Consulta de Notas: duas colunas de filtros, como a CL_Notas */
+.erp-elevor .consulta-notas { max-width: 1100px; margin: 12px auto 18px; }
+.erp-elevor .consulta-notas .form-linha { grid-template-columns: 160px minmax(0, 1fr); gap: 10px 8px; }
+.erp-elevor .consulta-notas .form-linha.dupla { grid-template-columns: 160px minmax(0, 1fr) 90px minmax(0, 1fr); }
+.erp-elevor .consulta-notas .campo.cheio { flex: 1 1 0; width: auto; max-width: 450px; }
+.erp-elevor .consulta-notas .campo.curto { width: 150px; }
+.erp-elevor .consulta-notas .caixa-borda { border: 1px solid var(--campo-borda); border-radius: 4px; padding: 6px 10px; }
+.erp-elevor .consulta-notas .coluna-campo { display: flex; flex-direction: column; gap: 8px; }
+.erp-elevor .consulta-notas .linha-datas { display: flex; align-items: center; gap: 6px; }
+.erp-elevor .consulta-notas .botoes { justify-content: center; }
+.erp-elevor .grade.notas-elevor td, .erp-elevor .grade.notas-elevor th { padding: 8px; vertical-align: middle; }
+.erp-elevor .grade.notas-elevor td.natureza { max-width: 200px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.erp-elevor .grade.notas-elevor td.icone-nota svg { width: 18px; height: 18px; color: var(--texto-2); }
+.erp-elevor .selo-situacao { display: inline-block; background: var(--ledur-secondary); color: #fff; font-size: 10px; font-weight: 700; padding: 1px 5px; border-radius: 2px; }
+.erp-elevor .selo-situacao.cancelado { background: var(--ledur-destructive); }
+/* a nota: duas colunas de dados, itens, totais e títulos */
+.erp-elevor .duas-colunas { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0 40px; margin-top: 8px; }
+.erp-elevor .duas-colunas .form-linha { grid-template-columns: 170px minmax(0, 1fr); gap: 8px 12px; margin-bottom: 6px; }
+.erp-elevor .totais { display: flex; gap: 28px; justify-content: flex-end; flex-wrap: wrap; padding: 12px 10px; border-bottom: 1px solid var(--grade-linha); }
+.erp-elevor .totais .total-geral { color: var(--texto-forte); font-size: 15px; }
+.erp-elevor .titulos-nota { width: auto; min-width: 420px; }
+
 @media (max-width: 900px) {
+  .erp-elevor .entrada-nota .form-linha, .erp-elevor .entrada-nota .form-linha.dupla, .erp-elevor .consulta-notas .form-linha,
+  .erp-elevor .consulta-notas .form-linha.dupla, .erp-elevor .duas-colunas .form-linha { grid-template-columns: 1fr; gap: 4px; }
+  .erp-elevor .duas-colunas { grid-template-columns: 1fr; }
+  .erp-elevor .totais { justify-content: flex-start; gap: 14px; }
+  .erp-elevor .parcelas-entrada, .erp-elevor .titulos-nota { min-width: 0; width: 100%; }
   .erp-elevor .form-linha, .erp-elevor .relatorio-elevor .form-linha, .erp-elevor .ficha-elevor .form-linha { grid-template-columns: 1fr; gap: 4px; }
   .erp-elevor .relatorio-elevor { width: auto; min-width: 0; }
   .erp-elevor .relatorio-elevor .conf-ordem { grid-template-columns: repeat(2, max-content); }

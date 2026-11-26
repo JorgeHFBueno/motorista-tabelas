@@ -13,7 +13,7 @@ import { AVISO_ESTOQUES, data, largura, moeda, num } from './estoquesExemplo';
 import { opcoesDoFiltro, padraoDoFiltro, relatorioEstoque, type ColunaRel, type FiltroRel, type LinhaRel, type RelatorioDef, type Valores } from './relatoriosEstoque';
 
 // /erp/estoques/relatorios/:relatorio: os relatórios de Estoques (Relação de Acertos, Posição de Estoque, Giro, Produtos sem
-// Giro e Curva ABC) na tela de relatório do ERP do Samuel (web/src/erp/relatorios/Relatorio.tsx): filtros na disposição do
+// Giro, Curva ABC e Relação de Notas) na tela de relatório do ERP do Samuel (web/src/erp/relatorios/Relatorio.tsx): filtros na disposição do
 // Elevor, "Mais Opções" com os escondidos, "Gerar" com a setinha para Exportar CSV e Imprimir, e a grade com subtotal por
 // quebra e o total. Demonstração: a conta roda sobre os dados de exemplo (relatoriosEstoque.ts).
 
@@ -53,13 +53,14 @@ function Relatorio({ def }: { def: RelatorioDef }) {
   const mudar = (nome: string, v: string) => setValores((x) => ({ ...x, [nome]: v }));
 
   const linhas = useMemo(() => (aplicado ? def.gerar(aplicado) : null), [aplicado, def]);
-  const colunas = def.colunas.filter((c) => (!c.soSe || (aplicado && c.soSe(aplicado))) && c.nome !== def.quebra);
+  const quebra = typeof def.quebra === 'function' ? (aplicado ? def.quebra(aplicado) : undefined) : def.quebra;
+  const colunas = def.colunas.filter((c) => (!c.soSe || (aplicado && c.soSe(aplicado))) && c.nome !== quebra);
   const grupos = useMemo(() => {
-    if (!linhas || !def.quebra) return null;
+    if (!linhas || !quebra) return null;
     const mapa = new Map<string, LinhaRel[]>();
-    for (const l of linhas) { const k = String(l[def.quebra] ?? ''); mapa.set(k, [...(mapa.get(k) ?? []), l]); }
+    for (const l of linhas) { const k = String(l[quebra] ?? ''); mapa.set(k, [...(mapa.get(k) ?? []), l]); }
     return [...mapa.entries()];
-  }, [linhas, def.quebra]);
+  }, [linhas, quebra]);
 
   const controle = (f: FiltroRel): ReactNode => {
     const v = valores[f.nome] ?? '';

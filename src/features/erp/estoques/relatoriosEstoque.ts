@@ -2,9 +2,11 @@ import {
   CATEGORIAS, EMPRESAS, FORNECEDORES, GRUPOS, hoje, MARCAS, MOVIMENTOS, precoNaTabela, PRODUTOS_EXEMPLO, produtoExemplo, SALDOS, TIPOS_ESTOQUE,
   TIPOS_PRODUTO, type Movimento, type ProdutoExemplo,
 } from './estoquesExemplo';
+import { NATUREZAS, naturezaExemplo, NOTAS_EXEMPLO } from '../notas/notasExemplo';
 
 // Relatórios de Estoques do ERP (2026-11-25): as definições do ERP do Samuel (server/src/erp/relatorios/estoque.ts, telas
-// RL_AcertoEstoque, RL_GiroEstoque, RL_ProdutosSemGiro e RL_CurvaABC do Elevor, e a Posição de Estoque dele) com os
+// RL_AcertoEstoque, RL_GiroEstoque, RL_ProdutosSemGiro, RL_CurvaABC e RL_RelacaoNotas do Elevor, e a Posição de Estoque dele; a
+// Relação de Notas, de 2026-11-26, vem de server/src/erp/relatorios/comercial.ts e usa as notas de notasExemplo.ts) com os
 // mesmos filtros, na ordem e nas larguras do Elevor, e as mesmas colunas. A conta, que lá é SQL, aqui roda sobre os
 // dados de exemplo. Filtro sem dado na demonstração aparece desligado, como no ERP.
 // The Manuscript, 03_APLICACAO_WEB/01_ROTAS_E_NAVEGACAO.md#erp.
@@ -44,12 +46,15 @@ export type RelatorioDef = {
   ajuda: string;
   filtros: FiltroRel[];
   colunas: ColunaRel[];
-  /** Coluna que agrupa as linhas, com subtotal. */
-  quebra?: string;
+  /** Coluna que agrupa as linhas, com subtotal (ou a conta que a escolhe pelos filtros). */
+  quebra?: string | ((f: Valores) => string | undefined);
   gerar: (f: Valores) => LinhaRel[];
 };
 
 const SEM_DADO = 'Na demonstração não há esse dado; o filtro não é usado.';
+const SEM_PEDIDO = 'Vem do pedido ligado à nota (e das expedições dele), que ainda não existe na demonstração; o filtro não é usado.';
+const resumida = (f: Valores) => f.analise !== 'detalhada';
+const detalhada = (f: Valores) => f.analise === 'detalhada';
 const EMPRESA: FiltroRel = { nome: 'empresa', rotulo: 'Empresa', tipo: 'empresa', largura: 448 };
 const TIPO_ESTOQUE: FiltroRel = { nome: 'tipoEstoque', rotulo: 'Tipo Estoque', tipo: 'tipoEstoque', padrao: '1', obrigatorio: true, largura: 104 };
 const GRUPO: FiltroRel = { nome: 'grupo', rotulo: 'Grupo', tipo: 'grupo', largura: 448 };
@@ -293,6 +298,69 @@ export const RELATORIOS_ESTOQUE: RelatorioDef[] = [
       });
       const limite = Number(f.resultados);
       return limite > 0 ? linhas.slice(0, limite) : linhas;
+    },
+  },
+  {
+    id: 'notas', titulo: 'Relatório Relação de Notas', elevor: 'RL_RelacaoNotas',
+    ajuda: 'Notas lançadas no ERP: entradas de fornecedor e remessas para obra. Detalhada lista os itens de cada nota. Vendedor, Transportador e Placa vêm do pedido da nota, que ainda não existe na demonstração.',
+    filtros: [EMPRESA,
+      { nome: 'cliente', rotulo: 'Cliente', tipo: 'opcoes', opcoes: [...new Set(NOTAS_EXEMPLO.map((n) => n.pessoa))].sort().map((n) => ({ valor: n, rotulo: n })), largura: 448 },
+      ...PERIODO('inicio_ano', 'fim_mes'),
+      { nome: 'vendedor', rotulo: 'Vendedor', tipo: 'texto', largura: 299, desabilitado: true, ajuda: SEM_PEDIDO },
+      { nome: 'usuario', rotulo: 'Usuário', tipo: 'opcoes', opcoes: ops(['FINANCEIRO', 'FINANCEIRO']), largura: 159 },
+      { nome: 'transportador', rotulo: 'Transportador', tipo: 'texto', largura: 541, desabilitado: true, ajuda: SEM_PEDIDO },
+      { nome: 'placa', rotulo: 'Placa', tipo: 'texto', largura: 100, desabilitado: true, ajuda: SEM_PEDIDO },
+      { nome: 'numero', rotulo: 'Número NF', tipo: 'texto', largura: 100 },
+      { nome: 'serie', rotulo: 'Série NF', tipo: 'texto', largura: 50 },
+      { nome: 'tipo', rotulo: 'Tipo', tipo: 'opcoes', padrao: 'T', obrigatorio: true, opcoes: ops(['T', 'Todas'], ['E', 'Entrada'], ['S', 'Saída']) },
+      { nome: 'analise', rotulo: 'Análise', tipo: 'opcoes', padrao: 'resumida', obrigatorio: true, opcoes: ops(['resumida', 'Resumida'], ['detalhada', 'Detalhada']) },
+      { nome: 'planoContas', rotulo: 'Mostrar Plano de Contas', tipo: 'caixa' },
+      { nome: 'mostrarMensagem', rotulo: 'Mostrar Mensagem da Nota', tipo: 'caixa' },
+      { nome: 'transporte', rotulo: 'Mostrar Dados de Transporte', tipo: 'caixa', desabilitado: true, ajuda: SEM_PEDIDO },
+      { nome: 'natureza', rotulo: 'Naturezas', tipo: 'opcoes', opcoes: NATUREZAS.map((n) => ({ valor: String(n.codigo), rotulo: n.descricao })), largura: 448 },
+      { nome: 'compras', rotulo: 'Compras', tipo: 'caixa', padrao: 'true' },
+      { nome: 'vendas', rotulo: 'Vendas', tipo: 'caixa', padrao: 'true' },
+      { nome: 'situacao', rotulo: 'Situação', tipo: 'opcoes', padrao: 'lancada', mais: true, opcoes: ops(['lancada', 'Lançadas'], ['cancelada', 'Canceladas']) },
+    ],
+    quebra: (f) => (f.analise === 'detalhada' ? 'nota' : undefined),
+    colunas: [
+      { nome: 'nota', rotulo: 'Nota', soSe: detalhada },
+      { nome: 'emissao', rotulo: 'Emissão', tipo: 'data', soSe: resumida },
+      { nome: 'numero', rotulo: 'Número', tipo: 'inteiro', link: (l) => `/erp/notas/${l.numero}`, soSe: resumida },
+      { nome: 'serie', rotulo: 'Série', soSe: resumida },
+      { nome: 'tipo', rotulo: 'Tipo', soSe: resumida },
+      { nome: 'pessoa', rotulo: 'Cliente/Fornecedor', soSe: resumida },
+      { nome: 'natureza', rotulo: 'Natureza', soSe: resumida },
+      { nome: 'plano', rotulo: 'Plano de Contas', soSe: (f) => resumida(f) && f.planoContas === 'true' },
+      { nome: 'produto', rotulo: 'Produto', soSe: detalhada },
+      { nome: 'quantidade', rotulo: 'Qtd', tipo: 'decimal', soSe: detalhada },
+      { nome: 'unitario', rotulo: 'Valor Uni.', tipo: 'moeda', soSe: detalhada },
+      { nome: 'produtos', rotulo: 'Produtos', tipo: 'moeda', total: true },
+      { nome: 'ipi', rotulo: 'IPI', tipo: 'moeda', total: true },
+      { nome: 'icms', rotulo: 'ICMS', tipo: 'moeda', total: true },
+      { nome: 'frete', rotulo: 'Frete', tipo: 'moeda', total: true, soSe: resumida },
+      { nome: 'total', rotulo: 'Total', tipo: 'moeda', total: true },
+      { nome: 'mensagem', rotulo: 'Mensagem', soSe: (f) => resumida(f) && f.mostrarMensagem === 'true' },
+    ],
+    gerar: (f) => {
+      const notas = NOTAS_EXEMPLO.filter((n) => {
+        const nat = naturezaExemplo(n.natureza)!;
+        return daEmpresa(n.empresa, f) && noPeriodo(n.emissao, f) && (f.tipo === 'T' || !f.tipo || n.tipo === f.tipo)
+          && (!f.situacao || n.situacao === f.situacao) && (!f.usuario || n.usuario === f.usuario) && (!f.cliente || n.pessoa === f.cliente)
+          && (!f.numero?.trim() || String(n.numero) === f.numero.trim()) && (!f.serie?.trim() || n.serie === f.serie.trim())
+          && (!f.natureza || n.natureza === Number(f.natureza)) && (f.compras === 'true' || !nat.compra) && (f.vendas === 'true' || !nat.venda);
+      }).sort((a, b) => a.emissao.localeCompare(b.emissao) || a.numero - b.numero);
+      if (f.analise === 'detalhada') {
+        return notas.flatMap((n) => n.itens.map((i) => ({
+          nota: `${n.numero} - ${n.pessoa} (${n.emissao.split('-').reverse().join('/')})`, produto: `${i.produto} - ${i.descricao}`,
+          quantidade: i.quantidade, unitario: i.valorUnitario, produtos: i.valorTotal, ipi: i.ipi, icms: i.icms, total: r2(i.valorTotal + i.ipi),
+        })));
+      }
+      return notas.map((n) => ({
+        emissao: n.emissao, numero: n.numero, serie: n.serie, tipo: n.tipo === 'E' ? 'Entrada' : 'Saída', pessoa: n.pessoa,
+        natureza: naturezaExemplo(n.natureza)?.descricao ?? '', plano: n.planoContas, produtos: n.totais.produtos, ipi: n.totais.ipi,
+        icms: n.totais.icms, frete: n.totais.frete, total: n.totais.total, mensagem: n.observacao,
+      }));
     },
   },
 ];
