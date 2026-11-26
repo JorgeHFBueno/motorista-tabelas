@@ -1,10 +1,11 @@
-// Aba Atividade do /testes/mki (pedido do responsável, 2026-11-26, substitui o agendamento por mestre e período da
-// manhã): Cadastros são os itens que a obra usa ou faz, por categoria (Insumos, Pré-fabricados, Concreto, Ferramentas,
-// Máquinas e Tarefas), cada um com descrição e quantidade; os Pré-fabricados são as peças do Plannix dos LOTEs e não se
-// criam aqui. Pacotes são a "receita": o usuário leva itens dos cadastros para o pacote, com a quantidade que o pacote
-// usa. Por enquanto o pacote não tem mestre nem data (virão depois). Poucas travas, com avisos: usar mais do que o
-// cadastrado ou a mesma peça em dois pacotes só avisa. Só teste: dados fictícios em memória.
-import type { PreFabricado } from '../../obras/preFabricados';
+// Aba Atividade do /testes/mki (pedido do responsável, 2026-11-26; ajustes da Engenharia no mesmo dia): o fluxo é
+// Cadastros → Serviços → Pacotes. Cadastros são os itens da obra por categoria (Insumos, Pré-fabricados, Concreto,
+// Ferramentas, Máquinas e Tarefas), com descrição e grupo; os Pré-fabricados são os tipos de peça dos LOTEs no Plannix
+// (P01, VL…), com a quantidade de peças e quantas foram expedidas, e não se criam aqui. Um Serviço tem nome, descrição
+// e itens dos cadastros. Um Pacote junta serviços e itens soltos dos cadastros; na Logística › Mestres, o pacote se
+// vincula à alocação do mestre no CronoObra. Só os pré-fabricados têm quantidade (peças); usar mais peças do que o LOTE
+// tem só avisa. Só teste: dados fictícios em memória.
+import { ETAPAS_PLANNIX, etapaPlannix, type PreFabricado } from '../../obras/preFabricados';
 
 export type CategoriaCadastro = 'insumos' | 'prefabricados' | 'concreto' | 'ferramentas' | 'maquinas' | 'tarefas';
 export const CATEGORIAS_CADASTRO: { id: CategoriaCadastro; nome: string }[] = [
@@ -17,51 +18,83 @@ export const CATEGORIAS_CADASTRO: { id: CategoriaCadastro; nome: string }[] = [
 ];
 export const nomeDaCategoria = (id: CategoriaCadastro) => CATEGORIAS_CADASTRO.find((categoria) => categoria.id === id)?.nome ?? id;
 
-/** Item dos cadastros. Pré-fabricado: uma peça do Plannix (`lote`, `etapa`), quantidade 1, ou um item ainda sem projeto. */
-export type ItemCadastro = { id: string; categoria: CategoriaCadastro; descricao: string; quantidade: number; unidade: string; lote?: string; etapa?: string };
-/** Item no pacote: o do cadastro e quanto o pacote usa dele. */
-export type ItemDoPacote = { item: string; quantidade: number };
-export type Pacote = { id: string; nome: string; itens: ItemDoPacote[] };
+/** Item dos cadastros. Pré-fabricado: um tipo de peça do LOTE (`lote`), com `quantidade` de peças e `expedidas`. */
+export type ItemCadastro = { id: string; categoria: CategoriaCadastro; descricao: string; grupo: string; quantidade?: number; expedidas?: number; lote?: string };
+/** Item num serviço ou pacote; `quantidade` só no pré-fabricado (quantas peças). */
+export type ItemNoConjunto = { item: string; quantidade?: number };
+export type Servico = { id: string; nome: string; descricao: string; itens: ItemNoConjunto[] };
+export type Pacote = { id: string; nome: string; servicos: string[]; itens: ItemNoConjunto[] };
 
-/** As peças do Plannix como itens de Pré-fabricados: uma por código; item sem projeto (sem códigos) entra inteiro. */
+export const ehPreFabricado = (item: Pick<ItemCadastro, 'categoria'>) => item.categoria === 'prefabricados';
+
+const EXPEDIDA = ETAPAS_PLANNIX.findIndex((etapa) => etapa.nome === 'EXPEDIDA');
+/** Expedida ou depois (Montada); etapa desconhecida não conta. */
+const expedida = (etapa: string) => {
+  const { ordem } = etapaPlannix(etapa);
+  return ordem >= EXPEDIDA && ordem < ETAPAS_PLANNIX.length;
+};
+
+/** Os tipos de peça dos LOTEs como itens de Pré-fabricados: grupo é o produto do Plannix; sem projeto, 0 expedidas. */
 export function preFabricadosDosLotes(lotes: { chave: string; itens: PreFabricado[] | null }[]): ItemCadastro[] {
-  return lotes.flatMap((lote) => (lote.itens ?? []).flatMap((item): ItemCadastro[] => (item.pecas.length
-    ? item.pecas.map((peca) => ({ id: `pf:${lote.chave}:${peca.codigo}`, categoria: 'prefabricados', descricao: `${item.tipo} · ${peca.codigo}`, quantidade: 1, unidade: 'peça', lote: lote.chave, etapa: peca.etapa }))
-    : [{ id: `pf:${lote.chave}:${item.id}`, categoria: 'prefabricados', descricao: item.tipo, quantidade: item.quantidade, unidade: 'peças', lote: lote.chave, etapa: '' }])));
+  return lotes.flatMap((lote) => (lote.itens ?? []).map((item): ItemCadastro => ({
+    id: `pf:${lote.chave}:${item.id}`,
+    categoria: 'prefabricados',
+    descricao: item.tipo,
+    grupo: item.grupo,
+    quantidade: item.pecas.length || item.quantidade,
+    expedidas: item.pecas.filter((peca) => expedida(peca.etapa)).length,
+    lote: lote.chave,
+  })));
 }
 
-/** Quanto do item os pacotes usam (menos o pacote `exceto`, quando dado). */
-export const usoDoItem = (pacotes: Pacote[], item: string, exceto?: string) =>
-  pacotes.filter((pacote) => pacote.id !== exceto).reduce((total, pacote) => total + pacote.itens.filter((i) => i.item === item).reduce((soma, i) => soma + i.quantidade, 0), 0);
-/** Quanto do item ainda não está em pacote nenhum (nunca negativo). */
-export const livreDoItem = (item: ItemCadastro, pacotes: Pacote[]) => Math.max(0, item.quantidade - usoDoItem(pacotes, item.id));
-/** Os outros pacotes que já usam o item. */
-export const outrosPacotesDoItem = (pacotes: Pacote[], item: string, exceto: string) =>
-  pacotes.filter((pacote) => pacote.id !== exceto && pacote.itens.some((i) => i.item === item));
-
-/**
- * Leva o item ao pacote com o que ainda está livre (1 se não sobrou nada: avisa, não trava). Item que já está no pacote
- * fica como está.
- */
-export function adicionarAoPacote(pacotes: Pacote[], pacoteId: string, item: ItemCadastro): Pacote[] {
-  const quantidade = livreDoItem(item, pacotes) || 1;
-  return pacotes.map((pacote) => (pacote.id !== pacoteId || pacote.itens.some((i) => i.item === item.id) ? pacote : { ...pacote, itens: [...pacote.itens, { item: item.id, quantidade }] }));
-}
-export const alterarQuantidade = (pacotes: Pacote[], pacoteId: string, item: string, quantidade: number) =>
-  pacotes.map((pacote) => (pacote.id !== pacoteId ? pacote : { ...pacote, itens: pacote.itens.map((i) => (i.item === item ? { ...i, quantidade } : i)) }));
-export const removerDoPacote = (pacotes: Pacote[], pacoteId: string, item: string) =>
-  pacotes.map((pacote) => (pacote.id !== pacoteId ? pacote : { ...pacote, itens: pacote.itens.filter((i) => i.item !== item) }));
-/** Item excluído dos cadastros sai também dos pacotes. */
-export const tirarDosPacotes = (pacotes: Pacote[], item: string) =>
-  pacotes.map((pacote) => ({ ...pacote, itens: pacote.itens.filter((i) => i.item !== item) }));
-
-/** Aviso do item no pacote quando os pacotes usam mais do que o cadastrado (a peça do Plannix: está em outro pacote). */
-export function avisoDoItem(pacotes: Pacote[], pacoteId: string, item: ItemCadastro): string | null {
-  const total = usoDoItem(pacotes, item.id);
-  if (total <= item.quantidade) return null;
-  const outros = outrosPacotesDoItem(pacotes, item.id, pacoteId).map((pacote) => pacote.nome).join(', ');
-  if (item.unidade === 'peça' && outros) return `A peça também está em ${outros}.`;
-  return `Os pacotes usam ${formatarQuantidade(total)} de ${formatarQuantidade(item.quantidade)} ${item.unidade} do cadastro${outros ? ` (também em ${outros})` : ''}.`;
+const comparar = new Intl.Collator('pt-BR', { sensitivity: 'base' }).compare;
+/** Os grupos já usados na categoria, para sugerir nas próximas criações (sem repetir por maiúsculas; vale a 1ª grafia). */
+export function gruposDaCategoria(itens: ItemCadastro[], categoria: CategoriaCadastro) {
+  const grupos = new Map<string, string>();
+  for (const item of itens) {
+    const grupo = item.grupo.trim();
+    if (item.categoria === categoria && grupo && !grupos.has(grupo.toLocaleLowerCase('pt-BR'))) grupos.set(grupo.toLocaleLowerCase('pt-BR'), grupo);
+  }
+  return [...grupos.values()].sort(comparar);
 }
 
-export const formatarQuantidade = (valor: number) => valor.toLocaleString('pt-BR', { maximumFractionDigits: 2 });
+/** Leva o item à lista (uma vez só); o pré-fabricado entra com `pecas` peças (mínimo 1). */
+export const adicionarItem = (itens: ItemNoConjunto[], item: ItemCadastro, pecas = 1): ItemNoConjunto[] =>
+  (itens.some((i) => i.item === item.id) ? itens : [...itens, ehPreFabricado(item) ? { item: item.id, quantidade: Math.max(1, pecas) } : { item: item.id }]);
+export const alterarQuantidade = (itens: ItemNoConjunto[], item: string, quantidade: number) =>
+  itens.map((i) => (i.item === item ? { ...i, quantidade } : i));
+export const removerItem = (itens: ItemNoConjunto[], item: string) => itens.filter((i) => i.item !== item);
+
+/** Peças do tipo que o pacote usa: soltas e pelos serviços dele. */
+export function pecasNoPacote(pacote: Pacote, servicos: Servico[], item: string) {
+  const soma = (lista: ItemNoConjunto[]) => lista.filter((i) => i.item === item).reduce((total, i) => total + (i.quantidade ?? 0), 0);
+  return soma(pacote.itens) + pacote.servicos.reduce((total, id) => total + soma(servicos.find((s) => s.id === id)?.itens ?? []), 0);
+}
+/** Peças do tipo usadas por todos os pacotes (o serviço sozinho é modelo: só conta dentro de um pacote). */
+export const pecasUsadas = (pacotes: Pacote[], servicos: Servico[], item: string) =>
+  pacotes.reduce((total, pacote) => total + pecasNoPacote(pacote, servicos, item), 0);
+export const pecasLivres = (item: ItemCadastro, pacotes: Pacote[], servicos: Servico[]) =>
+  Math.max(0, (item.quantidade ?? 0) - pecasUsadas(pacotes, servicos, item.id));
+
+/** Aviso quando os pacotes usam mais peças do tipo do que o LOTE tem (não trava). */
+export function avisoDasPecas(pacotes: Pacote[], servicos: Servico[], item: ItemCadastro): string | null {
+  const usadas = pecasUsadas(pacotes, servicos, item.id);
+  if (!ehPreFabricado(item) || usadas <= (item.quantidade ?? 0)) return null;
+  const onde = pacotes.filter((pacote) => pecasNoPacote(pacote, servicos, item.id) > 0).map((pacote) => pacote.nome).join(', ');
+  return `Os pacotes usam ${usadas} de ${item.quantidade} peças (${onde}).`;
+}
+
+/** Em quantos serviços e pacotes (direto, sem contar o serviço do pacote) o item está. */
+export const usosDoItem = (servicos: Servico[], pacotes: Pacote[], item: string) => ({
+  servicos: servicos.filter((s) => s.itens.some((i) => i.item === item)).length,
+  pacotes: pacotes.filter((p) => p.itens.some((i) => i.item === item)).length,
+});
+
+/** Item excluído dos cadastros sai dos serviços e dos pacotes. */
+export const tirarItem = (servicos: Servico[], pacotes: Pacote[], item: string) => ({
+  servicos: servicos.map((s) => ({ ...s, itens: removerItem(s.itens, item) })),
+  pacotes: pacotes.map((p) => ({ ...p, itens: removerItem(p.itens, item) })),
+});
+/** Serviço excluído sai dos pacotes. */
+export const tirarServico = (pacotes: Pacote[], servico: string) =>
+  pacotes.map((p) => ({ ...p, servicos: p.servicos.filter((id) => id !== servico) }));

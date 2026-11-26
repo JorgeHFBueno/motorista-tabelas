@@ -6,6 +6,7 @@ import {
   Chip,
   Collapse,
   Container,
+  MenuItem,
   Paper,
   Snackbar,
   Stack,
@@ -17,6 +18,7 @@ import {
   TableHead,
   TableRow,
   Tabs,
+  TextField,
   Typography,
 } from '@mui/material';
 import KeyboardArrowDownIcon from '@mui/icons-material/KeyboardArrowDown';
@@ -27,8 +29,8 @@ import ListaLotes, { type AcoesPdf, type AcoesSincronizar, type LoteComPreFabric
 import type { SincronizacaoPlannix, StatusSincronizacao } from '../../obras/sincronizacaoPlannix';
 import { ehPdfDeGrupo, maisRecente, parteDoPdf, SEM_PEDIDO, type PdfPreFabricado, type PreFabricado } from '../../obras/preFabricados';
 import { useAuth } from '../../../contexts/AuthContext';
-import { Cadastros, Pacotes } from './AtividadeMki';
-import { preFabricadosDosLotes, tirarDosPacotes, type ItemCadastro, type Pacote } from './pacotesTrabalho';
+import { Cadastros, Montador } from './AtividadeMki';
+import { preFabricadosDosLotes, tirarItem, tirarServico, type ItemCadastro, type Pacote, type Servico } from './pacotesTrabalho';
 import './mki.css';
 
 /**
@@ -37,7 +39,8 @@ import './mki.css';
  * excluídos: obra, LOTEs e pré-fabricados fictícios em memória; nada vai para o Firestore nem para o Storage.
  * Sincronizar: um robô de mentira anda a fila sozinho (simula em segundos, mostra a prévia e, aprovada, "grava").
  * Layout da página real (2026-11-25: Detalhes recolhível e abas), com as abas do teste (2026-11-26): LOTEs | Atividade
- * (Cadastros e Pacotes, AtividadeMki.tsx) | Logística (Deslocamentos, Combustível e os Mestres alocados no CronoObra).
+ * (Cadastros, Serviços e Pacotes, AtividadeMki.tsx) | Logística (Deslocamentos, Combustível e os Mestres alocados no
+ * CronoObra, cada alocação com o pacote vinculado).
  */
 const PREVIA_FICTICIA = [
   'Obra 141 (PM ALEGRIA) · etapa GERAL',
@@ -82,30 +85,31 @@ const dataBr = (data: string) => `${data.slice(8, 10)}/${data.slice(5, 7)}/${dat
 const diasEntre = (inicio: string, fim: string) => Math.round((Date.parse(fim) - Date.parse(inicio)) / 86_400_000) + 1;
 /** Alocações fictícias dos mestres no CronoObra, em torno de hoje. */
 const ALOCACOES = [
-  { mestre: 'Paulo Schneider', lote: 'l1', inicio: dias(-20), fim: dias(40) },
-  { mestre: 'Ivo Hammes', lote: 'l2', inicio: dias(-35), fim: dias(14) },
-  { mestre: 'Darci Wolf', lote: 'l5', inicio: dias(5), fim: dias(60) },
+  { id: 'a1', mestre: 'Paulo Schneider', lote: 'l1', inicio: dias(-20), fim: dias(40) },
+  { id: 'a2', mestre: 'Ivo Hammes', lote: 'l2', inicio: dias(-35), fim: dias(14) },
+  { id: 'a3', mestre: 'Darci Wolf', lote: 'l5', inicio: dias(5), fim: dias(60) },
 ];
 
-const cadastro = (categoria: ItemCadastro['categoria'], lista: [string, number, string][]): ItemCadastro[] =>
-  lista.map(([descricao, quantidade, unidade], index) => ({ id: `${categoria}-${index + 1}`, categoria, descricao, quantidade, unidade }));
+const cadastro = (categoria: ItemCadastro['categoria'], lista: [string, string][]): ItemCadastro[] =>
+  lista.map(([descricao, grupo], index) => ({ id: `${categoria}-${index + 1}`, categoria, descricao, grupo }));
 /** Cadastros fictícios da obra (os Pré-fabricados vêm dos LOTEs). As Tarefas são a lista de atividades da Engenharia. */
 const CADASTROS_INICIAIS: ItemCadastro[] = [
-  ...cadastro('insumos', [['Cimento CP-II 50 kg', 40, 'sacos'], ['Areia média', 12, 'm³'], ['Brita 1', 10, 'm³'], ['Aço CA-50 Ø10', 320, 'kg'], ['Desmoldante', 20, 'L']]),
-  ...cadastro('concreto', [['Concreto fck 30 MPa bombeado', 24, 'm³'], ['Concreto fck 25 MPa', 8, 'm³']]),
-  ...cadastro('ferramentas', [['Vibrador de imersão', 2, 'un'], ['Kit de escoramento metálico', 30, 'un'], ['Nível a laser', 1, 'un']]),
-  ...cadastro('maquinas', [['Guindaste 50 t', 3, 'diárias'], ['Caminhão Munck', 4, 'diárias'], ['Escavadeira 320', 5, 'diárias']]),
+  ...cadastro('insumos', [['Cimento CP-II 50 kg', 'Cimento'], ['Areia média', 'Agregados'], ['Brita 1', 'Agregados'], ['Aço CA-50 Ø10', 'Aço'], ['Desmoldante', 'Químicos']]),
+  ...cadastro('concreto', [['Concreto fck 30 MPa bombeado', 'Estrutural'], ['Concreto fck 25 MPa', 'Fundação']]),
+  ...cadastro('ferramentas', [['Vibrador de imersão', 'Concretagem'], ['Kit de escoramento metálico', 'Escoramento'], ['Nível a laser', 'Topografia']]),
+  ...cadastro('maquinas', [['Guindaste 50 t', 'Içamento'], ['Caminhão Munck', 'Içamento'], ['Escavadeira 320', 'Terraplenagem']]),
   ...cadastro('tarefas', [
-    ['Fundação · Sapata Corrida', 1, 'un'], ['Fundação · Sapata Isolada', 4, 'un'], ['Fundação · Bloco de Estacas', 2, 'un'], ['Fundação · Estacas', 12, 'un'],
-    ['Super Estrutura · Montagem Longarinas', 1, 'un'], ['Super Estrutura · Montagem Vigas', 1, 'un'], ['Super Estrutura · Montagem Guarda Rodas', 1, 'un'], ['Super Estrutura · Montagem Guarda Corpo', 1, 'un'],
-    ['Mesoestruturas · Vigas', 1, 'un'], ['Mesoestruturas · Pilares Centrais', 1, 'un'], ['Mesoestruturas · Lances de Cortinas', 1, 'un'],
+    ['Sapata Corrida', 'Fundação'], ['Sapata Isolada', 'Fundação'], ['Bloco de Estacas', 'Fundação'], ['Estacas', 'Fundação'],
+    ['Montagem Longarinas', 'Super Estrutura'], ['Montagem Vigas', 'Super Estrutura'], ['Montagem Guarda Rodas', 'Super Estrutura'], ['Montagem Guarda Corpo', 'Super Estrutura'],
+    ['Vigas', 'Mesoestruturas'], ['Pilares Centrais', 'Mesoestruturas'], ['Lances de Cortinas', 'Mesoestruturas'],
   ]),
 ];
+const SERVICOS_INICIAIS: Servico[] = [
+  { id: 's1', nome: 'Montagem de longarinas', descricao: 'Içar e posicionar as longarinas nos apoios.', itens: [{ item: 'tarefas-5' }, { item: 'maquinas-1' }, { item: 'maquinas-2' }] },
+  { id: 's2', nome: 'Concretagem de sapata', descricao: 'Forma, armação e concreto da sapata isolada.', itens: [{ item: 'tarefas-2' }, { item: 'concreto-2' }, { item: 'ferramentas-1' }, { item: 'insumos-5' }] },
+];
 const PACOTES_INICIAIS: Pacote[] = [
-  {
-    id: 'pk1', nome: 'Longarinas do LOTE 1',
-    itens: [{ item: 'tarefas-5', quantidade: 1 }, { item: 'pf:l1:1376300', quantidade: 1 }, { item: 'pf:l1:1376302', quantidade: 1 }, { item: 'maquinas-1', quantidade: 1 }, { item: 'maquinas-2', quantidade: 1 }],
-  },
+  { id: 'pk1', nome: 'Longarinas do LOTE 1', servicos: ['s1'], itens: [{ item: 'pf:l1:f3', quantidade: 2 }, { item: 'ferramentas-3' }] },
 ];
 
 const LOTES_INICIAIS: LoteComPreFabricados[] = [
@@ -161,7 +165,7 @@ const LOTES_INICIAIS: LoteComPreFabricados[] = [
 
 const SUBITENS = {
   lotes: [{ valor: 'todos', rotulo: 'Todos' }],
-  atividade: [{ valor: 'cadastros', rotulo: 'Cadastros' }, { valor: 'pacotes', rotulo: 'Pacotes' }],
+  atividade: [{ valor: 'cadastros', rotulo: 'Cadastros' }, { valor: 'servicos', rotulo: 'Serviços' }, { valor: 'pacotes', rotulo: 'Pacotes' }],
   logistica: [{ valor: 'todos', rotulo: 'Todos' }, { valor: 'deslocamentos', rotulo: 'Deslocamentos' }, { valor: 'combustivel', rotulo: 'Combustível' }, { valor: 'mestres', rotulo: 'Mestres' }],
 };
 
@@ -198,7 +202,10 @@ export default function TesteMkiPage() {
   const [sigla, setSigla] = useState(OBRA.siglaObra);
   const [lotes, setLotes] = useState(LOTES_INICIAIS);
   const [cadastros, setCadastros] = useState(CADASTROS_INICIAIS);
+  const [servicos, setServicos] = useState(SERVICOS_INICIAIS);
   const [pacotes, setPacotes] = useState(PACOTES_INICIAIS);
+  /** Alocação do CronoObra → pacote vinculado. */
+  const [vinculos, setVinculos] = useState<Record<string, string>>({ a1: 'pk1' });
   const [detalhes, setDetalhes] = useState(false);
   // Abas como na página real: nenhuma aberta ao entrar; a aba abre no primeiro subitem.
   const [aba, setAba] = useState<'lotes' | 'atividade' | 'logistica' | false>(false);
@@ -293,10 +300,21 @@ export default function TesteMkiPage() {
     setAviso(`${item.descricao} salvo.`);
   };
   const excluirCadastro = (item: ItemCadastro) => {
-    const emQuantos = pacotes.filter((pacote) => pacote.itens.some((i) => i.item === item.id)).length;
+    const sem = tirarItem(servicos, pacotes, item.id);
     setCadastros((atuais) => atuais.filter((atual) => atual.id !== item.id));
-    setPacotes((atuais) => tirarDosPacotes(atuais, item.id));
-    setAviso(emQuantos ? `${item.descricao} excluído: saiu também de ${emQuantos} ${emQuantos === 1 ? 'pacote' : 'pacotes'}.` : `${item.descricao} excluído.`);
+    setServicos(sem.servicos);
+    setPacotes(sem.pacotes);
+    setAviso(`${item.descricao} excluído (saiu também dos serviços e pacotes).`);
+  };
+  /** Serviço excluído sai dos pacotes; pacote excluído perde o vínculo com a alocação. */
+  const mudarServicos = (proximos: Servico[]) => {
+    const removidos = servicos.filter((s) => !proximos.some((p) => p.id === s.id));
+    setServicos(proximos);
+    setPacotes((atuais) => removidos.reduce((lista, s) => tirarServico(lista, s.id), atuais));
+  };
+  const mudarPacotes = (proximos: Pacote[]) => {
+    setPacotes(proximos);
+    setVinculos((atuais) => Object.fromEntries(Object.entries(atuais).filter(([, pacote]) => proximos.some((p) => p.id === pacote))));
   };
 
   const salvar = (set: (valor: string) => void) => async (valor: string) => { set(valor.trim()); return true; };
@@ -306,7 +324,7 @@ export default function TesteMkiPage() {
       <div className="teste-aviso" role="note">
         <ScienceRounded fontSize="small" />
         <strong>Teste de interface · MKI</strong>
-        <span>Detalhe da obra com as abas LOTEs, Atividade (Cadastros e Pacotes) e Logística. Dados fictícios em memória: nada é salvo, e recarregar a página volta ao início.</span>
+        <span>Detalhe da obra com as abas LOTEs, Atividade (Cadastros, Serviços e Pacotes) e Logística. Dados fictícios em memória: nada é salvo, e recarregar a página volta ao início.</span>
       </div>
 
       <Container sx={{ py: 4 }}>
@@ -373,8 +391,20 @@ export default function TesteMkiPage() {
           {aba && (
             <Box sx={{ mt: 2.5 }}>
               {aba === 'lotes' && <ListaLotes lotes={lotes.filter((lote) => subitem === 'todos' || lote.chave === subitem)} acoesPdf={acoesPdf} sincronizar={sincronizar} />}
-              {aba === 'atividade' && subitem === 'cadastros' && <Cadastros itens={itens} pacotes={pacotes} nomeDoLote={nomeDoLote} onSalvar={salvarCadastro} onExcluir={excluirCadastro} />}
-              {aba === 'atividade' && subitem === 'pacotes' && <Pacotes itens={itens} pacotes={pacotes} nomeDoLote={nomeDoLote} onMudar={setPacotes} onAvisar={setAviso} />}
+              {aba === 'atividade' && subitem === 'cadastros' && <Cadastros itens={itens} servicos={servicos} pacotes={pacotes} nomeDoLote={nomeDoLote} onSalvar={salvarCadastro} onExcluir={excluirCadastro} />}
+              {aba === 'atividade' && (subitem === 'servicos' || subitem === 'pacotes') && (
+                <Montador
+                  key={subitem}
+                  modo={subitem === 'servicos' ? 'servico' : 'pacote'}
+                  itens={itens}
+                  servicos={servicos}
+                  pacotes={pacotes}
+                  nomeDoLote={nomeDoLote}
+                  onServicos={mudarServicos}
+                  onPacotes={mudarPacotes}
+                  onAvisar={setAviso}
+                />
+              )}
               {aba === 'logistica' && (subitem === 'todos' || subitem === 'deslocamentos') && (
                 <Box sx={{ mb: 3 }}>
                   {subitem === 'todos' && <Typography variant="h6" sx={{ mb: 1.5 }}>Deslocamentos</Typography>}
@@ -402,9 +432,24 @@ export default function TesteMkiPage() {
                 <Box>
                   <Typography variant="h6" sx={{ mb: 1.5 }}>Alocados no CronoObra</Typography>
                   <Tabela
-                    cabecalho={['Mestre', 'LOTE', 'Início', 'Fim', 'Dias']}
+                    cabecalho={['Mestre', 'LOTE', 'Início', 'Fim', 'Dias', 'Pacote']}
                     direita={[4]}
-                    linhas={ALOCACOES.map((a) => [a.mestre, nomeDoLote(a.lote), dataBr(a.inicio), dataBr(a.fim), `${diasEntre(a.inicio, a.fim)} dias`])}
+                    linhas={ALOCACOES.map((a) => [
+                      a.mestre, nomeDoLote(a.lote), dataBr(a.inicio), dataBr(a.fim), `${diasEntre(a.inicio, a.fim)} dias`,
+                      <TextField
+                        key="pacote"
+                        select
+                        size="small"
+                        value={vinculos[a.id] ?? ''}
+                        onChange={(event) => setVinculos((atuais) => ({ ...atuais, [a.id]: event.target.value }))}
+                        SelectProps={{ displayEmpty: true }}
+                        inputProps={{ 'aria-label': `Pacote de ${a.mestre}` }}
+                        sx={{ minWidth: 200 }}
+                      >
+                        <MenuItem value=""><em>Sem pacote</em></MenuItem>
+                        {pacotes.map((p) => <MenuItem key={p.id} value={p.id}>{p.nome || '(pacote sem nome)'}</MenuItem>)}
+                      </TextField>,
+                    ])}
                   />
                 </Box>
               )}

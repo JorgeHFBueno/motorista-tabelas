@@ -20,7 +20,7 @@ import { LOCAIS_SUGERIDOS } from '../src/features/obras/locaisSugeridos';
 import { agruparPorTipo, comPdf, comPdfsGravados, daParte, ehPdfDeGrupo, etapaPlannix, opcoesAoSoltar, parteDoPdf, pdfsDosGrupos, preFabricadosDoPlannix, resumoEtapas, revisoes, semProjeto, totalPdfs, type PdfGravado, type PreFabricado } from '../src/features/obras/preFabricados';
 import { coordenadaDoLote, lotesDaObra, obraFromV2 } from '../src/utils/cadastrosV2';
 import { idDaSincronizacao, minutosSemNoticia, podeCancelar, podeDestravar, podePedir, sincronizacaoDoDocumento } from '../src/features/obras/sincronizacaoPlannix';
-import { adicionarAoPacote, alterarQuantidade, avisoDoItem, livreDoItem, preFabricadosDosLotes, removerDoPacote, tirarDosPacotes, usoDoItem, type ItemCadastro, type Pacote } from '../src/features/testes/mki/pacotesTrabalho';
+import { adicionarItem, alterarQuantidade, avisoDasPecas, gruposDaCategoria, pecasLivres, pecasNoPacote, pecasUsadas, preFabricadosDosLotes, removerItem, tirarItem, tirarServico, usosDoItem, type ItemCadastro, type Pacote, type Servico } from '../src/features/testes/mki/pacotesTrabalho';
 
 const contrato = {
   nomeObra: 'LAGOA BONITA DO SUL 16/2026', siglaObra: '', codObra: 0, local: 'CORRIGIR', status: 'CONTRATADA',
@@ -293,42 +293,54 @@ test('sincronizar Plannix: id por LOTE, documento para a tela e quando pedir ou 
   ]);
 });
 
-test('pacotes (/testes/mki): as peças do Plannix viram itens de Pré-fabricados, uma por código; sem projeto, o item inteiro', () => {
-  const pf = (id: string, pecas: { codigo: string; etapa: string; data: null }[], quantidade = pecas.length): PreFabricado => ({ id, grupo: 'VIGA', tipo: `VL ${id}`, quantidade, pecas, desenhos: [], pdfs: [] });
+test('atividade (/testes/mki): pré-fabricados por tipo de peça, com quantidade e expedidas; grupos sugeridos por categoria', () => {
+  const peca = (codigo: string, etapa: string) => ({ codigo, etapa, data: null });
+  const pf = (id: string, pecas: ReturnType<typeof peca>[], quantidade = pecas.length): PreFabricado => ({ id, grupo: 'PILAR', tipo: id, quantidade, pecas, desenhos: [], pdfs: [] });
   const itens = preFabricadosDosLotes([
-    { chave: 'l1', itens: [pf('a', [{ codigo: '10', etapa: 'EXPEDIDA', data: null }, { codigo: '11', etapa: '', data: null }])] },
-    { chave: 'l3', itens: [pf('b', [], 4)] },
+    { chave: 'l1', itens: [pf('P01', [peca('1', 'EXPEDIDA'), peca('2', 'MONTADA'), peca('3', 'ACABADA'), peca('4', ''), peca('5', 'ETAPA NOVA')])] },
+    { chave: 'l3', itens: [pf('VL', [], 4)] },
     { chave: 'l4', itens: null },
   ]);
-  assert.deepEqual(itens.map((i) => [i.id, i.descricao, i.quantidade, i.unidade, i.lote, i.etapa]), [
-    ['pf:l1:10', 'VL a · 10', 1, 'peça', 'l1', 'EXPEDIDA'],
-    ['pf:l1:11', 'VL a · 11', 1, 'peça', 'l1', ''],
-    ['pf:l3:b', 'VL b', 4, 'peças', 'l3', ''],
+  assert.deepEqual(itens.map((i) => [i.id, i.descricao, i.grupo, i.quantidade, i.expedidas, i.lote]), [
+    ['pf:l1:P01', 'P01', 'PILAR', 5, 2, 'l1'],
+    ['pf:l3:VL', 'VL', 'PILAR', 4, 0, 'l3'],
   ]);
+  const cadastros: ItemCadastro[] = [
+    { id: 'a', categoria: 'insumos', descricao: 'Areia', grupo: 'Agregados' },
+    { id: 'b', categoria: 'insumos', descricao: 'Brita', grupo: ' agregados ' },
+    { id: 'c', categoria: 'insumos', descricao: 'Cimento', grupo: 'Cimento' },
+    { id: 'd', categoria: 'insumos', descricao: 'Água', grupo: '' },
+    { id: 'e', categoria: 'concreto', descricao: 'fck 30', grupo: 'Estrutural' },
+  ];
+  assert.deepEqual(gruposDaCategoria(cadastros, 'insumos'), ['Agregados', 'Cimento']);
+  assert.deepEqual(gruposDaCategoria(cadastros, 'maquinas'), []);
 });
 
-test('pacotes (/testes/mki): levar ao pacote com o que está livre, mudar a quantidade, tirar e avisar sem travar', () => {
-  const cimento: ItemCadastro = { id: 'c', categoria: 'insumos', descricao: 'Cimento', quantidade: 40, unidade: 'sacos' };
-  const peca: ItemCadastro = { id: 'pf:l1:10', categoria: 'prefabricados', descricao: 'VL · 10', quantidade: 1, unidade: 'peça', lote: 'l1', etapa: 'EXPEDIDA' };
-  let pacotes: Pacote[] = [{ id: 'a', nome: 'A', itens: [] }, { id: 'b', nome: 'B', itens: [] }];
-  pacotes = adicionarAoPacote(pacotes, 'a', cimento);
-  assert.deepEqual(pacotes[0].itens, [{ item: 'c', quantidade: 40 }], 'leva tudo o que está livre');
-  assert.deepEqual(adicionarAoPacote(pacotes, 'a', cimento)[0].itens.length, 1, 'no mesmo pacote, uma vez só');
-  pacotes = alterarQuantidade(pacotes, 'a', 'c', 25);
-  assert.equal(livreDoItem(cimento, pacotes), 15);
-  pacotes = adicionarAoPacote(pacotes, 'b', cimento);
-  assert.deepEqual(pacotes[1].itens, [{ item: 'c', quantidade: 15 }]);
-  assert.equal(avisoDoItem(pacotes, 'b', cimento), null);
-  pacotes = alterarQuantidade(pacotes, 'b', 'c', 20);
-  assert.equal(usoDoItem(pacotes, 'c'), 45);
-  assert.equal(avisoDoItem(pacotes, 'b', cimento), 'Os pacotes usam 45 de 40 sacos do cadastro (também em A).');
-  // Nada livre: entra com 1 e avisa. A peça em dois pacotes só avisa.
-  pacotes = adicionarAoPacote(adicionarAoPacote(pacotes, 'a', peca), 'b', peca);
-  assert.deepEqual(pacotes.map((p) => p.itens.find((i) => i.item === peca.id)?.quantidade), [1, 1]);
-  assert.equal(avisoDoItem(pacotes, 'a', peca), 'A peça também está em B.');
-  pacotes = removerDoPacote(pacotes, 'b', peca.id);
-  assert.equal(avisoDoItem(pacotes, 'a', peca), null);
-  assert.deepEqual(tirarDosPacotes(pacotes, 'c').map((p) => p.itens.map((i) => i.item)), [[peca.id], []]);
+test('atividade (/testes/mki): serviço com itens, pacote com serviços e itens soltos; peças contadas só nos pacotes, com aviso', () => {
+  const guindaste: ItemCadastro = { id: 'g', categoria: 'maquinas', descricao: 'Guindaste', grupo: 'Içamento' };
+  const vl: ItemCadastro = { id: 'pf:l1:vl', categoria: 'prefabricados', descricao: 'VL', grupo: 'VIGA', quantidade: 4, expedidas: 2, lote: 'l1' };
+  let itens = adicionarItem([], guindaste);
+  assert.deepEqual(itens, [{ item: 'g' }], 'só o pré-fabricado tem quantidade');
+  assert.equal(adicionarItem(itens, guindaste), itens, 'uma vez só');
+  itens = adicionarItem(itens, vl, 3);
+  assert.deepEqual(itens[1], { item: 'pf:l1:vl', quantidade: 3 });
+  assert.deepEqual(adicionarItem([], vl, 0), [{ item: 'pf:l1:vl', quantidade: 1 }], 'nada livre: entra com 1');
+  const servicos: Servico[] = [{ id: 's', nome: 'Montagem', descricao: '', itens }];
+  assert.equal(pecasUsadas([], servicos, vl.id), 0, 'o serviço sozinho é modelo');
+  let pacotes: Pacote[] = [{ id: 'a', nome: 'A', servicos: ['s'], itens: [{ item: vl.id, quantidade: 1 }] }];
+  assert.equal(pecasNoPacote(pacotes[0], servicos, vl.id), 4);
+  assert.equal(pecasLivres(vl, pacotes, servicos), 0);
+  assert.equal(avisoDasPecas(pacotes, servicos, vl), null);
+  pacotes = [...pacotes, { id: 'b', nome: 'B', servicos: [], itens: [{ item: vl.id, quantidade: 2 }] }];
+  assert.equal(avisoDasPecas(pacotes, servicos, vl), 'Os pacotes usam 6 de 4 peças (A, B).');
+  assert.equal(avisoDasPecas(pacotes, servicos, guindaste), null);
+  pacotes = pacotes.map((p) => (p.id === 'b' ? { ...p, itens: alterarQuantidade(p.itens, vl.id, 0) } : p));
+  assert.equal(pecasUsadas(pacotes, servicos, vl.id), 4);
+  assert.deepEqual(usosDoItem(servicos, pacotes, 'g'), { servicos: 1, pacotes: 0 });
+  assert.deepEqual(removerItem(itens, 'g'), [{ item: 'pf:l1:vl', quantidade: 3 }]);
+  const sem = tirarItem(servicos, pacotes, vl.id);
+  assert.deepEqual([sem.servicos[0].itens, sem.pacotes.map((p) => p.itens)], [[{ item: 'g' }], [[], []]]);
+  assert.deepEqual(tirarServico(pacotes, 's').map((p) => p.servicos), [[], []]);
 });
 
 test('sincronizar Plannix: minutos sem notícia do robô e quando o adm2 pode marcar como erro (mais de 30)', () => {
