@@ -25,8 +25,8 @@ import BuildOutlinedIcon from '@mui/icons-material/BuildOutlined';
 import TrendingUpOutlinedIcon from '@mui/icons-material/TrendingUpOutlined';
 import ViewKanbanOutlinedIcon from '@mui/icons-material/ViewKanbanOutlined';
 import ContactsOutlinedIcon from '@mui/icons-material/ContactsOutlined';
-import AccountBalanceOutlinedIcon from '@mui/icons-material/AccountBalanceOutlined';
 import IconeDev from '../features/dev-toys/IconeDev';
+import IconeErp from '../features/erp/IconeErp';
 import IconeFriday from '../features/friday-gestao-interna/IconeFriday';
 import type { AuthorizationProfile } from '../services/authorizationProfile';
 import { editaArea, temAlgumaCredencial, temCredencial, veArea, type Credencial } from '../services/credenciais';
@@ -165,9 +165,9 @@ export const menuPrincipal: MenuPrincipalItem[] = [
     ],
   },
   {
-    // ERP próprio (2026-11-24): área ERP (o adm2 sempre). The Manuscript, 01_ROTAS_E_NAVEGACAO.md#erp.
+    // ERP próprio (2026-11-24): área ERP (o adm2 sempre); ícone: o L da Ledur (2026-11-27). The Manuscript, 01_ROTAS_E_NAVEGACAO.md#erp.
     label: 'ERP',
-    icon: <AccountBalanceOutlinedIcon fontSize="large" />,
+    icon: <IconeErp fontSize="large" />,
     color: '#EEF2F6',
     accent: '#12293B',
     to: '/erp',

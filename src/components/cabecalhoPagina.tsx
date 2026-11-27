@@ -49,7 +49,8 @@ const TITULOS: Array<{ padrao: string } & TituloPagina> = [
   { padrao: '/comercial', titulo: 'Painel comercial' },
   { padrao: '/comercial/negocios', titulo: 'Negócios' },
   { padrao: '/comercial/contatos', titulo: 'Contatos comerciais' },
-  { padrao: '/erp', titulo: 'ERP' },
+  // Marca ERP Ledur (2026-11-27): ERP em traço e o círculo em degradê entrando na seta do L da Ledur.
+  { padrao: '/erp', titulo: 'ERP', logo: '/logo-erp-ledur.svg' },
   // Títulos das telas do Elevor.
   { padrao: '/erp/pessoas', titulo: 'Consulta de Clientes e Fornecedores' },
   { padrao: '/erp/pessoas/:codigo', titulo: 'Cadastro de Clientes e Fornecedores' },
