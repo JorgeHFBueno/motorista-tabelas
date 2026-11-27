@@ -54,9 +54,12 @@ const DESCRICAO: Record<ApiDeArea['id'], string> = {
     + 'quando a quando, com os dias NT. Só consulta.',
   prefabricados: 'PDFs dos pré-fabricados anexados no detalhe da obra (/engenharia/obras), área Engenharia, achados pelo Nº Pedido '
     + 'do LOTE (o Cód. Auxiliar da obra no Plannix). Para robôs, como o que lança os PDFs no Plannix. Só consulta.',
+  cronolog: 'Pedidos de nota do Cronograma Logístico (/logistica/cronograma), área Logística: a programação que passa para Ag. NF '
+    + 'entra na fila do robô, que gera a nota no ERP pela Expedição e traz o PDF para a coluna Nota; se não conseguir, escreve o '
+    + 'motivo nas Observações marcando o ADMINISTRATIVO.',
 };
 
-const EXEMPLO: Record<ApiDeArea['id'], string> = { friday: '/buscar?q=coqueiros', cronoobra: '/cronograma', prefabricados: '/pedidos/953/pdfs' };
+const EXEMPLO: Record<ApiDeArea['id'], string> = { friday: '/buscar?q=coqueiros', cronoobra: '/cronograma', prefabricados: '/pedidos/953/pdfs', cronolog: '/pedidos-nota' };
 
 function ComoUsar({ api }: { api: ApiDeArea }) {
   const e = api.endereco;
@@ -82,6 +85,33 @@ function ComoUsar({ api }: { api: ApiDeArea }) {
           mensagem) em qualquer passo. Em simulando e gravando, só <Codigo>{'{ "mensagem" }'}</Codigo> manda um recado sem trocar de passo. Só
           com chave de quem edita a área Engenharia.
         </Typography>
+      </Stack>
+    );
+  }
+  if (api.id === 'cronolog') {
+    return (
+      <Stack spacing={1}>
+        <Typography color="text.secondary">Mande a chave no cabeçalho <Codigo>{api.cabecalho}</Codigo>. Consulta (GET):</Typography>
+        <Box component="ul" sx={{ m: 0, pl: 3, color: 'text.secondary', display: 'grid', gap: 0.5 }}>
+          <li><Codigo>{e}/eu</Codigo>: de quem é a chave e se ela grava.</li>
+          <li>
+            <Codigo>{e}/pedidos-nota</Codigo>: as programações que passaram para Ag. NF sem nota (<Codigo>pedido</Codigo>) e as que o robô já
+            assumiu (<Codigo>gerando</Codigo>), com <Codigo>expedicao</Codigo>, código, item, obra e período; <Codigo>{e}/pedidos-nota/&lt;id&gt;</Codigo>: uma delas.
+          </li>
+        </Box>
+        <Typography color="text.secondary">Gravação, só com chave de quem edita a área Logística:</Typography>
+        <Box component="ul" sx={{ m: 0, pl: 3, color: 'text.secondary', display: 'grid', gap: 0.5 }}>
+          <li>POST <Codigo>{e}/pedidos-nota/&lt;id&gt;</Codigo> <Codigo>{'{ "status": "gerando" }'}</Codigo>: assume o pedido antes de gerar a nota (outro robô recebe 409).</li>
+          <li>
+            POST <Codigo>{e}/pedidos-nota/&lt;id&gt;/nota?nome=NF%201234.pdf</Codigo>, com o PDF no corpo (até 25 MB): entra na Nota da linha (o primeiro
+            PDF leva o Status a Em viagem e o ADMINISTRATIVO recebe "Nota anexada"). Ex.: <Codigo>curl --data-binary @NF.pdf -H "Content-Type: application/pdf" …</Codigo>.
+          </li>
+          <li>
+            POST <Codigo>{e}/pedidos-nota/&lt;id&gt;</Codigo> <Codigo>{'{ "status": "erro", "mensagem": "…" }'}</Codigo>: o motivo vira uma observação da linha
+            marcando o ADMINISTRATIVO do Atribuir.
+          </li>
+        </Box>
+        <Typography color="text.secondary">Para pedir de novo depois de um erro, tire a linha de Ag. NF e ponha de volta.</Typography>
       </Stack>
     );
   }
@@ -337,7 +367,7 @@ function NovaChave({ api, pessoas, criadoPor, onFechar, onCriada }: {
           <TextField
             id={`chave-${api.id}-descricao`}
             label="Descrição (para quem é, onde roda)"
-            placeholder={api.id === 'friday' ? 'Ex.: Robô de obras do Samuel' : api.id === 'prefabricados' ? 'Ex.: Robô do Plannix do Samuel' : 'Ex.: Power BI do cronograma'}
+            placeholder={api.id === 'friday' ? 'Ex.: Robô de obras do Samuel' : api.id === 'prefabricados' ? 'Ex.: Robô do Plannix do Samuel' : api.id === 'cronolog' ? 'Ex.: Robô de notas do Samuel' : 'Ex.: Power BI do cronograma'}
             value={descricao}
             onChange={(e) => setDescricao(e.target.value)}
             inputProps={{ maxLength: 80 }}

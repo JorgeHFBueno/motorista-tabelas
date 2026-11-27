@@ -4,6 +4,8 @@
 //   passa para o status "Ag. NF", e "Nota anexada - Expedição XXXX" quando ela recebe o PDF da nota (abrem o cronograma);
 // - ENGENHARIA (`engenharia`, com engenharia ou adm2): "Fulano notificou a Engenharia sobre Ag. Lista de Materiais para
 //   OBRA" quando a programação passa para "Ag. Lista de Materiais" (só a notificação, sem tela).
+// Também põe na fila do robô do ERP (logistica-pedidos-nota, lida pela cronoLogApi) a programação que passa para "Ag. NF"
+// sem nota, com ou sem atribuídos (2026-11-27).
 // Regras: logisticaPedidoNotaDominio.ts. Contrato: The Manuscript, 01_FIRESTORE/COLECOES/logistica.md e avisos.md.
 import { onDocumentWritten } from 'firebase-functions/v2/firestore';
 import * as logger from 'firebase-functions/logger';
@@ -11,14 +13,33 @@ import { FieldValue } from 'firebase-admin/firestore';
 import { db } from './firebaseAdmin.js';
 import { comGrupo } from './avisosGrupo.js';
 import {
-  avisoListaMateriais, avisoNotaAnexada, avisoPedidoNota, destinatariosPedidoNota, entrouEmAgNf, entrouEmListaMateriais,
-  idAvisoListaMateriais, idAvisoNotaAnexada, idAvisoPedidoNota, idsAgNf, idsListaMateriais, recebeuNota, uidsDoPapel,
+  avisoListaMateriais, avisoNotaAnexada, avisoPedidoNota, destinatariosPedidoNota, deveEnfileirar, entrouEmAgNf, entrouEmListaMateriais,
+  idAvisoListaMateriais, idAvisoNotaAnexada, idAvisoPedidoNota, idsAgNf, idsListaMateriais, recebeuNota, temNota, uidsDoPapel,
 } from './logisticaPedidoNotaDominio.js';
 
 const jaExiste = (e: unknown) => {
   const err = e as { code?: unknown; message?: unknown };
   return err?.code === 6 || err?.code === 'already-exists' || /ALREADY_EXISTS/i.test(String(err?.message ?? ''));
 };
+
+/**
+ * Pedido de nota na fila do robô (logistica-pedidos-nota/{programação}): `pedido`, com quem pediu. Não mexe no que o
+ * robô já assumiu (`gerando`) nem repete na nova tentativa do mesmo evento; o resto (concluído, erro, cancelado) volta a
+ * ser pedido.
+ */
+async function enfileirarPedidoNota(id: string, p: Record<string, any>, eventoId: string) {
+  const ref = db.collection('logistica-pedidos-nota').doc(id);
+  const enfileirou = await db.runTransaction(async t => {
+    if (!deveEnfileirar((await t.get(ref)).data(), eventoId)) return false;
+    t.set(ref, {
+      schemaVersion: 1, programacaoId: id, status: 'pedido', evento: eventoId,
+      pedidoPor: { uid: String(p.atualizadoPorUid ?? ''), nome: String(p.atualizadoPorNome ?? '') },
+      pedidoEm: FieldValue.serverTimestamp(), atualizadoEm: FieldValue.serverTimestamp(),
+    });
+    return true;
+  });
+  if (enfileirou) logger.info('logisticaPedidoNota: pedido de nota na fila do robô', { programacao: id });
+}
 
 export const logisticaPedidoNota = onDocumentWritten(
   { document: 'logistica-programacoes/{programacaoId}', region: 'southamerica-east1' },
@@ -36,8 +57,10 @@ export const logisticaPedidoNota = onDocumentWritten(
     const etiquetas = status?.data()?.etiquetas;
     const id = event.params.programacaoId;
     const papeis = { administrativo: pedido.data()?.atribuidos, engenharia: pedido.data()?.engenharia };
+    const agNf = !!status && entrouEmAgNf(antes, depois, idsAgNf(etiquetas));
+    if (agNf && !temNota(depois)) await enfileirarPedidoNota(id, depois, event.id);
     const avisos = [
-      ...(status && entrouEmAgNf(antes, depois, idsAgNf(etiquetas))
+      ...(agNf
         ? [{ aviso: avisoPedidoNota(id, depois), idDoAviso: idAvisoPedidoNota, lista: papeis.administrativo, area: 'logistica' as const }] : []),
       ...(nota ? [{ aviso: avisoNotaAnexada(id, depois), idDoAviso: idAvisoNotaAnexada, lista: papeis.administrativo, area: 'logistica' as const }] : []),
       ...(status && entrouEmListaMateriais(antes, depois, idsListaMateriais(etiquetas))

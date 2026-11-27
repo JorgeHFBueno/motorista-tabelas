@@ -1112,6 +1112,31 @@ test('[firestore] Pré-Fabricados API keys (prefabricados-chaves-api) listed, cr
   await assertFails(updateDoc(doc(adm, 'prefabricados-chaves-api', hash), { revogada_em: '2026-11-19 12:00:00', revogada_por: 'uid-adm2' }), 'revogada não volta');
   await assertFails(deleteDoc(doc(adm, 'prefabricados-chaves-api', hash)));
 });
+// Chaves da API do CronoLog (cronoLogApi, área Logística): o mesmo modelo, sem "escrita"; a fila do robô é só da Function.
+test('[firestore] CronoLog API keys (cronolog-chaves-api) listed, created and revoked only by adm2, never deleted', async () => {
+  const hash = 'c'.repeat(64);
+  const chave = (extra = {}) => ({ uid: 'uid-escritorio', nome: 'Robô', sufixo: 'abcd', criado_por: 'uid-adm2', criado_em: '2026-11-19 10:00:00', revogada_em: null, ...extra });
+  const esc = dbAs('escritorio');
+  await assertFails(setDoc(doc(esc, 'cronolog-chaves-api', hash), chave({ criado_por: 'uid-escritorio' })));
+  await assertFails(getDocs(collection(esc, 'cronolog-chaves-api')));
+  await assertFails(getDoc(doc(esc, 'cronolog-chaves-api', hash)));
+  const adm = dbAs('adm2');
+  await assertFails(setDoc(doc(adm, 'cronolog-chaves-api', 'nao-e-hash'), chave()));
+  await assertFails(setDoc(doc(adm, 'cronolog-chaves-api', hash), chave({ criado_por: 'uid-escritorio' })), 'em nome de outra pessoa');
+  await assertFails(setDoc(doc(adm, 'cronolog-chaves-api', hash), chave({ revogada_em: '2026-11-19 10:00:00' })), 'já nasce revogada');
+  await assertFails(setDoc(doc(adm, 'cronolog-chaves-api', hash), chave({ escrita: true })), 'sem escrita');
+  await assertFails(setDoc(doc(adm, 'cronolog-chaves-api', hash), chave({ uid: '' })), 'sem pessoa');
+  await assertSucceeds(setDoc(doc(adm, 'cronolog-chaves-api', hash), chave()));
+  await assertSucceeds(getDocs(collection(adm, 'cronolog-chaves-api')));
+  await assertFails(updateDoc(doc(adm, 'cronolog-chaves-api', hash), { uid: 'uid-adm2' }), 'trocar a pessoa');
+  await assertFails(updateDoc(doc(esc, 'cronolog-chaves-api', hash), { revogada_em: '2026-11-19 11:00:00', revogada_por: 'uid-escritorio' }));
+  await assertFails(updateDoc(doc(adm, 'cronolog-chaves-api', hash), { revogada_em: '2026-11-19 11:00:00', revogada_por: 'uid-escritorio' }), 'revogada em nome de outra pessoa');
+  await assertSucceeds(updateDoc(doc(adm, 'cronolog-chaves-api', hash), { revogada_em: '2026-11-19 11:00:00', revogada_por: 'uid-adm2' }));
+  await assertFails(updateDoc(doc(adm, 'cronolog-chaves-api', hash), { revogada_em: '2026-11-19 12:00:00', revogada_por: 'uid-adm2' }), 'revogada não volta');
+  await assertFails(deleteDoc(doc(adm, 'cronolog-chaves-api', hash)));
+  await assertFails(getDoc(doc(adm, 'logistica-pedidos-nota', 'p1')), 'fila só da Function');
+  await assertFails(setDoc(doc(adm, 'logistica-pedidos-nota', 'p1'), { status: 'pedido' }), 'fila só da Function');
+});
 test('[firestore] Friday: items keep "vinculo" and import control written only by Functions', async () => {
   const db = dbAs('escritorio');
   await assertSucceeds(setDoc(doc(db, 'friday-itens', '22'), { id: 22, quadro_id: 10, nome: 'Novo', valores: {}, vinculo: null, importado_em: null }));

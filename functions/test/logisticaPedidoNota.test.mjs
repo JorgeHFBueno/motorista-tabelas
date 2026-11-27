@@ -129,3 +129,10 @@ test('vários PDFs: avisa a cada PDF novo em `notas` (inclusive com o `nota` de 
   assert.equal(d.temNota({ nota: pdf(1) }), true);
   assert.equal(d.rotaDaProgramacao('a b'), '/logistica/cronograma?programacao=a%20b');
 });
+
+test('Fila do robô do ERP: enfileira de novo depois de concluído, erro ou cancelado; não mexe no que o robô assumiu nem repete o evento', () => {
+  assert.equal(d.deveEnfileirar(undefined, 'ev1'), true);
+  for (const status of ['pedido', 'concluido', 'erro', 'cancelado']) assert.equal(d.deveEnfileirar({ status, evento: 'ev0' }, 'ev1'), true, status);
+  assert.equal(d.deveEnfileirar({ status: 'gerando', evento: 'ev0' }, 'ev1'), false);
+  assert.equal(d.deveEnfileirar({ status: 'pedido', evento: 'ev1' }, 'ev1'), false, 'nova tentativa do mesmo evento');
+});

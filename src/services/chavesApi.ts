@@ -14,7 +14,7 @@ export type ChaveApi = {
 };
 
 export type ApiDeArea = {
-  id: 'friday' | 'cronoobra' | 'prefabricados';
+  id: 'friday' | 'cronoobra' | 'prefabricados' | 'cronolog';
   titulo: string;
   /** Área da WEB que a pessoa da chave precisa ver (adm2 vê todas). */
   area: Area;
@@ -45,7 +45,12 @@ export const API_PREFABRICADOS: ApiDeArea = {
   cabecalho: 'X-PreFabricados-Chave', endereco: `${BASE}/preFabricadosApi`, escrita: false,
 };
 
-export const APIS: readonly ApiDeArea[] = [API_FRIDAY, API_CRONOOBRA, API_PREFABRICADOS];
+export const API_CRONOLOG: ApiDeArea = {
+  id: 'cronolog', titulo: 'CronoLog (Cronograma Logístico)', area: 'logistica', colecao: 'cronolog-chaves-api', prefixo: 'lgcr_',
+  cabecalho: 'X-CronoLog-Chave', endereco: `${BASE}/cronoLogApi`, escrita: false,
+};
+
+export const APIS: readonly ApiDeArea[] = [API_FRIDAY, API_CRONOOBRA, API_PREFABRICADOS, API_CRONOLOG];
 
 export async function listarChaves(api: ApiDeArea): Promise<ChaveApi[]> {
   const s = await getDocs(collection(db, api.colecao));

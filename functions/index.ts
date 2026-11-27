@@ -27,6 +27,7 @@ export { roboObras } from './roboObras.js';
 export { fridayApi } from './fridayApi.js';
 export { cronoObraApi } from './cronoObraApi.js';
 export { preFabricadosApi } from './preFabricadosApi.js';
+export { cronoLogApi } from './cronoLogApi.js';
 export { logisticaPessoasFriday } from './logisticaPessoas.js';
 export { logisticaPedidoNota } from './logisticaPedidoNota.js';
 export { logisticaObservacaoMencao } from './logisticaObservacaoMencao.js';

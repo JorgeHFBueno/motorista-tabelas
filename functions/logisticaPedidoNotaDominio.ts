@@ -62,6 +62,12 @@ export function recebeuNota(antes: AnyRecord | undefined, depois: AnyRecord | un
   return [...caminhosDaNota(depois)].some(c => !antigos.has(c));
 }
 
+/**
+ * Pôr a programação que entrou em Ag. NF na fila do robô do ERP (logistica-pedidos-nota): sim, menos quando o robô já
+ * assumiu (`gerando`) ou quando é a nova tentativa do mesmo evento.
+ */
+export const deveEnfileirar = (atual: AnyRecord | undefined, eventoId: string) => atual?.status !== 'gerando' && atual?.evento !== eventoId;
+
 /** Rota do aviso do ADMINISTRATIVO: o cronograma já na linha (a WEB centraliza e destaca a programação). */
 export const rotaDaProgramacao = (programacaoId: string) => `${ROTA_CRONOGRAMA}?programacao=${encodeURIComponent(programacaoId)}`;
 

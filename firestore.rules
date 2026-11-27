@@ -1414,6 +1414,24 @@ service cloud.firestore {
       allow delete: if false;
     }
 
+    // Chaves da API do CronoLog (Function cronoLogApi, área Logística; Manuscript cronolog-chaves-api.md, 2026-11-27): o
+    // mesmo modelo das chaves dos Pré-Fabricados. A fila do robô (logistica-pedidos-nota) é só da Function: sem regra.
+    match /cronolog-chaves-api/{hash} {
+      allow read: if isAdm2();
+      allow create: if isAdm2()
+        && hash.matches('^[0-9a-f]{64}$')
+        && request.resource.data.keys().hasOnly(['uid', 'nome', 'sufixo', 'criado_por', 'criado_em', 'revogada_em'])
+        && request.resource.data.uid is string && request.resource.data.uid.size() > 0
+        && request.resource.data.criado_por == request.auth.uid
+        && request.resource.data.revogada_em == null;
+      allow update: if isAdm2()
+        && resource.data.revogada_em == null
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['revogada_em', 'revogada_por'])
+        && request.resource.data.revogada_em is string
+        && request.resource.data.revogada_por == request.auth.uid;
+      allow delete: if false;
+    }
+
     // Uso do sistema (Manuscript uso-web.md, 2026-11-23): uso-web/{uid}_{AAAA-MM-DD} = { uid, dia, telas: { rota: n },
     // atualizadoEm }. A WEB soma +1 na tela aberta, no documento da própria pessoa ativa; só o adm2 lê; ninguém apaga.
     match /uso-web/{id} {
