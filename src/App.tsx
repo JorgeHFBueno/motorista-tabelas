@@ -70,6 +70,7 @@ const ErpConciliacaoPage = lazy(() => import('./features/erp/financeiro/ErpConci
 const ErpChequesPage = lazy(() => import('./features/erp/financeiro/ErpChequesPage'));
 const ErpChequePage = lazy(() => import('./features/erp/financeiro/ErpChequePage'));
 const ErpStatusChequesPage = lazy(() => import('./features/erp/financeiro/ErpStatusChequesPage'));
+const ErpAdiantamentosPage = lazy(() => import('./features/erp/financeiro/ErpAdiantamentosPage'));
 const TheManuscriptPage = lazy(() => import('./pages/TheManuscriptPage'));
 const ManuscriptMapaPage = lazy(() => import('./pages/ManuscriptMapaPage'));
 const MeuPerfilPage = lazy(() => import('./pages/MeuPerfilPage'));
@@ -209,6 +210,7 @@ export default function App() {
                 <Route path="erp/cheques" element={<ErpChequesPage />} />
                 <Route path="erp/cheques/status" element={<ErpStatusChequesPage />} />
                 <Route path="erp/cheques/:id" element={<ErpChequePage />} />
+                <Route path="erp/adiantamentos" element={<ErpAdiantamentosPage />} />
               </Route>
             </Route>
             {/* Mecânica e Logística são grupos, como Engenharia: /mecanica e /logistica não têm página própria (2026-11-19:

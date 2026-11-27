@@ -1,7 +1,8 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import {
-  FILTRO_TITULOS, filtrarTitulos, parcelasDaCondicao, parcelasDoDocumento, TITULOS_EXEMPLO, titulosDaNota, vencido,
+  ehAdiantamento, FILTRO_ADIANTAMENTOS, filtrarAdiantamentos, FILTRO_TITULOS, filtrarTitulos, parcelasDaCondicao, parcelasDoDocumento, TITULOS_EXEMPLO, titulosDaNota,
+  vencido,
 } from '../src/features/erp/financeiro/titulosExemplo';
 import {
   CONTAS_BANCO, extrato, filtrarProjecoes, FILTRO_PROJECOES, MOVIMENTOS_BANCO, PROJECOES_EXEMPLO, saldoDaConta, saldosEm,
@@ -35,8 +36,8 @@ test('saldo = valor minus payments; cancelled has no saldo; one partial payment'
     else assert.ok(Math.abs(t.saldo - (t.valor - pago)) < 0.005, `título ${t.id}`);
     if (t.vencimento <= '2026-11-20' && !t.cancelado) assert.equal(t.saldo, 0, `vencido até 20/11 está pago: ${t.id}`);
   }
-  assert.equal(TITULOS_EXEMPLO.filter((t) => t.saldo > 0 && t.baixas.length).length, 1);
-  assert.equal(TITULOS_EXEMPLO.filter((t) => t.cancelado).length, 1);
+  assert.equal(TITULOS_EXEMPLO.filter((t) => !ehAdiantamento(t) && t.saldo > 0 && t.baixas.length).length, 1);
+  assert.equal(TITULOS_EXEMPLO.filter((t) => !ehAdiantamento(t) && t.cancelado).length, 1);
   const recibos = TITULOS_EXEMPLO.flatMap((t) => t.baixas.map((b) => b.recibo));
   assert.equal(new Set(recibos).size, recibos.length);
 });
@@ -88,7 +89,7 @@ test('Relatórios de Contas a Pagar/Receber: by client, summary, monthly and tot
     else assert.equal(Number(l.juros) + Number(l.multa), 0);
   }
   // Posição em 20/11: o título pago em parte em 24/11 ainda estava inteiro.
-  const parcial = TITULOS_EXEMPLO.find((t) => t.saldo > 0 && t.baixas.length)!;
+  const parcial = TITULOS_EXEMPLO.find((t) => !ehAdiantamento(t) && t.saldo > 0 && t.baixas.length)!;
   const naPosicao = def.gerar({ ...BASE, analise: 'cliente', basePosicao: '2026-11-20' }).find((l) => l.id === parcial.id)!;
   assert.equal(naPosicao.saldo, parcial.valor);
 });
@@ -196,4 +197,14 @@ test('Cheques: one default status; search by number, holder or bank; type, statu
   assert.deepEqual(filtrarCheques({ ...FILTRO_CHEQUES, tipo: 'E' }).map((x) => x.id), [7]);
   assert.ok(filtrarCheques({ ...FILTRO_CHEQUES, status: '4' }).every((x) => x.status === 4));
   assert.ok(filtrarCheques({ ...FILTRO_CHEQUES, de: '2026-12-01', ate: '2026-12-31' }).every((x) => x.vencimento.startsWith('2026-12')));
+});
+
+test('Adiantamentos/Empréstimos: titles with the advance situation; open by default, both types', () => {
+  const abertos = filtrarAdiantamentos(FILTRO_ADIANTAMENTOS);
+  assert.ok(abertos.length > 0 && abertos.every((t) => ehAdiantamento(t) && !t.cancelado));
+  assert.ok(abertos.some((t) => t.tipo === 'P') && abertos.some((t) => t.tipo === 'R'));
+  assert.ok(filtrarAdiantamentos({ ...FILTRO_ADIANTAMENTOS, situacao: 'cancelados' }).every((t) => t.cancelado));
+  assert.ok(filtrarAdiantamentos({ ...FILTRO_ADIANTAMENTOS, tipo: 'R' }).every((t) => t.tipo === 'R'));
+  const usado = abertos.find((t) => t.numero === 'ADT-0008')!;
+  assert.equal(usado.valor - usado.saldo, 5000);
 });

@@ -9,9 +9,12 @@ import { PESSOAS_EXEMPLO } from '../pessoas/pessoasExemplo';
 
 export const AVISO_TITULOS = 'Demonstração: os títulos são exemplos, saídos das notas de entrada, e nada é gravado. Os dados reais virão do Elevor.';
 
-export const SITUACOES_TITULO = ['NORMAL', 'EM NEGOCIAÇÃO', 'PROTESTADO'];
+export const SITUACOES_TITULO = ['NORMAL', 'EM NEGOCIAÇÃO', 'PROTESTADO', 'CRÉDITO/ADIANTAMENTO'];
+/** Situação que faz do título um adiantamento/empréstimo (como no ERP do Samuel). */
+export const SITUACAO_ADIANTAMENTO = 'CRÉDITO/ADIANTAMENTO';
 export const MEIOS_PAGAMENTO = ['BOLETO', 'PIX', 'TRANSFERÊNCIA', 'DINHEIRO'];
-export const PLANOS_TITULOS = [...PLANOS_CONTAS, '3.1.04 - MANUTENÇÃO DE MÁQUINAS', '1.1.01 - VENDAS DE PRÉ-FABRICADOS'];
+export const PLANOS_TITULOS = [...PLANOS_CONTAS, '3.1.04 - MANUTENÇÃO DE MÁQUINAS', '1.1.01 - VENDAS DE PRÉ-FABRICADOS',
+  '2.2.01 - ADIANTAMENTOS DE CLIENTES', '1.3.01 - ADIANTAMENTOS A FORNECEDORES', '1.3.02 - EMPRÉSTIMOS A TERCEIROS'];
 export const CONDICOES_PAGAMENTO = [
   { id: 1, descricao: 'À VISTA', parcelas: 1, primeira: 0, intervalo: 0 },
   { id: 2, descricao: '28 DIAS', parcelas: 1, primeira: 28, intervalo: 0 },
@@ -37,7 +40,7 @@ const codigoDe = (nome: string) => PESSOAS_EXEMPLO.find((p) => p.nome === nome)?
 const PAGO_ATE = '2026-11-20';
 
 type Base = Omit<TituloExemplo, 'id' | 'saldo' | 'baixas' | 'pessoaCodigo' | 'programacao' | 'linhaDigitavel' | 'cancelado' | 'motivoCancelamento' | 'rateio' | 'meio'>
-  & { plano: string; centro: string; subcentro?: string; pago?: number; cancelado?: string };
+  & { plano: string; centro: string; subcentro?: string; cancelado?: string; uso?: { data: string; valor: number; conta: string } };
 
 function gerarTitulos(): TituloExemplo[] {
   const bases: Base[] = [];
@@ -72,25 +75,43 @@ function gerarTitulos(): TituloExemplo[] {
     receber('Condomínio Residencial Exemplo', 'MED-014', '2026-11-05', '2026-11-25', 31200, 'RESIDENCIAL EXEMPLO'),
   );
 
+  // Adiantamentos/empréstimos: títulos com a situação Crédito/Adiantamento. A pagar = adiantamento recebido de cliente;
+  // a receber = adiantamento concedido (a fornecedor) ou empréstimo. O uso (compensação ou devolução) é a baixa do título.
+  const adto = (b: Pick<Base, 'tipo' | 'pessoa' | 'numero' | 'emissao' | 'valor' | 'historico' | 'plano' | 'centro'> & Partial<Base>): Base => ({
+    empresa: 1, sequencia: 1, parcelas: 1, tipoDocumento: TIPOS_DOCUMENTO[2], situacao: SITUACAO_ADIANTAMENTO, vencimento: '2026-12-31', banco: BANCOS[1], notaNumero: null, ...b,
+  });
+  bases.push(
+    adto({ tipo: 'P', pessoa: 'Condomínio Residencial Exemplo', numero: 'ADT-0007', emissao: '2026-10-20', valor: 30000, historico: 'Sinal da obra Residencial Exemplo',
+      plano: PLANOS_TITULOS[6], centro: 'OBRAS', subcentro: 'RESIDENCIAL EXEMPLO' }),
+    adto({ tipo: 'P', pessoa: 'Construtora Exemplo Ltda', numero: 'ADT-0009', emissao: '2026-11-12', valor: 12000, historico: 'Sinal do pedido de vigas',
+      plano: PLANOS_TITULOS[6], centro: 'OBRAS', cancelado: 'Devolvido ao cliente: pedido desfeito.' }),
+    adto({ tipo: 'R', pessoa: 'Ferragens Fictícia ME', numero: 'ADT-0008', emissao: '2026-11-03', valor: 15000, historico: 'Adiantamento para a compra de aço',
+      plano: PLANOS_TITULOS[7], centro: 'FÁBRICA', uso: { data: '2026-11-24', valor: 5000, conta: 'COMPENSAÇÃO' } }),
+    adto({ tipo: 'R', pessoa: 'João Modelo de Souza', numero: 'EMP-0002', emissao: '2026-10-01', valor: 2500, historico: 'Empréstimo, devolvido em parcelas',
+      plano: PLANOS_TITULOS[8], centro: 'ADMINISTRATIVO', uso: { data: '2026-11-01', valor: 1000, conta: BANCOS[1] } }),
+  );
+
   bases.sort((a, b) => a.emissao.localeCompare(b.emissao) || a.numero.localeCompare(b.numero) || a.sequencia - b.sequencia);
   // Um pagamento parcial: o maior título a pagar que vence logo depois do corte (40% pago no vencimento da véspera).
   const parcial = bases.filter((b) => b.tipo === 'P' && !b.cancelado && b.vencimento > PAGO_ATE && b.vencimento <= '2026-11-25')
     .sort((a, b) => b.valor - a.valor)[0];
   let recibo = 800;
-  const baixasPorData: Array<{ base: Base; data: string; valor: number }> = [];
+  const baixasPorData: Array<{ base: Base; data: string; valor: number; conta?: string }> = [];
   for (const b of bases) {
     if (b.cancelado) continue;
+    if (b.uso) { baixasPorData.push({ base: b, ...b.uso }); continue; }
     if (b.vencimento <= PAGO_ATE) baixasPorData.push({ base: b, data: b.vencimento, valor: b.valor });
     else if (b === parcial) baixasPorData.push({ base: b, data: maisDias(b.vencimento, -1), valor: r2(b.valor * 0.4) });
   }
   baixasPorData.sort((a, b) => a.data.localeCompare(b.data));
   const baixas = new Map(baixasPorData.map((x) => [x.base, {
-    data: x.data, recibo: ++recibo, conta: x.base.banco, valor: x.valor, juros: 0, multa: 0, desconto: 0, usuario: 'FINANCEIRO',
+    data: x.data, recibo: ++recibo, conta: x.conta ?? x.base.banco, valor: x.valor, juros: 0, multa: 0, desconto: 0, usuario: 'FINANCEIRO',
   }]));
 
   return bases.map((b, i) => {
     const baixa = baixas.get(b);
-    const { plano, centro, subcentro, cancelado, ...resto } = b;
+    const { plano, centro, subcentro, cancelado, uso, ...resto } = b;
+    void uso;
     return {
       ...resto, id: i + 1, pessoaCodigo: codigoDe(b.pessoa), programacao: '', linhaDigitavel: '', meio: b.tipoDocumento === TIPOS_DOCUMENTO[2] ? 'PIX' : 'BOLETO',
       saldo: cancelado ? 0 : r2(b.valor - (baixa?.valor ?? 0)), baixas: baixa ? [baixa] : [],
@@ -144,4 +165,17 @@ export function parcelasDaCondicao(condicao: number, total: number, emissao: str
     vencimento: maisDias(emissao, c.primeira + i * c.intervalo),
     valor: i === c.parcelas - 1 ? r2(total - base * (c.parcelas - 1)) : base,
   }));
+}
+
+export const ehAdiantamento = (t: TituloExemplo) => t.situacao === SITUACAO_ADIANTAMENTO;
+export type FiltroAdiantamentos = { empresa: string; pessoa: string; de: string; ate: string; numero: string; tipo: string; situacao: string };
+export const FILTRO_ADIANTAMENTOS: FiltroAdiantamentos = { empresa: '', pessoa: '', de: '', ate: '', numero: '', tipo: 'A', situacao: 'abertos' };
+
+/** Consulta de Adiantamentos/Empréstimos (FN_AdiantamentosConsulta): Tipo em Ambos e Situação em Abertos; pela data, o mais novo primeiro. */
+export function filtrarAdiantamentos(f: FiltroAdiantamentos) {
+  return TITULOS_EXEMPLO.filter((t) => ehAdiantamento(t) && (f.tipo === 'A' || t.tipo === f.tipo)
+    && (f.situacao === 'ambos' || (f.situacao === 'cancelados' ? t.cancelado : !t.cancelado))
+    && (!f.empresa || t.empresa === Number(f.empresa)) && (!f.pessoa || t.pessoa === f.pessoa)
+    && (!f.de || t.emissao >= f.de) && (!f.ate || t.emissao <= f.ate) && (!f.numero.trim() || t.numero.toLowerCase().includes(f.numero.trim().toLowerCase())))
+    .sort((a, b) => b.emissao.localeCompare(a.emissao) || b.id - a.id);
 }

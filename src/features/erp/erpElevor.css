@@ -443,6 +443,14 @@
 .erp-elevor .opcoes.opcoes-coluna { flex-direction: column; gap: 6px; }
 .erp-elevor .grade.status-cheques { width: auto; min-width: 640px; }
 
+/* Adiantamentos/Empréstimos (FN_AdiantamentosConsulta) */
+.erp-elevor .ficha-elevor.adiantamentos-filtros { max-width: 980px; margin: 8px auto 14px; }
+.erp-elevor .grade.adiantamentos-elevor td { vertical-align: middle; }
+.erp-elevor .grade.adiantamentos-elevor .seta { width: 28px; }
+.erp-elevor .grade.adiantamentos-elevor .tipo-adto { white-space: nowrap; color: var(--texto-2); font-size: 12px; }
+.erp-elevor .grade.adiantamentos-elevor .lixeira svg { width: 18px; height: 18px; }
+.erp-elevor .grade tr.linha-detalhe td { background: var(--grade-hover); font-size: 13px; }
+
 @media (max-width: 900px) {
   .erp-elevor .grade.status-cheques { min-width: 0; width: 100%; }
   .erp-elevor .conc-titulos, .erp-elevor .conc-selecionados { grid-template-columns: 1fr; }

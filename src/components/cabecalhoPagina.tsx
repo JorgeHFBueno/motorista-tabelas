@@ -76,6 +76,7 @@ const TITULOS: Array<{ padrao: string } & TituloPagina> = [
   { padrao: '/erp/cheques', titulo: 'Consulta de Cheques' },
   { padrao: '/erp/cheques/status', titulo: 'Status de Cheques' },
   { padrao: '/erp/cheques/:id', titulo: 'Inclusão de Cheques' },
+  { padrao: '/erp/adiantamentos', titulo: 'Consulta de Adiantamentos/Empréstimos' },
   { padrao: '/portal-cliente/clientes', titulo: 'Clientes do portal' },
   { padrao: '/portal-cliente/contratos', titulo: 'Contratos no portal' },
   { padrao: '/portal-cliente/contratos/:id', titulo: 'Contrato no portal' },

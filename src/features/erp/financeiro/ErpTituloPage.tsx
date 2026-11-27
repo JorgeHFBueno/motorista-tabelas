@@ -1,5 +1,5 @@
 import { useState, type ReactNode } from 'react';
-import { Link, useLocation, useNavigate, useParams } from 'react-router-dom';
+import { Link, useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import AddIcon from '@mui/icons-material/Add';
 import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
 import ExpandLessIcon from '@mui/icons-material/ExpandLess';
@@ -17,7 +17,7 @@ import {
 // /erp/titulos/:id: Lançamento de Títulos (FN_Lancamentos do Elevor), como o do ERP do Samuel (web/src/erp/financeiro/Titulo.tsx):
 // título a pagar ou a receber, com as seções recolhidas do Elevor (Outros Dados, Pagamento, Referenciar Documento, Arquivos),
 // o rateio por centro de custo e, no título gravado, as baixas e as parcelas do documento. `novo` abre vazio; com condição
-// de pagamento, mostra as parcelas. Demonstração: Gravar, Excluir e Cancelar só dizem o que o ERP faria.
+// de pagamento, mostra as parcelas; ?tipo= e ?situacao= preenchem o novo. Demonstração: Gravar, Excluir e Cancelar só dizem o que o ERP faria.
 // The Manuscript, 03_APLICACAO_WEB/01_ROTAS_E_NAVEGACAO.md#erp.
 
 type Linha = { plano: string; centro: string; subcentro: string; valor: string };
@@ -42,10 +42,10 @@ function doTitulo(t: TituloExemplo): { f: Formulario; rateio: Linha[] } {
   };
 }
 
-function Ficha({ t, copia }: { t: TituloExemplo | null; copia?: { f: Formulario; rateio: Linha[] } }) {
+function Ficha({ t, copia, padrao }: { t: TituloExemplo | null; copia?: { f: Formulario; rateio: Linha[] }; padrao?: Partial<Formulario> }) {
   const navigate = useNavigate();
   const novo = !t;
-  const inicial = copia ?? (t ? doTitulo(t) : { f: VAZIO, rateio: [LINHA_VAZIA] });
+  const inicial = copia ?? (t ? doTitulo(t) : { f: { ...VAZIO, ...padrao }, rateio: [LINHA_VAZIA] });
   const [f, setF] = useState<Formulario>(inicial.f);
   const [rateio, setRateio] = useState<Linha[]>(inicial.rateio);
   const [secao, setSecao] = useState<Record<string, boolean>>({ outros: false, pagamento: novo, referenciar: true, arquivos: false });
@@ -279,6 +279,11 @@ export default function ErpTituloPage() {
   const { id = 'novo' } = useParams();
   const navigate = useNavigate();
   const copia = (useLocation().state as { copia?: { f: Formulario; rateio: Linha[] } } | null)?.copia;
+  // Novo já com tipo e situação (o Novo da Consulta de Adiantamentos/Empréstimos: ?tipo=R&situacao=CRÉDITO/ADIANTAMENTO).
+  const [params] = useSearchParams();
+  const padrao: Partial<Formulario> = {};
+  if (params.get('tipo') === 'P' || params.get('tipo') === 'R') padrao.tipo = params.get('tipo')!;
+  if (SITUACOES_TITULO.includes(params.get('situacao') ?? '')) padrao.situacao = params.get('situacao')!;
   const t = id === 'novo' ? null : tituloExemplo(id);
   if (id !== 'novo' && !t) {
     return (
@@ -289,5 +294,5 @@ export default function ErpTituloPage() {
     );
   }
   // key: trocar de título (ou Copiar para um novo) recomeça a ficha.
-  return <Ficha key={`${id}-${copia ? 'copia' : ''}`} t={t} copia={copia} />;
+  return <Ficha key={`${id}-${copia ? 'copia' : ''}-${params.toString()}`} t={t} copia={copia} padrao={padrao} />;
 }
