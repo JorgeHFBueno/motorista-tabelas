@@ -24,6 +24,8 @@ export type Campo = {
   ajuda?: string;
   /** Campo com controle próprio da ficha (CPF/CNPJ, Cidade). */
   especial?: string;
+  /** Só leitura, como no ERP do Samuel (campo do Elevor que o ERP não guarda). */
+  desabilitado?: true;
 };
 export type Lista = { lista: string; colunas: ColunaItem[]; estreita?: true; semCabecalho?: true; botao?: string; inicial?: string };
 export type Item = Campo | Lista;

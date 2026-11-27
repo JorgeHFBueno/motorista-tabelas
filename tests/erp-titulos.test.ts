@@ -7,6 +7,7 @@ import {
   CONTAS_BANCO, extrato, filtrarProjecoes, FILTRO_PROJECOES, MOVIMENTOS_BANCO, PROJECOES_EXEMPLO, saldoDaConta, saldosEm,
 } from '../src/features/erp/financeiro/fluxoExemplo';
 import { fluxoDeCaixa, relatorioFinanceiro } from '../src/features/erp/financeiro/relatoriosFinanceiro';
+import { CHEQUES_EXEMPLO, FILTRO_CHEQUES, filtrarCheques, STATUS_CHEQUES } from '../src/features/erp/financeiro/chequesExemplo';
 import {
   CONCILIACOES_INICIAIS, CONTAS_CONCILIACAO, EXTRATO_BANCO, lerOfx, montarGrade, situacaoDoDia,
 } from '../src/features/erp/financeiro/conciliacaoExemplo';
@@ -183,4 +184,16 @@ CHARSET:1252
     { data: '2026-11-27', valor: 1500, fitid: 'A2', documento: '', historico: 'PIX RECEBIDO' },
   ]);
   assert.throws(() => lerOfx('qualquer coisa'), /OFX/);
+});
+
+test('Cheques: one default status; search by number, holder or bank; type, status and due date filters', () => {
+  assert.equal(STATUS_CHEQUES.filter((x) => x.padrao).length, 1);
+  assert.ok(CHEQUES_EXEMPLO.every((x) => STATUS_CHEQUES.some((st) => st.id === x.status)));
+  const todos = filtrarCheques(FILTRO_CHEQUES);
+  assert.equal(todos.length, CHEQUES_EXEMPLO.length);
+  assert.ok(todos.every((x, i) => i === 0 || todos[i - 1].vencimento >= x.vencimento));
+  assert.deepEqual(filtrarCheques({ ...FILTRO_CHEQUES, busca: 'joao' }).map((x) => x.numero).sort(), ['000112', '000118']);
+  assert.deepEqual(filtrarCheques({ ...FILTRO_CHEQUES, tipo: 'E' }).map((x) => x.id), [7]);
+  assert.ok(filtrarCheques({ ...FILTRO_CHEQUES, status: '4' }).every((x) => x.status === 4));
+  assert.ok(filtrarCheques({ ...FILTRO_CHEQUES, de: '2026-12-01', ate: '2026-12-31' }).every((x) => x.vencimento.startsWith('2026-12')));
 });

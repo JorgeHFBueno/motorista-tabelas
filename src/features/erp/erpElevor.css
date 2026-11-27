@@ -438,7 +438,13 @@
 .erp-elevor .modal .form-linha { grid-template-columns: 130px minmax(0, 1fr); gap: 8px 10px; }
 @media print { .erp-elevor .conciliacao-cabeca, .erp-elevor .conc-acoes, .erp-elevor .conc-fim, .erp-elevor .abas { display: none; } }
 
+/* Cheques (FN_Cheques e Status de Cheques) */
+.erp-elevor .ficha-cad.cheque-ficha { max-width: 900px; }
+.erp-elevor .opcoes.opcoes-coluna { flex-direction: column; gap: 6px; }
+.erp-elevor .grade.status-cheques { width: auto; min-width: 640px; }
+
 @media (max-width: 900px) {
+  .erp-elevor .grade.status-cheques { min-width: 0; width: 100%; }
   .erp-elevor .conc-titulos, .erp-elevor .conc-selecionados { grid-template-columns: 1fr; }
   .erp-elevor .tela-lateral { flex-direction: column; }
   .erp-elevor .abas-lateral { width: 100%; flex-direction: row; overflow-x: auto; }

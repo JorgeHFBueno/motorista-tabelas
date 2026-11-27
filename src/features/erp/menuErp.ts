@@ -114,7 +114,11 @@ export const MENU_ERP: ModuloErp[] = [
         { rotulo: 'Saldos', para: '/erp/bancos?aba=saldos' },
         { rotulo: 'Pendências de Conciliação', para: '/erp/financeiro/conciliacao?aba=resumida' },
       ] },
-      { rotulo: 'Cheques', icone: AccountBalanceWalletOutlined, filhos: em('Inclusão Cheques', 'Consulta de Cheques', 'Status de Cheques') },
+      { rotulo: 'Cheques', icone: AccountBalanceWalletOutlined, filhos: [
+        { rotulo: 'Inclusão Cheques', para: '/erp/cheques/novo' },
+        { rotulo: 'Consulta de Cheques', para: '/erp/cheques' },
+        { rotulo: 'Status de Cheques', para: '/erp/cheques/status' },
+      ] },
       { rotulo: 'Fluxo Caixa', icone: TrendingUpOutlined, filhos: [
         { rotulo: 'Projeções', para: '/erp/financeiro/projecoes' },
         { rotulo: 'Relatório', para: '/erp/financeiro/relatorios/fluxo-caixa' },

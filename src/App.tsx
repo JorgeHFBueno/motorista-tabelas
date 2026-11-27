@@ -67,6 +67,9 @@ const ErpBaixaPage = lazy(() => import('./features/erp/financeiro/ErpBaixaPage')
 const ErpProjecoesPage = lazy(() => import('./features/erp/financeiro/ErpProjecoesPage'));
 const ErpBancosPage = lazy(() => import('./features/erp/financeiro/ErpBancosPage'));
 const ErpConciliacaoPage = lazy(() => import('./features/erp/financeiro/ErpConciliacaoPage'));
+const ErpChequesPage = lazy(() => import('./features/erp/financeiro/ErpChequesPage'));
+const ErpChequePage = lazy(() => import('./features/erp/financeiro/ErpChequePage'));
+const ErpStatusChequesPage = lazy(() => import('./features/erp/financeiro/ErpStatusChequesPage'));
 const TheManuscriptPage = lazy(() => import('./pages/TheManuscriptPage'));
 const ManuscriptMapaPage = lazy(() => import('./pages/ManuscriptMapaPage'));
 const MeuPerfilPage = lazy(() => import('./pages/MeuPerfilPage'));
@@ -203,6 +206,9 @@ export default function App() {
                 <Route path="erp/financeiro/projecoes" element={<ErpProjecoesPage />} />
                 <Route path="erp/bancos" element={<ErpBancosPage />} />
                 <Route path="erp/financeiro/conciliacao" element={<ErpConciliacaoPage />} />
+                <Route path="erp/cheques" element={<ErpChequesPage />} />
+                <Route path="erp/cheques/status" element={<ErpStatusChequesPage />} />
+                <Route path="erp/cheques/:id" element={<ErpChequePage />} />
               </Route>
             </Route>
             {/* Mecânica e Logística são grupos, como Engenharia: /mecanica e /logistica não têm página própria (2026-11-19:

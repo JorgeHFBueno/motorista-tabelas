@@ -20,7 +20,7 @@ export function Controle({ c, valor, especiais }: { c: Campo; valor: string; esp
       );
     case 'opcoes':
       return (
-        <select {...larg} aria-label={c.rotulo} defaultValue={valor}>
+        <select {...larg} aria-label={c.rotulo} defaultValue={valor} disabled={c.desabilitado}>
           <option value="" />
           {c.opcoes?.map((o) => <option key={o} value={o}>{o}</option>)}
         </select>
@@ -37,7 +37,7 @@ export function Controle({ c, valor, especiais }: { c: Campo; valor: string; esp
         </span>
       );
     default:
-      return <input {...larg} aria-label={c.rotulo} defaultValue={valor} />;
+      return <input {...larg} aria-label={c.rotulo} defaultValue={valor} disabled={c.desabilitado} />;
   }
 }
 
