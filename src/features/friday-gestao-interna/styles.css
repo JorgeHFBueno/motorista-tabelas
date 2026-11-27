@@ -647,6 +647,14 @@ body.arrastando-coluna .friday-root, body.arrastando-coluna .friday-root * { cur
 .friday-root .seta-sub.tem { color: var(--texto-2); }
 .friday-root .seta-sub.aberta { transform: rotate(90deg); color: var(--primaria); }
 .friday-root .seta-sub:hover { background: var(--hover); }
+/* ☀ Sincronizar com o Sunday: aparece ao passar o mouse; aceso (laranja) no item sincronizado. */
+.friday-root .sol-sunday { display: inline-flex; align-items: center; justify-content: center; width: 20px; height: 22px; border: 0; background: none; padding: 0; color: var(--texto-3); cursor: pointer; border-radius: 3px; opacity: 0; flex: none; }
+.friday-root .tq tr:hover .sol-sunday, .friday-root .sol-sunday.on { opacity: 1; }
+.friday-root .sol-sunday:hover { background: var(--hover); color: #fdab3d; }
+.friday-root .sol-sunday.on { color: #f59e0b; }
+.friday-root .sol-sunday.on svg { fill: #fdab3d; }
+.friday-root .somente-leitura .sol-sunday:not(.on) { display: none; }
+.friday-root .somente-leitura .sol-sunday { pointer-events: none; }
 .friday-root .chip-sub.on { border-color: var(--primaria); color: var(--primaria); background: var(--primaria-clara); }
 .friday-root .item-menu { opacity: 0; padding: 2px; }
 .friday-root .tq tr:hover .item-menu { opacity: 1; }

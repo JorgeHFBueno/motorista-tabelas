@@ -232,6 +232,12 @@ export function useQuadro(quadroId: number) {
       if (antes != null && antes !== nome) lembrar('Nome alterado.', () => renomear(antes));
       return renomear(nome);
     },
+    // ☀ Sincronizar com o Sunday (app de tarefas da equipe): marca o item; o Sunday o lê pela fridayApi (GET /sunday).
+    alternarSunday: (id: number) => {
+      const sunday = todosItens().find(i => i.id === id)?.sunday ? 0 : 1;
+      mudar(d => comItens(d, l => l.map(i => (i.id === id ? { ...i, sunday } : i))));
+      return gravar(atualizar('itens', id, { sunday }));
+    },
     definirValor,
     definirValorEmLote,
     // Célula da tabela: com mais de um item selecionado e este entre eles, a mudança vale para todos (Arquivos não:

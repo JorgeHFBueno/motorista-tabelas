@@ -329,6 +329,20 @@
           "order": "ASCENDING"
         }
       ]
+    },
+    {
+      "collectionGroup": "friday-itens",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "quadro_id",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "atualizado_em",
+          "order": "ASCENDING"
+        }
+      ]
     }
   ],
   "fieldOverrides": []

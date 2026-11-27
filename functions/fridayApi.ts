@@ -21,8 +21,9 @@ import { dataLocal, novoId } from './fridayMondayConverter.js';
 import { conteudoDoArquivo, FERRAMENTAS, responderMcp } from './fridayMcp.js';
 import { colunasQueVe, comValoresRestritos, valoresRestritos } from './fridayRestritas.js';
 import {
-  anexoLegivel, avisoDeMencao, casaBusca, colunaDoPedido, destinatariosDaMencao, EntradaInvalida, entradaDaCelula, formatoChave, hashChave, LIMITE_ENVIO, mencoesDoTexto,
-  nomeDoEnvio, palavrasDaBusca, pessoaDaChave, podeVerQuadro, textoCelula, valorDaEntrada, valoresPorTitulo,
+  anexoLegivel, avisoDeMencao, casaBusca, colunaDoPedido, desdeDaConsulta, destinatariosDaMencao, EntradaInvalida, entradaDaCelula, formatoChave, hashChave, inicioDaJanela,
+  itemDoSunday, LIMITE_ENVIO, mencoesDoTexto, nomeDoEnvio, palavrasDaBusca, pessoaDaChave, pessoaPrincipal, pessoasDoValor, podeVerQuadro, quadrosDaConsulta,
+  rotuloConcluido, rotulosDaColuna, statusPrincipal, textoCelula, valorDaEntrada, valoresPorTitulo,
 } from './fridayApiDominio.js';
 
 type AnyRecord = Record<string, any>;
@@ -262,6 +263,52 @@ async function buscar(p: Pessoa, consulta: AnyRecord) {
     });
   }
   return { q: String(consulta.q), total: achados.length, itens: achados.slice(0, limite) };
+}
+
+/**
+ * GET /sunday?quadros=1,2[&desde=AAAA-MM-DD HH:mm:ss]: itens marcados com ☀ (sunday = 1) para o Sunday, com nome, status
+ * (coluna de status principal) e responsáveis (coluna "Responsável" ou a primeira de pessoa).
+ * - Sem desde: a lista completa dos itens marcados e ativos, e a configuração de cada quadro (coluna de status, rótulos e o
+ *   rótulo de concluído). O Sunday tira o que não veio.
+ * - Com desde (o "agora" da resposta anterior): só os itens já marcados alguma vez que mudaram desde então (com uma folga
+ *   de 10 minutos, ver inicioDaJanela); sunday: false = sai do Sunday. Quadro sem mudança não lê colunas nem grupos.
+ * Leituras: chave, pessoa e quadro, mais os itens que voltam (uma, se nenhum); com itens, colunas, grupos e nomes.
+ */
+async function itensDoSunday(p: Pessoa, consulta: AnyRecord) {
+  const ids = quadrosDaConsulta(consulta.quadros);
+  const desde = desdeDaConsulta(consulta.desde);
+  const agora = dataLocal();
+  const l = leitor(p);
+  const quadros: AnyRecord[] = [];
+  const itens: AnyRecord[] = [];
+  for (const id of ids) {
+    const q = await l.quadro(id);
+    if (!q || !visivel(q) || !podeVerQuadro(q, p) || (q.tipo != null && q.tipo !== 'quadro')) throw new Recusa(404, `Quadro ${id} não encontrado.`);
+    const consultaItens = desde == null
+      ? colecao('itens').where('quadro_id', '==', id).where('sunday', '==', 1)
+      : colecao('itens').where('quadro_id', '==', id).where('atualizado_em', '>=', inicioDaJanela(desde));
+    const candidatos = (await consultaItens.get()).docs.map(d => d.data()).filter(i => i.item_pai_id == null && i.sunday != null);
+    if (desde != null && !candidatos.length) continue;
+    const [colunas, grupos] = await Promise.all([colunasPara(p, id), doQuadro('grupos', id)]);
+    const ativas = colunas.filter(c => !c.excluido_em) as (AnyRecord & { id: number })[];
+    const status = statusPrincipal(ativas);
+    const pessoa = pessoaPrincipal(ativas);
+    const restritos = await valoresRestritos([status, pessoa].filter(Boolean) as never);
+    const gruposAtivos = new Set(grupos.filter(visivel).map(g => Number(g.id)));
+    const valoresDe = (i: AnyRecord) => (restritos.size ? comValoresRestritos(i.valores ?? {}, Number(i.id), restritos) : (i.valores ?? {}));
+    await l.carregarNomes(pessoa ? candidatos.flatMap(i => pessoasDoValor(valoresDe(i)[String(pessoa.id)])) : []);
+    quadros.push({
+      id, nome: String(q.nome ?? ''),
+      status: status ? { coluna: Number(status.id), titulo: String(status.titulo ?? ''), concluido: rotuloConcluido(status), rotulos: rotulosDaColuna(status) } : null,
+      responsavel: pessoa ? { coluna: Number(pessoa.id), titulo: String(pessoa.titulo ?? '') } : null,
+    });
+    for (const i of candidatos) {
+      const ativo = Number(i.sunday) === 1 && visivel(i) && gruposAtivos.has(Number(i.grupo_id));
+      if (desde == null && !ativo) continue;
+      itens.push(itemDoSunday(i, valoresDe(i), ativo, status, pessoa, l.nomePessoa));
+    }
+  }
+  return { agora, completo: desde == null, quadros, itens };
 }
 
 // ---------------------------------------------------------------- escrita (só chave com escrita)
@@ -546,6 +593,7 @@ export const fridayApi = onRequest({ region: REGIAO, timeoutSeconds: 120, memory
     else if (!escrita && partes.length === 1 && partes[0] === 'quadros') r = await listarQuadros(pessoa);
     else if (!escrita && partes.length === 2 && partes[0] === 'quadros' && id != null) r = await lerQuadro(pessoa, id);
     else if (!escrita && partes.length === 1 && partes[0] === 'buscar') r = await buscar(pessoa, req.query as AnyRecord);
+    else if (!escrita && partes.length === 1 && partes[0] === 'sunday') r = await itensDoSunday(pessoa, req.query as AnyRecord);
     else if (escrita && partes.length === 3 && partes[0] === 'itens' && id != null && partes[2] === 'valor') r = await escreverValor({ pessoa, chaveId }, id, corpo);
     else if (escrita && partes.length === 3 && partes[0] === 'quadros' && id != null && partes[2] === 'itens') r = await criarItemPeloPedido({ pessoa, chaveId }, id, corpo);
     else if (escrita && partes.length === 3 && partes[0] === 'itens' && id != null && partes[2] === 'atualizacoes') r = await publicarAtualizacao({ pessoa, chaveId }, id, corpo);
@@ -560,7 +608,7 @@ export const fridayApi = onRequest({ region: REGIAO, timeoutSeconds: 120, memory
       res.status(200).set({ 'Content-Type': a.mime, 'Content-Disposition': `attachment; filename*=UTF-8''${encodeURIComponent(a.nome)}` }).send(a.dados);
       return;
     } else {
-      throw new Recusa(404, 'Rota desconhecida. Consulta (GET): /eu, /quadros, /quadros/{id}, /buscar?q=, /itens/{id}/arquivos, /arquivos/{id}. '
+      throw new Recusa(404, 'Rota desconhecida. Consulta (GET): /eu, /quadros, /quadros/{id}, /buscar?q=, /sunday?quadros=, /itens/{id}/arquivos, /arquivos/{id}. '
         + 'Escrita (POST): /itens/{id}/valor, /quadros/{id}/itens, /itens/{id}/subitens, /itens/{id}/atualizacoes, /itens/{id}/arquivos?nome=. '
         + 'MCP (POST): /mcp.');
     }

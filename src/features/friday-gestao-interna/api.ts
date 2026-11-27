@@ -55,8 +55,9 @@ const CAMPOS: Record<Recurso, string[]> = {
   colunas: ['id', 'quadro_id', 'titulo', 'tipo', 'config', 'largura', 'posicao', 'oculta', 'origem_id'],
   // pessoas e busca: índices do Meu trabalho e da busca (ver prefixosBusca). importado_em, monday_atualizado_em e
   // ligacoes_pendentes: controle da importação do monday (gravados pela Function fridayMondayImportarQuadro).
+  // sunday (1/0): item sincronizado com o Sunday (botão ☀ na linha); o Sunday lê pela fridayApi (GET /sunday).
   itens: ['id', 'quadro_id', 'grupo_id', 'item_pai_id', 'nome', 'posicao', 'valores', 'criado_por', 'criado_em', 'atualizado_em', 'origem_id', 'arquivado_em', 'excluido_em',
-    'pessoas', 'busca', 'importado_em', 'monday_atualizado_em', 'ligacoes_pendentes', 'vinculo'],
+    'pessoas', 'busca', 'importado_em', 'monday_atualizado_em', 'ligacoes_pendentes', 'vinculo', 'sunday'],
   visoes: ['id', 'quadro_id', 'nome', 'tipo', 'config', 'posicao'],
   // quadro_id em atualizações e anexos: quadro do item, guardado para contar sem consultar item por item.
   // origem_id e autor_monday: atualização trazida do monday (Function fridayAtualizacoesMonday); autor_monday é o nome

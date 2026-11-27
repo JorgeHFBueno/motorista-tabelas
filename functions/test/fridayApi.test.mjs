@@ -154,3 +154,72 @@ test('aviso de menção pela API: igual ao da tela (título com o item, trecho c
   assert.equal(semItem.rota, '/friday/');
   assert.equal(semItem.local, null);
 });
+
+// Sunday (app de tarefas da equipe): GET /sunday. Só dados fictícios.
+const rotulos = [
+  { id: '0', texto: 'Não iniciado', cor: '#c4c4c4' },
+  { id: '1', texto: 'Parado', cor: '#e2445c' },
+  { id: '2', texto: 'Feito', cor: '#00c875', concluido: true },
+];
+const colunasSunday = [
+  { id: 30, titulo: 'Prioridade', tipo: 'status', posicao: 1, config: { rotulos: [{ id: '1', texto: 'Alta' }] } },
+  { id: 20, titulo: 'Status', tipo: 'status', posicao: 2, config: { rotulos } },
+  { id: 10, titulo: 'Colaboradores', tipo: 'pessoa', posicao: 0, config: {} },
+  { id: 11, titulo: 'Responsavel', tipo: 'pessoa', posicao: 3, config: {} },
+];
+
+test('sunday: status principal é o primeiro com rótulo de concluído (como statusPrincipal da WEB); sem ele, o primeiro de status', () => {
+  assert.equal(d.statusPrincipal(colunasSunday).id, 20);
+  assert.equal(d.statusPrincipal([colunasSunday[1], colunasSunday[0]].map(c => ({ ...c, config: { rotulos: [{ id: '1', texto: 'x' }] } }))).id, 30);
+  assert.equal(d.statusPrincipal([colunasSunday[2]]), undefined);
+});
+
+test('sunday: responsável é a coluna de pessoa "Responsável" (sem acento também); sem ela, a primeira de pessoa', () => {
+  assert.equal(d.pessoaPrincipal(colunasSunday).id, 11);
+  assert.equal(d.pessoaPrincipal(colunasSunday.filter(c => c.id !== 11)).id, 10);
+  assert.equal(d.pessoaPrincipal([colunasSunday[0]]), undefined);
+});
+
+test('sunday: rótulos, rótulo de concluído e rótulo do valor (vazio = "0")', () => {
+  const st = colunasSunday[1];
+  assert.equal(d.rotuloConcluido(st), '2');
+  assert.equal(d.rotuloConcluido(colunasSunday[0]), null);
+  assert.deepEqual(d.rotuloDoValor(st, '1'), { id: '1', texto: 'Parado', cor: '#e2445c', concluido: false });
+  assert.deepEqual(d.rotuloDoValor(st, 2), { id: '2', texto: 'Feito', cor: '#00c875', concluido: true });
+  assert.deepEqual(d.rotuloDoValor(st, null), { id: '0', texto: 'Não iniciado', cor: '#c4c4c4', concluido: false });
+  assert.deepEqual(d.rotuloDoValor(st, '9'), { id: '9', texto: '', cor: null, concluido: false });
+  assert.equal(d.rotulosDaColuna(st).length, 3);
+});
+
+test('sunday: quadros (1 a 10 ids) e desde (AAAA-MM-DD HH:mm:ss) do pedido', () => {
+  assert.deepEqual(d.quadrosDaConsulta('12, 7,12'), [12, 7]);
+  assert.throws(() => d.quadrosDaConsulta(''), d.EntradaInvalida);
+  assert.throws(() => d.quadrosDaConsulta('12,abc'), d.EntradaInvalida);
+  assert.throws(() => d.quadrosDaConsulta(Array.from({ length: 11 }, (_, k) => k + 1).join(',')), d.EntradaInvalida);
+  assert.equal(d.desdeDaConsulta(undefined), null);
+  assert.equal(d.desdeDaConsulta(''), null);
+  assert.equal(d.desdeDaConsulta(' 2026-11-27 14:05:09 '), '2026-11-27 14:05:09');
+  assert.throws(() => d.desdeDaConsulta('2026-11-27T14:05:09Z'), d.EntradaInvalida);
+});
+
+test('sunday: a janela começa 10 minutos antes do desde (relógio de quem gravou), virando o dia e o mês', () => {
+  assert.equal(d.inicioDaJanela('2026-11-27 14:05:09'), '2026-11-27 13:55:09');
+  assert.equal(d.inicioDaJanela('2026-12-01 00:03:00'), '2026-11-30 23:53:00');
+  assert.equal(d.inicioDaJanela('2026-11-27 14:05:09', 0), '2026-11-27 14:05:09');
+});
+
+test('sunday: item com nome, status, responsáveis com nome e se continua no Sunday', () => {
+  const item = { id: 5, quadro_id: 9, nome: 'Arrumar os saldos', atualizado_em: '2026-11-27 14:00:00' };
+  const valores = { 20: '1', 11: ['uidA', 'uidB'] };
+  const nome = uid => ({ uidA: 'Ana Souza' })[uid] ?? '?';
+  assert.deepEqual(d.itemDoSunday(item, valores, true, colunasSunday[1], colunasSunday[3], nome), {
+    id: 5, quadro: 9, nome: 'Arrumar os saldos', sunday: true,
+    status: { id: '1', texto: 'Parado', cor: '#e2445c', concluido: false },
+    responsaveis: [{ uid: 'uidA', nome: 'Ana Souza' }, { uid: 'uidB', nome: '?' }],
+    atualizado_em: '2026-11-27 14:00:00',
+  });
+  const semColunas = d.itemDoSunday(item, {}, false, undefined, undefined, nome);
+  assert.equal(semColunas.sunday, false);
+  assert.equal(semColunas.status, null);
+  assert.deepEqual(semColunas.responsaveis, []);
+});

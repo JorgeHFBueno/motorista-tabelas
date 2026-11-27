@@ -221,3 +221,81 @@ export const anexoLegivel = (a: AnyRecord, tituloColuna: (id: number) => string 
 
 /** Entrada da célula de uma coluna de arquivos (como a tela grava). */
 export const entradaDaCelula = (a: AnyRecord) => ({ id: Number(a.id), nome: String(a.nome), mime: a.mime ?? null, tamanho: Number(a.tamanho) || 0, url: a.url ?? null });
+
+// ---------------------------------------------------------------- Sunday (GET /sunday)
+// O Sunday (app de tarefas da equipe, na lateral da tela) mostra os itens marcados com ☀ (friday-itens.sunday = 1): nome,
+// responsável e status, e devolve o status pela escrita por chave (POST /itens/{id}/valor).
+type ColunaSunday = { id: number | string; titulo?: string; tipo?: string; posicao?: number; config?: AnyRecord | null };
+export type RotuloSunday = { id: string; texto: string; cor: string | null; concluido: boolean };
+
+const porPosicaoSunday = <C extends ColunaSunday>(colunas: C[]) =>
+  [...colunas].sort((a, b) => (Number(a.posicao) || 0) - (Number(b.posicao) || 0) || Number(a.id) - Number(b.id));
+const rotulosDe = (c: ColunaSunday): AnyRecord[] => (Array.isArray(c.config?.rotulos) ? c.config!.rotulos : []);
+
+/** Coluna de status principal: a primeira com rótulo marcado como concluído; sem nenhuma, a primeira de status (a regra de statusPrincipal da WEB, quadro/tipos.ts). */
+export function statusPrincipal<C extends ColunaSunday>(colunas: C[]): C | undefined {
+  const sts = porPosicaoSunday(colunas).filter(c => c.tipo === 'status');
+  return sts.find(c => rotulosDe(c).some(r => r.concluido)) ?? sts[0];
+}
+
+/** Coluna do responsável: a de pessoa chamada "Responsável"; sem ela, a primeira de pessoa. */
+export function pessoaPrincipal<C extends ColunaSunday>(colunas: C[]): C | undefined {
+  const ps = porPosicaoSunday(colunas).filter(c => c.tipo === 'pessoa');
+  return ps.find(c => igualTexto(c.titulo, 'Responsável')) ?? ps[0];
+}
+
+/** Rótulos da coluna de status, como o Sunday precisa (o rótulo "0" é o do status vazio). */
+export const rotulosDaColuna = (c: ColunaSunday): RotuloSunday[] =>
+  rotulosDe(c).map(r => ({ id: String(r.id), texto: String(r.texto ?? ''), cor: r.cor ? String(r.cor) : null, concluido: !!r.concluido }));
+
+/** Rótulo que o Sunday grava ao concluir: o primeiro marcado como concluído (sem nenhum, null: o Sunday não conclui no Friday). */
+export const rotuloConcluido = (c: ColunaSunday): string | null => {
+  const r = rotulosDe(c).find(x => x.concluido);
+  return r ? String(r.id) : null;
+};
+
+/** Rótulo do valor da célula de status; vazio é o rótulo "0", como na tela. */
+export function rotuloDoValor(c: ColunaSunday, v: unknown): RotuloSunday {
+  const id = vazio(v) ? '0' : String(v);
+  return rotulosDaColuna(c).find(r => r.id === id) ?? { id, texto: '', cor: null, concluido: false };
+}
+
+/** UIDs de uma célula de pessoa. */
+export const pessoasDoValor = (v: unknown): string[] => lista(v);
+
+/** ?quadros=1,2: de 1 a 10 ids de quadro. */
+export function quadrosDaConsulta(v: unknown): number[] {
+  const ids = [...new Set(partes(v ?? '').map(Number))];
+  if (!ids.length || ids.some(n => !Number.isSafeInteger(n) || n <= 0)) throw new EntradaInvalida('Informe quadros (ids separados por vírgula).');
+  if (ids.length > 10) throw new EntradaInvalida('No máximo 10 quadros por pedido.');
+  return ids;
+}
+
+/** ?desde=AAAA-MM-DD HH:mm:ss (o "agora" da resposta anterior); sem ele, a lista completa. */
+export function desdeDaConsulta(v: unknown): string | null {
+  if (v == null || v === '') return null;
+  const t = String(v).trim();
+  if (!/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/.test(t)) throw new EntradaInvalida('desde precisa ser AAAA-MM-DD HH:mm:ss (o "agora" da resposta anterior).');
+  return t;
+}
+
+/**
+ * Começo da janela do pedido com desde: alguns minutos antes, porque atualizado_em vem do relógio de quem gravou (o
+ * navegador, na tela) e pode estar um pouco atrasado. O Sunday aplica o mesmo item mais de uma vez sem problema.
+ */
+export function inicioDaJanela(desde: string, minutos = 10): string {
+  const [d, h] = desde.split(' ');
+  const [a, m, dia] = d.split('-').map(Number);
+  const [hh, mm, ss] = h.split(':').map(Number);
+  return new Date(Date.UTC(a, m - 1, dia, hh, mm - minutos, ss)).toISOString().replace('T', ' ').slice(0, 19);
+}
+
+/** Item como o Sunday recebe. ativo = marcado com ☀, fora do arquivo e da lixeira e num grupo ativo; false = sai do Sunday. */
+export function itemDoSunday(i: AnyRecord, valores: AnyRecord, ativo: boolean, status: ColunaSunday | undefined, pessoa: ColunaSunday | undefined, nomePessoa: (uid: string) => string) {
+  return {
+    id: Number(i.id), quadro: Number(i.quadro_id), nome: String(i.nome ?? ''), sunday: ativo,
+    status: status ? rotuloDoValor(status, valores[String(status.id)]) : null,
+    responsaveis: pessoa ? pessoasDoValor(valores[String(pessoa.id)]).map(uid => ({ uid, nome: nomePessoa(uid) })) : [],
+    atualizado_em: i.atualizado_em ?? null,
+  };
+}

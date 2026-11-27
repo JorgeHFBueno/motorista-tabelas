@@ -1,7 +1,7 @@
 import { useLayoutEffect, useMemo, useRef, useState, type MouseEvent as EventoMouse } from 'react';
 import {
   AlarmClock, Archive, ArrowDown, Banknote, ArrowDownAZ, ArrowDownUp, ArrowLeft, ArrowRight, ArrowUp, ArrowUpAZ, CalendarDays, Check, ChevronDown, ChevronRight, Copy, EyeOff, FileSpreadsheet, GripVertical, Group, ListTree, Maximize2,
-  Lock, LockOpen, MessageCircle, Shuffle, MessageCirclePlus, Sigma, MoreHorizontal, Palette, Pencil, Pin, PinOff, Plus, Trash2,
+  Lock, LockOpen, MessageCircle, Shuffle, MessageCirclePlus, Sigma, MoreHorizontal, Palette, Pencil, Pin, PinOff, Plus, Sun, Trash2,
 } from 'lucide-react';
 import { useAuth } from '../../../contexts/AuthContext';
 import type { Pessoa } from '../api.ts';
@@ -332,6 +332,10 @@ export function Tabela({ grupos: gruposReais, colunas: colunasVisiveis, todasCol
                               <GripVertical size={14} />
                             </span>
                           )}
+                          <button className={`sol-sunday${i.sunday ? ' on' : ''}`} onClick={() => acoes.alternarSunday(i.id)} aria-pressed={!!i.sunday}
+                            title={i.sunday ? 'Sincronizado com o Sunday (clique para tirar)' : 'Sincronizar com o Sunday'}>
+                            <Sun size={14} />
+                          </button>
                           <button className={`seta-sub${nSub.get(i.id) ? ' tem' : ''}${abertos.has(i.id) ? ' aberta' : ''}`} onClick={() => alternarSubs(i.id)}
                             aria-label={abertos.has(i.id) ? 'Recolher subitens' : 'Mostrar subitens'} title={abertos.has(i.id) ? 'Recolher subitens' : 'Subitens'}>
                             <ChevronRight size={14} />
