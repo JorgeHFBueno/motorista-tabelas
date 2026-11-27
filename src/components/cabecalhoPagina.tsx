@@ -72,6 +72,7 @@ const TITULOS: Array<{ padrao: string } & TituloPagina> = [
   { padrao: '/erp/financeiro/relatorios/:relatorio', titulo: 'Relatórios do Financeiro' },
   { padrao: '/erp/financeiro/projecoes', titulo: 'Projeções Fluxo de Caixa' },
   { padrao: '/erp/bancos', titulo: 'Bancos/Caixa' },
+  { padrao: '/erp/financeiro/conciliacao', titulo: 'Conciliação Bancária' },
   { padrao: '/portal-cliente/clientes', titulo: 'Clientes do portal' },
   { padrao: '/portal-cliente/contratos', titulo: 'Contratos no portal' },
   { padrao: '/portal-cliente/contratos/:id', titulo: 'Contrato no portal' },

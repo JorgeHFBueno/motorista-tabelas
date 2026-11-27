@@ -205,12 +205,12 @@ function Transferencia() {
   );
 }
 
-// Troca de Arquivos do Elevor: no ERP é a importação do OFX, que fica na Conciliação Bancária (ainda não chegou ao painel).
+// Troca de Arquivos do Elevor: no ERP é a importação do OFX, que fica na Conciliação Bancária.
 function TrocaArquivos() {
   return (
     <div className="ficha-elevor bancos-form">
       <p>O extrato do banco (OFX) é importado na <b>Conciliação Bancária</b>: lá ele entra, casa com os lançamentos do ERP e aplica as regras de lançamento automático.</p>
-      <div className="botoes"><button type="button" className="btn primario" disabled title="A Conciliação Bancária ainda não chegou ao painel">Importar OFX na Conciliação</button></div>
+      <div className="botoes"><Link className="btn primario" to="/erp/financeiro/conciliacao">Importar OFX na Conciliação</Link></div>
     </div>
   );
 }

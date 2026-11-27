@@ -23,7 +23,7 @@ export type MovimentoBanco = {
 export const PLANOS_BANCO = ['4.4.01 - TARIFAS BANCÁRIAS', '4.4.02 - IOF', '1.2.01 - RENDIMENTOS DE APLICAÇÃO'];
 export const HISTORICOS_PADRAO = ['TARIFA BANCÁRIA', 'RENDIMENTO DE APLICAÇÃO', 'IOF', 'TRANSFERÊNCIA BANCÁRIA ENTRE BANCOS', 'SUPRIMENTO DE CAIXA'];
 /** Conciliado com o extrato do banco até esta data (a Conciliação Bancária ainda não chegou ao painel). */
-const CONCILIADO_ATE = '2026-10-31';
+const CONCILIADO_ATE = '2026-11-10';
 
 function gerarMovimentos(): MovimentoBanco[] {
   type Bruto = Omit<MovimentoBanco, 'id' | 'conciliado'>;

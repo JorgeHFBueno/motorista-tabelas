@@ -109,9 +109,10 @@ export const MENU_ERP: ModuloErp[] = [
       ] },
       { rotulo: 'Bancos/Caixa', icone: MonetizationOnOutlined, filhos: [
         { rotulo: 'Bancos/Caixa', para: '/erp/bancos' },
-        ...em('Conciliação Bancária', 'Regras de Lançamento Automático'),
+        { rotulo: 'Conciliação Bancária', para: '/erp/financeiro/conciliacao' },
+        { rotulo: 'Regras de Lançamento Automático', para: '/erp/financeiro/conciliacao?aba=config' },
         { rotulo: 'Saldos', para: '/erp/bancos?aba=saldos' },
-        ...em('Pendências de Conciliação'),
+        { rotulo: 'Pendências de Conciliação', para: '/erp/financeiro/conciliacao?aba=resumida' },
       ] },
       { rotulo: 'Cheques', icone: AccountBalanceWalletOutlined, filhos: em('Inclusão Cheques', 'Consulta de Cheques', 'Status de Cheques') },
       { rotulo: 'Fluxo Caixa', icone: TrendingUpOutlined, filhos: [

@@ -393,7 +393,53 @@
 .erp-elevor .extrato-rodape { display: flex; align-items: center; gap: 16px; margin: 12px 0; }
 .erp-elevor .bancos-saldos { width: auto; min-width: 640px; }
 
+/* Conciliação Bancária (FN_ConciliacaoBancaria): banco à esquerda, sistema à direita, as cores das linhas do Elevor */
+.erp-elevor .conciliacao-cabeca { margin: 8px 0 12px; }
+.erp-elevor .conc-cabeca-linha { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 10px; }
+.erp-elevor .campo.conc-empresa { width: 320px; }
+.erp-elevor .campo.conc-banco { width: 240px; }
+.erp-elevor .conc-titulos { display: grid; grid-template-columns: 1fr 1fr auto; align-items: center; gap: 12px; margin: 4px 0 6px; }
+.erp-elevor .conc-titulo { font-weight: 700; color: var(--texto-forte); }
+.erp-elevor .conc-selecionados { display: grid; grid-template-columns: 1fr 1fr auto; align-items: center; gap: 12px; margin: 6px 0; padding: 8px 10px; background: var(--grade-hover); border-radius: 4px; }
+.erp-elevor .conc-rolagem { overflow-x: auto; }
+.erp-elevor .conc-grade { width: 100%; border-collapse: collapse; font-size: 13px; }
+.erp-elevor .conc-grade th { text-align: left; font-weight: 700; padding: 6px; border-bottom: 1px solid var(--grade-linha); white-space: nowrap; }
+.erp-elevor .conc-grade td { padding: 5px 6px; border-bottom: 1px solid var(--grade-linha); vertical-align: middle; }
+.erp-elevor .conc-grade .num { text-align: right; white-space: nowrap; }
+.erp-elevor .conc-grade .conc-vao { width: 14px; background: var(--fundo) !important; border-bottom: 0; }
+.erp-elevor .conc-grade tr.conc-conc td, .erp-elevor .conc-legenda .conc-conc { background: #e5f4ec; }
+.erp-elevor .conc-grade tr.conc-sug td, .erp-elevor .conc-grade tr.conc-regra td, .erp-elevor .conc-legenda .conc-sug, .erp-elevor .conc-legenda .conc-regra { background: #fdf3d9; }
+.erp-elevor .conc-grade tr.conc-ex td, .erp-elevor .conc-legenda .conc-ex { background: #fbe4e6; }
+.erp-elevor .conc-grade tr.conc-mv td, .erp-elevor .conc-legenda .conc-mv { background: #fde7d8; }
+.erp-elevor .conc-grade tr.conc-saldo td, .erp-elevor .conc-legenda .conc-saldo { background: #d3ecdf; font-weight: 700; }
+.erp-elevor .conc-acoes { white-space: nowrap; }
+.erp-elevor .conc-acoes input, .erp-elevor .conc-fim input { vertical-align: middle; }
+.erp-elevor .conc-icone, .erp-elevor .conc-ok { border: 0; background: transparent; color: var(--link); cursor: pointer; padding: 2px; vertical-align: middle; }
+.erp-elevor .conc-icone svg { width: 17px; height: 17px; }
+.erp-elevor .conc-ok { color: var(--ledur-success); }
+.erp-elevor .conc-ok svg { width: 20px; height: 20px; }
+.erp-elevor .btn.conc-aceitar { height: 26px; padding: 0 10px; font-size: 12px; }
+.erp-elevor .conc-fim { width: 70px; text-align: center; }
+.erp-elevor .conc-legenda { display: flex; flex-wrap: wrap; gap: 8px; margin: 10px 0; font-size: 12px; }
+.erp-elevor .conc-legenda span { padding: 2px 8px; border-radius: 3px; }
+.erp-elevor .conc-rodape { display: flex; align-items: center; justify-content: space-between; margin: 10px 0; }
+.erp-elevor .conc-paginas { display: flex; gap: 4px; flex-wrap: wrap; }
+.erp-elevor .conc-resumo { border-collapse: collapse; margin: 10px 0; }
+.erp-elevor .conc-resumo th, .erp-elevor .conc-resumo td { padding: 6px 10px; border-bottom: 1px solid var(--grade-linha); text-align: center; }
+.erp-elevor .conc-resumo .conc-resumo-conta { text-align: left; white-space: nowrap; }
+.erp-elevor .conc-resumo .conc-resumo-conta svg { width: 15px; height: 15px; vertical-align: -2px; }
+.erp-elevor .conc-resumo-seta button { border: 0; background: transparent; color: var(--link); cursor: pointer; }
+.erp-elevor .conc-resumo-seta button:disabled { opacity: 0.3; cursor: default; }
+.erp-elevor .texto-ok { color: var(--ledur-success); }
+.erp-elevor .conc-config { max-width: 900px; }
+.erp-elevor .modal-fundo { position: fixed; inset: 0; background: rgb(0 0 0 / 0.35); display: flex; align-items: center; justify-content: center; z-index: 1400; }
+.erp-elevor .modal { background: var(--campo-fundo); border-radius: 6px; padding: 18px 20px; width: min(560px, calc(100vw - 32px)); box-shadow: 0 12px 32px rgb(0 0 0 / 0.25); }
+.erp-elevor .modal h3 { margin: 0 0 12px; font-size: 18px; }
+.erp-elevor .modal .form-linha { grid-template-columns: 130px minmax(0, 1fr); gap: 8px 10px; }
+@media print { .erp-elevor .conciliacao-cabeca, .erp-elevor .conc-acoes, .erp-elevor .conc-fim, .erp-elevor .abas { display: none; } }
+
 @media (max-width: 900px) {
+  .erp-elevor .conc-titulos, .erp-elevor .conc-selecionados { grid-template-columns: 1fr; }
   .erp-elevor .tela-lateral { flex-direction: column; }
   .erp-elevor .abas-lateral { width: 100%; flex-direction: row; overflow-x: auto; }
   .erp-elevor .bancos-saldos { min-width: 0; width: 100%; }

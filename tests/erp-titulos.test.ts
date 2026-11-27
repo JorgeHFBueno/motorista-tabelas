@@ -7,6 +7,9 @@ import {
   CONTAS_BANCO, extrato, filtrarProjecoes, FILTRO_PROJECOES, MOVIMENTOS_BANCO, PROJECOES_EXEMPLO, saldoDaConta, saldosEm,
 } from '../src/features/erp/financeiro/fluxoExemplo';
 import { fluxoDeCaixa, relatorioFinanceiro } from '../src/features/erp/financeiro/relatoriosFinanceiro';
+import {
+  CONCILIACOES_INICIAIS, CONTAS_CONCILIACAO, EXTRATO_BANCO, lerOfx, montarGrade, situacaoDoDia,
+} from '../src/features/erp/financeiro/conciliacaoExemplo';
 import { NOTAS_EXEMPLO } from '../src/features/erp/notas/notasExemplo';
 
 // Contas a Pagar/Receber do ERP em demonstração (The Manuscript, 03_APLICACAO_WEB/01_ROTAS_E_NAVEGACAO.md#erp).
@@ -146,4 +149,38 @@ test('Bancos/Caixa: every payment is a bank movement; statement with running bal
   const saldos = saldosEm('2026-11-30');
   assert.ok(Math.abs(saldos.find((c) => c.conta === conta)!.saldo - saldoDaConta(conta, '2026-12-01')) < 0.01);
   assert.ok(saldos.some((c) => c.aConciliar > 0));
+});
+
+test('Conciliação: November grid has suggestions, a rule line, a bank-only and a system-only line; balances follow each side', () => {
+  const conta = CONTAS_CONCILIACAO[0].conta;
+  const grade = montarGrade(conta, '2026-11-01', '2026-11-27', '2026-11-27', EXTRATO_BANCO, MOVIMENTOS_BANCO, CONCILIACOES_INICIAIS);
+  const tipos = new Set(grade.map((l) => l.tipo));
+  for (const t of ['conc', 'sug', 'regra', 'ex', 'mv', 'saldo']) assert.ok(tipos.has(t as never), t);
+  assert.equal(grade.filter((l) => l.tipo === 'saldo').length, 27);
+  const ultimo = grade.filter((l) => l.tipo === 'saldo').pop()!;
+  const soBanco = EXTRATO_BANCO.filter((x) => x.conta === conta && x.data >= '2026-11-01' && x.data <= '2026-11-27').reduce((s, x) => s + x.valor, 0);
+  const soSistema = MOVIMENTOS_BANCO.filter((m) => m.conta === conta && m.origem !== 'saldo_inicial' && m.data >= '2026-11-01' && m.data <= '2026-11-27').reduce((s, m) => s + m.valor, 0);
+  assert.ok(Math.abs((ultimo.saldoEx! - ultimo.saldoMv!) - (soBanco - soSistema)) < 0.01);
+  // Aceitar todas as sugestões deixa o dia delas conciliado.
+  const sug = grade.filter((l) => l.tipo === 'sug');
+  const concs = [...CONCILIACOES_INICIAIS, ...sug.map((l, i) => ({ id: 1000 + i, ex: [l.ex!.id], mv: [l.mv!.id] }))];
+  const dia = sug[0].ex!.data;
+  assert.equal(situacaoDoDia(conta, dia, EXTRATO_BANCO, MOVIMENTOS_BANCO, CONCILIACOES_INICIAIS), 'pendente');
+  const resto = grade.some((l) => (l.tipo === 'ex' || l.tipo === 'regra' || l.tipo === 'mv') && (l.ex?.data ?? l.mv?.data) === dia);
+  assert.equal(situacaoDoDia(conta, dia, EXTRATO_BANCO, MOVIMENTOS_BANCO, concs), resto ? 'pendente' : 'ok');
+  assert.equal(situacaoDoDia(conta, '2026-10-05', EXTRATO_BANCO, MOVIMENTOS_BANCO, CONCILIACOES_INICIAIS), 'ok');
+});
+
+test('lerOfx reads SGML transactions', () => {
+  const ofx = `OFXHEADER:100
+DATA:OFXSGML
+CHARSET:1252
+<OFX><BANKMSGSRSV1><STMTTRNRS><STMTRS><BANKTRANLIST>
+<STMTTRN><TRNTYPE>DEBIT<DTPOSTED>20261126120000[-3:BRT]<TRNAMT>-3.20<FITID>A1<CHECKNUM>000123<MEMO>Iof
+</STMTTRN><STMTTRN><TRNTYPE>CREDIT<DTPOSTED>20261127<TRNAMT>1500,00<FITID>A2<NAME>PIX RECEBIDO</STMTTRN></BANKTRANLIST></STMTRS></STMTTRNRS></BANKMSGSRSV1></OFX>`;
+  assert.deepEqual(lerOfx(ofx), [
+    { data: '2026-11-26', valor: -3.2, fitid: 'A1', documento: '000123', historico: 'IOF' },
+    { data: '2026-11-27', valor: 1500, fitid: 'A2', documento: '', historico: 'PIX RECEBIDO' },
+  ]);
+  assert.throws(() => lerOfx('qualquer coisa'), /OFX/);
 });
