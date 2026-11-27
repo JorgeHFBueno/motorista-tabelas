@@ -122,6 +122,7 @@ export function observacaoDoDocumento(id: string, value: Record<string, unknown>
     anexos: (Array.isArray(value.anexos) ? value.anexos : []).map(anexoDo).filter((anexo): anexo is AnexoObservacao => anexo !== null),
     autor,
     criadoEm: milis(value.criadoEm),
+    editadoEm: value.editadoEm ? milis(value.editadoEm) : null,
   };
 }
 
@@ -439,6 +440,18 @@ export async function publicarObservacao(
     await apagarArquivos(anexos).catch(() => undefined);
     throw error;
   }
+}
+
+/**
+ * O autor corrige o texto (os arquivos ficam). `marcados` é a lista nova: quem entrou agora recebe o aviso no sino
+ * (Function logisticaObservacaoMencaoEditada); sem ninguém marcado, o campo sai.
+ */
+export async function editarObservacao(observacaoId: string, textoObservacao: string, marcados: readonly string[]): Promise<void> {
+  await updateDoc(doc(db, OBSERVACOES, observacaoId), {
+    texto: textoObservacao,
+    marcados: marcados.length ? [...marcados] : deleteField(),
+    editadoEm: serverTimestamp(),
+  });
 }
 
 export async function excluirObservacao(observacao: Observacao): Promise<void> {

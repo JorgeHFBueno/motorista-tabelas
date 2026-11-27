@@ -1892,7 +1892,7 @@ test('[firestore] logistica: vários veículos (até 4) e o campo antigo veiculo
   await assertFails(updateDoc(doc(adm2, 'logistica-programacoes', 'lv1'), { veiculos: [v('a'), 'b'], ...alterou }));
 });
 
-test('[firestore] logistica: observações com texto ou arquivos, do próprio autor, sem edição', async () => {
+test('[firestore] logistica: observações com texto ou arquivos, do próprio autor, que só ele edita', async () => {
   const adm2 = dbAs('canonicalAdm2');
   await setDoc(doc(adm2, 'logistica-programacoes', 'lo-prog'), {
     schemaVersion: 1, cod: 452603, semanaId: '2026-W45', item: 'Buscar carreta', status: '', inicio: null, fim: null,
@@ -1926,7 +1926,21 @@ test('[firestore] logistica: observações com texto ou arquivos, do próprio au
   }
   await assertSucceeds(getDoc(doc(dbAs('logistica'), 'logistica-observacoes', 'o1')));
   await assertSucceeds(getDocs(query(collection(dbAs('mecanico'), 'logistica-observacoes'), where('programacaoId', '==', 'lo-prog'))));
+  // Edição (2026-11-27): só o autor muda texto e marcados, com editadoEm = horário do servidor.
+  const editou = { editadoEm: serverTimestamp() };
+  await assertSucceeds(updateDoc(doc(adm2, 'logistica-observacoes', 'o1'), { texto: 'Mudou com @{uid-logistica}', marcados: ['uid-logistica'], ...editou }));
+  await assertSucceeds(updateDoc(doc(adm2, 'logistica-observacoes', 'o1'), { texto: 'Sem marca', marcados: deleteField(), ...editou }));
+  await assertSucceeds(updateDoc(doc(adm2, 'logistica-observacoes', 'o2'), { texto: '', ...editou }));
   await assertFails(updateDoc(doc(adm2, 'logistica-observacoes', 'o1'), { texto: 'mudou' }));
+  await assertFails(updateDoc(doc(adm2, 'logistica-observacoes', 'o1'), { texto: '', ...editou }));
+  await assertFails(updateDoc(doc(adm2, 'logistica-observacoes', 'o1'), { texto: 'x'.repeat(2001), ...editou }));
+  await assertFails(updateDoc(doc(adm2, 'logistica-observacoes', 'o1'), { texto: 'ok', editadoEm: Timestamp.fromMillis(1) }));
+  await assertFails(updateDoc(doc(adm2, 'logistica-observacoes', 'o1'), { texto: 'ok', marcados: [], ...editou }));
+  await assertFails(updateDoc(doc(adm2, 'logistica-observacoes', 'o1'), { texto: 'ok', anexos: [anexo(1)], ...editou }));
+  await assertFails(updateDoc(doc(adm2, 'logistica-observacoes', 'o1'), { autor: { uid: 'uid-logistica', nome: 'Outro' }, ...editou }));
+  await assertFails(updateDoc(doc(dbAs('logistica'), 'logistica-observacoes', 'o1'), { texto: 'de outro', ...editou }));
+  await assertSucceeds(updateDoc(doc(dbAs('logistica'), 'logistica-observacoes', 'o3'), { texto: 'a minha', ...editou }));
+  await assertFails(updateDoc(doc(dbAs('mecanico'), 'logistica-observacoes', 'o3'), { texto: 'só vê', ...editou }));
   await assertFails(deleteDoc(doc(dbAs('engenharia'), 'logistica-observacoes', 'o1')));
   // Quem exclui a programação apaga também as observações dos outros.
   await assertSucceeds(deleteDoc(doc(dbAs('logistica'), 'logistica-observacoes', 'o1')));

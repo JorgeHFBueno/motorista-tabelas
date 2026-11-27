@@ -15,6 +15,12 @@ export function marcadosDa(observacao: AnyRecord | undefined): string[] {
   return [...new Set(lista.filter((u: unknown): u is string => typeof u === 'string' && u !== '' && !u.includes('/')))].slice(0, MAX_MARCADOS);
 }
 
+/** Na edição: só quem entrou agora em `marcados` (quem já estava marcado não recebe outro aviso). */
+export function marcadosNovos(antes: AnyRecord | undefined, depois: AnyRecord | undefined): string[] {
+  const ja = new Set(marcadosDa(antes));
+  return marcadosDa(depois).filter(uid => !ja.has(uid));
+}
+
 /** Quem recebe: os marcados ativos que veem a área Logística (adm2 vê todas), menos o autor. */
 export function destinatariosDaMarcacao(marcados: string[], autor: unknown, funcionarios: Map<string, AnyRecord | undefined>): string[] {
   return marcados.filter(uid => uid !== autor && veArea(funcionarios.get(uid), 'logistica'));

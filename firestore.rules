@@ -1864,7 +1864,9 @@ service cloud.firestore {
     }
 
     // Observação de uma programação: texto e/ou até 10 arquivos (Storage logistica/observacoes/), autor = quem grava.
-    // Não se edita; qualquer um da área exclui (a WEB mostra a lixeira só ao autor e apaga as da programação excluída).
+    // Qualquer um da área exclui (a WEB mostra a lixeira só ao autor e apaga as da programação excluída).
+    // Edit (2026-11-27): only the author, with editar on the area, changes `texto` and `marcados` and stamps `editadoEm`;
+    // files, author and dates stay. Newly tagged people are notified by logisticaObservacaoMencaoEditada.
     // `marcados` (2026-11-27, optional): UIDs tagged with @ in the text (@{uid}); the Function logisticaObservacaoMencao
     // notifies the ones who see the Logistica area (it checks each one; here only the shape).
     match /logistica-observacoes/{observacaoId} {
@@ -1884,7 +1886,14 @@ service cloud.firestore {
         && request.resource.data.autor.uid == request.auth.uid
         && request.resource.data.autor.nome is string && request.resource.data.autor.nome.size() <= 200
         && request.resource.data.criadoEm == request.time;
-      allow update: if false;
+      allow update: if editaArea('logistica')
+        && resource.data.autor.uid == request.auth.uid
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['texto', 'marcados', 'editadoEm'])
+        && request.resource.data.texto is string && request.resource.data.texto.size() <= 2000
+        && (request.resource.data.texto.size() > 0 || request.resource.data.anexos.size() > 0)
+        && (!('marcados' in request.resource.data)
+          || (request.resource.data.marcados is list && request.resource.data.marcados.size() >= 1 && request.resource.data.marcados.size() <= 20))
+        && request.resource.data.editadoEm == request.time;
       allow delete: if editaArea('logistica');
     }
 

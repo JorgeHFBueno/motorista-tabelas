@@ -217,6 +217,9 @@
 .lg-obs-dica { flex: 1; color: #9699a6; font-size: 12px; }
 .lg-painel .lg-btn.lg-btn-primario { border-color: #2f6fde; background: #2f6fde; color: #fff; }
 .lg-painel .lg-btn.lg-btn-primario:disabled { border-color: #d0d4e4; background: #e6e9ef; color: #9699a6; cursor: default; }
+/* Edição de uma observação: a caixa dentro do cartão, com Cancelar neutro. */
+.lg-obs-cartao .lg-obs-escrever { margin-top: 4px; }
+.lg-painel .lg-btn.lg-obs-cancelar { border-color: #d0d4e4; color: #323338; }
 .lg-obs-erro { margin: 0; padding: 6px 10px; color: #b7473f; font-size: 13px; }
 .lg-obs-vazio { display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 32px 16px; color: #9699a6; text-align: center; }
 .lg-obs-vazio p { margin: 4px 0 0; color: #676879; font-weight: 600; }

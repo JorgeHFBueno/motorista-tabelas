@@ -3,12 +3,13 @@ import AttachFileRounded from '@mui/icons-material/AttachFileRounded';
 import ChatBubbleOutlineRounded from '@mui/icons-material/ChatBubbleOutlineRounded';
 import CloseRounded from '@mui/icons-material/CloseRounded';
 import DeleteOutlineRounded from '@mui/icons-material/DeleteOutlineRounded';
+import EditOutlined from '@mui/icons-material/EditOutlined';
 import InsertDriveFileOutlined from '@mui/icons-material/InsertDriveFileOutlined';
 import { useMemo, useRef, useState, type ClipboardEvent, type DragEvent, type KeyboardEvent } from 'react';
 import {
-  MAX_ANEXOS, MAX_TEXTO_OBSERVACAO, excluirObservacao, publicarObservacao,
+  MAX_ANEXOS, MAX_TEXTO_OBSERVACAO, editarObservacao, excluirObservacao, publicarObservacao,
 } from '../data/logisticaFirestore';
-import { buscaDaMarca, marcarTexto, partesDoTexto } from '../domain/mencoes';
+import { buscaDaMarca, marcarTexto, paraEditar, partesDoTexto } from '../domain/mencoes';
 import type { AnexoObservacao, Observacao, RefPessoa } from '../domain/models';
 import type { CadastrosLogistica } from './contexto';
 
@@ -62,16 +63,21 @@ function Anexos({ anexos }: { anexos: readonly AnexoObservacao[] }) {
 
 const semAcento = (texto: string) => texto.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
 
-function Escrever({ programacaoId, eu, marcaveis }: { programacaoId: string; eu: RefPessoa; marcaveis: readonly PessoaMarcavel[] }) {
+/** Edição: a observação do autor, o nome conhecido de cada marcado e o que fazer ao salvar ou cancelar. */
+interface Edicao { observacao: Observacao; nome: (uid: string) => string | undefined; aoTerminar: () => void }
+
+function Escrever({ programacaoId, eu, marcaveis, edicao }: { programacaoId: string; eu: RefPessoa; marcaveis: readonly PessoaMarcavel[]; edicao?: Edicao }) {
   const seletor = useRef<HTMLInputElement>(null);
   const caixa = useRef<HTMLTextAreaElement>(null);
-  const [texto, setTexto] = useState('');
+  // Na edição, as marcas salvas voltam como "@Nome" e as pessoas ficam escolhidas (domain/mencoes.ts, paraEditar).
+  const [inicial] = useState(() => (edicao ? paraEditar(edicao.observacao.texto, edicao.nome) : { texto: '', escolhidos: [] }));
+  const [texto, setTexto] = useState(inicial.texto);
   const [arquivos, setArquivos] = useState<File[]>([]);
   const [enviando, setEnviando] = useState<string | null>(null);
   const [arrastando, setArrastando] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
   // @: quem foi escolhido na lista (vira @{uid} ao publicar) e o "@termo" sendo escrito.
-  const [escolhidos, setEscolhidos] = useState<PessoaMarcavel[]>([]);
+  const [escolhidos, setEscolhidos] = useState<PessoaMarcavel[]>(inicial.escolhidos);
   const [busca, setBusca] = useState<{ termo: string; inicio: number } | null>(null);
   const [indice, setIndice] = useState(0);
   const candidatos = useMemo(() => (!busca ? [] : marcaveis
@@ -104,19 +110,33 @@ function Escrever({ programacaoId, eu, marcaveis }: { programacaoId: string; eu:
       if (event.key === 'Enter' || event.key === 'Tab') { event.preventDefault(); escolher(candidatos[indice]); return; }
       if (event.key === 'Escape') { event.stopPropagation(); setBusca(null); return; }
     }
+    if (event.key === 'Escape' && edicao) { event.stopPropagation(); edicao.aoTerminar(); return; }
     if (event.key === 'Enter' && (event.ctrlKey || event.metaKey)) publicar();
   };
 
   const adicionar = (lista: FileList | null) => {
+    if (edicao) return;
     if (lista?.length) setArquivos((atuais) => [...atuais, ...Array.from(lista)].slice(0, MAX_ANEXOS));
   };
   const colar = (event: ClipboardEvent) => { if (event.clipboardData.files.length) { event.preventDefault(); adicionar(event.clipboardData.files); } };
   const soltar = (event: DragEvent) => { event.preventDefault(); setArrastando(false); adicionar(event.dataTransfer.files); };
-  const vazio = !texto.trim() && !arquivos.length;
+  const vazio = !texto.trim() && !arquivos.length && !edicao?.observacao.anexos.length;
 
   const publicar = async () => {
     if (enviando || vazio) return;
     setErro(null);
+    if (edicao) {
+      setEnviando('Salvando…');
+      try {
+        const final = marcarTexto(texto.trim(), escolhidos);
+        await editarObservacao(edicao.observacao.id, final.texto, final.marcados);
+        edicao.aoTerminar();
+      } catch (error) {
+        setErro(`Não foi possível salvar: ${mensagem(error)}`);
+        setEnviando(null);
+      }
+      return;
+    }
     setEnviando(arquivos.length ? `Enviando 0 de ${arquivos.length}…` : 'Publicando…');
     try {
       const final = marcarTexto(texto.trim(), escolhidos);
@@ -143,8 +163,9 @@ function Escrever({ programacaoId, eu, marcaveis }: { programacaoId: string; eu:
         rows={3}
         value={texto}
         maxLength={MAX_TEXTO_OBSERVACAO}
-        placeholder="Escreva uma observação… use @ para marcar alguém; cole ou arraste imagens aqui"
-        aria-label="Nova observação"
+        placeholder={edicao ? 'Texto da observação… use @ para marcar alguém' : 'Escreva uma observação… use @ para marcar alguém; cole ou arraste imagens aqui'}
+        aria-label={edicao ? 'Editar observação' : 'Nova observação'}
+        autoFocus={!!edicao}
         onChange={(event) => { setTexto(event.target.value); detectar(event.target.value, event.target.selectionStart); }}
         onClick={(event) => detectar(texto, event.currentTarget.selectionStart)}
         onBlur={() => setBusca(null)}
@@ -181,23 +202,27 @@ function Escrever({ programacaoId, eu, marcaveis }: { programacaoId: string; eu:
       )}
       {erro && <p className="lg-obs-erro" role="alert">{erro}</p>}
       <div className="lg-obs-barra">
-        <button type="button" className="lg-btn-icone" title="Anexar arquivos ou imagens" aria-label="Anexar arquivos" onClick={() => seletor.current?.click()} disabled={arquivos.length >= MAX_ANEXOS}>
-          <AttachFileRounded fontSize="small" />
-        </button>
+        {!edicao && (
+          <button type="button" className="lg-btn-icone" title="Anexar arquivos ou imagens" aria-label="Anexar arquivos" onClick={() => seletor.current?.click()} disabled={arquivos.length >= MAX_ANEXOS}>
+            <AttachFileRounded fontSize="small" />
+          </button>
+        )}
         <button type="button" className="lg-btn-icone" title="Marcar pessoa (recebe o aviso no sino)" aria-label="Marcar pessoa" onClick={marcar}>
           <AlternateEmailRounded fontSize="small" />
         </button>
         <input ref={seletor} type="file" multiple hidden onChange={(event) => { adicionar(event.target.files); event.target.value = ''; }} />
-        <small className="lg-obs-dica">{enviando ?? (arrastando ? 'Solte os arquivos aqui' : 'Ctrl+Enter para publicar')}</small>
-        <button type="button" className="lg-btn lg-btn-primario" onClick={publicar} disabled={!!enviando || vazio}>Publicar</button>
+        <small className="lg-obs-dica">{enviando ?? (arrastando ? 'Solte os arquivos aqui' : `Ctrl+Enter para ${edicao ? 'salvar' : 'publicar'}`)}</small>
+        {edicao && <button type="button" className="lg-btn lg-obs-cancelar" onClick={edicao.aoTerminar} disabled={!!enviando}>Cancelar</button>}
+        <button type="button" className="lg-btn lg-btn-primario" onClick={publicar} disabled={!!enviando || vazio}>{edicao ? 'Salvar' : 'Publicar'}</button>
       </div>
     </div>
   );
 }
 
 /**
- * Observações da programação, da mais nova para a mais antiga; só o autor exclui a sua. Em "ver", só a leitura. Quem é
- * marcado com @ recebe o aviso no sino (Function logisticaObservacaoMencao).
+ * Observações da programação, da mais nova para a mais antiga; só o autor edita o texto ou exclui a sua. Em "ver", só a
+ * leitura. Quem é marcado com @ recebe o aviso no sino (Functions logisticaObservacaoMencao e, na edição, quem entrou
+ * agora, logisticaObservacaoMencaoEditada).
  */
 export function ObservacoesProgramacao({ programacaoId, observacoes, eu, cadastros, marcaveis, podeEditar }: {
   programacaoId: string;
@@ -207,8 +232,10 @@ export function ObservacoesProgramacao({ programacaoId, observacoes, eu, cadastr
   marcaveis: readonly PessoaMarcavel[];
   podeEditar: boolean;
 }) {
-  const nome = (uid: string) => cadastros.nomePessoa(uid, marcaveis.find((pessoa) => pessoa.uid === uid)?.nome ?? 'alguém');
+  const nomeConhecido = (uid: string) => cadastros.nomePessoa(uid, marcaveis.find((pessoa) => pessoa.uid === uid)?.nome ?? '') || undefined;
+  const nome = (uid: string) => nomeConhecido(uid) ?? 'alguém';
   const [erro, setErro] = useState<string | null>(null);
+  const [editandoId, setEditandoId] = useState<string | null>(null);
   const excluir = (observacao: Observacao) => {
     if (!window.confirm('Excluir esta observação e os arquivos dela?')) return;
     setErro(null);
@@ -230,14 +257,22 @@ export function ObservacoesProgramacao({ programacaoId, observacoes, eu, cadastr
           <header>
             <strong>{cadastros.nomePessoa(observacao.autor.uid, observacao.autor.nome)}</strong>
             <small>{quando(observacao.criadoEm)}</small>
+            {observacao.editadoEm !== null && <small title={`Editada em ${quando(observacao.editadoEm)}`}>(editada)</small>}
             <span className="lg-espaco" />
-            {podeEditar && observacao.autor.uid === eu.uid && (
-              <button type="button" className="lg-btn-icone" title="Excluir" aria-label="Excluir observação" onClick={() => excluir(observacao)}>
-                <DeleteOutlineRounded fontSize="small" />
-              </button>
+            {podeEditar && observacao.autor.uid === eu.uid && editandoId !== observacao.id && (
+              <>
+                <button type="button" className="lg-btn-icone" title="Editar" aria-label="Editar observação" onClick={() => setEditandoId(observacao.id)}>
+                  <EditOutlined fontSize="small" />
+                </button>
+                <button type="button" className="lg-btn-icone" title="Excluir" aria-label="Excluir observação" onClick={() => excluir(observacao)}>
+                  <DeleteOutlineRounded fontSize="small" />
+                </button>
+              </>
             )}
           </header>
-          <TextoObservacao texto={observacao.texto} eu={eu.uid} nome={nome} />
+          {editandoId === observacao.id
+            ? <Escrever programacaoId={programacaoId} eu={eu} marcaveis={marcaveis} edicao={{ observacao, nome: nomeConhecido, aoTerminar: () => setEditandoId(null) }} />
+            : <TextoObservacao texto={observacao.texto} eu={eu.uid} nome={nome} />}
           <Anexos anexos={observacao.anexos} />
         </article>
       ))}

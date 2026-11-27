@@ -20,7 +20,7 @@ import { linkDoQuadro, ORIGENS } from '../src/features/cronograma-logistica/doma
 import { coordenadaCurta, linkDoMapa, textoLocal } from '../src/features/cronograma-logistica/domain/local';
 import { detalheDoVeiculo, itensUsados, partesDaCopia } from '../src/features/cronograma-logistica/domain/preencher';
 import { feriadoEm, feriadosDoAno, fimDeSemana, pascoa } from '../src/features/cronograma-logistica/domain/feriados';
-import { buscaDaMarca, marcarTexto, partesDoTexto, textoComNomes } from '../src/features/cronograma-logistica/domain/mencoes';
+import { buscaDaMarca, marcarTexto, paraEditar, partesDoTexto, textoComNomes } from '../src/features/cronograma-logistica/domain/mencoes';
 
 const programacao = (id: string, extra: Partial<Programacao> = {}): Programacao => ({
   id, cod: null, codAntigo: null, semanaId: '2026-W45', item: `Item ${id}`, status: '', inicio: null, fim: null,
@@ -459,6 +459,16 @@ test('observações: @Nome escolhido vira @{uid} (o nome mais longo primeiro), q
   const nomes: Record<string, string> = { a: 'Ana', ap: 'Ana Paula' };
   assert.equal(textoComNomes('Falar com @{ap} e @{a}', (uid) => nomes[uid]), 'Falar com @Ana Paula e @Ana');
   assert.deepEqual(partesDoTexto('Oi @{a}, ver'), [{ texto: 'Oi ' }, { uid: 'a' }, { texto: ', ver' }]);
+});
+
+test('observações: editar mantém as marcas (sem nome conhecido ou com nome repetido, fica @{uid})', () => {
+  const nomes: Record<string, string> = { a: 'Ana', x: 'Zé', y: 'Zé' };
+  const editar = paraEditar('Ver @{a}, @{x}, @{y} e @{sumido}', (uid) => nomes[uid]);
+  assert.deepEqual(editar, { texto: 'Ver @Ana, @{x}, @{y} e @{sumido}', escolhidos: [{ uid: 'a', nome: 'Ana' }] });
+  assert.deepEqual(marcarTexto(`${editar.texto} e @Bia`, [...editar.escolhidos, { uid: 'b', nome: 'Bia' }]), {
+    texto: 'Ver @{a}, @{x}, @{y} e @{sumido} e @{b}', marcados: ['a', 'x', 'y', 'sumido', 'b'],
+  });
+  assert.deepEqual(marcarTexto('Tirei todo mundo', editar.escolhidos), { texto: 'Tirei todo mundo', marcados: [] });
 });
 
 test('observações: o "@termo" antes do cursor abre a lista; e-mail e texto sem @ não', () => {

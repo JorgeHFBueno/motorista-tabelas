@@ -13,6 +13,13 @@ test('marcados: sem repetir, sem vazios nem caminhos, até 20; sem lista, nenhum
   assert.deepEqual(d.marcadosDa(undefined), []);
 });
 
+test('edição: só quem entrou agora em marcados', () => {
+  assert.deepEqual(d.marcadosNovos({ marcados: ['ana'] }, { marcados: ['ana', 'bia'] }), ['bia']);
+  assert.deepEqual(d.marcadosNovos({}, { marcados: ['ana'] }), ['ana']);
+  assert.deepEqual(d.marcadosNovos({ marcados: ['ana', 'bia'] }, { marcados: ['ana'] }), []);
+  assert.deepEqual(d.marcadosNovos({ marcados: ['ana'] }, {}), []);
+});
+
 test('destinatários: ativos que veem a Logística ou adm2, menos o autor', () => {
   const funcionarios = new Map([
     ['ana', { ativo: true, perfis: {}, areas: LOG }],

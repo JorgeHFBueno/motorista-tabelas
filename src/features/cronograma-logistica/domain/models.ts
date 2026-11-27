@@ -107,6 +107,8 @@ export interface Observacao {
   autor: RefPessoa;
   /** Milissegundos; null enquanto o horário do servidor não volta. */
   criadoEm: number | null;
+  /** Milissegundos da última edição do texto pelo autor; null se nunca foi editada. */
+  editadoEm: number | null;
 }
 
 /** Campos que a tela altera numa programação. */

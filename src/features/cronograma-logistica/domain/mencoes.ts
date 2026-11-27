@@ -22,17 +22,30 @@ export function partesDoTexto(texto: string): ({ texto: string } | { uid: string
 
 /**
  * Na publicação: cada "@Nome" de uma pessoa escolhida na lista vira @{uid} (nomes mais longos primeiro, para "@Ana
- * Paula" não virar "@Ana" + " Paula"); quem saiu do texto não fica marcado. Devolve o texto e os UIDs, sem repetir.
+ * Paula" não virar "@Ana" + " Paula"); quem saiu do texto não fica marcado. Devolve o texto e os UIDs na ordem do
+ * texto, sem repetir (as marcas @{uid} que ficaram como estavam na edição também contam).
  */
 export function marcarTexto(texto: string, escolhidos: readonly { uid: string; nome: string }[]): { texto: string; marcados: string[] } {
   let final = texto;
-  const marcados: string[] = [];
   for (const pessoa of [...escolhidos].sort((a, b) => b.nome.length - a.nome.length)) {
     if (!pessoa.nome || !final.includes(`@${pessoa.nome}`)) continue;
     final = final.split(`@${pessoa.nome}`).join(`@{${pessoa.uid}}`);
-    if (!marcados.includes(pessoa.uid)) marcados.push(pessoa.uid);
   }
+  const marcados = [...new Set(partesDoTexto(final).flatMap((parte) => ('uid' in parte ? [parte.uid] : [])))];
   return { texto: final, marcados: marcados.slice(0, MAX_MARCADOS) };
+}
+
+/**
+ * Para editar: as marcas viram "@Nome" (e a pessoa fica escolhida); a de quem não tem nome conhecido, ou com o mesmo
+ * nome de outra marcada, fica como @{uid}, para a edição não trocar nem perder ninguém.
+ */
+export function paraEditar(texto: string, nome: (uid: string) => string | undefined): { texto: string; escolhidos: { uid: string; nome: string }[] } {
+  const uids = [...new Set(partesDoTexto(texto).flatMap((parte) => ('uid' in parte ? [parte.uid] : [])))];
+  const nomes = new Map(uids.map((uid) => [uid, nome(uid)?.trim() ?? '']));
+  const repetido = (n: string) => [...nomes.values()].filter((outro) => outro === n).length > 1;
+  const escolhidos = uids.filter((uid) => nomes.get(uid) && !repetido(nomes.get(uid)!)).map((uid) => ({ uid, nome: nomes.get(uid)! }));
+  const trocar = new Map(escolhidos.map((pessoa) => [pessoa.uid, pessoa.nome]));
+  return { texto: texto.replace(MARCA, (marca, uid: string) => (trocar.has(uid) ? `@${trocar.get(uid)}` : marca)), escolhidos };
 }
 
 /** O "@termo" sendo escrito antes do cursor (para abrir a lista), ou null. */
