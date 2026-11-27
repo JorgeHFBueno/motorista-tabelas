@@ -1,8 +1,8 @@
 import { Suspense, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { Link, Outlet, useLocation } from 'react-router-dom';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
-import MenuIcon from '@mui/icons-material/Menu';
-import MenuOpenIcon from '@mui/icons-material/MenuOpen';
+import KeyboardDoubleArrowLeftIcon from '@mui/icons-material/KeyboardDoubleArrowLeft';
+import KeyboardDoubleArrowRightIcon from '@mui/icons-material/KeyboardDoubleArrowRight';
 import LoadingFallback from '../../components/LoadingFallback';
 import './erpMenu.css';
 import { caminhoDaTela, combinaBusca, MENU_ERP, type ItemMenuErp } from './menuErp';
@@ -90,7 +90,8 @@ export default function ErpLayout() {
     <div className="erp-casca">
       <div className="erp-menu-faixa">
         <button type="button" className="erp-menu-botao" aria-label="Abrir o menu do ERP" title="Menu do ERP" aria-expanded={aberto} onClick={() => setAberto(true)}>
-          <MenuIcon />
+          {/* » e « (2026-11-27): o ☰ ficava igual ao do menu do painel, logo acima. */}
+          <KeyboardDoubleArrowRightIcon />
         </button>
       </div>
       {aberto && (
@@ -100,7 +101,7 @@ export default function ErpLayout() {
             <div className="erp-menu-topo">
               <Link to="/erp" className="erp-menu-inicio">ERP</Link>
               <button type="button" className="erp-menu-botao" aria-label="Recolher o menu do ERP" title="Recolher menu" onClick={() => setAberto(false)}>
-                <MenuOpenIcon />
+                <KeyboardDoubleArrowLeftIcon />
               </button>
             </div>
             <MenuErp caminhoAtual={caminhoAtual} />
