@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { atualizar, completo, criar, criarSubitens, duplicarItem, excluir, gravarValor, mudarEstado, observarAutomacoes, operarTempoItem, type Row } from '../api.ts';
+import { atualizar, completo, criar, criarSubitens, duplicarItem, excluir, gravarValor, mudarEstado, observarAutomacoes, observarItens, operarTempoItem, type Row } from '../api.ts';
 import { useAvisoRapido } from '../ui/base.tsx';
 import { posEntre } from '../util.ts';
+import { encaixarItens } from './aoVivo.ts';
 import { colunaDoMenu, type Coluna, type Grupo, type Item, type Sub, type TipoMenu, type Visao } from './tipos.ts';
 import type { OpTempo } from './tempo.ts';
 import { colunaSoNoTipo, tiposDoSub, type TiposSub } from './tiposSubitem.ts';
@@ -35,11 +36,41 @@ export function useQuadro(quadroId: number) {
   const comAutomacoes = !!dados?.quadro.n_automacoes;
   useEffect(() => (comAutomacoes ? observarAutomacoes(quadroId, recarregar) : undefined), [comAutomacoes, quadroId, recarregar]);
 
+  // Ao vivo (aoVivo.ts): itens gravados por outra pessoa, pela API ou por automação entram na tela sem reler o quadro.
+  // Chegam juntos (folga de 0,5 s) e esperam as gravações desta tela terminarem, para não voltar um valor que acabou de
+  // ser mudado aqui e ainda está a caminho do servidor.
+  const emVoo = useRef(0);
+  const dadosRef = useRef(dados);
+  dadosRef.current = dados;
+  const carregado = !!dados;
+  const subId = dados?.sub?.quadro_id ?? null;
+  useEffect(() => {
+    if (!carregado) return undefined;
+    const pendentes = new Map<number, Item | null>();
+    let espera: ReturnType<typeof setTimeout> | undefined;
+    const aplicar = () => {
+      if (emVoo.current > 0) { espera = setTimeout(aplicar, 500); return; }
+      const mudados = [...pendentes.values()].filter((i): i is Item => !!i);
+      const removidos = [...pendentes].filter(([, i]) => !i).map(([id]) => id);
+      pendentes.clear();
+      setDados(d => (d && atual.current === quadroId ? encaixarItens(d, mudados, removidos) : d));
+    };
+    const colunasDe = (id: number) => ((id === subId ? dadosRef.current?.sub?.colunas : dadosRef.current?.colunas) ?? []) as Row[];
+    const parar = observarItens(subId ? [quadroId, subId] : [quadroId], colunasDe, (mudados, removidos) => {
+      for (const i of mudados) pendentes.set(Number(i.id), i as Item);
+      for (const id of removidos) pendentes.set(id, null);
+      clearTimeout(espera);
+      espera = setTimeout(aplicar, 500);
+    });
+    return () => { clearTimeout(espera); parar(); };
+  }, [carregado, quadroId, subId]);
+
   const mudar = (f: (d: Dados) => Dados) => setDados(d => (d ? f(d) : d));
   const gravar = async (p: Promise<unknown>) => {
+    emVoo.current++;
     try {
       return await p;
-    } catch (e) { avisar(`Não foi possível salvar: ${(e as Error).message}`); recarregar(); }
+    } catch (e) { avisar(`Não foi possível salvar: ${(e as Error).message}`); recarregar(); } finally { emVoo.current--; }
   };
   const tirarItens = (ids: number[]) => mudar(d => comItens(d, l => l.filter(i => !ids.includes(i.id) && !ids.includes(i.item_pai_id ?? -1))));
 
@@ -66,7 +97,12 @@ export function useQuadro(quadroId: number) {
   // Gravações de valor em fila, na ordem em que foram feitas: o "Desfazer" logo depois de uma mudança em lote não pode
   // terminar antes dela (a gravação mais antiga chegaria por último e desfaria o desfazer).
   const fila = useRef<Promise<unknown>>(Promise.resolve());
-  const naFila = (f: () => Promise<unknown>) => { const p = fila.current.then(f); fila.current = p.catch(() => undefined); return p; };
+  const naFila = (f: () => Promise<unknown>) => {
+    emVoo.current++;
+    const p = fila.current.then(f).finally(() => { emVoo.current--; });
+    fila.current = p.catch(() => undefined);
+    return p;
+  };
   // Grava o valor de vários itens de uma vez (tela na hora; servidor em partes de 10).
   const aplicarValores = (mudancas: { itemId: number; valor: unknown }[], colunaId: number) => {
     const novo = new Map(mudancas.map(m => [m.itemId, m.valor]));

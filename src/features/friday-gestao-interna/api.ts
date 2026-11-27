@@ -1073,7 +1073,8 @@ export const mudarEstado = emPortugues(async function mudarEstado(r: Recurso, id
   const antes = await buscar(r, id);
   if (!antes) throw new Error('não encontrado');
   const campos = acao === 'arquivar' ? { arquivado_em: agora() } : { arquivado_em: null, excluido_em: null };
-  await updateDoc(ref(r, id), campos as DocumentData);
+  // Item: atualizado_em também muda, para sair (ou voltar) nas telas abertas (observarItens).
+  await updateDoc(ref(r, id), (r === 'itens' ? { ...campos, atualizado_em: agora() } : campos) as DocumentData);
   if (r === 'itens' && antes.vinculo) await gravarOficial(id, 'situacao');
   if (r === 'itens') await registrar({ quadro_id: antes.quadro_id, item_id: antes.id, item_nome: antes.nome, acao: acao === 'arquivar' ? 'arquivou' : 'restaurou' });
   return { ...antes, ...campos };
@@ -1317,6 +1318,39 @@ export function observarAutomacoes(quadroId: number, aoRodar: () => void): () =>
   return () => { clearTimeout(espera); parar(); };
 }
 
+/** Folga da escuta ao vivo: relógios de computadores e do servidor diferentes (minutos). */
+const FOLGA_AO_VIVO_MIN = 10;
+/**
+ * Quadro ao vivo (quadro/aoVivo.ts): escuta só os itens de cada quadro com `atualizado_em` depois de agora menos a
+ * folga (índice quadro_id + atualizado_em). Abrir lê só os itens gravados nesses minutos; depois, uma leitura por item
+ * gravado, mais o documento oficial (quadro oficial) e os valores restritos que a pessoa vê. As gravações da própria
+ * tela também chegam (o cache é das abas todas: não dá para separar esta aba de outra da mesma pessoa); useQuadro só as
+ * aplica depois que as gravações da tela terminam. `colunasDe` dá as colunas que a pessoa vê em cada quadro.
+ */
+export function observarItens(quadroIds: number[], colunasDe: (quadroId: number) => Row[], aoMudar: (mudados: Row[], removidos: number[]) => void): () => void {
+  const d = new Date(Date.now() - FOLGA_AO_VIVO_MIN * 60000);
+  const desde = new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().replace('T', ' ').slice(0, 19);
+  let fila: Promise<unknown> = Promise.resolve();
+  let vivo = true;
+  const paradas = quadroIds.map(quadroId => onSnapshot(query(colecao('itens'), where('quadro_id', '==', quadroId), where('atualizado_em', '>', desde)), snap => {
+    const mudancas = snap.docChanges();
+    if (!mudancas.length) return;
+    // Em fila: a leitura do oficial e dos restritos de uma escuta não pode terminar depois da seguinte.
+    fila = fila.then(async () => {
+      const removidos = mudancas.filter(c => c.type === 'removed').map(c => Number(c.doc.id));
+      const brutos = mudancas.filter(c => c.type !== 'removed').map(c => c.doc.data() as Row);
+      const colunas = colunasDe(quadroId).filter(c => c.restrita);
+      const restr = colunas.length ? await valoresRestritos(colunas) : null;
+      const mudados = await Promise.all(brutos.map(async b => {
+        const i = b.vinculo ? await comOficiais(b) : b;
+        return restr ? { ...i, valores: valoresComRestritas(i.valores, i.id, restr) } : i;
+      }));
+      if (vivo) aoMudar(mudados, removidos);
+    }).catch(e => console.warn('[friday] quadro ao vivo', e));
+  }, e => console.warn('[friday] quadro ao vivo: sem atualização automática', e)));
+  return () => { vivo = false; paradas.forEach(p => p()); };
+}
+
 // Lista do quadro com quantas vezes cada automação rodou e quando foi a última.
 export const automacoesDoQuadro = emPortugues(async function automacoesDoQuadro(quadroId: number) {
   const [automacoes, execucoes] = await Promise.all([consultar('automacoes', { quadro_id: quadroId }), consultar('execucoes', { quadro_id: quadroId })]);
@@ -1471,7 +1505,7 @@ export const excluir = emPortugues(async function excluir(r: Recurso, id: number
   if (r === 'colunas' && await campoOficialDa(antes)) throw new Error(`“${antes.titulo}” é um campo oficial e não pode ser excluído.`);
   // Itens, grupos e quadros vão para a lixeira (restauráveis por 30 dias).
   if (COM_ESTADO.has(r) && !definitivo) {
-    await updateDoc(ref(r, id), { excluido_em: agora() });
+    await updateDoc(ref(r, id), r === 'itens' ? { excluido_em: agora(), atualizado_em: agora() } : { excluido_em: agora() });
     if (r === 'itens' && antes.vinculo) await gravarOficial(id, 'situacao');
   } else {
     // Item oficial apagado de vez: o registro oficial fica, marcado como excluído.

@@ -32,6 +32,7 @@
     "test:friday-tempo": "esbuild tests/friday-tempo.test.ts --bundle --platform=node --format=esm --outfile=.tmp-friday-tempo.test.mjs && node --test .tmp-friday-tempo.test.mjs",
     "test:friday-tipos-subitem": "esbuild tests/friday-tipos-subitem.test.ts --bundle --platform=node --format=esm --outfile=.tmp-friday-tipos-subitem.test.mjs && node --test .tmp-friday-tipos-subitem.test.mjs",
     "test:friday-ordenacao": "esbuild tests/friday-ordenacao.test.ts --bundle --platform=node --format=esm --outfile=.tmp-friday-ordenacao.test.mjs && node --test .tmp-friday-ordenacao.test.mjs",
+    "test:friday-ao-vivo": "esbuild tests/friday-ao-vivo.test.ts --bundle --platform=node --format=esm --outfile=.tmp-friday-ao-vivo.test.mjs && node --test .tmp-friday-ao-vivo.test.mjs",
     "test:obras": "esbuild tests/obras-engenharia.test.ts --bundle --platform=node --format=esm --outfile=.tmp-obras-engenharia.test.mjs && node --test .tmp-obras-engenharia.test.mjs",
     "test:prazos": "esbuild tests/prazos-contratuais.test.ts --bundle --platform=node --format=esm --outfile=.tmp-prazos-contratuais.test.mjs && node --test .tmp-prazos-contratuais.test.mjs",
     "test:logistica": "esbuild tests/logistica-cronograma.test.ts --bundle --platform=node --format=esm --outfile=.tmp-logistica-cronograma.test.mjs && node --test .tmp-logistica-cronograma.test.mjs",
