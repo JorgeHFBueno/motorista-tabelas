@@ -3,6 +3,7 @@ import { test } from 'node:test';
 import {
   FILTRO_TITULOS, filtrarTitulos, parcelasDaCondicao, parcelasDoDocumento, TITULOS_EXEMPLO, titulosDaNota, vencido,
 } from '../src/features/erp/financeiro/titulosExemplo';
+import { relatorioFinanceiro } from '../src/features/erp/financeiro/relatoriosFinanceiro';
 import { NOTAS_EXEMPLO } from '../src/features/erp/notas/notasExemplo';
 
 // Contas a Pagar/Receber do ERP em demonstração (The Manuscript, 03_APLICACAO_WEB/01_ROTAS_E_NAVEGACAO.md#erp).
@@ -54,4 +55,43 @@ test('parcelas by payment condition; the last one takes the cents', () => {
   ]);
   assert.deepEqual(parcelasDaCondicao(1, 50, '2026-11-26'), [{ vencimento: '2026-11-26', valor: 50 }]);
   assert.deepEqual(parcelasDaCondicao(3, 0, '2026-11-26'), []);
+});
+
+const BASE = { empresa: '', tipo: 'P', periodo: 'vencimento', de: '2026-01-01', ate: '2026-12-31', titulos: 'abertos', pessoa: '', uf: '', cidade: '',
+  situacao: '', banco: '', taxa: '', multa: '', descAntec: '', descPont: '', baseJuros: '2026-11-27', basePosicao: '', plano: '', centro: '', numero: '' };
+
+test('Relatórios de Contas a Pagar/Receber: by client, summary, monthly and totals add up', () => {
+  const def = relatorioFinanceiro('contas-pagar-receber')!;
+  const abertos = TITULOS_EXEMPLO.filter((t) => t.tipo === 'P' && !t.cancelado && t.saldo > 0);
+  const soma = (l: Array<Record<string, unknown>>, k: string) => Math.round(l.reduce((s, x) => s + Number(x[k]), 0) * 100) / 100;
+  const cliente = def.gerar({ ...BASE, analise: 'cliente' });
+  assert.equal(cliente.length, abertos.length);
+  assert.equal(soma(cliente, 'saldo'), Math.round(abertos.reduce((s, t) => s + t.saldo, 0) * 100) / 100);
+  for (const analise of ['sintetica', 'mensal', 'totais']) {
+    const l = def.gerar({ ...BASE, analise });
+    assert.equal(soma(l, 'qtde'), abertos.length, analise);
+    assert.equal(soma(l, 'saldo'), soma(cliente, 'saldo'), analise);
+  }
+  assert.deepEqual(def.gerar({ ...BASE, analise: 'totais' }).map((l) => l.resumo), ['A vencer', 'Vencidos']);
+  assert.equal(typeof def.quebra === 'function' && def.quebra({ ...BASE, analise: 'cliente' }), 'grupo');
+  // Correção: 2% ao mês de juros e 2% de multa sobre o vencido; nada no que vence depois da data base.
+  const corrigido = def.gerar({ ...BASE, analise: 'cliente', taxa: '2', multa: '2' });
+  for (const l of corrigido) {
+    if (String(l.vencimento) < '2026-11-27') assert.ok(Number(l.juros) > 0 && Number(l.multa) > 0);
+    else assert.equal(Number(l.juros) + Number(l.multa), 0);
+  }
+  // Posição em 20/11: o título pago em parte em 24/11 ainda estava inteiro.
+  const parcial = TITULOS_EXEMPLO.find((t) => t.saldo > 0 && t.baixas.length)!;
+  const naPosicao = def.gerar({ ...BASE, analise: 'cliente', basePosicao: '2026-11-20' }).find((l) => l.id === parcial.id)!;
+  assert.equal(naPosicao.saldo, parcial.valor);
+});
+
+test('Pagamentos e Recebimentos do Período: one line per payment, grouped by account', () => {
+  const def = relatorioFinanceiro('pagamentos-recebimentos')!;
+  const baixas = TITULOS_EXEMPLO.filter((t) => t.tipo === 'P').flatMap((t) => t.baixas);
+  const l = def.gerar({ empresa: '', tipo: 'P', de: '2026-01-01', ate: '2026-12-31', conta: '', pessoa: '', quebra: 'conta' });
+  assert.equal(l.length, baixas.length);
+  assert.ok(l.every((x) => typeof x.grupo === 'string' && String(x.grupo).startsWith('CONTA MOVIMENTO') && typeof x.recibo === 'number'));
+  assert.equal(Math.round(l.reduce((s, x) => s + Number(x.pago), 0) * 100) / 100, Math.round(baixas.reduce((s, b) => s + b.valor, 0) * 100) / 100);
+  assert.ok(def.gerar({ empresa: '', tipo: 'R', de: '', ate: '', conta: '', pessoa: '', quebra: 'dia' }).length > 0);
 });

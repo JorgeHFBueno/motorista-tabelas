@@ -196,6 +196,7 @@ export default function App() {
                 <Route path="erp/titulos" element={<ErpTitulosPage />} />
                 <Route path="erp/titulos/:id" element={<ErpTituloPage />} />
                 <Route path="erp/baixa" element={<ErpBaixaPage />} />
+                <Route path="erp/financeiro/relatorios/:relatorio" element={<ErpRelatorioEstoquePage modulo="financeiro" />} />
               </Route>
             </Route>
             {/* Mecânica e Logística são grupos, como Engenharia: /mecanica e /logistica não têm página própria (2026-11-19:

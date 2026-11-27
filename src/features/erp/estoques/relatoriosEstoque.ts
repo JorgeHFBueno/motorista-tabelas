@@ -27,6 +27,8 @@ export type FiltroRel = {
   par?: string;
   /** Escondido em "Mais Opções", como no Elevor. */
   mais?: true;
+  /** Opções em botões de rádio mesmo quando são muitas (Análise do Contas a Pagar/Receber). */
+  radio?: true;
   desabilitado?: true;
   ajuda?: string;
 };
@@ -44,6 +46,8 @@ export type RelatorioDef = {
   titulo: string;
   elevor: string;
   ajuda: string;
+  /** Aviso de demonstração no alto (padrão: o de Estoques). */
+  aviso?: string;
   filtros: FiltroRel[];
   colunas: ColunaRel[];
   /** Coluna que agrupa as linhas, com subtotal (ou a conta que a escolhe pelos filtros). */

@@ -10,10 +10,12 @@ import { useTituloPagina } from '../../../components/cabecalhoPagina';
 import '../erpElevor.css';
 import { Linha } from './campos';
 import { AVISO_ESTOQUES, data, largura, moeda, num } from './estoquesExemplo';
+import { relatorioFinanceiro } from '../financeiro/relatoriosFinanceiro';
 import { opcoesDoFiltro, padraoDoFiltro, relatorioEstoque, type ColunaRel, type FiltroRel, type LinhaRel, type RelatorioDef, type Valores } from './relatoriosEstoque';
 
 // /erp/estoques/relatorios/:relatorio: os relatórios de Estoques (Relação de Acertos, Posição de Estoque, Giro, Produtos sem
-// Giro, Curva ABC e Relação de Notas) na tela de relatório do ERP do Samuel (web/src/erp/relatorios/Relatorio.tsx): filtros na disposição do
+// Giro, Curva ABC e Relação de Notas) e, em /erp/financeiro/relatorios/:relatorio (2026-11-27), os de Contas a Pagar/Receber
+// (relatoriosFinanceiro.ts) na tela de relatório do ERP do Samuel (web/src/erp/relatorios/Relatorio.tsx): filtros na disposição do
 // Elevor, "Mais Opções" com os escondidos, "Gerar" com a setinha para Exportar CSV e Imprimir, e a grade com subtotal por
 // quebra e o total. Demonstração: a conta roda sobre os dados de exemplo (relatoriosEstoque.ts).
 
@@ -74,7 +76,7 @@ function Relatorio({ def }: { def: RelatorioDef }) {
       case 'texto': case 'inteiro':
         return <input className="campo" style={estilo} aria-label={rotulo} inputMode={f.tipo === 'inteiro' ? 'numeric' : undefined} value={v} disabled={f.desabilitado} onChange={(e) => mudar(f.nome, e.target.value)} />;
       case 'opcoes':
-        if ((f.opcoes?.length ?? 0) <= 5 && !f.largura) {
+        if (f.radio || ((f.opcoes?.length ?? 0) <= 5 && !f.largura)) {
           return (
             <div className="opcoes" role="radiogroup" aria-label={rotulo}>
               {(f.obrigatorio ? f.opcoes! : [{ valor: '', rotulo: 'Todos' }, ...f.opcoes!]).map((o) => (
@@ -99,14 +101,20 @@ function Relatorio({ def }: { def: RelatorioDef }) {
   };
   const extras = (f: FiltroRel) => f.ajuda && <span className="fc-ajuda rel-ajuda-campo" title={f.ajuda}><HelpOutlineIcon /></span>;
 
-  // Uma linha por filtro; o "par" (data final) vai na mesma linha, depois de "a".
+  // Uma linha por filtro; o "par" (a data final, a Multa ao lado da Taxa) vai na mesma linha, e o par do par também.
   const pares = new Set(def.filtros.map((f) => f.par).filter(Boolean));
   const linhaDoFiltro = (f: FiltroRel) => {
-    const par = f.par ? def.filtros.find((x) => x.nome === f.par) : undefined;
+    const seguintes: FiltroRel[] = [];
+    for (let p = f.par; p;) {
+      const proximo = def.filtros.find((x) => x.nome === p);
+      if (!proximo) break;
+      seguintes.push(proximo);
+      p = proximo.par;
+    }
     return (
       <Linha key={f.nome} rotulo={f.rotulo ? `${f.rotulo}:` : ''}>
         {controle(f)}{extras(f)}
-        {par && <> {par.rotulo} {controle(par)}</>}
+        {seguintes.map((par) => <Fragment key={par.nome}> {par.rotulo} {controle(par)}</Fragment>)}
       </Linha>
     );
   };
@@ -129,7 +137,7 @@ function Relatorio({ def }: { def: RelatorioDef }) {
 
   return (
     <div className="erp-elevor">
-      <div className="erp-aviso">{AVISO_ESTOQUES}</div>
+      <div className="erp-aviso">{def.aviso ?? AVISO_ESTOQUES}</div>
       <form className="relatorio-elevor" onSubmit={(e) => { e.preventDefault(); setAplicado(valores); setMenuGerar(false); }}>
         {visiveis.map(linhaDoFiltro)}
         {escondidos.length > 0 && (
@@ -176,15 +184,19 @@ function Relatorio({ def }: { def: RelatorioDef }) {
   );
 }
 
-export default function ErpRelatorioEstoquePage() {
+export default function ErpRelatorioEstoquePage({ modulo = 'estoques' }: { modulo?: 'estoques' | 'financeiro' }) {
   const { relatorio } = useParams();
   const navigate = useNavigate();
-  const def = relatorioEstoque(relatorio);
+  const def = modulo === 'financeiro' ? relatorioFinanceiro(relatorio) : relatorioEstoque(relatorio);
   if (!def) {
     return (
       <div className="erp-elevor">
         <div className="mensagem">Relatório não encontrado.</div>
-        <div className="botoes"><button className="btn" type="button" onClick={() => navigate('/erp/estoques')}>Conferência de Estoques</button></div>
+        <div className="botoes">
+          {modulo === 'financeiro'
+            ? <button className="btn" type="button" onClick={() => navigate('/erp/titulos')}>Consulta Títulos</button>
+            : <button className="btn" type="button" onClick={() => navigate('/erp/estoques')}>Conferência de Estoques</button>}
+        </div>
       </div>
     );
   }

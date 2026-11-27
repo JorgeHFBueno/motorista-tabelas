@@ -75,6 +75,7 @@ export const TELAS: readonly Tela[] = [
   { rota: 'erp/titulos', rotulo: 'Consulta Contas a Pagar/Receber', grupo: 'erp' },
   { rota: 'erp/titulos/:id', rotulo: 'Lançamento de Títulos', grupo: 'erp' },
   { rota: 'erp/baixa', rotulo: 'Baixa de Títulos', grupo: 'erp' },
+  { rota: 'erp/financeiro/relatorios/:relatorio', rotulo: 'Relatório do Financeiro', grupo: 'erp' },
   { rota: 'portal-cliente/clientes', rotulo: 'Clientes', grupo: 'portal' },
   { rota: 'portal-cliente/contratos', rotulo: 'Contratos', grupo: 'portal' },
   { rota: 'portal-cliente/contratos/:id', rotulo: 'Contrato: detalhe', grupo: 'portal' },
