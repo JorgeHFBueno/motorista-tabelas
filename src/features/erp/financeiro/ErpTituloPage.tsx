@@ -246,7 +246,7 @@ function Ficha({ t, copia, padrao }: { t: TituloExemplo | null; copia?: { f: For
               <tbody>
                 {t.baixas.map((b) => (
                   <tr key={b.recibo}>
-                    <td>{data(b.data)}</td><td className="num">{b.recibo}</td><td>{b.conta}</td><td className="num">{moeda(b.valor)}</td><td className="num">{moeda(b.juros)}</td>
+                    <td>{data(b.data)}</td><td className="num"><Link className="linha-link" to={`/erp/recibos/${b.recibo}`} title="Abrir o recibo">{b.recibo}</Link></td><td>{b.conta}</td><td className="num">{moeda(b.valor)}</td><td className="num">{moeda(b.juros)}</td>
                     <td className="num">{moeda(b.multa)}</td><td className="num">{moeda(b.desconto)}</td><td>{b.usuario}</td>
                   </tr>
                 ))}

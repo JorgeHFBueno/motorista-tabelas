@@ -71,6 +71,8 @@ const ErpChequesPage = lazy(() => import('./features/erp/financeiro/ErpChequesPa
 const ErpChequePage = lazy(() => import('./features/erp/financeiro/ErpChequePage'));
 const ErpStatusChequesPage = lazy(() => import('./features/erp/financeiro/ErpStatusChequesPage'));
 const ErpAdiantamentosPage = lazy(() => import('./features/erp/financeiro/ErpAdiantamentosPage'));
+const ErpRecibosPage = lazy(() => import('./features/erp/financeiro/ErpRecibosPage'));
+const ErpReciboPage = lazy(() => import('./features/erp/financeiro/ErpReciboPage'));
 const TheManuscriptPage = lazy(() => import('./pages/TheManuscriptPage'));
 const ManuscriptMapaPage = lazy(() => import('./pages/ManuscriptMapaPage'));
 const MeuPerfilPage = lazy(() => import('./pages/MeuPerfilPage'));
@@ -211,6 +213,8 @@ export default function App() {
                 <Route path="erp/cheques/status" element={<ErpStatusChequesPage />} />
                 <Route path="erp/cheques/:id" element={<ErpChequePage />} />
                 <Route path="erp/adiantamentos" element={<ErpAdiantamentosPage />} />
+                <Route path="erp/recibos" element={<ErpRecibosPage />} />
+                <Route path="erp/recibos/:numero" element={<ErpReciboPage />} />
               </Route>
             </Route>
             {/* Mecânica e Logística são grupos, como Engenharia: /mecanica e /logistica não têm página própria (2026-11-19:

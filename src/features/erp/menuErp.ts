@@ -124,7 +124,7 @@ export const MENU_ERP: ModuloErp[] = [
         { rotulo: 'Relatório', para: '/erp/financeiro/relatorios/fluxo-caixa' },
       ] },
       { rotulo: 'Adiantamentos/ Empréstimos', icone: SwapHorizOutlined, filhos: [{ rotulo: 'Adiantamentos/ Empréstimos', para: '/erp/adiantamentos' }] },
-      { rotulo: 'Recibos', icone: ReceiptOutlined, filhos: em('Consulta de Recibos') },
+      { rotulo: 'Recibos', icone: ReceiptOutlined, filhos: [{ rotulo: 'Consulta de Recibos', para: '/erp/recibos' }] },
       { rotulo: 'Orçamento', icone: CalculateOutlined },
       { rotulo: 'Orçado × Realizado', icone: BalanceOutlined },
     ],

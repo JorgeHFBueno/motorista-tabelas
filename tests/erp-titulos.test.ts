@@ -13,6 +13,7 @@ import {
   CONCILIACOES_INICIAIS, CONTAS_CONCILIACAO, EXTRATO_BANCO, lerOfx, montarGrade, situacaoDoDia,
 } from '../src/features/erp/financeiro/conciliacaoExemplo';
 import { NOTAS_EXEMPLO } from '../src/features/erp/notas/notasExemplo';
+import { filtrarRecibos, filtroRecibosPadrao, RECIBOS_EXEMPLO } from '../src/features/erp/financeiro/recibosExemplo';
 
 // Contas a Pagar/Receber do ERP em demonstração (The Manuscript, 03_APLICACAO_WEB/01_ROTAS_E_NAVEGACAO.md#erp).
 
@@ -207,4 +208,37 @@ test('Adiantamentos/Empréstimos: titles with the advance situation; open by def
   assert.ok(filtrarAdiantamentos({ ...FILTRO_ADIANTAMENTOS, tipo: 'R' }).every((t) => t.tipo === 'R'));
   const usado = abertos.find((t) => t.numero === 'ADT-0008')!;
   assert.equal(usado.valor - usado.saldo, 5000);
+});
+
+test('every baixa has its recibo with the same value, and the recibo is reconciled when its bank entry is', () => {
+  const baixas = TITULOS_EXEMPLO.flatMap((t) => t.baixas.map((b) => ({ t, b })));
+  assert.ok(baixas.length > 0);
+  for (const { t, b } of baixas) {
+    const r = RECIBOS_EXEMPLO.find((x) => x.numero === b.recibo);
+    assert.ok(r && !r.avulso, `recibo ${b.recibo}`);
+    assert.equal(r.tipo, t.tipo);
+    assert.equal(r.valor, Math.round((b.valor + b.juros + b.multa - b.desconto) * 100) / 100);
+    assert.ok(r.titulos.some((x) => x.id === t.id));
+    assert.equal(r.conciliado, MOVIMENTOS_BANCO.some((m) => m.recibo === b.recibo && m.conciliado));
+  }
+  assert.equal(new Set(RECIBOS_EXEMPLO.map((r) => r.numero)).size, RECIBOS_EXEMPLO.length, 'recibo numbers are unique');
+  const avulsos = RECIBOS_EXEMPLO.filter((r) => r.avulso);
+  assert.equal(avulsos.length, 2);
+  assert.ok(avulsos.every((r) => r.titulos.length === 0 && !r.conta && r.referente));
+});
+
+test('recibo filters follow FN_Recibos: type, Crédito/Adto, no cancelled, period and título number', () => {
+  const todos = { ...filtroRecibosPadrao('2026-11-27'), de: '' };
+  assert.equal(filtrarRecibos(todos).length, RECIBOS_EXEMPLO.length);
+  assert.equal(filtrarRecibos({ ...todos, situacao: 'cancelado' }).length, 0);
+  assert.equal(filtrarRecibos({ ...todos, tipo: 'A' }).length, 0);
+  const adto = filtrarRecibos({ ...todos, tipo: 'C' });
+  assert.ok(adto.length >= 2 && adto.every((r) => r.adiantamento));
+  assert.ok(filtrarRecibos({ ...todos, tipo: 'P' }).every((r) => r.tipo === 'P' && !r.adiantamento));
+  const padrao = filtrarRecibos(filtroRecibosPadrao('2026-11-27'));
+  assert.ok(padrao.length > 0 && padrao.every((r) => r.data >= '2026-10-28'));
+  assert.ok(padrao.every((r, i) => i === 0 || padrao[i - 1].data >= r.data), 'newest first');
+  const porTitulo = filtrarRecibos({ ...todos, titulo: 'EMP-0002' });
+  assert.equal(porTitulo.length, 1);
+  assert.equal(porTitulo[0].pessoa, 'João Modelo de Souza');
 });
