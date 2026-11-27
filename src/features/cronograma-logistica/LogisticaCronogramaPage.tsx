@@ -54,6 +54,8 @@ export default function LogisticaCronogramaPage() {
   const [destaque, setDestaque] = useState<string | null>(null);
   const [semanas, setSemanas] = useState<Semana[] | null>(null);
   const [programacoes, setProgramacoes] = useState<Programacao[] | null>(null);
+  // A lista já veio do servidor (a primeira pode vir só do cache do navegador).
+  const [programacoesDoServidor, setProgramacoesDoServidor] = useState(false);
   const [observacoes, setObservacoes] = useState<Observacao[]>([]);
   const [etiquetas, setEtiquetas] = useState<EtiquetaStatus[]>([...ETIQUETAS_PADRAO]);
   const [atribuidosNota, setAtribuidosNota] = useState<PapeisAvisos>({ administrativo: [], engenharia: [] });
@@ -76,7 +78,10 @@ export default function LogisticaCronogramaPage() {
   useEffect(() => {
     const falha = (error: Error) => setErro(`Não foi possível ler o cronograma: ${error.message}`);
     const pararSemanas = observarSemanas(setSemanas, falha);
-    const pararProgramacoes = observarProgramacoes(setProgramacoes, falha);
+    const pararProgramacoes = observarProgramacoes((lista, doServidor) => {
+      setProgramacoes(lista);
+      if (doServidor) setProgramacoesDoServidor(true);
+    }, falha);
     const pararObservacoes = observarObservacoes(setObservacoes, (error) => setErro(`Não foi possível ler as observações: ${error.message}`));
     const pararEtiquetas = observarEtiquetas(setEtiquetas, (error) => setErro(`Não foi possível ler as etiquetas de status: ${error.message}`));
     const pararAtribuidos = observarAtribuidosNota(setAtribuidosNota, (error) => setErro(`Não foi possível ler quem recebe os avisos: ${error.message}`));
@@ -116,17 +121,20 @@ export default function LogisticaCronogramaPage() {
     })().catch((error) => setErro(`Não foi possível gerar o código das linhas: ${mensagem(error)}`));
   }, [podeEditar, programacoes, uid]);
 
-  // Veio de um aviso: a linha pedida (se ainda existe) fica destacada no Quadro; o parâmetro sai do endereço.
+  // Veio de um aviso: a linha pedida (se ainda existe) fica destacada no Quadro; o parâmetro sai do endereço. O aviso
+  // aponta o documento da linha (o id não muda com a expedição, o status ou o código). Sem a linha no cache do navegador
+  // (criada com a página fechada), espera o servidor antes de dizer que ela não existe mais.
   useEffect(() => {
     if (!pedida || !programacoes) return;
     const existe = programacoes.some((programacao) => programacao.id === pedida);
+    if (!existe && !programacoesDoServidor) return;
     const resto = new URLSearchParams(parametros);
     resto.delete('programacao');
     setParametros(resto, { replace: true });
     if (!existe) { setErro('A programação do aviso não existe mais.'); return; }
     setAba('quadro');
     setDestaque(pedida);
-  }, [pedida, programacoes, parametros, setParametros]);
+  }, [pedida, programacoes, programacoesDoServidor, parametros, setParametros]);
 
   // Centraliza a linha destacada (de novo depois, quando cadastros e avisos chegam e a página cresce); o destaque sai
   // no próximo clique ou tecla. Sem espaço abaixo da linha, ela fica o mais perto do meio que der.

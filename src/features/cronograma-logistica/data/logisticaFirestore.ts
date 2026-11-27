@@ -137,11 +137,20 @@ export function observarSemanas(onData: (semanas: Semana[]) => void, onError: (e
   }, onError);
 }
 
-export function observarProgramacoes(onData: (programacoes: Programacao[]) => void, onError: (error: Error) => void) {
-  return onSnapshot(collection(db, PROGRAMACOES), (snapshot) => {
+/**
+ * `doServidor` diz se a lista já veio do servidor: a primeira pode vir só do cache do navegador, sem as linhas criadas
+ * enquanto a página estava fechada (o aviso que abre numa delas espera o servidor antes de dizer que ela não existe).
+ */
+export function observarProgramacoes(onData: (programacoes: Programacao[], doServidor: boolean) => void, onError: (error: Error) => void) {
+  let doCacheAntes: boolean | null = null;
+  return onSnapshot(collection(db, PROGRAMACOES), { includeMetadataChanges: true }, (snapshot) => {
+    const doCache = snapshot.metadata.fromCache;
+    // Com as mudanças de metadados, só a passagem do cache ao servidor conta; o resto (gravação confirmada) não muda a lista.
+    if (doCache === doCacheAntes && snapshot.docChanges().length === 0) return;
+    doCacheAntes = doCache;
     onData(snapshot.docs
       .map((item) => programacaoDoDocumento(item.id, item.data({ serverTimestamps: 'estimate' })))
-      .filter((item): item is Programacao => item !== null));
+      .filter((item): item is Programacao => item !== null), !doCache);
   }, onError);
 }
 
