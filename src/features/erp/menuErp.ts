@@ -107,8 +107,12 @@ export const MENU_ERP: ModuloErp[] = [
         { rotulo: 'Pagamentos e Recebimentos', para: '/erp/financeiro/relatorios/pagamentos-recebimentos' },
         ...em('Exclusão de Baixas'),
       ] },
-      { rotulo: 'Bancos/Caixa', icone: MonetizationOnOutlined, filhos: em('Bancos/Caixa', 'Conciliação Bancária', 'Regras de Lançamento Automático', 'Saldos',
-        'Pendências de Conciliação') },
+      { rotulo: 'Bancos/Caixa', icone: MonetizationOnOutlined, filhos: [
+        { rotulo: 'Bancos/Caixa', para: '/erp/bancos' },
+        ...em('Conciliação Bancária', 'Regras de Lançamento Automático'),
+        { rotulo: 'Saldos', para: '/erp/bancos?aba=saldos' },
+        ...em('Pendências de Conciliação'),
+      ] },
       { rotulo: 'Cheques', icone: AccountBalanceWalletOutlined, filhos: em('Inclusão Cheques', 'Consulta de Cheques', 'Status de Cheques') },
       { rotulo: 'Fluxo Caixa', icone: TrendingUpOutlined, filhos: [
         { rotulo: 'Projeções', para: '/erp/financeiro/projecoes' },

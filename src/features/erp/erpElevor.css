@@ -380,7 +380,23 @@
 .erp-elevor .prj-icone, .erp-elevor .prj-marca { width: 34px; }
 .erp-elevor .prj-acoes { display: flex; gap: 8px; margin: 14px 0; flex-wrap: wrap; }
 
+/* Bancos/Caixa (FN_Bancos): abas à esquerda, como no ERP do Samuel */
+.erp-elevor .tela-lateral { display: flex; gap: 28px; align-items: flex-start; }
+.erp-elevor .abas-lateral { width: 240px; flex-shrink: 0; display: flex; flex-direction: column; gap: 2px; margin-top: 4px; }
+.erp-elevor .abas-lateral button { border: 0; background: transparent; color: var(--texto); text-align: left; font: inherit; padding: 8px 12px; border-radius: 3px; cursor: pointer; }
+.erp-elevor .abas-lateral button:hover { background: var(--grade-hover); }
+.erp-elevor .abas-lateral button.ativa { background: var(--primario); color: #fff; cursor: default; }
+.erp-elevor .tela-lateral-conteudo { flex: 1; min-width: 0; }
+.erp-elevor .tela-lateral-conteudo > .ficha-elevor { margin: 8px 0 12px; max-width: 640px; }
+.erp-elevor .campo.bancos-valor { width: 100px; }
+.erp-elevor .grade .positivo { color: var(--ledur-success); }
+.erp-elevor .extrato-rodape { display: flex; align-items: center; gap: 16px; margin: 12px 0; }
+.erp-elevor .bancos-saldos { width: auto; min-width: 640px; }
+
 @media (max-width: 900px) {
+  .erp-elevor .tela-lateral { flex-direction: column; }
+  .erp-elevor .abas-lateral { width: 100%; flex-direction: row; overflow-x: auto; }
+  .erp-elevor .bancos-saldos { min-width: 0; width: 100%; }
   .erp-elevor .consulta-titulos .ct-topo, .erp-elevor .consulta-titulos .ct-mais { grid-template-columns: minmax(0, 1fr); }
   .erp-elevor .consulta-titulos .ct-resto, .erp-elevor .consulta-titulos .ct-span2 { grid-column: auto; }
   .erp-elevor .consulta-titulos .ct-linha { flex-wrap: wrap; }

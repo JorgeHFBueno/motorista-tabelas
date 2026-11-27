@@ -17,7 +17,7 @@ import Corvo from '../../components/corvo/Corvo';
 
 // /erp (2026-11-24): início do ERP próprio, com o mosaico de atalhos da tela inicial do Elevor (ERP360), que inspirou o
 // ERP próprio: mesmos blocos, posições e tamanhos, nas cores da Ledur (o roxo do Elevor virou azul-marinho). Bloco com
-// `para` abre a tela (Clientes e Fornecedores, Conferência de Estoques, Entrada de Fornecedor e os títulos, em demonstração); os outros abrem o aviso
+// `para` abre a tela (Clientes e Fornecedores, Conferência de Estoques, Entrada de Fornecedor, os títulos e Bancos/Caixa, em demonstração); os outros abrem o aviso
 // "Estamos trabalhando nisso".
 // The Manuscript, 03_APLICACAO_WEB/01_ROTAS_E_NAVEGACAO.md#erp.
 
@@ -36,7 +36,7 @@ const CORES = {
 type Bloco = { rotulo: string; icone: ReactNode; cor: keyof typeof CORES; coluna: number; linha: number; alto?: true; para?: string };
 
 const BLOCOS: Bloco[] = [
-  { rotulo: 'Bancos/Caixa', icone: <PaidOutlinedIcon />, cor: 'financeiro', coluna: 1, linha: 1 },
+  { rotulo: 'Bancos/Caixa', icone: <PaidOutlinedIcon />, cor: 'financeiro', coluna: 1, linha: 1, para: '/erp/bancos' },
   { rotulo: 'Lançamento de Títulos', icone: <AttachMoneyOutlinedIcon />, cor: 'financeiro', coluna: 1, linha: 2, para: '/erp/titulos/novo' },
   { rotulo: 'Consulta Títulos', icone: <AttachMoneyOutlinedIcon />, cor: 'financeiro', coluna: 1, linha: 3, para: '/erp/titulos' },
   { rotulo: 'Conciliação Bancária', icone: <PaidOutlinedIcon />, cor: 'financeiro', coluna: 1, linha: 4 },

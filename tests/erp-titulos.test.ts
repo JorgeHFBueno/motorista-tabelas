@@ -3,7 +3,9 @@ import { test } from 'node:test';
 import {
   FILTRO_TITULOS, filtrarTitulos, parcelasDaCondicao, parcelasDoDocumento, TITULOS_EXEMPLO, titulosDaNota, vencido,
 } from '../src/features/erp/financeiro/titulosExemplo';
-import { CONTAS_BANCO, filtrarProjecoes, FILTRO_PROJECOES, PROJECOES_EXEMPLO, saldoDaConta } from '../src/features/erp/financeiro/fluxoExemplo';
+import {
+  CONTAS_BANCO, extrato, filtrarProjecoes, FILTRO_PROJECOES, MOVIMENTOS_BANCO, PROJECOES_EXEMPLO, saldoDaConta, saldosEm,
+} from '../src/features/erp/financeiro/fluxoExemplo';
 import { fluxoDeCaixa, relatorioFinanceiro } from '../src/features/erp/financeiro/relatoriosFinanceiro';
 import { NOTAS_EXEMPLO } from '../src/features/erp/notas/notasExemplo';
 
@@ -124,4 +126,24 @@ test('Projeções: pending by default; efetivadas apart', () => {
   assert.ok(filtrarProjecoes(FILTRO_PROJECOES).every((p) => !p.efetivada));
   assert.ok(filtrarProjecoes({ ...FILTRO_PROJECOES, efetivada: 'sim' }).every((p) => p.efetivada));
   assert.ok(relatorioFinanceiro('fluxo-caixa'));
+});
+
+test('Bancos/Caixa: every payment is a bank movement; statement with running balance; transfers net zero', () => {
+  const baixas = TITULOS_EXEMPLO.flatMap((t) => t.baixas);
+  assert.equal(MOVIMENTOS_BANCO.filter((m) => m.origem === 'baixa').length, baixas.length);
+  const transferencias = MOVIMENTOS_BANCO.filter((m) => m.origem === 'transferencia');
+  assert.equal(transferencias.reduce((s, m) => s + m.valor, 0), 0);
+  const conta = CONTAS_BANCO[1].conta;
+  const filtro = { empresa: '', conta, de: '2026-11-01', ate: '2026-11-30', pessoa: '', plano: '', centro: '', texto: '', historicoPadrao: '', valorDe: '', valorAte: '', tipo: 'ambos' };
+  const r = extrato(filtro);
+  assert.equal(r.comSaldo, true);
+  assert.equal(r.saldoAnterior, saldoDaConta(conta, '2026-11-01'));
+  assert.ok(Math.abs(r.saldoFinal - saldoDaConta(conta, '2026-12-01')) < 0.01);
+  assert.equal(r.linhas[r.linhas.length - 1].saldo, r.saldoFinal);
+  const saidas = extrato({ ...filtro, tipo: 'saida' });
+  assert.equal(saidas.comSaldo, false);
+  assert.ok(saidas.linhas.every((m) => m.valor < 0));
+  const saldos = saldosEm('2026-11-30');
+  assert.ok(Math.abs(saldos.find((c) => c.conta === conta)!.saldo - saldoDaConta(conta, '2026-12-01')) < 0.01);
+  assert.ok(saldos.some((c) => c.aConciliar > 0));
 });
