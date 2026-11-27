@@ -49,6 +49,7 @@ export default function LogisticaCronogramaPage() {
   const podeEditar = editaArea(authorizationProfile, 'logistica');
   const [aba, setAba] = useState<Aba>('quadro');
   // Aviso do ADMINISTRATIVO (?programacao=<id>): abre no Quadro, com a linha centralizada e destacada até o próximo clique.
+  // Aviso de marcação numa observação (&aba=observacoes): abre também o painel da linha nas Observações.
   const [parametros, setParametros] = useSearchParams();
   const pedida = parametros.get('programacao');
   const [destaque, setDestaque] = useState<string | null>(null);
@@ -129,11 +130,14 @@ export default function LogisticaCronogramaPage() {
     const existe = programacoes.some((programacao) => programacao.id === pedida);
     if (!existe && !programacoesDoServidor) return;
     const resto = new URLSearchParams(parametros);
+    const abaPedida = resto.get('aba');
     resto.delete('programacao');
+    resto.delete('aba');
     setParametros(resto, { replace: true });
     if (!existe) { setErro('A programação do aviso não existe mais.'); return; }
     setAba('quadro');
     setDestaque(pedida);
+    if (abaPedida === 'observacoes') { setAbertaId(pedida); setAbaPainel('observacoes'); }
   }, [pedida, programacoes, programacoesDoServidor, parametros, setParametros]);
 
   // Centraliza a linha destacada (de novo depois, quando cadastros e avisos chegam e a página cresce); o destaque sai
@@ -392,6 +396,7 @@ export default function LogisticaCronogramaPage() {
         observacoes={aberta ? observacoesPor.get(aberta.id) ?? [] : []}
         eu={eu}
         cadastros={cadastros}
+        marcaveis={pessoasDosPapeis.administrativo}
         todosConflitos={todosConflitos}
         acoes={acoes}
         onFechar={() => setAbertaId(null)}

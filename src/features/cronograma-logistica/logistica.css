@@ -198,7 +198,13 @@
 
 /* observações */
 .lg-obs { display: flex; flex-direction: column; gap: 12px; }
-.lg-obs-escrever { border: 1px solid #d0d4e4; border-radius: 6px; background: #fff; }
+.lg-obs-escrever { position: relative; border: 1px solid #d0d4e4; border-radius: 6px; background: #fff; }
+/* @ nas observações: a lista de quem marcar, embaixo da caixa, e a marca no texto (a minha, mais forte). */
+.lg-obs-mencoes { position: absolute; z-index: 5; left: 8px; right: 8px; top: calc(100% - 44px); max-height: 260px; overflow-y: auto; padding: 4px; border: 1px solid #d0d4e4; border-radius: 6px; background: #fff; box-shadow: 0 6px 18px rgba(0, 0, 0, .12); }
+.lg-obs-mencoes button { display: block; width: 100%; padding: 6px 10px; border: 0; border-radius: 4px; background: none; color: #323338; font: inherit; font-size: 13px; text-align: left; cursor: pointer; }
+.lg-obs-mencoes button:hover, .lg-obs-mencoes button.is-ativa { background: #dce8fb; }
+.lg-mencao { padding: 0 3px; border-radius: 4px; background: #dce8fb; color: #1f5bc4; font-weight: 600; }
+.lg-mencao.is-eu { background: #2f6fde; color: #fff; }
 .lg-obs-escrever:focus-within { border-color: #2f6fde; box-shadow: 0 0 0 2px #dce8fb; }
 .lg-obs-escrever.is-arrastando { border-style: dashed; border-color: #2f6fde; background: #f3f7fe; }
 .lg-obs-escrever textarea { display: block; width: 100%; padding: 10px 12px; border: 0; border-radius: 6px 6px 0 0; background: none; color: #323338; font: inherit; resize: vertical; outline: 0; }

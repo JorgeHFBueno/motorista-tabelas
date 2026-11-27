@@ -1890,6 +1890,11 @@ test('[firestore] logistica: observações com texto ou arquivos, do próprio au
   await assertFails(setDoc(doc(adm2, 'logistica-observacoes', 'o4'), obs({ texto: 'x'.repeat(2001) })));
   await assertFails(setDoc(doc(adm2, 'logistica-observacoes', 'o4'), obs({ extra: true })));
   await assertFails(setDoc(doc(adm2, 'logistica-observacoes', 'o4'), obs({ criadoEm: Timestamp.fromMillis(1) })));
+  // Marcados com @ (2026-11-27): lista opcional de 1 a 20 UIDs.
+  await assertSucceeds(setDoc(doc(adm2, 'logistica-observacoes', 'o5'), obs({ texto: 'Ver com @{uid-logistica}', marcados: ['uid-logistica'] })));
+  await assertFails(setDoc(doc(adm2, 'logistica-observacoes', 'o6'), obs({ marcados: [] })));
+  await assertFails(setDoc(doc(adm2, 'logistica-observacoes', 'o6'), obs({ marcados: Array.from({ length: 21 }, (_, i) => `u${i}`) })));
+  await assertFails(setDoc(doc(adm2, 'logistica-observacoes', 'o6'), obs({ marcados: 'uid-logistica' })));
   for (const outro of ['canonicalFrentista', 'engenharia', 'escritorio']) {
     await assertFails(getDoc(doc(dbAs(outro), 'logistica-observacoes', 'o1')));
     await assertFails(setDoc(doc(dbAs(outro), 'logistica-observacoes', 'o5'), obs()));

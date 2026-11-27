@@ -406,7 +406,8 @@ export async function excluirProgramacao(programacao: Pick<Programacao, 'id' | '
 
 /**
  * Envia os arquivos para logistica/observacoes/{id}/ e grava a observação com os endereços. Se a gravação falhar,
- * os arquivos enviados são apagados.
+ * os arquivos enviados são apagados. `marcados`: os UIDs marcados com @ no texto (domain/mencoes.ts); a Function
+ * logisticaObservacaoMencao avisa cada um no sino.
  */
 export async function publicarObservacao(
   programacaoId: string,
@@ -414,6 +415,7 @@ export async function publicarObservacao(
   arquivos: readonly File[],
   autor: RefPessoa,
   aoEnviar?: (enviados: number) => void,
+  marcados: readonly string[] = [],
 ): Promise<void> {
   const grande = arquivos.find((arquivo) => arquivo.size > LIMITE_ARQUIVO);
   if (grande) throw new Error(`“${grande.name}” passa de 25 MB, o limite por arquivo.`);
@@ -431,6 +433,7 @@ export async function publicarObservacao(
     }
     await setDoc(ref, {
       schemaVersion: 1, programacaoId, texto: textoObservacao, anexos, autor, criadoEm: serverTimestamp(),
+      ...(marcados.length ? { marcados: [...marcados] } : {}),
     });
   } catch (error) {
     await apagarArquivos(anexos).catch(() => undefined);

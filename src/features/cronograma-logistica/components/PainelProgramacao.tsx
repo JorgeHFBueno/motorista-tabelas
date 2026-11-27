@@ -12,7 +12,7 @@ import {
   type AbaPainel, type AcoesLogistica, type CadastrosLogistica, type ConflitosLogistica,
 } from './contexto';
 import { ListaConflitos } from './Conflitos';
-import { ObservacoesProgramacao } from './ObservacoesProgramacao';
+import { ObservacoesProgramacao, type PessoaMarcavel } from './ObservacoesProgramacao';
 
 const autoria = (rotulo: string, ref: RefPessoa | null, em: number | null, cadastros: CadastrosLogistica) => {
   if (!ref) return null;
@@ -21,13 +21,15 @@ const autoria = (rotulo: string, ref: RefPessoa | null, em: number | null, cadas
 };
 
 /** Os campos do Quadro, um embaixo do outro, e as observações; abre pela linha ou pela barra do calendário. */
-export function PainelProgramacao({ programacao, aba, onAba, observacoes, eu, cadastros, todosConflitos, acoes, onFechar }: {
+export function PainelProgramacao({ programacao, aba, onAba, observacoes, eu, cadastros, marcaveis, todosConflitos, acoes, onFechar }: {
   programacao: Programacao | null;
   aba: AbaPainel;
   onAba: (aba: AbaPainel) => void;
   observacoes: readonly Observacao[];
   eu: RefPessoa;
   cadastros: CadastrosLogistica;
+  /** Quem pode ser marcado com @ nas observações. */
+  marcaveis: readonly PessoaMarcavel[];
   /** Inclusive os ignorados, com "Voltar a avisar". */
   todosConflitos: ConflitosLogistica;
   acoes: AcoesLogistica;
@@ -53,7 +55,7 @@ export function PainelProgramacao({ programacao, aba, onAba, observacoes, eu, ca
             </button>
           </nav>
           {aba === 'observacoes' ? (
-            <ObservacoesProgramacao programacaoId={programacao.id} observacoes={observacoes} eu={eu} cadastros={cadastros} podeEditar={acoes.podeEditar} />
+            <ObservacoesProgramacao programacaoId={programacao.id} observacoes={observacoes} eu={eu} cadastros={cadastros} marcaveis={marcaveis} podeEditar={acoes.podeEditar} />
           ) : (
             <>
               {lista.length > 0 && (

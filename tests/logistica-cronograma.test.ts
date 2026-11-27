@@ -20,6 +20,7 @@ import { linkDoQuadro, ORIGENS } from '../src/features/cronograma-logistica/doma
 import { coordenadaCurta, linkDoMapa, textoLocal } from '../src/features/cronograma-logistica/domain/local';
 import { detalheDoVeiculo, itensUsados, partesDaCopia } from '../src/features/cronograma-logistica/domain/preencher';
 import { feriadoEm, feriadosDoAno, fimDeSemana, pascoa } from '../src/features/cronograma-logistica/domain/feriados';
+import { buscaDaMarca, marcarTexto, partesDoTexto, textoComNomes } from '../src/features/cronograma-logistica/domain/mencoes';
 
 const programacao = (id: string, extra: Partial<Programacao> = {}): Programacao => ({
   id, cod: null, codAntigo: null, semanaId: '2026-W45', item: `Item ${id}`, status: '', inicio: null, fim: null,
@@ -447,4 +448,22 @@ test('duplicar: a cópia leva período, pessoas, obra, veículos e local, em par
   const copia = Object.assign({}, ...partesDaCopia(original));
   const conflitos = conflitosPorProgramacao([original, programacao('c', { item: original.item, ...copia, posicao: 1 })]);
   assert.ok((conflitos.get('c') ?? []).some((conflito) => conflito.outraId === 'o'));
+});
+
+test('observações: @Nome escolhido vira @{uid} (o nome mais longo primeiro), quem saiu do texto não fica marcado', () => {
+  const escolhidos = [{ uid: 'a', nome: 'Ana' }, { uid: 'ap', nome: 'Ana Paula' }, { uid: 'b', nome: 'Bia' }];
+  assert.deepEqual(marcarTexto('Falar com @Ana Paula e @Ana; @Ana de novo', escolhidos), {
+    texto: 'Falar com @{ap} e @{a}; @{a} de novo', marcados: ['ap', 'a'],
+  });
+  assert.deepEqual(marcarTexto('sem marca', escolhidos), { texto: 'sem marca', marcados: [] });
+  const nomes: Record<string, string> = { a: 'Ana', ap: 'Ana Paula' };
+  assert.equal(textoComNomes('Falar com @{ap} e @{a}', (uid) => nomes[uid]), 'Falar com @Ana Paula e @Ana');
+  assert.deepEqual(partesDoTexto('Oi @{a}, ver'), [{ texto: 'Oi ' }, { uid: 'a' }, { texto: ', ver' }]);
+});
+
+test('observações: o "@termo" antes do cursor abre a lista; e-mail e texto sem @ não', () => {
+  assert.deepEqual(buscaDaMarca('Falar com @an', 13), { termo: 'an', inicio: 10 });
+  assert.deepEqual(buscaDaMarca('@', 1), { termo: '', inicio: 0 });
+  assert.equal(buscaDaMarca('mail ana@ledur', 14), null);
+  assert.equal(buscaDaMarca('Falar com @Ana Paula', 20), null);
 });
