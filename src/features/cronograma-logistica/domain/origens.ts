@@ -20,14 +20,17 @@ export const ORIGENS: readonly { chave: ChaveColuna | 'criadoModificado'; titulo
     chave: 'auxiliar', titulo: 'Auxiliar',
     origem: { tipo: 'quadro', id: '1793804423534753', nome: 'Banco de Currículos - RH Ledur', detalhe: 'Os itens do quadro, com a coluna "Função Desejada".' },
   },
-  { chave: 'veiculos', titulo: 'Veículos', origem: { tipo: 'colecao', nome: 'veiculos-v2', detalhe: 'Os ativos (cadastro da Frota).' } },
+  {
+    chave: 'veiculos', titulo: 'Veículos',
+    origem: { tipo: 'colecao', nome: 'veiculos-v2', detalhe: 'Os ativos (cadastro da Frota). Na lista, embaixo do nome: cadastro.empresa | capacidades.cargaLiquida | capacidades.munck.' },
+  },
   { chave: 'obra', titulo: 'Obra', origem: { tipo: 'colecao', nome: 'obras-v2', detalhe: 'As não finalizadas (contratos do quadro GESTÃO DE OBRAS).' } },
   {
     chave: 'local', titulo: 'Local',
     origem: { tipo: 'outro', detalhe: 'Link do Google Maps colado, ou a coordenada do LOTE da obra (obras-v2); cidade e estado pelo OpenStreetMap.' },
   },
   { chave: 'status', titulo: 'Status', origem: { tipo: 'colecao', nome: 'logistica-config/status', detalhe: 'As etiquetas, editáveis na própria coluna.' } },
-  { chave: 'nota', titulo: 'Nota', origem: { tipo: 'outro', detalhe: 'O PDF enviado, guardado no Storage (logistica/notas/).' } },
+  { chave: 'nota', titulo: 'Nota', origem: { tipo: 'outro', detalhe: 'Os PDFs enviados (até 10), guardados no Storage (logistica/notas/).' } },
   { chave: 'criadoModificado', titulo: 'Criado por / Modificado por', origem: { tipo: 'colecao', nome: 'funcionarios', detalhe: 'Quem gravou, pelo nome no cadastro.' } },
 ];
 

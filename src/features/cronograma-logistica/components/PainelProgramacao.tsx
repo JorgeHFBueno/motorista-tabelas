@@ -6,6 +6,7 @@ import { textoCodigo } from '../domain/codigo';
 import { MAX_VEICULOS, type Observacao, type Programacao, type RefPessoa } from '../domain/models';
 import { rotuloSemana } from '../domain/semanas';
 import { CampoEscolha, CampoEscolhaVarios, CampoLocal, CampoNota, CampoPeriodo, CampoStatus, CampoTexto } from './campos';
+import { LISTA_ITENS } from '../domain/preencher';
 import {
   opcaoObra, opcaoPessoa, opcoesVeiculos, refCadastro, refPessoa, refsCadastro,
   type AbaPainel, type AcoesLogistica, type CadastrosLogistica, type ConflitosLogistica,
@@ -43,7 +44,7 @@ export function PainelProgramacao({ programacao, aba, onAba, observacoes, eu, ca
             <button type="button" className="lg-btn-icone" onClick={onFechar} aria-label="Fechar"><CloseRounded /></button>
           </div>
           {acoes.podeEditar
-            ? <CampoTexto className="lg-painel-titulo" valor={programacao.item} obrigatorio maximo={200} onSalvar={(item) => acoes.atualizar(programacao.id, { item })} />
+            ? <CampoTexto className="lg-painel-titulo" valor={programacao.item} obrigatorio maximo={200} sugestoes={LISTA_ITENS} onSalvar={(item) => acoes.atualizar(programacao.id, { item })} />
             : <span className="lg-input lg-painel-titulo lg-so-ler-texto">{programacao.item}</span>}
           <nav className="lg-painel-abas" aria-label="Seções">
             <button type="button" className={aba === 'programacao' ? 'on' : ''} onClick={() => onAba('programacao')}>Programação</button>

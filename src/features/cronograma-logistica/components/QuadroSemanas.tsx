@@ -1,5 +1,6 @@
 import ChatBubbleOutlineRounded from '@mui/icons-material/ChatBubbleOutlineRounded';
 import ChevronRightRounded from '@mui/icons-material/ChevronRightRounded';
+import ContentCopyRounded from '@mui/icons-material/ContentCopyRounded';
 import DeleteOutlineRounded from '@mui/icons-material/DeleteOutlineRounded';
 import DragIndicatorRounded from '@mui/icons-material/DragIndicatorRounded';
 import ExpandMoreRounded from '@mui/icons-material/ExpandMoreRounded';
@@ -14,6 +15,7 @@ import { MAX_VEICULOS, type Programacao, type RefPessoa } from '../domain/models
 import { posicaoAoSoltar } from '../domain/ordem';
 import { rotuloSemana } from '../domain/semanas';
 import { CampoEscolha, CampoEscolhaVarios, CampoLocal, CampoNota, CampoPeriodo, CampoStatus, CampoTexto } from './campos';
+import { LISTA_ITENS } from '../domain/preencher';
 import { CabecalhoColuna, type MudarPrefs } from './Colunas';
 import { BotaoConflitos } from './Conflitos';
 import {
@@ -24,7 +26,7 @@ import {
 export type TipoSemana = 'futura' | 'atual' | 'anterior';
 
 const COR: Record<TipoSemana, string> = { futura: '#2e9d6f', atual: '#2f6fde', anterior: '#9699a6' };
-const LARGURA_ACAO = 40;
+const LARGURA_ACAO = 72;
 
 interface Comum {
   cadastros: CadastrosLogistica;
@@ -141,7 +143,7 @@ function LinhaProgramacao({ programacao, cadastros, conflitos, todosConflitos, a
               </span>
             )}
             {acoes.podeEditar
-              ? <CampoTexto valor={programacao.item} obrigatorio maximo={200} onSalvar={(item) => atualizar({ item })} />
+              ? <CampoTexto valor={programacao.item} obrigatorio maximo={200} sugestoes={LISTA_ITENS} onSalvar={(item) => atualizar({ item })} />
               : <span className="lg-input lg-so-ler-texto" title={programacao.item}>{programacao.item}</span>}
             <button type="button" className="lg-abrir" onClick={() => acoes.abrir(programacao.id)} title="Abrir">
               <OpenInFullRounded fontSize="inherit" />
@@ -201,9 +203,14 @@ function LinhaProgramacao({ programacao, cadastros, conflitos, todosConflitos, a
       })}
       <td className="lg-col-acao">
         {acoes.podeEditar && (
-          <button type="button" className="lg-btn-icone" onClick={() => acoes.excluir(programacao)} title="Excluir" aria-label={`Excluir ${programacao.item}`}>
-            <DeleteOutlineRounded fontSize="small" />
-          </button>
+          <span className="lg-acoes-linha">
+            <button type="button" className="lg-btn-icone" onClick={() => acoes.duplicar(programacao)} title="Duplicar (a cópia entra logo abaixo, em conflito com esta)" aria-label={`Duplicar ${programacao.item}`}>
+              <ContentCopyRounded fontSize="small" />
+            </button>
+            <button type="button" className="lg-btn-icone" onClick={() => acoes.excluir(programacao)} title="Excluir" aria-label={`Excluir ${programacao.item}`}>
+              <DeleteOutlineRounded fontSize="small" />
+            </button>
+          </span>
         )}
       </td>
     </tr>
@@ -229,6 +236,7 @@ function NovaProgramacao({ onCriar, arraste, colunas }: { onCriar: (item: string
           className="lg-input lg-input-nova"
           value={texto}
           maxLength={200}
+          list={LISTA_ITENS}
           placeholder="+ Adicionar programação"
           onChange={(event) => setTexto(event.target.value)}
           onKeyDown={(event) => { if (event.key === 'Enter') criar(); if (event.key === 'Escape') setTexto(''); }}

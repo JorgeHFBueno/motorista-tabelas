@@ -12,7 +12,7 @@ import EditOutlined from '@mui/icons-material/EditOutlined';
 import PictureAsPdfOutlined from '@mui/icons-material/PictureAsPdfOutlined';
 import PlaceOutlined from '@mui/icons-material/PlaceOutlined';
 import UploadFileOutlined from '@mui/icons-material/UploadFileOutlined';
-import { useEffect, useRef, useState, type ChangeEvent, type KeyboardEvent } from 'react';
+import { useEffect, useRef, useState, type ChangeEvent, type HTMLAttributes, type KeyboardEvent } from 'react';
 import { MAX_MOTIVO_ADIAMENTO, perguntarAdiamento, textoAdiamento } from '../domain/adiamento';
 import { ddmm } from '../domain/semanas';
 import { linkDoMapa, textoLocal } from '../domain/local';
@@ -25,13 +25,15 @@ import {
 export interface Opcao { id: string; nome: string; /** Texto menor ao lado do nome na lista (ex.: a função desejada). */ detalhe?: string }
 
 /** Texto que grava ao sair do campo ou no Enter; Esc desfaz. */
-export function CampoTexto({ valor, onSalvar, placeholder, obrigatorio = false, maximo, className = '' }: {
+export function CampoTexto({ valor, onSalvar, placeholder, obrigatorio = false, maximo, className = '', sugestoes }: {
   valor: string;
   onSalvar: (valor: string) => void;
   placeholder?: string;
   obrigatorio?: boolean;
   maximo: number;
   className?: string;
+  /** Id de um <datalist> com textos para escolher (o navegador mostra os que combinam com o que se digita). */
+  sugestoes?: string;
 }) {
   const [rascunho, setRascunho] = useState(valor);
   useEffect(() => setRascunho(valor), [valor]);
@@ -47,6 +49,7 @@ export function CampoTexto({ valor, onSalvar, placeholder, obrigatorio = false, 
       value={rascunho}
       maxLength={maximo}
       placeholder={placeholder}
+      list={sugestoes}
       onChange={(event) => setRascunho(event.target.value)}
       onBlur={salvar}
       onKeyDown={(event) => {
@@ -304,6 +307,19 @@ export function CampoPeriodo({ inicio, fim, onSalvar }: {
 
 const semAcento = (texto: string) => texto.normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim().toLowerCase();
 
+/** Busca pelo nome e pelo detalhe da op\u00e7\u00e3o, sem acento. */
+const filtrarOpcoes = (lista: Opcao[], { inputValue }: { inputValue: string }) => {
+  const busca = semAcento(inputValue);
+  return busca ? lista.filter((opcao) => semAcento(`${opcao.nome} ${opcao.detalhe ?? ''}`).includes(busca)) : lista;
+};
+
+/** A op\u00e7\u00e3o na lista: o nome e, embaixo, o detalhe (a fun\u00e7\u00e3o do auxiliar; empresa, carga e munck do ve\u00edculo). */
+const linhaDaOpcao = ({ key, ...props }: HTMLAttributes<HTMLLIElement> & { key: string }, opcao: Opcao) => (
+  <li key={key} {...props}>
+    <span className="lg-opcao"><span>{opcao.nome}</span>{opcao.detalhe && <small>{opcao.detalhe}</small>}</span>
+  </li>
+);
+
 /** Escolha num cadastro, com busca. O valor atual entra nas opções mesmo que tenha saído do cadastro. */
 export function CampoEscolha({ valor, opcoes, onSalvar, rotulo }: {
   valor: Opcao | null;
@@ -320,15 +336,8 @@ export function CampoEscolha({ valor, opcoes, onSalvar, rotulo }: {
       value={valor}
       getOptionLabel={(opcao) => opcao.nome}
       isOptionEqualToValue={(opcao, atual) => opcao.id === atual.id}
-      filterOptions={(lista, { inputValue }) => {
-        const busca = semAcento(inputValue);
-        return busca ? lista.filter((opcao) => semAcento(`${opcao.nome} ${opcao.detalhe ?? ''}`).includes(busca)) : lista;
-      }}
-      renderOption={({ key, ...props }, opcao) => (
-        <li key={key} {...props}>
-          <span className="lg-opcao"><span>{opcao.nome}</span>{opcao.detalhe && <small>{opcao.detalhe}</small>}</span>
-        </li>
-      )}
+      filterOptions={filtrarOpcoes}
+      renderOption={linhaDaOpcao}
       onChange={(_event, novo) => onSalvar(novo)}
       noOptionsText="Nada encontrado"
       renderInput={(params) => (
@@ -365,6 +374,8 @@ export function CampoEscolhaVarios({ valores, opcoes, onSalvar, rotulo, maximo }
       getOptionLabel={(opcao) => opcao.nome}
       getOptionDisabled={() => cheio}
       isOptionEqualToValue={(opcao, atual) => opcao.id === atual.id}
+      filterOptions={filtrarOpcoes}
+      renderOption={linhaDaOpcao}
       onChange={(_event, novos) => onSalvar(novos.slice(0, maximo))}
       noOptionsText={cheio ? `No máximo ${maximo}` : 'Nada encontrado'}
       renderValue={(selecionados, getItemProps) => selecionados.map((opcao, indice) => {

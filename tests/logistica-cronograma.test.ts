@@ -18,6 +18,7 @@ import { perguntarAdiamento, textoAdiamento } from '../src/features/cronograma-l
 import { REGRAS, automacaoDaColuna, regraAtiva, statusPorAutomacao, textoDosTrechos } from '../src/features/cronograma-logistica/domain/automacoes';
 import { linkDoQuadro, ORIGENS } from '../src/features/cronograma-logistica/domain/origens';
 import { coordenadaCurta, linkDoMapa, textoLocal } from '../src/features/cronograma-logistica/domain/local';
+import { detalheDoVeiculo, itensUsados, partesDaCopia } from '../src/features/cronograma-logistica/domain/preencher';
 import { feriadoEm, feriadosDoAno, fimDeSemana, pascoa } from '../src/features/cronograma-logistica/domain/feriados';
 
 const programacao = (id: string, extra: Partial<Programacao> = {}): Programacao => ({
@@ -400,7 +401,10 @@ test('feriado no período vira conflito da programação, um por dia, e pode ser
 
 test('aba Colunas do botão Regras: cada coluna que puxa dados aponta a origem; quadros do Friday com link', () => {
   const porTitulo = Object.fromEntries(ORIGENS.map((item) => [item.titulo, item.origem]));
-  assert.deepEqual(porTitulo['Veículos'], { tipo: 'colecao', nome: 'veiculos-v2', detalhe: 'Os ativos (cadastro da Frota).' });
+  assert.deepEqual(porTitulo['Veículos'], {
+    tipo: 'colecao', nome: 'veiculos-v2',
+    detalhe: 'Os ativos (cadastro da Frota). Na lista, embaixo do nome: cadastro.empresa | capacidades.cargaLiquida | capacidades.munck.',
+  });
   assert.equal(porTitulo['Obra'].tipo === 'colecao' && porTitulo['Obra'].nome, 'obras-v2');
   const motorista = porTitulo['Motorista'];
   assert.equal(motorista.tipo, 'quadro');
@@ -410,4 +414,37 @@ test('aba Colunas do botão Regras: cada coluna que puxa dados aponta a origem; 
   for (const { chave } of ORIGENS) assert.ok(chave === 'criadoModificado' || COLUNAS.some((coluna) => coluna.chave === chave), chave);
   // Os trechos das regras viram o texto do raio do cabeçalho.
   assert.equal(textoDosTrechos(['o ', { coluna: 'Status' }, ' recebe ', { aviso: 'X' }, ' em ', { status: 'Ag. NF' }]), 'o Status recebe "X" em Ag. NF');
+});
+
+test('veículo na lista: empresa | carga | munck (veiculos-v2, capacidades ×10), sem o que faltar', () => {
+  assert.equal(detalheDoVeiculo({ cadastro: { empresa: 'LEDUR' }, capacidades: { cargaLiquida: 120, munck: 85 } }), 'LEDUR | Carga 12 | Munck 8,5');
+  assert.equal(detalheDoVeiculo({ cadastro: { empresa: ' ARTEBASE ' }, capacidades: { cargaLiquida: 140, munck: null } }), 'ARTEBASE | Carga 14');
+  assert.equal(detalheDoVeiculo({ cadastro: { empresa: null }, capacidades: { munck: 30 } }), 'Munck 3');
+  assert.equal(detalheDoVeiculo({}), '');
+});
+
+test('Item: os textos já escritos viram sugestões, sem repetir e do mais usado para o menos usado', () => {
+  const linhas = ['Transporte de material', ' transporte de material ', 'Transporte de material', 'FÉRIAS', 'Montagem', 'FÉRIAS', 'Férias', '  ']
+    .map((item) => ({ item }));
+  assert.deepEqual(itensUsados(linhas), ['FÉRIAS', 'Transporte de material', 'Montagem']);
+  assert.deepEqual(itensUsados([]), []);
+});
+
+test('duplicar: a cópia leva período, pessoas, obra, veículos e local, em partes; não leva status, expedição, nota nem adiamento', () => {
+  const original = programacao('o', {
+    item: 'Transporte', inicio: '2026-11-24', fim: '2026-11-25', status: '3', expedicao: 'EXP 1', adiamento: 'adiada de 20/11 (4 dias), pelo motivo de x',
+    motorista: { id: 'm1', nome: 'M' }, veiculos: [{ id: 'v1', nome: 'V' }], obra: { id: 'o1', nome: 'O' },
+    notas: [{ caminho: 'logistica/notas/o/1.pdf', url: 'u', nome: '1.pdf', tamanho: 1 }], conflitosIgnorados: ['p:m1|x'],
+  });
+  assert.deepEqual(partesDaCopia(original), [
+    { inicio: '2026-11-24', fim: '2026-11-25', motorista: { id: 'm1', nome: 'M' }, obra: { id: 'o1', nome: 'O' } },
+    { veiculos: [{ id: 'v1', nome: 'V' }] },
+  ]);
+  const local = { link: 'https://maps', lat: -29, lng: -53, cidade: 'X', uf: 'RS' };
+  assert.deepEqual(partesDaCopia(programacao('l', { local })), [{ local }]);
+  assert.deepEqual(partesDaCopia(programacao('vazia')), []);
+  // Na mesma semana e com o mesmo motorista e veículo, a cópia nasce em conflito com a original.
+  const copia = Object.assign({}, ...partesDaCopia(original));
+  const conflitos = conflitosPorProgramacao([original, programacao('c', { item: original.item, ...copia, posicao: 1 })]);
+  assert.ok((conflitos.get('c') ?? []).some((conflito) => conflito.outraId === 'o'));
 });

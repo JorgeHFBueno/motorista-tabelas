@@ -20,7 +20,7 @@ import { BotaoRegras } from './components/Regras';
 import { QuadroSemanas } from './components/QuadroSemanas';
 import { usePrefsColunas } from './components/usePrefsColunas';
 import {
-  abrirSemana, atualizarProgramacao, converterCodigo, criarProgramacao, darCodigo, enviarNota, ignorarConflito, localDoMaps, pessoasDoFriday, type PessoasFriday, excluirProgramacao, observarEtiquetas, observarObservacoes,
+  abrirSemana, atualizarProgramacao, converterCodigo, criarProgramacao, darCodigo, duplicarProgramacao, enviarNota, ignorarConflito, localDoMaps, pessoasDoFriday, type PessoasFriday, excluirProgramacao, observarEtiquetas, observarObservacoes,
   type PapeisAvisos, observarProgramacoes, observarSemanas, salvarEtiquetas, observarAtribuidosNota, removerNota, salvarAtribuidosNota,
 } from './data/logisticaFirestore';
 import { statusPorAutomacao } from './domain/automacoes';
@@ -28,6 +28,8 @@ import { semCodigoEmOrdem } from './domain/codigo';
 import { ETIQUETAS_PADRAO, statusAoSalvarEtiquetas, statusEncerrado, type EtiquetaStatus } from './domain/status';
 import { chaveConflito, conflitosAtivos, conflitosPorProgramacao } from './domain/conflitos';
 import { linkDoMapa } from './domain/local';
+import { posicaoEntre } from './domain/ordem';
+import { detalheDoVeiculo, itensUsados, LISTA_ITENS, partesDaCopia } from './domain/preencher';
 import type { Observacao, Programacao, RefPessoa, Semana } from './domain/models';
 import { hojeCivil, organizarSemanas, proximaSemanaParaAbrir, rotuloSemana, semanaIdDe, vindasDeAntes } from './domain/semanas';
 import './logistica.css';
@@ -166,7 +168,11 @@ export default function LogisticaCronogramaPage() {
     return {
       motoristas: motoristas.map((pessoa) => ({ id: pessoa.id, nome: pessoa.nome })),
       auxiliares: auxiliares.map((pessoa) => ({ id: pessoa.id, nome: pessoa.nome, ...(pessoa.funcao ? { detalhe: pessoa.funcao } : {}) })),
-      veiculos: veiculos.filter((veiculo) => veiculo.ativo).map((veiculo) => ({ id: veiculo.id, nome: itemFrotaLabel(veiculo) })),
+      // Embaixo do nome, na lista: empresa, carga líquida e munck (veiculos-v2), como a função do auxiliar.
+      veiculos: veiculos.filter((veiculo) => veiculo.ativo).map((veiculo) => {
+        const detalhe = detalheDoVeiculo(veiculo.raw);
+        return { id: veiculo.id, nome: itemFrotaLabel(veiculo), ...(detalhe ? { detalhe } : {}) };
+      }),
       obras: obras.map((obra) => ({ id: obra.id, nome: obraLabel(obra) })),
       etiquetas,
       nomePessoa: (id, retrato) => nomePessoa.get(id) ?? retrato,
@@ -177,6 +183,8 @@ export default function LogisticaCronogramaPage() {
 
   const lotesPorObra = useMemo(() => new Map((cadastrosBrutos?.obras ?? []).map((obra) => [obra.id, obra.lotes])), [cadastrosBrutos]);
   const lista = useMemo(() => programacoes ?? [], [programacoes]);
+  // Coluna Item: os textos já escritos viram sugestões (o mais usado primeiro), para escrever igual.
+  const itens = useMemo(() => itensUsados(lista), [lista]);
   // Quem pode estar em cada papel do Atribuir: ADMINISTRATIVO, quem tem a área Logística; ENGENHARIA, a Engenharia (adm2 nos dois).
   const pessoasDosPapeis = useMemo(() => {
     const pessoas = cadastrosBrutos?.pessoas ?? [];
@@ -220,6 +228,7 @@ export default function LogisticaCronogramaPage() {
   const acoes = useMemo<AcoesLogistica>(() => (!podeEditar ? {
     podeEditar: false,
     criar: () => undefined,
+    duplicar: () => undefined,
     atualizar: () => undefined,
     enviarNotas: () => Promise.resolve(),
     removerNota: () => undefined,
@@ -235,6 +244,17 @@ export default function LogisticaCronogramaPage() {
     criar: (semanaId, item) => {
       const posicao = Date.now();
       filaCriacao.current = filaCriacao.current.then(() => criarProgramacao(semanaId, item, posicao, eu)).catch(falhar('criar a programação'));
+    },
+    // A cópia entra logo abaixo da original, na semana dela, com código novo e sem status; nasce em conflito com a
+    // original (mesmas pessoas e veículos no mesmo período) e fica destacada, para achar.
+    duplicar: (programacao) => {
+      const daSemana = (programacoes ?? []).filter((item) => item.semanaId === programacao.semanaId).sort((a, b) => a.posicao - b.posicao);
+      const seguinte = daSemana.find((item) => item.posicao > programacao.posicao);
+      const posicao = posicaoEntre(programacao.posicao, seguinte?.posicao ?? null);
+      filaCriacao.current = filaCriacao.current
+        .then(() => duplicarProgramacao(programacao, partesDaCopia(programacao), posicao, eu))
+        .then((id) => { setAba('quadro'); setDestaque(id); })
+        .catch(falhar('duplicar a programação'));
     },
     // As automações (domain/automacoes.ts) mudam o Status na mesma gravação.
     atualizar: (id, alteracao) => {
@@ -310,6 +330,7 @@ export default function LogisticaCronogramaPage() {
       </header>
 
       {erro && <Alert severity="error" onClose={() => setErro(null)} className="lg-erro">{erro}</Alert>}
+      <datalist id={LISTA_ITENS}>{itens.map((item) => <option key={item} value={item} />)}</datalist>
 
       {carregando ? (
         <p className="lg-vazio">Carregando o cronograma…</p>

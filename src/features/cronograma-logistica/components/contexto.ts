@@ -25,6 +25,8 @@ export interface AcoesLogistica {
   /** Área Logística em "editar" (ou adm2). Em "ver", a tela só mostra: nenhum campo, botão ou arraste grava. */
   podeEditar: boolean;
   criar: (semanaId: string, item: string) => void;
+  /** Copia a linha logo abaixo dela (domain/preencher.ts: partesDaCopia), com código novo. */
+  duplicar: (programacao: Programacao) => void;
   atualizar: (id: string, alteracao: Partial<ProgramacaoEditavel>) => void;
   excluir: (programacao: Programacao) => void;
   abrir: (id: string, aba?: AbaPainel) => void;

@@ -256,6 +256,18 @@ export async function criarProgramacao(semanaId: string, item: string, posicao: 
 }
 
 /**
+ * Duplica a linha: cria a cópia (com o item e o próximo código da semana) e grava as partes dela uma de cada vez
+ * (domain/preencher.ts: partesDaCopia). Devolve o id da cópia.
+ */
+export async function duplicarProgramacao(
+  programacao: Pick<Programacao, 'semanaId' | 'item'>, partes: readonly Partial<ProgramacaoEditavel>[], posicao: number, eu: RefPessoa,
+): Promise<string> {
+  const id = await criarProgramacao(programacao.semanaId, programacao.item, posicao, eu);
+  for (const parte of partes) await atualizarProgramacao(id, parte, eu);
+  return id;
+}
+
+/**
  * Dá código a uma linha de antes do código (uma vez; quem chegar depois, noutra aba, não faz nada). Só o código muda:
  * não é alteração de ninguém, então não assina (as regras aceitam o código sozinho).
  */

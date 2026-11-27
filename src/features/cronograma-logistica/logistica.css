@@ -77,6 +77,7 @@
 .lg-tabela tbody tr:hover td { background: #f9fafc; }
 .lg-tabela tr.is-conflito td { background: var(--lg-alerta-fundo); }
 .lg-col-acao { text-align: center; }
+.lg-acoes-linha { display: inline-flex; gap: 2px; }
 .lg-tabela tr .lg-col-acao .lg-btn-icone { opacity: 0; }
 .lg-tabela tr:hover .lg-col-acao .lg-btn-icone, .lg-tabela .lg-col-acao .lg-btn-icone:focus-visible { opacity: 1; }
 .lg-item { display: flex; align-items: center; gap: 2px; padding-right: 4px; }
