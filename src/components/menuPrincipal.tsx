@@ -165,7 +165,7 @@ export const menuPrincipal: MenuPrincipalItem[] = [
     ],
   },
   {
-    // ERP próprio (2026-11-24): área ERP (o adm2 sempre); ícone: o L da Ledur (2026-11-27). The Manuscript, 01_ROTAS_E_NAVEGACAO.md#erp.
+    // ERP próprio (2026-11-24): área ERP (o adm2 sempre); ícone: o círculo e o L da marca ERP Ledur (2026-11-27). The Manuscript, 01_ROTAS_E_NAVEGACAO.md#erp.
     label: 'ERP',
     icon: <IconeErp fontSize="large" />,
     color: '#EEF2F6',
