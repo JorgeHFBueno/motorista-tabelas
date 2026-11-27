@@ -18,7 +18,7 @@ export type FiltroRel = {
   tipo: 'empresa' | 'tipoEstoque' | 'grupo' | 'categoria' | 'marca' | 'produto' | 'fornecedor' | 'pessoa' | 'tipoProduto' | 'data' | 'opcoes'
     | 'caixa' | 'texto' | 'inteiro';
   opcoes?: Array<{ valor: string; rotulo: string }>;
-  /** 'hoje', 'inicio_mes', 'fim_mes', 'inicio_ano' ou o valor. */
+  /** 'hoje', 'mais_30' (hoje + 30 dias), 'inicio_mes', 'fim_mes', 'inicio_ano' ou o valor. */
   padrao?: string;
   /** Sem "Todos" nas opções. */
   obrigatorio?: true;
@@ -79,6 +79,7 @@ export function padraoDoFiltro(f: FiltroRel): string {
   const [ano, mes] = [Number(dia.slice(0, 4)), Number(dia.slice(5, 7))];
   switch (f.padrao) {
     case 'hoje': return dia;
+    case 'mais_30': return new Date(Date.parse(`${dia}T12:00:00Z`) + 30 * 86400000).toISOString().slice(0, 10);
     case 'inicio_mes': return `${dia.slice(0, 7)}-01`;
     case 'fim_mes': return new Date(Date.UTC(ano, mes, 0)).toISOString().slice(0, 10);
     case 'inicio_ano': return `${ano}-01-01`;

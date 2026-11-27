@@ -4,9 +4,10 @@ import { PESSOAS_EXEMPLO, UFS } from '../pessoas/pessoasExemplo';
 import {
   abreviatura, AVISO_TITULOS, BANCOS, CENTROS_CUSTO, PLANOS_TITULOS, SITUACOES_TITULO, TITULOS_EXEMPLO, type TituloExemplo,
 } from './titulosExemplo';
+import { CONTAS_BANCO, PROJECOES_EXEMPLO, saldoDaConta } from './fluxoExemplo';
 
 // Relatórios de Contas a Pagar/Receber do ERP (2026-11-27): as definições do ERP do Samuel (server/src/erp/relatorios/
-// financeiro.ts: contas_pagar_receber e baixas_periodo, tela FN_Relatorios do Elevor) com os mesmos filtros e colunas, na
+// financeiro.ts: contas_pagar_receber e baixas_periodo, tela FN_Relatorios do Elevor, e fluxo_caixa, RL_FluxoCaixa, desde 2026-11-27) com os mesmos filtros e colunas, na
 // tela de relatório do ERP (ErpRelatorioEstoquePage.tsx). A conta, que lá é SQL, aqui roda sobre os títulos de exemplo
 // (titulosExemplo.ts). The Manuscript, 03_APLICACAO_WEB/01_ROTAS_E_NAVEGACAO.md#erp.
 
@@ -174,5 +175,97 @@ export const RELATORIOS_FINANCEIRO: RelatorioDef[] = [
     },
   },
 ];
+
+// ---------------- Fluxo de Caixa ----------------
+
+const maisDiasUtc = (dia: string, n: number) => new Date(Date.parse(`${dia}T12:00:00Z`) + n * 86400000).toISOString().slice(0, 10);
+/** Início do período do dia (dia, semana de segunda, quinzena 1–15/16–fim ou mês) e o rótulo dele. */
+function periodo(dia: string, agrupar: string): { chave: string; rotulo: string } {
+  if (agrupar === 'mes') return { chave: `${dia.slice(0, 7)}-01`, rotulo: `${dia.slice(5, 7)}/${dia.slice(0, 4)}` };
+  if (agrupar === 'quinzena') {
+    const segunda = Number(dia.slice(8, 10)) > 15;
+    return { chave: `${dia.slice(0, 7)}-${segunda ? '16' : '01'}`, rotulo: `${segunda ? '2ª' : '1ª'} quinzena ${dia.slice(5, 7)}/${dia.slice(0, 4)}` };
+  }
+  if (agrupar === 'semana') {
+    const semana = new Date(Date.parse(`${dia}T12:00:00Z`)).getUTCDay();
+    const inicio = maisDiasUtc(dia, -((semana + 6) % 7));
+    return { chave: inicio, rotulo: `Semana de ${inicio.slice(8, 10)}/${inicio.slice(5, 7)}` };
+  }
+  return { chave: dia, rotulo: dataBr(dia) };
+}
+
+/** Linhas do Fluxo de Caixa: saldo nos bancos na véspera, atrasados e cada período, com o saldo acumulado. */
+export function fluxoDeCaixa(f: Valores): LinhaRel[] {
+  const de = f.de || hoje();
+  const ate = f.ate || maisDiasUtc(de, 30);
+  const agrupar = f.agrupar || 'dia';
+  const contas = CONTAS_BANCO.filter((c) => !f.empresa || c.empresa === Number(f.empresa));
+  const saldoInicial = r2(contas.reduce((s, c) => s + saldoDaConta(c.conta, de), 0));
+  type Soma = { rec: number; pag: number; pr: number; pp: number };
+  const grupos = new Map<string, Soma & { rotulo: string }>();
+  const somar = (dia: string, v: Partial<Soma>) => {
+    const atrasado = dia < de;
+    const p = atrasado ? { chave: '', rotulo: `Atrasados (antes de ${de.slice(8, 10)}/${de.slice(5, 7)})` } : periodo(dia, agrupar);
+    const g = grupos.get(p.chave) ?? { rotulo: p.rotulo, rec: 0, pag: 0, pr: 0, pp: 0 };
+    grupos.set(p.chave, { ...g, rec: g.rec + (v.rec ?? 0), pag: g.pag + (v.pag ?? 0), pr: g.pr + (v.pr ?? 0), pp: g.pp + (v.pp ?? 0) });
+  };
+  for (const t of TITULOS_EXEMPLO) {
+    const dia = t.programacao || t.vencimento;
+    if (t.cancelado || t.saldo <= 0 || dia > ate || (f.empresa && t.empresa !== Number(f.empresa))) continue;
+    somar(dia, t.tipo === 'R' ? { rec: t.saldo } : { pag: t.saldo });
+  }
+  if (f.projecoes === 'true') {
+    for (const x of PROJECOES_EXEMPLO) {
+      if (x.efetivada || x.vencimento > ate || (f.empresa && x.empresa !== Number(f.empresa))) continue;
+      somar(x.vencimento, x.tipo === 'R' ? { pr: x.valor } : { pp: x.valor });
+    }
+  }
+  // Projeção Pagamentos/Recebimentos: o valor estimado entra em todos os períodos do intervalo.
+  const fixoPag = numero(f.projPag?.replace(/\./g, ''));
+  const fixoRec = numero(f.projRec?.replace(/\./g, ''));
+  if (fixoPag || fixoRec) {
+    const vistos = new Set<string>();
+    for (let d = de; d <= ate; d = maisDiasUtc(d, 1)) {
+      const p = periodo(d, agrupar);
+      if (vistos.has(p.chave)) continue;
+      vistos.add(p.chave);
+      somar(d, { pp: fixoPag, pr: fixoRec });
+    }
+  }
+  const linhas: LinhaRel[] = [];
+  if (f.resumoBancos === 'true') {
+    for (const c of contas) linhas.push({ periodo: c.conta, recebimentos: null, pagamentos: null, projReceber: null, projPagar: null, saldoPeriodo: null, saldoAcumulado: saldoDaConta(c.conta, de) });
+  }
+  linhas.push({ periodo: `Saldo nos bancos até ${dataBr(maisDiasUtc(de, -1))}`, recebimentos: null, pagamentos: null, projReceber: null, projPagar: null, saldoPeriodo: null, saldoAcumulado: saldoInicial });
+  let acumulado = saldoInicial;
+  for (const [, g] of [...grupos.entries()].sort((a, b) => a[0].localeCompare(b[0]))) {
+    const saldo = r2(g.rec + g.pr - g.pag - g.pp);
+    acumulado = r2(acumulado + saldo);
+    linhas.push({ periodo: g.rotulo, recebimentos: r2(g.rec), pagamentos: r2(g.pag), projReceber: r2(g.pr), projPagar: r2(g.pp), saldoPeriodo: saldo, saldoAcumulado: acumulado });
+  }
+  return linhas;
+}
+
+RELATORIOS_FINANCEIRO.push({
+  id: 'fluxo-caixa', titulo: 'Relatório de Fluxo de Caixa', elevor: 'RL_FluxoCaixa', aviso: AVISO_TITULOS,
+  ajuda: 'Saldo de hoje nos bancos + o que falta receber − o que falta pagar, pela data de programação ou vencimento. Atrasados entram na primeira linha. Projeção Pagamentos/Recebimentos: valor estimado somado em cada período. As projeções cadastradas (Projeções Fluxo de Caixa) entram nas colunas de projeção.',
+  filtros: [
+    EMPRESA,
+    { nome: 'de', rotulo: 'Período', tipo: 'data', padrao: 'hoje', par: 'ate' },
+    { nome: 'ate', rotulo: 'a', tipo: 'data', padrao: 'mais_30' },
+    { nome: 'agrupar', rotulo: 'Tipo Período', tipo: 'opcoes', padrao: 'dia', obrigatorio: true, opcoes: ops(['dia', 'Diário'], ['semana', 'Semanal'], ['quinzena', 'Quinzenal'], ['mes', 'Mensal']) },
+    { nome: 'resumoBancos', rotulo: 'Resumo Bancos', tipo: 'caixa' },
+    { nome: 'projPag', rotulo: 'Projeção Pagamentos', tipo: 'texto', largura: 100 },
+    { nome: 'projRec', rotulo: 'Projeção Recebimentos', tipo: 'texto', largura: 100 },
+    { nome: 'projecoes', rotulo: 'Incluir as projeções cadastradas', tipo: 'caixa', padrao: 'true', mais: true },
+  ],
+  colunas: [
+    { nome: 'periodo', rotulo: 'Período' }, { nome: 'recebimentos', rotulo: 'A receber', tipo: 'moeda', total: true },
+    { nome: 'pagamentos', rotulo: 'A pagar', tipo: 'moeda', total: true }, { nome: 'projReceber', rotulo: 'Projeção receber', tipo: 'moeda', total: true },
+    { nome: 'projPagar', rotulo: 'Projeção pagar', tipo: 'moeda', total: true }, { nome: 'saldoPeriodo', rotulo: 'Saldo do período', tipo: 'moeda', total: true },
+    { nome: 'saldoAcumulado', rotulo: 'Saldo acumulado', tipo: 'moeda' },
+  ],
+  gerar: fluxoDeCaixa,
+});
 
 export const relatorioFinanceiro = (id: string | undefined) => RELATORIOS_FINANCEIRO.find((r) => r.id === id) ?? null;

@@ -3,7 +3,8 @@ import { test } from 'node:test';
 import {
   FILTRO_TITULOS, filtrarTitulos, parcelasDaCondicao, parcelasDoDocumento, TITULOS_EXEMPLO, titulosDaNota, vencido,
 } from '../src/features/erp/financeiro/titulosExemplo';
-import { relatorioFinanceiro } from '../src/features/erp/financeiro/relatoriosFinanceiro';
+import { CONTAS_BANCO, filtrarProjecoes, FILTRO_PROJECOES, PROJECOES_EXEMPLO, saldoDaConta } from '../src/features/erp/financeiro/fluxoExemplo';
+import { fluxoDeCaixa, relatorioFinanceiro } from '../src/features/erp/financeiro/relatoriosFinanceiro';
 import { NOTAS_EXEMPLO } from '../src/features/erp/notas/notasExemplo';
 
 // Contas a Pagar/Receber do ERP em demonstração (The Manuscript, 03_APLICACAO_WEB/01_ROTAS_E_NAVEGACAO.md#erp).
@@ -94,4 +95,33 @@ test('Pagamentos e Recebimentos do Período: one line per payment, grouped by ac
   assert.ok(l.every((x) => typeof x.grupo === 'string' && String(x.grupo).startsWith('CONTA MOVIMENTO') && typeof x.recibo === 'number'));
   assert.equal(Math.round(l.reduce((s, x) => s + Number(x.pago), 0) * 100) / 100, Math.round(baixas.reduce((s, b) => s + b.valor, 0) * 100) / 100);
   assert.ok(def.gerar({ empresa: '', tipo: 'R', de: '', ate: '', conta: '', pessoa: '', quebra: 'dia' }).length > 0);
+});
+
+test('Fluxo de Caixa: bank balance, overdue first, running balance and projections', () => {
+  const f = { empresa: '', de: '2026-11-27', ate: '2026-12-31', agrupar: 'mes', resumoBancos: '', projPag: '', projRec: '', projecoes: 'true' };
+  const linhas = fluxoDeCaixa(f);
+  const inicial = CONTAS_BANCO.reduce((s, c) => s + saldoDaConta(c.conta, '2026-11-27'), 0);
+  assert.equal(linhas[0].periodo, 'Saldo nos bancos até 26/11/2026');
+  assert.ok(Math.abs(Number(linhas[0].saldoAcumulado) - inicial) < 0.01);
+  assert.match(String(linhas[1].periodo), /^Atrasados/);
+  // O saldo acumulado da última linha = saldo inicial + tudo o que entra − tudo o que sai.
+  const resto = linhas.slice(1);
+  const liquido = resto.reduce((s, l) => s + Number(l.saldoPeriodo), 0);
+  assert.ok(Math.abs(Number(linhas[linhas.length - 1].saldoAcumulado) - (inicial + liquido)) < 0.01);
+  const abertos = TITULOS_EXEMPLO.filter((t) => !t.cancelado && t.saldo > 0 && (t.programacao || t.vencimento) <= '2026-12-31');
+  const soma = (k: string) => Math.round(resto.reduce((s, l) => s + Number(l[k]), 0) * 100) / 100;
+  assert.equal(soma('pagamentos'), Math.round(abertos.filter((t) => t.tipo === 'P').reduce((s, t) => s + t.saldo, 0) * 100) / 100);
+  const pendentes = PROJECOES_EXEMPLO.filter((p) => !p.efetivada && p.vencimento <= '2026-12-31');
+  assert.equal(soma('projPagar'), pendentes.filter((p) => p.tipo === 'P').reduce((s, p) => s + p.valor, 0));
+  assert.equal(fluxoDeCaixa({ ...f, projecoes: '' }).slice(1).reduce((s, l) => s + Number(l.projPagar), 0), 0);
+  // Projeção fixa: entra em cada mês do intervalo (novembro e dezembro).
+  assert.equal(fluxoDeCaixa({ ...f, projecoes: '', projPag: '1.000' }).slice(1).reduce((s, l) => s + Number(l.projPagar), 0), 2000);
+  assert.equal(fluxoDeCaixa({ ...f, resumoBancos: 'true' }).length, linhas.length + CONTAS_BANCO.length);
+  assert.ok(fluxoDeCaixa({ ...f, agrupar: 'semana' }).some((l) => String(l.periodo).startsWith('Semana de ')));
+});
+
+test('Projeções: pending by default; efetivadas apart', () => {
+  assert.ok(filtrarProjecoes(FILTRO_PROJECOES).every((p) => !p.efetivada));
+  assert.ok(filtrarProjecoes({ ...FILTRO_PROJECOES, efetivada: 'sim' }).every((p) => p.efetivada));
+  assert.ok(relatorioFinanceiro('fluxo-caixa'));
 });

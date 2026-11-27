@@ -361,6 +361,25 @@
 .erp-elevor .divisoria { border: 0; border-top: 1px solid var(--divisoria); margin: 12px 0; }
 .erp-elevor .baixa-titulos + .grade { margin: 8px auto 0; max-width: 1100px; }
 
+/* Projeções Fluxo de Caixa (FN_Projecoes), medidas do ERP do Samuel */
+.erp-elevor .prj-filtros { margin: 8px 0 14px; }
+.erp-elevor .prj-linha { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 10px; }
+.erp-elevor .prj-rotulo { min-width: 70px; }
+.erp-elevor .prj-filtros .link-botao { margin: 2px 0 6px; display: inline-flex; align-items: center; gap: 2px; padding-left: 0; }
+.erp-elevor .prj-botoes { display: flex; gap: 6px; margin-left: 12px; flex-wrap: wrap; }
+.erp-elevor .campo.prj-empresa { width: 300px; }
+.erp-elevor .campo.prj-w348 { width: 348px; max-width: 100%; }
+.erp-elevor .campo.prj-w448 { width: 448px; max-width: 100%; }
+.erp-elevor .campo.prj-w185 { width: 185px; }
+.erp-elevor .campo.prj-valor { width: 100px; }
+.erp-elevor .prj-mais .prj-rotulo { min-width: 120px; }
+.erp-elevor .grade.prj-grade td { vertical-align: middle; }
+.erp-elevor .prj-tipo { display: inline-block; width: 22px; height: 22px; line-height: 22px; text-align: center; border-radius: 50%; color: #fff; font-size: 11px; font-weight: 700; }
+.erp-elevor .prj-tipo.pagar { background: var(--ledur-destructive); }
+.erp-elevor .prj-tipo.receber { background: var(--ledur-success); }
+.erp-elevor .prj-icone, .erp-elevor .prj-marca { width: 34px; }
+.erp-elevor .prj-acoes { display: flex; gap: 8px; margin: 14px 0; flex-wrap: wrap; }
+
 @media (max-width: 900px) {
   .erp-elevor .consulta-titulos .ct-topo, .erp-elevor .consulta-titulos .ct-mais { grid-template-columns: minmax(0, 1fr); }
   .erp-elevor .consulta-titulos .ct-resto, .erp-elevor .consulta-titulos .ct-span2 { grid-column: auto; }
